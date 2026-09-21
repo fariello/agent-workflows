@@ -38,7 +38,22 @@ UNASSIGNED_MARKER = "E-NEW"
 _SECTION_BODY = {
     S.H_WORKFLOW_HISTORY: "- {date} draft ({author}): created.",
     S.H_GOAL: "TODO: one or two sentences on what this plan achieves and why.",
-    S.H_PROJECT_CONVENTIONS: "- TODO: relevant conventions discovered during Step 0.",
+    S.H_PROJECT_CONVENTIONS: (
+        # citeanchor mzc019 E-02: the anchor convention is emitted HERE, in the skeleton an author
+        # reads while writing Findings, and not only in the spec, because an author writing a Findings
+        # table is not reading the IPD spec at that moment. Measured on the pending corpus: 81 of 89
+        # plans carry `file:line` citations, so the current DEFAULT behavior is to reach for an offset,
+        # and the scaffold is the surface that changes a default. ONE LINE ON PURPOSE: the skeleton's
+        # value is that it gets read, and every line added lowers the odds the next one is.
+        #
+        # DO NOT add this string to `_AUTHORING_PLACEHOLDERS` below. That tuple means "still a stub";
+        # this is PERMANENT guidance an author is not expected to delete, so listing it would make
+        # every plan look forever-unfinished and silence the `check.ipd-draft-ready-to-review` nudge.
+        "- TODO: relevant conventions discovered during Step 0.\n"
+        "- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number "
+        "only appended to one of those and never alone: an offset expires before this plan executes "
+        "(spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`)."
+    ),
     S.H_FINDINGS: "TODO: findings table or notes.",
     S.H_PROPOSED: "TODO: ordered, validatable proposed changes.",
     S.H_DEFERRED: "TODO: deferred / out of scope, with reason (or 'none').",

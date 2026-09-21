@@ -80,6 +80,12 @@ C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
 C_SCOPE_PATHS = "IPD-M106"  # Scope-Paths declared-scope allowlist (Order oorry1)
 C_NAME = "IPD-N001"  # filename does not match the plan grammar (awcheck Order 03)
+# IPD-C8xx is the CITATION-ANCHOR area, opened fresh by citeanchor `mzc019` rather than extending
+# IPD-I3xx (the id-family group, which concerns E-*/V-* identifiers and has nothing to do with
+# citations). Codes are stable and are NEVER recycled; IPD-D701 is RETIRED and must not be revived.
+C_CITATION_ANCHOR = (
+    "IPD-C801"  # a code citation carrying no durable anchor (spec Section 10.2)
+)
 
 
 def _name_conformant(path: Path, legacy: bool) -> bool:
@@ -764,6 +770,171 @@ def check_density(doc: ParsedDoc) -> List[Diagnostic]:
     return advisories
 
 
+# --------------------------------------------------------------------------------------
+# Citation anchors (citeanchor `mzc019`; spec Section 10.2) - ADVISORY, date-gated
+# --------------------------------------------------------------------------------------
+#
+# WHAT THIS RULE IS FOR. A citation of the form `somefile.py:897-905` is true only at the instant it
+# is written, and the plan pipeline is deliberately longer than that instant: a plan is authored,
+# reviewed (often twice), approved, and executed days later while other agents commit to the same
+# files. By execution time the offset names different code.
+#
+# THE FAILURE IS SILENT MISDIRECTION, NOT A DANGLING POINTER, and that is why this rule keys on the
+# anchor's FORM and never on whether the target resolves. A drifted offset almost never points at
+# nothing; it points at OTHER, VALID, PLAUSIBLE-LOOKING code, so the executor reads the wrong
+# construct and believes the plan described it. Measured on plan `216rgg` before it executed: its
+# cross-type citation landed on a `seen_ids` dictionary initialization instead of the branch it
+# described, and its `doctor.py` citation landed on a BLANK LINE. Scanning the same corpus for
+# PROVABLY dead citations found almost none, which is the symptom restated rather than reassurance.
+#
+# REVIEW CANNOT FIX THIS, which is why the check exists at all: `216rgg` was reviewed twice and its
+# own history records that every line number in it was measured at HEAD. That was TRUE when written.
+#
+# THE NAIVE FORM OF THIS TEST IS PROVABLY USELESS, and avoiding it is the substance of the
+# implementation below. "Is there a backticked token on the same line?" was MEASURED over the whole
+# pending corpus at HEAD 55324de2: only 3 of 2304 structural citations (0%) would flag, because a
+# citation is nearly always written in backticks itself and a file path is itself a dotted token. That
+# form cannot even flag the `216rgg` cell this rule was written from. So the candidate-anchor set
+# EXCLUDES (a) the matched citation text, (b) a backticked bare file path, and (c) a backticked bare
+# line range (the filename-less continuation form, e.g. `:906-915`). What remains and counts as
+# durable is a QUALIFIED IDENTIFIER (`module.function`, `Class.method`) or a QUOTED CONTENT STRING.
+# Measured with that correction on the same corpus: 1078 of 2304 (47%) flag, the `216rgg` Findings-row
+# cell and its prose sentence BOTH flag, and its E-01 bullet correctly does NOT (it names
+# `check_engine.check_collisions` beside the offset, the compliant (a)+(c) form).
+#
+# A MARKDOWN TABLE ROW IS JUDGED PER CELL, not per line, so one column's symbol cannot vouch for a
+# bare offset several columns away. That is the same "symbol nearby" fallacy measured at 0% above,
+# just at row scale; the `216rgg` Findings row is the concrete case (its Evidence cell carries
+# `check_collisions` while its Location cell carries only the bare offset).
+#
+# ADVISORY ONLY, NEVER GATING, for a reason this repository has already paid for: `check.setid-collision`
+# shipped at `error` for behavior later ruled CORRECT, and backlog `gjadwm` records that a gate which
+# false-positives trains agents to bypass it. A citation-form heuristic over prose WILL have false
+# positives. Note `ipd_lint` does not call `artifact_core.drift_exit_code`; it reaches the same outcome
+# by carrying a finding in `LintResult.advisories`, which never flips the disposition. Emit there.
+_CITATION_SRC_EXT = (
+    r"(?:py|md|json|jsonl|toml|sh|yml|yaml|txt|cfg|ini|lock|html|css|js|ts|tsx|rs|go"
+    r"|c|h|cpp|java|sql)"
+)
+#: A `path/to/file.ext:123` or `path/to/file.ext:123-456` citation.
+_CITATION_RE = re.compile(r"\b[\w./-]*[\w-]\." + _CITATION_SRC_EXT + r":\d+(?:-\d+)?\b")
+_BACKTICK_TOKEN_RE = re.compile(r"`([^`]+)`")
+#: A backticked BARE line range (`:906-915`) - the filename-less continuation form. NOT an anchor.
+_BARE_LINE_RANGE_RE = re.compile(r"^:\d+(?:-\d+)?$")
+#: A backticked BARE file path (`check_engine.py`) with no offset and no symbol. NOT an anchor: it
+#: names the file the citation already named.
+_BARE_PATH_RE = re.compile(r"^[\w./-]*[\w-]\." + _CITATION_SRC_EXT + r"$")
+#: A QUALIFIED identifier (`module.function`, `Class.method`, `pkg.mod.CONST`). IS an anchor.
+_QUALIFIED_IDENT_RE = re.compile(r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$")
+
+#: citeanchor `mzc019` E-04. The authoring-date cutover: a plan dated BEFORE this is SUPPRESSED.
+#:
+#: The DATE MECHANISM is borrowed from `check_engine`'s durable-carrier rule (a module-level compact
+#: `YYYYMMDD` constant plus a per-plan helper). Its SEVERITY LADDER is deliberately NOT borrowed.
+#: `carrier_severity_for_plan` DOWNGRADES a pre-cutover plan to `info` and still EMITS the finding;
+#: this rule is `info` in BOTH tiers, so a downgrade would be a no-op and the gate must SUPPRESS
+#: instead - a pre-cutover plan yields NOTHING AT ALL. Do not "restore parity" with the carrier rule:
+#: that would reintroduce roughly a thousand advisories on plans nobody is editing, and a diagnostic
+#: that fires mostly on untouchable history is one every reader learns to skip, destroying the value
+#: of the one finding that matters.
+#:
+#: SET STRICTLY AFTER THE NEWEST PLAN DATE PRESENT AT EXECUTION TIME, re-measured rather than
+#: inherited. Measured over the 89 pending plans at HEAD 55324de2: the newest `- Date:` is
+#: 2026-09-20, so `20260919` (the carrier constant's value, which this plan's review suggested) would
+#: have fired on plans authored after that review. A later re-measurement must move this forward the
+#: same way rather than assuming this value still holds.
+CITATION_ANCHOR_CUTOVER_DATE = "20260921"  # compact YYYYMMDD
+
+_CITATION_PLAN_DATE_RE = re.compile(r"(?m)^- Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
+
+
+def _citation_anchor_applies(doc: ParsedDoc) -> bool:
+    """True when this plan is POST-cutover and therefore subject to the citation-anchor advisory.
+
+    A plan with NO parseable `- Date:` is treated as PRE-cutover (suppressed). That direction is
+    copied from the carrier precedent and for its stated reason: `IPD-M101` already owns the
+    missing-`Date` complaint, so this rule must not invent a second consequence for the same defect.
+    """
+    raw = doc.meta_fields.get("Date")
+    if not raw:
+        return False
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", str(raw).strip())
+    if m is None:
+        return False
+    return "{0}{1}{2}".format(*m.groups()) >= CITATION_ANCHOR_CUTOVER_DATE
+
+
+def _citation_units(line: str) -> List[str]:
+    """The text spans a citation is judged against: a table row's CELLS, else the whole line."""
+    stripped = line.strip()
+    if stripped.startswith("|"):
+        return stripped.strip("|").split("|")
+    return [line]
+
+
+def _has_durable_anchor(unit: str) -> bool:
+    """True when ``unit`` carries a durable anchor BESIDE its citation (spec Section 10.2 (a)/(b))."""
+    for token in _BACKTICK_TOKEN_RE.findall(unit):
+        tok = token.strip()
+        if not tok:
+            continue
+        if _CITATION_RE.search(tok):
+            continue  # the citation itself is not evidence that the citation is anchored
+        if _BARE_LINE_RANGE_RE.match(tok):
+            continue  # `:906-915` - a second offset, not an anchor
+        if _BARE_PATH_RE.match(tok):
+            continue  # `check_engine.py` - names the file the citation already named
+        if re.search(r"\s", tok):
+            return True  # a quoted content string (Section 10.2 (b))
+        if _QUALIFIED_IDENT_RE.match(tok):
+            return True  # `module.function` / `Class.method` (Section 10.2 (a))
+    return False
+
+
+def check_citation_anchors(doc: ParsedDoc, text: str) -> List[Diagnostic]:
+    """Advisory: a code citation with no durable anchor beside it (spec Section 10.2, `IPD-C801`).
+
+    Returns ADVISORY diagnostics only; the caller must place them in ``LintResult.advisories`` so the
+    conformance disposition and process exit status are untouched.
+
+    REUSES ``_structural_lines`` rather than re-implementing fence detection, which is what makes a
+    citation inside a fenced block, an indented pasted traceback, YAML front matter, or a block quote
+    exempt for free. Re-implementing it is how a rule starts flagging pasted diagnostics, whose
+    offsets are the FACT being reported (the Section 10.2 line-as-subject exception).
+
+    KNOWN AND ACCEPTED LIMIT, recorded so it is not later filed as a bug: the helper's unit is a LINE,
+    so a multi-line E-item whose symbol sits on the first line and whose offset sits on an indented
+    continuation line is judged per line, and the continuation flags. That is a false positive. It is
+    precisely why this rule is `info` and must not be promoted to a gating severity without the
+    measurement the plan's deferred row demands.
+    """
+    if not _citation_anchor_applies(doc):
+        return []
+    out: List[Diagnostic] = []
+    for lineno, line in _structural_lines(text):
+        for unit in _citation_units(line):
+            if not _CITATION_RE.search(unit):
+                continue
+            if _has_durable_anchor(unit):
+                continue
+            for m in _CITATION_RE.finditer(unit):
+                out.append(
+                    Diagnostic(
+                        lineno,
+                        1,
+                        C_CITATION_ANCHOR,
+                        "citation '{0}' has no durable anchor: name the SYMBOL "
+                        "(`module.function`) or quote a unique content string, and keep the line "
+                        "number only as a trailing convenience. A bare offset expires before this "
+                        "plan executes and then misdirects the executor to unrelated valid code "
+                        "(spec ipd-structure-and-linting Section 10.2).".format(
+                            m.group(0)
+                        ),
+                    )
+                )
+    return out
+
+
 # rdattest: `- Readiness:` is a REVIEW OUTPUT, not an authoring field, and this rule is the only thing
 # that says so mechanically.
 #
@@ -1142,6 +1313,10 @@ def lint_text(
     disposition = S.DISPOSITION_CONFORMING if not diags else S.DISPOSITION_ERROR
     advisories = check_density(doc) + scope_advisory + dep_advisory
     advisories += _draft_ready_advisory(doc, text, checkpoint)
+    # citeanchor `mzc019` E-03/E-04: ADVISORY-ONLY by construction. It is appended to `advisories`
+    # and NEVER to `diags`, so `disposition` (computed above) cannot see it and the exit status cannot
+    # move. Date-gated inside the check itself, so a pre-cutover plan contributes nothing.
+    advisories += check_citation_anchors(doc, text)
     return LintResult(disposition, diags, advisories)
 
 
@@ -1398,6 +1573,35 @@ BOUNDARY_TEXT = (
 _NON_IPD_BASENAMES = frozenset(("README.md", "STATUS.md", "INDEX.md"))
 
 
+# citeanchor `mzc019` E-05: the advisory codes whose text is printed in DEFAULT human output.
+#
+# WHY THIS EXISTS. Without it, E-03 would ship a nudge that nudges nobody. The per-advisory render
+# lines below are gated `if has_adv and detail`, where `detail` comes from `--detail`/`--long`; with no
+# flag the entire finding collapses into the single word `advisory` in the status line, carrying NO
+# code and NO message. Measured on the one pending plan then carrying advisories (`5e4sb6`, two
+# `IPD-Z602` findings): the default invocation printed one line ending `advisory` and zero finding
+# lines. An author who does not know to pass a flag they have no reason to suspect learns nothing, and
+# the whole premise of the scaffold line is that the author MEETS the rule.
+#
+# DELIBERATELY NARROW, AND THE NARROWNESS IS THE POINT. Only the codes listed here become verbose by
+# default. `IPD-Z602`'s existing default-quiet behavior is unchanged, because making EVERY advisory
+# verbose by default would change unrelated output for every plan in the tree - a separate decision
+# with its own blast radius. Adding a code here is a deliberate act; do not widen it to a blanket.
+#
+# THIS CHANGES ONLY WHAT IS PRINTED. Exit status and disposition do not move (an advisory never
+# reaches `diagnostics`), and the `--agent`/`--json` paths already emit every advisory unconditionally
+# with `severity: "info"`, so they need no change and must not gain one.
+_ALWAYS_VISIBLE_ADVISORY_CODES = frozenset((C_CITATION_ANCHOR,))
+
+
+def _visible_advisories(advisories: List[Diagnostic], detail: bool) -> List[Diagnostic]:
+    """The advisories to print in human mode: all of them with ``--detail``, else only the
+    always-visible codes (citeanchor `mzc019` E-05)."""
+    if detail:
+        return list(advisories)
+    return [a for a in advisories if a.code in _ALWAYS_VISIBLE_ADVISORY_CODES]
+
+
 def _iter_plan_files(root: Path) -> List[Path]:
     # Layout-aware (IPD awretrofit Order 01): resolve .aw/records/plans with a legacy
     # .agents/plans read-fallback, so `aw ipd lint --all` scans the migrated tree instead of
@@ -1620,8 +1824,8 @@ def run_lint(args: argparse.Namespace) -> int:
                                 else f"     ! {rule_str}: {d.message}"
                             )
                             term.line(diag_txt)
-                    if has_adv and detail:
-                        for a in res.advisories:
+                    if has_adv:
+                        for a in _visible_advisories(res.advisories, detail):
                             loc_str = f"line {a.line}" if a.line else ""
                             rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
                             adv_txt = (
@@ -1726,8 +1930,8 @@ def run_lint(args: argparse.Namespace) -> int:
                             else f"     ! {rule_str}: {d.message}"
                         )
                         term.line(diag_txt)
-                if has_adv and detail:
-                    for a in res.advisories:
+                if has_adv:
+                    for a in _visible_advisories(res.advisories, detail):
                         loc_str = f"line {a.line}" if a.line else ""
                         rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
                         adv_txt = (

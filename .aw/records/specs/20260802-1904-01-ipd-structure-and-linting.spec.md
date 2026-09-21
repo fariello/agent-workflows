@@ -474,6 +474,7 @@ For a new or migrated IPD, it MUST check at least:
 15. persisted status, directory, plan kind, requested checkpoint, and legacy applicability are compatible;
 16. terminal status, history, directory, and lifecycle-commit metadata agree at `post-transition` to the extent repository state makes them deterministically observable (`IPD-S405`: an executed plan carries an `executed` workflow-history entry);
 17. RETIRED: the no-em/en-dash style rule (formerly rule code IPD-D701) is no longer checked by this command. The no-dash convention is a user-facing prose rule only (GUIDING_PRINCIPLES P13, the AGENTS.md execution contract); IPDs are internal/AI-facing artifacts, so the linter does not flag dashes in them. Any other Markdown style rules delegated to this command are applied only to authored prose outside code, with front matter values exempted by schema and other explicitly excluded constructs.
+18. code citations in authored prose carry a DURABLE ANCHOR (Section 10.2), surfaced advisory-only (`IPD-C801`) and gated on an authoring-date cutover so plans predating the rule are silent.
 
 The linter MAY detect exact prohibited lifecycle commands or reserved markers inside the execution checklist, but it MUST NOT claim semantic certainty that arbitrary prose does or does not describe a lifecycle transition. The template excludes terminal transition from the execution list; semantic review enforces the general prohibition.
 
@@ -501,6 +502,24 @@ A passing lint means only that the document conforms to the modeled structural a
 - truth, relevance, independence, or sufficiency of observed evidence;
 - correctness of blocking/nonblocking classification;
 - successful execution outside deterministically observable repository state.
+
+### 10.2 Code-citation anchors (a citation MUST name something that survives to execution)
+
+An IPD cites code so that a LATER reader (a reviewer, and above all an executor) can find the construct the author was describing. A bare `file:line` reference cannot serve that purpose, because it is true only at the instant it is written and an IPD is deliberately read long after that instant: a plan is authored, reviewed, approved, and then executed days later, while other agents commit to the same files in a shared checkout.
+
+THE FAILURE MODE IS SILENT MISDIRECTION, NOT A DANGLING POINTER, AND THAT IS WHY THE RULE KEYS ON FORM AND NOT ON RESOLVABILITY. A drifted line number almost never points at nothing; it points at OTHER, VALID, PLAUSIBLE-LOOKING code. A reference that dangles announces itself and costs a reader one search. A reference that has DRIFTED announces nothing, so the reader studies the wrong construct, believes the plan described it, and reasons onward from a false premise. Measured on plan `216rgg` in this repository: every core code anchor it carried had drifted before it executed; one landed on a dictionary initialization instead of the branch it described, and another landed on a blank line. Scanning the same corpus for PROVABLY dead citations (file gone, or line past end of file) found almost none, which is the symptom restated rather than reassurance: an offset stays syntactically valid while becoming semantically wrong.
+
+REVIEW IS NOT THE REMEDY, which is why this is a contract rule rather than a reviewer instruction. `216rgg` was reviewed twice and its history records that every line number in it was measured at HEAD. That record was TRUE when written. No amount of verification can preserve a reference type that expires by construction.
+
+Therefore an IPD citing a location in code MUST anchor it durably, in this order of preference:
+
+- (a) a SYMBOL PATH: `module.function`, `Class.method`, a rule-registry row named by its rule id, a dict key, a module-level constant. A symbol survives insertion, deletion, reflow, and a file move.
+- (b) a QUOTED CONTENT STRING unique enough to locate by search, for a construct with no symbol of its own. For a branch, cite the literal it emits (for example, the branch whose message contains `different type`).
+- (c) a LINE NUMBER only as a trailing convenience APPENDED to (a) or (b), never as the sole anchor. `check_engine.check_collisions` (`check_engine.py:897-905`) is conforming; `check_engine.py:897-905` alone is not.
+
+THE ONE LEGITIMATE EXCEPTION, stated so the rule is not read as absolute: a citation whose SUBJECT IS THE LINE ITSELF is correctly a line number. A lint diagnostic's reported position, a traceback frame, and a diff hunk quoted as evidence are all reporting an offset as the FACT AT ISSUE rather than using it as a pointer to a construct. The same applies to a point-in-time findings report about a tree at a known commit, which is consumed in the sitting it is written in.
+
+ENFORCEMENT IS ADVISORY-ONLY AND DATE-GATED, deliberately. Any check on citation FORM is a heuristic over prose, so it will produce false positives (prose that legitimately mentions an offset, a quoted diagnostic). A gate that false-positives trains authors to bypass it, so the linter surfaces this as an `info` advisory (`IPD-C801`) that never changes the conformance disposition or the process exit status. It is additionally suppressed for any plan whose `- Date:` precedes the rule's cutover, so it reports on plans being AUTHORED rather than on a corpus nobody is editing; a plan with no parseable `- Date:` is treated as pre-cutover, because the missing-`Date` complaint is already owned by `IPD-M101` and this rule must not invent a second consequence for it. Existing citations are NOT retrofitted: they were true when written, and rewriting them across in-flight plans would risk corrupting evidence in work being executed. The correct posture toward an older plan's offset is to treat it as a HINT and locate the construct by symbol or by searching for the quoted message.
 
 ## 11. Lifecycle gate and terminal transaction
 
@@ -785,3 +804,4 @@ After the IPD-system Set lands:
 ## Workflow history
 
 - 2026-08-26 note (aw specs): Section 11: begin baseline dirty-check is Scope-Paths-scoped (path-overlap, ipdgates-03 OQ-01), not whole-tree; disjoint dirt allowed to preserve concurrent multi-agent workflow (beginscope vaq9qf E-03)
+- 2026-09-21 note (aw specs): Section 10.2 added (citeanchor mzc019 E-01): an IPD code citation MUST carry a durable anchor (symbol path, or a quoted content string, with a line number only appended and never alone), because a bare file:line expires between authoring and execution and then silently misdirects an executor to unrelated valid code. States the rationale, the (a)/(b)/(c) preference order, the line-as-subject exception, and that enforcement is advisory-only (IPD-C801) and date-gated. Section 10 list item 18 appended to point at it; no existing item renumbered.

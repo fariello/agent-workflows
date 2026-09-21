@@ -1883,6 +1883,408 @@ class DensityAdvisoryLintTests(unittest.TestCase):
             self.assertIn("IPD-Z602", out_detail)
 
 
+class CitationAnchorAdvisoryTests(unittest.TestCase):
+    """citeanchor `mzc019`: the citation-anchor advisory (IPD-C801, spec Section 10.2).
+
+    THE DETECTOR'S DISCRIMINATION IS THE SUBJECT, not merely that it fires. The naive form of this
+    rule ("is there a backticked token on the same line?") was measured over the whole pending corpus
+    and flagged 3 of 2304 structural citations, because a citation is normally written in backticks
+    itself and a file path is itself a dotted token. That form could not flag the `216rgg` cell this
+    rule was written from. So the rows below pin the EXCLUSIONS that make the difference (the citation
+    itself, a bare path, a bare line range) alongside the positives, and a separate test reproduces
+    `216rgg`'s real drifted citations as the anti-regression case.
+    """
+
+    #: The date used for a POST-cutover fixture. Derived from the constant so moving the cutover
+    #: forward cannot silently turn every row below into a vacuous pass.
+    POST_CUTOVER_DATE = "{0}-{1}-{2}".format(
+        int(L.CITATION_ANCHOR_CUTOVER_DATE[:4]) + 1,
+        L.CITATION_ANCHOR_CUTOVER_DATE[4:6],
+        L.CITATION_ANCHOR_CUTOVER_DATE[6:8],
+    )
+
+    def _plan(self, body: str, *, date=None) -> str:
+        """A conforming child plan whose Findings section carries ``body``."""
+        text = _conforming_child().replace(
+            "## Findings\n\n- x", "## Findings\n\n" + body
+        )
+        return text.replace(
+            "- Date: 2026-08-03",
+            "- Date: " + (date if date is not None else self.POST_CUTOVER_DATE),
+        )
+
+    def _advisories(self, body: str, *, date=None, phase="author"):
+        text = self._plan(body, date=date)
+        res = L.lint_text(text, checkpoint=phase, directory="pending")
+        return res, [a for a in res.advisories if a.code == L.C_CITATION_ANCHOR]
+
+    #: (case, the Findings body, how many IPD-C801 advisories are expected, why this row exists)
+    ANCHORS = (
+        (
+            "a bare file:line with nothing beside it",
+            "- the defect is at foo.py:123 and must be fixed",
+            1,
+            "THE BASE CASE: an offset alone is the reference type that expires. If this row stops "
+            "firing the rule is dead and every other row passes vacuously",
+        ),
+        (
+            "a QUALIFIED symbol and no offset at all",
+            "- the defect is in `check_engine.check_collisions` and must be fixed",
+            0,
+            "THE COMPLIANT (a) FORM: a symbol survives insertion, deletion and a file move, so it "
+            "needs no offset and must draw nothing",
+        ),
+        (
+            "a qualified symbol PLUS a trailing offset",
+            "- the defect is in `check_engine.check_collisions` (`check_engine.py:897-905`)",
+            0,
+            "THE RULE KEYS ON A MISSING ANCHOR, NOT ON THE DIGITS. Section 10.2 (c) blesses an "
+            "offset appended to a symbol, so a rule that fired here would be telling authors to "
+            "delete useful information",
+        ),
+        (
+            "a quoted CONTENT STRING beside the offset",
+            "- the branch whose message contains `different type` at `check_engine.py:897-905`",
+            0,
+            "THE COMPLIANT (b) FORM, for a construct with no symbol of its own: the emitted literal "
+            "is greppable, which is exactly what an offset is not",
+        ),
+        (
+            "an offset whose only companion is a BARE PATH in backticks",
+            "- see `check_engine.py` at `check_engine.py:120` for detail",
+            1,
+            "ANTI-REGRESSION FOR THE MEASURED 99% FALSE-NEGATIVE: a backticked bare path is what the "
+            "citation ALREADY names, so counting it as an anchor is what made the naive form flag 3 "
+            "of 2304 citations. This row is the difference between a working rule and a decorative one",
+        ),
+        (
+            "an offset whose only companion is a BARE LINE RANGE in backticks",
+            "- the within-type branch (`:906-915`) at `check_engine.py:897`",
+            1,
+            "THE SAME FAILURE IN ITS OTHER COMMON SHAPE: the filename-less continuation form is a "
+            "SECOND offset, not an anchor, and the corpus carries it in bulk. Dropping this row "
+            "restores the false negative for every multi-location citation",
+        ),
+        (
+            "a citation inside a FENCED block",
+            "```text\nfoo.py:123\n```",
+            0,
+            "THE FENCE EXEMPTION, obtained by reusing `_structural_lines` rather than re-implementing "
+            "fence detection. A quoted diagnostic's offset is the FACT being reported (Section 10.2's "
+            "line-as-subject exception), so flagging it would make the rule fire on its own evidence",
+        ),
+        (
+            "a citation inside a 4-space INDENTED block",
+            '    File "foo.py:123", line 123, in main',
+            0,
+            "THE OTHER EXCLUDED REGION, pinned separately because a pasted traceback is indented "
+            "rather than fenced and is the single most likely false positive in a real plan",
+        ),
+        (
+            "a bare offset on a plan dated BEFORE the cutover",
+            "- the defect is at foo.py:123 and must be fixed",
+            0,
+            "E-04's SUPPRESSION, as a column on the same body as the base row: the identical text "
+            "flags post-cutover and is silent pre-cutover. Without this the first run reports roughly "
+            "a thousand advisories on plans nobody can edit, and a rule that fires mostly on "
+            "untouchable history is one every reader learns to skip",
+        ),
+    )
+
+    def test_the_rule_flags_a_missing_anchor_and_never_the_digits(self):
+        """One table over the detector, its exclusions, and its date gate.
+
+        THE EXCLUSIONS SHARE THE TABLE WITH THE POSITIVES DELIBERATELY. The interesting property is
+        not that a bare offset flags, it is that a bare PATH and a bare RANGE do not rescue it while a
+        SYMBOL does. Those are four answers from one candidate-anchor set, so they belong in one table;
+        apart, each read as a separate fact rather than as the discrimination the rule is made of.
+
+        Every row also asserts the advisory NEVER reaches `diagnostics` and the disposition stays
+        CONFORMING, because a citation-form heuristic over prose will have false positives and a gate
+        that false-positives trains authors to bypass it.
+        """
+        wrong = []
+        base_row_broken = False
+        for case, body, count, why in self.ANCHORS:
+            date = "2026-08-03" if "BEFORE the cutover" in case else None
+            res, found = self._advisories(body, date=date)
+            problems = []
+            if len(found) != count:
+                if count == 1 and "bare file:line with nothing" in case:
+                    base_row_broken = True
+                problems.append(
+                    f"expected {count} {L.C_CITATION_ANCHOR} advisory/advisories, got "
+                    f"{len(found)}: {[a.render('t') for a in found]!r}"
+                )
+            if res.diagnostics:
+                problems.append(
+                    "this rule must NEVER produce a blocking diagnostic, and this row has "
+                    f"{[d.render('t') for d in res.diagnostics]!r}"
+                )
+            if res.disposition != S.DISPOSITION_CONFORMING or not res.passing:
+                problems.append(
+                    f"expected a CONFORMING, passing result; got {res.disposition!r}, "
+                    f"passing={res.passing}"
+                )
+            for advisory in found:
+                if advisory.line <= 0:
+                    problems.append(
+                        "the advisory must carry a real line number so an editor can jump to it; "
+                        f"got line {advisory.line}"
+                    )
+                if "durable anchor" not in advisory.message:
+                    problems.append(
+                        f"the advisory must say WHAT is wrong; it said {advisory.message!r}"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if base_row_broken:
+            note = (
+                " NOTE: the base row is among the failures, so the detector is not firing at all and "
+                "every zero-expecting row below it is passing vacuously."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the citation-anchor rule was wrong for {len(wrong)} of {len(self.ANCHORS)} rows."
+            f"{note} One candidate-anchor set plus one date gate produces every row, so read the "
+            "grouping: the BARE PATH and BARE RANGE rows failing together means the exclusion set was "
+            "weakened back toward the naive 'is a backtick nearby' test that measured 3 of 2304 "
+            "citations on this corpus, while the SYMBOL rows failing means the rule started keying on "
+            "the digits instead of on the missing anchor and is now telling authors to delete useful "
+            f"information.\n" + "\n".join(wrong),
+        )
+
+    def test_the_216rgg_drifted_citations_flag_while_its_compliant_bullet_does_not(
+        self,
+    ):
+        """Kept separate: the subject is one REAL plan's actual text, not a synthetic fixture.
+
+        This is the headline case the rule exists for. Plan `216rgg` was approved, twice reviewed, and
+        every core anchor in it had drifted by the time it executed: its cross-type citation landed on
+        a dictionary initialization and its `doctor.py` citation on a blank line. A detector that
+        reports nothing here has reproduced the defect and must not ship, which is why this is an
+        assertion and not a comment.
+
+        THE THIRD CASE IS THE POINT AS MUCH AS THE FIRST TWO. That plan's own E-01 bullet names
+        `check_engine.check_collisions` beside its offset, which is the compliant (a)+(c) form, so a
+        rule that flagged it would be flagging correct authoring.
+        """
+        cases = (
+            (
+                "its Findings row, whose Location cell carries only the bare offset",
+                "| F-1 | HIGH | `check_engine.py:897-905` | The cross-type branch emits 38 findings "
+                "at severity `error`. | `check_collisions` run |",
+                1,
+                "A TABLE ROW IS JUDGED PER CELL. This row's Evidence cell carries "
+                "`check_collisions`, so a line-scoped test lets one column vouch for another "
+                "column's bare offset, which is the same 'symbol nearby' fallacy at row scale",
+            ),
+            (
+                "its prose sentence carrying two bare offsets",
+                "A THIRD DEFECT: `doctor.py:530` hardcodes `include_retired=True` while "
+                "`check_engine.py:1760` passes a flag defaulting to `False`.",
+                2,
+                "BOTH offsets must be reported, not just the first: each is a separate expiring "
+                "reference, and `include_retired` is a BARE identifier rather than a qualified one, "
+                "so it must not be accepted as an anchor for either",
+            ),
+            (
+                "its E-01 bullet, which names the symbol beside the offset",
+                "- E-01 REMOVE THE CROSS-TYPE EMISSION from `check_engine.check_collisions` "
+                "(`check_engine.py:897-905`).",
+                0,
+                "THE COMPLIANT FORM FROM THE SAME PLAN: the rule must distinguish the parts of a "
+                "real plan that are right from the parts that are wrong, or it is not measuring "
+                "anchor form at all",
+            ),
+        )
+        wrong = []
+        for case, body, count, why in cases:
+            _res, found = self._advisories(body)
+            if len(found) != count:
+                wrong.append(
+                    f"  {case}:\n"
+                    f"    - expected {count} advisory/advisories, got {len(found)}: "
+                    f"{[a.render('t') for a in found]!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            "the rule mishandled plan `216rgg`'s own citations, which is the case it was written "
+            "from. FIX: if the two drifted rows stopped flagging, the candidate-anchor set now "
+            "accepts something it must not (a bare identifier, a bare path, or the citation itself); "
+            "if the E-01 row started flagging, it no longer accepts a qualified symbol.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_the_pending_corpus_reports_zero_because_every_plan_predates_the_cutover(
+        self,
+    ):
+        """Kept separate: the subject is the whole tracked pending tree, not a fixture.
+
+        E-04's exemption, asserted where it actually matters. The corpus is what makes the rule
+        tolerable on its first run; a cutover that slipped behind the newest authored plan would turn
+        a quiet nudge into hundreds of findings on other agents' approved work.
+        """
+        plans = sorted(SOURCE_PLANS.glob("pending/*.ipd.md"))
+        self.assertTrue(plans, "expected a nonempty pending corpus to measure against")
+        offenders = {}
+        newest = ""
+        for path in plans:
+            text = path.read_text(encoding="utf-8")
+            doc = L.parse(text)
+            date = (doc.meta_fields.get("Date") or "").strip()
+            if re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+                newest = max(newest, date.replace("-", ""))
+            found = L.check_citation_anchors(doc, text)
+            if found:
+                offenders[path.name] = len(found)
+        self.assertEqual(
+            offenders,
+            {},
+            f"{len(offenders)} of {len(plans)} pending plans drew a {L.C_CITATION_ANCHOR} advisory, "
+            "but every plan in this corpus predates the cutover so the count must be zero. FIX: the "
+            f"cutover constant is {L.CITATION_ANCHOR_CUTOVER_DATE} and the newest plan date present "
+            f"is {newest}; if a plan now postdates the cutover this test is telling you the rule is "
+            "live on real authored work, which is the intended end state, and the assertion should "
+            "then be re-expressed as 'only post-cutover plans may appear'.",
+        )
+        self.assertGreater(
+            L.CITATION_ANCHOR_CUTOVER_DATE,
+            newest,
+            "the cutover must be STRICTLY GREATER than the newest plan date in the corpus, or the "
+            "rule fires on plans authored before it existed.",
+        )
+
+    def test_the_detector_discriminates_on_the_real_corpus_with_the_gate_disabled(self):
+        """Kept separate: measures the detector over the tracked tree with the date gate bypassed.
+
+        THE MEASUREMENT IS THE ASSERTION. A rule that reports near-zero on this corpus has reproduced
+        the very defect the rule exists to address, because 90% of these plans demonstrably anchor by
+        offset alone. The bound is a wide BAND rather than a fixed number on purpose: the corpus moves
+        hourly as agents author and execute plans, so pinning an exact count would make this test a
+        maintenance burden that gets deleted, while a band still fails loudly if the detector
+        regresses to the naive form (measured: 3 of 2304, 0%) or degenerates into flagging everything.
+        """
+        plans = sorted(SOURCE_PLANS.glob("pending/*.ipd.md"))
+        self.assertTrue(plans, "expected a nonempty pending corpus to measure against")
+        citations = 0
+        flagged = 0
+        for path in plans:
+            text = path.read_text(encoding="utf-8")
+            for _lineno, line in L._structural_lines(text):
+                for unit in L._citation_units(line):
+                    citations += len(L._CITATION_RE.findall(unit))
+                    if L._CITATION_RE.search(unit) and not L._has_durable_anchor(unit):
+                        flagged += len(L._CITATION_RE.findall(unit))
+        self.assertGreater(
+            citations,
+            500,
+            "expected the pending corpus to carry a large body of file:line citations; with too few, "
+            "the ratio below is not a measurement of anything.",
+        )
+        pct = 100.0 * flagged / citations
+        self.assertTrue(
+            5.0 <= pct <= 90.0,
+            f"the detector flagged {flagged} of {citations} citations ({pct:.0f}%) on the real "
+            "corpus, which is outside the 5-90% band this rule must land in. FIX: a result near ZERO "
+            "means the candidate-anchor set has been weakened back to 'is there a backticked token "
+            "nearby', which measured 3 of 2304 (0%) and could not flag even the `216rgg` cell this "
+            "rule was written from. A result near 100% means the exclusions broke and a compliant "
+            "symbol anchor no longer counts, which would make the advisory pure noise.",
+        )
+
+    def test_the_new_advisory_is_visible_in_default_human_output(self):
+        """Kept separate: asserts over HUMAN TERMINAL OUTPUT, and over a mode PAIR with IPD-Z602.
+
+        E-05's whole reason. Without it the finding collapses into the single word `advisory` on the
+        status line with no code and no message unless `--detail` is passed, so the nudge reaches an
+        author who does not know to pass a flag they have no reason to suspect. The `IPD-Z602` half of
+        the pair is not decoration: the fix had to be NARROW, and the only way to state "narrow" is to
+        assert that the OTHER advisory's default quietness is unchanged.
+        """
+        import tempfile
+
+        def render(text, *, detail):
+            with tempfile.TemporaryDirectory() as td:
+                d = Path(td) / ".aw" / "records" / "plans" / "pending"
+                d.mkdir(parents=True)
+                plan = d / "20260803-x-01-abc123-sample.ipd.md"
+                plan.write_text(text, encoding="utf-8")
+                ns = argparse.Namespace(
+                    phase="author",
+                    all=False,
+                    legacy=False,
+                    agent=False,
+                    no_color=True,
+                    detail=detail,
+                    path=str(plan),
+                )
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = L.run_lint(ns)
+                return rc, buf.getvalue()
+
+        anchored = self._plan("- the defect is at foo.py:123 and must be fixed")
+        rc, out = render(anchored, detail=False)
+        self.assertEqual(rc, 0, "the advisory must not move the exit status")
+        self.assertIn(
+            L.C_CITATION_ANCHOR,
+            out,
+            "the new advisory's CODE must appear in DEFAULT human output with no extra flag; "
+            f"without it the nudge reaches nobody. Output was:\n{out}",
+        )
+        self.assertIn(
+            "durable anchor",
+            out,
+            f"the advisory's MESSAGE must appear too, not just its code. Output was:\n{out}",
+        )
+
+        dense = _conforming_child().replace(
+            "- [ ] E-01 do a thing.",
+            "- [ ] E-01 add an append-only ledger AND crash recovery AND a 12-class validator",
+        )
+        rc_quiet, quiet = render(dense, detail=False)
+        self.assertEqual(rc_quiet, 0)
+        self.assertIn("advisory", quiet)
+        self.assertNotIn(
+            L.C_SIZE_DENSITY,
+            quiet,
+            "IPD-Z602's default quietness must be UNCHANGED. Making every advisory verbose by "
+            "default would change unrelated output for every plan in the tree, which is a separate "
+            f"decision with its own blast radius. Output was:\n{quiet}",
+        )
+        rc_detail, detailed = render(dense, detail=True)
+        self.assertEqual(rc_detail, 0)
+        self.assertIn(
+            L.C_SIZE_DENSITY,
+            detailed,
+            "--detail must still reveal IPD-Z602, or the narrow fix broke the general path.",
+        )
+
+    def test_the_code_is_stable_and_is_not_the_retired_one(self):
+        """Kept separate: the claim is about the MODULE's code namespace, not about any document."""
+        self.assertEqual(L.C_CITATION_ANCHOR, "IPD-C801")
+        self.assertNotEqual(
+            L.C_CITATION_ANCHOR,
+            "IPD-D701",
+            "IPD-D701 is RETIRED and must never be revived; codes are stable and are not recycled.",
+        )
+        source = Path(L.__file__).read_text(encoding="utf-8")
+        self.assertNotIn(
+            "IPD-D701 = ",
+            source,
+            "the retired code must not be reintroduced as a constant.",
+        )
+
+
 def _with_scope_paths(text: str, value) -> str:
     """Return ``text`` with a Scope-Paths metadata line set to ``value`` (or removed if None)."""
     out = []
