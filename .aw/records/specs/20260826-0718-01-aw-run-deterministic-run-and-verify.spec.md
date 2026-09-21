@@ -940,6 +940,55 @@ The following are not completion evidence:
 
 The skeptical-verifier turn is still valuable. It receives the frozen requirement set, diff, commits, and evidence manifest in a fresh session. It returns structured findings, each naming a predicate and proposed evidence. The deterministic checker independently executes or inspects those predicates. An unmachine-testable concern becomes `human_review_required`; it never becomes a fabricated deterministic pass.
 
+#### The attributed suite-attribution exception
+
+ONE NARROW EXCEPTION admits an agent's answer as an INTEGRATION input, and it is stated here rather than
+left implicit because it is the single place in this system where a claim substitutes for a green suite.
+The general boundary above is UNCHANGED: an agent's prose is still not completion evidence, and this
+exception permits INTEGRATION of a lane only, never a completion claim.
+
+WHEN IT APPLIES, and the conditions are conjunctive. The driver-run full suite did not pass; the refusal
+signal is specifically the suite-failure signal (a verifier that explicitly DECLINED is a stronger and
+more specific judgement and is never answerable by the agent it judged, and "no trust signal at all" has
+nothing to attribute); and the agent that performed the work is asked, in a closed vocabulary, whether
+the failures belong to its own change. Only two answers may release the lane. An answer asserting the
+failures are NOT the agent's releases on the answer alone. An answer asserting the agent REPAIRED them
+releases only on an OBSERVED PASSING RE-RUN of the full suite, never on the claim. An answer owning the
+failures, an answer requesting a human decision, an unparseable or absent answer, and an exhausted retry
+budget all REFUSE and preserve the lane, which is the fail-closed direction.
+
+WHAT MAKES IT ADMISSIBLE IS CAPTURED EVIDENCE, NOT PROSE. The adjudication is admissible only when the
+run durably records, beside the item's integration signal: the answer token, the agent's stated reason,
+THE FAILING TEST IDENTIFIERS THE AGENT WAS SHOWN, the session that answered, and the number and outcome
+of any suite re-runs. The failing-identifier list is load-bearing and not decoration: a count line ("1
+failed") cannot be attributed to a diff, so without the identifiers a reviewer cannot afterwards check
+the answer against the failures it was given, and the record would be the "agent-authored summary
+without captured evidence" this section already refuses. An adjudication lacking any of those fields is
+not this exception and does not release anything.
+
+WHAT IT DOES NOT RELAX. `ipd_lifecycle.finalize_precheck` applies UNCHANGED afterwards: a current begin
+receipt, the before-marking-executed lint requiring every `E-*` performed and every `V-*` passing with
+non-empty observed evidence, and the scope comparison. The merge-and-revalidate gate, the scope fence,
+the commit-content and hook checks, and the dependency checks are likewise untouched. This exception adds
+an ATTRIBUTED, REVIEWABLE input to one integration decision; it removes no gate.
+
+WHY IT EXISTS, recorded because a spec edit changes the contract every plan is reviewed against. The
+alternative was measured twice and is worse. On 2026-09-08 a single red test in a file no lane had
+touched refused ELEVEN lanes holding fully validated work, and because nothing reported the stranding one
+plan was executed twice for the same fix. On 2026-09-19 the same shape cost three correct lanes, eight
+further items cascaded to `dependency-blocked`, and a run spent 2h 10m and $55.02 producing no integrated
+work. A binary whole-repository trust signal therefore does not fail safe: it converts one unrelated
+defect into the loss of every lane in the run.
+
+THE HONEST LIMIT, stated so the exception is not trusted further than it holds. The agent may answer
+"not mine" in good faith about a failure it actually caused, because it has no baseline of the suite
+before its own work and so cannot know what was already red. The maintainer ruled on 2026-09-08 and again
+on 2026-09-20 that no programmatic gate may refuse the verdict on that basis: a pre-work baseline may be
+supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses on it. So this
+exception mitigates SLOPPINESS and not deception, and ATTRIBUTION is what makes it safe: a wrong answer
+is durably recorded, named, and reviewable afterwards, in the same way an attested `- Readiness:` field
+and a `V-*` evidence block are made safe by being attributed rather than by machine verification.
+
 ### 5.2 Safety policy
 
 #### Per-host capability descriptor
@@ -1388,6 +1437,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-21 note (aw specs): AMENDED by plan daexj1 (integearn-03) E-10: section 5.1 gains 'The attributed suite-attribution exception', a narrow named exception admitting an agent's adjudication of a FAILING SUITE as an input to the INTEGRATION decision only. Conjunctive conditions: the driver-run suite did not pass, the signal is specifically suite-failure (a declined verifier is never answerable by the agent it judged), and only two answers release (not-mine on the answer alone; a repair claim ONLY on an observed passing re-run). Admissible ONLY as CAPTURED EVIDENCE: the answer token, the reason, THE FAILING TEST IDENTIFIERS THE AGENT WAS SHOWN, the answering session, and the re-run count/outcome, all durably recorded beside the integration signal. States explicitly that ipd_lifecycle.finalize_precheck applies UNCHANGED afterwards and that no gate is removed. Section 4.2's finding-code table is BYTE-IDENTICAL (the amendment is a pure 49-line insertion, zero deletions; run_evidence.RUN_FINDING_CODES byte-equality tests pass). The general boundary sentence at 5.1 and the integration clause at 5.2 are unmodified. Records WHY (two measured incidents: eleven lanes stranded and one plan paid twice on 2026-09-08; three lanes, eight cascaded blocks and 55.02 USD for nothing on 2026-09-19) and the HONEST LIMIT (the agent has no pre-work baseline, so this mitigates sloppiness and not deception; attribution is the safeguard, per maintainer rulings 2026-09-08 and 2026-09-20 that no programmatic gate may refuse the verdict). Status NOT hand-edited; appended through aw specs note.
 - 2026-09-20 note (aw specs): Factual-status correction of all three point-in-time preamble paragraphs by plan `wenmg4` (Set `specfresh`, from backlog `sd2wz5`), on the `a59f2c53` precedent: no design text changed and the spec stays `approved`. All five enumerated infrastructure items were re-measured at `007d05e1` before editing. TWO WERE FALSE, one in each direction of harm. `From-Spec` is RECOGNIZED (`META_FROM_SPEC in META_RECOGNIZED` is True, landed `8c437188` with `check.from-spec-dangling`), so the old text would have sent a Set to add a second recognition path. The PER-HOST CAPABILITY DESCRIPTOR EXISTS and carries 13 fields including the three runner-safety ones added by `mjx7ne` (`executed`), two of them declared-and-never-probed by deliberate decision, so the old text would have sent a Set to CREATE a module that ships, which is the exact defect that destroyed `a54m79`. THREE HELD and were left alone except for one sharpening: the `AW-Run:`/`AW-Item:` trailers are built AND their writer exists (`git_commit_helper.run_item_trailers`) while NOTHING PASSES THEM (0 of 3764 commits across all refs; control key `Co-authored-by` returns 22, proving the scan non-vacuous), now attributed to plan `wao266`; the prompt `Run contract` block is absent from both drivers; `aw hooks install` does not resolve (exit 2). TWO NEIGHBORING PARAGRAPHS IN THE SAME PREAMBLE WERE STALE THE SAME WAY and are corrected here rather than left to decay. Section 2.1's grammar paragraph claimed `run unverifiable`, `--allow-unverifiable` and `--unverifiable-ok` "all grep to zero"; all three EXIST, both flags being registered argparse options on `start` AND `resume` on BOTH hosts (`implemented=True` in `runner_shared.RunPolicyFlag`), landed `08aab7ed` on 2026-09-05, the very day that paragraph was measured. Section 4.2's finding-code paragraph claimed every non-`RUN-` family "GREPS TO ZERO FILES"; four codes now appear under `agent_workflows/`, all four only inside prose comments that key on the shipped enforcer, and its `SPEC-*` count was 12 where the spec names 13, so the numbers are corrected while the RULE (a comment citation is not a binding) is unchanged. DURABILITY DECISION, which is the item's real question: option (c), an explicit point-in-time snapshot, implemented as a convention stated ONCE at the head of the preamble so it governs all THREE dated paragraphs rather than only the one that prompted the plan. Each paragraph now carries its own measurement date and, where one exists, the commit that moved it, plus the instruction to re-measure before relying on any of it. Option (a), keep correcting it, is refuted by the track record (two decays in nine days, now three in three weeks). Option (b), delete the enumeration, was rejected because it drops the anti-duplication WARNING whose value is demonstrated by `a54m79`, and the audit's own finding that reviews re-measure anyway means the list's function is to warn rather than to inform. The honest limit is recorded in the spec itself: nothing enforces these paragraphs, and no test or `aw check` rule was added, deliberately, since that is a code and design change this plan has no mandate to make. NOTE the plan text says FOUR point-in-time paragraphs; measured at `007d05e1` there are THREE (infrastructure, Section 4.2 finding codes, Section 2.1 grammar), and the convention governs all three.
 - 2026-09-19 note (aw specs): Section 2.5b ADDED and 2.1 amended by orchprobe-03 (m7gvuz): the ORCHESTRATOR COVERAGE GATE, plus its unattended half --allow-uncovered-orchestrator-work. WHY HERE: 77tr3o R-5 resolved the E/V pre-transition question as shape (b), a runner-owned rollup that SKIPS the checkpoint on the premise that an orchestrator's own items are performed by nobody; that premise was falsified in production on 2026-09-08 (rh5tt6, commit 8b4e1570). 77tr3o R-12 now makes the check OWED; this section owns its MECHANISM, beside the sibling pre-queue gates of 2.5 and 2.5a. Specified: it is a MODEL question and must not be replaced by a syntactic rule (the dangerous case is prose, and every live orchestrator carries items most of which are legitimate orchestration, so false positives would drive deletion of the child checklist); it runs once per run over the QUEUED orchestrators only, after the run directory exists and before any agent turn, worktree or session, which is a deliberate exception to the pre-durable-write ordering because it spends a model call that must be logged and its refusal must be readable in aw runs; the verdict is cached on content so a correct execution's checkbox ticks do not re-probe; a DELIVERED but unusable answer blocks while a COULD-NOT-ASK is retried to --retry-budget and then warned past with a durable hole record; the interactive phrase is 'run uncovered' and refusal starts no work at all, following 2.5 rather than 2.5a; and the refusal must name ADD A CHILD rather than a prohibition. 2.1 gains the flag and the rule that it TAKES A JUSTIFICATION STRING, the grammar's only operator-authored value: the risk accepted is that a parent's items are reported complete unperformed, so the ledger must record WHY and not merely that someone accepted it.
 - 2026-09-14 note (aw specs): AMENDED 2.1 (plan 3i0aaz, dirtybase Order 01): declared --allow-dirty-base in the 'aw <host> run <selector>' grammar stanza plus one Rules bullet. WHY: dirtybase E-03 adds a dirty-tracked-base refusal on the --no-isolate-worktree path, which nna8yz E-05 structurally could not reach (its call was gated on 'isolate'), and shipping a refusal with no sanctioned override is how an operator learns to work around a gate instead of through it. The declaration and the code registration are ATOMIC because tests/test_run_flag_surface.py reads this file in BOTH directions. Section 4.2's finding-code table and every other section are untouched; Status stays approved.
