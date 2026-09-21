@@ -884,6 +884,286 @@ class QueryGrammarTests(_RepoFixture):
         self.assertIn("sample_size", result.payload)
 
 
+# ================================================== metgap `6krsym`: the metric surface is HONEST
+def _entry(
+    run_id: str,
+    *,
+    facts: dict | None = None,
+    quality_flags: tuple[str, ...] = (),
+    is_complete: bool = True,
+) -> dict:
+    """One synthetic cache entry in the shape `_cache_entries` returns.
+
+    A SYNTHETIC ENTRY IS THE PRIMARY EVIDENCE HERE, NOT A FALLBACK. `.aw/records/runs/` is gitignored
+    and absent from every lane and fresh clone, and on an empty corpus a perfectly working metric and a
+    never-produced one return byte-identical payloads (`sample_size: 0`, `outcome: clean`, `exit 0`),
+    so a corpus-based assertion would pass before the fix and after it. Constructing the entries makes
+    the sample sizes and the absence classes known by construction.
+    """
+
+    return {
+        "schema_version": 1,
+        "run_id": run_id,
+        "is_complete": is_complete,
+        "metric_facts": dict(facts or {}),
+        "event_facts": [],
+        "quality_flags": list(quality_flags),
+        "warnings": [],
+    }
+
+
+class NumbersForTests(unittest.TestCase):
+    """THE FIRST DIRECT TEST OF `_numbers_for` (it had none), plus its new absence classification.
+
+    Measured while authoring metgap `6krsym`: zero matches for the symbol across `tests/`, so every
+    assertion below is added coverage rather than a change to pinned behavior.
+    """
+
+    def test_a_present_value_is_sampled_and_an_absent_one_is_counted_not_zeroed(self):
+        entries = [
+            _entry("run-1", facts={"cost": 2.0}),
+            _entry("run-2", facts={}),
+            _entry("run-3", facts={"cost": 4.0}),
+        ]
+        values, missing, classes = query_mod._numbers_for(entries, "cost")
+        self.assertEqual(values, [2.0, 4.0])
+        self.assertEqual(missing, 1)
+        self.assertEqual(
+            classes, [], "classification is opt-in and meaningful for tokens only"
+        )
+        self.assertNotIn(
+            0.0, values, "an absent value must never enter the sample as a zero"
+        )
+
+    def test_a_BOOLEAN_is_not_a_number_and_counts_as_missing(self):
+        """`isinstance(True, int)` is True in Python, so this guard is load-bearing."""
+
+        values, missing, _ = query_mod._numbers_for(
+            [_entry("run-1", facts={"cost": True})], "cost"
+        )
+        self.assertEqual(values, [])
+        self.assertEqual(missing, 1)
+
+    def test_the_tokens_metric_falls_back_to_token_total_and_reads_a_map_total(self):
+        entries = [
+            _entry("run-1", facts={"token_total": 120}),
+            _entry("run-2", facts={"tokens": {"input": 10, "output": 5, "total": 15}}),
+        ]
+        values, missing, _ = query_mod._numbers_for(entries, "tokens")
+        self.assertEqual(sorted(values), [15.0, 120.0])
+        self.assertEqual(missing, 0)
+
+    def test_the_absence_classes_PARTITION_the_folded_missing_count(self):
+        """The constraint that makes the new vocabulary a refinement rather than a second statistic.
+
+        Demonstrated on entries that MIX both absence kinds: on an empty corpus both sides are 0 and
+        the partition would hold trivially while proving nothing.
+        """
+
+        entries = [
+            _entry("run-1", facts={"token_total": 120}),
+            _entry(
+                "run-2",
+                facts={"quality_flags": ["tokens-nothing-to-record"]},
+            ),
+            _entry(
+                "run-3",
+                facts={"quality_flags": ["tokens-nothing-to-record"]},
+            ),
+            # NO explanatory flag: a genuine, unexplained absence.
+            _entry("run-4", facts={}),
+            _entry("run-5", facts={"quality_flags": ["tokens-run-unfinished"]}),
+        ]
+        _values, missing, classes = query_mod._numbers_for(
+            entries, "tokens", classify_absence=True
+        )
+        counts = query_mod.classify_token_absences(entries)
+        self.assertEqual(missing, 4)
+        self.assertEqual(len(classes), missing)
+        self.assertEqual(
+            counts,
+            {"not-recorded": 1, "nothing-to-record": 2, "run-unfinished": 1},
+        )
+        self.assertEqual(
+            sum(counts.values()),
+            missing,
+            "the classes must sum to the folded missing count, or one of them is lying",
+        )
+
+    def test_an_UNFLAGGED_absence_fails_CLOSED_as_not_recorded(self):
+        """An older entry written before the flags existed must read as a possible defect."""
+
+        entries = [_entry("legacy-run", facts={})]
+        self.assertEqual(query_mod._token_absence_class(entries[0]), "not-recorded")
+        self.assertEqual(query_mod.classify_token_absences(entries)["not-recorded"], 1)
+
+    def test_an_ENVELOPE_level_flag_is_read_as_well_as_the_run_facts_one(self):
+        """Both lists exist; reading only one misclassified every explained absence (measured)."""
+
+        entry = _entry("run-1", facts={}, quality_flags=("tokens-nothing-to-record",))
+        self.assertEqual(query_mod._token_absence_class(entry), "nothing-to-record")
+
+
+class HonestMetricSurfaceTests(unittest.TestCase):
+    """metgap `6krsym`: every offered metric computes, and a removed one REFUSES."""
+
+    def setUp(self) -> None:
+        self.maxDiff = None
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_duration_seconds_is_REFUSED_by_name_rather_than_returning_an_empty_result(
+        self,
+    ):
+        """The removal's externally visible effect: a name that never returned data now refuses.
+
+        It is asserted through the real CLI as well as the parser, because "advertised and always
+        empty" and "refused" are the two states this plan chose between and only one of them is honest.
+        """
+
+        with self.assertRaises(query_mod.QueryError) as ctx:
+            query_mod.run_query("metrics", repo=self.repo, metric="duration_seconds")
+        self.assertIn("unknown metric", str(ctx.exception))
+
+        out, err, rc = _run(
+            [
+                "runs",
+                "query",
+                "metrics",
+                "--metric",
+                "duration_seconds",
+                "--dir",
+                str(self.repo),
+            ]
+        )
+        self.assertEqual(rc, 2, out + err)
+        self.assertIn("allowed metrics are", out + err)
+
+    def test_the_schema_view_no_longer_advertises_the_removed_metric(self):
+        """One tuple feeds the schema view AND the refusal, so a removal must propagate to both."""
+
+        payload = query_mod.run_query("schema", repo=self.repo).payload
+        self.assertNotIn("duration_seconds", payload["metrics"])
+        self.assertEqual(payload["metrics"], list(query_mod.AGGREGATE_METRICS))
+
+    def test_event_count_aggregates_a_NONZERO_sample_over_a_constructed_corpus(self):
+        entries = [
+            _entry("run-1", facts={"event_count": 3}),
+            _entry("run-2", facts={"event_count": 5}),
+            _entry("run-3", facts={"event_count": 4}),
+        ]
+        result = query_mod.view_metrics(
+            entries,
+            metric="event_count",
+            stat="median",
+            group_by=(),
+            analysis=None,
+            limit=20,
+        )
+        self.assertEqual(result.payload["sample_size"], 3)
+        self.assertEqual(result.payload["missing_count"], 0)
+        self.assertEqual(result.payload["value"], 4)
+
+    def test_a_run_with_no_event_stream_is_EXCLUDED_rather_than_counted_as_zero(self):
+        entries = [
+            _entry("run-1", facts={"event_count": 10}),
+            _entry("run-2", facts={}),  # no key at all: nothing to count
+        ]
+        result = query_mod.view_metrics(
+            entries,
+            metric="event_count",
+            stat="mean",
+            group_by=(),
+            analysis=None,
+            limit=20,
+        )
+        self.assertEqual(result.payload["sample_size"], 1)
+        self.assertEqual(result.payload["missing_count"], 1)
+        self.assertEqual(
+            result.payload["value"],
+            10,
+            "a zero-filled absence would have dragged this mean to 5",
+        )
+
+    def test_the_token_metric_reports_its_absences_IN_CLASSES_with_a_caveat(self):
+        entries = [
+            _entry("run-1", facts={"token_total": 100}),
+            _entry("run-2", facts={"quality_flags": ["tokens-nothing-to-record"]}),
+            _entry("run-3", facts={}),
+        ]
+        result = query_mod.view_metrics(
+            entries,
+            metric="tokens",
+            stat="median",
+            group_by=(),
+            analysis=None,
+            limit=20,
+        )
+        self.assertEqual(
+            result.payload["missing_by_class"],
+            {"not-recorded": 1, "nothing-to-record": 1, "run-unfinished": 0},
+        )
+        self.assertEqual(result.payload["missing_count"], 2)
+        joined = " ".join(result.caveats)
+        self.assertIn("NOTHING to record", joined)
+        self.assertIn("NOT RECORDED", joined)
+        # The ESTABLISHED sentence is preserved verbatim rather than rewritten, so an operator who
+        # learned to read the cost caveat does not have to relearn it.
+        self.assertIn("EXCLUDED, not counted as zero", joined)
+
+    def test_a_NON_token_metric_gets_no_class_breakdown_it_cannot_justify(self):
+        """The ingester records flags explaining a TOKEN absence and no other, so inventing a class
+        for cost would be a guess dressed as a measurement."""
+
+        entries = [_entry("run-1", facts={"cost": 1.0}), _entry("run-2", facts={})]
+        result = query_mod.view_metrics(
+            entries, metric="cost", stat="median", group_by=(), analysis=None, limit=20
+        )
+        self.assertNotIn("missing_by_class", result.payload)
+        self.assertEqual(result.payload["missing_count"], 1)
+
+    def test_missing_count_KEEPS_its_meaning_so_an_existing_consumer_is_unaffected(
+        self,
+    ):
+        """The refinement is additive: the folded field still counts every unusable observation."""
+
+        entries = [
+            _entry("run-1", facts={"token_total": 10}),
+            _entry("run-2", facts={"quality_flags": ["tokens-nothing-to-record"]}),
+            _entry("run-3", facts={"quality_flags": ["tokens-run-unfinished"]}),
+            _entry("run-4", facts={}),
+        ]
+        result = query_mod.view_metrics(
+            entries, metric="tokens", stat="count", group_by=(), analysis=None, limit=20
+        )
+        self.assertEqual(result.payload["missing_count"], 3)
+        self.assertEqual(sum(result.payload["missing_by_class"].values()), 3)
+
+    def test_NO_GENUINE_LOSS_IS_EXCUSED_and_the_check_is_shown_to_FIRE(self):
+        """V-07's zero-result check, plus the demonstration that it discriminates.
+
+        A check never seen to fire is not evidence, so this asserts BOTH directions: an explained
+        absence is not counted as a loss, and an UNexplained one is.
+        """
+
+        explained = _entry(
+            "run-empty", facts={"quality_flags": ["tokens-nothing-to-record"]}
+        )
+        genuine_loss = _entry("run-lost", facts={"observed_activity_seconds": 1200.0})
+
+        self.assertEqual(
+            query_mod.classify_token_absences([explained])["not-recorded"],
+            0,
+            "a run that dispatched nothing must not be reported as lost data",
+        )
+        self.assertEqual(
+            query_mod.classify_token_absences([genuine_loss])["not-recorded"],
+            1,
+            "THE CHECK MUST FIRE: a run that did work and recorded no tokens is a real gap",
+        )
+
+
 # ============================================================ E-06: the envelope and the budget
 class AgentEnvelopeAndBudgetTests(_RepoFixture):
     """E-06 / V-06: the EXISTING `aw.agent/v1` envelope, inside the enforced budget, paginated."""
