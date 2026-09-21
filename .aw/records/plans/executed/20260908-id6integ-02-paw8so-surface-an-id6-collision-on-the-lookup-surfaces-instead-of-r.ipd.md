@@ -9,18 +9,18 @@
 - Scope: Make `aw find` DISTINGUISH a genuine identity collision from the legitimate reference conventions it currently renders identically, and flag only the former, naming the remedy that actually applies to the shape found. Read-only: `find` keeps SHOWING every match and keeps exit 0 for the human path. EXCLUDES the minting and detection half (Order 01), the two-tier re-authoring of `find` (`f8m2z2`), and setid uniqueness (`sjsoqq`).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/selectors.py, tests/test_cli_find.py, tests/test_find_collision_surface.py
 - Item-Dependencies: executed:sk7ggr
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: id6integ
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: paw8so
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: h2ceme
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: paw8so verified (set id6integ, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_cli_find.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-21 executed (opencode its_direct/pt3-claude-opus-5-1m-us): all six E-items performed and all six V-items verified with pasted evidence at HEAD `00379f98`. `aw find` now distinguishes a genuine id6 collision from the reference conventions it rendered identically, warning only on the former with the remedy matching its shape; exit stays 0, every row still prints, `--paths`/`--agent` stdout is byte-identical, `--json` carries the finding in `diagnostics` under the stable rule `find.id6-collision`, and `--check` is left inert. 19 new fixture tests; bare-suite failure-set delta EMPTY (1 pre-existing environmental failure before and after, `7811 -> 7830 passed`).
   THREE OF THE PLAN'S OWN MEASUREMENTS WERE FALSIFIED AT HEAD AND ARE REPORTED RATHER THAN REPRODUCED. (1) F-11, the BLOCKER the plan was reshaped around, no longer holds: `_HEADER_BYTES` does not exist, the 4096-byte hard cap became a structural bound on 2026-09-19, and the header-invisible population is ZERO of 702 declaring plans rather than 63/52. E-06 was built anyway because `_HEADER_MAX_BYTES` (262144) is still a cap and the shape is still constructible, recorded as decision D1. (2) The motivating example moved: `aw find uyeko5` prints TWO rows, not three, because `76w6mq` landed and killed the parser artifact. (3) The review census is 257, not 160. Both of the plan's stale baselines were replaced by one established locally.
   THE DISCRIMINATOR IS DECLARATION OWNERSHIP, NOT RECORD TYPE, which is what let the reviews population stay silent without an exception list: a row warns only if the FILE ITSELF declares the id6 or holds it in its filename identity slot with no typed subject field, which is D140's identity-versus-reference rule verbatim. Zero false positives across both required populations (257 reviewed ids, 0 header-invisible plans).
