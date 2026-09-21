@@ -11,17 +11,17 @@
   THE SUCCESSOR TRACKER IS `e820ka`, AND ITS ID6 IS RECORDED HERE BECAUSE THREE E-ITEMS REQUIRE CITING IT. Verified at review: `.aw/records/backlog/open/20260908-wtisoreloc-01-e820ka-relocate-control-state-decision.backlog.md`, `- Status: open`, `- Set: wtisoreloc`, `- Priority: low`, `- Work-Kind: followup`, carrying NO release gate (so none is inherited), and its own history names `2iye0e` as the sibling that took the pointer half. The plan previously instructed the executor to "name the successor backlog item" without ever giving its id6, which would have left an executor either grepping for it or, worse, writing a vaguer pointer than the one being replaced. Cite it as `e820ka` with that path.
 - Scope-Paths: agent_workflows/runner_stop.py, agent_workflows/runner_shutdown.py, agent_workflows/runner_shared.py, tests/test_runner_shared.py, tests/fixtures/runner_shared_premove_fingerprints.json, .aw/records/specs/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: wtisoptr
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 2iye0e
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: ol8iyx
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 2iye0e verified (set wtisoptr, attempt 1). [Scope reconciliation - in-scope-unmodified tests/fixtures/runner_shared_premove_fingerprints.json: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-21 executed (opencode/its_direct/pt3-claude-opus-5-1m-us, `aw oc run` lane `2iye0e`, run `run-20260921T024413Z-3445983` position 04): all five E-items performed, all five V-items verified with pasted evidence. Every one of the six target sites was re-located BY PHRASE and confirmed present as quoted before editing; the plan's line numbers HAD moved (the two `runner_shutdown` sites were at `:233`/`:348`, not `:218`/`:334`), vindicating its own warning. F-4 confirmed by measurement: the id6 grep returned 12 hits and NEITHER `runner_stop.py:42-43` nor `:369` was among them.
   ONE PRESCRIBED MECHANISM WAS WRONG AND WAS CORRECTED ON EVIDENCE (decision `04-2iye0e-D1`). E-04/F-11 instruct adding `describe_lane` to `DOCUMENTED_SINCE_MOVE`, asserting it is the harness's purpose-built route. I ran exactly that and it FAILED (`test_every_clean_symbol_is_a_STRICT_fingerprint_match`, `1 failed, 205 passed`). ROOT CAUSE, measured: that route strips the docstring from the CURRENT side only and compares to the capture VERBATIM, which is correct for a symbol that GAINED a docstring (`plan_bucket`'s capture provably has none) but structurally impossible for one whose capture ALREADY CONTAINS a docstring, as `describe_lane`'s does (verified: its captured dump holds the OLD "are owned by plan" text). So F-11's DIAGNOSIS (do not regenerate the fixture) was right and its MECHANISM was not. Fixed within E-04's intent by adding a SECOND enumerated exemption `REDOCUMENTED_SINCE_MOVE` plus `_capture_without_docstring`, which applies the same subtraction to the CAPTURE side, and a new falsifiability test that mutates an executable statement and requires the comparison to still refuse. THE FIXTURE WAS NOT REGENERATED and is byte-unchanged; `len(clean)` is unchanged; `describe_lane` remains in the STRICT set.
   TWO OF THE PLAN'S STATED NUMBERS WERE STALE AND ARE CORRECTED HERE: `tests/test_runner_shared.py` baselines at `206 passed` in this worktree (not `58` as authored, nor `70` as measured at review), and the drift guard asserts `len(clean) == 22` (not `24`), the harness comment documenting both decrements. The substance of the requirement (do not relax the guard, do not exclude the symbol) was met.
