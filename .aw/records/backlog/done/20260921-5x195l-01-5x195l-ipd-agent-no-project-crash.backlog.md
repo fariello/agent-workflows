@@ -1,5 +1,5 @@
 - Id: 5x195l
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: 5x195l
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: aw ipd --agent crashes with a schema ValueError in a non-project directory (exit_code=3 is unemittable)
 
 ## Workflow history
+- 2026-09-21 done (aw set): FIXED by IPD quqyc4 (nogitmsg-01) E-05, using exactly this item's SUGGESTED FIX: cli._run_plans's machine branch now emits exit_code=2 with outcome cannot-run and a SANITIZED summary (no interpolated absolute path), while the human stderr path keeps exit 3. That mirrors the attention resolution from executed IPD rkn8ya E-12 rather than widening agent_schema to admit exit 3, which was quqyc4's own OQ-01 ruling; the reversal is recorded as decision 03-quqyc4-D1, on the ground that widening would promote exit 3 into two published contracts at the moment its only other emitter was removed, and would leave two verbs answering one condition with different codes. MEASURED before: aw ipd board --agent in a fresh git init dir exited 1 with ValueError('Field exit must be an integer in (0, 1, 2), got 3') and empty stdout. AFTER: exit 2, valid aw.agent/v1 record, no traceback, and next=aw install . when a git root is found. This item's AUDIT NOTE is now satisfied in part and carried forward in full: grep finds NO remaining exit_code=3 CommandResult site in the package (pinned by NoProjectSubprocessMatrixTests::test_NO_site_in_the_package_still_emits_an_unemittable_exit_3_record), so the two verbs agree; the residual question the note raises, whether the HUMAN path should also drop 3 since 3 is outside the published three-state classification, is NOT settled here and is filed as c6vs7y. EVIDENCE: tests/test_awretrofit_project_root_climb.py NoProjectSubprocessMatrixTests, subprocess-based so the PROCESS exit code and the absence of a traceback are genuinely measured; case_e fails against pre-change code (verified by reverting cli.py: 4 failed) and passes after.
 - 2026-09-21 created (aw backlog): aw ipd --agent crashes with a schema ValueError in a non-project directory (exit_code=3 is unemittable)
 
 MEASURED 2026-09-21 on a clean HEAD (found while executing IPD rkn8ya, attcor-01).
