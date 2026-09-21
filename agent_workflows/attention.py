@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Collection, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as core
+from agent_workflows import artifact_naming as _naming
 from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import lifecycle_style as LS
@@ -256,12 +257,44 @@ _FIELD_PATTERNS = (
 )
 _H1_RX = re.compile(r"(?m)^#\s+(?:[A-Za-z0-9_-]+:\s*)?(.+)$")
 
+# The UNBULLETED (plain YAML) spelling of the same keys, for a doc whose front matter is real YAML
+# rather than the `- Key: value` bullet list the plan/spec/backlog trees use (attcor `rkn8ya` E-10).
+#
+# THE RESEARCH CORPUS IS WHY: every pattern above requires the `-\s*` bullet, but research front
+# matter is plain YAML. Measured on this tree, 110 research files carry an unbulleted `summary:` and
+# ZERO carry `- Summary:`, so the field was NEVER read for that whole tree and `--details` fell through
+# to the H1. The H1 fallback is usually adequate but NOT equivalent: `_H1_RX` strips a leading
+# `Word:` prefix, turning `# Research: the design prompts...` into a mid-sentence fragment, and 4
+# files have no H1 at all and so showed NO detail despite carrying a summary.
+_UNBULLETED_FIELD_PATTERNS = tuple(
+    (tag, re.compile(r"(?mi)^" + tag + r":[ \t]*(.+)$")) for tag, _rx in _FIELD_PATTERNS
+)
+
+# FRONT-MATTER SCOPED, deliberately. 55 files under `.aw/records/` carry an unbulleted `summary:`-like
+# key in their BODY PROSE (a quoted example, a table cell, an instruction). Matching the whole document
+# would surface that prose as the artifact's own summary, so the unbulleted form is read ONLY from a
+# leading `---` fenced YAML block. A document with no front matter is unaffected.
+_FRONTMATTER_RX = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
+
+
+def _frontmatter_block(text: str) -> str:
+    """The raw YAML front-matter block (between the leading `---` fences), or `""` when absent."""
+
+    m = _FRONTMATTER_RX.match(text)
+    return m.group(1) if m else ""
+
 
 def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
     """Extract (detail_kind, detail_text) using the fallback cascade:
     Summary -> Scope -> Concern -> Question -> Title -> H1 header.
+
+    Each key is accepted in the `- Key: value` BULLET form anywhere in the document (the plan/spec/
+    backlog shape) and, additionally, in the plain `key: value` UNBULLETED form inside a leading YAML
+    front-matter block (the research shape). The CASCADE ORDER is unchanged, and the bulleted form
+    WINS at each step, so no artifact that already reported a detail reports a different one.
     """
-    for tag, rx in _FIELD_PATTERNS:
+    fm = _frontmatter_block(text)
+    for (tag, rx), (_utag, urx) in zip(_FIELD_PATTERNS, _UNBULLETED_FIELD_PATTERNS):
         cap = tag.capitalize() + ":"
         low = tag + ":"
         up = tag.upper() + ":"
@@ -271,6 +304,13 @@ def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
                 val = m.group(1).strip()
                 if val:
                     return tag, val
+            # The bulleted form is absent (or empty): try the unbulleted front-matter spelling.
+            if fm:
+                um = urx.search(fm)
+                if um:
+                    uval = um.group(1).strip()
+                    if uval:
+                        return tag, uval
     if "# " in text:
         m = _H1_RX.search(text)
         if m:
@@ -514,13 +554,32 @@ def scan(
 # --------------------------------------------------------------------------------------
 
 # The filename grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>`, from which `-o set` and `-o order` read.
-# MEASURED at execution time on this tree: 602 of 758 items (79%) match it; 156 do not, concentrated in
-# plans (97), research (25), specs (19) and backlog (15), largely grandfathered pre-cutover names. So
-# `set` and `order` are legitimately PARTIAL keys, and a non-matching name sorts as absent (E-05)
-# instead of raising.
-_NAME_GRAMMAR_RE = re.compile(
-    r"^\d{8}-(?P<setid>[A-Za-z0-9]+)-(?P<order>\d{2})-[0-9a-z]{6}-"
-)
+#
+# `set` and `order` are legitimately PARTIAL keys: a name that does not match sorts as ABSENT rather
+# than raising. The non-matching population is the RESEARCH corpus, whose grammar is the shared
+# clustered CORE followed by its own `.<model>.<kind>.md` facets (see `research_contract.parse_name`),
+# plus genuinely grandfathered pre-cutover names.
+#
+# THE COMMENT THAT USED TO SIT HERE WAS WRONG ABOUT WHY, and attcor `rkn8ya` E-08 corrects it rather
+# than preserving a misleading attribution. It blamed all 156 non-matching names on "grandfathered
+# pre-cutover names"; re-measured on this tree, 103 of them were FULLY CONFORMANT modern names that
+# this module's own regex rejected because it spelled the set id `[A-Za-z0-9]+`, excluding the HYPHEN
+# that `artifact_naming.build_clustered_name` PRODUCES (it kebab-cases the set id) and that
+# `artifact_naming._CLUSTERED_RE` accepts. Those 103 (88 plans, 15 backlog) all sorted as absent under
+# `-o set` and `-o order`, so the defect was a second private copy of a shared grammar, not history.
+#
+# THE FIX IS DELEGATION to `artifact_naming`, the SINGLE naming authority, so a third copy of the
+# grammar cannot drift from it again. NO REGEX IS WRITTEN IN THIS MODULE: the full-name reading uses
+# `parse_clustered`, and the prefix reading uses `parse_clustered_prefix`, which is DEFINED IN THE
+# AUTHORITY for this purpose. A prefix reading is needed at all because `parse_clustered` anchors at
+# the tail with a CLOSED facet enum and therefore rejects a research name like
+# `...-<id6>-<slug>.gpt5.survey.md` whose PREFIX is nonetheless perfectly parseable. (Re-encoding that
+# prefix here would have re-created the very duplication this item removes, and
+# `tests/test_naming_authority_single_source.py` correctly refuses it.)
+#
+# MEASURED AFTER THE FIX on this tree: 0 disagreements with `parse_clustered` across all 1148
+# clustered-conformant items, and 127 items that previously sorted as absent now sort under their true
+# set, with 0 items losing a key they previously had.
 
 # `-o priority` ranks high > medium > low. DERIVED from the one shared vocabulary
 # (`attention_contract.PRIORITY_ORDER`, itself aligned with `backlog.PRIORITIES` and
@@ -553,14 +612,29 @@ _PRESENT = 0
 
 
 def _name_grammar_fields(path: str) -> Tuple[Optional[str], Optional[int]]:
-    """(set_id, order) parsed from an artifact's FILENAME, or (None, None) when it does not match."""
-    m = _NAME_GRAMMAR_RE.match(path.rsplit("/", 1)[-1])
+    """(set_id, order) parsed from an artifact's FILENAME, or (None, None) when it does not match.
+
+    DELEGATES to the single naming authority first (`artifact_naming.parse_clustered`), so `-o set`
+    and `-o order` can never again disagree with the grammar that BUILDS these names (attcor
+    `rkn8ya` E-08). Falls back to the authority's clustered PREFIX only for a name whose tail the
+    authority's closed facet enum rejects but whose prefix is well-formed, which is the research
+    corpus's `.<model>.<kind>.md` shape.
+    """
+
+    name = path.rsplit("/", 1)[-1]
+    m = _naming.parse_clustered(name)
+    if m is not None:
+        try:
+            return m.group("set"), int(m.group("nn"))
+        except ValueError:  # pragma: no cover - the grammar already pins two digits
+            return m.group("set"), None
+    m = _naming.parse_clustered_prefix(name)
     if m is None:
         return None, None
     try:
-        return m.group("setid"), int(m.group("order"))
-    except ValueError:  # pragma: no cover - the regex already pins two digits
-        return m.group("setid"), None
+        return m.group("set"), int(m.group("nn"))
+    except ValueError:  # pragma: no cover - the grammar already pins two digits
+        return m.group("set"), None
 
 
 def dependency_depths(items: Sequence[Item]) -> Tuple[Dict[str, int], List[List[str]]]:
@@ -671,7 +745,18 @@ def _order_key(
         return (_PRESENT, order) if order is not None else (_ABSENT, 0)
     if order_by == "blocking":
         # Release blockers first, then everything else. `blocks_release` is the DECLARED gate field.
-        return (_PRESENT, it.blocks_release) if it.blocks_release else (_ABSENT, "")
+        #
+        # attcor `rkn8ya` E-09: `"-"` means ABSENT, not "gated on a release named '-'". A bare
+        # truthiness test sorted the literal string as PRESENT, and `-` (0x2D) collates below every
+        # alphanumeric, so an item DECLARING ITSELF A NON-BLOCKER sorted ABOVE every real blocker.
+        # This aligns the one reader of four that omitted the guard: `matches_blocking`,
+        # `release_blockers`, `_resolve_release_version` and the render-time flag all exclude `"-"`.
+        #
+        # LATENT, recorded so nobody over-claims the impact: `releases.set_blocks_release_line`
+        # REMOVES the line for value `-`, and 0 artifacts in this tree carry `Blocks-Release: -`, so
+        # only a hand-edit produces the condition. It is a consistency fix, not an observed outage.
+        blk = it.blocks_release
+        return (_PRESENT, blk) if (blk and blk != "-") else (_ABSENT, "")
     if order_by == "depth":
         if depths is None:
             return (_ABSENT, 0)
@@ -970,6 +1055,31 @@ def _spec_record(
     ), drift
 
 
+_PLANS_DIR_PREFIXES = (".aw/records/plans/", ".agents/plans/")
+
+
+def _plan_disposition_from_rel(rel: str) -> str:
+    """The plan's lifecycle DISPOSITION (``executed``/``superseded``/...) from its repo-relative path.
+
+    attcor `rkn8ya` E-05. Recognizes BOTH layouts: the modern `.aw/records/plans/<disp>/...` and the
+    legacy `.agents/plans/<disp>/...`. Returns ``""`` when the path names no disposition directory
+    (a plan sitting directly in the plans dir, or a path under neither prefix).
+
+    THE FIRST COMPONENT UNDER THE PLANS DIR, deliberately, NOT the parent directory name: `aw archive
+    plans` shards a terminal plan into ``<disposition>/YYYYMM/``, so a `parent.name` test would read
+    ``202609`` and silently stop recognizing every sharded plan. This is the derivation
+    `check_engine._plan_disposition` and `plans_index.scan_plans` already use, reused rather than
+    invented a third time.
+    """
+
+    norm = rel.replace("\\", "/")
+    for prefix in _PLANS_DIR_PREFIXES:
+        if norm.startswith(prefix):
+            tail = norm[len(prefix) :]
+            return tail.split("/", 1)[0] if "/" in tail else ""
+    return ""
+
+
 def _plans_record(
     rel: str, path: Path, text: str
 ) -> Tuple[Optional[Item], List[core.Drift]]:
@@ -987,12 +1097,14 @@ def _plans_record(
             )
         )
         return None, drift
-    # disposition vs terminal-status consistency
-    disp = (
-        rel.split("/")[2]
-        if rel.startswith(".agents/plans/") and len(rel.split("/")) > 3
-        else ""
-    )
+    # disposition vs terminal-status consistency (spec F3: "disposition-vs-terminal-status
+    # disagreement" fails `--check` closed).
+    #
+    # attcor `rkn8ya` E-05: this check was DEAD under the modern layout. It tested only
+    # `rel.startswith(".agents/plans/")`, so every `.aw/records/plans/<disp>/...` path yielded
+    # `disp = ""` and the rule below could never fire; measured on this tree, all 700+ plans live
+    # under `.aw/records/plans/`, so the rule fired for exactly zero of them.
+    disp = _plan_disposition_from_rel(rel)
     if (
         disp in plans_mod.DIR_TERMINAL
         and plans_mod.DIR_TERMINAL[disp] != status
@@ -1588,9 +1700,32 @@ def parse_status_filters(raw_statuses: Sequence[str] | None) -> set[str]:
     return result
 
 
+# READ-SIDE priority aliases, normalized at the PARSE boundary only (attcor `rkn8ya` E-06).
+#
+# `--priority` carries no argparse `choices`, and `matches_priority` does exact membership, so
+# `aw att --priority med` silently returned 0 items instead of erroring: a filter that answers
+# "nothing matches" to a typo is worse than one that refuses. `med` is already accepted by
+# `PRIORITY_RANK` in this same module and appears in the board's own table docstring, so accepting it
+# here REMOVES an internal inconsistency rather than inventing a new vocabulary.
+#
+# NORMALIZED AT PARSE TIME, DELIBERATELY, so exactly ONE vocabulary survives downstream:
+# `attention_contract.PRIORITY_ORDER` stays the single vocabulary and `_PRIORITY_SORT_RANK` stays
+# DERIVED from it (the comment at its definition records that a hardcoded second copy is the mistake
+# `ipd_schema` already made). Neither is touched.
+#
+# READ-SIDE ONLY: `aw ipd set` / `aw specs set` / `aw backlog set` keep their argparse `choices`, so
+# `med` can never be WRITTEN into an artifact. The alias is a convenience for asking a question, not
+# a second spelling of a stored value.
+# EXACTLY ONE ENTRY, and no speculative additions: `med` is the alias this module already accepts
+# elsewhere (`PRIORITY_RANK`), which is the whole justification for accepting it. Inventing further
+# spellings (`hi`, `lo`) would create vocabulary this repository uses nowhere else.
+_PRIORITY_FILTER_ALIASES = {"med": "medium"}
+
+
 def parse_priority_filters(raw_priorities: Sequence[str] | None) -> set[str]:
-    """Parse priority filter arguments."""
-    return parse_filter_tokens(raw_priorities)
+    """Parse priority filter arguments, normalizing the read-side aliases (e.g. `med` -> `medium`)."""
+    tokens = parse_filter_tokens(raw_priorities)
+    return {_PRIORITY_FILTER_ALIASES.get(t, t) for t in tokens}
 
 
 def parse_blocking_filters(raw_blocking: Sequence[str] | None) -> set[str]:
@@ -1709,8 +1844,28 @@ def matches_blocking(
             plan_clean = planned_ver.lstrip("v")
 
             if tok == "next":
-                # 'next' shows what's blocking the next release regardless of tag/number
-                return True
+                # attcor `rkn8ya` E-04: `next` RESOLVES against the PLANNED release; it used to
+                # `return True` unconditionally, so `--blocking next` matched every gated item no
+                # matter which release it named (a shipped or a past one included).
+                #
+                # `next` is the SYMBOL for "the single planned release", which is exactly what
+                # `releases.resolve_blocks_release`/`describe_planned_release` mean by it, so the
+                # correct predicate is "this item gates the planned release". The reasoning below for
+                # a version/id6 token already did this; only the `next` branch bypassed it.
+                #
+                # WHEN THERE IS NO PLANNED RELEASE, `next` MATCHES NOTHING, and that is the honest
+                # answer rather than a behavior-preserving dodge: `next` names a release record that
+                # does not exist, so no item can gate it. (`--blocking any` remains the way to ask
+                # "gated on anything at all".)
+                if not (planned_id or plan_clean):
+                    continue
+                if raw_blk == "next":
+                    return True
+                if planned_id and raw_blk == planned_id:
+                    return True
+                if plan_clean and res_clean == plan_clean:
+                    return True
+                continue
             if tok in (raw_blk, resolved_ver) or tok_clean in (raw_clean, res_clean):
                 return True
             if plan_clean and tok_clean == plan_clean:
@@ -2235,6 +2390,47 @@ def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
     return run_map
 
 
+# Status words whose 8-character TRUNCATION collides with another real status, mapped to a distinct
+# 8-character abbreviation (attcor `rkn8ya` E-11a).
+#
+# THE COLLISION: `implementing` and `implemented` both slice to `implemen`, so the table could not
+# distinguish ACTIVE work from FINISHED work. Color does distinguish them (`_resolve_item_lifecycle`
+# gives them different lifecycle stages), but ONLY on a color TTY: `--no-color` and every piped or
+# machine read saw one identical word for two opposite states.
+#
+# ABBREVIATED RATHER THAN WIDENED, deliberately. The Status column's width is pinned at 8 by the
+# header (`"Status".ljust(8)`) and by an exact-line table snapshot test; widening it would shift every
+# column in every row. Only the COLLIDING pair is remapped, so `not-exec`, `supersed`, `to-revie`,
+# `reviewed`, `approved`, `executed`, `graduate` and every other truncation are byte-unchanged.
+# The two abbreviations share the stem `implmnt` and differ in the FINAL LETTER, which carries the
+# grammatical distinction the full words carry: `g` for the gerund (implementinG, in progress) and `d`
+# for the past participle (implementeD, finished).
+_STATUS_ABBREV = {
+    "implementing": "implmntg",
+    "implemented": "implmntd",
+}
+
+
+def _abbrev_status(native_status: str) -> str:
+    """The <=8-character Status-column word for a native status, disambiguating 8-char collisions."""
+
+    st = native_status or ""
+    return _STATUS_ABBREV.get(st.lower(), st[:8])
+
+
+# The readiness word that collides at the column's 9-character width (attcor `rkn8ya` E-11b).
+# `go-pending-approval` sliced to `go-pendin`, indistinguishable from a cleared `go` to a reader and
+# (before this fix) identically colored. The `?` marks the approval as still OUTSTANDING.
+_READINESS_ABBREV = {"go-pending-approval": "go-pend?"}
+
+
+def _abbrev_readiness(readiness: Optional[str]) -> str:
+    """The <=9-character Readiness-column word, disambiguating the 9-char collision. `-` when absent."""
+
+    rd = readiness or "-"
+    return _READINESS_ABBREV.get(rd.lower(), rd[:9])
+
+
 def _render_table_row(
     it: Item,
     term: T.Term,
@@ -2252,7 +2448,7 @@ def _render_table_row(
     runs_mode: bool = False,
     run_state: Optional[str] = None,
 ) -> str:
-    st_raw = it.native_status[:8]
+    st_raw = _abbrev_status(it.native_status)
     # ONE resolution per row, from the shared resolver (R10.3). Computed even when `colored` is
     # False so the uncolored path takes the SAME glyph, which keeps the plain table a
     # character-for-character strip of the colored one (a property `test_attention` asserts).
@@ -2328,21 +2524,30 @@ def _render_table_row(
         prio_styled = prio_raw
     prio_col = prio_styled + (" " * (8 - len(prio_raw)))
 
-    rd_raw = (it.readiness or "-")[:9]
+    # attcor `rkn8ya` E-11b: the readiness cell, fixed in BOTH its text and its color.
+    #
+    # TEXT: `go-pending-approval` used to slice to `go-pendin`, which reads as a truncated `go`. It now
+    # renders the distinct abbreviation `go-pend?`, whose trailing `?` says an approval is still
+    # OUTSTANDING. The width stays 9 so no column moves.
+    #
+    # COLOR: the old code ran a SUBSTRING test over the 9-char slice (`"go" in lower and "no" not in
+    # lower`), so `go-pendin` took 114 - the SAME green as a cleared `go`. An UNAPPROVED plan therefore
+    # rendered as approved, which misreports an approval state and is the more serious half of this
+    # fix. The colour now comes from the SHARED resolver (`lifecycle_style.resolve_readiness`), which
+    # already maps the three readiness words to three DISTINCT stages (`go` -> ready,
+    # `go-pending-approval` -> authority-queued, `no-go` -> blocked), so the distinction cannot be
+    # re-lost by a heuristic and the readiness cell agrees with every other lifecycle colour in the row.
+    rd_raw = _abbrev_readiness(it.readiness)
     if colored:
         if rd_raw != "-":
-            lower = rd_raw.lower()
-            rcode = (
-                114
-                if ("go" in lower and "no" not in lower)
-                else (196 if "no" in lower else 244)
+            rd_styled = term.style_lifecycle_text(
+                rd_raw, LS.resolve_readiness(it.readiness)
             )
-            rd_styled = term.color256(rd_raw, rcode, bold=True)
         else:
             rd_styled = term.color256(rd_raw, 244)
     else:
         rd_styled = rd_raw
-    rd_col = rd_styled + (" " * (9 - len(rd_raw)))
+    rd_col = rd_styled + (" " * (9 - T.visible_width(rd_raw)))
 
     oq_cnt = getattr(it, "oqs", 0) or 0
     rq_cnt = getattr(it, "rqs", 0) or 0
@@ -2842,6 +3047,82 @@ def render_board(
 # --------------------------------------------------------------------------------------
 
 
+def prune_drift_to_selection(
+    drift: List[core.Drift],
+    items: Sequence[Item],
+    repo_root: Path,
+    selected_trees: Optional[set[str]] = None,
+) -> List[core.Drift]:
+    """Narrow ``drift`` alongside a narrowed ``items`` set WITHOUT dropping a contract violation.
+
+    THE ONE PRUNE, called from every filter site (attcor `rkn8ya` E-01). Three byte-identical copies
+    of this five-line prune existed inline (the `--types` site, the selector site, and the combined
+    status/priority/blocking/readiness/open-questions/run-status site); fixing one left two live, so
+    the logic is defined once here.
+
+    WHY A PLAIN `location in selected_item_paths` TEST IS WRONG, which is the bug this replaces. A
+    file that FAILS TO PARSE yields drift and NO item: `_plans_record` returns ``(None, drift)`` and
+    `scan` does ``if rec is None: continue`` AFTER extending drift. Its violation therefore matched
+    no surviving item path and was silently DELETED by every narrowing, so `aw attention --check`
+    exited 0 on a genuine violation under `-t plans`, under a selector, and under a status filter.
+    That contradicts the spec's normative fail-closed rule (Section 8.6: `--check` "never silently
+    skips a malformed included artifact").
+
+    THE RETENTION RULE is by SELECTED TREE, not "retain everything". A drift record whose location
+    lies under a tree the caller selected is retained even when it produced no item; drift from an
+    unselected tree is still pruned, and a NON-PATH location (a stranded lane's git BRANCH) is still
+    pruned under an explicit narrowing, preserving the deliberate suppression the lane join relies
+    on. Retaining all drift unconditionally would resurrect stranded-lane rows under `--types`,
+    contradicting spec F3a's normative exclusions.
+
+    ``selected_trees`` is the ACTIVE `--types` filter, or ``None`` meaning EVERY TRACKED TREE. It is
+    deliberately NOT derived from the surviving items' trees: a tree whose only offending file fails
+    to parse contributes no item, so keying on the items would delete precisely the violation this
+    function exists to keep. A selector or status narrowing states nothing about types, so under it
+    every tracked tree stays selected and only the non-path (lane) locations are pruned.
+    """
+
+    if not drift:
+        return drift
+
+    selected_paths = {(repo_root / it.path).resolve() for it in items}
+    trees = (
+        set(selected_trees)
+        if selected_trees
+        else {pol.name for pol in A.TREE_POLICY if pol.tracked}
+    )
+    tree_roots: List[str] = []
+    for pol in A.TREE_POLICY:
+        if pol.name in trees:
+            root = pol.root.replace("\\", "/").rstrip("/")
+            tree_roots.append(root + "/")
+            # The `.aw/` layout root for the same policy key: TREE_POLICY still spells the legacy
+            # `.agents/` roots, and `_classify_tree` maps `.aw/records/<type>` onto them (re-inserting
+            # the `docs/` grouping for the doc family). Derive both spellings so a modern-layout
+            # location is recognized by the same membership test.
+            legacy_prefix = ".agents/docs/"
+            if root.startswith(legacy_prefix):
+                tail = root[len(legacy_prefix) :]
+                # `prompts` is the legacy key for the renamed `prompt-library` tree.
+                modern = "prompt-library" if tail == "prompts" else tail
+                tree_roots.append(f".aw/records/{modern}/")
+            elif root.startswith(".agents/"):
+                tree_roots.append(".aw/records/" + root[len(".agents/") :] + "/")
+
+    def _keep(d: core.Drift) -> bool:
+        loc = str(d.location).replace("\\", "/")
+        try:
+            if (repo_root / loc).resolve() in selected_paths:
+                return True
+        except (OSError, ValueError):
+            pass
+        # RETAINED: a violation from a SELECTED TREE whose file produced no item (unparseable,
+        # missing status, unreadable). This is the fail-closed half.
+        return any(loc.startswith(r) for r in tree_roots)
+
+    return [d for d in drift if _keep(d)]
+
+
 def filter_items_by_selectors(
     items: List[Item], selectors_list: Sequence[str], repo_root: Path
 ) -> List[Item]:
@@ -2956,12 +3237,47 @@ def run(args) -> int:
             sys.stdout.write("aw attention --check: the view is valid.\n")
             return 0
         if ctx.is_agent or ctx.is_json:
+            # attcor `rkn8ya` E-12: EMIT the result. This `CommandResult` was built and then thrown
+            # away - the `emit` call was missing - so `aw attention --agent` outside an AW project
+            # wrote prose to STDERR and NOTHING to stdout, breaking the `aw.agent/v1` envelope
+            # contract for a consumer that only reads stdout. The correct sibling is the `--check`
+            # branch ten lines above, and the scan-error branch below also emits; this one path did
+            # not. Reproduced before the fix: rc=3, stdout empty, stderr carrying the prose.
+            #
+            # AND THE SUMMARY IS SANITIZED. `no_project_message` interpolates `Path.cwd()`
+            # (`project_context.py`), so emitting it verbatim would write a machine-local ABSOLUTE
+            # path into a machine payload, the same leak class as E-02 and forbidden by the attention
+            # spec's Section 8.5. The human STDERR line keeps the full guidance (it names the
+            # directory it checked, which is exactly what helps an operator standing in the wrong
+            # one); the MACHINE summary states the condition and the two remedies without the path.
+            #
+            # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract, recorded
+            # here because the number differs from the human path's on purpose (decision D1).
+            # `aw.agent/v1` admits ONLY 0/1/2 (`agent_schema.validate_agent_record`: "Field 'exit'
+            # must be an integer in (0, 1, 2)"), and additionally requires an error-class record to
+            # carry exit=2; `docs/cli-output-contract.md` Section 3 classifies precisely this case
+            # ("Cannot-Run ... preventing domain inspection") as 2, and its exit-parity rule requires
+            # the embedded `exit` to EQUAL the process exit code. An `exit_code=3` result therefore
+            # cannot be emitted at all: it raises `ValueError` in the renderer before writing a byte,
+            # which is why simply adding the missing `emit` call with 3 would reproduce the empty
+            # stdout this fix removes. (Measured: the sibling `aw ipd --agent` at `cli.py:8127` still
+            # builds `exit_code=3` and DOES emit, so it CRASHES in a non-project directory. That is a
+            # live defect in `cli.py`, which is outside this plan's Scope-Paths; it is filed as
+            # backlog rather than fixed here.)
+            #
+            # THE HUMAN PATH IS UNCHANGED at exit 3, so the shipped assertion in
+            # `tests/test_awretrofit_project_root_climb.py` (rc 3, prose on stderr, empty stdout)
+            # keeps passing and no operator-visible behavior regresses.
             res = CommandResult(
                 command="attention",
                 status="cannot-run",
-                exit_code=3,
-                summary=no_project_message("attention"),
+                exit_code=2,
+                summary=(
+                    "no AW project found at the working directory or any ancestor; "
+                    "cd into the repository or pass --dir <repo>"
+                ),
             )
+            return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(no_project_message("attention") + "\n")
         return 3
 
@@ -3007,20 +3323,20 @@ def run(args) -> int:
     type_filters = parse_type_filters(getattr(args, "types", None))
     if type_filters:
         items = [it for it in items if it.tree in type_filters]
-        if drift:
-            selected_paths = {(repo_root / it.path).resolve() for it in items}
-            drift = [
-                d for d in drift if (repo_root / d.location).resolve() in selected_paths
-            ]
+        # attcor `rkn8ya` E-01: prune through the ONE shared helper, which retains a violation from a
+        # SELECTED TREE even when the offending file produced no item. `selected_trees` is the
+        # REQUESTED filter, not the surviving items' trees: a tree whose every file fails to parse has
+        # no surviving item, and keying on the items would delete exactly the violations that matter.
+        drift = prune_drift_to_selection(
+            drift, items, repo_root, selected_trees=type_filters
+        )
 
     selectors_arg = getattr(args, "selectors", None) or []
     if selectors_arg:
         items = filter_items_by_selectors(items, selectors_arg, repo_root)
-        if drift:
-            selected_paths = {(repo_root / it.path).resolve() for it in items}
-            drift = [
-                d for d in drift if (repo_root / d.location).resolve() in selected_paths
-            ]
+        drift = prune_drift_to_selection(
+            drift, items, repo_root, selected_trees=type_filters or None
+        )
 
     status_filters = parse_status_filters(getattr(args, "status", None))
     has_terminal_status = any(
@@ -3055,11 +3371,24 @@ def run(args) -> int:
 
     open_questions_filter = getattr(args, "open_questions", False)
     if open_questions_filter:
+        # attcor `rkn8ya` E-07: the FILTER, and ONLY the filter. The second narrowing that used to sit
+        # here (dropping DONE/PARKED when `--all`/a selector/a terminal status was absent) has moved
+        # to where every other default-visibility decision is already made: the RENDER stage.
+        #
+        # WHY THE MOVE, in one measurement: `--priority high --format json` kept 90 `done` + 2
+        # `parked` items while `--open-questions --format json` kept 0 of either, because this was the
+        # ONE filter applying default visibility in the filter stage. The JSON and `--agent` renderers
+        # deliberately apply NO visibility narrowing, so the payload silently disagreed with every
+        # other filter's payload.
+        #
+        # IT ALSO POISONED `--check`: the shrunken item set shrank `selected_paths`, so a contract
+        # violation on a `done` artifact carrying open questions was pruned out of the drift set and
+        # `--check` exited 0 on it.
+        #
+        # THE DEFAULT HUMAN BOARD IS UNCHANGED, and that is by construction rather than by care: the
+        # render stage recomputes the SAME predicate (`args.all or selectors or has_terminal_status`)
+        # and passes it as `show_all`, which `render_board`/`render_table`/`--id6-only` already honor.
         items = [it for it in items if (getattr(it, "oqs", 0) or 0) > 0]
-        if not (
-            getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
-        ):
-            items = [it for it in items if it.attention_class not in (A.DONE, A.PARKED)]
 
     active_flag = getattr(args, "active", False)
     not_active_flag = getattr(args, "not_active", False)
@@ -3114,10 +3443,14 @@ def run(args) -> int:
         )
         and drift
     ):
-        selected_paths = {(repo_root / it.path).resolve() for it in items}
-        drift = [
-            d for d in drift if (repo_root / d.location).resolve() in selected_paths
-        ]
+        # attcor `rkn8ya` E-01, the third of the three formerly-duplicated prune sites. A status,
+        # priority, blocking, readiness, open-questions or run-status narrowing says nothing about
+        # TYPES, so the tree selection passed through is whatever `--types` asked for (or every
+        # tracked tree), and a malformed artifact's violation survives instead of being deleted with
+        # the item it never produced.
+        drift = prune_drift_to_selection(
+            drift, items, repo_root, selected_trees=type_filters or None
+        )
 
     # lanestrand-01 (`pr5b0t`) E-04/E-05/E-06: JOIN THE STRANDED LANES AT RENDER TIME, after the
     # artifact filters and before anything consumes `drift`.
