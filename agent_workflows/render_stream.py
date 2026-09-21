@@ -1825,6 +1825,38 @@ def _parse_iso_timestamp(ts_str: str | None) -> float | None:
 #: N sites is exactly how a reader and a writer drift apart.
 REFUSAL_KEY = "refusal"
 
+#: The two `integration_signal` values that EARN integration, mirrored here so a LEAF renderer can ask
+#: the landing question without importing a runner (ys1dor E-01, option (b)).
+#:
+#: THE PRODUCER IS `runner_shared` (`INTEGRATION_EARNED_BY_VERIFIER` / `INTEGRATION_EARNED_BY_SUITE`,
+#: re-exported by both hosts), and the direction of the copy is FORCED rather than chosen: this module
+#: imports NO first-party module at all (stdlib only) and `runner_shared` imports FROM it at module
+#: level, so reading the constants from their home would be a circular import. That is the same
+#: argument `Refusal`'s docstring makes about living here.
+#:
+#: WHY THE EARNED VALUES AND NOT THE REFUSED ONES, which is the whole design decision: the renderer
+#: must treat an UNKNOWN future signal as a refusal, not as success. Enumerating the three refusal
+#: reasons would make every signal added later read as landed until somebody remembered to extend the
+#: list - the same miss class as the `integration-blocked` allowlist that once rendered nothing. So
+#: EARNED is a closed set of two and everything else non-empty is a refusal BY CONSTRUCTION.
+#: `test_run_summary_table.py` cross-checks these two strings against `runner_shared`'s definitions so
+#: the copy cannot silently go stale.
+INTEGRATION_EARNED_SIGNALS: frozenset[str] = frozenset(
+    {
+        "verifier",  # runner_shared.INTEGRATION_EARNED_BY_VERIFIER
+        "driver-run-suite",  # runner_shared.INTEGRATION_EARNED_BY_SUITE
+    }
+)
+
+#: The outcome word for a run whose work never reached the project. It must SCREAM, and it must not be
+#: a synonym a reader skims past, so it is deliberately NOT `PARTIAL` (which already means "some items
+#: completed"), NOT `BLOCKED` (dependency-blocked) and NOT `FAILED` (`failed-safely` /
+#: `integration-blocked` / `merge-conflict`, all of which keep their existing word).
+#:
+#: THE SAME WORD THE CROSS-TREE VIEW USES (`runner_shared.LANE_STRANDED`), so the run summary and
+#: `aw attention` name one condition identically instead of teaching an operator two vocabularies.
+STRANDED_OUTCOME = "STRANDED"
+
 #: The `Refusal.code` for an item whose agent answered `needs-human` about a failing test suite
 #: (gatewire-01 `h5pyqa` E-06).
 #:
@@ -1979,6 +2011,163 @@ def refusal_of_item(item: dict[str, Any]) -> "Refusal | None":
             ),
         )
     return None
+
+
+def integration_was_refused(item: dict[str, Any]) -> bool:
+    """Did this item's OWN RECORD say integration was REFUSED? (ys1dor E-01)
+
+    THE MISSING QUESTION, and the reason a fully stranded run printed green `COMPLETED` at `100%`.
+    MEASURED on `run-20260908T140845Z-2489897`: its single item's `status` was `substantially-complete`
+    (inside the outcome's success tuple) while its `integration_signal` was `suite-failed` and its work
+    sat on `aw/lane/03ie04_attempt2`. The outcome asked only about STATUS, so a stranded run and a
+    landed one were indistinguishable to it.
+
+    ABSENT IS NOT REFUSING, and this is the most likely false positive so it is the first rule: an item
+    that was never ELIGIBLE for integration carries NO `integration_signal` key at all (a review-only
+    run, a queued item, an interrupted turn that never reached the gate). Presence is therefore tested,
+    never truthiness alone; reading absence as a refusal would report every review run as stranded.
+
+    EARNED IS A CLOSED SET OF TWO AND EVERYTHING ELSE IS A REFUSAL, deliberately (see
+    `INTEGRATION_EARNED_SIGNALS`): an unknown future signal must fail SAFE, which here means reading as
+    a refusal rather than as success.
+
+    A RELEASED REFUSAL IS NOT A REFUSAL. `gatewire-01` added a rung the original defect predates: when
+    the agent adjudicates a suite failure and its answer RELEASES the gate, the run integrates and the
+    item is `executed`, yet `integration_signal` KEEPS its refusing value (`suite-failed`) because it
+    records what the SUITE said, and only `integration_released_by_answer` records that the refusal was
+    overridden. Ignoring that would report a landed run as stranded, so the release is honored here.
+    """
+    if not isinstance(item, dict):
+        return False
+    if "integration_signal" not in item:
+        return False
+    signal = item.get("integration_signal")
+    if not signal:
+        # An explicit empty/None value carries no verdict either way; treat it as absent rather than
+        # inventing a refusal the record does not state.
+        return False
+    if str(signal) in INTEGRATION_EARNED_SIGNALS:
+        return False
+    if item.get("integration_released_by_answer"):
+        return False
+    return True
+
+
+def integration_refusal_detail(item: dict[str, Any]) -> str | None:
+    """The human-readable reason integration was refused, made REPOSITORY-RELATIVE, or None.
+
+    READ FROM THE ATTEMPT, NOT THE ITEM, because that is where both drivers write it
+    (`attempt["integration_detail"]`); the item carries only `integration_signal`. Measured on
+    `run-20260908T140845Z-2489897`, whose item has 21 keys and no `integration_detail` among them. An
+    item with no attempts, or a record frozen by an older driver, simply has no detail and that is
+    tolerated rather than raised.
+
+    **THE ABSOLUTE PATH IS STRIPPED HERE, AND THAT IS THE POINT.** The recorded text embeds the
+    repository's absolute path: `...suite FAILED with exit 1 in /home/<user>/VC/agent-workflows (no
+    summary line parsed)`. The end-of-run summary is the most-copied output in the product (an operator
+    pastes it into an issue, a chat, or a plan's `Observed evidence`), and `AGENTS.md`'s leak rule
+    forbids machine-identifying strings in a public artifact, so every absolute path in the text is
+    replaced with a repository-relative marker rather than printed. `preserved_worktree` is NOT read at
+    all here: it is an absolute home path in most records and has no safe rendering in this context.
+    """
+    if not isinstance(item, dict):
+        return None
+    attempts = item.get("attempts")
+    detail: str | None = None
+    if isinstance(attempts, list):
+        for attempt in reversed(attempts):
+            if isinstance(attempt, dict) and attempt.get("integration_detail"):
+                detail = str(attempt["integration_detail"])
+                break
+    if not detail:
+        return None
+    return _redact_absolute_paths(detail)
+
+
+#: An absolute POSIX path embedded in recorded prose. Deliberately coarse: this runs over a driver's
+#: own message text, where over-redacting one token is harmless and under-redacting leaks a home path.
+_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)*[\w.\-+@]+")
+
+
+def _redact_absolute_paths(text: str) -> str:
+    """Replace every absolute path in ``text`` with a repository-relative or elided form.
+
+    A path that lies under a recognizable repository root is rendered as its tail (`.aw/worktrees/x`),
+    which keeps the useful part; anything else becomes `<path>` rather than being truncated into a
+    wrong-looking short path. Applied to DRIVER-AUTHORED prose only, never to a git ref: a branch name
+    such as `aw/lane/03ie04_attempt2` is relative and is safe to print verbatim.
+    """
+
+    def _replace(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        parts = raw.strip("/").split("/")
+        for marker in (".aw", "agent_workflows", "tests"):
+            if marker in parts:
+                return "/".join(parts[parts.index(marker) :])
+        return "<path>"
+
+    return _ABSOLUTE_PATH_IN_TEXT.sub(_replace, text)
+
+
+def format_stranded_work_section(
+    queue: list[dict[str, Any]],
+    *,
+    bold: str = "",
+    red: str = "",
+    reset: str = "",
+) -> list[str]:
+    """The RECOVERY ROUTE for every item whose work never landed, or ``[]`` (ys1dor E-03).
+
+    WHY AN OPERATOR NEEDS THIS AND NOT ONLY THE HEADLINE: an alarm a reader cannot ACT on trains them
+    to ignore it. `STRANDED` says work is missing; this says WHERE it is and WHAT TO DO with it. The
+    single most destructive wrong move after a refused integration is to assume the lane is gone and
+    re-run the item from scratch, which is exactly what happened to `03ie04` (paid for twice, $16.59
+    then $32.83), so the branch is named and deleting it is called out as irreversible.
+
+    A SECTION RATHER THAN TABLE COLUMNS, following the `Diagnostics / Blocked Items` block: the table's
+    column contract is pinned by tests and read by operators, and this repository has twice recorded
+    that new facts go in sections so that contract stays stable.
+
+    **`preserved_worktree` IS NOT PRINTED AND THE REASON TEXT IS REDACTED.** Measured on
+    `run-20260908T140845Z-2489897`: that field is an absolute path under the maintainer's home, and
+    `integration_detail` embeds the repository's absolute path too. This is the most-copied output in
+    the product, so only the BRANCH (a git ref, relative by construction) and a path-redacted reason
+    reach it. `aw sanitize --agent` over a captured render is the standing evidence for that claim.
+
+    A SEPARATE FUNCTION, DELIBERATELY, and the reason is a guard rather than taste: `test_refusal_
+    surfacing.py` AST-scans everything after the renderer's `# Failure / Dependency block diagnostics`
+    marker and requires every item field read there to be written by `oc_runipd`, `agy_runipd` or
+    `runner_shared`. `preserved_branch` is written by `lane_containment.record_preserved_lane_state`,
+    which that guard does not scan, so siting this block inline would have failed it for a field that
+    IS faithfully produced. The guard is right to be narrow, so the new reader lives outside its window
+    and proves its own provenance in `test_run_summary_table.py` instead.
+    """
+    out: list[str] = []
+    for item in queue or ():
+        if not integration_was_refused(item):
+            continue
+        id6 = item.get("id6") or "(unknown)"
+        signal = str(item.get("integration_signal") or "unrecorded")
+        branch = item.get("preserved_branch")
+        where = f"branch {branch}" if branch else "its lane (no branch recorded)"
+        out.append(f"  • {id6}: NOT INTEGRATED ({signal}); work is on {where}")
+        detail = integration_refusal_detail(item)
+        if detail:
+            out.append(f"    → why: {detail}")
+        if branch:
+            out.append(
+                f"    → next: the work is PRESERVED on {branch} and was never merged. "
+                f"Inspect it with `git log HEAD..{branch}`, then merge it or re-run the item. "
+                f"Do NOT delete the branch: that is the one irreversible move here"
+            )
+        else:
+            out.append(
+                "    → next: the work was never merged and no branch was recorded; find the lane "
+                "with `aw attention` (or `git worktree list`) before re-running the item"
+            )
+    if not out:
+        return []
+    return ["", f"{bold}{red}STRANDED WORK - NOT IN YOUR PROJECT:{reset}"] + out
 
 
 def record_refusal(
@@ -2263,8 +2452,37 @@ def render_run_summary_table(
         # already excludes `substantially-complete`, so the measured run exited 1. Only this SUMMARY
         # lied, and changing the exit code here would be a real regression.
         and not any(refusal_of_item(it) is not None for it in queue)
+        # ys1dor E-01: AND ASK WHETHER THE WORK ACTUALLY LANDED.
+        #
+        # MEASURED 2026-09-08 on `run-20260908T140845Z-2489897`: `Outcome: COMPLETED  Spend: $32.83`
+        # and `Progress: 1/1 [##########] 100% (1 substantially-complete)` for a run that integrated
+        # NOTHING; the work sat on `aw/lane/03ie04_attempt2` and the maintainer found it only by
+        # auditing `git worktree list` by hand. Eleven lanes were stranded that way on one unrelated
+        # red test, and plan `03ie04` was paid for twice ($16.59, then $32.83).
+        #
+        # PLACED LAST IN THE SUCCESS BRANCH, WHICH IS LOAD-BEARING rather than stylistic. The `FAILED`
+        # branch above already fires on an `integration-blocked` status, and such an item ALSO carries
+        # a refusing `integration_signal`. Testing the signal BEFORE the status would RELABEL that
+        # existing outcome to `STRANDED`, which is a regression dressed as the feature. Asking here
+        # means only the case nothing else catches - a SUCCESS-TUPLE status with a refusing signal -
+        # reaches the new word.
+        #
+        # THE VERDICT COMES FROM THE RUN'S OWN RECORD AND NOTHING ELSE, which is this whole plan's
+        # reason for existing. The rejected design (`xtklpd`) derived it from a filesystem audit, and
+        # its own review measured the consequence: re-rendering a run that had since been recovered by
+        # hand reported `COMPLETED` again, so the summary silently REWROTE HISTORY. A run summary is a
+        # statement about what THAT RUN DID, so it must be reproducible from `state.json` alone. Do NOT
+        # "improve" this by consulting plan directories, `git`, or current statuses.
+        and not any(integration_was_refused(it) for it in queue)
     ):
         outcome_str = "COMPLETED"
+    elif any(integration_was_refused(it) for it in queue):
+        # ys1dor E-02: a run holding unintegrated work is STRANDED, and a PARTIALLY stranded run is
+        # still stranded (OQ-02, resolved). Precedence matches the `FAILED` branch's established shape
+        # in this same function: one bad item colors the whole outcome, and the recovery section below
+        # names exactly which items are affected so the body distinguishes "all of it" from "one of
+        # four" while the headline stays honest.
+        outcome_str = STRANDED_OUTCOME
     elif completed_count > 0:
         outcome_str = "PARTIAL"
     else:
@@ -2278,17 +2496,28 @@ def render_run_summary_table(
     c_red = "\033[31m" if color else ""
     c_reset = "\033[0m" if color else ""
 
+    # ys1dor E-02: THE STRANDED BRANCH IS EXPLICIT, AND DELIBERATELY FIRST AFTER `COMPLETED`.
+    #
+    # This selection is a set of SUBSTRING tests whose ELSE-BRANCH IS CYAN, not an obviously-wrong
+    # color, so an unhandled outcome word looks deliberate while being wrong - exactly the miss class
+    # this plan exists to remove. `STRANDED` contains no `FAIL`, no `INTERRUPT` and no `STOP`, so with
+    # no branch of its own it would render CYAN. Relying on a substring coincidence (a word containing
+    # `FAIL` is red for free) is how the NEXT word breaks, so the test is on the constant itself.
     outcome_color = (
         c_green
         if outcome_str == "COMPLETED"
         else (
-            c_yellow
-            if (
-                "INTERRUPT" in outcome_str
-                or "STOP" in outcome_str
-                or outcome_str == "PARTIAL"
+            c_red
+            if outcome_str == STRANDED_OUTCOME
+            else (
+                c_yellow
+                if (
+                    "INTERRUPT" in outcome_str
+                    or "STOP" in outcome_str
+                    or outcome_str == "PARTIAL"
+                )
+                else (c_red if "FAIL" in outcome_str else c_cyan)
             )
-            else (c_red if "FAIL" in outcome_str else c_cyan)
         )
     )
 
@@ -2610,6 +2839,13 @@ def render_run_summary_table(
         lines.append("")
         lines.append(f"{c_bold}Diagnostics / Blocked Items:{c_reset}")
         lines.extend(diag_lines)
+
+    # ys1dor E-03: the recovery route for work that never landed. Delegated (see that function's
+    # docstring for why it is not inline) and empty for every run that integrated cleanly, so an
+    # unaffected summary is byte-identical to before.
+    lines.extend(
+        format_stranded_work_section(queue, bold=c_bold, red=c_red, reset=c_reset)
+    )
 
     return "\n".join(lines)
 
