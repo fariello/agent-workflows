@@ -80,6 +80,12 @@ C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
 C_SCOPE_PATHS = "IPD-M106"  # Scope-Paths declared-scope allowlist (Order oorry1)
 C_NAME = "IPD-N001"  # filename does not match the plan grammar (awcheck Order 03)
+# orchtyped `dpdyed` (spec `r07vma` R1a/R3/R7): an Order-0 orchestrator's checklist row is not a
+# well-formed TYPED CHILD-TRACKING ROW. Sited in the `IPD-S4xx` state/SHAPE family because that is
+# what it judges; `IPD-S407` was the next free number in that family, confirmed by comparing the
+# IMPORTED values of every `C_*` constant rather than by grepping the source (three constants are
+# multi-line assignments a single-line grep misses: `IPD-S406`, `IPD-M107`, `IPD-M108`).
+C_ORCH_ROW = "IPD-S407"
 # IPD-C8xx is the CITATION-ANCHOR area, opened fresh by citeanchor `mzc019` rather than extending
 # IPD-I3xx (the id-family group, which concerns E-*/V-* identifiers and has nothing to do with
 # citations). Codes are stable and are NEVER recycled; IPD-D701 is RETIRED and must not be revived.
@@ -185,6 +191,24 @@ _H2_RE = re.compile(r"^## (.+?)\s*$")
 _H3_RE = re.compile(r"^### (.+?)\s*$")
 _LEAF_RE = re.compile(r"^- \[([ x])\]\s+(.*)$")
 _SUBFIELD_RE = re.compile(r"^\s+- ([A-Za-z][A-Za-z /-]*?):\s?(.*)$")
+# orchtyped `dpdyed` (spec `r07vma` R1a): the TYPED CHILD-TRACKING ROW grammar, and the ONLY
+# definition of it in the tree (R3). A conforming orchestrator checklist row is exactly:
+#
+#     - [ ] E-NN CONFIRM <child-id6> REACHED <status>
+#
+# FULLY ANCHORED AT BOTH ENDS ON PURPOSE. `^` refuses an over-indented row or one that merely
+# CONTAINS the phrase mid-line, and `$` refuses trailing prose after the status, which is the shape a
+# deliverable would take if the grammar let a row carry a second clause ("... REACHED executed and
+# then re-run the suite"). Widening either anchor re-opens the place R1a exists to close.
+# THE TICKED BOX IS TOLERATED (`[ x]`) because a mid-execution or hand-run orchestrator legitimately
+# carries ticked rows, and shape conformance is not a statement about progress.
+# CONTINUATION LINES ARE DELIBERATELY NOT MATCHED HERE. R1a leaves them unparsed as human-readable
+# context and spec Section 3a limit 1 records that as an honest limit: the prose residue remains the
+# semantic probe's business (`77tr3o` R-12), and an implementer who extends this pattern into the
+# continuation lines has changed the contract and broken that division of labour.
+_ORCH_ROW_RE = re.compile(
+    r"^- \[[ x]\] (E-[0-9]{2,}) CONFIRM ([0-9a-z]{6}) REACHED ([A-Za-z][A-Za-z-]*)$"
+)
 _HISTORY_LINE_RE = re.compile(r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(\S+)")
 # ipdgates Order wezhxg: parse the full terminal history line `- <date> <status> (<actor>): <msg>`
 # so the post-transition attribution lint can reject a generic/empty actor + empty summary.
@@ -1260,6 +1284,361 @@ def check_item_dependencies(
 
 
 # --------------------------------------------------------------------------------------
+# The typed child-tracking row (spec `r07vma` R1a/R3/R7/R8), orchtyped `dpdyed`
+# --------------------------------------------------------------------------------------
+#
+# THIS IS THE ONE IMPLEMENTATION OF THE RULE (R3). `/plan-review` (child `r3xk1f`) and both runners
+# (child `0xmk4e`) call :func:`orchestrator_row_conformance`; neither may carry a second regex or a
+# "cheap version", which is the drift R3 exists to prevent.
+#
+# WHY IT LIVES HERE rather than in a new shared module (this plan's OQ-01, resolved from repository
+# evidence). `runner_shared` keeps EXACTLY `{render_stream, runner_profiles}` as its module-level
+# first-party imports and `tests/test_orchestrator_probe_cache.py::
+# test_no_new_module_level_first_party_import_in_runner_shared` asserts that by SET EQUALITY, so the
+# import a new module would need there breaks a shipped test. `runner_shared` already reaches
+# `ipd_lint` through function-local imports in four places, which is how a runner reaches this.
+#
+# EVERY FIRST-PARTY IMPORT THIS SECTION NEEDS IS FUNCTION-LOCAL, AND THAT IS REQUIRED RATHER THAN
+# STYLISTIC: `ipd_set_plan` imports `ipd_lint` AT MODULE LEVEL, so a module-level import of it here
+# would close an import cycle. The established precedent in this file is `_name_conformant`, which
+# imports `check_engine` in its body for the same reason.
+
+#: The machine reasons a row can be refused for. A consumer routes on these; humans read `message`.
+ORCH_ROW_NOT_TYPED = "not-a-typed-child-tracking-row"
+ORCH_ROW_CHILD_UNKNOWN = "child-id6-is-not-a-row-of-this-orchestrators-child-table"
+ORCH_ROW_STATUS_UNKNOWN = "status-is-outside-the-plan-status-vocabulary"
+ORCH_ROW_NO_DEPENDS = "missing-the-depends-on-edge"
+ORCH_ROW_TABLE_UNUSABLE = "child-table-cannot-resolve-a-child-id6"
+
+#: The THREE CONTENT REQUIREMENTS of R7, held as data so the message cannot drift from the rule and
+#: so a test can assert the CONTENTS rather than an exact string (which would make every wording
+#: improvement a test failure). Spec `r07vma` R7: the refusal states what is wrong and why, forbids
+#: satisfying it by deletion, and names BOTH remedies WITHOUT PRESCRIBING either.
+ORCH_ROW_INVARIANT = (
+    "an Order-0 orchestrator is retired PROGRAMMATICALLY, with the pre-transition E-*/V-* checkpoint "
+    "deliberately skipped, so a step parked on a parent is performed by NOBODY and is marked complete "
+    "having never run"
+)
+ORCH_ROW_NO_DELETION = (
+    "DELETING the item is NOT an acceptable fix: the checklist is what makes a Set execute completely "
+    "and in order when it is run BY HAND, so deleting it causes the lost work this rule prevents"
+)
+ORCH_ROW_REMEDIES = (
+    "two remedies are legitimate and this rule does not prescribe either: MOVE the step into a child "
+    "plan whose `- Item-Dependencies:` put it in the right order, OR REMOVE it because a child "
+    "already covers it (which is removal for redundancy, not deletion to silence this rule)"
+)
+#: The canonical form, rendered from the same grammar the check enforces, so the instruction an author
+#: reads and the rule that refuses them have ONE source (spec OQ-01's proposed direction, partially).
+ORCH_ROW_CANONICAL = "- [ ] E-NN CONFIRM <child-id6> REACHED <status>"
+
+
+class OrchestratorRow(NamedTuple):
+    """One orchestrator checklist row, with its three typed fields or its refusal.
+
+    PER-ROW DETAIL RATHER THAN A BARE BOOL is required by R8 (a consumer reports EVERY finding, not
+    the first) and by R3: children `r3xk1f` and `0xmk4e` render their own output from these fields, so
+    a bool would force each to re-derive the rule.
+    """
+
+    line: int  # 1-based line of the row
+    ident: str  # "E-NN" when the row parses as an E item, else ""
+    row: str  # the row as written (reconstructed canonical single line)
+    child_id6: str  # typed field 1, "" when the row did not parse
+    status: str  # typed field 2, "" when the row did not parse
+    depends_on: str  # typed field 3 (the `Depends on:` edge), "" when absent
+    conforming: bool
+    reason: str  # one of the ORCH_ROW_* reasons, "" when conforming
+    message: str  # the rendered R7 refusal, "" when conforming
+
+
+class OrchestratorRowResult(NamedTuple):
+    """The verdict for a whole orchestrator: every row, plus any table-level cause."""
+
+    applies: bool  # False for a `Kind: child` plan (the rule is orchestrator-only)
+    conforming: bool
+    rows: Tuple[OrchestratorRow, ...]
+    table_reason: str  # why the child table could not resolve an id6 ("" when it could)
+    declared_orders: Tuple[str, ...]  # the Order tokens `parse_child_table` resolved
+
+    @property
+    def findings(self) -> Tuple[OrchestratorRow, ...]:
+        return tuple(r for r in self.rows if not r.conforming)
+
+
+def render_orchestrator_row_refusal(
+    *, row: str, ident: str, reason: str, detail: str
+) -> str:
+    """Render the R7 refusal for one row. The ONLY place this message is composed."""
+    where = "{0} ".format(ident) if ident else ""
+    return (
+        "{where}is not a typed child-tracking row ({reason}): {detail}. "
+        "Write it as `{canonical}`. WHY: {invariant}. {no_deletion}. FIX: {remedies}. "
+        "Row as written: {row!r}"
+    ).format(
+        where=where,
+        reason=reason,
+        detail=detail,
+        canonical=ORCH_ROW_CANONICAL,
+        invariant=ORCH_ROW_INVARIANT,
+        no_deletion=ORCH_ROW_NO_DELETION,
+        remedies=ORCH_ROW_REMEDIES,
+        row=row,
+    )
+
+
+def _child_id6_index(text: str) -> Tuple[FrozenSet[str], str]:
+    """The id6s an orchestrator's own child table declares, and why it could not be read.
+
+    THE ID CELLS COME FROM ``runner_shared.child_table_rows``, which is ALREADY the shared row-walk
+    behind the probe cache and ``parse_declared_child_orders``; consuming it is what R3 requires
+    rather than a second table scanner. ``ipd_set_plan.parse_child_table`` deliberately supplies NO
+    id6 (its result fields are exactly ``('rows','reason')`` and ``order_to_id`` is an INPUT), so it
+    is consumed by the caller for the ORDER GRAPH and its refusal ``reason`` only.
+
+    SIX OF TWELVE LIVE ORCHESTRATORS DECLARE NO ``Id`` COLUMN AT ALL (measured 2026-09-22:
+    ``5e4sb6``, ``ao1rb7``, ``a5wdne``, ``tb63qv``, ``2xz59a``, ``s0gnha`` use
+    ``| Order | File | ... |``). Such a table cannot resolve a child id6, which is an explicit
+    REFUSAL naming the missing column, never a silent pass and never a crash.
+
+    ONLY TWO CELL SHAPES RESOLVE, AND THE NARROWNESS IS A MEASURED CORRECTION rather than caution.
+    A cell resolves when a BACKTICKED token is a valid id6, or when the WHOLE cell is one; both shapes
+    are live (measured 2026-09-22: ``yeh7gc`` writes bare ``r2i1b1`` while every other table writes
+    ``` `dpdyed` ``` , sometimes followed by prose as in
+    ``` `1bdxcp` (authored as Order 02 before the placement row existed; runs THIRD) ```).
+    SCANNING THE CELL FOR ANY ``\\b[0-9a-z]{6}\\b`` WAS TRIED FIRST AND IS WRONG: an id6 is
+    indistinguishable from an ordinary six-letter English word, and the live prose cell
+    ``UNAUTHORED, must be written before this Set runs`` resolves to ``before`` under that rule. That
+    is not a cosmetic miss, it is a FORGED reference: the cell exists precisely to say the child is
+    unauthored, so accepting it would let a typed row claim to track a child nobody has written.
+    Validation of this function caught it, which is why the narrow rule is stated here with the reason.
+    """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import runner_shared as _rs
+
+    rows = _rs.child_table_rows(text)
+    if not rows:
+        return frozenset(), "no readable `## {0}` table".format(S.H_CHILD_IPDS)
+    header_idx = None
+    id_idx = None
+    for i, cells in enumerate(rows):
+        lowered = [c.strip().strip("`").strip().lower() for c in cells]
+        if "order" in lowered:
+            header_idx = i
+            if "id" in lowered:
+                id_idx = lowered.index("id")
+            break
+    if header_idx is None:
+        return frozenset(), "child table has no recognizable `Order` header row"
+    if id_idx is None:
+        return frozenset(), (
+            "child table declares no `Id` column (header: {0!r}), so no row can name a child id6; "
+            "add the column before a typed row can resolve".format(
+                " | ".join(c.strip() for c in rows[header_idx])
+            )
+        )
+    found = set()
+    for cells in rows[header_idx + 1 :]:
+        if id_idx >= len(cells):
+            continue
+        cell = cells[id_idx]
+        candidates = [t.strip() for t in _BACKTICK_TOKEN_RE.findall(cell)]
+        candidates.append(cell.strip())
+        for cand in candidates:
+            if _core.is_valid_id6(cand):
+                found.add(cand)
+                break
+    if not found:
+        return frozenset(), (
+            "child table has an `Id` column but no cell in it resolves to an id6"
+        )
+    return frozenset(found), ""
+
+
+def orchestrator_row_conformance(
+    text: str, *, doc: Optional[ParsedDoc] = None
+) -> OrchestratorRowResult:
+    """THE conformance rule for an orchestrator's typed child-tracking rows (R1a, R3).
+
+    Returns a per-ROW verdict plus an overall one. A `Kind: child` plan yields ``applies=False`` and
+    is reported conforming, because the rule is about an Order-0 parent's checklist and nothing else.
+
+    KIND IS READ FROM ``doc.meta_fields``, which ``parse`` bounds to the metadata region, so a plan
+    QUOTING `- Kind: orchestrator` in its prose is not misclassified.
+
+    ROWS COME FROM ``doc.exec_leaves``, which ``parse`` builds from ``_structural_lines``, so a
+    conforming-shaped row quoted inside a fenced code block is not seen at all. That is deliberate:
+    this plan's own body quotes the grammar template, and a raw-line scan would flag a plan for
+    describing the rule.
+
+    AN UNUSABLE CHILD TABLE MEANS CONFORMANCE IS UNKNOWN, NOT SATISFIED, so every row is refused with
+    the cause surfaced rather than passing by default.
+    """
+    if doc is None:
+        doc = parse(text)
+    if doc.meta_fields.get("Kind") != S.KIND_ORCHESTRATOR:
+        return OrchestratorRowResult(False, True, (), "", ())
+
+    from agent_workflows import ipd_set_plan as _isp
+
+    table = _isp.parse_child_table(text)
+    declared_orders = tuple(sorted((table.rows or {}).keys(), key=lambda s: int(s)))
+    id6s, id_reason = _child_id6_index(text)
+    # PRECEDENCE, stated because two live orchestrators hit both causes at once (`5e4sb6`): BOTH are
+    # reported when both apply, because each names a different edit an author must make.
+    causes = [c for c in (id_reason, table.reason or "") if c]
+    table_reason = "; ".join(causes)
+
+    out: List[OrchestratorRow] = []
+    for leaf in doc.exec_leaves:
+        raw = "- [{0}] {1}".format("x" if leaf.checked else " ", leaf.text).rstrip()
+        m = _ORCH_ROW_RE.match(raw)
+        ident = leaf.ident or (m.group(1) if m else "")
+        depends_on = (leaf.fields.get("Depends on") or "").strip()
+        if m is None:
+            out.append(
+                OrchestratorRow(
+                    leaf.line,
+                    ident,
+                    raw,
+                    "",
+                    "",
+                    depends_on,
+                    False,
+                    ORCH_ROW_NOT_TYPED,
+                    render_orchestrator_row_refusal(
+                        row=raw,
+                        ident=ident,
+                        reason=ORCH_ROW_NOT_TYPED,
+                        detail=(
+                            "the row does not match the typed grammar exactly (it must carry no "
+                            "prose before or after the three fields; free prose belongs on the "
+                            "continuation lines)"
+                        ),
+                    ),
+                )
+            )
+            continue
+        child_id6, status = m.group(2), m.group(3)
+        reason = ""
+        detail = ""
+        if table_reason:
+            reason = ORCH_ROW_TABLE_UNUSABLE
+            detail = (
+                "the row names child {0!r} but this orchestrator's own child table cannot resolve a "
+                "child id6, so conformance is UNKNOWN rather than satisfied: {1}".format(
+                    child_id6, table_reason
+                )
+            )
+        elif child_id6 not in id6s:
+            reason = ORCH_ROW_CHILD_UNKNOWN
+            detail = "{0!r} is not a row of this orchestrator's own child table (it declares {1})".format(
+                child_id6, ", ".join(sorted(id6s)) or "no id6 at all"
+            )
+        elif status not in S.RECOGNIZED_STATUS:
+            reason = ORCH_ROW_STATUS_UNKNOWN
+            detail = "{0!r} is not a plan status; the vocabulary is {1}".format(
+                status, ", ".join(sorted(S.RECOGNIZED_STATUS))
+            )
+        elif not depends_on:
+            reason = ORCH_ROW_NO_DEPENDS
+            detail = (
+                "the row supplies no `- Depends on:` edge, which is the third typed field "
+                "(write `- Depends on: none` when it has no predecessor)"
+            )
+        out.append(
+            OrchestratorRow(
+                leaf.line,
+                ident,
+                raw,
+                child_id6,
+                status,
+                depends_on,
+                not reason,
+                reason,
+                ""
+                if not reason
+                else render_orchestrator_row_refusal(
+                    row=raw, ident=ident, reason=reason, detail=detail
+                ),
+            )
+        )
+    rows = tuple(out)
+    return OrchestratorRowResult(
+        True,
+        all(r.conforming for r in rows),
+        rows,
+        table_reason,
+        declared_orders,
+    )
+
+
+# THE PHASES AT WHICH THE ROW RULE BLOCKS A LINT. Every inclusion and every exclusion below is a
+# MEASUREMENT taken 2026-09-22, not a preference, because this constant is where the rule's blast
+# radius is decided and a wrong value here either mass-refuses other agents' approved plans or ships a
+# rule that never fires.
+#
+# `review-finalize` IS THE PRIMARY GATE, because it is where R5's bounded repair loop lives. A
+# violation found at review costs a revision; found anywhere later it costs a dead end.
+#
+# `pre-transition` IS INCLUDED because that is the gate `aw ipd finalize` runs, so a HAND-RUN
+# orchestrator cannot reach `executed` carrying an untyped row. Note the runner-owned ROLLUP does not
+# pass through it (`ipd_lifecycle.ROLLUP_OMITTED_GATES["pre-transition-ev-checkpoint"]`), so this does
+# not block a legitimate retirement.
+#
+# `author` IS EXCLUDED ON A CORPUS MEASUREMENT. The grammar is NEW, so nothing authored before it
+# conforms by accident: 11 of the 12 live pending orchestrators do not conform (the twelfth, `d1u4sy`,
+# is written in the grammar on purpose) and 6 of the 12 additionally declare no `Id` column at all.
+# `aw check plans` sweeps at `author` (`check_engine._IPD_LINT_SWEEP_CHECKPOINT`), so firing here
+# would turn `aw ipd lint --all` and `aw check` red on eleven other agents' APPROVED plans before the
+# migration that fixes them (child `68uhp0`) has run. Spec `25kzda` 2.5b records where that leads: mass
+# false-refusal "would teach agents to DELETE the child checklist", the exact failure R2/R7 prevent.
+#
+# `post-transition` IS EXCLUDED MECHANICALLY: it runs on the ALREADY-COMMITTED plan, so a finding there
+# cannot refuse anything and would only leave a completed transition `committed-incomplete`.
+#
+# `pre-execution` IS EXCLUDED, AND THIS ONE WAS LEARNED BY BREAKING A TEST RATHER THAN BY REASONING.
+# It was included first, on the reasoning that it is the ready-to-execute gate. That made
+# `tests/test_orchestrator_retirement.py::TheHumanFacingGateIsUNCHANGED::
+# test_the_ordinary_finalize_still_refuses_an_orchestrator` fail, and the failure was CORRECT: that
+# test mints a real begin receipt via `ipd_lifecycle.begin`, which gates on the `pre-execution` lint,
+# and its fixture is built from the REAL `aw ipd scaffold` skeleton. Measured directly:
+# `ipd_authoring.build_skeleton(kind="orchestrator", ...)` emits the row `- [ ] E-01 TODO one
+# observable action.` and the prose placeholder `TODO: child IPD table (Order | File | What it does |
+# Depends on).` in place of a table, so THE SHIPPED SCAFFOLD IS NOT CONFORMING and `aw ipd begin`
+# would refuse every freshly scaffolded orchestrator before its author could fill it in. Blocking at
+# `begin` is therefore blocking the wrong end of the lifecycle: an orchestrator is authored, reviewed
+# and repaired BEFORE it is begun, and `review-finalize` already covers that. Teaching the scaffold to
+# emit a conforming skeleton is the right fix and is spec OQ-01's own proposed direction, but
+# `ipd_authoring.py` is NOT in this plan's `- Scope-Paths:`, so it is reported as a finding (backlog
+# filed) rather than done here. If a later plan makes the scaffold conforming, adding `pre-execution`
+# back becomes a one-line change with this test as its proof.
+#
+# THE ROUTE FOR THE PRE-EXISTING CORPUS IS CHILD `68uhp0`'s TO CHOOSE (spec criterion 12), and this
+# constant does not pre-empt it: a migrate-all route leaves it untouched.
+_ORCH_ROW_BLOCKING_CHECKPOINTS = frozenset(("review-finalize", "pre-transition"))
+
+
+def check_orchestrator_rows(
+    doc: ParsedDoc, text: str, checkpoint: str
+) -> List[Diagnostic]:
+    """`IPD-S407`: every orchestrator checklist row must be a typed child-tracking row.
+
+    Gated on `Kind: orchestrator` (a child plan is untouched) and on the checkpoint (see
+    `_ORCH_ROW_BLOCKING_CHECKPOINTS`). Delegates ENTIRELY to
+    :func:`orchestrator_row_conformance`; no rule logic lives here, so the linter and both of the
+    Set's other consumers cannot disagree.
+    """
+    if checkpoint not in _ORCH_ROW_BLOCKING_CHECKPOINTS:
+        return []
+    if doc.meta_fields.get("Kind") != S.KIND_ORCHESTRATOR:
+        return []
+    result = orchestrator_row_conformance(text, doc=doc)
+    # EVERY finding, not the first (R8).
+    return [Diagnostic(row.line, 1, C_ORCH_ROW, row.message) for row in result.findings]
+
+
+# --------------------------------------------------------------------------------------
 # Top-level lint
 # --------------------------------------------------------------------------------------
 
@@ -1314,6 +1693,7 @@ def lint_text(
     diags += check_open_questions(doc)
     diags += check_size(doc)
     diags += check_checkpoint(doc, checkpoint, directory)
+    diags += check_orchestrator_rows(doc, text, checkpoint)
     scope_blocking, scope_advisory = check_scope_paths(doc, checkpoint, directory)
     diags += scope_blocking
     dep_blocking, dep_advisory = check_item_dependencies(doc, checkpoint, directory)
