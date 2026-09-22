@@ -1528,10 +1528,10 @@ class RealRepositorySets(unittest.TestCase):
             "rununify",
             False,
             rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            {"40it5e": "reviewed"},
+            {"40it5e": "approved"},
             (),
             12,
-            {"executed", "reviewed"},
+            {"executed", "approved"},
             "THE THREE-COLUMN, NO-`Id` LAYOUT, and the Set that motivated the unauthored-rows rule. "
             "Its placeholder rows `03+` and `last` stood unauthored by deliberate design and the "
             "runner correctly refused the parent on every run for two weeks; on the maintainer's "
@@ -1588,10 +1588,10 @@ class RealRepositorySets(unittest.TestCase):
             "commitguard",
             False,
             rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            {"2s0iym": "reviewed"},
+            {"2s0iym": "approved"},
             (),
             3,
-            {"executed", "reviewed"},
+            {"executed", "approved"},
             "THE UNFINISHED-CHILDREN REFUSAL, pinned against a Set that HAS one today. `commitguard` "
             "is the right carrier because its child table is FULLY AUTHORED, so a refusal here can "
             "ONLY be the unfinished-children rule and never the unauthored-rows rule that `runstop` "

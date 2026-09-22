@@ -1670,11 +1670,14 @@ class CompactFormAndLegendTests(unittest.TestCase):
     def setUp(self):
         self.term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
 
-    def test_the_glyph_and_id6_are_styled_as_one_run_not_two(self):
+    def test_the_glyph_and_id6_are_styled_as_separate_tokens_not_one_run(self):
+        """The glyph and id6 share the same lifecycle color and weight, but are emitted
+        as separate SGR tokens to prevent terminal text shapers from coalescing font fallback
+        metrics across the glyph boundary and squishing ambiguous-width symbols."""
         resolved = T.resolve_lifecycle("backlog", "blocked")
         out = self.term.format_lifecycle_compact("abc123", resolved)
-        self.assertEqual(out, f"\033[1;38;5;208m{_VS_BLOCKED} abc123\033[0m", repr(out))
-        self.assertEqual(len(_ANSI.findall(out)), 2, f"not one run: {out!r}")
+        expected = f"\033[1;38;5;208m{_VS_BLOCKED}\033[0m \033[1;38;5;208mabc123\033[0m"
+        self.assertEqual(out, expected, repr(out))
 
     def test_the_compact_form_communicates_the_stage_without_color(self):
         """A compact id6-only view must still carry the state in monochrome."""

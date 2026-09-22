@@ -1139,16 +1139,20 @@ class Term:
         *,
         word: bool = False,
     ) -> str:
-        """Return Section 9.2's compact ``GLYPH id6`` form, glyph and id6 styled TOGETHER.
+        """Return Section 9.2's compact ``GLYPH id6`` form, glyph and id6 styled together.
 
-        STYLED AS ONE RUN rather than as two adjacent escape pairs, because Section 9.2 says "with
-        the glyph and id6 styled together" and because one run is what a terminal that mishandles a
-        reset mid-line renders correctly. Pass ``word=True`` to append the native word when it fits,
+        The glyph and id6 share the same lifecycle color and weight (Section 9.2: "styled together"),
+        emitted as separate SGR spans so terminal text shapers (such as HarfBuzz / xterm.js /
+        mintty) do not coalesce font fallback metrics across the glyph boundary and squish
+        ambiguous-width glyphs (like ◕). Pass ``word=True`` to append the native word when it fits,
         which the section invites ("If a status word fits, include it").
         """
 
         glyph = lifecycle_style.glyph_for(resolved.stage, unicode=self.unicode)
-        marker = self.style_lifecycle_text(f"{glyph} {id6}", resolved)
+        marker = (
+            f"{self.style_lifecycle_text(glyph, resolved)} "
+            f"{self.style_lifecycle_text(id6, resolved)}"
+        )
         if word:
             return f"{marker} {self.style_lifecycle_text(lifecycle_word(resolved), resolved)}"
         return marker
