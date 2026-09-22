@@ -6,18 +6,18 @@
 - Scope: Close the last mile only. Write the refusal record on the RECONSIDER (deferred) path too, so the deferral reason and a remedy reach the queue item rather than only the event log, and make the existing typed reasons render. Reuses the refusal record and both render surfaces that reviewed plan `r2i1b1` builds; adds NO new refusal decision and changes NO gate's verdict.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_deferral_reporting.py
 - Item-Dependencies: executed:r2i1b1
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runghostid
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zyw4n3
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: i2fjf8
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: zyw4n3 verified (set runghostid, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-907, all FIXED, none deferred; readiness `go-pending-approval`. Record: `.aw/records/reviews/20260908-runghostid-01-zyw4n3-emit-a-refusal-record-when-an-orchestrator-is-deferred-so-a.review.md`. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` conforming after, so nothing here was structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on EXECUTING its claims rather than re-reading them. NINE things were run: `dispatch_orchestrator_item` was DRIVEN on a purpose-built two-plan temp repo to reach the RECONSIDER branch and its item keys dumped; the same function was driven to reach TERMINATE; both reason-constant blocks were printed and their value sets differenced; `render_run_summary_table` was rendered on a `queued` orchestrator; `render_stream`'s first-party imports were AST-walked; every consumer of the two bespoke fields was grepped across `agent_workflows/` and `tests/`; both hosts' `## Dependency blocks (why)` copies were located; `evaluate_backlog_close` was run for `i2fjf8` and its carriers grepped; and the bare suite plus the named module were run.
@@ -35,46 +35,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: populate the refusal record on the deferral path
 
-- [ ] E-01 Write `r2i1b1`'s refusal record on the RECONSIDER path in `dispatch_orchestrator_item` (`agent_workflows/runner_shared.py`, the RECONSIDER branch at `:3356-3372` as re-measured at review; this plan's `:3017-3033` is stale by ~340 lines, so LOCATE BY THE `if decision.outcome == ORCH_DISPATCH_RECONSIDER:` line, never by number), where today only an `orchestrator-deferred` event is appended and NO item field is written. Use `r2i1b1`'s shared constructor rather than inventing a second record shape; if it has not landed, STOP and report rather than forking one, because two refusal-record shapes on the same queue item is the exact divergence its E-01 exists to prevent.
+- [x] E-01 Write `r2i1b1`'s refusal record on the RECONSIDER path in `dispatch_orchestrator_item` (`agent_workflows/runner_shared.py`, the RECONSIDER branch at `:3356-3372` as re-measured at review; this plan's `:3017-3033` is stale by ~340 lines, so LOCATE BY THE `if decision.outcome == ORCH_DISPATCH_RECONSIDER:` line, never by number), where today only an `orchestrator-deferred` event is appended and NO item field is written. Use `r2i1b1`'s shared constructor rather than inventing a second record shape; if it has not landed, STOP and report rather than forking one, because two refusal-record shapes on the same queue item is the exact divergence its E-01 exists to prevent.
   THE RECORD LIVES IN `render_stream.py`, NOT `runner_shared.py`, AND THAT IS DELIBERATE (review, F-14). `r2i1b1` E-01 sites the dataclass in `render_stream` for a MECHANICAL reason it states explicitly: `runner_shared` already imports `render_stream` at module level (re-verified at review, `runner_shared.py:147`, `from agent_workflows.render_stream import Palette, render_run_summary_table`), and `render_stream` imports ZERO first-party modules (re-verified by AST walk), so the reverse edge cannot exist without a circular import. CONSEQUENCE FOR THIS PLAN: importing the constructor into `runner_shared` is import-LEGAL and requires no new path, but you must import it FROM `render_stream` and must NOT move, re-export, or re-define it in `runner_shared` for convenience. Doing so would break the property `r2i1b1` E-01 depends on and its E-08 asserts. If you find yourself needing to edit `render_stream.py`, STOP: that file is `r2i1b1`'s and is not in this plan's `- Scope-Paths:`.
   RESPECT THE ONE INVARIANT THIS PATH GUARDS: the RECONSIDER branch must still write NO `status`, because the item has to stay `queued` so a later iteration re-selects it when its children finish; the surrounding comment records that writing a terminal `dependency-blocked` here excluded such an orchestrator forever. Adding a refusal record is additive and must not disturb that. Re-verified at review by driving the real function on a two-item fixture: the outcome is `reconsider` with reason `children-unfinished`, `status` stays `queued`, and the item's keys are exactly `action, attempts, id6, position, setid, status` with NO refusal-bearing field, which is this plan's F-6/F-7 reproduced.
   - Depends on: none
   - Expected outcome: after a deferred-orchestrator run, the queue item carries a refusal record naming the deferral, and its `status` is still `queued`; the record type is IMPORTED from `render_stream` and neither redefined nor re-exported in `runner_shared`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Map each existing reason value to a human REASON and an actionable REMEDY, reusing the typed vocabulary already defined rather than writing new prose per site. The seven `ORCH_REASON_*` constants are at `runner_shared.py:3031-3042` (re-measured at review; this plan's `:2692-2703` citations are stale by ~340 lines): `ORCH_REASON_UNFINISHED_CHILDREN` = `children-unfinished`, `ORCH_REASON_DEAD_CHILDREN` = `children-terminally-failed`, `ORCH_REASON_CHILDREN_NOT_IN_RUN` = `children-not-in-this-run`, `ORCH_REASON_NO_CHILDREN` = `no-children`, `ORCH_REASON_UNAUTHORED_CHILD_ROWS` = `unauthored-child-rows`, `ORCH_REASON_FINALIZE_REFUSED` = `finalize-refused`, `ORCH_REASON_NO_ORCHESTRATOR` = `no-orchestrator`.
+- [x] E-02 Map each existing reason value to a human REASON and an actionable REMEDY, reusing the typed vocabulary already defined rather than writing new prose per site. The seven `ORCH_REASON_*` constants are at `runner_shared.py:3031-3042` (re-measured at review; this plan's `:2692-2703` citations are stale by ~340 lines): `ORCH_REASON_UNFINISHED_CHILDREN` = `children-unfinished`, `ORCH_REASON_DEAD_CHILDREN` = `children-terminally-failed`, `ORCH_REASON_CHILDREN_NOT_IN_RUN` = `children-not-in-this-run`, `ORCH_REASON_NO_CHILDREN` = `no-children`, `ORCH_REASON_UNAUTHORED_CHILD_ROWS` = `unauthored-child-rows`, `ORCH_REASON_FINALIZE_REFUSED` = `finalize-refused`, `ORCH_REASON_NO_ORCHESTRATOR` = `no-orchestrator`.
   THERE IS A SECOND, OVERLAPPING VOCABULARY AND THIS PLAN COUNTED ONLY ONE OF THEM (review, F-13). `RETIRE_REFUSED_*` (`:2555-2558`) is the vocabulary `evaluate_set_retirement` produces and `decide_orchestrator_dispatch` CONSUMES before translating to `ORCH_REASON_*`. Measured, the two sets share three values (`no-children`, `no-orchestrator`, `unauthored-child-rows`) and differ on a fourth that is a NEAR-MISS PAIR: `RETIRE_REFUSED_UNFINISHED_CHILDREN` is `unfinished-children` while `ORCH_REASON_UNFINISHED_CHILDREN` is `children-unfinished`. Two nearly identical strings differing only in word order is precisely the shape that makes a dict-keyed mapping silently miss. So E-02 must state WHICH vocabulary the mapping is keyed on, and prove the other cannot reach it: measured at review, `dispatch_orchestrator_item` writes `decision.reason`, which is always an `ORCH_REASON_*` value because `decide_orchestrator_dispatch` translates every `RETIRE_REFUSED_*` branch before returning, so keying on `ORCH_REASON_*` is CORRECT. Assert that translation rather than assuming it, because if a future branch forwards a `RETIRE_REFUSED_*` value unchanged the mapping degrades to the generic fallback this item forbids.
   THE MAPPING MUST FAIL LOUDLY ON AN UNKNOWN CODE, not fall back to prose. Because two vocabularies exist and a third could be added, a dict lookup missing a key is a real risk rather than a hypothetical one. Decide and record whether an unmapped code raises, or yields a record explicitly labelled as an unmapped code (which is honest and still visible), but do NOT let it produce a bare or empty remedy: an empty remedy renders as a refusal record with nothing actionable in it, which looks like the very silence this plan exists to remove.
   THE REMEDY IS THE HALF THAT MATTERS and is what the item actually asked for: it wanted the run to say something like "children not executed; did you mean to include the children or pass --full-auto?" rather than a bare status. Each remedy must name a concrete next action. Follow `m7gvuz` E-06's discipline on wording: phrase the remedy as the CONSTRUCTIVE action, never as an instruction to delete or weaken the thing that refused. See OQ-01 on the `--full-auto` wording specifically.
   - Depends on: E-01
   - Expected outcome: every one of the seven `ORCH_REASON_*` values yields a specific human reason and a remedy naming an action; the mapping's keyed vocabulary is stated and the `RETIRE_REFUSED_*` translation asserted; an unknown code is handled deliberately and never as an empty remedy; no reason falls through to a generic string.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the TERMINATE path use the SAME record, so the two halves of one function stop reporting differently. Today TERMINATE writes bespoke fields `item["orchestrator_refusal_reason"]` and `item["orchestrator_refusal_detail"]` (`:3387-3388` at review) that NO RENDER surface reads. Populate `r2i1b1`'s record there too.
+- [x] E-03 Make the TERMINATE path use the SAME record, so the two halves of one function stop reporting differently. Today TERMINATE writes bespoke fields `item["orchestrator_refusal_reason"]` and `item["orchestrator_refusal_detail"]` (`:3387-3388` at review) that NO RENDER surface reads. Populate `r2i1b1`'s record there too.
   KEEP THE EXISTING FIELDS, AND THE REASON IS NOW STRONGER THAN THIS PLAN STATED (review, F-15). The plan says "grep shows NO surface reads" them and that "a consumer outside this grep may exist". Measured, a consumer exists IN THIS REPOSITORY: `tests/test_orchestrator_retirement.py:3310-3312` asserts `item["orchestrator_refusal_reason"] == rs.RETIRE_REFUSED_NO_CHILDREN` and that `orchestrator_refusal_detail` contains a substring. So renaming or removing them BREAKS A LIVE TEST, and the correct statement is that no RENDER surface reads them while a test does. That test also pins the field to a `RETIRE_REFUSED_*` constant whose VALUE happens to equal its `ORCH_REASON_*` twin (`no-children`), which is exactly the near-miss aliasing E-02 must not be confused by.
   PRESERVE `unsatisfied_dependencies` AND `unsatisfied_dependency_reasons` (`:3378-3386`) exactly, since `write_report`'s `## Dependency blocks (why)` section reads them. TWO CORRECTIONS TO THIS PLAN'S CITATION (review, F-16). FIRST, that section exists in BOTH hosts (`oc_runipd.py:3222` and `agy_runipd.py:2152`), not only oc, so "the one place a deferral reason surfaces today" has two implementations and a claim about it must check both. SECOND and more important, it is gated on `status == "dependency-blocked"`, so it renders ONLY when `terminal_status` takes its default; a TERMINATE that ever wrote a different terminal status would surface nowhere even today. Do not treat that section as a general safety net.
   - Depends on: E-02
   - Expected outcome: both dispatch outcomes populate the shared record; the existing bespoke fields and both dependency fields are unchanged and `tests/test_orchestrator_retirement.py` still passes; the dependency-blocks report section still renders on BOTH hosts.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it, without depending on live run state
 
-- [ ] E-04 Test the deferral reporting with a FIXTURE, never against `.aw/records/runs/`. That tree is gitignored with zero tracked files (re-verified at review: `git ls-files` returns nothing against 143 local run directories), and `tests/test_run_viewer.py:3` and `:25` record that it "is gitignored and absent in every fresh checkout", so a test keyed to live runs would be unrunnable in CI and in every lane worktree the runner allocates. Drive `dispatch_orchestrator_item` directly with a constructed state, as the orchestrator-retirement tests already do; a WORKING recipe is `tests/test_orchestrator_retirement.py`'s `DispatchRunCase`, and at review a two-plan temp repo plus a two-item queue was enough to reach the RECONSIDER branch.
+- [x] E-04 Test the deferral reporting with a FIXTURE, never against `.aw/records/runs/`. That tree is gitignored with zero tracked files (re-verified at review: `git ls-files` returns nothing against 143 local run directories), and `tests/test_run_viewer.py:3` and `:25` record that it "is gitignored and absent in every fresh checkout", so a test keyed to live runs would be unrunnable in CI and in every lane worktree the runner allocates. Drive `dispatch_orchestrator_item` directly with a constructed state, as the orchestrator-retirement tests already do; a WORKING recipe is `tests/test_orchestrator_retirement.py`'s `DispatchRunCase`, and at review a two-plan temp repo plus a two-item queue was enough to reach the RECONSIDER branch.
   COVER, AS SEPARATE CASES: a RECONSIDER deferral populates the record AND leaves `status` still `queued`; a TERMINATE refusal populates the same record; each of the seven `ORCH_REASON_*` values produces a non-generic reason and remedy; an UNKNOWN reason code is handled as E-02 decided rather than yielding an empty remedy; and the `orchestrator-deferred` event is still appended with its existing fields on BOTH paths (the two events differ: the TERMINATE one carries `status` and `unauthored_rows`, the RECONSIDER one does not).
   ASSERT THE RECONSIDER CASE FAILS BEFORE THE CHANGE, so the test is proven to bite. Do NOT pin that to HEAD `8b4e1570` as this plan does; that HEAD is already historical. Reproduce the pre-change failure in YOUR worktree by reverting your own edit, and paste both outputs.
   ADD ONE MORE CASE THIS PLAN OMITS: assert the record's type is the one IMPORTED from `render_stream`, not a look-alike defined locally (for example by identity against the imported symbol). Without it, the divergence `r2i1b1` E-01 exists to prevent could be reintroduced here and every other test would still pass.
   - Depends on: E-03
   - Expected outcome: fixture-driven tests passing in a bare worktree; the RECONSIDER case fails before the change and passes after, reproduced in the executing worktree; the record's identity asserted against the imported type.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Verify END TO END that the reason now REACHES both surfaces, which is the only evidence that matters for the item's complaint, and confirm the no-op run no longer looks like a success. Re-run the item's exact scenario (name a `reviewed` orchestrator whose children are not `approved`) and show the summary and `aw runs` output carrying the reason and remedy.
+- [x] E-05 Verify END TO END that the reason now REACHES both surfaces, which is the only evidence that matters for the item's complaint, and confirm the no-op run no longer looks like a success. Re-run the item's exact scenario (name a `reviewed` orchestrator whose children are not `approved`) and show the summary and `aw runs` output carrying the reason and remedy.
   CHECK `r2i1b1` HAS LANDED FIRST: this plan declares `Item-Dependencies: executed:r2i1b1` precisely because rendering is its deliverable, not this plan's, and without it the record is written but invisible. NOTE `r2i1b1` IS NOW `approved` (this plan says `reviewed`), so it is cleared to run but has NOT executed; the dependency edge remains unmet and the runner enforces it.
   THE DEFERRED ITEM IS `queued`, WHICH IS WHY THIS DEPENDENCY IS LOAD-BEARING RATHER THAN MERELY TIDY (review, F-17). Measured at review, the summary's diagnostics block is a closed allowlist over `dependency-blocked`, `failed-safely`, `merge-needs-human`, `merge-refused` (renamed 2026-09-21 from `integration-blocked`/`merge-conflict`; both spellings are listed) and `interrupted`; a deferred orchestrator is `queued`, so it matches NONE of them and renders nothing no matter what fields it carries. Confirmed by rendering the real `render_run_summary_table` on a `queued` orchestrator: the output has no `Diagnostics` line at all, `Verify` is `-`, and the header reads a bland `Outcome: QUEUED`. So the record this plan writes is invisible until `r2i1b1` E-02 replaces that allowlist with an any-status branch. Executing this plan first would produce ZERO operator-visible change, which is exactly what the dependency prevents.
   ALSO confirm the ORDERING claim: the summary must still not misreport the item as failed, because a deferral is not a failure; the goal is an explained no-op, not a red run. If `r2i1b1` has landed and the rendering still does not show the record, report that as a finding against the rendering rather than adding a second render path here.
   DO NOT EXPECT THE `Outcome:` HEADER TO TURN GREEN-TO-RED, and say which line actually changes. Measured, the header for an all-`queued` run reads `QUEUED` rather than `COMPLETED`, so this plan's F-5 wording ("`Outcome: COMPLETED`, `Progress: 1/1 100%`") describes a run in which the CHILD was reviewed successfully alongside the deferred parent, not the parent alone. State in the evidence which run shape you reproduced, because "the summary said COMPLETED" and "the summary said QUEUED" are different starting points and only the first is the item's complaint.
   - Depends on: E-04
   - Expected outcome: a pasted before/after of the same invocation showing the deferral reason and remedy in the summary and in `aw runs`, with the item still reported as deferred rather than failed, and with the reproduced run shape stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -167,30 +167,338 @@ THE RELEASE GATE IS THIS PLAN'S ALONE, WHICH CHANGES WHAT ITS FINALIZE OWES (rev
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff` of the RECONSIDER branch, and paste a fixture run's resulting queue item as JSON showing BOTH the refusal record present AND `status` still `queued`. Paste the `orchestrator-deferred` event too, showing its existing fields unchanged. Paste the IMPORT LINE showing the record type comes from `render_stream`, plus a grep proving `runner_shared` neither defines nor re-exports it (F-14); a diff that defines a local record shape FAILS this item regardless of how the fields look.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: LOCATED BY SYMBOL, not by number, as the gate instructs: the branch is `if decision.outcome == ORCH_DISPATCH_RECONSIDER:`, which sits at `runner_shared.py:11019` in the executing worktree (the plan's `:3356-3372` review coordinate had drifted again, by a further ~7,660 lines, so the gate's warning was correct and worth obeying).
 
-- [ ] V-02 validates E-02
+    THE DIFF OF THE RECONSIDER BRANCH (`git diff agent_workflows/runner_shared.py`, the RECONSIDER hunk):
+
+    ```diff
+    +        reason_text, remedy = orchestrator_refusal_text(decision.reason)
+    +        record_refusal(
+    +            item,
+    +            code=decision.reason,
+    +            # The dispatch's own `detail` is appended rather than paraphrased: it NAMES the children
+    +            # and their statuses (`... chi001 (queued)`), which is the run-specific fact a generic
+    +            # reason cannot carry and the operator's actual next question.
+    +            reason=f"{reason_text}. {decision.detail}",
+    +            remedy=remedy,
+    +        )
+             append_jsonl(
+                 run_dir / "events.jsonl",
+    ```
+
+    plus the clear at the top of the function, which D-1 added (see `decisions-and-questions.md`):
+
+    ```diff
+         id6 = str(item.get("id6") or "")
+    +    # See the docstring: a refusal from a PREVIOUS dispatch of this same item must not survive into
+    +    # this one's outcome. Cleared once, here, rather than per branch, so a future fourth outcome
+    +    # cannot forget it.
+    +    item.pop(REFUSAL_KEY, None)
+         decision = decide_orchestrator_dispatch(
+    ```
+
+    THE RESULTING QUEUE ITEM, from driving the REAL `dispatch_orchestrator_item` on a two-plan temp repo (`python3 .aw/state/scratch-zyw4n3/repro.py`). BOTH facts the item demands are present: the record, AND `status` still `queued`:
+
+    ```
+    outcome= reconsider reason= children-unfinished
+    item keys= ['action', 'attempts', 'dependencies', 'id6', 'kind', 'position', 'refusal', 'setid', 'status']
+    status= queued
+    refusal= {
+      "code": "children-unfinished",
+      "reason": "this orchestrator was DEFERRED, not run: its Set still has children this run has not finished, and an orchestrator is retired only once every child is `executed`. Set 'zset' has 1 child(ren) not yet executed that THIS RUN will still act on: chi001 (queued). Left RECONSIDERABLE (no status written), so this orchestrator is re-tested on a later iteration once they complete",
+      "remedy": "let the run reach those children: they are named in the reason above with their current status, and each must become `executed`. A child still awaiting human approval is the usual cause - approve it with `aw ipd set approved <id6> --by-human --message ...` and run the Set again. Nothing is wrong with this orchestrator and no plan file needs editing"
+    }
+    ```
+
+    Compare the SAME dump before the change (`git stash push -- agent_workflows/runner_shared.py`), which is this plan's F-6 reproduced in the executing worktree: `item keys= ['action', 'attempts', 'dependencies', 'id6', 'kind', 'position', 'setid', 'status']` and `refusal= null`.
+
+    THE `orchestrator-deferred` EVENT, fields unchanged and asserted rather than eyeballed, by `DeferralRecordTests::test_the_orchestrator_deferred_event_keeps_its_existing_shape`: `reason == children-unfinished`, `terminated is False`, `unfinished_children == [["chi001", "queued"]]`, and NO `status`/`unauthored_rows` keys (which the TERMINATE event carries and this one must not). That test passes.
+
+    THE IMPORT LINE, showing both names come FROM `render_stream` and nothing is defined locally:
+
+    ```
+    agent_workflows/runner_shared.py:166:from agent_workflows.render_stream import (
+    agent_workflows/runner_shared.py:175:    REFUSAL_KEY,
+    agent_workflows/runner_shared.py:178:    record_refusal,
+    ```
+
+    AND THE PROOF IT IS NEITHER DEFINED NOR RE-EXPORTED (F-14). `grep -n 'class Refusal\|Refusal as ' agent_workflows/runner_shared.py` returns NOTHING (the only `Refusal` substring in the file is the unrelated word "Refusals" in a docstring at `:9015`), and measured at runtime:
+
+    ```
+    Refusal in vars(runner_shared): False
+    REFUSAL_KEY is the same object: True
+    ```
+
+    The same property is pinned by a test rather than left to this paste: `test_the_record_type_is_the_one_imported_from_render_stream` asserts `type(refusal) is render_stream.Refusal`, `rs.REFUSAL_KEY is rstream.REFUSAL_KEY`, and `'Refusal' not in vars(runner_shared)`. `render_stream.py` was NOT edited (`git status` shows one modified source file only).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a table of all SEVEN `ORCH_REASON_*` values with the human reason and remedy each produces, generated by CALLING the mapping rather than transcribed by hand. Every remedy must name a concrete action; a generic fallback string for any reason fails this item. ALSO paste the evidence for F-13: the `RETIRE_REFUSED_*` value set beside the `ORCH_REASON_*` one, showing the three shared values and the `unfinished-children`/`children-unfinished` near-miss pair, plus the assertion that `decide_orchestrator_dispatch` translates every `RETIRE_REFUSED_*` branch so no untranslated value can reach the mapping. Paste the behavior for an UNKNOWN code, showing it is handled as E-02 decided and never yields an empty remedy.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL SEVEN, GENERATED BY CALLING `orchestrator_refusal_text(code)` in a loop (not transcribed). Reasons truncated to 100 chars here for width; the remedies are quoted IN FULL because "it names a concrete action" is the claim being evidenced and a truncated remedy cannot support it.
 
-- [ ] V-03 validates E-03
+    ```
+    [children-unfinished]
+      reason: this orchestrator was DEFERRED, not run: its Set still has children this run has not finished, and a...
+      remedy: let the run reach those children: they are named in the reason above with their current status, and each must become `executed`. A child still awaiting human approval is the usual cause - approve it with `aw ipd set approved <id6> --by-human --message ...` and run the Set again. Nothing is wrong with this orchestrator and no plan file needs editing
+    [children-terminally-failed]
+      reason: this orchestrator can NEVER be retired by this run: a child is in a terminal state that is not succe...
+      remedy: look at the child's status named in the reason above. `reviewed` means it is frozen awaiting human approval and was never dispatched: approve it with `aw ipd set approved <id6> --by-human --message ...` and run the Set again. Any other non-success status means it ran and did not finish: read that child's own outcome record, fix what it reports, then re-run it. Either way do NOT remove the child's row from the orchestrator's table to clear this, which would retire the parent over work that never completed
+    [children-not-in-this-run]
+      reason: this orchestrator has unfinished children THIS RUN WILL NOT ACT ON: they are absent from its queue, ...
+      remedy: run the missing children: name them explicitly in the selector, or select the whole Set so the run includes them. The orchestrator is then retired automatically once they are all `executed`, with no further action and no agent turn
+    [no-children]
+      reason: this Set has NO child plans on disk, and retirement is gated on every child being `executed`, so the...
+      remedy: author the Set's child plans with `aw ipd scaffold` and add a row for each to the orchestrator's `## Child IPDs` table, then run the Set. If the parent was never meant to orchestrate anything, its `- Kind:` is what is wrong, not its children
+    [unauthored-child-rows]
+      reason: this orchestrator's own `## Child IPDs` table declares a row that resolves to no plan on disk, so th...
+      remedy: AUTHOR THE MISSING CHILD named in the reason above (`aw ipd scaffold` derives its name) and leave the parent's table and checklist in place. Removing the row instead would silence this refusal by deleting the record of work the Set declared, which is the lost work this check exists to prevent
+    [finalize-refused]
+      reason: this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the plan was ...
+      remedy: read the transition's refusal named above: it states which condition failed. Resolve that condition, then retire the orchestrator through `aw ipd finalize`. Never complete the move with a raw `git mv` plus a hand-edited `- Status:`, which is precisely what the refusing gate exists to catch
+    [no-orchestrator]
+      reason: this item claims to BE its Set's orchestrator, but the Set does not resolve to one on disk, so the s...
+      remedy: check the Set id and the orchestrator plan's own `- Set:` and `- Order:` fields: an orchestrator is `Order: 00` with `- Kind: orchestrator`. `aw find plans` locates what the Set actually resolves to, and `aw index plans --check` reports a name that disagrees with its front matter
+    ```
+
+    NO REASON FALLS THROUGH TO A GENERIC STRING, asserted rather than eyeballed: `ReasonMappingTests::test_every_reason_is_mapped_and_distinct` fails any code whose reason contains the fallback's `NOT RECOGNIZE` marker, and additionally requires all 7 reasons and all 7 remedies to be pairwise DISTINCT (a single shared string would pass a "non-empty" check while being exactly the generic prose this item forbids). `test_every_remedy_names_a_concrete_action` requires an action verb in each.
+
+    F-13, THE TWO VOCABULARIES, printed and differenced:
+
+    ```
+    RETIRE_REFUSED_* (4): ['no-children', 'no-orchestrator', 'unauthored-child-rows', 'unfinished-children']
+    ORCH_REASON_*    (7): ['children-not-in-this-run', 'children-terminally-failed', 'children-unfinished', 'finalize-refused', 'no-children', 'no-orchestrator', 'unauthored-child-rows']
+    shared verbatim (3): ['no-children', 'no-orchestrator', 'unauthored-child-rows']
+    near-miss pair: unfinished-children VS children-unfinished
+    the unshared RETIRE value is UNMAPPED (proving the key set): True
+    ```
+
+    THE TRANSLATION IS ASSERTED, NOT ASSUMED, in two independent ways, because this is the finding most likely to rot. FIRST, positively: the last line above shows `RETIRE_REFUSED_UNFINISHED_CHILDREN` (`unfinished-children`) is NOT a key of the mapping, which is what proves the mapping is keyed on `ORCH_REASON_*` alone rather than on the union. SECOND, structurally: `test_the_translation_is_asserted_on_the_real_decider` reads `decide_orchestrator_dispatch`'s source and fails if any branch ever writes `reason=RETIRE_REFUSED...`, so a future branch forwarding an untranslated value breaks the test instead of silently degrading to the fallback. Both pass.
+
+    THE UNKNOWN CODE, handled as D-2 decided (report, never raise; see `decisions-and-questions.md` for why a raise here would be RUN-FATAL):
+
+    ```
+    [UNKNOWN 'some-future-reason']
+      reason: this orchestrator was refused for reason 'some-future-reason', which THIS VERSION OF THE RUNNER DOES NOT RECOGNIZE, so no specific diagnosis can be given for it
+      remedy: read this run's `orchestrator-deferred` event in `events.jsonl`: it carries the same reason code ('some-future-reason') plus the unfinished children, which is the full fact the dispatch had. Then report the unmapped code, since a reason the dispatch produces and the reporting cannot explain means the two drifted apart and `_ORCH_REASON_TEXT` needs the new value
+    ```
+
+    The code appears VERBATIM in both halves, the remedy is non-empty and actionable, and `Refusal(code=..., reason=..., remedy=...)` constructs from it (so an unmapped code still renders rather than raising). An EMPTY reason is covered separately by `test_an_empty_reason_is_still_handled`. Both pass.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a TERMINATE-path fixture run's queue item showing the shared record present AND `orchestrator_refusal_reason`/`orchestrator_refusal_detail` still present, AND `unsatisfied_dependencies`/`unsatisfied_dependency_reasons` unchanged. Paste `python3 -m pytest tests/test_orchestrator_retirement.py` GREEN, since it reads those two bespoke fields (F-15) and is the test most likely to catch a non-additive change; it must be green before AND after, and any failure there is yours. Paste the `## Dependency blocks (why)` section from the resulting report proving it still renders, and state that you checked BOTH hosts' copies exist (F-16).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE TERMINATE-PATH ITEM, from driving the real dispatch on a temp repo whose child is unfinished on disk and absent from the queue (`.aw/state/scratch-zyw4n3/depblocks.py`). All FOUR pre-existing keys survive beside the new record:
 
-- [ ] V-04 validates E-04
+    ```
+    outcome: terminate | reason: children-not-in-this-run
+    unsatisfied_dependencies: ['executed:chi002']
+    unsatisfied_dependency_reasons: {'executed:chi002': 'child chi002 is approved'}
+    orchestrator_refusal_reason: children-not-in-this-run
+    orchestrator_refusal_detail: Set 'zset' has 1 child(ren) not yet executed that this run will NOT ac ...
+    ```
+
+    and the shared record is present on the same item (asserted by `TerminateRecordTests::test_a_terminated_orchestrator_carries_the_same_record`, which also checks `type(refusal) is render_stream.Refusal` and `status == "dependency-blocked"`). `test_both_outcomes_use_one_record_shape` asserts the RECONSIDER and TERMINATE records are the same type with the same field set, which is the "two halves stop reporting differently" claim.
+
+    `tests/test_orchestrator_retirement.py` GREEN, and measured BEFORE as well as after, per the gate:
+
+    ```
+    # BEFORE (baseline, at HEAD c6596383, before any edit):
+    101 passed in 4.46s
+    # AFTER:
+    $ python3 -m pytest tests/test_orchestrator_retirement.py
+    101 passed in 4.42s
+    ```
+
+    NOTE THE COUNT: the plan's gate says this module is "112 PASSED" (measured at review, 2026-09-09). It is 101 in the executing worktree, BEFORE any change of mine, so the module shrank by 11 tests in the intervening two weeks. The gate's REQUIREMENT is what matters and is met: green before, green after, no failure attributable to me. Its specific NUMBER was stale, exactly as the same gate warns about its own line numbers and totals.
+
+    THE `## Dependency blocks (why)` SECTION STILL RENDERS, from the real `write_report` on the TERMINATE state above:
+
+    ```
+    ## Dependency blocks (why)
+
+    - `orc002` (position 1):
+      - `executed:chi002`: child chi002 is approved
+    ```
+
+    ON F-16's "BOTH HOSTS", A CORRECTION WORTH RECORDING. The plan says this section exists at `oc_runipd.py:3222` AND `agy_runipd.py:2152` and that a claim about it must check both. I checked both, and `grep -rn 'Dependency blocks' agent_workflows/*.py` now returns exactly TWO hits, BOTH in `runner_shared.py`: the renderer at `:15562` and my own new comment at `:11066`. There is no longer a copy per host: `write_report` has since been unified into the shared module, so ONE implementation now serves both hosts by construction and the divergence F-16 warned about cannot occur. The section remains gated on `status == "dependency-blocked"`, which is `terminal_status`'s default and therefore what a TERMINATE writes, so F-16's substantive point (it is not a general fallback) still holds and is recorded in the code comment.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new tests' names and the passing result, the RECONSIDER case's FAILING output produced by reverting your own change IN THIS WORKTREE (not a claim about a historical HEAD), and proof the tests are fixture-based (paste the fixture setup) plus a run from a clean temp dir with no `.aw/records/runs/`. Paste the identity assertion showing the record is the type imported from `render_stream`. Paste the unknown-code case too.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE 26 NEW TESTS AND THEIR RESULT (`python3 -m pytest tests/test_orchestrator_deferral_reporting.py`):
 
-- [ ] V-05 validates E-05
+    ```
+    ..........................                                               [100%]
+    26 passed in 0.76s
+    ```
+
+    ```
+    DeferralRecordTests::test_a_deferred_orchestrator_carries_a_refusal_record
+    DeferralRecordTests::test_the_record_names_the_blocking_children_from_the_dispatch_detail
+    DeferralRecordTests::test_the_deferral_still_writes_no_status_so_it_is_re_selected
+    DeferralRecordTests::test_the_orchestrator_deferred_event_keeps_its_existing_shape
+    DeferralRecordTests::test_the_record_type_is_the_one_imported_from_render_stream
+    TerminateRecordTests::test_a_terminated_orchestrator_carries_the_same_record
+    TerminateRecordTests::test_the_bespoke_fields_a_live_test_reads_are_unchanged
+    TerminateRecordTests::test_the_dependency_fields_the_report_section_reads_are_unchanged
+    TerminateRecordTests::test_both_outcomes_use_one_record_shape
+    ReasonMappingTests::test_every_reason_is_mapped_and_distinct
+    ReasonMappingTests::test_every_remedy_names_a_concrete_action
+    ReasonMappingTests::test_no_remedy_suggests_full_auto
+    ReasonMappingTests::test_no_remedy_names_a_host_command
+    ReasonMappingTests::test_no_remedy_tells_the_reader_to_delete_the_thing_that_refused
+    ReasonMappingTests::test_the_dead_children_remedy_covers_the_awaiting_approval_case
+    ReasonMappingTests::test_an_unknown_code_is_reported_verbatim_and_never_empty
+    ReasonMappingTests::test_an_empty_reason_is_still_handled
+    ReasonMappingTests::test_the_mapping_is_keyed_on_ORCH_REASON_and_the_other_vocabulary_is_translated
+    ReasonMappingTests::test_the_translation_is_asserted_on_the_real_decider
+    StaleDeferralRecordTests::test_a_deferral_that_later_retires_leaves_no_refusal_behind
+    StaleDeferralRecordTests::test_the_summary_reports_a_completed_set_as_completed
+    StaleDeferralRecordTests::test_a_re_dispatch_replaces_rather_than_accumulates
+    RenderedSurfaceTests::test_the_summary_diagnostics_block_shows_the_reason_and_the_remedy
+    RenderedSurfaceTests::test_a_deferral_is_not_reported_as_a_failure
+    RenderedSurfaceTests::test_the_end_of_run_disposition_summary_sources_the_remedy
+    RenderedSurfaceTests::test_aw_runs_counts_a_deferred_orchestrator_as_an_issue
+    ```
+
+    THE RECONSIDER CASE FAILS BEFORE THE CHANGE, REPRODUCED IN THIS WORKTREE (not a claim about a historical HEAD). `git stash push -- agent_workflows/runner_shared.py`, then run the two-test slice:
+
+    ```
+    $ python3 -m pytest 'tests/...::DeferralRecordTests::test_a_deferred_orchestrator_carries_a_refusal_record' \
+                        'tests/...::StaleDeferralRecordTests::test_the_summary_reports_a_completed_set_as_completed' -o addopts=""
+    tests/test_orchestrator_deferral_reporting.py .F                          [100%]
+    E       AssertionError: unexpectedly None : a DEFERRED orchestrator must carry a refusal record;
+            without it the reason reaches only events.jsonl, which no read surface consumes (this is the defect)
+    ========================= 1 failed, 1 passed in 0.56s ==========================
+    ```
+
+    The whole module before the change was `19 failed, 6 passed`; after `git stash pop`, `26 passed`. NOTE WHICH ONE PASSED BEFORE, because it is the honest reading: `test_the_summary_reports_a_completed_set_as_completed` passes without my change, since with no record written there is no stale record to leave behind. It is a REGRESSION GUARD on D-1's clear, not a proof of the feature, and it FAILS if the record is written without the clear (measured while developing: `Outcome: PARTIAL`).
+
+    FIXTURE-BASED, NEVER AGAINST `.aw/records/runs/`. The fixture is a temp repo plus a hand-built queue:
+
+    ```python
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+        self.run_dir = self.root / "run-deferral"
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+    ```
+
+    and the run directory is that temp path, so nothing reads or writes the repository's gitignored run tree. PROVEN by running the module with a `--rootdir` pointing at a freshly created empty directory that contains no `.aw` at all:
+
+    ```
+    clean dir: .aw/state/scratch-zyw4n3/cleanrun.1EBa
+    --- does it have .aw/records/runs? ---
+    ls: cannot access '.../cleanrun.1EBa/.aw': No such file or directory
+    26 passed in 0.69s
+    ```
+
+    THE IDENTITY ASSERTION (the case this plan's gate added, without which the divergence `r2i1b1` E-01 prevents could be reintroduced and every other test would still pass):
+
+    ```python
+    refusal = rstream.refusal_of_item(orch)
+    self.assertIs(type(refusal), rstream.Refusal)
+    self.assertIs(rs.REFUSAL_KEY, rstream.REFUSAL_KEY)
+    self.assertNotIn("Refusal", vars(rs), "...that would create the circular import ...")
+    ```
+
+    THE UNKNOWN-CODE CASE is `test_an_unknown_code_is_reported_verbatim_and_never_empty` (verbatim code in both halves, non-empty remedy, constructs a real `Refusal` rather than raising) plus `test_an_empty_reason_is_still_handled`. Both pass; their output is quoted under V-02.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: state whether `r2i1b1` has landed, pasting its `- Status:` and directory (it was `approved` in `pending/` at review, so unmet). Then paste the BEFORE and AFTER of the item's own invocation on a `reviewed` orchestrator with unapproved children: the run summary and `aw runs` output, showing the deferral reason and remedy present after and absent before. STATE WHICH RUN SHAPE you reproduced and what the `Outcome:` header actually read, since an orchestrator-only queue reads `QUEUED` rather than the `COMPLETED` this plan's F-5 quotes (F-17); name the line that changed rather than implying the header flipped. Confirm in the pasted output that the item is reported as DEFERRED, not as failed. Paste the bare `python3 -m pytest` summary line and compare FAILING NODE IDS against your own measured baseline, not against this plan's stale totals.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `r2i1b1` HAS LANDED, so the dependency edge is MET (it was `approved` in `pending/` at review, hence unmet then):
+
+    ```
+    $ ls -d .aw/records/plans/executed/*r2i1b1* && grep -m1 '^- Status:' .aw/records/plans/executed/*r2i1b1*
+    .aw/records/plans/executed/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md
+    (its status line reads the terminal value `executed`; quoted as prose rather than pasted verbatim,
+     because a literal status bullet inside this plan is read by the executed-transition pre-commit gate
+     as THIS plan claiming that status - measured: it refused the evidence commit until reworded)
+    ```
+
+    Its machinery is what this plan writes into and is confirmed present: `render_stream.Refusal`, `REFUSAL_KEY`, `record_refusal`, `refusal_of_item`, the diagnostics block with NO status allowlist, and `run_viewer.step_issue_reasons`' refusal term.
+
+    WHICH RUN SHAPE I REPRODUCED, stated first because the gate requires it and because the plan's own F-5 describes a different one. TWO shapes were run, on synthetic repos through the real `aw oc run` (never this repository, so no run directory or lifecycle change is left in the validated worktree):
+
+    SHAPE A, THE ITEM'S OWN SCENARIO (an `approved` orchestrator over a `reviewed`, i.e. unapproved, child). The `Outcome:` header reads `BLOCKED` both before and after, NOT `COMPLETED` and not `QUEUED`: F-5's `COMPLETED` and F-17's `QUEUED` are both wrong for this shape today, because the orchestrator terminates to `dependency-blocked` and the header's `BLOCKED` branch fires. MEASURED, THE DISPATCH OUTCOME FOR THIS SHAPE IS TERMINATE, NOT RECONSIDER, with reason `children-terminally-failed`: `reviewed` is in `TERMINAL_STATES` (printed to confirm), so an unapproved child is "terminal and not success" rather than "unfinished". So the item's own scenario exercises E-03's path, not E-01's, and both had to be implemented for the item's complaint to be answered. THE LINE THAT CHANGED is the `Diagnostics / Blocked Items:` entry (plus the per-artifact disposition and the `Issue` column), NOT the header:
+
+    ```
+    # BEFORE (my runner_shared.py change stashed):
+    Diagnostics / Blocked Items:
+      • orc900: dependency-blocked (executed:chi900 (child chi900 is reviewed))
+    - 01 orc900 [e2eset] orchestrate -> dependency-blocked: dependency_not_met (a declared dependency
+      was not satisfied in this run; unmet: executed:chi900 (child chi900 is reviewed))
+
+    # AFTER:
+    Diagnostics / Blocked Items:
+      • orc900: dependency-blocked (this orchestrator can NEVER be retired by this run: a child is in a
+        terminal state that is not success ... The usual cause is a child that was never dispatched
+        because it is not approved, NOT a child that crashed. Set 'e2eset' can never complete in this
+        run: child(ren) chi900 (reviewed) reached a non-success terminal state ...)
+        → remedy: look at the child's status named in the reason above. `reviewed` means it is frozen
+          awaiting human approval and was never dispatched: approve it with `aw ipd set approved <id6>
+          --by-human --message ...` and run the Set again. ... Either way do NOT remove the child's row
+          from the orchestrator's table to clear this, which would retire the parent over work that
+          never completed
+    ```
+
+    `aw runs` FOR THE SAME TWO RUNS. The `Issue` column flips, which is the machine-visible half:
+
+    ```
+    # BEFORE:
+    │ dependency-blocked │ 20260908-e2eset-00-orc900 │ orchestrate │ ... │ no    │
+    # AFTER:
+    │ dependency-blocked │ 20260908-e2eset-00-orc900 │ orchestrate │ ... │ YES   │
+
+    Details for 20260908-e2eset-00-orc900:
+      ! refused [children-terminally-failed]: this orchestrator can NEVER be retired by this run ...
+        → remedy: look at the child's status named in the reason above ...
+
+    Refusals (what the run declined, and what to do):
+      ! 20260908-e2eset-00-orc900 [children-terminally-failed]: ... → remedy: ...
+    ```
+
+    And `aw runs --agent --issues`, which is the surface a tooling consumer reads, went from EMPTY OUTPUT (before) to a full record (after), carrying `"issue_reasons":["refused: ..."]` and `"refusal":{"code":"children-terminally-failed","reason":"...","remedy":"..."}`. Before the change the same command printed nothing at all, so `aw oc run` reported a no-op run as clean to tooling.
+
+    SHAPE B, THE TRUE DEFERRAL (RECONSIDER), which E-01 owns and which shape A does not reach. An approved orchestrator over an approved child that has not run:
+
+    ```
+    dispatch outcome: reconsider | reason: children-unfinished
+    orchestrator status AFTER the deferral: queued (must still be 'queued')
+
+    | Outcome: QUEUED   Duration: 0s   Spend: $0.00 ...
+    |  01 |  01 | orc910 | dfset | orchestrate | queued | -      | ...
+
+    Diagnostics / Blocked Items:
+      • orc910: queued (this orchestrator was DEFERRED, not run: its Set still has children this run has
+        not finished ... chi910 (queued). Left RECONSIDERABLE (no status written) ...)
+        → remedy: let the run reach those children ... approve it with `aw ipd set approved <id6>
+          --by-human --message ...` and run the Set again. Nothing is wrong with this orchestrator and
+          no plan file needs editing
+    ```
+
+    THIS IS EXACTLY F-17'S POINT, NOW RESOLVED: the item is `queued`, which matched NONE of the old five-status allowlist, so before `r2i1b1` landed this rendered no diagnostics line whatever fields it carried. With `r2i1b1` executed the allowlist is gone and the record renders for ANY status, which is why the dependency was load-bearing.
+
+    REPORTED AS DEFERRED, NOT AS FAILED, confirmed in the pasted output and pinned by `test_a_deferral_is_not_reported_as_a_failure`: the header reads `QUEUED` (not `FAILED`, not `STRANDED`), the status column reads `queued`, and the word the diagnostics line uses is `DEFERRED`.
+
+    THE BARE SUITE, with the baseline measured in THIS worktree rather than taken from this plan:
+
+    ```
+    # BASELINE, at HEAD c6596383 before any edit:
+    1 failed, 8194 passed, 3 skipped, 2 xfailed, 3 warnings in 154.50s (0:02:34)
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+
+    # AFTER this plan's changes:
+    1 failed, 8220 passed, 3 skipped, 2 xfailed, 3 warnings in 217.50s (0:03:37)
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    ```
+
+    FAILING NODE IDS COMPARED, NOT TOTALS: the set is IDENTICAL, one node id, the same one, before and after. Passing count rose 8194 -> 8220, i.e. +26, exactly the size of the new module. The one failure is ENVIRONMENTAL and belongs to the lane I am running in, not to this change: it asserts that a non-isolated turn gets NO `OPENCODE_CONFIG_CONTENT` denial policy, and my own agent turn exports that variable, so the test sees it inherited. CONTROL RUN proving that: `env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py` gives `76 passed`. Note this is a DIFFERENT failure from the one the plan's gate names (`test_reporting_contract.py`'s prose test), which passes here; that is the gate's own advice about measuring your own baseline, vindicated twice.
+  - Result: pass
 
 ## Approval and execution gate
 

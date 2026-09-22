@@ -166,6 +166,13 @@ from agent_workflows import runner_profiles
 from agent_workflows.render_stream import (
     GATE_ANSWER_NEEDS_HUMAN_CODE as _render_gate_answer_needs_human_code,
     Palette,
+    # runghostid (`zyw4n3`) E-01: IMPORTED, never redefined or re-exported here, and the direction is
+    # FORCED rather than chosen. `render_stream` imports NO first-party module while this module
+    # imports it at module level, so `Refusal` and its key can only live THERE; defining or
+    # re-exporting either one here for convenience would create the circular edge `r2i1b1` E-01 sited
+    # them to avoid. `REFUSAL_KEY` is needed because `dispatch_orchestrator_item` must CLEAR a
+    # transient deferral record, and there is deliberately no "unrecord" writer to call.
+    REFUSAL_KEY,
     StreamTracker,
     _STATUS_COLOR,
     # `progdenom`: ONE definition of "work this run can dispatch", shared with the summary bar so the
@@ -10467,6 +10474,145 @@ ORCH_REASON_UNAUTHORED_CHILD_ROWS = "unauthored-child-rows"
 ORCH_REASON_FINALIZE_REFUSED = "finalize-refused"
 ORCH_REASON_NO_ORCHESTRATOR = "no-orchestrator"
 
+# ---- the REASON -> (human reason, REMEDY) mapping, so a refused orchestrator says what to do -------
+#
+# WHY THIS EXISTS (runghostid `zyw4n3` E-02). The typed reasons above were already precise and already
+# durable, and they still reached NO read surface: RECONSIDER wrote its reason only into
+# `events.jsonl`, and TERMINATE wrote `orchestrator_refusal_reason`, which no renderer consumes. So a
+# run that did nothing printed a green summary and the operator inferred "nothing happened" from a
+# table row with an empty `Verify` column. This maps each reason onto the `Refusal` record
+# `orchprobe` `r2i1b1` ships, which BOTH read surfaces already render, and adds the half neither the
+# event nor the bespoke field ever had: a REMEDY.
+#
+# KEYED ON `ORCH_REASON_*`, NEVER ON `RETIRE_REFUSED_*`, AND THE DISTINCTION IS NOT COSMETIC. Two
+# overlapping reason vocabularies exist. `evaluate_set_retirement` produces `RETIRE_REFUSED_*` (four
+# values) and `decide_orchestrator_dispatch` TRANSLATES every one of them into an `ORCH_REASON_*`
+# value (seven) before any item field is written, so `decision.reason` is always from THIS set. The
+# two share three values verbatim (`no-children`, `no-orchestrator`, `unauthored-child-rows`) and
+# carry a NEAR-MISS PAIR that differs only in word order: `RETIRE_REFUSED_UNFINISHED_CHILDREN` is
+# `unfinished-children` while `ORCH_REASON_UNFINISHED_CHILDREN` is `children-unfinished`. Two nearly
+# identical strings is exactly the shape that makes a dict-keyed mapping silently miss, which is why
+# `tests/test_orchestrator_deferral_reporting.py` asserts the translation rather than assuming it: if
+# a future branch ever forwards an untranslated `RETIRE_REFUSED_*` value, that test fails instead of
+# this mapping quietly degrading to its unknown-code fallback.
+#
+# NO REMEDY NAMES `--full-auto` (OQ-01, resolved at review). That flag clears a `reviewed` plan to
+# `auto-approved`, so offering it as the remedy for "children are not approved" is offering to bypass
+# the approval gate, in the message an operator reads at the exact moment they are frustrated that
+# nothing ran. `AGENTS.md` records that a gate stating only a prohibition gets complied with by
+# DELETION, which is why a remedy must name a CONSTRUCTIVE action; the corollary is that it must not
+# name a SHORTCUT PAST the thing that refused. A test pins the absence of that string.
+#
+# NO REMEDY NAMES A HOST COMMAND (`aw oc run` / `aw agy run`), which is a DELIBERATE difference from
+# `probe_refusal_remedy` and not an oversight. That function takes `HostLabels` because its caller
+# has them; `dispatch_orchestrator_item` is called by both hosts with no labels and nothing in run
+# state records which host is running, so a command spelled here would be a guess, and
+# `probe_refusal_remedy`'s docstring states that a remedy naming the wrong host "is a defect even
+# though the identity check passes". Every remedy below therefore names the ARTIFACT and the ACT
+# (approve this plan, author this child, run these children), which is host-neutral and strictly more
+# informative anyway. The one command named, `aw ipd set approved`, is the same on both hosts.
+_ORCH_REASON_TEXT: dict[str, tuple[str, str]] = {
+    ORCH_REASON_UNFINISHED_CHILDREN: (
+        "this orchestrator was DEFERRED, not run: its Set still has children this run has not "
+        "finished, and an orchestrator is retired only once every child is `executed`",
+        "let the run reach those children: they are named in the reason above with their current "
+        "status, and each must become `executed`. A child still awaiting human approval is the "
+        "usual cause - approve it with `aw ipd set approved <id6> --by-human --message ...` and "
+        "run the Set again. Nothing is wrong with this orchestrator and no plan file needs editing",
+    ),
+    # THE REASON NAME IS NARROWER THAN THE CONDITION, AND THE REMEDY MUST MATCH THE CONDITION.
+    # `children-terminally-failed` sounds like a crash, but the branch producing it fires whenever a
+    # child's status is in `TERMINAL_STATES` and not in `success_states` - and MEASURED end to end on
+    # the backlog item's own scenario, the status that actually arrives here is `reviewed`, because
+    # `reviewed` is terminal (an unapproved plan is frozen, never dispatched). So the COMMON case is a
+    # child AWAITING HUMAN APPROVAL, not a failure, and a remedy saying "fix what failed" would send
+    # an operator hunting a failure that does not exist. Both cases are therefore named, approval
+    # first, since that is the one the item complained about.
+    ORCH_REASON_DEAD_CHILDREN: (
+        "this orchestrator can NEVER be retired by this run: a child is in a terminal state that is "
+        "not success, so the Set cannot complete however long the run waits. The usual cause is a "
+        "child that was never dispatched because it is not approved, NOT a child that crashed",
+        "look at the child's status named in the reason above. `reviewed` means it is frozen awaiting "
+        "human approval and was never dispatched: approve it with `aw ipd set approved <id6> "
+        "--by-human --message ...` and run the Set again. Any other non-success status means it ran "
+        "and did not finish: read that child's own outcome record, fix what it reports, then re-run "
+        "it. Either way do NOT remove the child's row from the orchestrator's table to clear this, "
+        "which would retire the parent over work that never completed",
+    ),
+    ORCH_REASON_CHILDREN_NOT_IN_RUN: (
+        "this orchestrator has unfinished children THIS RUN WILL NOT ACT ON: they are absent from "
+        "its queue, or already terminal in it without reaching `executed` on disk, so waiting could "
+        "only repeat this same decision every iteration",
+        "run the missing children: name them explicitly in the selector, or select the whole Set "
+        "so the run includes them. The orchestrator is then retired automatically once they are all "
+        "`executed`, with no further action and no agent turn",
+    ),
+    ORCH_REASON_NO_CHILDREN: (
+        "this Set has NO child plans on disk, and retirement is gated on every child being "
+        "`executed`, so there is nothing whose completion could ever retire this orchestrator",
+        "author the Set's child plans with `aw ipd scaffold` and add a row for each to the "
+        "orchestrator's `## Child IPDs` table, then run the Set. If the parent was never meant to "
+        "orchestrate anything, its `- Kind:` is what is wrong, not its children",
+    ),
+    ORCH_REASON_UNAUTHORED_CHILD_ROWS: (
+        "this orchestrator's own `## Child IPDs` table declares a row that resolves to no plan on "
+        "disk, so the Set's child set is incomplete and retiring it would mark declared work "
+        "complete that nobody ever wrote",
+        "AUTHOR THE MISSING CHILD named in the reason above (`aw ipd scaffold` derives its name) and "
+        "leave the parent's table and checklist in place. Removing the row instead would silence "
+        "this refusal by deleting the record of work the Set declared, which is the lost work this "
+        "check exists to prevent",
+    ),
+    ORCH_REASON_FINALIZE_REFUSED: (
+        "this orchestrator's children are done but the RETIREMENT TRANSITION ITSELF refused, so the "
+        "plan was left where it was rather than being moved to `executed/`",
+        "read the transition's refusal named above: it states which condition failed. Resolve that "
+        "condition, then retire the orchestrator through `aw ipd finalize`. Never complete the move "
+        "with a raw `git mv` plus a hand-edited `- Status:`, which is precisely what the refusing "
+        "gate exists to catch",
+    ),
+    ORCH_REASON_NO_ORCHESTRATOR: (
+        "this item claims to BE its Set's orchestrator, but the Set does not resolve to one on "
+        "disk, so the selector could not be read as a Set at all",
+        "check the Set id and the orchestrator plan's own `- Set:` and `- Order:` fields: an "
+        "orchestrator is `Order: 00` with `- Kind: orchestrator`. `aw find plans` locates what the "
+        "Set actually resolves to, and `aw index plans --check` reports a name that disagrees with "
+        "its front matter",
+    ),
+}
+
+
+def orchestrator_refusal_text(reason: str) -> tuple[str, str]:
+    """The human REASON and the REMEDY for one `ORCH_REASON_*` code.
+
+    AN UNKNOWN CODE IS REPORTED, NOT RAISED, and that choice is recorded rather than defaulted into.
+    A raise here would be RUN-FATAL: both hosts call `dispatch_orchestrator_item` from inside their
+    `run_queue` loop with no `try` around it, so an unmapped reporting string would abort a run that
+    is otherwise making progress. The module's precedent for an unknown future value is to fail SAFE
+    and LOUD instead: `render_stream.INTEGRATION_EARNED_SIGNALS` treats an unrecognized signal as a
+    refusal "BY CONSTRUCTION", and `Refusal.from_obj` renders a placeholder for a malformed record
+    rather than raising, "because the input is a JSON file a previous driver version wrote".
+
+    SO THE FALLBACK IS STILL ACTIONABLE, which is the property that matters: it names the unmapped
+    code VERBATIM and points at the run's own `orchestrator-deferred` event, so a vocabulary drift is
+    visible to an operator on the first run that hits it rather than being smoothed into prose. What
+    it must never be is empty or generic; `Refusal` itself refuses an empty field, and
+    `tests/test_orchestrator_deferral_reporting.py` pins the verbatim code and the non-empty remedy.
+    """
+
+    known = _ORCH_REASON_TEXT.get(str(reason or "").strip())
+    if known is not None:
+        return known
+    code = str(reason or "").strip() or "(no reason recorded)"
+    return (
+        f"this orchestrator was refused for reason {code!r}, which THIS VERSION OF THE RUNNER DOES "
+        "NOT RECOGNIZE, so no specific diagnosis can be given for it",
+        "read this run's `orchestrator-deferred` event in `events.jsonl`: it carries the same "
+        f"reason code ({code!r}) plus the unfinished children, which is the full fact the dispatch "
+        "had. Then report the unmapped code, since a reason the dispatch produces and the reporting "
+        "cannot explain means the two drifted apart and `_ORCH_REASON_TEXT` needs the new value",
+    )
+
 
 class OrchestratorDispatch(NamedTuple):
     """What a host should DO with an `orchestrate` item, with a reason it can substantiate.
@@ -10783,6 +10929,26 @@ def dispatch_orchestrator_item(
     into one message. `terminated` says plainly which of the two dispositions the record got, so a
     reader need not infer it from the status.
 
+    EVERY REFUSING OUTCOME NOW RECORDS A `Refusal` (runghostid `zyw4n3`), which is what makes any of
+    the above reach an operator. Before this, the two halves of this one function reported
+    DIFFERENTLY: RECONSIDER wrote its typed reason only into `events.jsonl`, and TERMINATE wrote
+    `orchestrator_refusal_reason`/`orchestrator_refusal_detail`, which no RENDER surface reads. Both
+    now also go through `record_refusal`, `orchprobe` `r2i1b1`'s ONE writer, whose record the run
+    summary's diagnostics block and `aw runs`' `Issue` column both already render. The bespoke fields
+    are KEPT: they are documented as additive and `tests/test_orchestrator_retirement.py` asserts
+    them, so removing them is a separate, provable change.
+
+    THE RECORD IS CLEARED AT THE TOP OF EVERY DISPATCH, and that is load-bearing rather than tidy. A
+    RECONSIDER deferral is TRANSIENT by construction: the item stays `queued` precisely so a later
+    iteration re-dispatches it, and that later dispatch usually RETIREs it to `executed`. A refusal
+    left behind from the deferral would then describe an item that succeeded, and MEASURED on the real
+    surfaces, that is not a cosmetic staleness: `render_run_summary_table`'s `COMPLETED` branch
+    contains `not any(refusal_of_item(it) ...)`, so a finished Set renders `Outcome: PARTIAL`, and
+    `run_selection_policy.derive_item_disposition` gives a recorded refusal ABSOLUTE precedence, so
+    the end-of-run summary prints a stale remedy telling the operator to run children that already
+    ran. A false alarm on a green run is worse than the silence this record exists to remove, so the
+    record always describes the item's CURRENT disposition.
+
     Returns the (possibly rewritten) dispatch decision. Does NOT save state: the caller owns that, as
     it owns the surrounding loop.
     """
@@ -10790,6 +10956,10 @@ def dispatch_orchestrator_item(
 
     setid = str(item.get("setid") or "")
     id6 = str(item.get("id6") or "")
+    # See the docstring: a refusal from a PREVIOUS dispatch of this same item must not survive into
+    # this one's outcome. Cleared once, here, rather than per branch, so a future fourth outcome
+    # cannot forget it.
+    item.pop(REFUSAL_KEY, None)
     decision = decide_orchestrator_dispatch(
         repo,
         setid,
@@ -10849,6 +11019,30 @@ def dispatch_orchestrator_item(
         # WRITE NO STATUS. The item stays `queued`, exactly as one skipped by the inner selection pass
         # does, so it is RE-SELECTED when its children complete. Recording the deferral is still
         # required: an unlabelled item with no event would be indistinguishable from one never reached.
+        #
+        # runghostid (`zyw4n3`) E-01: THE SAME ARGUMENT, ONE LAYER FURTHER OUT. The event was not
+        # enough either, because no READ surface consumes `events.jsonl`, so the deferral reason was
+        # computed precisely and then discarded: the operator saw a green summary over a run that did
+        # nothing. The `Refusal` record is what the summary's diagnostics block and `aw runs` already
+        # render, so it is written HERE, additively, beside the event that keeps its existing shape.
+        #
+        # STILL NO STATUS, WHICH THIS MUST NOT DISTURB. The refusal record is not a status and no
+        # surface derives one from it: the item remains `queued`, so the selection pass re-admits it
+        # once `dependency_status` reports its children satisfied. Writing a terminal
+        # `dependency-blocked` here is the defect `pgq326` fixed (it excluded an orchestrator whose
+        # children finished LATER IN THE SAME RUN, from an event literally named
+        # `orchestrator-deferred`), and the clear at the top of this function is what keeps this
+        # record from becoming the same kind of durable lie on the success path.
+        reason_text, remedy = orchestrator_refusal_text(decision.reason)
+        record_refusal(
+            item,
+            code=decision.reason,
+            # The dispatch's own `detail` is appended rather than paraphrased: it NAMES the children
+            # and their statuses (`... chi001 (queued)`), which is the run-specific fact a generic
+            # reason cannot carry and the operator's actual next question.
+            reason=f"{reason_text}. {decision.detail}",
+            remedy=remedy,
+        )
         append_jsonl(
             run_dir / "events.jsonl",
             {
@@ -10876,8 +11070,28 @@ def dispatch_orchestrator_item(
         for child, st in decision.unfinished
     }
     # The typed cause, additive, so a consumer need not parse prose to learn WHICH refusal happened.
+    #
+    # KEPT, NOT REPLACED, by the `Refusal` record below (runghostid `zyw4n3` E-03). These two fields
+    # are read by `tests/test_orchestrator_retirement.py`, so the honest statement is that no RENDER
+    # surface consumes them while a TEST does; renaming or dropping them is a separate, provable
+    # change. The same is true of `unsatisfied_dependencies`/`unsatisfied_dependency_reasons` above,
+    # which `write_report`'s `## Dependency blocks (why)` section reads. That section is now in THIS
+    # module (one shared `write_report`), not a copy per host as it was when this plan was reviewed, so
+    # it reaches both hosts by construction; it is gated on `status == "dependency-blocked"`, which is
+    # `terminal_status`'s default and therefore what a TERMINATE writes.
     item["orchestrator_refusal_reason"] = decision.reason
     item["orchestrator_refusal_detail"] = decision.detail
+    # THE SAME RECORD THE RECONSIDER PATH WRITES, so the two halves of this one function stop
+    # reporting differently. The bespoke fields above reach no renderer; this one reaches both.
+    _terminate_reason_text, _terminate_remedy = orchestrator_refusal_text(
+        decision.reason
+    )
+    record_refusal(
+        item,
+        code=decision.reason,
+        reason=f"{_terminate_reason_text}. {decision.detail}",
+        remedy=_terminate_remedy,
+    )
     append_jsonl(
         run_dir / "events.jsonl",
         {
