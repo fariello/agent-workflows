@@ -1575,10 +1575,10 @@ class RealRepositorySets(unittest.TestCase):
             "commitguard",
             False,
             rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            {"y9vpvv": "approved", "2s0iym": "reviewed"},
+            {"2s0iym": "reviewed"},
             (),
             3,
-            {"approved", "executed", "reviewed"},
+            {"executed", "reviewed"},
             "THE UNFINISHED-CHILDREN REFUSAL, pinned against a Set that HAS one today. `commitguard` "
             "is the right carrier because its child table is FULLY AUTHORED, so a refusal here can "
             "ONLY be the unfinished-children rule and never the unauthored-rows rule that `runstop` "
@@ -1602,7 +1602,17 @@ class RealRepositorySets(unittest.TestCase):
             "`RETIRE_REFUSED_UNFINISHED_CHILDREN`, so this is the ordinary within-lifecycle advance "
             "this row's own guidance predicts, not a change of property. Re-pointed rather than "
             "loosened: `reviewed` is asserted exactly, so a child reaching `approved` or `executed` "
-            "will correctly turn this row red again",
+            "will correctly turn this row red again. RE-MEASURED 2026-09-22 AND IT DID EXACTLY "
+            "THAT, which is this row working as designed rather than breaking: `y9vpvv` reached "
+            "`executed`, so it LEFT the unfinished map and the status set lost `approved`. The "
+            "child COUNT is still 3 and the refusal REASON is STILL "
+            "`RETIRE_REFUSED_UNFINISHED_CHILDREN` (carried by `2s0iym` alone now), so the property "
+            "this row pins is intact and only the membership moved. NOTE THE DIRECTION IS THE "
+            "OPPOSITE of the two prior re-measurements: those were children APPEARING, this is a "
+            "child COMPLETING, so this row has now exercised both directions of the transition. "
+            "`y9vpvv` was finalized by hand after run `run-20260922T003657Z-1022108` was "
+            "signal-stopped leaving its verified lane unintegrated; the work landed in `13192e38` "
+            "and the record closed in `5d8779e8`",
         ),
         (
             "runstop",
