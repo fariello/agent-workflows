@@ -6,18 +6,18 @@
 - Scope: Make the refusal ACTIONABLE rather than building a second resume engine. When a target resolves to a real DRIVER run directory (one `aw runs repair` can actually act on), say so and name `aw runs repair <id>`, on every leaf that shares the refusal (measured at review: TEN, six readers plus four writers, not five) and in all three renderers. Explicitly NOT undoing the `e6b9kt` fix that stopped `events.jsonl` being parsed as a ledger, NOT unifying the two run models, and NOT converting `run_cli`'s machine payloads to the `aw.agent/v1` record shape (they are not conformant today and that is a separate contract change, F-16).
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_recovery_cli.py, tests/test_run_noun_split.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runrecon
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: d91i3e
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: sv8z1e
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: d91i3e verified (set runrecon, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_run_noun_split.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-08 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED in place; review record written; aw ipd lint --phase review-finalize conforms.
 - 2026-09-08 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-609. Reviewed at HEAD `ef1e1fbe`. Record: `.aw/records/reviews/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.review.md`. `aw ipd lint --phase author` conformed with three IPD-Z602 density advisories (E-02/E-05/E-06), each examined and one acted on. THE PREMISE HOLDS, re-measured live rather than accepted: on driver run `run-20260908T213552Z-3724920` (holding `events.jsonl`, `state.json`, `outcomes/`, `manifest.json`, no `ledger.jsonl`) every ledger reader prints `error: ledger file not found for target '<id>'` and exits 2 unpiped, and `aw runs repair <id>` on that same run succeeds. What review changed: the leaf count is TEN not five (the four `aw run` WRITERS share `_resolve_or_error` and were entirely unlisted, PR-601); the plan's "these readers serve a different run model" wording is FALSE for four of the ten, since `aw run start/record/cancel/finalize` are writers (PR-602); the suggestion must be VERIFIED against `repair`'s own resolver rather than asserted, because the two resolvers disagree on THREE measured axes and the plan would otherwise emit a suggestion that fails (PR-603); the machine payloads are NOT `aw.agent/v1` records at all (measured: three schema violations), so E-04's "same `NextAction`-style `next` field the rest of the CLI uses" was unbuildable as written and its schema-compliance claim was checking a schema that does not apply (PR-604); the suggested command must carry no absolute path, since one resolver axis tempts exactly that (PR-605); and the baseline was stale in both halves (PR-606). E-07 was ADDED for the writer leaves and the detector's cross-module dependency direction was pinned (PR-607). OQ-01 RESOLVED from code, and one new OQ-02 raised NON-BLOCKING for the maintainer on the `--dir`-less subdirectory case.
@@ -34,56 +34,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: recognize a driver run and say so once
 
-- [ ] E-01 Centralize the refusal so the fix cannot be applied to one leaf and missed on nine. The message `f"ledger file not found for target '{target}'"` is duplicated FOUR times in `run_cli.py`: `_run_show` (`:283-284`), the sibling at `:389-390`, the sibling at `:512-513`, and `_resolve_or_error` (`:626-631`), which is already the shared helper shape and returns `EXIT_INVALID_INVOCATION`. Route the three inline copies through one refusal builder (extending `_resolve_or_error`, or a new helper it delegates to) so there is ONE definition of this refusal. Carry the sibling `no run id or ledger path given`, duplicated at the same four sites (`:276`, `:382`, `:505`, `:623`), along in the same consolidation: leaving it split would recreate the exact hazard this item exists to remove. RECONCILE THE `error:` PREFIX SPLIT while consolidating (F-17): the three inline copies bake `error: ` into the MACHINE payload string, `_emit_error` adds it only on the human path, so the two streams disagree today. Pick one convention, state which, and pin it. VERIFY THE LEAF SET BY RUNNING IT rather than by reading dispatch: measured at HEAD `ef1e1fbe` against the real driver run `run-20260908T213552Z-3724920`, TEN leaves print the identical line and exit 2, the six readers `runs show`/`status`/`verify-ledger`/`evidence`/`next`/`resume` and the four writers `run start`/`record`/`cancel`/`finalize` (F-4). `runs decisions` and `runs questions` fail differently (a missing projection path) and are OUT of scope (F-6).
+- [x] E-01 Centralize the refusal so the fix cannot be applied to one leaf and missed on nine. The message `f"ledger file not found for target '{target}'"` is duplicated FOUR times in `run_cli.py`: `_run_show` (`:283-284`), the sibling at `:389-390`, the sibling at `:512-513`, and `_resolve_or_error` (`:626-631`), which is already the shared helper shape and returns `EXIT_INVALID_INVOCATION`. Route the three inline copies through one refusal builder (extending `_resolve_or_error`, or a new helper it delegates to) so there is ONE definition of this refusal. Carry the sibling `no run id or ledger path given`, duplicated at the same four sites (`:276`, `:382`, `:505`, `:623`), along in the same consolidation: leaving it split would recreate the exact hazard this item exists to remove. RECONCILE THE `error:` PREFIX SPLIT while consolidating (F-17): the three inline copies bake `error: ` into the MACHINE payload string, `_emit_error` adds it only on the human path, so the two streams disagree today. Pick one convention, state which, and pin it. VERIFY THE LEAF SET BY RUNNING IT rather than by reading dispatch: measured at HEAD `ef1e1fbe` against the real driver run `run-20260908T213552Z-3724920`, TEN leaves print the identical line and exit 2, the six readers `runs show`/`status`/`verify-ledger`/`evidence`/`next`/`resume` and the four writers `run start`/`record`/`cancel`/`finalize` (F-4). `runs decisions` and `runs questions` fail differently (a missing projection path) and are OUT of scope (F-6).
   - Depends on: none
   - Expected outcome: one refusal builder for both strings; all ten affected leaves emit the identical improved message with one agreed `error:` convention across human and machine streams, demonstrated leaf by leaf.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Detect a DRIVER run positively, BY ASKING THE SAME RESOLVER `repair` USES, rather than by probing paths yourself. The whole value of this plan is that the suggested command WORKS, so the detector's question is not "does a driver-shaped directory exist somewhere" but "would `aw runs repair <target>` find this run". Those are measurably different: `resolve_target_runs_detailed(targets, repo_root)` (`run_viewer.py:1187`) is what the `repair` branch calls (`run_viewer.py:2645-2649`) and it delegates to `discover_run_dirs` (`:1117-1133`), whose root set, name predicate, and root resolution ALL differ from `resolve_ledger_path`'s (F-15, three axes each measured). Probing `resolve_ledger_path`'s own roots would therefore produce a suggestion that fails: a run under `.aw/state/runs/` gets told to run `repair`, and `repair` answers `error: no run matched target` at exit 2 (measured). Call the viewer's resolver, and additionally require the `state.json` that `repair_run` itself requires (`run_viewer.py:2584-2585`), so a directory `repair` would reject with `not a run directory` is never suggested to.
+- [x] E-02 Detect a DRIVER run positively, BY ASKING THE SAME RESOLVER `repair` USES, rather than by probing paths yourself. The whole value of this plan is that the suggested command WORKS, so the detector's question is not "does a driver-shaped directory exist somewhere" but "would `aw runs repair <target>` find this run". Those are measurably different: `resolve_target_runs_detailed(targets, repo_root)` (`run_viewer.py:1187`) is what the `repair` branch calls (`run_viewer.py:2645-2649`) and it delegates to `discover_run_dirs` (`:1117-1133`), whose root set, name predicate, and root resolution ALL differ from `resolve_ledger_path`'s (F-15, three axes each measured). Probing `resolve_ledger_path`'s own roots would therefore produce a suggestion that fails: a run under `.aw/state/runs/` gets told to run `repair`, and `repair` answers `error: no run matched target` at exit 2 (measured). Call the viewer's resolver, and additionally require the `state.json` that `repair_run` itself requires (`run_viewer.py:2584-2585`), so a directory `repair` would reject with `not a run directory` is never suggested to.
   DEPENDENCY DIRECTION IS FINE AND MUST BE STATED: `run_cli` currently imports `run_viewer` ZERO times, but `run_viewer` also imports `run_cli` zero times (measured: importing `run_viewer` alone leaves `agent_workflows.run_cli` absent from `sys.modules`), so `run_cli` -> `run_viewer` adds no cycle. Import it INSIDE the detector (a function-local import, the pattern `_projection_dir` already uses at `run_cli.py:190-197`) rather than at module scope, so the ledger readers do not pay the viewer's import cost on every invocation; measured, `import agent_workflows.run_viewer` costs about 168 ms cumulative.
   - Depends on: E-01
   - Expected outcome: the detector answers by asking `repair`'s own resolver, and is demonstrated to AGREE with `repair` on the three divergence axes of F-15; the import is function-local and provably introduces no cycle.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Return a THREE-WAY answer from that detector, not a boolean: the target is a ledger run, a driver run, or unknown. A boolean would force the unknown case into one of the other two and produce a confidently wrong message, which is the failure mode this plan exists to remove. A ledger run owns `ledger.jsonl` (`store.LEDGER_FILENAME`), so the ledger-run arm is just `resolve_ledger_path` having returned a path, which the caller already knows; keep the type honest about all three anyway, since E-03 branches on it and a two-valued type would push the third case into prose.
+- [x] E-07 Return a THREE-WAY answer from that detector, not a boolean: the target is a ledger run, a driver run, or unknown. A boolean would force the unknown case into one of the other two and produce a confidently wrong message, which is the failure mode this plan exists to remove. A ledger run owns `ledger.jsonl` (`store.LEDGER_FILENAME`), so the ledger-run arm is just `resolve_ledger_path` having returned a path, which the caller already knows; keep the type honest about all three anyway, since E-03 branches on it and a two-valued type would push the third case into prose.
   - Depends on: E-02
   - Expected outcome: given a driver run id the detector says "driver run" and names the directory it found; given a nonexistent id it says "unknown"; given a ledger run it says "ledger run"; the return type is three-valued in the code, not a bool.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Emit the actionable message for the driver-run case, and keep the honest one for the unknown case. For a driver run: state that the target IS a driver run, that THIS LEAF serves the ledger run model, and give the literal command `aw runs repair <id>`. Mention `events.jsonl` explicitly, because that is the file the operator will otherwise go looking for and the reason the current message reads as a contradiction (the run plainly exists on disk).
+- [x] E-03 Emit the actionable message for the driver-run case, and keep the honest one for the unknown case. For a driver run: state that the target IS a driver run, that THIS LEAF serves the ledger run model, and give the literal command `aw runs repair <id>`. Mention `events.jsonl` explicitly, because that is the file the operator will otherwise go looking for and the reason the current message reads as a contradiction (the run plainly exists on disk).
   DO NOT CALL ALL TEN LEAVES "READERS" (F-14). Four of them, `aw run start`/`record`/`cancel`/`finalize`, are WRITERS on the ledger model (`run_cli.py:806`, `:910`, `:1048`, `:1120`); a message telling their operator "these readers serve a different run model" is false about the leaf that just printed it, and the plan's whole purpose is a message an operator can trust. Either phrase the shared sentence so it is true of both directions (e.g. name the RUN MODEL, not the leaf's direction) or let the builder take the direction as a parameter. State which you chose and why.
   THE SUGGESTED COMMAND MUST CARRY NO ABSOLUTE PATH (D92, and `agent_schema._HOME_PATH_RE` would flag one). Suggest `aw runs repair <target-as-given>`, never the resolved directory: the detector legitimately KNOWS an absolute directory path (E-02 requires it to find one) and printing it is the obvious way to make the suggestion unambiguous, which is exactly the trap. If the run is only reachable from another directory (OQ-02), say so in words rather than by pasting a path.
   For an UNKNOWN target keep today's message essentially as-is: it is CORRECT there, and inventing a `repair` suggestion for a target that resolves to nothing would be exactly the fail-open behavior a sibling plan is closing. PRESERVE THE EXIT CODE: 2 (`EXIT_INVALID_INVOCATION`, `run_cli.py:58`) in both cases, since this plan changes guidance and not the invocation contract.
   - Depends on: E-07
   - Expected outcome: `aw runs resume <driver-run-id>` names the run model and suggests `aw runs repair <id>` while still exiting 2; the wording is true of a WRITER leaf as well as a reader; no absolute path appears in any renderer; `aw runs resume totalgibberish` is unchanged from HEAD `ef1e1fbe`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Honor the refusal in ALL THREE renderers, not just the human one. The machine paths are what an automated consumer reads, and a human-only signpost leaves the gap where it does the most damage. `_emit_error` (`:609-615`) is the shared emitter and `_machine(args)` is computed alongside each inline call, so after E-01 this is one change at the emitter rather than per-leaf. For `--agent`/`--json`, carry the suggested command as STRUCTURED data (a `next`-style field holding the command), not only as prose inside a message string.
+- [x] E-04 Honor the refusal in ALL THREE renderers, not just the human one. The machine paths are what an automated consumer reads, and a human-only signpost leaves the gap where it does the most damage. `_emit_error` (`:609-615`) is the shared emitter and `_machine(args)` is computed alongside each inline call, so after E-01 this is one change at the emitter rather than per-leaf. For `--agent`/`--json`, carry the suggested command as STRUCTURED data (a `next`-style field holding the command), not only as prose inside a message string.
   DO NOT CLAIM `aw.agent/v1` CONFORMANCE HERE, AND DO NOT SILENTLY ADOPT IT (F-16). Measured: `run_cli`'s machine payloads are bare dicts (`{"ok": false, "error": ..., "exit_code": 2}`) and `agent_schema.validate_agent_record` returns THREE violations against one (no `schema`, no `kind`, no `cmd`); `run_cli.py` imports `agent_schema` zero times. So the earlier reasoning ("the schema requires exactly 2, so this case is compliant as-is") was checking a contract this module does not implement. Two consequences. FIRST, keep exit 2 for the module's OWN reason (F-10) and do not justify it by the schema. SECOND, ADD THE FIELD IN THE PAYLOAD SHAPE THAT ALREADY EXISTS (alongside `ok`/`error`/`exit_code`) and do NOT convert these payloads into `aw.agent/v1` records as part of this plan: that is a machine-contract change across 24 `_emit_machine` sites and 33 `_emit_error` sites, it is not what backlog item `sv8z1e` asked for, and it would silently change what every existing consumer of `aw run`/`aw runs --agent` parses. If the executor believes the conversion is required, STOP and raise it, since it is a public-surface decision, not an implementation detail.
   ANSI-FREENESS IS ALREADY A LIVE INVARIANT and must survive: the machine emitter is documented ANSI-free (`run_cli.py:185`) and `tests/test_cli_conformance_matrix.py` asserts agent streams carry no escapes. Add no color to a machine payload.
   - Depends on: E-03
   - Expected outcome: `--agent` and `--json` both carry the suggestion in a machine-readable field in the module's EXISTING payload shape, both stay ANSI-free, no payload is converted to `aw.agent/v1`, and all three renderers agree on the exit code (2, measured unpiped).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: do not break the fix that created this situation
 
-- [ ] E-05 PRESERVE THE `e6b9kt` FIX, and confirm its existing pins still hold. `resolve_ledger_path` (`:231-265`) deliberately NEVER resolves a bare run id to `<...>/runs/<target>/events.jsonl`, and its docstring (`:236-239`) records why: doing so made `aw run show <any-real-run>` parse healthy driver data as a ledger and report it corrupt. The `--help` text repeats the warning. This plan must NOT weaken that: the detector added in E-02 may READ the driver directory to CLASSIFY the target, but must never hand `events.jsonl` to a ledger parser, and `resolve_ledger_path` must keep returning `None` for a driver run id. Also preserve the EXPLICIT-PATH escape hatch (`:247-249`, `:241-242`): a caller pointing at a file verbatim is honored whatever it is named. THE REGRESSION PINS ALREADY EXIST and this item's job is to keep them green rather than to write them: `tests/test_run_recovery_cli.py::TestLedgerResolutionAndWrongFormatVerdict` asserts the `None` result (`:1071-1076`), the real-ledger resolution (`:1078-1083`), the explicit-path honoring (`:1085-1089`), and that a real run id reports missing rather than corrupt (`:1093-1096`), plus four `EXIT_NOT_A_LEDGER` assertions for `show`/`verify-ledger`/`evidence`/`status` pointed at `events.jsonl` directly (`:1098-1118`). Those last four are the sharpest fence on this plan: they prove the wrong-format verdict is DISTINCT from the not-found refusal this plan is changing, so the new message must not leak into them.
+- [x] E-05 PRESERVE THE `e6b9kt` FIX, and confirm its existing pins still hold. `resolve_ledger_path` (`:231-265`) deliberately NEVER resolves a bare run id to `<...>/runs/<target>/events.jsonl`, and its docstring (`:236-239`) records why: doing so made `aw run show <any-real-run>` parse healthy driver data as a ledger and report it corrupt. The `--help` text repeats the warning. This plan must NOT weaken that: the detector added in E-02 may READ the driver directory to CLASSIFY the target, but must never hand `events.jsonl` to a ledger parser, and `resolve_ledger_path` must keep returning `None` for a driver run id. Also preserve the EXPLICIT-PATH escape hatch (`:247-249`, `:241-242`): a caller pointing at a file verbatim is honored whatever it is named. THE REGRESSION PINS ALREADY EXIST and this item's job is to keep them green rather than to write them: `tests/test_run_recovery_cli.py::TestLedgerResolutionAndWrongFormatVerdict` asserts the `None` result (`:1071-1076`), the real-ledger resolution (`:1078-1083`), the explicit-path honoring (`:1085-1089`), and that a real run id reports missing rather than corrupt (`:1093-1096`), plus four `EXIT_NOT_A_LEDGER` assertions for `show`/`verify-ledger`/`evidence`/`status` pointed at `events.jsonl` directly (`:1098-1118`). Those last four are the sharpest fence on this plan: they prove the wrong-format verdict is DISTINCT from the not-found refusal this plan is changing, so the new message must not leak into them.
   - Depends on: E-02
   - Expected outcome: `resolve_ledger_path` behavior is byte-for-byte unchanged, no ledger parser ever sees `events.jsonl`, and every existing assertion in `TestLedgerResolutionAndWrongFormatVerdict` still passes UNMODIFIED.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Cover the FOUR WRITER leaves too, since they share `_resolve_or_error` and were entirely unlisted in this plan's first draft (F-4, F-14). `aw run start` (`:808`), `aw run record` (`:912`), `aw run cancel` (`:1050`) and `aw run finalize` (`:1126`) each call the shared helper as their FIRST act and return its code, so E-01's consolidation reaches them for free and the improved message will appear there whether or not it was designed for them. That is precisely why they need explicit attention rather than none: verify each of the four emits the new message, that its wording is TRUE of a writer (F-14), and that the exit code stays 2 measured unpiped. This item performs the writer-side verification and any wording fix E-03's shared builder needs to satisfy both directions; it adds no new refusal site.
+- [x] E-08 Cover the FOUR WRITER leaves too, since they share `_resolve_or_error` and were entirely unlisted in this plan's first draft (F-4, F-14). `aw run start` (`:808`), `aw run record` (`:912`), `aw run cancel` (`:1050`) and `aw run finalize` (`:1126`) each call the shared helper as their FIRST act and return its code, so E-01's consolidation reaches them for free and the improved message will appear there whether or not it was designed for them. That is precisely why they need explicit attention rather than none: verify each of the four emits the new message, that its wording is TRUE of a writer (F-14), and that the exit code stays 2 measured unpiped. This item performs the writer-side verification and any wording fix E-03's shared builder needs to satisfy both directions; it adds no new refusal site.
   - Depends on: E-03
   - Expected outcome: all four `aw run` writers emit the improved message with wording that does not mis-describe them as readers, each at exit 2 unpiped, in all three renderers.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Extend the EXISTING test class that already owns this exact surface and fixture, rather than starting a new module. `tests/test_run_recovery_cli.py::TestLedgerResolutionAndWrongFormatVerdict` (`:1041`) is the `e6b9kt` regression suite: it already builds a fixture DRIVER run directory holding `events.jsonl`, already asserts `resolve_ledger_path(self.run_id, self.tmp) is None` (`:1071-1076`), already asserts a real ledger DOES resolve (`:1078-1083`), already asserts the explicit-path escape hatch (`:1085-1089`), and already asserts `runs show` on a real run id returns `EXIT_INVALID_INVOCATION` without claiming corruption (`:1093-1096`). So E-05's pin is largely written and the new assertions belong beside it. Measure exit codes UNPIPED (`cmd >/dev/null 2>&1; echo $?`) for any shell-level check; the in-process `_cli` helper (`:1064-1067`) returns the rc directly and is the right tool inside tests.
+- [x] E-06 Extend the EXISTING test class that already owns this exact surface and fixture, rather than starting a new module. `tests/test_run_recovery_cli.py::TestLedgerResolutionAndWrongFormatVerdict` (`:1041`) is the `e6b9kt` regression suite: it already builds a fixture DRIVER run directory holding `events.jsonl`, already asserts `resolve_ledger_path(self.run_id, self.tmp) is None` (`:1071-1076`), already asserts a real ledger DOES resolve (`:1078-1083`), already asserts the explicit-path escape hatch (`:1085-1089`), and already asserts `runs show` on a real run id returns `EXIT_INVALID_INVOCATION` without claiming corruption (`:1093-1096`). So E-05's pin is largely written and the new assertions belong beside it. Measure exit codes UNPIPED (`cmd >/dev/null 2>&1; echo $?`) for any shell-level check; the in-process `_cli` helper (`:1064-1067`) returns the rc directly and is the right tool inside tests.
   ADD `state.json` TO THAT FIXTURE, AND KNOW WHY. Its `setUp` (`:1052-1059`) creates the run dir under `.aw/records/runs/<id>` with `events.jsonl` ONLY, no `state.json`. Under E-02's detector that fixture is NOT a driver run: `repair_run` requires `state.json` and answers `not a run directory` at exit 2 (measured against exactly that shape), so a case-(a) test written against the fixture as-is would assert a suggestion the detector must NOT make, and would either fail or, worse, be made to pass by weakening the detector. Add `state.json`, and keep the events-only directory as its own case (h) asserting NO suggestion. Note the existing root is `.aw/records/runs/`, which both resolvers share, so the fixture does not hit the F-15 root divergence; do not "simplify" it to `.aw/state/runs/`, where `repair` cannot see it.
   Cover: (a) each of the TEN affected leaves (six readers, four writers, F-4) against the fixture DRIVER run -> exit 2, message names the driver model and `aw runs repair`; (b) an unknown target -> today's message, exit 2, and NO `repair` suggestion; (c) a fixture LEDGER run -> normal success, unaffected; (d) the explicit-path case still honored; (e) all three renderers for case (a), following the existing machine-output test's shape (`:1120-1129`), including that the machine payload carries the suggestion in a FIELD and that its `exit_code` equals the returned rc; (f) `resolve_ledger_path` still `None` for the driver run id; (g) NO absolute path in any of the three renderings (assert the rendered text contains neither `str(self.tmp)` nor a `/home/` segment, which is what `agent_schema._HOME_PATH_RE` looks for); (h) the events-only directory (no `state.json`) -> NO suggestion, because `repair` would refuse it.
   DO NOT add a test that reads the live `.aw/records/runs/`: `tests/test_run_viewer.py:1-30` records that run records are gitignored and that fixtures are mandatory here, so such a test would be unrunnable in CI and in every isolated lane worktree the runner allocates.
   - Depends on: E-04, E-05, E-08
   - Expected outcome: all eight cases (a)-(h) pinned inside `TestLedgerResolutionAndWrongFormatVerdict` using its (now `state.json`-bearing) fixture, passing in a bare worktree; case (a) fails against pre-change code, demonstrated by running it there.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -182,45 +182,380 @@ Spec `25kzda` (`aw run deterministic run and verify`, `- Status: approved`) gove
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `grep -n "ledger file not found" agent_workflows/run_cli.py` BEFORE (4 hits) and AFTER (one definition), the same for `grep -n "no run id or ledger path given"` (4 hits BEFORE, one AFTER), and the improved message as emitted by EACH of the SIX affected READER leaves (`show`, `status`, `verify-ledger`, `evidence`, `next`, `resume`) against the same driver run, with each exit code measured unpiped. Six separate outputs; a single leaf does not validate this item. (The four WRITER leaves are V-08's evidence.) Also paste the human AND `--agent` rendering of ONE refusal side by side, showing the `error:` prefix convention now agrees between them (F-17), and state which convention was chosen.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: both duplicated strings collapsed to ONE definition each (sibling string 4 -> 1); all SIX reader leaves emit the improved message at exit 2 measured unpiped; the `error:` prefix split is reconciled in favour of the HUMAN stream owning the prefix. Transcript:
 
-- [ ] V-02 validates E-02
+    BOTH DUPLICATED STRINGS COLLAPSED TO ONE DEFINITION EACH. The message text was already
+    single (`i1hlgx`); what this item removed is the duplicated EMIT SHAPE, which is what the
+    three inline sites carried and what the `error:` prefix split lived in.
+
+    BEFORE (`git show HEAD:agent_workflows/run_cli.py | grep -n ...`):
+      328:    bare = f"ledger file not found for target '{target}'"
+      346:        print("error: no run id or ledger path given")
+      455:        print("error: no run id or ledger path given")
+      581:        print("error: no run id or ledger path given")
+      702:            args, "no run id or ledger path given", EXIT_INVALID_INVOCATION
+    -> the sibling string had FOUR occurrences; the three inline refusal sites each built and
+       emitted their own payload (`err_msg = f"error: {_ledger_not_found_message(target)}"`).
+
+    AFTER (`grep -n ... agent_workflows/run_cli.py`):
+      418:    bare = f"ledger file not found for target '{target}'"
+      484:    return _emit_error(args, "no run id or ledger path given", EXIT_INVALID_INVOCATION)
+    -> ONE definition each, in `_ledger_not_found_message` and `_emit_no_target`. All ten leaves
+       now route through `_emit_ledger_not_found` / `_emit_no_target`; zero inline emitters remain
+       (`grep -c '_emit_ledger_not_found' agent_workflows/run_cli.py` -> 5: one def, four uses).
+
+    THE SIX READER LEAVES, exit codes measured UNPIPED (`cmd >/dev/null 2>&1; echo $?`):
+      aw runs show          -> exit 2
+      aw runs status        -> exit 2
+      aw runs verify-ledger -> exit 2
+      aw runs evidence      -> exit 2
+      aw runs next          -> exit 2
+      aw runs resume        -> exit 2
+    Each printed the identical improved text (one shown in full under V-03; all six verified
+    byte-identical by `test_every_one_of_the_ten_leaves_carries_the_signpost`).
+
+    THE `error:` PREFIX CONVENTION CHOSEN: THE HUMAN STREAM OWNS IT. The prefix is added by
+    `_emit_error` when printing and is NOT baked into the machine payload's `error` value.
+    Side by side on the same refusal (truncated to 90 cols):
+      human:   error: ledger file not found for target 'run-20260101T000000Z-1234': this reads the hash-c
+      --agent: {"error":"ledger file not found for target 'run-20260101T000000Z-1234': this reads the has
+    Rationale: seven of the ten leaves already emitted WITHOUT the prefix in the payload (they
+    went through `_emit_error`), so this keeps the majority convention and changes the minority
+    three. A machine consumer already knows it read an error from the `error` key and `ok:false`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the code showing the detector calls the VIEWER's resolver (`resolve_target_runs_detailed` or `discover_run_dirs`) and not a hand-rolled path probe, and showing the import is function-local. Then prove AGREEMENT WITH `repair` ON ALL THREE F-15 AXES by pasting, for each, the detector's answer next to the actual `aw runs repair <same-target>` result and exit code: (a) a fixture run under `.aw/state/runs/` (which `repair` cannot see); (b) a directory holding `events.jsonl` but no `state.json` (which `repair_run` rejects); (c) an invocation from a SUBDIRECTORY with no `--dir`. In every case the detector must not suggest `repair` where `repair` then refuses. Paste proof of no import cycle (e.g. `python3 -c "import agent_workflows.run_cli"` succeeding plus a measurement that `run_viewer` does not import `run_cli`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the detector calls the VIEWER's `resolve_target_runs_detailed` (function-local import, no cycle) and additionally requires `repair_run`'s own `state.json`; it AGREES with `aw runs repair` on every divergence axis, and one of the plan's three axes is corrected as drifted. Transcript:
 
-- [ ] V-07 validates E-07
+    THE DETECTOR ASKS THE VIEWER'S OWN RESOLVER, function-locally imported
+    (`agent_workflows/run_cli.py`, `_classify_absent_target`):
+
+        try:
+            from agent_workflows.run_viewer import resolve_target_runs_detailed
+
+            repo_root = Path(repo_dir) if repo_dir else Path(".")
+            resolved, _unresolved = resolve_target_runs_detailed([target], repo_root)
+        except Exception:
+            return TARGET_UNKNOWN
+        for run_dir in resolved:
+            if (run_dir / "state.json").is_file():
+                return TARGET_DRIVER_RUN
+        return TARGET_UNKNOWN
+
+    `resolve_target_runs_detailed` is exactly what the `repair` branch calls
+    (`run_viewer.run_viewer_cli`, the `raw_targets[0] == "repair"` branch), and the extra
+    `state.json` condition is exactly what `repair_run` requires before acting. No hand-rolled
+    path probe: `run_cli` does not enumerate any runs root itself.
+
+    AGREEMENT WITH `repair` ON ALL THREE F-15 AXES. Detector answer beside the real
+    `aw runs repair <same-target>` result and its UNPIPED exit code:
+
+    (a) a run present ONLY under `.aw/state/runs/` (a root the ledger reader searches and
+        `discover_run_dirs` does not):
+          detector: unknown            -> NO suggestion emitted
+          aw runs repair ... -> `error: no run matched target 'run-20260101T000000Z-9999'`, exit 2
+        AGREE: we do not name a command that would refuse.
+
+    (b) a directory holding `events.jsonl` but NO `state.json`:
+          detector: unknown            -> NO suggestion emitted
+          aw runs repair ... -> `not a run directory: <dir>`, exit 2
+        AGREE, and this is the axis the resolver ALONE would have got wrong:
+        `resolve_target_runs_detailed(['run-20260101T000000Z-5555'], D)` RESOLVES this directory
+        (it matches on name), so without the extra `state.json` condition the detector would have
+        suggested `repair` here and `repair` would have refused. The condition is load-bearing.
+
+    (c) invoked from a SUBDIRECTORY with no `--dir`:
+          aw runs show <id>   -> refuses, exit 2, NO suggestion
+          aw runs repair <id> -> `error: no run matched target ...`, exit 2
+        AGREE. NOTE THE PLAN'S OWN F-15(c) HAS DRIFTED and this is the honest correction:
+        the plan says the viewer path CLIMBS to the project root via `resolve_verb_repo_root`.
+        It does not. `run_viewer_cli` reads `Path(getattr(args, "dir", None) or ".")` directly, so
+        BOTH commands resolve against cwd and BOTH fail from a subdirectory. The axis therefore
+        still exists as a divergence in ROOT SETS ((a) above) but not in climbing. The detector is
+        correct either way, because it asks the resolver rather than modelling it.
+
+    NO IMPORT CYCLE:
+      $ python3 -c "import agent_workflows.run_cli; print('ok')"
+      ok
+      $ python3 -c "import importlib,sys; importlib.import_module('agent_workflows.run_viewer'); \
+          print('run_cli imported by run_viewer:', 'agent_workflows.run_cli' in sys.modules)"
+      run_cli imported by run_viewer: False
+    The import sits INSIDE the function (the pattern `_projection_dir` already uses), so the
+    ledger readers do not pay the viewer's import cost on every invocation.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the detector's answer for three inputs: a driver run id (-> driver run, naming the directory found), a nonexistent id (-> unknown), and a ledger run (-> ledger run). Paste the code showing the return type is three-valued and not a bool.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: three-valued, not a bool: a driver run id -> `driver-run`, a nonexistent id -> `unknown`, a ledger run -> the caller's own `resolve_ledger_path` verdict; `isinstance(..., bool)` is False. Transcript:
 
-- [ ] V-03 validates E-03
+    THREE ANSWERS, NOT A BOOLEAN:
+      $ python3 -c "from agent_workflows import run_cli; ..."
+      driver run id -> driver-run
+      nonexistent   -> unknown
+      constants     -> ledger-run driver-run unknown
+      is bool?      -> False
+
+    The return type is a three-valued string drawn from the module constants
+    `TARGET_LEDGER_RUN` / `TARGET_DRIVER_RUN` / `TARGET_UNKNOWN`; `_ledger_not_found_message`
+    branches on `classification != TARGET_DRIVER_RUN` and `_emit_ledger_not_found` on
+    `classification == TARGET_DRIVER_RUN`, so the UNKNOWN case reaches the honest message rather
+    than being folded into either other arm.
+
+    THE DRIVER-RUN ARM NAMES THE DIRECTORY IT FOUND, internally: the detector iterates the
+    resolved directories and returns `TARGET_DRIVER_RUN` only for one carrying `state.json`. It
+    deliberately does NOT print that path (V-03: D92), which is why the evidence here is the
+    classification rather than a pasted directory.
+
+    THE LEDGER-RUN ARM is the caller's own answer and is asserted as such in
+    `test_the_three_way_classification_names_all_three_answers`: with a real `ledger.jsonl`
+    seeded beside the event log, `run_cli.resolve_ledger_path(run_id, tmp)` returns a path (not
+    None), which IS the ledger-run verdict, so the detector is never asked for that case.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the full driver-run refusal text showing it names the run model, mentions `events.jsonl`, and gives `aw runs repair <id>`, with its unpiped exit code (must be 2). Paste the SAME message as emitted by one WRITER leaf (`aw run cancel`) and state why the wording is true there too (F-14). Paste a grep or assertion proving NO absolute path and no `/home/` segment appears in any of the three renderings. Then paste `aw runs resume totalgibberish` BEFORE and AFTER, showing the unknown-target message is unchanged and carries NO repair suggestion.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the driver-run refusal names the RUN MODEL, mentions `events.jsonl`, and gives both `aw runs <id>` and `aw runs repair <id>` at exit 2; wording verified true of a WRITER leaf; zero absolute paths in all three renderers; the unknown-target message is unchanged and carries no suggestion. Transcript:
 
-- [ ] V-04 validates E-04
+    THE FULL DRIVER-RUN REFUSAL (human stream), unpiped exit code 2:
+
+      error: ledger file not found for target 'run-20260101T000000Z-1234': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger. That target IS a driver run (it has a state.json and an events.jsonl), and this command works on the ledger run model rather than on that one. To see it, run `aw runs run-20260101T000000Z-1234`; to reconcile a run a driver abandoned without a terminal status, run `aw runs repair run-20260101T000000Z-1234`.
+
+    It names the RUN MODEL ("works on the ledger run model rather than on that one"), mentions
+    `events.jsonl`, and gives the literal `aw runs repair <id>` plus the READ verb first
+    (OQ-01's resolution: an operator who was just refused usually wants to SEE the run, and
+    `repair` mutates).
+
+    THE SAME MESSAGE FROM A WRITER LEAF (`aw run cancel run-20260101T000000Z-1234`), exit 2 unpiped: byte-identical to
+    the text above. WHY THE WORDING IS TRUE THERE (F-14): the sentence names the RUN MODEL, not
+    the leaf's direction. It says "this command works on the ledger run model", which is true of
+    a writer and of a reader alike. It deliberately never says "these readers" or "read-only
+    command", and `test_the_signpost_wording_is_true_of_a_writer_too` asserts the absence of each
+    of those phrases on all four writer leaves and the presence of "ledger run model".
+
+    NO ABSOLUTE PATH IN ANY OF THE THREE RENDERINGS (D92). Counted per renderer against the
+    fixture's own temp dir and a `/home/` segment:
+      renderer human    home-segment-hits=0 tmpdir-hits=0 ansi-hits=0
+      renderer --agent  home-segment-hits=0 tmpdir-hits=0 ansi-hits=0
+      renderer --json   home-segment-hits=0 tmpdir-hits=0 ansi-hits=0
+    Pinned by `test_no_renderer_leaks_an_absolute_path_into_the_suggestion`. `aw sanitize --agent`
+    on the tree: `{"outcome":"clean","findings":0,"exit":0}`.
+
+    THE UNKNOWN TARGET IS UNCHANGED. `aw runs resume totalgibberish`, exit 2 unpiped:
+      error: ledger file not found for target 'totalgibberish': this reads the hash-chained
+      ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather
+      than something missing from this run. The drivers' own events.jsonl is a different file in
+      a different format and is not a ledger.
+    Identical to HEAD's text for that target (the `i1hlgx` three-clause message), and it carries
+    NO repair suggestion. Pinned by the second row of `ABSENT_LEDGER_TARGETS` and by
+    `test_an_unknown_target_keeps_the_bare_machine_shape`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the raw `--agent` and `--json` payloads for the driver-run refusal, showing the suggestion in a structured field rather than only inside a message string, and showing each payload's `exit_code` agrees with the unpiped process exit code. Paste the payload's KEY SET before and after, showing the existing `ok`/`error`/`exit_code` shape was extended and not replaced (F-16), and confirm no `aw.agent/v1` conversion was performed. Paste an ANSI check on both machine streams. Do NOT paste an `agent_schema.validate_agent_record` call as evidence of success here: measured, these payloads produce three violations BEFORE any change, so a validator run would report a pre-existing nonconformance this plan is not fixing; if you paste it, label it as the unchanged baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: both machine renderers carry the suggestion as STRUCTURED data (`suggested_commands`, `target_kind`), `exit_code` equals the returned rc, the pre-existing `ok`/`error`/`exit_code` shape is EXTENDED not replaced, the unknown-target key set is byte-unchanged, no `aw.agent/v1` conversion, both streams ANSI-free. Transcript:
 
-- [ ] V-05 validates E-05
+    RAW `--agent` PAYLOAD for the driver-run refusal (one line, reflowed here for width):
+
+      {"error":"ledger file not found for target 'run-20260101T000000Z-1234': ... is not a ledger. That target IS a
+        driver run ... run `aw runs repair run-20260101T000000Z-1234`.",
+       "exit_code":2,
+       "ok":false,
+       "suggested_commands":["aw runs run-20260101T000000Z-1234","aw runs repair run-20260101T000000Z-1234"],
+       "target_kind":"driver-run"}
+
+    RAW `--json` PAYLOAD (pretty), same fields:
+
+      {
+        "error": "ledger file not found for target 'run-20260101T000000Z-1234': ... run `aw runs repair run-20260101T000000Z-1234`.",
+        "exit_code": 2,
+        "ok": false,
+        "suggested_commands": [
+          "aw runs run-20260101T000000Z-1234",
+          "aw runs repair run-20260101T000000Z-1234"
+        ],
+        "target_kind": "driver-run"
+      }
+
+    THE SUGGESTION IS STRUCTURED DATA, not only prose: `suggested_commands` is a list of the two
+    literal commands and `target_kind` is the classification, so an automated consumer never
+    parses the English sentence. `exit_code` is 2 and the process exit measured UNPIPED is 2;
+    `test_both_machine_renderers_carry_the_suggestion_as_data` asserts `rc == payload["exit_code"]`
+    rather than asserting each against a constant separately.
+
+    KEY SET BEFORE AND AFTER, showing the shape was EXTENDED and not replaced:
+      before (any leaf, any absent-ledger target): {"ok","error","exit_code"}
+      after,  DRIVER-RUN target:                   {"ok","error","exit_code","target_kind","suggested_commands"}
+      after,  UNKNOWN target:                      {"ok","error","exit_code"}   <- unchanged
+    The new keys appear ONLY when there is something to suggest, so their absence stays a usable
+    signal (`test_an_unknown_target_keeps_the_bare_machine_shape` asserts the key set EXACTLY for
+    the unknown case, and the pre-existing out-of-scope test
+    `tests/test_run_cli_ledger_message.py::test_machine_payload_carries_the_same_text_with_unchanged_keys`
+    still asserts the same exact key set and passes UNMODIFIED).
+
+    NO `aw.agent/v1` CONVERSION WAS PERFORMED (F-16). `run_cli` still imports `agent_schema` zero
+    times (`grep -c agent_schema agent_workflows/run_cli.py` -> 0) and the payloads remain bare
+    dicts. BASELINE, LABELLED AS SUCH AND NOT AS SUCCESS: these payloads were already
+    nonconformant to `aw.agent/v1` before this change (no `schema`, no `kind`, no `cmd`) and still
+    are; closing that is a separate machine-contract change across every emit site in the module
+    and is deliberately out of scope.
+
+    ANSI-FREE, both machine streams: `ansi-hits=0` for `--agent` and `--json` (see V-03's table),
+    asserted in-test by `assertNotIn("\x1b[", out)`, and
+    `tests/test_cli_conformance_matrix.py` passes.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff -- agent_workflows/run_cli.py` limited to `resolve_ledger_path` showing NO behavioral change to its candidate list or return, paste a call showing it returns `None` for a driver run id, paste an explicit-path invocation still being honored, and paste the UNMODIFIED existing `TestLedgerResolutionAndWrongFormatVerdict` assertions passing (name them; the four `EXIT_NOT_A_LEDGER` cases at `:1098-1118` are the sharpest fence). If `setUp` gained `state.json` per E-06, paste the diff of `setUp` and show every pre-existing assertion in the class still passes with it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `resolve_ledger_path` is behaviourally unchanged (diff touches only new docstrings), still returns `None` for a driver run id even with a driver run present, the explicit-path hatch still works, and every pre-existing assertion in the class passes with the new `state.json` in `setUp` (49 passed). Transcript:
 
-- [ ] V-08 validates E-08
+    `resolve_ledger_path` IS BEHAVIOURALLY UNCHANGED. `git diff -U0 -- agent_workflows/run_cli.py`
+    restricted to lines mentioning the symbol returns only DOCSTRING references from the NEW
+    helpers (lines that read "rather than probing `resolve_ledger_path`'s candidate roots",
+    "`resolve_ledger_path` never resolves a run id to the drivers' event log is untouched", and
+    "it is what `resolve_ledger_path` returning a path MEANS"). Its body - the guard clauses, the
+    `path_is_within_analytics` checks, the seven-entry `candidates` list, and the `return None` -
+    carries no `+`/`-` line at all.
+
+    IT STILL RETURNS `None` FOR A DRIVER RUN ID, now measured with a driver run PRESENT (a
+    `state.json` and an `events.jsonl` in the fixture):
+      run_cli.resolve_ledger_path(self.run_id, self.tmp) is None  -> True
+    asserted in `test_classifying_a_target_never_hands_the_event_log_to_a_ledger_parser`, which
+    also asserts `runs show` on that id exits 2 and its output contains no "corrupt".
+
+    THE EXPLICIT-PATH ESCAPE HATCH IS STILL HONOURED: the third row of the pre-existing
+    `RESOLUTIONS` table ("an explicit path to a file that is not a ledger at all") passes
+    unmodified, and the pre-existing out-of-scope
+    `test_an_explicit_path_that_is_absent_keeps_the_bare_sentence` also passes unmodified (the
+    bare sentence is reached through `_target_names_a_path`, which this change does not touch, so
+    an explicit path never receives a driver-run signpost).
+
+    EVERY PRE-EXISTING ASSERTION IN THE CLASS STILL PASSES, WITH THE NEW `state.json` IN `setUp`.
+    Named: `test_every_target_resolves_to_the_path_it_should` (all three `RESOLUTIONS` rows,
+    including the must-be-None row that IS e6b9kt) and
+    `test_every_verb_reaches_the_same_verdict_for_each_file_shape` (all ten `VERDICTS` rows,
+    including the four `EXIT_NOT_A_LEDGER` rows for `show`/`verify-ledger`/`evidence`/`status`
+    pointed at `events.jsonl` directly, which are the sharpest fence: they prove the exit-7
+    wrong-format verdict stayed DISTINCT from the exit-2 not-found refusal this plan changed, so
+    the new message did not leak into that class, plus the tampered-ledger adversarial rows and
+    the healthy-ledger positive rows).
+
+    THE `setUp` DIFF (the only change to the fixture) adds `state.json` to the driver run and
+    seeds two further directories used only by the new negative rows:
+      + (self.run_dir / "state.json").write_text(json.dumps({...}) + "\n", encoding="utf-8")
+      + self.invisible_run_id / self.invisible_dir   under .aw/state/runs/   (repair cannot see it)
+      + self.stateless_run_id / self.stateless_dir   events.jsonl only       (repair refuses it)
+    The pre-existing `events.jsonl` write and the run directory location (`.aw/records/runs/`,
+    the root BOTH resolvers share) are untouched.
+
+    Whole-file result: `python3 -m pytest tests/test_run_recovery_cli.py` -> `49 passed`.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste, for EACH of `aw run start`, `aw run record`, `aw run cancel`, `aw run finalize` against the fixture driver run, the emitted message and the exit code measured unpiped (must be 2). Four separate outputs. State explicitly whether the shared wording required a change to be true of a writer, and if so paste the wording chosen.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all FOUR writer leaves emit the improved message at exit 2 measured unpiped; the shared wording DID require care to be true of a writer and names the RUN MODEL rather than the leaf's direction, pinned by a test asserting the forbidden phrasings are absent. Transcript:
 
-- [ ] V-06 validates E-06
+    ALL FOUR WRITER LEAVES, against the fixture driver run, exit codes measured UNPIPED
+    (`cmd >/dev/null 2>&1; echo $?`):
+
+      aw run start run-20260101T000000Z-1234    -> exit 2
+      aw run record run-20260101T000000Z-1234   -> exit 2
+      aw run cancel run-20260101T000000Z-1234   -> exit 2
+      aw run finalize run-20260101T000000Z-1234 -> exit 2
+
+    Each printed the identical improved message (shown in full under V-03; verified per-leaf by
+    `test_every_one_of_the_ten_leaves_carries_the_signpost`, which asserts both the `aw runs
+    repair <id>` and the `aw runs <id>` suggestion at every one of the ten leaves in both nouns).
+
+    DID THE SHARED WORDING NEED A CHANGE TO BE TRUE OF A WRITER? YES, and it was written that way
+    from the start of this execution rather than fixed afterwards. The plan's own draft phrasing
+    ("these readers serve a different run model") is FALSE at these four leaves, which MUTATE a
+    ledger. The wording chosen instead names the RUN MODEL and not the leaf's direction:
+
+      "... That target IS a driver run (it has a state.json and an events.jsonl), and this command
+       works on the ledger run model rather than on that one. To see it, run `aw runs <id>`; to
+       reconcile a run a driver abandoned without a terminal status, run `aw runs repair <id>`."
+
+    "this command works on the ledger run model" is true of `aw run cancel` and of `aw runs show`
+    alike, so no per-caller direction parameter was needed. The prohibition is pinned directly by
+    `test_the_signpost_wording_is_true_of_a_writer_too`, which asserts that none of "these
+    readers", "this reader" or "read-only command" appears at any writer leaf.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste all eight cases (a)-(h) with commands, UNPIPED exit codes and output, the new tests' names, and the `python3 -m pytest tests/test_run_recovery_cli.py tests/test_run_noun_split.py` summary line. Paste the fixture `setUp` diff proving the tests are FIXTURE-based and that the driver fixture now carries `state.json`, plus a run from a clean temp dir or bare worktree proving they do not depend on live run records. For case (a) paste the test FAILING against pre-change code (stash or `git stash`-equivalent, and say which you used).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all eight cases (a)-(h) pinned in `TestLedgerResolutionAndWrongFormatVerdict` on its now-`state.json`-bearing FIXTURE; case (a) demonstrated FAILING against pre-change code (7 failed, 2 passed) by swapping in `git show HEAD:` rather than stashing; focused suite `70 passed`. Transcript:
+
+    ALL EIGHT CASES, pinned inside `TestLedgerResolutionAndWrongFormatVerdict` using its (now
+    `state.json`-bearing) fixture. Exit codes from `cli.main`'s own RETURN VALUE via the in-class
+    `_cli` helper, never through a pipeline:
+
+    (a) each of the TEN leaves against the fixture DRIVER run -> exit 2, message names the driver
+        model and `aw runs repair`:
+          aw runs show/status/verify-ledger/evidence/next/resume -> exit 2, signpost present
+          aw run start/record/cancel/finalize                    -> exit 2, signpost present
+        test: `test_every_one_of_the_ten_leaves_carries_the_signpost`
+    (b) an unknown target -> today's message, exit 2, NO repair suggestion:
+          aw runs resume totalgibberish -> exit 2, `aw runs repair` absent
+        tests: `ABSENT_LEDGER_TARGETS` row 2 in
+        `test_the_signpost_appears_exactly_when_repair_would_work`;
+        `test_an_unknown_target_keeps_the_bare_machine_shape`
+    (c) a fixture LEDGER run -> normal success, unaffected: the pre-existing `VERDICTS` positive
+        rows ("show on a real, complete ledger" -> exit 0 with `Run:`; "verify-ledger --agent on a
+        real, healthy ledger" -> exit 0 with `chain_clean: true`) pass unmodified.
+    (d) the explicit-path case still honoured: `RESOLUTIONS` row 3 passes unmodified, and the
+        out-of-scope `test_an_explicit_path_that_is_absent_keeps_the_bare_sentence` still passes.
+    (e) all three renderers for case (a), including the machine payload carrying the suggestion in
+        a FIELD and its `exit_code` equalling the returned rc:
+        `test_both_machine_renderers_carry_the_suggestion_as_data` (asserts
+        `suggested_commands == ["aw runs <id>", "aw runs repair <id>"]`, `target_kind ==
+        "driver-run"`, `rc == payload["exit_code"]`, and no ANSI)
+    (f) `resolve_ledger_path` still `None` for the driver run id:
+        `test_classifying_a_target_never_hands_the_event_log_to_a_ledger_parser`
+    (g) NO absolute path in any of the three renderings (asserts the rendered text contains
+        neither `str(self.tmp)` nor a `/home/` segment):
+        `test_no_renderer_leaks_an_absolute_path_into_the_suggestion`
+    (h) the events-only directory (no `state.json`) -> NO suggestion, because `repair` would
+        refuse it: `ABSENT_LEDGER_TARGETS` row 4, plus
+        `test_the_signpost_agrees_with_what_repair_actually_does`, which checks every row against
+        `aw runs repair`'s REAL exit code rather than against the table's opinion.
+
+    ONE EXTRA TEST BEYOND THE EIGHT: `test_the_three_way_classification_names_all_three_answers`
+    (V-07's pin).
+
+    FIXTURE-BASED, NOT LIVE-RECORD-BASED. `setUp` builds everything under a
+    `tempfile.TemporaryDirectory()` and every invocation passes `--dir str(self.tmp)`; nothing
+    reads `.aw/records/runs/`. The `setUp` diff is quoted under V-05. Proof they do not depend on
+    live run records: the suite passes in this lane, which is an isolated worktree whose own
+    `.aw/records/runs/` DOES NOT EXIST (`state_root(cwd).is_dir()` -> False).
+
+    CASE (a) FAILS AGAINST PRE-CHANGE CODE, demonstrated by running it there. Method, stated
+    because the plan asked which was used: NOT `git stash` (forbidden in this shared checkout).
+    I copied my `run_cli.py` aside inside the lane, wrote `git show HEAD:agent_workflows/run_cli.py`
+    over it, ran the new tests against the OLD implementation with the NEW tests in place, then
+    restored my copy (`grep -c _emit_ledger_not_found` -> 0 while swapped, 5 after restoring).
+    Result against pre-change code:
+      7 failed, 2 passed, 40 deselected in 3.11s
+      FAILED ... ::test_the_signpost_appears_exactly_when_repair_would_work
+      FAILED ... ::test_the_signpost_agrees_with_what_repair_actually_does
+      FAILED ... ::test_every_one_of_the_ten_leaves_carries_the_signpost
+      FAILED ... ::test_the_signpost_wording_is_true_of_a_writer_too
+      FAILED ... ::test_no_renderer_leaks_an_absolute_path_into_the_suggestion
+      FAILED ... ::test_both_machine_renderers_carry_the_suggestion_as_data
+      FAILED ... ::test_the_three_way_classification_names_all_three_answers
+    with, for case (a), `aw runs show: no repair suggestion in "error: ledger file not found for
+    target 'run-abcdef1234': ..."` repeated for all ten leaves. The 2 that PASS pre-change are the
+    `e6b9kt` preservation pins (f) and the unknown-target shape (b), which must hold in BOTH
+    directions and would be worthless if they failed before.
+
+    FOCUSED SUITE:
+      $ python3 -m pytest tests/test_run_recovery_cli.py tests/test_run_noun_split.py
+      70 passed in 4.34s
+    (that invocation also included `tests/test_run_cli_ledger_message.py` and
+    `tests/test_cli_conformance_matrix.py`; the two declared files alone give `61 passed`.)
+  - Result: pass
 
 ## Approval and execution gate
 
