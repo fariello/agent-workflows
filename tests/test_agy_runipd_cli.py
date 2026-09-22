@@ -2374,5 +2374,93 @@ class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
             self.assertNotIn(remedy, src)
 
 
+class AgyVerdictMappingTests(unittest.TestCase):
+    """runverdict (`1bfppy`): the fail-closed verdict mapping on THE MORE EXPOSED HOST.
+
+    WHY THIS HOST NEEDS ITS OWN ASSERTIONS rather than inheriting oc's. The two hosts ship DIFFERENT
+    verifier defaults, deliberately and with an in-tree comment saying so:
+
+      * oc gates the verifier turn on `validate`, which defaults FALSE (`--validate` opts in).
+      * agy gates it on `not no_verify`, which defaults TRUE, and passes `validate=verifier_expected`
+        into the SAME shared `integration_is_earned`.
+
+    So the fail-open verdict path this change closes sat on agy's SHIPPED DEFAULT and only on an
+    opt-in oc path. An oc-only validation would leave the higher-exposure host unproven, which is
+    exactly the one-sided-guard mistake `tests/test_runner_refork_guard.py` exists to prevent.
+    """
+
+    def test_this_host_binds_the_shared_mapping_and_holds_no_copy(self):
+        from agent_workflows import oc_runipd, runner_shared as rs
+
+        for name in (
+            "map_verdict",
+            "normalize_verdict",
+            "verdict_refusal_text",
+            "VerdictMapping",
+        ):
+            with self.subTest(symbol=name):
+                self.assertIs(
+                    getattr(agy_runipd, name),
+                    getattr(rs, name),
+                    "this host must bind the SHARED object, never a copy",
+                )
+                self.assertIs(getattr(agy_runipd, name), getattr(oc_runipd, name))
+
+    def test_this_host_carries_no_private_verdict_substring_test(self):
+        """The shape of the original defect, asserted by AST rather than by grep.
+
+        The gate this replaces existed as two byte-identical copies, and the substring form is what
+        made it order-dependent (`'CONFORMING' in 'NOT CONFORMING'` is True).
+        """
+        tree = ast.parse(Path(str(agy_runipd.__file__)).read_text(encoding="utf-8"))
+        offenders = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Compare) and any(
+                isinstance(op, ast.In) for op in node.ops
+            ):
+                left = node.left
+                if (
+                    isinstance(left, ast.Constant)
+                    and isinstance(left.value, str)
+                    and left.value.upper()
+                    in ("BLOCKED", "NOT CONFORMING", "CONFORMING", "VERIFIED")
+                ):
+                    offenders.append(f"agy_runipd.py:{node.lineno} {left.value!r}")
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+    def test_a_rejection_refuses_integration_on_this_hosts_DEFAULT_path(self):
+        """The default-on case: `verifier_expected` True is what agy passes as `validate`."""
+        from agent_workflows import runner_shared as rs
+
+        for raw in ("CORRECTION_REQUIRED", "BLOCKED", "", "garbage", "NOT BLOCKED"):
+            with self.subTest(verdict=raw):
+                mapped = rs.map_verdict(raw)
+                self.assertNotEqual(mapped.verify_disp, "verified")
+                verdict = agy_runipd.integration_is_earned(
+                    validate=True,  # agy's default: verifier_expected is True
+                    verify_disp=mapped.verify_disp,
+                    suite_result=None,
+                )
+                self.assertFalse(
+                    verdict.earned,
+                    "on agy's DEFAULT path a non-verified verdict must not integrate",
+                )
+                self.assertEqual(
+                    verdict.signal, rs.INTEGRATION_REFUSED_VERIFIER_DECLINED
+                )
+
+    def test_a_verified_verdict_still_integrates_on_this_host(self):
+        """The other direction, so the fix is not a blanket refusal."""
+        from agent_workflows import runner_shared as rs
+
+        verdict = agy_runipd.integration_is_earned(
+            validate=True,
+            verify_disp=rs.map_verdict("VERIFIED").verify_disp,
+            suite_result=None,
+        )
+        self.assertTrue(verdict.earned)
+        self.assertEqual(verdict.signal, rs.INTEGRATION_EARNED_BY_VERIFIER)
+
+
 if __name__ == "__main__":
     unittest.main()

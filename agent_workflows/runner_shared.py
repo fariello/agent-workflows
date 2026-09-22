@@ -12743,6 +12743,289 @@ INTEGRATION_REFUSED_NO_SIGNAL = "no-trust-signal"
 
 
 # ==================================================================================================
+# THE VERIFIER VERDICT MAPPING (runverdict `1bfppy`)
+#
+# ONE FAIL-CLOSED TABLE mapping what a verifier WROTE onto what the runner RECORDS, so a rejection is
+# recorded as a rejection and an unrecognized value is never recorded as a pass.
+#
+# WHAT THIS REPLACES, and what had ALREADY been fixed before this plan executed, stated because the
+# plan was authored against an older tree and half its premise had been repaired in the meantime.
+# The gate this plan was written to fix read (`oc_runipd`/`agy_runipd`, byte-identical):
+#
+#     verify_verdict = str(v_data.get("verdict", "")).upper()
+#     if "BLOCKED" in verify_verdict or "NOT CONFORMING" in verify_verdict: -> blocked/partial
+#     else: -> verified                                      <-- EVERYTHING ELSE FELL OPEN HERE
+#
+# so `CORRECTION_REQUIRED` (a DOCUMENTED verdict the prompt asks for), every typo, every unknown
+# value, an absent key and unparseable JSON with exit 0 were all recorded `verified`. Commit
+# `61137509` (2026-09-18) added an `elif verify_verdict == "VERIFIED"` arm and flipped the `else` to
+# `unverified`/`partial`, which closed the fail-open hole itself. MEASURED AT EXECUTION on the
+# then-current tree, the branch was already correct on all sixteen inputs this module now tests.
+#
+# SO WHY THIS TABLE STILL EXISTS, since the leak was already closed and a no-op refactor would not be
+# worth the churn. Three properties the repaired `if/elif/else` still did NOT have, each a defect
+# class this package has already paid for:
+#
+#   1. THE SUBSTRING TRAP IS STILL LIVE. `"CONFORMING" in "NOT CONFORMING"` is True, and the repaired
+#      branch still tested `"BLOCKED" in verify_verdict`, so `NOT BLOCKED` mapped to `blocked` -
+#      measured, before this change. A verdict is a TOKEN, and matching a token by substring means the
+#      table's behavior depends on the ORDER of its arms. Exact matching on a normalized token removes
+#      the ordering hazard entirely rather than documenting it.
+#   2. THE KNOWN SET WAS NOT DECIDED, IT WAS INHERITED. `CONFORMING` reached the success path for
+#      months purely by falling through the old `else`, and twelve tests depended on it; `61137509`
+#      rewrote those twelve to `VERIFIED` and thereby made `CONFORMING` fail closed, which is a
+#      defensible answer that nothing recorded as an answer. Here each accepted value is an ENTRY.
+#   3. IT WAS INLINE, SO IT WAS UNTESTABLE AND UN-GUARDABLE. A branch buried mid-function in a 19k
+#      line module cannot be unit-tested over its input alphabet, and nothing could stop a host from
+#      re-growing a private copy. A named function can be both, which is what E-04 and E-06 do.
+#
+# THE VOCABULARY IS CONSUMED, NOT INVENTED. `run_state` already defines the state a rejected turn
+# belongs in (`STATE_CORRECTION_REQUIRED`), already declares the legal edge `verifying ->
+# correction_required` with `verifier`/`runtime` authority, and `verify_roles` already grants the
+# verifier role exactly that authority - and NEITHER driver imported any of it (AST-measured: zero
+# matches in both). That was a wiring gap between two of this repository's own components, not a
+# missing concept, so the mapping below binds `run_state`'s token rather than spelling a new string.
+# The import is LAZY and in-function, matching the precedent `resolve_retry_budget` already set for
+# consuming this layer from this module; `run_state` imports no first-party module at all, so a
+# module-level import would not cycle either, and the lazy form is chosen only for consistency.
+#
+# WHAT IS DELIBERATELY NOT HERE. The `correction_required -> runnable` REQUEUE is not implemented
+# (plan OQ-01): recording the rejection correctly is what fixes the measured defect, while requeuing
+# would have to BUILD a per-item retry loop and reconcile it with `--retry-incomplete`. And this does
+# NOT promote the verdict to completion authority: spec `25kzda` §1.1 makes the verifier advisory to
+# the deterministic checker, and §4.4 requires its findings to force "a correction or human
+# disposition rather than being silently treated as machine truth". This stops a rejection being
+# DISCARDED; it grants the verifier nothing new.
+
+#: The three verdicts `build_verifier_prompt` asks the model for, verbatim from the prompt's schema
+#: line (`"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED"`). Named so the prompt and its consumer
+#: can be compared by a test instead of by eye.
+VERDICT_VERIFIED: str = "VERIFIED"
+VERDICT_CORRECTION_REQUIRED: str = "CORRECTION_REQUIRED"
+VERDICT_BLOCKED: str = "BLOCKED"
+
+#: `NOT CONFORMING`, the one LINTER-vocabulary token that is mapped. It appears nowhere in this
+#: repository except the gate that used to test for it, so nothing is known to emit it; it is mapped
+#: anyway because the cost of an entry is nil, because the pre-existing gate DID honor it (so mapping
+#: it preserves behavior rather than changing it), and because a rejection is the safe reading of a
+#: token containing the word "NOT".
+VERDICT_NOT_CONFORMING: str = "NOT CONFORMING"
+
+#: `CONFORMING` IS DELIBERATELY *NOT* A PASS, and this is OQ-02 resolved AGAINST the plan's suggested
+#: default, on a measurement taken at execution that inverts the premise the plan was authored on.
+#:
+#: THE PLAN'S REASONING WAS: twelve existing tests write `{"verdict": "CONFORMING"}` and depend on it
+#: reaching the SUCCESS path, so a table omitting it turns twelve tests red; therefore accept it as an
+#: alias. THAT PREMISE EXPIRED. Commit `61137509` (2026-09-18) rewrote all twelve of those call sites
+#: to `{"verdict": "VERIFIED"}` when it added the `elif verify_verdict == "VERIFIED"` arm. MEASURED at
+#: execution: zero occurrences of `"verdict": "CONFORMING"` remain anywhere in `tests/` or
+#: `agent_workflows/`. So the cost the plan weighed against fail-closing is now ZERO.
+#:
+#: AND THE DECIDING ARGUMENT IS STRONGER THAN "IT IS FREE". At HEAD, `CONFORMING` already maps to
+#: `unverified`/`partial` (it falls through to the `else`). Mapping it to `verified` would therefore
+#: WIDEN THE PASS SET of a gate whose entire purpose is to narrow it - measured on the pre/post
+#: contrast table, it was the ONE input where this change would have made the runner MORE permissive
+#: than the code it replaced. A plan to make a gate fail closed must not ship a regression of that
+#: gate, so the value is left to the fail-closed arm, where an operator gets an explicit reason naming
+#: what the verifier wrote and how to re-run it.
+#:
+#: IF A REAL VERIFIER IS EVER OBSERVED WRITING IT, the fix is a PROMPT/schema change (advertise the
+#: accepted tokens) plus an entry here, not a silent widening now on the strength of a plausible story
+#: about a model echoing `aw ipd lint`'s vocabulary. Nothing in the corpus has ever written it.
+VERDICT_CONFORMING: str = "CONFORMING"
+
+#: What the runner records in `verify_disp` / `item["verification_status"]`. `verified` is the ONLY
+#: value `integration_is_earned` treats as earned and the only one `run_viewer` badges `[verified]`,
+#: so these three strings are a contract with those readers and are not free to be renamed here.
+VERIFY_DISP_VERIFIED: str = "verified"
+VERIFY_DISP_UNVERIFIED: str = "unverified"
+VERIFY_DISP_BLOCKED: str = "blocked"
+
+
+class VerdictMapping(NamedTuple):
+    """How one verifier verdict is RECORDED. Decides only: no state write, no print, no dispatch.
+
+    ``verify_disp``  the value written to `verify_disp` / `item["verification_status"]`.
+    ``downgrade``    whether the item's disposition must fall to `partial`. THE LOAD-BEARING HALF:
+                     `verify_disp` alone is advisory, and it is `disposition = "partial"` that stops
+                     a rejected turn being finalized. A mapping returning only the first would look
+                     correct and change nothing.
+    ``state``        the `run_state` state this verdict corresponds to, or None when the verdict does
+                     not name one. Recorded so the run's own vocabulary is carried rather than
+                     re-derived; nothing transitions on it yet (OQ-01).
+    ``recognized``   whether the verdict was a KNOWN token. False is the fail-closed arm and is what
+                     E-05's operator-visible reason distinguishes: "the verifier rejected this" and
+                     "the verifier wrote something this runner cannot read" are different facts and
+                     route to different actions, even though both refuse.
+    """
+
+    verify_disp: str
+    downgrade: bool
+    state: str | None
+    recognized: bool
+
+
+def normalize_verdict(raw: Any) -> str:
+    """The ONE normalization every verdict passes through, so the table has a single input alphabet.
+
+    Upper-cases and strips, and COLLAPSES INTERNAL WHITESPACE, which is what makes `NOT  CONFORMING`
+    (two spaces) the same token as `NOT CONFORMING` rather than an unknown value. The pre-existing
+    gate applied `.strip().upper()` and nothing else.
+
+    DELIBERATELY DOES NOT SPLIT ON `:`, so `VERIFIED: all checks passed` is NOT normalized to
+    `VERIFIED`. That is the plan's sharpest open choice and it is resolved FAIL-CLOSED, stated here
+    because the opposite is superficially friendlier: accepting a prefix means accepting
+    `VERIFIED: except for the three failures below`, which is a REJECTION written conversationally,
+    and reading it as a pass is precisely the class of defect this table exists to remove. The prompt
+    asks for a bare token; a model that writes prose gets an honest `unverified` plus a reason naming
+    what it wrote, which a human can act on in seconds.
+    """
+    return " ".join(str(raw if raw is not None else "").upper().split())
+
+
+#: THE TABLE. Exact match on the normalized token, so no arm's behavior depends on another arm's
+#: position. Every entry is a DECISION; a value absent from this mapping is refused by construction.
+_VERDICT_TABLE: dict[str, VerdictMapping] = {
+    # THE ONLY PASS. One token, exactly as the prompt asks for it.
+    VERDICT_VERIFIED: VerdictMapping(VERIFY_DISP_VERIFIED, False, "verified", True),
+    # The two RECOGNIZED rejections. `downgrade=True` is the load-bearing half.
+    VERDICT_CORRECTION_REQUIRED: VerdictMapping(
+        VERIFY_DISP_UNVERIFIED, True, "correction_required", True
+    ),
+    VERDICT_BLOCKED: VerdictMapping(VERIFY_DISP_BLOCKED, True, "blocked", True),
+    VERDICT_NOT_CONFORMING: VerdictMapping(VERIFY_DISP_BLOCKED, True, "blocked", True),
+    # `VERDICT_CONFORMING` is ABSENT ON PURPOSE; see its definition above. It falls to the
+    # fail-closed arm, which is what HEAD already did, so this table does not widen the pass set.
+}
+
+
+def map_verdict(raw: Any) -> VerdictMapping:
+    """Map a raw verifier verdict onto what the runner records. FAIL-CLOSED for anything unknown.
+
+    Consumed by BOTH hosts through `execute_item_core`; neither driver carries a verdict test of its
+    own, and `tests/test_runner_refork_guard.py` fails if one grows back.
+
+    The `state` values are checked against `run_state`'s own tokens on every call rather than being
+    trusted as literals, so a rename in that module surfaces here instead of leaving this file
+    asserting a state that no longer exists. A failure to import `run_state` is NOT fatal: the
+    mapping's refusal decision stands on its own and a reporting nicety must never wedge a run.
+    """
+    token = normalize_verdict(raw)
+    mapped = _VERDICT_TABLE.get(token)
+    if mapped is None:
+        # THE FAIL-CLOSED ARM. An unrecognized verdict is NOT a pass: not a typo, not an empty
+        # string, not an absent key, not a model writing prose, not a future verdict this runner
+        # predates. `correction_required` is the state a turn the verifier did not clear belongs in.
+        return VerdictMapping(
+            VERIFY_DISP_UNVERIFIED, True, _verdict_state("correction_required"), False
+        )
+    return mapped._replace(state=_verdict_state(mapped.state))
+
+
+def _verdict_state(name: str | None) -> str | None:
+    """Resolve a state name through `run_state`, the module that OWNS the run vocabulary.
+
+    LAZY AND IN-FUNCTION, matching `resolve_retry_budget`'s existing precedent for consuming this
+    layer from this module. `run_state` imports no first-party module, so a module-level import could
+    not cycle; the lazy form is for consistency with the precedent, not out of necessity.
+
+    Returns the literal unchanged if `run_state` cannot be imported, so a reporting field degrades
+    rather than raising inside a run.
+    """
+    if name is None:
+        return None
+    try:
+        from agent_workflows import run_state as _rs
+
+        return {
+            "verified": _rs.STATE_VERIFIED,
+            "correction_required": _rs.STATE_CORRECTION_REQUIRED,
+            "blocked": _rs.STATE_BLOCKED,
+        }.get(name, name)
+    except Exception:  # pragma: no cover - defensive; never kill a run over a label
+        return name
+
+
+#: The `Refusal.code` recorded when a verifier did not clear a turn. TWO codes, because the two facts
+#: route to different actions: a verdict the runner UNDERSTOOD as a rejection is work for whoever can
+#: fix the plan, while a verdict it could not read at all is a broken verifier turn to re-run.
+#:
+#: THE FIRST IS *BOUND TO* THE INTEGRATION SIGNAL, NOT A SECOND SPELLING OF IT. Both describe the same
+#: fact (the verifier declined) and are read side by side by an operator, so spelling `"verifier-
+#: declined"` a second time here is exactly the producer/reader drift this module has already paid for
+#: twice (`render_stream` F-4: a renderer read `driver_error` while the producer wrote
+#: `integration_deferral`). An alias cannot drift; two literals can. Caught at execution by asserting
+#: the two were equal and then making that equality STRUCTURAL rather than coincidental.
+VERDICT_REFUSAL_CODE_DECLINED: str = INTEGRATION_REFUSED_VERIFIER_DECLINED
+#: No integration signal exists for this one: `integration_is_earned` cannot distinguish an unreadable
+#: verdict from a rejection (it sees only `verify_disp`), which is precisely why the REFUSAL carries
+#: the distinction the signal cannot.
+VERDICT_REFUSAL_CODE_UNREADABLE: str = "verifier-verdict-unreadable"
+
+
+def verdict_refusal_text(raw: Any, mapping: VerdictMapping) -> tuple[str, str, str]:
+    """The refusal CODE, human REASON and REMEDY for a verdict that did not verify.
+
+    WHY A REMEDY IS REQUIRED AND NOT OPTIONAL (the `Refusal` contract enforces it, and `AGENTS.md`
+    records the measurement behind it): a gate that states only a prohibition gets complied with by
+    DELETION. This refusal's destructive "fix" is obvious and expensive - re-run the plan from
+    scratch, discarding a lane that already holds the work - so every branch below names the lane and
+    the constructive act instead.
+
+    NAMES THE VERDICT VERBATIM in the reason. The operator's first question is always "what did it
+    actually say?", and for the unreadable case the raw bytes ARE the diagnosis.
+    """
+    token = normalize_verdict(raw)
+    shown = token if token else "(empty)"
+    if not mapping.recognized:
+        return (
+            VERDICT_REFUSAL_CODE_UNREADABLE,
+            (
+                f"the verifier turn wrote a verdict this runner does not recognize ({shown!r}), so "
+                "the turn is recorded NOT VERIFIED. An unrecognized verdict is deliberately never "
+                "read as a pass: the runner cannot tell a typo from a rejection written in prose, "
+                f"and the prompt asks for exactly one of {VERDICT_VERIFIED}, "
+                f"{VERDICT_CORRECTION_REQUIRED} or {VERDICT_BLOCKED}"
+            ),
+            (
+                "read the verifier's own outcome file in the run's `outcomes/` directory: its "
+                "findings are usually intact even when its verdict line is malformed, so the work "
+                "may well be fine and only the verdict unreadable. If the findings are clean, "
+                "re-run the verification for this item; if they are not, treat it as a rejection "
+                "and correct the plan. The lane is PRESERVED either way and nothing was merged, so "
+                "do NOT re-run the plan from scratch - that would discard work already done"
+            ),
+        )
+    if mapping.verify_disp == VERIFY_DISP_BLOCKED:
+        return (
+            VERDICT_REFUSAL_CODE_DECLINED,
+            (
+                f"the verifier reported {shown!r}: it could not complete the verification, so this "
+                "turn is recorded NOT VERIFIED and was not integrated"
+            ),
+            (
+                "read the verifier's outcome file in the run's `outcomes/` directory for what "
+                "blocked it, resolve that obstacle, then re-run this item. The lane is PRESERVED "
+                "and nothing was merged, so the work already done is still there"
+            ),
+        )
+    return (
+        VERDICT_REFUSAL_CODE_DECLINED,
+        (
+            f"the verifier REJECTED this turn ({shown!r}), so it is recorded NOT VERIFIED and was "
+            "not integrated. This is an explicit verdict, not a missing one: a green test suite "
+            "deliberately does not override it"
+        ),
+        (
+            "read the verifier's findings in the run's `outcomes/` directory, correct what they "
+            "name, then re-run this item. The lane is PRESERVED and nothing was merged. Do NOT "
+            "re-run the plan from scratch (that discards the work) and do NOT re-run with "
+            "verification off to get it merged, which would bypass the finding rather than fix it"
+        ),
+    )
+
+
+# ==================================================================================================
 # THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)
 #
 # WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
@@ -18055,23 +18338,53 @@ def execute_item_core(
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
                 )
                 if v_outcome_file.is_file():
+                    # runverdict (`1bfppy`) E-02: the verdict is mapped by the ONE shared
+                    # fail-closed table (`map_verdict`), never by a substring test written here.
+                    # Both hosts reach this through `execute_item_core`, so there is one mapping
+                    # and `tests/test_runner_refork_guard.py` fails if a driver grows a copy.
+                    #
+                    # THE UNPARSEABLE ARM ROUTES THROUGH THE SAME TABLE, deliberately: a verdict
+                    # the runner could not read is an UNREADABLE verdict, and `map_verdict`'s
+                    # fail-closed arm is exactly that answer. Sibling plan `fzxfph` (read on disk
+                    # at execution: `- Status: approved`, still in `pending/`, so NOT landed) owns
+                    # NAMING the three facts currently collapsed into `unverified`, including this
+                    # one. This change therefore mints NO name for the unparseable case: it keeps
+                    # the existing `unverified` token and adds only the refusal REASON, so that
+                    # plan's executor has a free field to name and nothing to reconcile.
                     try:
                         v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
-                        verify_verdict = str(v_data.get("verdict", "")).strip().upper()
-                        if (
-                            "BLOCKED" in verify_verdict
-                            or "NOT CONFORMING" in verify_verdict
-                        ):
-                            verify_disp = "blocked"
-                            disposition = "partial"
-                        elif verify_verdict == "VERIFIED":
-                            verify_disp = "verified"
-                        else:
-                            verify_disp = "unverified"
-                            disposition = "partial"
+                        v_raw_verdict = v_data.get("verdict", "")
                     except Exception:
-                        verify_disp = "unverified"
+                        v_raw_verdict = None
+                        v_unreadable = True
+                    else:
+                        v_unreadable = False
+                    v_map = map_verdict(v_raw_verdict)
+                    verify_disp = v_map.verify_disp
+                    if v_map.downgrade:
                         disposition = "partial"
+                    attempt["verify_verdict_raw"] = (
+                        None if v_unreadable else str(v_raw_verdict)
+                    )
+                    attempt["verify_verdict_state"] = v_map.state
+                    attempt["verify_verdict_recognized"] = v_map.recognized
+                    if verify_disp != VERIFY_DISP_VERIFIED:
+                        # E-05: SAY WHAT TO DO. A gate that only refuses gets worked around, and
+                        # this refusal's destructive "fix" is expensive (re-running a plan whose
+                        # lane already holds the work). Recorded through `r2i1b1`'s ONE refusal
+                        # writer, so the run summary's diagnostics block and `aw runs`' `Issue`
+                        # column both already render it with no new surface.
+                        v_code, v_reason, v_remedy = verdict_refusal_text(
+                            "(unreadable)" if v_unreadable else v_raw_verdict, v_map
+                        )
+                        record_refusal(
+                            item, code=v_code, reason=v_reason, remedy=v_remedy
+                        )
+                        print(
+                            pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                            file=sys.stderr,
+                        )
+                        print(pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr)
                 else:
                     verify_disp = "unverified"
                     disposition = "partial"
