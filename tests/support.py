@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
+import unittest.mock
 from pathlib import Path
 
 # Repo root = the directory containing install-workflows.py (two up from this file's dir).
@@ -64,6 +66,138 @@ SETUP_TOOLS = SOURCE_WORKFLOWS / "setup-repo" / "tools" / "setup_tools.py"
 CONFORMANCE_HARNESS = (
     SOURCE_WORKFLOWS / "conformance" / "tools" / "conformance_harness.py"
 )
+
+
+# --------------------------------------------------------------------------------------
+# Declare the execution ROLE a test exercises, instead of inheriting it (plan `e4lkv5`).
+# --------------------------------------------------------------------------------------
+
+EXECUTION_ROLE_ENV = "AW_EXECUTION_ROLE"
+ROLE_WORKER = "worker"
+
+
+def execution_role(role: str | None):
+    """Return a context manager that DECLARES the execution role for the current process.
+
+    Pass ``role=None`` to assert the COORDINATOR role (the marker absent, which is what
+    ``aw ipd begin``/``finalize`` require), or ``role="worker"`` to assert the managed-lane
+    role that `AW-LIFECYCLE-ROLE-001` refuses. Either way the value is SET by the test
+    rather than read from whatever launched pytest.
+
+    WHY A TEST MUST DECLARE ITS ROLE, and why INHERITING is a defect in BOTH directions.
+    The runners export ``AW_EXECUTION_ROLE=worker`` into an isolated execute turn
+    (``oc_runipd.py``, ``agy_runipd.py``), and `ipd_lifecycle.run_begin`/`run_finalize`
+    read the AMBIENT process environment (``worker_role_active(os.environ)``). So a test
+    that drives those wrappers without declaring a role gets whichever role happened to
+    launch the suite: it FAILS with the lifecycle refusal when a runner launched it, and
+    PASSES in a human's shell, which makes it evidence about the environment rather than
+    about the code. The mirror case is worse and is silent: a test ASSERTING the refusal
+    while inheriting the marking passes VACUOUSLY, so a safety guard stops testing
+    anything without any run going red to say so.
+
+    Use this instead of a pytest fixture. Every affected test here is a
+    ``unittest.TestCase`` method, into which pytest does NOT inject fixtures, so
+    ``monkeypatch`` silently arrives as ``None``.
+
+    Two shipped precedents this generalizes, and the shape to keep extending:
+
+    * ``tests/test_orchestrator_retirement.py`` passes ``env={}`` EXPLICITLY into the
+      lifecycle call, with the comment that "the suite itself may run inside a managed
+      lane ... and a test that silently read os.environ would then refuse for the wrong
+      reason and pass vacuously". Prefer that when the code under test accepts an ``env``
+      mapping: an explicit argument beats any process-wide mutation.
+    * ``tests/test_worker_role_refusal.py``'s ``_run_cli(role=...)`` normalizes the role on
+      the env dict it hands to each subprocess. Prefer that when spawning a subprocess
+      directly.
+
+    This helper is for the remaining case, where the code under test reads the ambient
+    environment itself (an in-process driver helper, or a CLI wrapper reached in-process)
+    and takes no ``env`` parameter to thread a value through.
+
+    Usage from a ``unittest.TestCase``::
+
+        def setUp(self):
+            self.enterContext(support.execution_role(None))  # coordinator
+
+    On Python 3.10 or earlier, ``addCleanup`` the ``__exit__`` instead of ``enterContext``.
+    """
+
+    if role is None:
+        return _PoppedEnv(EXECUTION_ROLE_ENV)
+    return unittest.mock.patch.dict(os.environ, {EXECUTION_ROLE_ENV: role})
+
+
+class _PoppedEnv:
+    """Context manager that REMOVES one env var for its duration and restores it after.
+
+    ``mock.patch.dict`` can only SET keys, and the coordinator role is expressed by the
+    marker being ABSENT, so removal needs its own tiny manager. Restoring the prior value
+    matters because the suite runs with ``-n auto``: a test that leaked a role change into
+    its worker process would decide the role for every test that follows it there.
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._had = False
+        self._prior: str | None = None
+
+    def __enter__(self) -> None:
+        self._had = self._name in os.environ
+        self._prior = os.environ.get(self._name)
+        os.environ.pop(self._name, None)
+        return None
+
+    def __exit__(self, *exc) -> bool:
+        if self._had:
+            os.environ[self._name] = self._prior or ""
+        else:
+            os.environ.pop(self._name, None)
+        return False
+
+
+def declare_execution_role(case, role: str | None = None):
+    """Declare the execution role for one ``unittest.TestCase``, undone on teardown.
+
+    The single line a test class needs, callable from ``setUp``::
+
+        def setUp(self):
+            support.declare_execution_role(self)          # coordinator (marker absent)
+            support.declare_execution_role(self, "worker")  # managed-lane worker
+
+    Entered immediately and unwound through ``addCleanup``, which works on every supported
+    interpreter (``requires-python >= 3.9``); ``TestCase.enterContext`` is 3.11+ and so is
+    deliberately not used. The unwind is what keeps the declaration from leaking into the
+    next test in the same ``-n auto`` worker process.
+
+    See :func:`execution_role` for why declaring the role beats inheriting it.
+    """
+
+    manager = execution_role(role)
+    manager.__enter__()
+    case.addCleanup(manager.__exit__, None, None, None)
+    return manager
+
+
+def coordinator_role():
+    """Declare the COORDINATOR role: the marker absent, so lifecycle verbs are permitted.
+
+    Thin alias for ``execution_role(None)``, for call sites where naming the role reads
+    better than passing ``None``. See :func:`execution_role` for why declaring beats
+    inheriting.
+    """
+
+    return execution_role(None)
+
+
+def worker_role():
+    """Declare the managed-lane WORKER role, which `AW-LIFECYCLE-ROLE-001` refuses.
+
+    Use this in a test that ASSERTS the refusal, so it asserts against a role it SET. A
+    refusal test that relies on the ambient value passes vacuously whenever the ambient
+    value is not ``worker``. See :func:`execution_role`.
+    """
+
+    return execution_role(ROLE_WORKER)
 
 
 def load_module(name: str, path: Path):

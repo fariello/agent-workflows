@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import agy_runipd, cli
+from tests import support
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
 
@@ -93,6 +94,13 @@ class AgySelfFinalizeTests(unittest.TestCase):
     """The agy driver self-finalizes exactly as the oc driver does: `aw ipd begin` before the
     execute turn (fail-closed) and `aw ipd finalize` after a verified turn (programmatic scope
     reconciliation), reusing the SAME gated lifecycle surface. Parity with test_oc_runipd."""
+
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
 
     def test_driver_actor_is_parenthesis_free(self):
         self.assertEqual(
@@ -301,6 +309,13 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
     """driverfin-02 (emus4n) parity for the agy driver: each execute child runs in its own worktree;
     the main tree stays clean during the turn; a verified child integrates back to main via the
     REUSED gate; a non-passing gate defers rather than faking executed."""
+
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
 
     def _state_and_item(self, repo, plan):
         item = {
@@ -533,6 +548,13 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
 class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
     """driverfin-03 (7kbtkw) parity for the agy driver: fail-closed dirty-tree guard (E-01) +
     merge-back conflict handling (E-02)."""
+
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
 
     def _state_and_item(self, repo, plan):
         item = {

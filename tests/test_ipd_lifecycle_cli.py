@@ -24,6 +24,7 @@ from agent_workflows import ipd_authoring as A
 from agent_workflows import ipd_lifecycle as LC
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
+from tests import support
 
 
 def _init_git(root: Path) -> None:
@@ -324,6 +325,11 @@ class BeginFailClosedTests(unittest.TestCase):
 
 class BeginCliTests(unittest.TestCase):
     def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: these tests drive the
+        # `begin` CLI, which reads the ambient environment, so a runner-launched suite
+        # would otherwise hand them `AW_EXECUTION_ROLE=worker` and they would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior they assert (plan `e4lkv5`).
+        support.declare_execution_role(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _init_git(self.root)

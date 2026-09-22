@@ -23,6 +23,7 @@ from pathlib import Path
 
 from agent_workflows import oc_runipd as driver
 from agent_workflows import runner_stop
+from tests import support
 from tests.support import REPO_ROOT
 
 # Launch the packaged driver as a module (`-m agent_workflows.oc_runipd`) with PYTHONPATH pinned to
@@ -2583,6 +2584,13 @@ def _init_repo_with_conforming_plan(repo: Path, id6: str = "slf001") -> Path:
 class SelfFinalizeHelperTests(unittest.TestCase):
     """Unit coverage of the begin/finalize driver helpers + programmatic scope reconciliation."""
 
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
+
     def test_driver_actor_is_parenthesis_free(self):
         # The terminal history line is `- <date> <status> (<actor>): <msg>`; a parenthesized actor
         # would misparse under the attribution lint, so the model is rendered as `model=<m>`.
@@ -2977,6 +2985,13 @@ class WorktreeIsolationTests(unittest.TestCase):
     stays clean during the turn; a verified child's commits integrate back to main via the REUSED
     integration gate; a non-passing gate leaves the child NOT integrated (deferred, not faked)."""
 
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
+
     def _state_and_item(self, repo: Path, plan: Path) -> tuple[dict, dict]:
         item = {
             "position": 1,
@@ -3269,6 +3284,13 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
     (E-02). Integration into a contaminated base is refused (`integration-blocked`); a non-passing
     integration gate leaves main pristine and records `merge-conflict`; both preserve the verified
     lane branch/worktree and never fake the child executed (its set is therefore not finished)."""
+
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
 
     def _state_and_item(self, repo: Path, plan: Path) -> tuple[dict, dict]:
         item = {

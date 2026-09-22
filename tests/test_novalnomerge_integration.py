@@ -25,10 +25,30 @@ from unittest import mock
 from agent_workflows import agy_runipd
 from agent_workflows import oc_runipd as driver
 from agent_workflows import runner_shared
+from tests import support
 from tests.support import REPO_ROOT
 
 _DRIVER_CMD = [sys.executable, "-m", "agent_workflows.oc_runipd"]
-_DRIVER_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
+
+
+def _driver_env() -> dict[str, str]:
+    """The env for a spawned DRIVER process, with the execution role DECLARED, not inherited.
+
+    The child here is a DRIVER, so it must run in the coordinator role: it performs
+    `begin`/`finalize` itself, and `AW-LIFECYCLE-ROLE-001` refuses those for a worker-role
+    process. A runner-launched suite carries `AW_EXECUTION_ROLE=worker`, which the child
+    would otherwise inherit and then refuse its own `begin`, leaving the item `blocked` and
+    this test measuring the marking rather than the integration it asserts (plan `e4lkv5`).
+
+    Built per call rather than at import time on purpose: a module-level snapshot of
+    `os.environ` is taken before any `setUp` runs, so a test-level role declaration could
+    not reach it. Same shape as `tests/test_worker_role_refusal.py`'s `_run_cli(role=...)`,
+    which normalizes the role on the env dict it hands to each subprocess.
+    """
+
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
+    env.pop(support.EXECUTION_ROLE_ENV, None)
+    return env
 
 
 def _suite(
@@ -362,6 +382,13 @@ class EndToEndIntegrationTests(unittest.TestCase):
     host binary, exactly as `tests/test_oc_runipd.py` does, so no paid agent session is required.
     """
 
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
+
     def _repo_with_plan(self, root: Path) -> tuple[Path, Path, str]:
         repo = root / "repo"
         repo.mkdir()
@@ -405,7 +432,7 @@ class EndToEndIntegrationTests(unittest.TestCase):
                 "--apply",
             ],
             cwd=repo,
-            env=_DRIVER_ENV,
+            env=_driver_env(),
             check=True,
             stdout=subprocess.DEVNULL,
         )
@@ -500,7 +527,7 @@ class EndToEndIntegrationTests(unittest.TestCase):
                     "--no-isolate-worktree",
                 ],
                 cwd=repo,
-                env=_DRIVER_ENV,
+                env=_driver_env(),
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
