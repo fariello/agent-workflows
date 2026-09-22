@@ -6614,88 +6614,15 @@ def execute_item(
     )
 
 
+# runrecon-02 (`fduoj4`) E-01: one-line wrapper over the shared `reconcile_interrupted`, binding THIS
+# driver's `save_state`. The body was FORKED per host and the two copies had DIVERGED in one code line
+# (oc indexed `item["configured_file"]`, agy used `.get(..., "")`, so oc raised `KeyError` past an
+# `except DriverError` that does not catch it and aborted the whole loop before `save_state`); the
+# shared version keeps agy's tolerant form. `save_state` is injected rather than imported because it
+# needs `write_report`, which is class (c) DIVERGED: the maintainer's `818uru` OQ-02 wrapper ruling.
+# Keeping the original name and signature is what leaves this module's call sites untouched.
 def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
-    repo = Path(state["repo"])
-    for item in state["queue"]:
-        if item["status"] != "running":
-            continue
-        attempts = item.get("attempts", [])
-        if attempts:
-            raw_log = attempts[-1].get("log")
-            session_id = extract_session_id(Path(raw_log)) if raw_log else None
-            if session_id:
-                existing = state.setdefault("set_sessions", {}).get(item["setid"])
-                if existing in (None, session_id):
-                    state["set_sessions"][item["setid"]] = session_id
-                    state["session_id"] = session_id
-                    attempts[-1]["session_id"] = session_id
-                else:
-                    attempts[-1]["session_reconciliation_error"] = (
-                        f"persisted={existing} observed={session_id}"
-                    )
-        try:
-            path = resolve_plan_path(repo, item["configured_file"], item["id6"])
-            if plan_bucket(path) == "executed":
-                # runstop m0z0ti (E-05, spec R22): THE FABRICATED-SUCCESS GATE.
-                #
-                # The promotion below infers success from the plan's DIRECTORY alone, consulting
-                # neither the outcome artifact nor any stop record. For an item whose turn was
-                # FORCE-CUT that is a live R22 violation: if the agent had already moved the plan to
-                # `executed/` but was interrupted before its work was complete or verified, this would
-                # record `executed` - a success the driver never established, which is precisely what
-                # level 4 exists to prevent. So for an item flagged INDETERMINATE the promotion
-                # refuses to fire and the conflict is REPORTED instead.
-                #
-                # Deliberately narrow: ordinary (non-indeterminate) interrupted items are promoted
-                # exactly as before, and a control test pins that. Widening this to all interrupted
-                # items would disable a legitimate promotion rather than fix a fabrication.
-                if runner_stop.is_indeterminate(item):
-                    item["reconciliation_conflict"] = (
-                        f"plan is in executed/ ({path}) but this turn was force-interrupted "
-                        f"(level 4), so the driver never established that the work completed; "
-                        f"refusing to record it executed (spec c4gd2h R22). "
-                        f"{runner_stop.RECONCILIATION_ACTION}"
-                    )
-                    append_jsonl(
-                        run_dir / "events.jsonl",
-                        {
-                            "at": utc_now(),
-                            "event": "interrupted-promotion-refused-unknown-outcome",
-                            "id6": item["id6"],
-                            "plan_bucket": "executed",
-                            "certainty": runner_stop.CERTAINTY_INDETERMINATE,
-                            "disposition": runner_stop.FORCED_DISPOSITION,
-                            "requires_reconciliation": True,
-                            "reason": item["reconciliation_conflict"],
-                        },
-                    )
-                    print(
-                        f"reconcile {item['id6']}: {item['reconciliation_conflict']}",
-                        file=sys.stderr,
-                    )
-                else:
-                    item["status"] = "executed"
-                    append_jsonl(
-                        run_dir / "events.jsonl",
-                        {
-                            "at": utc_now(),
-                            "event": "interrupted-reconciled-executed",
-                            "id6": item["id6"],
-                        },
-                    )
-                    continue
-        except DriverError:
-            pass
-        item["status"] = "interrupted"
-        if attempts:
-            now = utc_now()
-            attempts[-1].setdefault("interrupted_at", now)
-            attempts[-1].setdefault("ended_at", now)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {"at": utc_now(), "event": "interrupted-detected", "id6": item["id6"]},
-        )
-    save_state(run_dir, state)
+    runner_shared.reconcile_interrupted(run_dir, state, save_state=save_state)
 
 
 def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:

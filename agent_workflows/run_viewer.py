@@ -11,7 +11,7 @@ import json
 import re
 import sys
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -47,10 +47,23 @@ from agent_workflows.term import Term, strip_ansi
 
 # runstale Order 01 (ssk6nf) E-01/E-03: the DISPLAY-ONLY status a `running` step is projected to when
 # no live driver holds its run. Deliberately NOT the bare word `interrupted`: a persisted `interrupted`
-# is a fact `oc_runipd.reconcile_interrupted` recorded after resolving the plan, whereas this is an
-# inference from "nobody holds the lock" that has inspected nothing. Collapsing the two would let the
-# viewer assert a reconciliation that never happened.
+# is a fact `runner_shared.reconcile_interrupted` recorded after resolving the plan AND reading the
+# step's own outcome file, whereas this is an inference from "nobody holds the lock" that has inspected
+# nothing. Collapsing the two would let the viewer assert a reconciliation that never happened.
+#
+# STILL THE RIGHT LABEL WHEN NOTHING IS KNOWN, and only then (runrecon-02 `fduoj4` E-04). Since that
+# plan the reconciler consults `outcomes/<NN>-<id6>.json`, so a step whose own outcome file records a
+# terminal disposition has a KNOWN answer sitting on disk, and calling it `abandoned?` understates what
+# is already readable. `_projected_step_status` below therefore reports the recovered disposition, with
+# a `?` suffix marking it as read-time and unreconciled; this bare word remains for the genuinely
+# unknown case. The read path still MUTATES NOTHING (`GUIDING_PRINCIPLES` P10): making the answer
+# DURABLE is `aw runs repair`'s job, which `ssk6nf` shipped as an opt-in verb for exactly this reason.
 ABANDONED = "abandoned?"
+
+#: Suffix marking a read-time projection, i.e. a status this VIEW derived rather than one the driver
+#: persisted. `abandoned?` carries it already; a recovered disposition carries the same mark so the two
+#: read alike and neither can be mistaken for a persisted fact (runrecon-02 `fduoj4` E-04).
+PROJECTION_SUFFIX = "?"
 
 # Liveness of the driver that owns a run directory.
 HOLDER_LIVE = "live"
@@ -84,6 +97,49 @@ def driver_holder_state(run_dir: Path) -> str:
     if free is None:
         return HOLDER_UNKNOWN
     return HOLDER_NONE if free else HOLDER_LIVE
+
+
+def _projected_step_status(run_dir: Path, item: Mapping[str, Any]) -> str:
+    """The label for a `running` step whose run no live driver holds. READS ONLY; never writes.
+
+    runrecon-02 (`fduoj4`) E-04. Before this, the projection had exactly two inputs (the item's status
+    and the lock holder) and always produced `abandoned?`, whose question mark means "no live driver,
+    but nothing recorded what happened". That sentence is FALSE for a step that DID record what
+    happened: the measured incident's `outcomes/02-97df1z.json` says `substantially-complete` and names
+    a commit, and this view called it `abandoned?` anyway while the answer sat in the same run
+    directory. So the third input is the step's own recorded outcome, read through the SAME shared
+    precedence the reconciler uses (`runner_shared.outcome_precedence_disposition`), never a second
+    copy of those rules.
+
+    IT MUTATES NOTHING, and that is settled precedent rather than a preference. `GUIDING_PRINCIPLES`
+    P10 ("a read command must not mutate") is why executed plan `ssk6nf` REJECTED auto-repair on read
+    and shipped the opt-in `aw runs repair` verb instead; this function reports a better-informed
+    label and leaves `state.json` byte-for-byte untouched. Making the answer DURABLE remains the
+    repair verb's job, and a test asserts both the content and the mtime of `state.json` across a read.
+
+    THE `?` SUFFIX IS KEPT ON THE RECOVERED VALUE, deliberately. A bare `substantially-complete` here
+    would be indistinguishable from a status the driver actually persisted, which is the exact
+    confusion `ABANDONED`'s own comment exists to prevent. `persisted_status` still carries the real
+    recorded value (`running`) in every case, so nothing is hidden either way.
+
+    IT PASSES NO BUCKET, so the plan's directory plays no part here. The directory promotion is a
+    reconciliation decision with an R22 gate on it, and a read surface must not reach a verdict that
+    gate governs; consulting the outcome file alone cannot promote anything to `executed`, because the
+    shared precedence downgrades a self-claimed `executed` to `substantially-complete`. An INDETERMINATE
+    step is left at `abandoned?` for the same reason the reconciler refuses to recover it.
+    """
+
+    from agent_workflows import runner_shared, runner_stop
+
+    if runner_stop.is_indeterminate(item):
+        return ABANDONED
+    if item.get("action", "execute") in ("review", "orchestrate"):
+        return ABANDONED
+    outcome = runner_shared.read_recorded_outcome(Path(run_dir), item)
+    recovered = runner_shared.outcome_precedence_disposition(None, outcome)
+    if recovered is None:
+        return ABANDONED
+    return f"{recovered}{PROJECTION_SUFFIX}"
 
 
 @dataclass
@@ -890,7 +946,7 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                 persisted_status = None
                 if status == "running" and holder == HOLDER_NONE:
                     persisted_status = status
-                    status = ABANDONED
+                    status = _projected_step_status(run_dir, item)
                 counts[status] = counts.get(status, 0) + 1
 
                 cfg_file = item.get("configured_file", "")
@@ -2796,16 +2852,21 @@ still running. This is the one MUTATING verb on `aw runs`; every other form is r
 
 WHEN YOU NEED IT
   A driver killed mid-turn (crash, reboot, SIGKILL, closed laptop) never writes a terminal status,
-  so its step stays `running` in the run's state.json while no process holds the run. `aw runs` then
-  shows that step as `abandoned?` - the question mark meaning "no live driver, but nothing recorded
-  what happened". This verb decides the question and writes the answer down.
+  so its step stays `running` in the run's state.json while no process holds the run. `aw runs`
+  projects a label for such a step, with a trailing `?` meaning "read at display time, nothing
+  recorded durably". This verb decides the question and writes the answer down.
 
 WHAT IT DOES, per step still marked `running`
   - Resolves the step's plan and looks at which lifecycle directory it now sits in.
   - Plan is in executed/  -> records `executed` (the work did land before the driver died).
-  - Otherwise             -> records `interrupted` (honest: it stopped partway).
+  - Otherwise, reads the step's own outcomes/<NN>-<id6>.json and honors the disposition recorded
+    there, marking it `recovered-from-outcome` and reporting any commit shas it names. A recorded
+    `executed` is downgraded to `substantially-complete`, because an agent's claim about its own turn
+    is not completion authority.
+  - Only when there is no readable recorded disposition -> records `interrupted` (honest: as far as
+    anything on disk shows, it stopped partway).
   - Recovers the agent session id from the attempt log when it can, so the turn stays traceable.
-  It delegates to the single reconciler (`oc_runipd.reconcile_interrupted`) rather than
+  It delegates to the single reconciler (`runner_shared.reconcile_interrupted`) rather than
   reimplementing the decision, so the read view and this repair can never disagree.
 
 WHAT IT REFUSES TO DO
@@ -2828,10 +2889,16 @@ EXAMPLES
   aw runs repair .aw/records/runs/run-2026...     # or by directory path
   aw runs --active                               # find runs that still look alive first
 
-LIMITATION WORTH KNOWING
-  The decision reads the plan's DIRECTORY, not the step's own `outcomes/<NN>-<id6>.json`. A step that
-  recorded `substantially-complete` with committed lane work is therefore reconciled to
-  `interrupted`, which understates it. Tracked as backlog `ydbhfd`."""
+LIMITS WORTH KNOWING
+  A recovered disposition is only as good as the file it came from. The driver never validated that
+  outcome JSON: it was written by an agent whose process then died, so the step is marked
+  `recovered-from-outcome` rather than reported as though the driver had scored the turn itself.
+  A recorded commit sha is REPORTED, not checked for mergeability and never merged; a sha that does
+  not resolve in this repository is reported as recorded but unresolved.
+  A turn that was force-interrupted at stop level 4 is never recovered from its own outcome file,
+  because that is precisely the case in which the driver established nothing.
+  This verb also does not delete the stale `driver.lock`, and it cannot repair a run a live driver
+  still holds."""
 
 
 #: The nine READ-ONLY leaves registered under `aw runs`. Kept as ONE list so the refusal message
@@ -2947,9 +3014,14 @@ def _unresolvable_target_refusal(
 def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
     """ssk6nf E-04: durably reconcile a run abandoned without a terminal status.
 
-    Delegates to ``oc_runipd.reconcile_interrupted``, the SINGLE reconciler (it resolves each running
-    item's plan, promotes one that genuinely reached ``executed``, else marks it ``interrupted``).
+    Delegates to ``runner_shared.reconcile_interrupted``, the SINGLE reconciler (it resolves each
+    running item's plan, promotes one that genuinely reached ``executed``, else honors the disposition
+    the step itself recorded in ``outcomes/<NN>-<id6>.json``, else marks it ``interrupted``).
     Deliberately does not reimplement that logic (GUIDING_PRINCIPLES P8).
+
+    RE-POINTED FROM ``oc_runipd`` BY runrecon-02 (`fduoj4`) E-01, which made that function ONE shared
+    definition instead of a per-host fork. This verb previously ran the OpenCode host's copy for every
+    run whatever host wrote it, so it could disagree with the Antigravity crash path.
 
     REFUSES while a live driver holds the run: repairing under a running driver would race its writer.
     A run with nothing to reconcile is a no-op. Returns ``(exit_code, message)``.
@@ -2970,7 +3042,11 @@ def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
             "(flock unavailable on this platform)"
         )
 
-    from agent_workflows import oc_runipd
+    # runrecon-02 (`fduoj4`) E-01: RE-POINTED at `runner_shared`, which now owns the ONE reconciler.
+    # It was `oc_runipd.reconcile_interrupted`, which meant this verb ran the OpenCode host's copy for
+    # every run whatever wrote it, and could therefore disagree with the Antigravity crash path. The
+    # oc wrapper still exists and still delegates here, so this is a re-point and not a second route.
+    from agent_workflows import oc_runipd, runner_shared
 
     state = oc_runipd.load_state(run_dir)
     stale = [
@@ -2979,11 +3055,33 @@ def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
     if not stale:
         return 0, f"{run_dir.name}: nothing to repair (no running steps)"
 
-    oc_runipd.reconcile_interrupted(run_dir, state)
+    runner_shared.reconcile_interrupted(run_dir, state, save_state=oc_runipd.save_state)
 
     after = oc_runipd.load_state(run_dir)
-    by_id = {i.get("id6", ""): i.get("status") for i in after.get("queue", [])}
-    changes = ", ".join(f"{i} running -> {by_id.get(i)}" for i in stale)
+    by_id = {i.get("id6", ""): i for i in after.get("queue", [])}
+    parts = []
+    for i in stale:
+        entry = by_id.get(i) or {}
+        status = entry.get("status")
+        # runrecon-02 (`fduoj4`) E-02/E-03: SAY WHEN A VERDICT WAS RECOVERED, and from what. A recovered
+        # disposition was read out of the step's own outcome file, which the driver never validated; a
+        # directory-derived one was resolved here. Reporting them identically would hide that
+        # difference from the operator who just asked this verb to decide the question.
+        note = ""
+        if entry.get(runner_shared.RECOVERY_PROVENANCE_KEY) == (
+            runner_shared.RECOVERED_FROM_OUTCOME
+        ):
+            note = f" ({runner_shared.RECOVERED_FROM_OUTCOME})"
+            commits = entry.get(runner_shared.RECOVERED_COMMITS_KEY) or []
+            if commits:
+                rendered = ", ".join(
+                    c.get("sha", "")
+                    + ("" if c.get("resolved") else " [recorded, unresolved here]")
+                    for c in commits
+                )
+                note += f", recorded commits: {rendered}"
+        parts.append(f"{i} running -> {status}{note}")
+    changes = ", ".join(parts)
     return 0, f"{run_dir.name}: reconciled {len(stale)} step(s): {changes}"
 
 

@@ -76,7 +76,17 @@ STILL_DOUBLE_DEFINED = (
     "disable_lane_prompt",
     "execute_item",
     "reclaim_lanes_on_interrupt",
-    "reconcile_interrupted",
+    # `reconcile_interrupted` IS DELIBERATELY NO LONGER HERE. It was SHARED by runrecon-02 (`fduoj4`)
+    # E-01 and each host now keeps the sanctioned one-line wrapper, so it moved to
+    # THIN_WRAPPERS_OVER_RUNNER_SHARED below. That is the "re-base deliberately, never weaken silently"
+    # rule this file's header sets, performed in the SAME change that shared the symbol.
+    #
+    # WHY IT HAD TO BE SHARED, recorded so the reclassification is not read as tidying: the two copies
+    # had DIVERGED in one code line (oc `item["configured_file"]`, agy `.get(..., "")`), so on an item
+    # missing that key oc raised `KeyError` past an `except DriverError` that does not catch it and
+    # abandoned the whole crashed queue before `save_state`, while agy reconciled it. `run_viewer`'s
+    # `repair_run` also called the OC copy for every run whatever host wrote it. One behavior, three
+    # callers, two implementations.
     "requeue_interrupted",
     "retry_deferred_integrations",
 )
@@ -135,8 +145,16 @@ ALREADY_ONE_OBJECT = (
 #: integration by the assertions in this file, which report the delegation themselves. Counting
 #: them as forks would OVERSTATE the remaining work, which is exactly what this table exists to
 #: prevent.
+#: `reconcile_interrupted` JOINED THIS CLASS 2026-09-22 under runrecon-02 (`fduoj4`) E-01, moved out of
+#: STILL_DOUBLE_DEFINED in the same change that shared it, per this file's re-base rule. `runner_shared`
+#: owns the body; each host keeps a one-line wrapper at the original name and signature, injecting its
+#: own `save_state`, because `save_state` in turn needs the class (c) DIVERGED `write_report` and a
+#: shared body choosing one host's report renderer would silently give the other host the wrong format.
+#: `run_viewer.repair_run` was re-pointed at the shared definition too, so all three callers now reach
+#: ONE implementation. The delegation is proven per name by the fork-vs-wrapper test in this file.
 THIN_WRAPPERS_OVER_RUNNER_SHARED = (
     "driver_actor",
+    "reconcile_interrupted",
     "render_continuation_hint",
     "save_state",
     "write_report",
@@ -464,7 +482,15 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         # tuple being trimmed to preserve the old figure, which would have hidden the fork. The
         # fork-vs-wrapper test in this class proves the classification for every name listed,
         # including this one.
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 9)
+        #
+        # 9 -> 8, RE-MEASURED 2026-09-22 by runrecon-02 (`fduoj4`) E-01: `reconcile_interrupted` was
+        # SHARED and moved to THIN_WRAPPERS_OVER_RUNNER_SHARED. This is the FIRST movement of this
+        # number in the reducing direction, and it is the direction the header says to expect: a fork
+        # that becomes the sanctioned wrapper form leaves this class. CLOSURE_TOTAL is UNCHANGED at 41,
+        # because the name did not stop being reached - it changed class, which is exactly the
+        # distinction the two totals exist to keep separate (one counts remaining duplication, the
+        # other counts what the function closes over at all).
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 8)
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED)
             + len(RESOLVES_IN_RUNNER_SHARED)

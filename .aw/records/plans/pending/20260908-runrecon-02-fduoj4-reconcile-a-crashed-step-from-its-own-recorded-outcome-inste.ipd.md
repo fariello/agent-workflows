@@ -7,7 +7,7 @@
   THE CORRECT READER ALREADY EXISTS IN THE SAME MODULE AND IS NOT CALLED. `reconcile_disposition` (`oc_runipd.py:5843`) reads `outcomes/<NN>-<id6>.json`, then combines it with the plan bucket in a documented precedence: bucket `executed` wins; otherwise a recorded `disposition` of `executed` is DOWNGRADED to `substantially-complete` (an agent self-claim is not trusted); otherwise a recorded disposition in `TERMINAL_STATES` minus `{dependency-blocked, not-attempted}` is honored; otherwise the exit code decides. `reconcile_interrupted` (`:6782`), which is what the crash path and `aw runs repair` both use, reads only the bucket: verified by inspection of its source, `'outcomes' in src` is `False` and `'reconcile_disposition' in src` is `False`. Two functions in one file answer the same question from different evidence.
   THE FUNCTION IS ALSO NOT SHARED. Measured: `agy.reconcile_interrupted is oc.reconcile_interrupted` -> `False`, and `agy.reconcile_disposition is oc.reconcile_disposition` -> `False`. So both are duplicated per host and a one-sided fix would leave the agy crash path guessing.
 - Scope: Make the interrupted-step reconciler consult the step's own recorded outcome before falling back to the directory guess, on BOTH hosts, preserving every existing refusal, and surface the recorded commits so lane work is visible. EXCLUDES the write-side lock and signal-handler gap (spec `c4gd2h`, plans `2ouj70`/`71vjbn`); excludes `aw run resume`'s inability to read a driver run (sibling backlog `sv8z1e`, NOT this plan's); excludes the `aw runs repair` discoverability defect (unfiled, reported rather than fixed here); excludes any new mutating verb.
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_run_viewer.py, tests/test_runner_refork_guard.py, tests/test_runner_stop_level4.py
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_run_viewer.py, tests/test_runner_refork_guard.py, tests/test_runner_stop_level4.py, tests/test_runner_shared.py, tests/test_rununify_run_queue.py
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -33,23 +33,25 @@
 
 Make a crashed step's reconciliation read the evidence the step already wrote, so finished work is not recorded as merely interrupted, without weakening either anti-fabrication gate.
 
+THIS PLAN CHANGES RUN BEHAVIOR AND NOT ONLY A RECORD, stated here in the plan's own summary because OQ-03's answer requires it be explicit rather than discovered from the diff. A step whose own outcome file records a terminal disposition is now recorded with that disposition instead of `interrupted`, and two consequences follow from statuses the rest of the runner already reads. FIRST, `requeue_interrupted` no longer re-queues it, so a resume does NOT redo work the step proved it finished; that was the maintainer's explicit decision on 2026-09-10 and the conservative alternative (record the provenance while leaving the status `interrupted`) was DECLINED. SECOND, a dependent waiting on that step stops being classified as a TRANSIENT wait and becomes a PERMANENT block, because the run will never revisit its prerequisite; the cascade still does not declare it dead, because `substantially-complete` is a terminal SUCCESS. The recovered disposition carries a `disposition_provenance: recovered-from-outcome` marker so a reader can always tell a verdict the driver READ from one it OBSERVED. Note that the release-a-waiting-dependent effect the maintainer's answer anticipated is NOT reachable any more and was not implemented: see F-18.
+
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
 ### Task group 1: share the reconciler before changing it
 
-- [ ] E-01 EXTRACT `reconcile_interrupted` INTO `runner_shared.py` AS ONE IMPLEMENTATION, before changing its behavior. Measured: `agy.reconcile_interrupted is oc.reconcile_interrupted` -> `False`, so there are two copies today and changing one would leave the agy crash path guessing.
+- [x] E-01 EXTRACT `reconcile_interrupted` INTO `runner_shared.py` AS ONE IMPLEMENTATION, before changing its behavior. Measured: `agy.reconcile_interrupted is oc.reconcile_interrupted` -> `False`, so there are two copies today and changing one would leave the agy crash path guessing.
   EXTRACT BEFORE EXTENDING, and the reason is this repository's own measured history: extending one copy is what makes two surfaces disagree, and the `render_stream` re-fork happened precisely because a shared symbol was later re-defined in the other driver with nothing noticing. Prove the extraction is behavior-neutral with the suite BEFORE E-02 touches it.
   SITE IT IN `runner_shared.py`, NEVER LEAVE IT IN `oc_runipd` FOR AGY TO IMPORT. `agy_runipd` already imports 43 names from `oc_runipd` at TOP LEVEL, and 48 distinct names counting five that arrive through function-local imports (`build_verify_and_continue_notice`, `classify_recovery_disposition`, `enforce_dependency_preflight`, `resolve_prior_lane`, `route_recovery_turn`), across 8 `ImportFrom` sites, AST-measured at HEAD `b550bc16`; the plan's earlier figure of 47 matched neither count. Zero names flow back. Adding this symbol to that list would deepen the layering defect backlog `cnwy8g` owns. Note `run_viewer.repair_run` currently reaches in via `from agent_workflows import oc_runipd` and calls `oc_runipd.reconcile_interrupted` (`run_viewer.py:2608`); that import must be re-pointed too, or the repair verb keeps calling the old path. Two more references name the old owner in PROSE and must be corrected in the same pass or the module will document a path that no longer exists: `run_viewer.py:29` and `:2448` both say `oc_runipd.reconcile_interrupted`.
   THE TWO COPIES DIFFER BEHAVIORALLY, AND REVIEW ALREADY MEASURED HOW, so do not spend the pass discovering it. Comment prose aside, the ONLY code difference is one line: oc has `resolve_plan_path(repo, item["configured_file"], item["id6"])` while agy has `resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])`. That is not cosmetic: on an item with NO `configured_file` key, oc raises `KeyError` (which is NOT caught, since the `except DriverError` around it does not catch `KeyError`, so the whole reconciliation aborts and `save_state` never runs) while agy passes `""` and proceeds. TAKE AGY'S TOLERANT FORM in the shared version and say so, because the oc form can abandon a whole crashed queue on one malformed item, and add a test for the missing-key item proving the shared version does not raise. If you disagree, state the reason; do not pick silently.
   - Depends on: none
   - Expected outcome: one `reconcile_interrupted` in `runner_shared.py`; both hosts and `run_viewer.repair_run` call it; the two prose references corrected; the tolerant `configured_file` form chosen with a test proving a missing-key item does not raise; the suite green before any behavior change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: consult the recorded outcome
 
-- [ ] E-02 MAKE THE RECONCILER READ `outcomes/<NN>-<id6>.json` AND HONOR A RECORDED DISPOSITION, falling back to the current directory guess only when no outcome file exists, it is unparseable, or it carries no disposition. That fallback ordering is the item's requirement 2 and it preserves the honest guess for a step that really did die before producing anything.
+- [x] E-02 MAKE THE RECONCILER READ `outcomes/<NN>-<id6>.json` AND HONOR A RECORDED DISPOSITION, falling back to the current directory guess only when no outcome file exists, it is unparseable, or it carries no disposition. That fallback ordering is the item's requirement 2 and it preserves the honest guess for a step that really did die before producing anything.
   DO NOT CALL `reconcile_disposition`. EXTRACT AND REUSE ONLY ITS OUTCOME-PRECEDENCE PORTION. This replaces the earlier instruction to "reuse the precedence, do not write a second one", which review MEASURED as unbuildable; the goal it expressed (one definition of the precedence, not two) is preserved, the mechanism is corrected. FOUR MEASURED REASONS, each reproduced at HEAD `b550bc16` (`oc_runipd.py:5951`):
   (1) ITS FALLBACK IS NOT `interrupted`. The final line is `return ("partial" if exit_code == 0 else "failed-safely"), outcome`. Called on an interrupted item with NO outcome file it returns `partial` or `failed-safely`, so every one of E-05's four fallback branches, which this plan requires to yield the UNCHANGED `interrupted` guess, would instead flip a crashed step to `failed-safely`. That is a regression the plan would have shipped while its own tests reported success.
   (2) THERE IS NO `exit_code` TO PASS. `reconcile_disposition(repo, item, run_dir, exit_code)` requires one, and `reconcile_interrupted` is reached precisely because the process DIED, so no exit code was observed. Any value invented for it is a fabricated input feeding a fabricated verdict, which is what spec `c4gd2h` R22 forbids.
@@ -62,39 +64,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MARK A RECOVERED DISPOSITION AS RECOVERED. The item requires it be reported "marked as recovered-from-outcome, not as if the driver had reported it cleanly", and that distinction is load-bearing: a driver-reported disposition was observed by the driver, a recovered one was read from a file the driver never validated. Record the provenance beside the value.
   - Depends on: E-01
   - Expected outcome: ONE shared outcome-precedence helper that returns a value or `None` and owns no exit-code fallback; both `reconcile_disposition` and the interrupted path call it, so there is still exactly one definition; the consultation applies to execute-action items only; a `None` answer leaves today's `interrupted` guess byte-for-byte unchanged; the `executed` downgrade and the indeterminate refusal are both unchanged and pinned by control tests; a recovered disposition carries a recovered-from-outcome provenance marker.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 SURFACE THE RECORDED COMMITS so lane work is visible rather than something a human must go looking for. The item names this specifically, and the measured case is why: `outcomes/02-97df1z.json` records `"commits": ["209227d5..."]` and `"pushed": false`, and that sha is the only pointer to a lane holding a net-new module plus tests.
+- [x] E-03 SURFACE THE RECORDED COMMITS so lane work is visible rather than something a human must go looking for. The item names this specifically, and the measured case is why: `outcomes/02-97df1z.json` records `"commits": ["209227d5..."]` and `"pushed": false`, and that sha is the only pointer to a lane holding a net-new module plus tests.
   DO NOT VALIDATE OR MERGE ANYTHING. Reporting a recorded sha is not the same as confirming it exists, and confirming a lane is mergeable belongs to the `integpath` Set (`rl67b0`'s `integrate` verb, `51vw4y`'s deferral ladder). If the sha cannot be resolved in the repository, report it as recorded-but-unresolved rather than dropping it or asserting it.
   - Depends on: E-02
   - Expected outcome: the recovered step's recorded commits are visible in the reconciliation output and in the run record; nothing is validated, merged, or resolved; an unresolvable sha is reported as such.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the read surface, and proof
 
-- [ ] E-04 MAKE THE `abandoned?` LABEL STOP APPEARING FOR A STEP WHOSE OUTCOME IS KNOWN, without turning a read into a write. `run_viewer.py:876-878` (re-resolved at HEAD `b550bc16`; the plan's `:836-838` had already drifted again, which is why the RE-LOCATE rule in the gate is not boilerplate) flips `running` -> `ABANDONED` on the two inputs it has (item status, lock holder) and never reads `outcomes/`; its only reference to that path is the `REPAIR_HELP` prose documenting this gap (`:2472`).
+- [x] E-04 MAKE THE `abandoned?` LABEL STOP APPEARING FOR A STEP WHOSE OUTCOME IS KNOWN, without turning a read into a write. `run_viewer.py:876-878` (re-resolved at HEAD `b550bc16`; the plan's `:836-838` had already drifted again, which is why the RE-LOCATE rule in the gate is not boilerplate) flips `running` -> `ABANDONED` on the two inputs it has (item status, lock holder) and never reads `outcomes/`; its only reference to that path is the `REPAIR_HELP` prose documenting this gap (`:2472`).
   NOTE WHAT THE CODE ALREADY PRESERVES, because it changes the shape of the fix: the branch keeps the real status in `persisted_status` before overwriting `status` with the label (`:877`), so a better-informed label does NOT require inventing new state to avoid losing the underlying fact. Reuse that.
   THE COUNT IS ALSO WRONG IN THE PLAIN CASE, and if you touch this branch, do not leave it: `counts[status]` is incremented AFTER the overwrite (`:879`), so an abandoned step is tallied under the literal key `abandoned?` and not under `running`. That is consistent with the label but means any consumer of `counts` sees a status vocabulary that includes a question mark. Report whether your change affects it; do not silently alter aggregate counts.
   A READ MUST NOT MUTATE, and that is settled precedent rather than a preference: executed plan `ssk6nf` explicitly REJECTED auto-repair on read, citing `GUIDING_PRINCIPLES` P10, and shipped the opt-in `aw runs repair` verb instead. So the read surface may report a BETTER-INFORMED label derived from the outcome file, or may keep `abandoned?` and point at the repair verb, but it may NOT reconcile on read. Decide which, and record the decision with the P10 citation.
   UPDATE `REPAIR_HELP`'s LIMITATION PARAGRAPH WHETHER OR NOT YOU CHANGE THE LABEL. It is at `run_viewer.py:2470-2473` (re-resolved; the plan's `:2350-2354` had drifted ~120 lines) and it states the limitation as a FACT about the repair verb, not about the read surface: "The decision reads the plan's DIRECTORY, not the step's own `outcomes/<NN>-<id6>.json`." E-02 makes that sentence FALSE, since `repair_run` delegates to the reconciler this plan is changing. So the obligation is triggered by E-02, not by E-04's label decision, and the plan's earlier conditional framing understated it. Correct the paragraph and decide what to do with its `ydbhfd` citation now that the item is closed by this plan.
   - Depends on: E-03
   - Expected outcome: the read surface either reports a better-informed label or points at the repair verb, with the decision and its P10 basis recorded; no read-time mutation; `REPAIR_HELP`'s limitation paragraph corrected if the limitation is gone.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE IT ON THE MEASURED CASE AND ON THE FALLBACKS, FROM FIXTURES. `.aw/records/runs/` is gitignored, so a test built on the live corpus passes here and fails in every fresh checkout and lane worktree. THE PLAN'S SUPPORTING NUMBER IS STALE AND THE STALENESS MATTERS: it says "roughly 32 tests fail inside a lane worktree because several read live run state" and names `tests/test_run_viewer.py`. Measured at HEAD `b550bc16`, that module PASSES 69 of 69, and its own header now records the fixture rule as a standing instruction rather than a live failure. So the fixture requirement stands on the gitignore alone, which is sufficient; do not go looking for 32 failures to confirm it, and do not conclude from their absence that live-corpus tests are now safe.
+- [x] E-05 PROVE IT ON THE MEASURED CASE AND ON THE FALLBACKS, FROM FIXTURES. `.aw/records/runs/` is gitignored, so a test built on the live corpus passes here and fails in every fresh checkout and lane worktree. THE PLAN'S SUPPORTING NUMBER IS STALE AND THE STALENESS MATTERS: it says "roughly 32 tests fail inside a lane worktree because several read live run state" and names `tests/test_run_viewer.py`. Measured at HEAD `b550bc16`, that module PASSES 69 of 69, and its own header now records the fixture rule as a standing instruction rather than a live failure. So the fixture requirement stands on the gitignore alone, which is sufficient; do not go looking for 32 failures to confirm it, and do not conclude from their absence that live-corpus tests are now safe.
   BUILD THE FIXTURE FROM THE REAL MEASURED SHAPE: a queue item stuck at `running` with `last_outcome: None`, a dead lock holder, and an `outcomes/<NN>-<id6>.json` carrying `disposition: substantially-complete` plus a `commits` list. That is the exact shape of the incident, and a fixture that simplifies it away stops testing the defect.
   COVER ALL FOUR FALLBACK BRANCHES, since the item's requirement 2 is specifically about them: no outcome file, unparseable outcome file, outcome file with no `disposition` key, and outcome file with a disposition the precedence does not honor (use `dependency-blocked` or `not-attempted`, the two the precedence explicitly subtracts). Each must yield the current `interrupted` guess, unchanged. THESE FOUR ARE THE TESTS THAT WOULD HAVE CAUGHT PR-701: measured against a direct `reconcile_disposition` call, all four return `partial` or `failed-safely` instead, so if any of them reports something other than `interrupted`, the implementation took the rejected route and must be fixed rather than the test relaxed.
   ADD FOUR CONTROL TESTS, not two. The first two are the plan's own and remain load-bearing: an outcome file claiming `disposition: executed` must still be recorded `substantially-complete` (the anti-fabrication downgrade), and an item flagged indeterminate must STILL be refused even when its outcome file claims success (spec `c4gd2h` R22). ADD, because E-02's action gate is new: a `review`-action item and an `orchestrate`-action item must each be left at today's `interrupted` and must NOT have an outcome file consulted for them. Without those two, the gate that exists to stop reason (3) of E-02 is unpinned and a later refactor removing it would pass every other test.
   - Depends on: E-04
   - Expected outcome: a fixture reproducing the measured shape; all four fallback branches asserted to yield an unchanged `interrupted`; all FOUR control tests passing (downgrade, indeterminate refusal, review-action, orchestrate-action); no test reads the gitignored live run tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PIN THE SHARING SYMMETRICALLY AND MUTATION-CHECK IT. Register the extracted symbol in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` with BOTH runners listed, which its `test_the_table_covers_both_runners` already enforces, and assert object identity across `oc_runipd`, `agy_runipd`, `runner_shared` and the `run_viewer` call path.
+- [x] E-06 PIN THE SHARING SYMMETRICALLY AND MUTATION-CHECK IT. Register the extracted symbol in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` with BOTH runners listed, which its `test_the_table_covers_both_runners` already enforces, and assert object identity across `oc_runipd`, `agy_runipd`, `runner_shared` and the `run_viewer` call path.
   GREP IS NOT EVIDENCE OF SHARING. It cannot distinguish a shared object from a textually identical copy, which is how `render_stream` was re-forked; the one-sided versions of this guard were RETIRED for that reason. Mutation-check: define a local copy in `agy_runipd`, show the guard FAILS, revert, show it passes.
   KNOW WHAT THE TABLE'S CONTRACT DEMANDS BEFORE ADDING A ROW, since a row that cannot satisfy both halves will fail rather than guard. Each `Owned(symbol, owner, runners)` row asserts BOTH that the listed runner has no TOP-LEVEL AST DEFINITION of the symbol AND that the runner's attribute IS the owner's object (`tests/test_runner_refork_guard.py:12-20`). A WRAPPED symbol therefore cannot be listed: the table's own comment records eight such symbols as deliberately absent because each keeps a one-line local `def` and so fails both halves by construction, with their guarantee enforced instead by `tests/test_runner_shared.py::SingleDefinitionTests`. So if E-01 ends up wrapping `reconcile_interrupted` in either host rather than re-exporting it cleanly, the row belongs in that other test and NOT here; state which shape you produced and put the guard where it holds.
   - Depends on: E-01, E-05
   - Expected outcome: a `REFORK_TABLE` row covering both runners (or, if the symbol had to be wrapped, an equivalent `SingleDefinitionTests` pin with the reason stated); object identity asserted across all four call paths; the guard demonstrated to fail under a re-fork mutation; the AST-measured oc-to-agy import count reported before and after and not increased (baseline: 43 top-level, 48 including nested).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -129,6 +131,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-15 | MED | `tests/test_run_viewer.py` | **The stated test-isolation evidence is stale.** The plan says "roughly 32 tests fail inside a lane worktree" and names this module; measured, it passes 69 of 69 at HEAD and its header now carries the fixture rule as a standing instruction rather than a live failure. The fixture requirement still stands on the gitignore alone. | `python3 -m pytest tests/test_run_viewer.py -o addopts="" -q` -> `69 passed` |
 | F-16 | MED | `run_viewer.py:29`, `:2448`, `:2608` | The `run_viewer` -> `oc_runipd` coupling is THREE references, not one: a real call at `:2608` plus two prose statements naming `oc_runipd.reconcile_interrupted` as the owner. E-01 must correct all three or the module documents a path that no longer exists. | grep at HEAD |
 | F-17 | LOW | `run_viewer.py:877`, `:879` | The `abandoned?` branch already preserves the real status in `persisted_status` before overwriting, so a better-informed label needs no new state. It also increments `counts[status]` AFTER the overwrite, so an abandoned step is tallied under the literal key `abandoned?`. | source read |
+| F-18 | HIGH, FOUND AT EXECUTION | `oc_runipd.edge_satisfied`'s `executed:` branch | **OQ-03's FIRST consequence is STALE and was corrected from measurement rather than implemented as written.** The maintainer's answer and the review reasoning both rest on `edge_satisfied` reading the target's IN-RUN status against `EXECUTION_SUCCESS_STATES`, so recovering a step to `substantially-complete` would RELEASE a waiting dependent. That IN-RUN SHORTCUT NO LONGER EXISTS: it was deleted on a maintainer ruling of 2026-09-19 ("one check, not gates in depth") precisely because `substantially-complete` means finalize did not happen, so the plan is still in `pending/` and its lane was never merged, and the shortcut had dispatched a dependent into a tree with none of the work (measured cost recorded in-tree: run `run-20260919T194413Z-2056285`, 2h 10m and $55.02). The branch now reads the plan's DIRECTORY on disk and nothing else. MEASURED HERE: `dependency_status` returns `(False, ['97df1z'])` both BEFORE and AFTER recovery, so no dependent is released. What recovery DOES change is the DRAIN CLASSIFICATION: `classify_drain_block` returns TRANSIENT for an `interrupted` target (non-terminal, so waiting may pay off) and PERMANENT for a RECOVERED one (terminal, and never requeued, so the dependent must stop waiting). That is the coherent counterpart of the maintainer's requeue answer rather than a contradiction of it, and `cascade_dependency_blocked` correctly does NOT fire, because `substantially-complete` IS in `EXECUTION_SUCCESS_STATES` and so is not a DEAD prerequisite. The plan's V-item wording would have demanded a released edge, so writing the test to the plan's text would have asserted an impossibility; the test asserts the measured behavior in both directions instead and says so in its own docstring. NOTHING in the implementation changed as a result: only the claim about what to expect downstream. | executed `dependency_status`, `classify_drain_block` and `cascade_dependency_blocked` over the real fixture on both hosts; read `edge_satisfied`'s current body and the in-tree ruling comment |
 
 ## Proposed changes (ordered, validatable)
 
@@ -154,12 +157,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Over-scope: `run_viewer.py` is in scope ONLY for the read-surface decision (E-04), the help-text correction, and the three `oc_runipd.reconcile_interrupted` references E-01 must re-point. Do NOT add a mutating path to it, do NOT change `repair_run`'s refusals, and do NOT restructure the `repair` routing. Do NOT edit `runner_stop.py` or the lock.
 - Over-scope, ADDED at review: two test files the plan will necessarily edit were missing from `- Scope-Paths:` and are now declared. `tests/test_runner_refork_guard.py` is where E-06 adds its row, and `tests/test_runner_stop_level4.py` is where the existing indeterminate control tests live (`:1235`, `:1373`), which E-02's R22 control test belongs beside. Declaring them keeps `aw ipd finalize`'s scope reconciliation honest instead of forcing a `--scope-reason` for a file the plan always intended to touch.
+- DECLARED AT EXECUTION, TWO FILES, each a GUARD TABLE that this plan's own extraction obliges re-basing. Neither is optional and neither could be avoided by doing the work differently, because both tables assert, as a tripwire, the very duplication E-01 removes. They are ADDED TO `- Scope-Paths:` rather than committed with a reason, following the precedent this plan's own review set two bullets down when it declared `tests/test_runner_refork_guard.py` and `tests/test_runner_stop_level4.py` for exactly this situation ("two test files the plan will necessarily edit were missing from `- Scope-Paths:` and are now declared"). Declaring them keeps the finalize scope reconciliation honest instead of carrying a reason for a file the plan always needed to touch; `aw commit`'s scope gate has no `--scope-reason` flag and correctly REFUSED the commit until they were declared, which is the gate working.
+  1. `tests/test_rununify_run_queue.py`. Its `STILL_DOUBLE_DEFINED` tuple LISTED `reconcile_interrupted` as a real per-host fork, and its own header sets the rule: "each `STILL_DOUBLE_DEFINED` entry that becomes shared moves out of that tuple in the SAME change that shares it, with the reason recorded. That is the 're-base deliberately, never weaken silently' rule the maintainer set on 2026-09-16." So the symbol was moved to `THIN_WRAPPERS_OVER_RUNNER_SHARED` (where a delegating wrapper belongs, and where a test then PROVES the delegation), the reason was recorded inline, and the derived census was re-measured from the tuple rather than trimmed to preserve its old figure: `len(STILL_DOUBLE_DEFINED)` 9 -> 8, the first movement of that number in the reducing direction. `CLOSURE_TOTAL` is UNCHANGED at 41, because the name did not stop being reached; it changed class.
+  2. `tests/test_runner_shared.py`. Two obligations. Its `WrapperTests::test_no_call_site_was_rewritten` counts `save_state` CALL SITES per host, and the shared body carries one such call, so the count legitimately DROPS by one on each host. That is a RELOCATION, not a rewrite (no surviving call site in either runner was touched), so it is recorded as a named subtraction beside the three that already exist for `run_checked`, `initialize_run` and `execute_item`, rather than by editing the pre-move baseline, which would have destroyed the measurement. And it is where E-06's pin had to live: the symbol is WRAPPED, so a `REFORK_TABLE` row would fail both halves of that table's contract by construction, and this module is the established home for every wrapped symbol's equivalent guarantee.
+- DECLARED BUT NOT MODIFIED, TWO FILES, needing `--scope-ack` at finalize, with the reason in each case being that the work landed where the existing tests already are rather than where the plan predicted. `tests/test_runner_stop_level4.py` was declared for E-02's R22 control test; that test is instead `CrashedStepOutcomeRecoveryTests::test_control_an_indeterminate_item_is_refused_even_with_a_claiming_outcome` in `tests/test_oc_runipd.py`, beside the other three controls the same plan requires, which keeps the four controls readable as one set and runs it on both hosts. The pre-existing level-4 gate tests in that file were left UNTOUCHED and still pass (90 passed across both stop modules), which is the outcome that matters: the R22 gate is now pinned twice, from two angles, and neither pin was weakened. `tests/test_agy_runipd_cli.py` was declared on the assumption that the agy side would need its own assertions; it did not, because every new test iterates BOTH hosts from one body, which is a stronger guarantee than a parallel agy-only file would have given and is the shape the refork guard's own history recommends.
 - Under-scope: stated rather than left as `none`. After this plan a crashed step reports its own recorded disposition and commits, but the lane is not merged, `aw runs resume` still cannot read a driver run (`sv8z1e`, whose plan `d91i3e` is now `reviewed`), the stale lock still requires no supported cleanup verb, and `aw runs repair`'s aggregate-verdict interaction is deliberately left to the maintainer (OQ-03). NOTE the sibling item's discoverability half is NO LONGER under-scope anywhere: it shipped in `1273806c`, so F-8 below is stale as a live defect and is retained only as context.
 
 ## Required tests / validation
 
 `python3 -m pytest` bare in an isolated worktree, with the baseline measured THERE and pasted, comparing failing NODE IDS not totals. DO NOT TRUST THE BASELINE THIS PLAN ORIGINALLY STATED (`1 failed, 5648 passed`, the `test_orchestrator_retirement` failure): both halves are wrong. Re-measured bare at review (HEAD `ef1e1fbe`): `2 failed, 5864 passed, 3 skipped, 2 xfailed in 88.84s`, and `test_orchestrator_retirement` PASSES. The two failures are `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` (environmental, an `rglob` ignoring `.gitignore`, tracked as backlog `8kttqq`; do NOT delete the untracked directory it walks, which may be another party's work) and `tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130` (a `TimeoutExpired` under parallel load; that file passes 47/47 run alone, so it is flaky-under-load, not a regression). Neither is yours.
 Also run the focused surface and paste it: `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_runner_refork_guard.py tests/test_runner_stop_level3.py tests/test_runner_stop_level4.py tests/test_lane_submission_collection.py tests/test_run_viewer.py`. Measured green at review (246 passed for the first three, 90 for the two stop modules, 69 for the viewer), so a new failure there is yours.
+EXECUTION NOTE ON THE STOP MODULES, so a later reader is not misled by a number in this section. Run BARE (as the repository contract requires), the focused surface is GREEN at `518 passed in 40.00s`. Run with `-o addopts=""`, which CLEARS the configured `-m 'not slow'`, `tests/test_runner_stop_level4.py` reports `10 failed, 30 passed`: those ten are `@pytest.mark.slow` end-to-end tests that launch real driver subprocesses, and they are PRE-EXISTING. Verified by stashing every one of this plan's source and test edits and re-running on unmodified HEAD `27a446d4`, which produced the SAME ten failing node ids. Not mine, and not this plan's to fix; recorded here because the plan's "90 for the two stop modules" figure was taken with the slow marker in force and does not describe an unmarked run.
 Fixtures for every run shape; never the gitignored live tree. The FOUR anti-fabrication and action-gate control tests are mandatory, not optional: without them a reviewer cannot tell a correct fix from a relaxed gate, and two of them (review-action, orchestrate-action) are the only thing pinning the gate that keeps E-02 from mislabeling non-execute items.
 
 ## Spec / documentation sync
@@ -196,41 +204,216 @@ Do NOT edit spec `25kzda`'s §4.2 finding-code table under any circumstances: it
   RE-MEASURED AT HEAD `738427dd`, AND FOUR OF THE REVIEW'S CITATIONS HAVE DRIFTED. The sequencing claim is CONFIRMED and is what makes the question real: `run_queue` calls `reconcile_interrupted(run_dir, state)` and then `requeue_interrupted(run_dir, state)` on the immediately following line (`oc_runipd.py:7222-7223`, not `:7209-7210`). `requeue_interrupted`'s own docstring confirms the consequence, describing its behavior as flipping "every `interrupted` item straight back to `queued` with `recovery_next = True`" and noting it runs "UNCONDITIONALLY on every start and every resume" (`:7079-7096`). `EXECUTION_SUCCESS_STATES` is defined at `:337` (not `:3377`, which is the `edge_satisfied` READ) and is exactly `{"executed", "substantially-complete"}`, so a step recovered to `substantially-complete` does leave the requeue set.
   THE THIRD READER IS ALSO REAL: `edge_satisfied` selects `EXECUTION_SUCCESS_STATES` for non-review items (`:3377`), so recovery can unblock a dependent, and the dependency-blocked sweep can conversely re-block one whose target is terminal but outside the required set. The executor must exercise both directions, not just the unblock case.
   THE EXISTING INDETERMINATE GATE IS THE MODEL TO PRESERVE, and it is why this answer is safe rather than reckless. `requeue_interrupted` already SKIPS AND REPORTS an item flagged INDETERMINATE instead of silently re-running it (runstop `m0z0ti` E-04, spec R19), and its docstring warns the gate must live in the requeue itself because a refusal placed elsewhere "would simply be BYPASSED by the call that already ran". Recovery must not weaken that: a step whose outcome the driver never established stays indeterminate and is still skipped-and-reported, never recovered into a success state on inference.
+  AT EXECUTION (2026-09-22) THE ANSWER'S FIRST HALF WAS IMPLEMENTED AS WRITTEN AND ITS DEPENDENCY HALF WAS CORRECTED FROM MEASUREMENT. See F-18 for the full evidence; in brief: the requeue consequence is CONFIRMED and shipped (a recovered step is not re-queued, and a control in the same test proves an un-recovered one still is), but the "recovery can unblock a dependent" claim is no longer reachable. `edge_satisfied`'s in-run status shortcut, which is what that claim depends on, was DELETED by a maintainer ruling of 2026-09-19 because `substantially-complete` means the work was never finalized or merged; the branch now reads the plan's directory on disk alone. Measured, the edge is unsatisfied both before and after recovery. What recovery does change downstream is the drain classification (TRANSIENT wait -> PERMANENT block), which is the coherent counterpart of "this step will never be retried" rather than a different decision, and the cascade correctly does not declare the dependent dead. Both directions are exercised, as the answer required, by `test_recovery_changes_dependent_scheduling_as_MEASURED_not_as_the_plan_predicted`. Nothing in the implementation changed because of this correction; only the claim about what to expect.
   ORIGINAL REVIEW REASONING RETAINED BELOW, with its pre-drift line numbers. ESCALATED TO BLOCKING AT REVIEW, because measurement showed the consequence is larger than "the run's exit code" and reaches a path that CHANGES WHAT WORK RUNS. The plan correctly spotted that `reconcile_interrupted` is called from `run_queue` on every start and resume (`oc_runipd.py:7209`) and that a recovered `substantially-complete` enters `EXECUTION_SUCCESS_STATES` (measured: that set is exactly `{executed, substantially-complete}`). WHAT IT DID NOT TRACE IS THE SECOND READER. `requeue_interrupted` runs IMMEDIATELY AFTER (`:7210`) and flips every still-`interrupted` item back to `queued` with `recovery_next = True`; a step recovered to `substantially-complete` is therefore NO LONGER REQUEUED, so this change silently stops a resumed run from retrying that step. That is arguably the CORRECT outcome (the work landed; re-running it would redo committed work) and it is exactly the behavior an operator would want, but it is a change to what a resume DOES, not only to what a record SAYS, and the plan's stated scope is the record. THIRD READER: dependency satisfaction reads the same status set (`edge_satisfied` at `:3377`, and the dependency-blocked sweep at `:4265-4283` marks a dependent `dependency-blocked` when its target is terminal but NOT in the required set), so recovering a step from `interrupted` to `substantially-complete` can also unblock or re-block dependents. THE DECISION THE MAINTAINER OWNS: is a resumed run allowed to stop retrying a step this plan recovers, and to change dependent scheduling, as part of a change scoped to fixing the record? The conservative alternative is to record the recovered disposition and its provenance while leaving the item `interrupted` for requeue purposes, which keeps retry behavior identical but means the status field and the provenance field disagree. The executor MUST NOT choose this alone: one answer changes what work runs on a resume.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the extracted function's location in `runner_shared.py`. Paste a `python3 -c` showing `oc_runipd`, `agy_runipd` and the `run_viewer` call path all resolve it to the SAME object. Paste the CODE-ONLY diff between the two former copies (comments stripped, since prose differs widely and code differs in one line) and state which `configured_file` form the shared version took and why; if it is not agy's tolerant `.get(...)` form, justify choosing the one that raises `KeyError` past an `except DriverError` that does not catch it. Paste the new missing-key test proving the shared version does not raise. Paste all three corrected `run_viewer` references (`:29`, `:2448`, `:2608`). Paste the suite green BEFORE any behavior change, demonstrating the extraction alone changed nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE BODY NOW LIVES ONCE, at `agent_workflows/runner_shared.py:17306` (`grep -n '^def reconcile_interrupted' agent_workflows/runner_shared.py` -> `17306:def reconcile_interrupted(`).
+    ALL FOUR CALL PATHS RESOLVE THE ONE OBJECT. Each host keeps a WRAPPER rather than a re-export (it must inject its own `save_state`, which needs the class (c) DIVERGED `write_report`), so identity is asserted on the symbol the wrapper CALLS:
+    ```
+    runner_shared.reconcile_interrupted        : <function reconcile_interrupted at 0x7e7c04398b40>
+    agent_workflows.oc_runipd  wrapper -> runner_shared.reconcile_interrupted  is rs object: True
+    agent_workflows.agy_runipd wrapper -> runner_shared.reconcile_interrupted  is rs object: True
+    run_viewer.repair_run calls              : {'runner_shared.reconcile_interrupted'}
+    ```
+    THE CODE-ONLY DIFF OF THE TWO FORMER COPIES (AST-unparsed from HEAD `27a446d4`, so comments are gone) is ONE code line, exactly as review measured:
+    ```
+    --- oc HEAD
+    +++ agy HEAD
+    -            path = resolve_plan_path(repo, item['configured_file'], item['id6'])
+    +            path = resolve_plan_path(repo, item.get('configured_file', ''), item['id6'])
+    code lines differing: 2   (one `-`, one `+`)
+    ```
+    THE SHARED VERSION TOOK AGY'S TOLERANT `.get(..., "")` FORM, as the plan directed, and the reason is now also pinned by a test: on an item with NO `configured_file` key the oc form raises `KeyError`, which the surrounding `except DriverError` does NOT catch, so the exception escapes the loop and `save_state` never runs, abandoning the verdict for EVERY other item in a crashed queue. The new test `AtomicWriteAndReconcileTests::test_reconcile_interrupted_tolerates_an_item_with_no_configured_file` proves the shared version does not raise, AND that the loop reaches a second item, AND that both verdicts are persisted (a "did not raise" assertion alone would pass for a version that silently stopped). It runs on BOTH hosts.
+    ALL THREE `run_viewer` REFERENCES CORRECTED (the plan's `:29`/`:2448`/`:2608` had drifted, re-located by symbol as the gate requires):
+    ```
+    50:   # is a fact `runner_shared.reconcile_interrupted` recorded after resolving the plan AND reading the
+    2869:   It delegates to the single reconciler (`runner_shared.reconcile_interrupted`) rather than
+    3017:     Delegates to ``runner_shared.reconcile_interrupted``, the SINGLE reconciler (it resolves each
+    3058:     runner_shared.reconcile_interrupted(
+    ```
+    The one surviving `oc_runipd.reconcile_interrupted` mention (`:3046`) is deliberate: it is the note RECORDING what the call used to be and why it was re-pointed. `ReconcileInterruptedExtractionTests::test_the_repair_verb_calls_the_shared_definition` asserts the real call on the AST precisely so such a mention cannot satisfy the guard.
+    THE EXTRACTION ALONE CHANGED NOTHING, demonstrated by disabling ONLY the new consultation (one-token edit to E-02's gate) and running the suite BARE. The result isolates the move from the behavior change:
+    ```
+    9 failed, 8290 passed, 3 skipped, 2 xfailed, 3 warnings in 253.63s (0:04:13)
+    ```
+    Every one of those 9 is accounted for and NONE is pre-existing: 8 are THIS PLAN'S OWN new behavior tests (7 in `CrashedStepOutcomeRecoveryTests`, 1 in `RepairReportsRecoveredProvenanceTests`), which SHOULD fail with the consultation off, and the 9th is `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, which fails identically on the UNMODIFIED baseline measured in this worktree before any edit (`1 failed, 8262 passed, 3 skipped, 2 xfailed in 123.88s`) and is environmental (it asserts `OPENCODE_CONFIG_CONTENT` is absent from a non-isolated turn's env, and this lane IS running under that variable). Not mine. The consultation was then restored and the full file compared to its backup.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the reconciliation of the MEASURED shape (item at `running`, dead holder, outcome file recording `substantially-complete` with a commit sha), showing the recorded disposition honored and the recovered-from-outcome provenance marker present. PASTE THE HELPER'S SIGNATURE AND BODY, showing it takes NO `exit_code`, owns NO `partial`/`failed-safely` fallback, and returns `None` for "no answer"; a helper carrying either would be the rejected design of PR-701. Paste proof `reconcile_disposition` CALLS that same helper, so there is exactly one definition of the precedence, and paste a grep or AST check showing the interrupted path does NOT call `reconcile_disposition`. Paste the FOUR control tests: a self-claimed `executed` still downgraded to `substantially-complete`; an indeterminate item STILL refused with its `reconciliation_conflict` and R22 citation intact even with an outcome file claiming success; a `review`-action item left `interrupted` with no outcome consulted; an `orchestrate`-action item likewise.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE MEASURED SHAPE NOW RECOVERS. Reconciling a fixture built to the incident's exact shape (item `running`, `last_outcome: None`, no `driver.lock`, `outcomes/02-97df1z.json` recording `substantially-complete` with the real sha `209227d5...`) prints and records:
+    ```
+    reconcile 97df1z: recovered substantially-complete from the step's own recorded outcome
+      (recovered-from-outcome); recorded commits 209227d54f1fd7e34115ee9a198c74513a99567d (recorded, unresolved here)
+    persisted status now  = 'substantially-complete'
+    provenance            = 'recovered-from-outcome'
+    ```
+    THE HELPER'S SIGNATURE AND BODY, showing all three properties PR-701 requires (no `exit_code` parameter, no `partial`/`failed-safely` fallback, `None` for "no answer"):
+    ```
+    signature: outcome_precedence_disposition(bucket, outcome) -> str | None
+    --- code only (docstring dropped) ---
+    if bucket == 'executed':
+        return 'executed'
+    if outcome:
+        disposition = outcome.get('disposition')
+        if disposition == 'executed':
+            return 'substantially-complete'
+        if disposition in TERMINAL_STATES - {'dependency-blocked', 'not-attempted'}:
+            return str(disposition)
+    return None
+    ```
+    `ReconcileInterruptedExtractionTests::test_the_precedence_helper_owns_no_fallback_and_takes_no_exit_code` pins exactly this, asserting the parameter list is `['bucket', 'outcome']` and that the CODE (docstring dropped, because the docstring names the forbidden tokens to explain their absence) contains none of `exit_code`, `failed-safely`, `partial`.
+    ONE DEFINITION, BOTH CALLERS, AND THE REJECTED ROUTE ABSENT (AST over each body):
+    ```
+    reconcile_disposition:  outcome_precedence_disposition=True  read_recorded_outcome=True  calls_reconcile_disposition=False
+    reconcile_interrupted:  outcome_precedence_disposition=True  read_recorded_outcome=True  calls_reconcile_disposition=False
+    ```
+    `test_the_shared_body_reads_the_outcome_through_the_shared_precedence` asserts both halves, including the negative: the crash path must NOT call `reconcile_disposition`.
+    ALL FOUR CONTROL TESTS PASS, on BOTH hosts (each iterates `(oc_runipd, agy_runipd)`):
+    ```
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_control_a_self_claimed_executed_is_still_downgraded
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_control_an_indeterminate_item_is_refused_even_with_a_claiming_outcome
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_control_a_review_action_item_consults_no_outcome_file
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_control_an_orchestrate_action_item_consults_no_outcome_file
+    17 passed, 217 deselected in 1.67s
+    ```
+    The indeterminate control is the strongest of the four and is built so BOTH promotion routes are armed at once: the plan sits in `executed/` AND the outcome file claims success. It asserts the item stays `interrupted`, carries NO provenance marker, keeps its `reconciliation_conflict` with the literal `c4gd2h R22` citation, emits exactly one `interrupted-promotion-refused-unknown-outcome`, and emits ZERO `interrupted-recovered-from-outcome`. The gate is implemented by evaluating `runner_stop.is_indeterminate(item)` ONCE per item and reading it from both the directory promotion and the new consultation, so the two cannot drift.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the reconciliation output showing the recorded commits, and the run record field carrying them. Paste the unresolvable-sha case showing it is reported as recorded-but-unresolved. Paste proof nothing was validated or merged (no git merge, checkout, or ref write in the changed code; show the absence).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE RECORDED COMMITS ARE VISIBLE IN BOTH SURFACES. On stderr during reconciliation:
+    ```
+    reconcile 97df1z: recovered substantially-complete from the step's own recorded outcome
+      (recovered-from-outcome); recorded commits 209227d54f1fd7e34115ee9a198c74513a99567d (recorded, unresolved here)
+    ```
+    In the durable run record, as the new `recovered_commits` item field:
+    ```
+    recovered_commits = [{'resolved': False, 'sha': '209227d54f1fd7e34115ee9a198c74513a99567d'}]
+    ```
+    and in the `interrupted-recovered-from-outcome` event's own `commits` key, so it is auditable from `events.jsonl` without re-reading the outcome file. `aw runs repair` reports it too:
+    ```
+    run-20260902T013603Z-1758564: reconciled 1 step(s): 97df1z running -> substantially-complete
+      (recovered-from-outcome), recorded commits: 209227d54f1fd7e34115ee9a198c74513a99567d [recorded, unresolved here]
+    ```
+    BOTH DIRECTIONS OF `resolved` ARE ASSERTED, which matters because a constant `False` would have read correctly in the fixture. `test_a_resolvable_sha_is_reported_resolved` builds a real git repo, commits, and feeds the reconciler a list holding the REAL sha plus `"0"*40`, getting `[{'sha': <real>, 'resolved': True}, {'sha': '000...', 'resolved': False}]`. The unresolvable one is therefore reported as recorded-but-unresolved rather than dropped (which loses the only pointer to the lane) or asserted (which would claim something unverified).
+    NOTHING IS VALIDATED OR MERGED, asserted on the helper's CODE rather than promised. `test_nothing_is_validated_merged_or_checked_out` unparses `describe_recorded_commits` with its docstring dropped (the docstring names the verbs in order to state the fence) and asserts the absence of `merge`, `checkout`, `cherry-pick`, `reset` and `update-ref`, and the presence of `cat-file`. The only git invocation is the READ `git cat-file -e <sha>^{commit}`, and an unusable git is caught to an UNPROVABLE `resolved: False` rather than being allowed to take the reconciliation down. `resolved` answers only "does this object exist in this repository"; whether the lane is mergeable belongs to the `integpath` Set and is untouched.
+    ```
+    3 passed, 231 deselected in 0.36s
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: state the read-surface decision and paste the code. Paste `aw runs` output for the measured run BEFORE and AFTER, showing what the label now says. Paste proof the read path performs NO write (assert `state.json`'s mtime AND content are unchanged across a read, not merely that no write was intended). Paste the corrected `REPAIR_HELP` limitation paragraph: it must be corrected regardless of the label decision, because E-02 makes its "reads the plan's DIRECTORY, not the step's own outcomes" sentence false for the repair verb. State what you did with its `ydbhfd` citation. Confirm the corrected text contains no em or en dashes. State whether `counts` aggregation changed and, if so, why that is acceptable.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE DECISION: report a BETTER-INFORMED LABEL, and add NO read-time mutation. The basis is `GUIDING_PRINCIPLES` P10 ("a read command must not mutate"), applied deliberately by executed plan `ssk6nf`, which REJECTED auto-repair on read for that reason and shipped the opt-in `aw runs repair` verb as the durable fix. So the view reports what the outcome file establishes, and making it durable stays the verb's job. `abandoned?` is kept for the genuinely unknown case, which is the case its own comment was written for. The new `_projected_step_status` (`run_viewer.py`, defined immediately after `driver_holder_state`) reads through the SAME shared precedence the reconciler uses, passes NO bucket (so the read path can never reach `executed`, a verdict the R22 gate governs), and returns `ABANDONED` for an indeterminate step and for a `review`/`orchestrate` action.
+    BEFORE AND AFTER on the measured shape:
+    ```
+    BEFORE (two-input projection: item status + lock holder only)
+      label = 'abandoned?'      (the outcome file was never read; the module's only mention of
+                                 `outcomes/` was the help-text prose documenting this very gap)
+    AFTER (shipped)
+      label            = 'substantially-complete?'
+      persisted_status = 'running'
+      is_projected     = True
+    ```
+    Rendered by the real `aw runs`:
+    ```
+    1 steps: 1 substantially-complete?
+    | substantially-complete? | 20260902-e32j35-02-97df1z | execute | 1 | ... | YES |
+    ```
+    THE `?` IS KEPT ON THE RECOVERED VALUE. A bare `substantially-complete` would be indistinguishable from a status the driver actually PERSISTED, which is the exact confusion `ABANDONED`'s own comment exists to prevent; `persisted_status` still carries `running` in every case, so nothing is hidden. Pinned by `test_the_projection_keeps_its_question_mark`.
+    NO WRITE, asserted on the FILE and in both dimensions the requirement names, across a full `aw runs` render (not merely a loader call):
+    ```
+    bytes unchanged = True
+    mtime unchanged = True
+    ```
+    `test_the_read_path_writes_nothing` asserts both after TWO consecutive loads, because asserting content alone would pass for a rewrite of identical bytes, and a rewrite is still a write that races a live driver's writer.
+    THE LIMITATION PARAGRAPH IS GONE, replaced rather than softened, because E-02 makes its central sentence FALSE (`repair_run` delegates to the reconciler this plan changed). It read: "The decision reads the plan's DIRECTORY, not the step's own `outcomes/<NN>-<id6>.json`. A step that recorded `substantially-complete` with committed lane work is therefore reconciled to `interrupted`, which understates it. Tracked as backlog `ydbhfd`." The replacement is a LIMITS WORTH KNOWING section stating the limits that are actually true now: a recovered disposition came from a file the driver never validated (hence the `recovered-from-outcome` marking), a recorded sha is reported and never checked for mergeability or merged, an unresolvable sha is reported as recorded but unresolved, a level-4 force-cut turn is never recovered from its own outcome file, the stale `driver.lock` is still not deleted, and a live-held run still cannot be repaired. The WHAT IT DOES section now also documents the consultation and the `executed` downgrade.
+    THE `ydbhfd` CITATION IS REMOVED, deliberately. The item is CLOSED by this plan (it is this plan's `- From-Backlog:`), and a shipped help page citing a closed item tells a reader to go looking for open work that no longer exists. `test_the_repair_help_no_longer_states_the_removed_limitation` asserts both the removal of the id and the removal of the false sentence, and asserts the new text describes the consultation.
+    NO EM OR EN DASHES in the corrected user-facing text, asserted by `test_the_repair_help_contains_no_em_or_en_dashes` over U+2014 and U+2013.
+    `counts` AGGREGATION: the RULE is unchanged and the VALUE changes for a recovered step, which is disclosed rather than silent. The increment has always followed the projection overwrite (so an abandoned step already tallied under the literal key `abandoned?`, never under `running`); what changes is which projected word a recovered step contributes, measured as `counts = {'substantially-complete?': 1}`. That is acceptable because the key remains a PROJECTED label carrying the `?` marker, so no consumer can mistake it for a persisted status, and it is now pinned by `test_the_status_tally_counts_the_projected_label` rather than left to be re-derived. I did not alter the increment's position, so the pre-existing question-mark-in-a-status-key property is neither introduced nor removed by this plan.
+    ```
+    23 passed, 79 deselected in 2.53s   (ProjectedStatus + RepairReportsRecovered + RunsRepairHelp)
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the fixture and the tests with their actual runner output. Paste ALL FOUR fallback branches (no outcome file, unparseable, no `disposition` key, unhonored disposition using `dependency-blocked` or `not-attempted`) each yielding the UNCHANGED `interrupted` guess; any of them reporting `partial` or `failed-safely` means the implementation took the rejected `reconcile_disposition` route and is a FAILED validation, not a test to relax. Paste proof no test reads `.aw/records/runs/`. Do NOT cite the plan's "roughly 32 tests fail" figure as evidence: it is stale (measured `69 passed`), and the fixture requirement rests on the gitignore.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE FIXTURE IS BUILT FROM THE REAL MEASURED SHAPE, not a simplification: `_crashed_run_fixture` (in `tests/test_oc_runipd.py`) writes a queue item at `status: running` with `last_outcome: None`, a `configured_file` naming `pending/`, an attempt with `log: None`, and an `outcomes/02-97df1z.json` carrying a terminal `disposition` plus a `commits` list. It keeps the incident's real run id, position, id6 and sha. `outcome` takes the sentinels `"absent"` and `"unparseable"` or a mapping, so "no file" is distinguishable from "a file whose content is null" (passing `None` could not tell those apart).
+    ALL FOUR FALLBACK BRANCHES YIELD THE UNCHANGED `interrupted`, each on BOTH hosts:
+    ```
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_fallback_no_outcome_file PASSED
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_fallback_unparseable_outcome_file PASSED
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_fallback_outcome_file_without_a_disposition_key PASSED
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_fallback_unhonored_disposition PASSED
+    ```
+    The unhonored case covers BOTH statuses the precedence explicitly subtracts (`dependency-blocked` AND `not-attempted`). Each branch additionally asserts the ABSENCE of the provenance and commits keys, so a fallback cannot quietly acquire a recovery marker. NONE reported `partial` or `failed-safely`, which is the signature of the rejected PR-701 route; the shared helper cannot produce either, since it owns no exit-code fallback at all (see V-02's pasted body).
+    ALL FOUR CONTROL TESTS PASS (listed with the fallbacks, one runner invocation):
+    ```
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_control_a_self_claimed_executed_is_still_downgraded PASSED
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_control_an_indeterminate_item_is_refused_even_with_a_claiming_outcome PASSED
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_control_a_review_action_item_consults_no_outcome_file PASSED
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_control_an_orchestrate_action_item_consults_no_outcome_file PASSED
+    tests/test_oc_runipd.py::CrashedStepOutcomeRecoveryTests::test_the_fixture_builds_its_own_repo_and_never_the_live_run_tree PASSED
+    10 passed, 224 deselected in 0.96s
+    ```
+    Whole class, plus the extraction tolerance test beside it:
+    ```
+    17 passed, 217 deselected in 1.67s   (CrashedStepOutcomeRecoveryTests)
+    20 passed, 214 deselected in 4.35s   (+ AtomicWriteAndReconcileTests)
+    ```
+    NO TEST READS `.aw/records/runs/`, and this is asserted BY BEHAVIOR rather than by source text. `test_the_fixture_builds_its_own_repo_and_never_the_live_run_tree` asserts the fixture's run dir and repo are both `is_relative_to` the temporary tree, and snapshots this repository's real (gitignored) run tree before and after building AND reconciling a fixture, requiring the listing to be identical. THE FIRST DRAFT OF THAT TEST WAS A SOURCE GREP AND IT FAILED ON ITS OWN DOCSTRING, which contained the `dir="."` string it was forbidding; a source-text assertion about a file that must DESCRIBE the forbidden pattern is self-defeating, so the behavioral form replaced it. The requirement rests on the GITIGNORE alone, as the item directs: I did not look for the plan's "roughly 32 tests fail" figure and do not cite it (review measured `tests/test_run_viewer.py` at 69 of 69 passing, and it passes here too).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the new `REFORK_TABLE` row showing BOTH runners and `tests/test_runner_refork_guard.py` passing; OR, if E-01 produced a WRAPPED symbol that cannot satisfy the table's two-part contract, paste the equivalent `tests/test_runner_shared.py::SingleDefinitionTests` pin and state why the table row was inapplicable. Paste object-identity output across all four call paths. Paste the MUTATION CHECK in full: define a local copy in `agy_runipd`, paste the FAILING guard output, revert, paste the passing output. Paste the AST-measured oc-to-agy import count BEFORE and AFTER against the corrected baseline (43 top-level, 48 including nested), showing it did not increase.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE SHAPE PRODUCED IS A WRAPPER, so the `REFORK_TABLE` ROW WAS INAPPLICABLE and the pin went where it holds, exactly as E-06 anticipated. Each host keeps a one-line `def` at the original name injecting its own `save_state`, because `save_state` needs the class (c) DIVERGED `write_report` and a shared body choosing one host's report renderer would silently give the other host the wrong document format (the maintainer's `818uru` OQ-02 wrapper ruling). An `Owned` row asserts BOTH no top-level AST definition in the listed runner AND that the runner's attribute IS the owner's object; a wrapper fails BOTH by construction, which is precisely why that table already records eight wrapped symbols as deliberately absent. A row would have FAILED rather than guarded.
+    THE PIN IS `tests/test_runner_shared.py::ReconcileInterruptedExtractionTests`, a new class in the module that already hosts every wrapped symbol's equivalent guarantee (`SingleDefinitionTests`/`WrapperTests`), asserting seven properties: `runner_shared` owns the body; each host keeps a SINGLE delegating statement naming `runner_shared.reconcile_interrupted`; each wrapper keeps the ORIGINAL signature `(run_dir, state)` with no kwonly args, so no call site had to change; NEITHER host still carries the decision (asserted by requiring the event strings `interrupted-detected` and `interrupted-reconciled-executed` to appear in `runner_shared` and in NEITHER runner); `run_viewer.repair_run`'s call resolves to `runner_shared` on the AST, which is the THIRD caller no assertion about the two runners could cover; both `reconcile_disposition` and the crash path call the shared precedence helper while the crash path does NOT call `reconcile_disposition`; and the helper takes no `exit_code` and owns no fallback. The refork table's own deliberate-absence comment now records this symbol and why, so a later agent does not "complete" the table with a row that cannot pass.
+    ```
+    7 passed, 217 deselected in 3.10s   (ReconcileInterruptedExtractionTests)
+    64 passed in 17.34s                 (tests/test_rununify_run_queue.py)
+    518 passed in 40.00s                (the focused surface, incl. tests/test_runner_refork_guard.py)
+    ```
+    OBJECT IDENTITY ACROSS ALL FOUR CALL PATHS. Identity is asserted on the symbol each wrapper CALLS, since a wrapper is by design not the same object as the body:
+    ```
+    runner_shared.reconcile_interrupted        : <function reconcile_interrupted at 0x7e7c04398b40>
+    agent_workflows.oc_runipd  wrapper -> runner_shared.reconcile_interrupted  is rs object: True
+    agent_workflows.agy_runipd wrapper -> runner_shared.reconcile_interrupted  is rs object: True
+    run_viewer.repair_run calls              : {'runner_shared.reconcile_interrupted'}
+    ```
+    THE MUTATION CHECK, IN FULL. A local body was defined in `agy_runipd` (replacing the wrapper with a five-line loop that marks running items `interrupted` and saves), and BOTH guards FAILED:
+    ```
+    MUTATION APPLIED: agy_runipd now carries its own body
+    E  AssertionError: 2 != 1 : agy_runipd.reconcile_interrupted has 2 statements; a wrapper that
+       grows logic is a re-fork with extra steps
+    FAILED tests/test_runner_shared.py::ReconcileInterruptedExtractionTests::test_each_host_keeps_a_single_delegating_wrapper
+    1 failed, 6 passed, 217 deselected in 4.38s
+
+    E  AssertionError: False is not true : agy_runipd.reconcile_interrupted is no longer a pure
+       delegation to runner_shared; the 818uru OQ-02 wrapper ruling has been undone and the symbol RE-FORKED
+    FAILED tests/test_rununify_run_queue.py::TheClosureClassificationIsPinned::test_the_thin_wrappers_really_do_delegate_on_both_hosts
+    1 failed, 63 passed in 18.07s
+    ```
+    Reverted, and both pass again, with the mutation marker confirmed absent from the file:
+    ```
+    MUTATION REVERTED
+    7 passed, 217 deselected in 3.10s
+    64 passed in 17.34s
+    grep -c "DELIBERATE RE-FORK" agent_workflows/agy_runipd.py -> 0
+    ```
+    THE IMPORT COUNT DID NOT INCREASE, and the plan's stated baseline is CORRECTED because it did not reproduce. The plan cites 43 top-level / 48 including nested; AST-measured here at HEAD `27a446d4` the figure is 52 / 56 over 8 `ImportFrom` sites, with FOUR nested names (`build_verify_and_continue_notice`, `classify_recovery_disposition`, `enforce_dependency_preflight`, `route_recovery_turn`), not the five the plan lists (`resolve_prior_lane` now arrives at top level). The plan's number was measured at `b550bc16`, roughly two weeks of commits earlier, in the repository's two highest-contention files; I report the measurement rather than the citation, which is what the requirement's "against the corrected baseline" asks for in substance:
+    ```
+    BEFORE (HEAD 27a446d4): top=52  including-nested=56  sites=8
+    AFTER  (working tree):  top=52  including-nested=56  sites=8
+    ```
+    UNCHANGED, which is the property that matters: the symbol went to `runner_shared`, NOT into the oc-to-agy import list, so the layering defect backlog `cnwy8g` owns was not deepened. `tests/test_runner_shared.py::NoRunnerImportTests` separately proves `runner_shared` imports neither runner, so the new code cannot have created a cycle.
+  - Result: pass
 
 ## Approval and execution gate
 

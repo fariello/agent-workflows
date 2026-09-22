@@ -128,6 +128,16 @@ REFORK_TABLE: tuple[Owned, ...] = (
     #     `_LANE_PROMPT_DISABLED` through `global`, and a shared `global` would write the
     #     shared module's flag while each runner's DIVERGED `_lane_reclaim_prompt` kept
     #     reading its own. Pinned in `UnmovableSymbolTests`.
+    #   * `reconcile_interrupted`, SHARED 2026-09-22 by runrecon-02 (`fduoj4`) E-01 and absent here
+    #     for the SAME structural reason as the eight wrapped symbols above, not by oversight. Each
+    #     host keeps a one-line `def` at the original name injecting its own `save_state` (which needs
+    #     the class (c) DIVERGED `write_report`, so a shared body cannot choose one host's report
+    #     renderer), so it fails BOTH halves of this table's contract by construction: it HAS a
+    #     runner-local definition, and each runner's attribute is that wrapper rather than the shared
+    #     object. Its equivalent guarantee, plus the third caller (`run_viewer.repair_run`) that no
+    #     assertion about the two runners could cover, is enforced by
+    #     `tests/test_runner_shared.py::ReconcileInterruptedExtractionTests`. Do NOT "complete" this
+    #     table by adding a row for it: the row would fail rather than guard.
     Owned("DriverError", "runner_shared", BOTH),
     Owned("SCHEMA_VERSION", "runner_shared", BOTH),
     Owned("ID6_RE", "runner_shared", BOTH),
