@@ -2615,6 +2615,16 @@ def retry_deferred_integrations(
     dispatch-loop iteration than the turn that deferred it, so the `WorktreeHandle` from that turn is
     long out of scope; the `preserved_*` fields the shared preservation emitter already writes are what
     make the lane findable again, which is exactly what they exist for.
+
+    `i4ak5n` E-04/E-06: IT NOW BINDS A SECOND, REVIEW-ACTION PAIR, because the ladder was ACTION-BLIND
+    and the pair below is EXECUTE-specific in two ways that would corrupt a review. `_integrate` reaches
+    this host's execute wrapper, which pins `action_kind=execute` and is therefore exactly what triggers
+    the merge-and-revalidate gate a review must skip BY NOT RUNNING (`ajxr5d` OQ-01); and `_finish`
+    writes `status = "executed"`, closes a backlog item and resolves a plan path, none of which is valid
+    for a turn that executed no plan. The review pair is `integrate_review_lane_branch` (which takes NO
+    validation runner at all, so a synthetic verdict is structurally impossible) plus the SHARED
+    `runner_shared.finish_integrated_review_item`. Which pair an item gets is decided by the shared
+    `integration_action_for_item`, so the two hosts cannot disagree about it.
     """
 
     from agent_workflows import worktree_lease
@@ -2726,12 +2736,43 @@ def retry_deferred_integrations(
             process_backlog_close(run_dir, state, item)
         save_state(run_dir, state)
 
+    def _integrate_review(item: Any, handle: Any) -> tuple[bool, str, str]:
+        """THE REVIEW-ACTION MERGE: `action_kind=review`, and no validation runner exists to pass.
+
+        The same wrapper the FIRST attempt uses, which is the whole point: the retry must not reach a
+        different merge path than the attempt it is retrying. Its signature takes no `validation_runner`,
+        so this cannot hand the gate a synthetic verdict even by mistake (`ajxr5d` OQ-01).
+        """
+        return integrate_review_lane_branch(repo, handle, str(item.get("id6") or ""))
+
+    def _finish_review(item: Any, handle: Any, reason: str) -> None:
+        """THE REVIEW SUCCESS PATH, delegated to the shared performer.
+
+        NOT `_finish`: a review claims no `executed`, closes no backlog item, resolves no plan path, and
+        above all NEVER tears the sweep lane down (OQ-02 option (a), maintainer 2026-09-18 - the lane is
+        shared by every review in the run, so retirement stays coordinator-owned and once-per-run).
+        Shared rather than written here so the agy twin cannot drift from it.
+        """
+        pal = Palette(should_color(sys.stdout))
+        runner_shared.finish_integrated_review_item(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            handle=handle,
+            reason=reason,
+            save_state=save_state,
+            append_jsonl=append_jsonl,
+            report=lambda message: print(pal(message, "green")),
+        )
+
     return runner_shared.reattempt_deferred_integrations(
         repo=repo,
         run_dir=run_dir,
         state=state,
         integrate=_integrate,
         finish_integrated=_finish,
+        integrate_review=_integrate_review,
+        finish_integrated_review=_finish_review,
         save_state=save_state,
         append_jsonl=append_jsonl,
         handle_for=_handle_for,

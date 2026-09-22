@@ -1561,6 +1561,13 @@ def retry_deferred_integrations(
     `preserved_*` fields, and what "finished" means here. A ladder written into each driver would be
     written twice and fixed once (CID-3), which is the failure integpath-02 collapsed these symbols to
     prevent.
+
+    `i4ak5n` E-04/E-06: the REVIEW-ACTION pair is bound here too, symmetrically with the oc twin (which
+    carries the full rationale). The execute pair pins `action_kind=execute` - exactly what triggers the
+    revalidation gate a review must skip by NOT RUNNING - and its success path writes `executed` and
+    closes a backlog item, neither valid for a review. The review pair is this host's
+    `integrate_review_lane_branch` plus the SHARED `runner_shared.finish_integrated_review_item`, and the
+    shared `integration_action_for_item` (never a local test) decides which pair an item gets.
     """
 
     from agent_workflows import worktree_lease
@@ -1656,12 +1663,36 @@ def retry_deferred_integrations(
             process_backlog_close(run_dir, state, item)
         save_state(run_dir, state)
 
+    def _integrate_review(item: Any, handle: Any) -> tuple[bool, str, str]:
+        """THE REVIEW-ACTION MERGE, the agy twin: `action_kind=review`, no validation runner to pass."""
+        return integrate_review_lane_branch(repo, handle, str(item.get("id6") or ""))
+
+    def _finish_review(item: Any, handle: Any, reason: str) -> None:
+        """THE REVIEW SUCCESS PATH, delegated to the SHARED performer (never a second copy).
+
+        NOT `_finish`: no `executed`, no backlog close, no plan-path resolution, and NEVER a per-item
+        teardown of the shared sweep lane (OQ-02 option (a)).
+        """
+        pal = Palette(should_color(sys.stdout))
+        runner_shared.finish_integrated_review_item(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            handle=handle,
+            reason=reason,
+            save_state=save_state,
+            append_jsonl=append_jsonl,
+            report=lambda message: print(pal(message, "green")),
+        )
+
     return runner_shared.reattempt_deferred_integrations(
         repo=repo,
         run_dir=run_dir,
         state=state,
         integrate=_integrate,
         finish_integrated=_finish,
+        integrate_review=_integrate_review,
+        finish_integrated_review=_finish_review,
         save_state=save_state,
         append_jsonl=append_jsonl,
         handle_for=_handle_for,
