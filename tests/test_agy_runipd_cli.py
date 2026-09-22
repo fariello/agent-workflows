@@ -2462,5 +2462,108 @@ class AgyVerdictMappingTests(unittest.TestCase):
         self.assertEqual(verdict.signal, rs.INTEGRATION_EARNED_BY_VERIFIER)
 
 
+class AgyVerificationAbsenceTests(unittest.TestCase):
+    """runverdict-06 (`fzxfph`) E-04, THIS HOST: the absent-verdict vocabulary, plus the path twin.
+
+    WHY A PER-HOST TEST WHEN THE LOGIC IS SHARED, which is the objection this class has to answer.
+    `resolve_plan_path` and the four reason codes live in `runner_shared`, so the RESOLUTION logic is
+    covered once. But each host binds the names itself, and a SHARED FUNCTION DOES NOT PROVE A CALL
+    SITE PASSES ITS RESULT ONWARD - which is precisely the defect commit `1549c018` fixed on the oc
+    side, where the resolver was already correct and the resolved value simply never reached the
+    child process.
+
+    AND THIS HOST IS THE EXPOSED ONE. agy defaults its verifier ON (`not no_verify`) while oc
+    defaults `--validate` OFF, so an absent verdict is agy's SHIPPED path and oc's opt-in one.
+
+    MEASURED ABSENT BEFORE THIS PLAN: this module contained ZERO occurrences of `resolve_plan_path`
+    and no analogue of `tests/test_oc_runipd.py::VerifierPromptTests::
+    test_resolve_plan_path_handles_transition_to_executed`, so the host whose verifier runs by
+    default had no test of its own plan-path behavior at all.
+    """
+
+    def test_this_host_resolves_a_plan_that_moved_to_executed_mid_turn(self):
+        """The agy twin of the `1549c018` regression, which did not exist before this plan.
+
+        THE CONDITION IS REAL AND ROUTINE, not contrived: a self-finalizing plan MOVES out of
+        `pending/` during its own turn, so the path captured at launch is stale by the time the
+        verifier is built. Resolution must follow the plan by id6.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            executed = repo / ".aw" / "records" / "plans" / "executed"
+            pending.mkdir(parents=True)
+            executed.mkdir(parents=True)
+
+            configured = (
+                ".aw/records/plans/pending/20260908-testset-01-agy999-test-plan.ipd.md"
+            )
+            plan = repo / configured
+            plan.write_text(
+                "- Id: agy999\n- Set: testset\n- Status: approved\n# Test Plan\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                agy_runipd.resolve_plan_path(repo, configured, "agy999"),
+                plan.resolve(),
+            )
+
+            moved = executed / "20260908-testset-01-agy999-test-plan.ipd.md"
+            plan.rename(moved)
+            # The configured path is now STALE; resolution must still find the plan.
+            self.assertEqual(
+                agy_runipd.resolve_plan_path(repo, configured, "agy999"),
+                moved.resolve(),
+            )
+
+    def test_this_hosts_resolver_is_the_shared_object(self):
+        """So the test above is a statement about this host's binding, not a second copy."""
+        from agent_workflows import runner_shared as rs
+
+        self.assertIs(agy_runipd.resolve_plan_path, rs.resolve_plan_path)
+
+    def test_an_unresolvable_plan_raises_rather_than_returning_a_stale_path(self):
+        """E-03's precondition ON THIS HOST: the resolver must RAISE so the caller can refuse.
+
+        Constructs the condition E-04 named as the one actually constructible: a LANE WORKTREE with
+        no plan in it, which is this runner's default execution shape.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            lane = Path(temp) / "lane"
+            (lane / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+            with self.assertRaises(agy_runipd.DriverError) as caught:
+                agy_runipd.resolve_plan_path(
+                    lane,
+                    ".aw/records/plans/pending/20260908-s-01-agy404-x.ipd.md",
+                    "agy404",
+                )
+            self.assertIn("Cannot locate IPD agy404", str(caught.exception))
+
+    def test_the_three_facts_are_distinguishable_from_this_host(self):
+        """The E-02 deliverable, reached through THIS host's bindings."""
+        codes = (
+            agy_runipd.VERIFY_ABSENCE_VERDICT_UNREADABLE,
+            agy_runipd.VERIFY_ABSENCE_NO_OUTCOME_FILE,
+            agy_runipd.VERIFY_ABSENCE_TURN_INTERRUPTED,
+            agy_runipd.VERIFY_ABSENCE_PLAN_UNRESOLVABLE,
+        )
+        self.assertEqual(len(set(codes)), 4)
+        self.assertEqual(tuple(agy_runipd.VERIFY_ABSENCE_CODES), codes)
+        reasons = {agy_runipd.verify_absence_text(code)[0] for code in codes}
+        self.assertEqual(len(reasons), 4)
+
+    def test_the_never_ran_case_is_a_failure_and_the_killed_case_is_unknown(self):
+        """Spec `c4gd2h` R22 on the host whose verifier runs by default."""
+        never, _ = agy_runipd.verify_absence_text(
+            agy_runipd.VERIFY_ABSENCE_NO_OUTCOME_FILE
+        )
+        killed, _ = agy_runipd.verify_absence_text(
+            agy_runipd.VERIFY_ABSENCE_TURN_INTERRUPTED
+        )
+        self.assertIn("FAILURE", never)
+        self.assertIn("UNKNOWN", killed)
+        self.assertNotIn("FAILURE", killed)
+
+
 if __name__ == "__main__":
     unittest.main()

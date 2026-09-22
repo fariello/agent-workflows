@@ -210,6 +210,30 @@ from agent_workflows.runner_shared import (
     VERDICT_REFUSAL_CODE_UNREADABLE as VERDICT_REFUSAL_CODE_UNREADABLE,
 )
 
+# runverdict-06 (`fzxfph`): WHY there was no verdict to map, which is a different question from what
+# the verdict said. Bound from `runner_shared` and NEVER defined here, for the identical reason the
+# verdict table above is: the three facts were previously collapsed into one `unverified` token in two
+# byte-identical per-host copies, and a reason code spelled twice is the producer/reader drift this
+# module has already paid for.
+from agent_workflows.runner_shared import (
+    verify_absence_text as verify_absence_text,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_CODES as VERIFY_ABSENCE_CODES,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_NO_OUTCOME_FILE as VERIFY_ABSENCE_NO_OUTCOME_FILE,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_PLAN_UNRESOLVABLE as VERIFY_ABSENCE_PLAN_UNRESOLVABLE,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_TURN_INTERRUPTED as VERIFY_ABSENCE_TURN_INTERRUPTED,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_VERDICT_UNREADABLE as VERIFY_ABSENCE_VERDICT_UNREADABLE,
+)
+
 # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, bound HERE rather than reached through
 # `runner_shared.` at the call site, because the cross-driver symmetry guard
 # (`tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`) requires each driver to CARRY

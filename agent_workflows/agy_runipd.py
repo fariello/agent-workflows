@@ -213,6 +213,31 @@ from agent_workflows.runner_shared import (
     VERDICT_REFUSAL_CODE_UNREADABLE as VERDICT_REFUSAL_CODE_UNREADABLE,
 )
 
+# runverdict-06 (`fzxfph`): WHY there was no verdict to map. Imported from `runner_shared` and NOT from
+# `oc_runipd`, for the reason the note below repeats about the drain-time classification: this host's
+# import count from that driver is already the layering defect backlog `cnwy8g` tracks, and
+# `tests/test_runner_refork_guard.py::test_the_oc_to_agy_import_count_did_not_increase` measures it.
+# THIS HOST IS THE ONE THAT MATTERS MOST FOR THESE CODES: agy defaults its verifier ON (`not
+# no_verify`) while oc defaults `--validate` OFF, so an absent verdict is agy's shipped path.
+from agent_workflows.runner_shared import (
+    verify_absence_text as verify_absence_text,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_CODES as VERIFY_ABSENCE_CODES,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_NO_OUTCOME_FILE as VERIFY_ABSENCE_NO_OUTCOME_FILE,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_PLAN_UNRESOLVABLE as VERIFY_ABSENCE_PLAN_UNRESOLVABLE,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_TURN_INTERRUPTED as VERIFY_ABSENCE_TURN_INTERRUPTED,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_ABSENCE_VERDICT_UNREADABLE as VERIFY_ABSENCE_VERDICT_UNREADABLE,
+)
+
 # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, imported from `runner_shared` and NOT from
 # `oc_runipd`. This host already imports 53 names from that driver (AST-measured), and adding to that
 # pile would deepen the layering defect backlog `cnwy8g` owns; `7nkcgp`'s F-11 caught a proposed shared
