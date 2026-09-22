@@ -95,6 +95,8 @@ from agent_workflows.render_stream import (
     record_refusal as record_refusal,
     refusal_of_item as refusal_of_item,
     execution_index as execution_index,
+    # `progdenom`: shared with the oc host and the summary bar, so all three agree.
+    dispatchable_work_total as dispatchable_work_total,
     Palette as Palette,
     _strip_ansi as _strip_ansi,
     _one_line as _one_line,
@@ -2673,7 +2675,10 @@ def run_agy_turn(
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
 
     queue = state.get("queue", [])
-    total_items = len(queue) or 1
+    # `progdenom`: DISPATCHABLE WORK, not queue length, so this host's live progress display matches
+    # the oc twin and the summary bar. `len` counted Set members that arrived already `executed` and
+    # entries frozen `reviewed` awaiting approval, neither of which a run can dispatch.
+    total_items = dispatchable_work_total(queue) or 1
     # When working on item at 1-based execution sequence S, number of completed items is S - 1 (e.g. 0 of 2 done).
     seq = execution_index(item, state)
     current_idx = max(0, seq - 1)
