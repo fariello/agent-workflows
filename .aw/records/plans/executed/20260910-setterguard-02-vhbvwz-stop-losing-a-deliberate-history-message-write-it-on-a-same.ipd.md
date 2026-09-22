@@ -10,7 +10,7 @@
 - Scope: The two ways a deliberate history message is lost. IN: writing the history record on a same-status transition when a `--message` is PRESENT (`x6tk1u`), without making every idempotent re-assertion grow duplicate history; making durable history survive a clone, by whichever of the recorded options review selects; closing the silent-failure hole where a swallowed sidecar write plus a successful inline slim loses a record entirely; adding the missing `aw backlog note` verb so annotating an item no longer requires abusing `set`; regression fixtures for each. OUT: the confirmation and terminal-reopen guards (Order 01 of this Set); reverting `awhistory-02`'s slimming decision; any change to `aw attention`'s derivation, which reads the latest inline record and must keep working.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/cli.py, agent_workflows/attention_contract.py, agent_workflows/plan_readiness.py, agent_workflows/record_history.py, agent_workflows/command_surface.py, .aw/records/specs/20260818-1525-02-sidecar-metadata-and-history.spec.md, .aw/records/backlog/README.md, tests/test_status_set.py, tests/test_history_routing.py, tests/test_attention_contract.py, tests/test_backlog.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: setterguard
@@ -18,10 +18,10 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vhbvwz
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: x6tk1u
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: vhbvwz verified (set setterguard, attempt 1). [Scope reconciliation - widened-scope agent_workflows/command_surface.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope agent_workflows/record_history.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope tests/test_backlog.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run)]
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 
