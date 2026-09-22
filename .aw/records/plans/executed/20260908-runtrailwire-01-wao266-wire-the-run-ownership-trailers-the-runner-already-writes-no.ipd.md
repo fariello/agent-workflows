@@ -9,18 +9,18 @@
 - Scope: Make the runner PASS the trailers it already has the machinery to write, at the ONE shared commit call site both hosts reach, so THAT commit carries machine-readable run and item ownership. SCOPE CORRECTED AT REVIEW, because the authored wording implied far more reach than the wiring has (PR-801): the wired site is `commit_backlog_close`, which produced exactly THREE commits in the repository's entire 2926-commit history, each touching exactly ONE `.backlog.md` file. It does NOT make the agent's own code commits attributable; those are made by the agent via raw `git commit` per the runbook directive (`oc_runipd.py:2607`) in the `base..HEAD` range finalize actually reads, and reaching them is a DIFFERENT and much larger piece of work (see Deferred). So this plan converts a built-but-unreachable parameter into a live, tested, correctly-scoped driver-side writer, and it is honest about that being a foundation rather than the fix. Attribution CONSUMPTION is excluded: `h9cn0y` (now `executed`) owns finalize's committed-half logic and this plan must not touch it. This plan makes a writer real; it does not add a reader.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/git_commit_helper.py, agent_workflows/work_cmd.py, tests/test_runner_backlog_close.py, tests/test_run_trailer_wiring.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runtrailwire
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wao266
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: a8eufb
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: wao266 verified (set runtrailwire, attempt 1). [Scope reconciliation - widened-scope agent_workflows/work_cmd.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); in-scope-unmodified tests/test_runner_backlog_close.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED. Readiness go-pending-approval. OQ-04 raised (non-blocking): the wired path produces 3 commits in 2926, so the Blocks-Release gate is a maintainer call.
 
