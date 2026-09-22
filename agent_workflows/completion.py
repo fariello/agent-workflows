@@ -1,10 +1,16 @@
 """Native, zero-runtime-dependency shell completion generators for the ``aw`` CLI.
 
 tabcomp Order 01 (bja8og): STATIC completion. ``introspect_cli_tree`` walks the argparse action
-tree of the real CLI parser into a plain dict (subcommands + flags), applying one explicit
-command-visibility policy so only genuine user commands are surfaced. ``generate_{bash,zsh,fish}_
-completion`` turn that tree into self-contained completion scripts binding all three console-script
-aliases (``aw``, ``agentwf``, ``agent-workflows``). Every token that originates from the parser
+tree of the real CLI parser into a plain dict (subcommands + flags + positional ``choices``), applying
+one explicit command-visibility policy so only genuine user commands are surfaced.
+``generate_{bash,zsh,fish}_completion`` turn that tree into self-contained completion scripts binding
+all three console-script aliases (``aw``, ``agentwf``, ``agent-workflows``). A command offers its OWN
+arguments in the slot after its name, and a command that declares none offers NOTHING (compargs
+4y95tp): the bash generator used to end its `case` with an unconditional top-level fallback, so every
+command without a `case` arm (31 of 48 when the fix landed) suggested the whole command list, and
+``aw completion in<TAB>`` offered ``index`` - a token the verb then rejected. Treat that count as a
+census taken once, not a property: it moves with the command population, and the FIX does not depend on
+it. Every token that originates from the parser
 (command names, flags, and help text used as Zsh/Fish descriptions) is shell-escaped for its target
 shell before interpolation, because this CLI's help text contains shell-special characters
 (backticks and ``$``); no emitted script can be broken or injected by help text.
@@ -20,6 +26,10 @@ shape facts drive the implementation: ``selectors.resolve_selectors`` needs a ``
 returns ``pathlib.Path`` objects (NOT bare id6 tokens, so this module extracts the id6 from each
 path via the naming grammar), and the CLI status arguments are free-form ``nargs="+"`` (NOT argparse
 ``choices``, so the status vocabularies come from ``ipd_schema``/``attention_contract``/``backlog``).
+THAT STATUS FACT IS STILL TRUE, and is narrower than it reads now that this module DOES read positional
+``choices`` (compargs 4y95tp): exactly three positionals carry them - ``migrate-layout action``,
+``path root``, and ``completion target`` (given real ``choices`` by 4y95tp E-08 so the reported
+``aw completion <TAB>`` case became completable at all). Statuses are not among them.
 A hard latency budget (<50ms) forbids the unscoped resolver sweep (measured ~500ms over the full
 ``executed/`` history); dynamic scans are therefore scoped to ACTIVE dispositions (``pending``/
 ``reusable`` plans, live specs/backlog) and capped.
@@ -101,17 +111,55 @@ def _flags_of(parser: argparse.ArgumentParser) -> List[Dict[str, str]]:
     return out
 
 
+def _positional_choices(parser: argparse.ArgumentParser) -> List[str]:
+    """Return the argparse ``choices`` of this parser's FIRST user-facing positional, else ``[]``.
+
+    compargs 4y95tp E-02. A command's arguments are not always subparsers: ``aw migrate-layout`` and
+    ``aw path`` express theirs as a positional with a fixed ``choices`` vocabulary, which
+    ``introspect_cli_tree``'s subparser-only walk could not see, so the generated script had nothing
+    true to offer for them. Only the FIRST positional is read, because the completion scripts
+    complete the slot immediately after the command name and a later positional's vocabulary is not
+    valid there.
+
+    DELIBERATELY SILENT for an unconstrained positional (a path, a selector, an id6): a positional
+    with no ``choices`` declares no vocabulary, and inventing one is how the fall-through defect this
+    function was added to fix began. Dynamic values come from ``complete_query`` instead.
+    """
+    for action in parser._actions:
+        if action.option_strings:
+            continue
+        if isinstance(action, argparse._SubParsersAction):
+            continue
+        if getattr(action, "help", None) is argparse.SUPPRESS:
+            continue
+        if action.choices:
+            return [str(c) for c in action.choices]
+        return []
+    return []
+
+
 def introspect_cli_tree(parser: argparse.ArgumentParser) -> Dict[str, Any]:
     """Recursively extract the user-facing command tree from an argparse parser (bja8og E-01).
 
-    Returns ``{"flags": [...], "subcommands": {name: <same shape>}}`` without mutating the parser.
-    Models the recursion on ``cli._apply_descriptions`` (it walks ``_SubParsersAction.choices``), but
-    applies the ``_visible_subcommands`` policy so internal gate commands and hidden aliases are
-    absent from the tree.
+    Returns ``{"flags": [...], "subcommands": {name: <same shape>}, "choices": [...]}`` without
+    mutating the parser. Models the recursion on ``cli._apply_descriptions`` (it walks
+    ``_SubParsersAction.choices``), but applies the ``_visible_subcommands`` policy so internal gate
+    commands and hidden aliases are absent from the tree.
+
+    ``choices`` (compargs 4y95tp E-02) carries the fixed vocabulary of the node's FIRST user-facing
+    positional, captured under its OWN key rather than merged into ``subcommands``: choice tokens are
+    not subcommands (they do not nest and carry no flags of their own), so conflating them would make
+    a generator emit a third level for something that cannot have one. An unconstrained positional
+    deliberately contributes NOTHING, because a positional with no ``choices`` declares no vocabulary
+    and guessing one is the defect class this key exists to end.
     """
 
     def walk(node: argparse.ArgumentParser) -> Dict[str, Any]:
-        tree: Dict[str, Any] = {"flags": _flags_of(node), "subcommands": {}}
+        tree: Dict[str, Any] = {
+            "flags": _flags_of(node),
+            "subcommands": {},
+            "choices": _positional_choices(node),
+        }
         for action in node._actions:
             if isinstance(action, argparse._SubParsersAction):
                 for name in _visible_subcommands(action):
@@ -121,6 +169,18 @@ def introspect_cli_tree(parser: argparse.ArgumentParser) -> Dict[str, Any]:
         return tree
 
     return walk(parser)
+
+
+def _node_candidates(node: Dict[str, Any]) -> List[str]:
+    """The tokens valid in the slot right after ``node``'s command name: subcommands + choices.
+
+    compargs 4y95tp E-03. MERGED, not either/or, so a command that ever gains both kinds completes
+    both. MEASURED at authoring: no command has both today (the two choices-bearing commands,
+    ``migrate-layout`` and ``path``, have no subparsers), so the merge path is LATENT by construction
+    and is untested against a real both-kinds command; it is written because the alternative is a
+    silent wrong answer the day one appears.
+    """
+    return sorted(set(node.get("subcommands", {})) | set(node.get("choices", []) or []))
 
 
 def _all_command_paths(tree: Dict[str, Any]) -> List[List[str]]:
@@ -186,21 +246,30 @@ def _fish_desc(text: str) -> str:
 def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
     """Emit a self-contained Bash completion script binding all three entrypoints (bja8og E-02).
 
-    Emits a single ``_aw_completion`` function that offers the top-level commands, then the nested
-    subcommands of the first word, plus flags when the current word starts with ``-``. Every command
-    and flag token is ``shlex.quote``d before being placed in the completion word list.
+    Emits a single ``_aw_completion`` function that offers the top-level commands in the command
+    slot, then, in the slot after a command, THAT COMMAND'S OWN arguments: its nested subcommands and
+    the fixed ``choices`` vocabulary of its first positional. A command with NEITHER offers NOTHING,
+    so bash falls back to its own default (filenames) instead of proposing a token that cannot be
+    valid there. Flags are offered when the current word starts with ``-``. Every command, choice and
+    flag token is ``shlex.quote``d before being placed in the completion word list.
+
+    THE FALL-THROUGH IS GONE ON PURPOSE (compargs 4y95tp E-01). This function used to end its `case`
+    with an unconditional top-level ``COMPREPLY=``, so any command without a `case` arm (31 of 48 when
+    the fix landed) suggested the whole command list: ``aw completion in<TAB>`` offered ``index``, which
+    the verb then rejected. Do not reintroduce a default arm; an empty ``COMPREPLY`` is the correct
+    answer when the parser declares no vocabulary for the position.
     """
     if tree is None:
         tree = introspect_cli_tree(_lazy_parser())
     top = tree.get("subcommands", {})
     top_names = " ".join(_bash_word(n) for n in sorted(top))
 
-    # Second-level: `case` over the first command -> its subcommands.
+    # Second-level: `case` over the first command -> its own subcommands AND positional choices.
     second_cases: List[str] = []
     for name in sorted(top):
-        subs = top[name].get("subcommands", {})
-        if subs:
-            sub_names = " ".join(_bash_word(s) for s in sorted(subs))
+        candidates = _node_candidates(top[name])
+        if candidates:
+            sub_names = " ".join(_bash_word(s) for s in candidates)
             second_cases.append(
                 f"        {_bash_word(name)})\n"
                 f'            COMPREPLY=( $(compgen -W {shlex.quote(sub_names)} -- "$cur") )\n'
@@ -230,7 +299,8 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
         '    case "${COMP_WORDS[1]}" in',
         *second_cases,
         "    esac",
-        f'    COMPREPLY=( $(compgen -W {shlex.quote(top_names)} -- "$cur") )',
+        # compargs 4y95tp E-01: NO default arm and NO post-`esac` fallback. A command with no arm
+        # leaves COMPREPLY empty, which is bash's signal to use its own default completion.
         "    return 0",
         "}",
         f"complete -F _aw_completion {' '.join(ENTRYPOINTS)}",
@@ -244,6 +314,10 @@ def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
 
     Uses ``_arguments`` + ``_values`` with escaped ``'name:description'`` specs for the top-level
     commands, and a nested ``case`` for the second level. Descriptions are ``_zsh_desc``-escaped.
+
+    The second level offers a command's OWN arguments - subcommands plus its first positional's fixed
+    ``choices`` (compargs 4y95tp E-03) - and nothing when it declares neither. Zsh never had bash's
+    top-level fall-through (its inner `case` has no default arm), so E-01 has no counterpart here.
     """
     if tree is None:
         tree = introspect_cli_tree(_lazy_parser())
@@ -255,9 +329,9 @@ def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
 
     second_cases: List[str] = []
     for name in sorted(top):
-        subs = top[name].get("subcommands", {})
-        if subs:
-            sub_specs = " ".join(f"'{s}'" for s in sorted(subs))
+        candidates = _node_candidates(top[name])
+        if candidates:
+            sub_specs = " ".join(f"'{s}'" for s in candidates)
             second_cases.append(
                 f"                ({name})\n"
                 f"                    _values 'subcommand' {sub_specs} ;;"
@@ -289,8 +363,10 @@ def generate_fish_completion(tree: Dict[str, Any] | None = None) -> str:
     """Emit a native Fish ``complete -c`` completion script binding all three entrypoints (E-02).
 
     Top-level commands complete only as the first token (a ``__fish_use_subcommand`` condition);
-    each command's subcommands complete after it (``__fish_seen_subcommand_from``). Command tokens
-    and description bodies are Fish-escaped.
+    each command's own arguments - its subcommands and its first positional's fixed ``choices``
+    (compargs 4y95tp E-03) - complete after it (``__fish_seen_subcommand_from``). Command tokens and
+    description bodies are Fish-escaped. Every emitted line is conditional, so fish never had bash's
+    top-level fall-through and E-01 has no counterpart here.
     """
     if tree is None:
         tree = introspect_cli_tree(_lazy_parser())
@@ -305,8 +381,7 @@ def generate_fish_completion(tree: Dict[str, Any] | None = None) -> str:
                 f"complete -c {entry} -n __fish_use_subcommand -a {_fish_word(name)}"
             )
         for name in sorted(top):
-            subs = top[name].get("subcommands", {})
-            for s in sorted(subs):
+            for s in _node_candidates(top[name]):
                 lines.append(
                     f"complete -c {entry} -n "
                     f"{_fish_word('__fish_seen_subcommand_from ' + name)} "
@@ -592,9 +667,19 @@ def _is_status_position(words: List[str], cword: int) -> Optional[str]:
 def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
     """Static subcommand/flag candidates for the command position, reusing the introspected tree.
 
-    Position 1 -> top-level commands; position 2 -> the first command's subcommands; a word starting
-    with ``-`` -> that context's flags. This mirrors the generated static scripts so `__complete`
-    and the offline scripts agree on the static layer.
+    Position 1 -> top-level commands; position 2 -> the first command's own arguments (its
+    subcommands AND its first positional's fixed ``choices``); a word starting with ``-`` -> that
+    context's flags. This mirrors the generated static scripts so `__complete` and the offline
+    scripts agree on the static layer.
+
+    THE CHOICES HALF IS WHY THAT PARITY SENTENCE IS STILL TRUE (compargs 4y95tp E-05). When the static
+    generators learned to emit positional ``choices``, this function had to learn it in the same
+    change: otherwise ``aw migrate-layout <TAB>`` would offer eight actions through an offline script
+    and nothing through ``aw __complete``, and the two surfaces would disagree in the file that
+    documents their agreement. Positional ``choices`` are STATIC vocabulary by this contract's own
+    definition (fixed in the parser, not read from disk), so they belong in the mirrored layer.
+    Both surfaces read the SAME ``introspect_cli_tree`` key through the SAME ``_node_candidates``
+    helper, so they cannot drift by construction rather than by discipline.
     """
     tree = introspect_cli_tree(_lazy_parser())
     cur = words[cword] if cword < len(words) else ""
@@ -612,14 +697,14 @@ def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
     if cword <= 1:
         return list(tree.get("subcommands", {}).keys())
 
-    # Nested subcommand: walk to words[cword-1]'s node and offer its subcommands.
+    # Nested position: walk to words[cword-1]'s node and offer ITS own arguments.
     node = tree
     for tok in words[1:cword]:
         sub = node.get("subcommands", {}).get(tok)
         if sub is None:
             return []
         node = sub
-    return list(node.get("subcommands", {}).keys())
+    return _node_candidates(node)
 
 
 def complete_query(
@@ -972,3 +1057,42 @@ def is_completion_installed(shell: str, target_dir: Optional[Path] = None) -> bo
     except CompletionInstallError:
         return False
     return _is_ours(primary)
+
+
+def installed_completion_state(shell: str, target_dir: Optional[Path] = None) -> str:
+    """Classify the installed drop-in file for ``shell`` as ``absent``/``current``/``stale``.
+
+    compargs 4y95tp E-06. ``is_completion_installed`` is a PRESENCE check, so an installed script that
+    no longer matches what this CLI would generate is indistinguishable from a fresh one: the
+    generated file is written once by ``aw completion install`` and NOTHING in the install/upgrade
+    path regenerates it, so an upgrade that adds or renames a command leaves the user completing a
+    stale vocabulary with no way to find out. This adds the missing third state.
+
+    DETECTION IS A BYTE COMPARISON of the installed body (minus the injected ``INSTALL_SENTINEL``
+    line) against a fresh ``generate(shell)``, which is measured sufficient and needs no version
+    stamp, timestamp or hash sidecar - each of which would be one more artifact to keep in sync.
+
+    ``absent`` covers both "no file" and "a FOREIGN file" (one without our sentinel), because in both
+    cases OUR completion is not installed and the right message is the existing enable-tip, not a
+    staleness warning about a file we did not write. READ-ONLY: this never writes or repairs anything.
+    """
+    try:
+        primary = resolve_completion_dir(shell, target_dir) / completion_filename(shell)
+    except CompletionInstallError:
+        return "absent"
+    if not _is_ours(primary):
+        return "absent"
+    try:
+        installed = primary.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "absent"
+    body = "\n".join(
+        line for line in installed.split("\n") if line.strip() != INSTALL_SENTINEL
+    )
+    try:
+        expected = generate(shell)
+    except (
+        Exception
+    ):  # pragma: no cover - a generator failure is not evidence of staleness
+        return "current"
+    return "current" if body == expected else "stale"

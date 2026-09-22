@@ -318,6 +318,367 @@ class GeneratorSyntaxTests(unittest.TestCase):
         self.assertNotIn("$", zsh_desc.replace("\\$", ""))
 
 
+def _drive_bash_completion(script: str, words, cword=None):
+    """EXECUTE a generated bash completion script and return the resulting `COMPREPLY` list.
+
+    compargs 4y95tp E-04. This is the technique that found the fall-through defect, and the reason it
+    is a helper rather than a one-off: every text-level assertion in this module passed throughout the
+    bug's life, because the generated script was always internally CONSISTENT. It said "if no arm
+    matched, offer the top-level commands", and it did exactly that - which was the defect. Only
+    sourcing the script, setting `COMP_WORDS`/`COMP_CWORD` as bash does, calling `_aw_completion`, and
+    reading `COMPREPLY` reveals that `aw find <TAB>` proposed `commit`, `archive` and `uninstall` as
+    things to find. Assert on what the function RETURNS, never on what the script SAYS.
+
+    Returns the candidate list; an EMPTY list is a meaningful answer (bash then falls back to its own
+    default completion, e.g. filenames), not a failure to measure.
+    """
+    if cword is None:
+        cword = len(words) - 1
+    with tempfile.TemporaryDirectory() as tmp:
+        script_path = Path(tmp) / "aw.bash"
+        script_path.write_text(script, encoding="utf-8")
+        # `printf '%s\n'` with an empty COMPREPLY would emit one blank line, so the count is printed
+        # first and used to decide whether any candidate lines follow.
+        driver = (
+            f"source {shlex.quote(str(script_path))}\n"
+            f"COMP_WORDS=({' '.join(shlex.quote(w) for w in words)})\n"
+            f"COMP_CWORD={cword}\n"
+            "_aw_completion\n"
+            'echo "COUNT:${#COMPREPLY[@]}"\n'
+            'if [[ ${#COMPREPLY[@]} -gt 0 ]]; then printf "%s\\n" "${COMPREPLY[@]}"; fi\n'
+        )
+        proc = subprocess.run(
+            ["bash", "-c", driver], capture_output=True, text=True, check=False
+        )
+    if proc.returncode != 0:
+        raise AssertionError(
+            f"driving the generated bash completion failed (rc={proc.returncode}): {proc.stderr}"
+        )
+    lines = proc.stdout.strip().split("\n")
+    count = int(lines[0].split(":", 1)[1])
+    return sorted(lines[1 : 1 + count])
+
+
+@unittest.skipUnless(shutil.which("bash"), "bash not installed")
+class BashCompletionDrivenTests(unittest.TestCase):
+    """The generated bash function is EXECUTED, and a command completes its OWN arguments.
+
+    compargs 4y95tp E-04. This class exists because the whole module could not see the defect it
+    covers. `aw completion <TAB><TAB>` listed all 47 top-level commands, `aw completion in<TAB>`
+    narrowed to `include index install`, and taking `index` produced
+    `error: unknown completion target 'index'` - the completion actively led the maintainer into an
+    error. The cause was an unconditional `COMPREPLY=( ... top_names ... )` after the `case`, which
+    made every command WITHOUT a `case` arm (30 of 47, measured) suggest the entire command list.
+
+    WHY A TABLE HERE. The four rows are not four independent behaviors: one generator, one `case`
+    construction and one `_node_candidates` helper decide all of them, so the realistic failure moves
+    several rows at once. A reintroduced fall-through turns BOTH empty rows non-empty together, which
+    a table reports as one message naming both plus the tokens they wrongly offered; four separate
+    tests would report it as two red lines and each `assertEqual` would name only its own row.
+
+    WHY EMPTY IS THE CORRECT ANSWER for two of them, since "completes nothing" reads like a
+    regression: bash falls back to its OWN default (filenames) when `COMPREPLY` is empty, which for
+    `aw find <PATTERN>` is frequently what the user wants and is never actively misleading. Offering
+    `archive` as a thing to `find` is. Do not "fix" an empty row by restoring a fallback.
+    """
+
+    def setUp(self) -> None:
+        self.script = completion.generate_bash_completion()
+
+    #: (case, words, expected COMPREPLY (sorted) or None for "compute from the parser", why)
+    DRIVEN = (
+        (
+            "aw find <TAB>",
+            ["aw", "find", ""],
+            [],
+            "`find` has neither subcommands nor a choices-bearing positional, so the parser "
+            "declares NO vocabulary for this slot and the honest answer is none. Before the fix it "
+            "returned all 47 command names, proposing `commit` and `archive` as things to find",
+        ),
+        (
+            "aw install <TAB>",
+            ["aw", "install", ""],
+            [],
+            "a SECOND command from the 30 that had no `case` arm, so the fix is proven general "
+            "rather than special-cased to one name",
+        ),
+        (
+            "aw completion <TAB>",
+            ["aw", "completion", ""],
+            ["bash", "fish", "install", "uninstall", "zsh"],
+            "the MAINTAINER'S REPORTED COMMAND. It works only because E-08 gave the positional real "
+            "argparse `choices`: the vocabulary previously existed solely as a `metavar` display "
+            "string, so no amount of generator work could have surfaced it",
+        ),
+        (
+            "aw migrate-layout <TAB>",
+            ["aw", "migrate-layout", ""],
+            [
+                "apply",
+                "cleanup",
+                "inventory",
+                "plan",
+                "resume",
+                "rollback",
+                "status",
+                "wizard",
+            ],
+            "one of the two commands whose arguments are a positional with `choices`; it completed "
+            "nothing true before, because the tree walker descended only `_SubParsersAction`",
+        ),
+        (
+            "aw path <TAB>",
+            ["aw", "path", ""],
+            ["config", "records", "state", "system"],
+            "the other choices-bearing command, so the capture is not tuned to one parser shape",
+        ),
+        (
+            "aw ipd <TAB>",
+            ["aw", "ipd", ""],
+            None,
+            "THE WORKING HALF MUST STAY WORKING: `ipd` has real subparsers and always completed "
+            "correctly, so this row is what proves removing the fall-through did not break the 17 "
+            "commands that had a `case` arm. Expected is computed from the parser so adding an ipd "
+            "leaf does not make this a maintenance burden",
+        ),
+        (
+            "aw completion in<TAB>",
+            ["aw", "completion", "in"],
+            ["install"],
+            "THE EXACT REPORTED SEQUENCE, and the load-bearing assertion is what is ABSENT: this "
+            "returned `include index install` before, and a test merely checking that `install` is "
+            "present would have PASSED against the broken build. `index` must not appear",
+        ),
+    )
+
+    def test_every_position_completes_its_own_arguments(self) -> None:
+        tree = completion.introspect_cli_tree(cli._build_parser())
+        wrong = []
+        for case, words, expected, why in self.DRIVEN:
+            if expected is None:
+                expected = sorted(tree["subcommands"]["ipd"]["subcommands"])
+            got = _drive_bash_completion(self.script, words)
+            if got != sorted(expected):
+                extra = [t for t in got if t not in expected]
+                missing = [t for t in expected if t not in got]
+                detail = []
+                if extra:
+                    detail.append(f"WRONGLY OFFERED {extra[:8]!r} ({len(extra)} extra)")
+                if missing:
+                    detail.append(f"MISSING {missing!r}")
+                wrong.append(
+                    f"  {case}: "
+                    + "; ".join(detail)
+                    + f"\n    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the generated bash completion answered {len(wrong)} of {len(self.DRIVEN)} positions "
+            "wrongly. ONE `case` construction plus `_node_candidates` decides every row, so several "
+            "moving together usually means that construction changed rather than one command's "
+            "parser. FIX: if the two EMPTY rows suddenly offer many tokens, a top-level fall-through "
+            "was reintroduced after the `esac` (that is the original defect, compargs 4y95tp E-01); "
+            "if a choices row went empty, `introspect_cli_tree` stopped capturing positional "
+            "`choices`; if only `aw ipd` broke, the subcommand half of `_node_candidates` did.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_generated_script_has_no_top_level_fallback_after_esac(self) -> None:
+        """Kept separate: a STRUCTURAL claim about the emitted script, not a driven position.
+
+        The driven table is the real proof, but it cannot distinguish "no fallback" from "a fallback
+        that happens to be unreachable today". This pins the construction itself, so a future arm
+        ordering change cannot quietly restore the defect while every row stays green.
+        """
+        lines = self.script.split("\n")
+        esac_index = next(i for i, line in enumerate(lines) if line.strip() == "esac")
+        after = [
+            line.strip()
+            for line in lines[esac_index + 1 :]
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        offending = [line for line in after if line.startswith("COMPREPLY=")]
+        self.assertEqual(
+            offending,
+            [],
+            "the bash generator must NOT assign COMPREPLY after the `case` closes: that "
+            "unconditional fallback is the compargs 4y95tp defect, which made every command "
+            "without a `case` arm suggest the whole top-level command list. An empty COMPREPLY is "
+            f"the correct answer; bash then uses its own default completion. Found: {offending!r}",
+        )
+
+    def test_generated_script_makes_no_runtime_callback_into_aw(self) -> None:
+        """Kept separate: a NEGATIVE whole-script property, and a performance contract rather than a
+        completion answer.
+
+        The static script must stay self-contained. Resolving choices by calling back into `aw` would
+        put interpreter startup (~220ms, measured elsewhere in this repo) on every TAB press and would
+        break completion while the tool is mid-upgrade. The dynamic surface (`aw __complete`) exists
+        for queries that genuinely need repository state.
+        """
+        body = "\n".join(
+            line
+            for line in self.script.split("\n")
+            if not line.lstrip().startswith("#")
+        )
+        for needle in ("__complete", "$(aw ", "$(agentwf ", "`aw "):
+            self.assertNotIn(
+                needle,
+                body,
+                f"the generated static script must not invoke {needle!r} at completion time: it is "
+                "a self-contained snapshot by contract, and a runtime callback costs interpreter "
+                "startup on every TAB press",
+            )
+
+
+class PositionalChoicesIntrospectionTests(unittest.TestCase):
+    """`introspect_cli_tree` captures positional `choices` under their OWN key (4y95tp E-02).
+
+    The walker used to descend only `_SubParsersAction`, so a command expressing its arguments as a
+    positional with a fixed `choices` vocabulary contributed NOTHING and the generators had nothing
+    true to offer for it.
+
+    THE KEY IS SEPARATE ON PURPOSE. Choice tokens are not subcommands: they do not nest and carry no
+    flags of their own, so merging them into `subcommands` would invite a generator to emit a third
+    level for something that cannot have one, and would make `_all_command_paths` report
+    `migrate-layout apply` as a command path. These tests pin the separation, not just the capture.
+    """
+
+    def setUp(self) -> None:
+        self.tree = completion.introspect_cli_tree(cli._build_parser())
+
+    def test_choices_are_captured_under_their_own_key_not_merged(self) -> None:
+        node = self.tree["subcommands"]["migrate-layout"]
+        self.assertEqual(
+            sorted(node["choices"]),
+            [
+                "apply",
+                "cleanup",
+                "inventory",
+                "plan",
+                "resume",
+                "rollback",
+                "status",
+                "wizard",
+            ],
+        )
+        self.assertEqual(
+            node["subcommands"],
+            {},
+            "`migrate-layout`'s action vocabulary is a POSITIONAL's choices, not subparsers; "
+            "merging it into `subcommands` would make it look like a nestable command level",
+        )
+
+    def test_an_unconstrained_positional_contributes_nothing(self) -> None:
+        """A positional with no `choices` declares no vocabulary, and guessing one is the defect
+        class this key exists to end."""
+        for name in ("find", "install", "show"):
+            if name not in self.tree["subcommands"]:
+                continue
+            node = self.tree["subcommands"][name]
+            self.assertEqual(
+                node["choices"],
+                [],
+                f"`{name}` takes a free-form positional (a pattern/path/selector), so the static "
+                "tree must offer nothing for it rather than inventing values; dynamic values come "
+                "from `complete_query`",
+            )
+
+    def test_the_set_of_choices_bearing_commands_is_the_measured_set(self) -> None:
+        """A CENSUS, kept separate because it is a claim about the whole command set rather than one
+        command.
+
+        Measured at authoring: exactly three positionals carry `choices` - `migrate-layout action`,
+        `path root`, and `completion target` (the third only because 4y95tp E-08 gave it real
+        `choices`). This is not a freeze: a new one is FINE and the fix is to add it here. The test
+        exists so that a positional LOSING its choices (which silently removes a working completion)
+        is caught, and so the number in the plan's record stays checkable.
+        """
+        with_choices = sorted(
+            name
+            for name, node in self.tree["subcommands"].items()
+            if node.get("choices")
+        )
+        self.assertEqual(
+            with_choices,
+            ["completion", "migrate-layout", "path"],
+            "the set of commands whose first positional carries argparse `choices` changed. ADDING "
+            "one is expected and the fix is to extend this list; a command DISAPPEARING from it "
+            "means a working tab-completion was silently removed by a parser edit",
+        )
+
+
+class CompletionSurfaceParityTests(unittest.TestCase):
+    """The static scripts and the dynamic `complete_query` agree on the static layer (4y95tp E-05).
+
+    THE CONTRACT IS DOCUMENTED, NOT INFERRED: `_subcommand_candidates`'s docstring says it "mirrors
+    the generated static scripts so `__complete` and the offline scripts agree on the static layer".
+    Nothing asserted it, which is why teaching only the static generators about positional `choices`
+    would have falsified that sentence silently, in the very file that states it. Maintainer ruling
+    2026-09-12 (OQ-03): fix BOTH surfaces; the amend-the-docstring branch is closed.
+
+    This is the durable half of E-05. The implementation makes drift structurally hard (both surfaces
+    read the same tree key through the same `_node_candidates` helper), and this test is what notices
+    if a later change routes one of them around it.
+    """
+
+    #: (words, cword, why this case is in the parity set)
+    PARITY_CASES = (
+        (
+            ["aw", "completion", ""],
+            2,
+            "the maintainer's reported keystroke, and the case the plan's "
+            "review named explicitly: a `choices` vocabulary both surfaces must now see",
+        ),
+        (
+            ["aw", "migrate-layout", ""],
+            2,
+            "a choices-bearing command the static side gained in this "
+            "change; the dynamic side offered nothing here before E-05",
+        ),
+        (["aw", "path", ""], 2, "the second choices-bearing command"),
+        (
+            ["aw", "ipd", ""],
+            2,
+            "a SUBCOMMAND-bearing command, so parity is shown for the half that "
+            "already worked and not only for the new half",
+        ),
+        (
+            ["aw", "find", ""],
+            2,
+            "a command with NO vocabulary: both surfaces must agree on offering "
+            "nothing, which is where they already agreed before this change",
+        ),
+    )
+
+    @unittest.skipUnless(shutil.which("bash"), "bash not installed")
+    def test_both_surfaces_return_the_same_static_candidates(self) -> None:
+        script = completion.generate_bash_completion()
+        wrong = []
+        for words, cword, why in self.PARITY_CASES:
+            static = _drive_bash_completion(script, words, cword)
+            dynamic = sorted(completion.complete_query(words, cword))
+            if static != dynamic:
+                wrong.append(
+                    f"  {' '.join(words[:-1])} <TAB>: static script returned {static!r} but "
+                    f"complete_query returned {dynamic!r}\n"
+                    f"    this case exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the two completion surfaces disagreed on {len(wrong)} of {len(self.PARITY_CASES)} "
+            "static-layer positions. `_subcommand_candidates`'s own docstring promises they agree, "
+            "and a user reaches one or the other depending on whether argcomplete is active, so a "
+            "disagreement produces 'it works in my other shell' reports. FIX: both sides are meant "
+            "to read `introspect_cli_tree`'s `subcommands` + `choices` through "
+            "`completion._node_candidates`; a divergence means one side grew its own candidate "
+            "logic. Do NOT resolve this by amending the parity docstring: the maintainer closed "
+            f"that option on 2026-09-12 (OQ-03).\n" + "\n".join(wrong),
+        )
+
+
 _UNSET = object()  #: sentinel meaning "$SHELL must be absent for this row"
 
 
@@ -486,16 +847,51 @@ class CompletionCliTests(unittest.TestCase):
         )
 
     def test_parser_shape_allows_child03_extension(self) -> None:
-        """Kept separate: asserts the ABSENCE of an argparse `choices=` constraint (forward-compat),
-        not a value mapping."""
-        # Forward-compat: `target` is a free-form optional positional (no fixed choices), so a future
-        # `aw completion install`/`uninstall` token parses without a redesign. Confirm the parser
-        # accepts a non-shell target token (it reaches the handler, which validates), i.e. the parse
-        # itself does not reject it via `choices`.
+        """Kept separate: asserts the VERB-EXTENSION property of the `target` positional, not a
+        value mapping.
+
+        THE CONSTRAINT WAS TIGHTENED ON PURPOSE (compargs 4y95tp E-08, maintainer ruling 2026-09-12),
+        so read this test's change as a narrowing and NOT as the forward-compat guarantee being
+        dropped. It used to assert the ABSENCE of `choices=`: `target` was free-form, so any token
+        parsed and the handler validated. That shape made the vocabulary invisible to tooling - the
+        valid set existed only as a `metavar` DISPLAY string - so `aw completion <TAB>` could not
+        offer it and (before E-01) fell through to the whole command list, offering `index`, which
+        the verb then rejected.
+
+        WHAT STILL HOLDS is the property this test was written for: a non-shell VERB shares the
+        shell-name slot, so `aw completion install` parses without reshaping the parser. What changed
+        is that such a verb must now be REGISTERED in the positional's `choices` (one line) instead
+        of being silently accepted at parse time and refused in the handler. Adding a future verb is
+        therefore still additive; it is just no longer silent.
+        """
         parser = cli._build_parser()
         args = parser.parse_args(["completion", "install"])
         self.assertEqual(args.command, "completion")
-        self.assertEqual(args.target, "install")  # not constrained by choices=
+        # A VERB, not a shell name, still occupies the same positional (the forward-compat property).
+        self.assertEqual(args.target, "install")
+        # ...and it does so through registered `choices`, which is what makes the vocabulary
+        # machine-readable for completion. Both verbs and all three shells are registered.
+        target_action = next(
+            a
+            for a in parser._subparsers._group_actions[0]  # type: ignore[union-attr]
+            .choices["completion"]
+            ._actions
+            if a.dest == "target"
+        )
+        self.assertEqual(
+            sorted(target_action.choices or []),
+            sorted([*completion.SUPPORTED_SHELLS, "install", "uninstall"]),
+            "the `target` vocabulary must be the supported shells PLUS the manage verbs; a "
+            "mismatch here means a verb was added to one of the two lists only",
+        )
+        # The shell half is DERIVED from completion.SUPPORTED_SHELLS, not a second literal: a
+        # hand-written copy is the metavar drift this defect was made of, one field over.
+        for shell in completion.SUPPORTED_SHELLS:
+            self.assertIn(shell, target_action.choices or [])
+        # And an unregistered token is now rejected at PARSE time rather than by the handler.
+        with self.assertRaises(SystemExit):
+            with redirect_stderr(io.StringIO()):
+                parser.parse_args(["completion", "index"])
 
 
 # --------------------------------------------------------------------------------------
@@ -2295,6 +2691,259 @@ class InstallCompletionFlagTests(_DropInFixture):
             buf2 = io.StringIO()
             cli._completion_tip(Term(stream=buf2, color=False))
             self.assertEqual(buf2.getvalue(), "")
+
+
+class StaleCompletionWarningTests(_DropInFixture):
+    """An installed-but-OUTDATED completion script is reported, and never rewritten (4y95tp E-06).
+
+    THE GAP THIS CLOSES. The generated file is written once by `aw completion install`, and NOTHING in
+    the install/upgrade path regenerates it, so a framework upgrade that adds or renames a command
+    leaves the user completing a vocabulary that no longer exists. Worse, it was UNREPORTABLE:
+    `_completion_configured` composes `is_completion_installed`, a PRESENCE check, so a stale file took
+    the same silent branch as a current one and the user had no way to find out. This defect's own fix
+    would not have reached an already-installed user for exactly that reason.
+
+    WARN, NEVER REWRITE (maintainer ruling 2026-09-12, OQ-01). The user's completion file is theirs
+    once written and a user-scoped write requires consent, so the file-untouched assertion below is
+    not a detail: a run that warns correctly AND rewrites the file has failed this class.
+
+    WHY A TABLE FOR THE THREE STATES. `_completion_tip` is one predicate over one classification, so
+    the realistic failure (the classification collapsing back to a two-state presence check) moves the
+    rows together: `stale` silently becomes `current`, or `current` starts warning on every command.
+    Three separate tests report only the first; the table reports which states produced which output.
+    """
+
+    def _tip_output(self) -> str:
+        buf = io.StringIO()
+        cli._completion_tip(Term(stream=buf, color=False))
+        return buf.getvalue()
+
+    def _make_stale(self) -> Path:
+        """Install, then edit the installed file so it no longer matches a fresh generation.
+
+        Simulates the REAL cause (an upgrade whose generator output changed) without needing a second
+        version of the package installed, and keeps our sentinel intact so the file is still
+        recognizably ours - a file without the sentinel is FOREIGN, which is a different state.
+        """
+        completion.install_shell_completion("bash")
+        primary = self.xdg_data / "bash-completion/completions/aw"
+        body = primary.read_text(encoding="utf-8")
+        primary.write_text(
+            body.replace(
+                "_aw_completion() {",
+                "_aw_completion() {\n    # a command this version no longer has",
+            ),
+            encoding="utf-8",
+        )
+        return primary
+
+    #: (state, setup name, expected substring or None for "no output at all", why this row exists)
+    STATES = (
+        (
+            "absent",
+            "none",
+            "Tip: Enable tab-completion",
+            "the original behavior must be untouched: with no file installed the user needs the "
+            "enable-tip, not a staleness warning about a file that does not exist",
+        ),
+        (
+            "current",
+            "install",
+            None,
+            "SILENCE is the whole point of the current state. A warning on every `aw install` for a "
+            "perfectly good file would train the user to ignore the message",
+        ),
+        (
+            "stale",
+            "stale",
+            "aw completion install",
+            "the new state, and the message must NAME THE COMMAND to run; a warning that says only "
+            "'your completion is outdated' leaves the user to guess",
+        ),
+    )
+
+    def test_every_installed_state_produces_its_own_message(self) -> None:
+        wrong = []
+        for state, setup, expected, why in self.STATES:
+            with tempfile.TemporaryDirectory() as tmp:
+                # Each row gets its OWN completion dir so the states cannot leak into each other.
+                self.xdg_data = Path(tmp) / "xdg-data"
+                with mock.patch.dict(
+                    os.environ,
+                    {
+                        "SHELL": "/bin/bash",
+                        "HOME": str(self.home),
+                        "XDG_DATA_HOME": str(self.xdg_data),
+                        "XDG_CONFIG_HOME": str(self.xdg_config),
+                    },
+                ):
+                    if setup == "install":
+                        completion.install_shell_completion("bash")
+                    elif setup == "stale":
+                        self._make_stale()
+                    observed_state = completion.installed_completion_state("bash")
+                    out = self._tip_output()
+                problems = []
+                if observed_state != state:
+                    problems.append(
+                        f"classified as {observed_state!r}, expected {state!r}"
+                    )
+                if expected is None:
+                    if out != "":
+                        problems.append(f"expected NO output, got {out!r}")
+                elif expected not in out:
+                    problems.append(
+                        f"expected output containing {expected!r}, got {out!r}"
+                    )
+                if problems:
+                    wrong.append(
+                        f"  state {state}: "
+                        + "; ".join(problems)
+                        + f"\n    this row exists because: {why}"
+                    )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the completion-state report was wrong for {len(wrong)} of {len(self.STATES)} states. "
+            "ONE classification (`completion.installed_completion_state`) feeds ONE printer "
+            "(`cli._completion_tip`), so several rows moving together usually means the "
+            "classification collapsed back to a two-state PRESENCE check. FIX: if `stale` reports "
+            "`current`, the byte comparison against a fresh generation stopped happening (check that "
+            "the sentinel line is the only thing stripped); if `current` starts warning, the "
+            "comparison is picking up something the generator does not emit, which would nag every "
+            f"user on every install.\n" + "\n".join(wrong),
+        )
+
+    def test_the_stale_warning_does_not_touch_the_users_file(self) -> None:
+        """Kept separate: a BEFORE/AFTER filesystem claim about a file we must NOT write.
+
+        The load-bearing half of the warn-only ruling. A run that prints the right warning and then
+        "helpfully" regenerates the file has violated it, and no message assertion can see that.
+        """
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHELL": "/bin/bash",
+                "HOME": str(self.home),
+                "XDG_DATA_HOME": str(self.xdg_data),
+                "XDG_CONFIG_HOME": str(self.xdg_config),
+            },
+        ):
+            primary = self._make_stale()
+            before_stat = primary.stat()
+            before_bytes = primary.read_bytes()
+
+            out = self._tip_output()
+            self.assertIn(
+                "aw completion install", out, "precondition: the warning fired"
+            )
+
+            after_stat = primary.stat()
+            self.assertEqual(
+                before_bytes,
+                primary.read_bytes(),
+                "the stale-completion warning must not REWRITE the user's completion file: the "
+                "maintainer ruled warn-only on 2026-09-12 (OQ-01) because a user-scoped write "
+                "requires consent. A correct warning plus a silent rewrite is still a failure.",
+            )
+            self.assertEqual(
+                (before_stat.st_mtime_ns, before_stat.st_size),
+                (after_stat.st_mtime_ns, after_stat.st_size),
+                "the file must not be touched at all (not even rewritten with identical bytes): "
+                "mtime is what a user or a backup tool would notice",
+            )
+
+    def test_a_foreign_file_is_absent_not_stale(self) -> None:
+        """Kept separate: an ADVERSARIAL third-party-file case, not one of the three own-file states.
+
+        Someone else's `aw` completion in a shared directory is not OUR stale file. Warning that it is
+        outdated would be a claim about a file we did not write and must not touch, and it would point
+        the user at `aw completion install`, which correctly REFUSES to clobber it (sentinel-gated).
+        The honest classification is `absent`: our completion is not installed.
+        """
+        directory = self.xdg_data / "bash-completion/completions"
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "aw").write_text(
+            "# someone else's completion for a different aw\n", encoding="utf-8"
+        )
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHELL": "/bin/bash",
+                "HOME": str(self.home),
+                "XDG_DATA_HOME": str(self.xdg_data),
+                "XDG_CONFIG_HOME": str(self.xdg_config),
+            },
+        ):
+            self.assertEqual(completion.installed_completion_state("bash"), "absent")
+            out = self._tip_output()
+        self.assertIn("Tip: Enable tab-completion", out)
+        self.assertNotIn("OUTDATED", out)
+
+    def test_the_warning_is_scoped_to_the_detected_shell(self) -> None:
+        """Kept separate: a CROSS-SHELL claim, which no single-shell row can express.
+
+        A stale zsh file must not warn a bash user, and vice versa. `_detect_shell` already scopes the
+        absent-case tip, and the staleness check inherits that scoping rather than inventing its own.
+        """
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHELL": "/bin/bash",
+                "HOME": str(self.home),
+                "XDG_DATA_HOME": str(self.xdg_data),
+                "XDG_CONFIG_HOME": str(self.xdg_config),
+            },
+        ):
+            # Make ZSH stale, and install a CURRENT bash file.
+            completion.install_shell_completion("zsh")
+            zsh_primary = self.xdg_data / "zsh/site-functions/_aw"
+            zsh_primary.write_text(
+                zsh_primary.read_text(encoding="utf-8") + "\n# drift\n",
+                encoding="utf-8",
+            )
+            completion.install_shell_completion("bash")
+
+            self.assertEqual(completion.installed_completion_state("zsh"), "stale")
+            self.assertEqual(completion.installed_completion_state("bash"), "current")
+            self.assertEqual(
+                self._tip_output(),
+                "",
+                "a bash user with a CURRENT bash completion must hear nothing about a stale zsh "
+                "file they do not use",
+            )
+
+    def test_the_tip_is_emitted_once_per_invocation_not_once_per_repo(self) -> None:
+        """Kept separate: a CALL-SITE claim about cli.py's structure, not an output value.
+
+        Completion is a per-user/per-machine concern, so a batch `aw install` across many repos must
+        not repeat the warning per target. The property is already held by WHERE `_completion_tip` is
+        called (outside the per-repo loop), so this test pins those call sites rather than re-deriving
+        the behavior: it is what stops someone moving the call into the loop.
+        """
+        src = Path(cli.__file__).read_text(encoding="utf-8")
+        call_sites = [
+            line for line in src.split("\n") if line.strip() == "_completion_tip(term)"
+        ]
+        self.assertEqual(
+            len(call_sites),
+            3,
+            "`_completion_tip` is called from exactly three host-level sites (single-repo install, "
+            "batch install, setup), each ONCE per invocation and outside the per-repo loop. A "
+            "different count means a call site was added or removed; if the new one sits inside a "
+            "per-repo loop, a fleet install will repeat this per-user warning once per repo.",
+        )
+        # And every call site must be at the same indentation as a function-body statement (4 spaces),
+        # never nested deeper inside a `for repo in ...` loop.
+        for line in [
+            raw for raw in src.split("\n") if raw.strip() == "_completion_tip(term)"
+        ]:
+            self.assertEqual(
+                len(line) - len(line.lstrip()),
+                4,
+                "a `_completion_tip` call indented deeper than a function-body statement is "
+                f"probably inside a per-repo loop: {line!r}",
+            )
 
 
 # The only test here that SPAWNS the CLI, so it carries the `slow` marker (pyproject.toml:108-109);

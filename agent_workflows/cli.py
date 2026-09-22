@@ -5531,14 +5531,23 @@ EXAMPLES
     )
 
     # tabcomp Order 01 (bja8og): `aw completion <shell>` streams a native completion script to
-    # stdout. PARSER SHAPE (forward-compatibility, blocks tabcomp-03 jolfpj E-02): `shell` is NOT a
-    # bare `choices={bash,zsh,fish}` positional - that would collide with the `install`/`uninstall`
-    # verbs tabcomp-03 adds. Instead `target` is a free-form optional positional (validated in the
-    # handler): today it accepts a shell name (or is omitted -> $SHELL detection, OQ-01 bash
-    # fallback); tabcomp-03 can additively accept `install`/`uninstall` as the first token WITHOUT
-    # reshaping this parser. Do NOT convert `target` to a fixed-choices positional.
-    # Single source of truth for the supported shell vocabulary (stdlib-only, cheap import).
+    # stdout.
+    #
+    # PARSER SHAPE, NARROWED ON PURPOSE (compargs 4y95tp E-08, maintainer ruling 2026-09-12). `target`
+    # WAS a free-form positional with `choices=None`, whose vocabulary existed only as the `metavar`
+    # DISPLAY string and was enforced by a runtime `if` in `_run_completion`. That shape was chosen so
+    # tabcomp-03's `install`/`uninstall` verbs could be ADDITIVE on a shell-name slot, but it made the
+    # vocabulary invisible to every tool: `aw completion <TAB>` could not offer the five valid tokens
+    # and, before E-01, fell through to the whole command list, so it offered `index` and the verb then
+    # rejected it. The vocabulary is now real argparse `choices`, so completion and `--help` read the
+    # SAME list the parser enforces. A future verb is still additive - it just has to be REGISTERED in
+    # this list (one line) rather than silently accepted at parse time and rejected in the handler.
+    # KEEP THE SHELL NAMES IN ONE PLACE: they come from `completion.SUPPORTED_SHELLS`, which `--shell`
+    # below already uses, because a second hand-written literal is exactly the drift this defect was.
     from agent_workflows import completion as completion_mod
+
+    _COMPLETION_VERBS = ("install", "uninstall")
+    _completion_targets = [*completion_mod.SUPPORTED_SHELLS, *_COMPLETION_VERBS]
 
     p_completion = sub.add_parser(
         "completion",
@@ -5550,13 +5559,14 @@ EXAMPLES
         "target",
         nargs="?",
         default=None,
-        metavar="bash|zsh|fish|install|uninstall",
+        choices=_completion_targets,
+        metavar="|".join(_completion_targets),
         help="Shell to generate for (default: detect from $SHELL, else bash), or the verb "
         "'install'/'uninstall' to manage the drop-in auto-discovery file.",
     )
-    # tabcomp Order 03 (jolfpj) E-02: the install/uninstall verbs are ADDITIVE on child 01's
-    # free-form `target` positional (see the shape note above) - `aw completion <shell>` output is
-    # unchanged. These flags only apply when `target` is install|uninstall.
+    # tabcomp Order 03 (jolfpj) E-02: the install/uninstall verbs share child 01's `target` positional
+    # (see the shape note above) - `aw completion <shell>` output is unchanged. These flags only apply
+    # when `target` is install|uninstall.
     p_completion.add_argument(
         "--shell",
         choices=list(completion_mod.SUPPORTED_SHELLS),
@@ -6360,15 +6370,49 @@ def _completion_configured() -> bool:
         return False
 
 
+def _completion_state() -> str:
+    """The detected shell's completion state: ``absent``/``current``/``stale`` (compargs 4y95tp E-06).
+
+    Widens `_completion_configured`'s PRESENCE question into the three states that actually exist, so
+    an installed-but-outdated script stops taking the silent branch. Fails soft to ``current`` on any
+    error: a diagnostic that cannot read the file must not warn about it.
+    """
+    try:
+        from agent_workflows import completion as _completion
+
+        return _completion.installed_completion_state(_detect_shell())
+    except Exception:
+        return "current"
+
+
 def _completion_tip(term: Term) -> None:
-    """Print the tab-completion discovery tip when completion is not yet configured (jolfpj E-04).
+    """Print the tab-completion tip, or the STALE-completion warning, once per invocation (E-04).
 
     A per-user/per-machine hint, so it is printed ONCE per command invocation (not once per repo in
-    a batch install) and stays silent when completion is already in place.
+    a batch install), and scoped to the DETECTED shell (never warn about zsh to a bash user).
+
+    THREE STATES, NOT TWO (compargs 4y95tp E-06, maintainer ruling 2026-09-12 on OQ-01). ABSENT keeps
+    the original enable-tip. CURRENT stays silent. STALE - an installed file that no longer matches
+    what this CLI would generate, which happens on every upgrade that adds or renames a command - now
+    says so and names `aw completion install`, because staleness was previously UNREPORTABLE and a
+    user kept completing a vocabulary that no longer existed.
+
+    WARN-ONLY, NEVER REWRITE: the installed file is the user's once written, and a user-scoped write
+    requires consent. This function reads and prints; it touches no completion directory.
     """
-    if _completion_configured():
+    state = _completion_state()
+    if state == "current":
         return
     term.line()
+    if state == "stale":
+        # OUTDATED, not broken: a stale script still completes every command whose name did not
+        # change, so the wording must not imply completion has stopped working.
+        term.status(
+            "warn",
+            "Your installed aw tab-completion is OUTDATED (it was generated by an older version). "
+            "Run 'aw completion install' to refresh it.",
+        )
+        return
     term.status("ok", "Tip: Enable tab-completion with 'aw completion install'")
 
 
@@ -11695,22 +11739,21 @@ def _run_completion(args: argparse.Namespace, term: Optional[Term] = None) -> in
 
     A shell-name (or omitted) `target` streams the native completion script to stdout - clean stdout
     only (the raw script), so `source <(aw completion bash)` works; bare invocation detects the shell
-    from $SHELL (bash fallback, OQ-01). The `install`/`uninstall` verbs are routed ADDITIVELY here
-    (jolfpj E-02) on child 01's free-form `target` positional; the script-output path is unchanged."""
+    from $SHELL (bash fallback, OQ-01). The `install`/`uninstall` verbs are routed here (jolfpj E-02)
+    on the same `target` positional; the script-output path is unchanged.
+
+    TARGET VALIDATION LIVES IN ARGPARSE NOW (compargs 4y95tp E-08). This handler used to re-check
+    `shell not in ("bash","zsh","fish")` and print its own error, because `target` was free-form. The
+    positional now carries real `choices`, so an unknown token is rejected at PARSE time and that
+    branch became unreachable; it is removed rather than kept, because two validators for one
+    vocabulary are two things that can disagree. `_detect_shell` returns only supported shells, so
+    every value reaching `generate` is valid by construction."""
     from agent_workflows import completion as _completion
 
     target = getattr(args, "target", None)
     if target in ("install", "uninstall"):
         return _run_completion_install(args, verb=target, term=term)
     shell = target if target else _detect_shell()
-    if shell not in ("bash", "zsh", "fish"):
-        print(
-            f"agent-workflows: error: unknown completion target {shell!r} "
-            "(expected bash|zsh|fish|install|uninstall).",
-            file=sys.stderr,
-        )
-        print("Next  aw completion --help", file=sys.stderr)
-        return 2
     sys.stdout.write(_completion.generate(shell))
     return 0
 
