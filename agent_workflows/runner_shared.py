@@ -15072,7 +15072,7 @@ and documentation satisfy every requirement before this plan can be considered e
    - Confirm that tests are genuine and testing real assertions (not trivial passes).
 
 4. **In-Scope Fixes**:
-   - If you discover safely correctable defects, regressions, or missing test cases within the approved scope, fix them, re-run validation, and commit path-scoped (`git commit -m msg -- <paths>`). Never push.
+   - If you discover safely correctable defects, regressions, or missing test cases within the approved scope, fix them, re-run validation, and commit through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change), limited to the paths you name. Never push.
    - If any unresolvable defect or scope gap remains, report it clearly.
 
 5. **Write Verification Outcome**:
@@ -15165,7 +15165,7 @@ report honestly, including when the honest answer is that you cannot tell.
    - Confirm that tests are genuine and testing real assertions (not trivial passes).
 
 4. **In-Scope Fixes**:
-   - If you discover safely correctable defects, regressions, or missing test cases within the approved scope, fix them, re-run validation, and commit path-scoped (`git commit -m msg -- <paths>`). Never push.
+   - If you discover safely correctable defects, regressions, or missing test cases within the approved scope, fix them, re-run validation, and commit through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change), limited to the paths you name. Never push.
    - If any unresolvable defect or scope gap remains, report it clearly.
 
 5. **Write Audit Outcome**:

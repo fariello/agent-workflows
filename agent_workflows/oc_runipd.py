@@ -3262,7 +3262,7 @@ Plan Documents (IPDs) in this repository.
 1. Execute only the assigned IPD in this turn.
 2. Read the assigned IPD in full, its current orchestrator, repository guidelines, and tests.
 3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence.
-4. Commit only files you changed with path-scoped git commits (`git commit -m msg -- <path>`).
+4. Commit only files you changed, limited to the paths you name, through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change).
 5. Never push to remote.
 6. Write valid outcome JSON before exiting.
 """

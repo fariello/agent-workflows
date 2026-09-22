@@ -1726,17 +1726,30 @@ def _build_parser() -> argparse.ArgumentParser:
     p_commit = sub.add_parser(
         "commit",
         parents=[common],
-        help="Commit ONLY a plan's in-scope paths via the shared path-scoped helper: 'aw commit <ipd> -- <paths>'.",
+        help=(
+            "Commit ONLY a plan's in-scope paths via the shared path-scoped helper: "
+            "'aw commit <ipd> -- <paths>', or 'aw commit --no-plan -m <msg> -- <paths>' "
+            "for a commit no plan governs."
+        ),
         description=(
             "Compute a plan's allowed scope from its Scope-Paths, refuse when the staged index holds "
             "any out-of-scope change, run the shared policy engine, then commit ONLY the declared "
             "in-scope paths by reusing the path-scoped git_commit_helper (never git add -A/-a, never "
-            "--no-verify, never push). Exit 0 committed, 1 refused/nothing, 2 usage."
+            "--no-verify, never push). `--no-plan` commits paths NO plan governs (a backlog item, a "
+            "spec edit, a typo fix): it skips only the two plan-derived checks, names them in its "
+            "output, still routes through the same shared helper, and REQUIRES -m. Exit 0 committed, "
+            "1 refused/nothing, 2 usage."
         ),
     )
-    p_commit.add_argument(
-        "plan", help="Plan selector (id6, setid, stem, path, or substring)."
-    )
+    # NO `plan` POSITIONAL IS DECLARED, and that is the fix rather than an omission. A required (or
+    # even `nargs='?'`) positional beside `path_argv`'s `argparse.REMAINDER` SILENTLY EATS THE FIRST
+    # PATH: measured, `aw commit --no-plan -m msg -- a.py b.py` parses `plan='a.py'` with
+    # `path_argv=['b.py']`, because REMAINDER only starts capturing once every positional is filled,
+    # so the `--` marker fills the selector slot's successor and `a.py` lands in the selector. The
+    # selector is therefore recovered from the pre-`--` segment by `work_cmd.run_commit`, exactly as
+    # `-m`/`--message`/`--no-commit` already are and as `_split_remainder` already recovers `--dir`.
+    # Declaring the flags below is still load-bearing: it keeps `--help` honest, lets `--no-plan`
+    # parse when it PRECEDES the selector, and keeps the presentation/output parents working.
     p_commit.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
@@ -1747,11 +1760,26 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Preview only; do not commit.",
     )
-    # dest is `path_argv` (NOT `command`); place options before the `--`.
+    p_commit.add_argument(
+        "--no-plan",
+        dest="no_plan",
+        action="store_true",
+        help=(
+            "Commit paths no plan governs. Skips Scope-Paths enforcement and plan validation "
+            "(named in the output), keeps every other protection, and requires -m. Refused "
+            "together with a <plan> selector."
+        ),
+    )
+    # dest is `path_argv` (NOT `command`); it captures the WHOLE tail including the optional plan
+    # selector, which `work_cmd.run_commit` splits on the `--` marker.
     p_commit.add_argument(
         "path_argv",
         nargs=argparse.REMAINDER,
-        help="The in-scope paths to commit, after `--`.",
+        metavar="[<plan>] -- <paths>",
+        help=(
+            "The optional plan selector (id6, setid, stem, path, or substring) followed by `--` "
+            "and the paths to commit."
+        ),
     )
 
     p_finish = sub.add_parser(
