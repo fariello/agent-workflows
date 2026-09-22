@@ -147,34 +147,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Make merged-ness a first-class reading
 
-- [ ] E-01 Add a `merged_into_target` boolean to `worktree_lease.LaneState`, computed by DELEGATING to the existing `runner_shared.lane_work_has_landed(repo, branch, target=...)` rather than issuing a second `merge-base --is-ancestor` call, so the repository keeps ONE definition of "merged" (spec `7ckptx` R6.1). Record it ALONGSIDE `commits_ahead`; do not alter how `commits_ahead` is computed, since `LANE_STALE`/`LANE_FOREIGN` adoption logic reads it and changing its meaning would silently change which lanes are reused. HANDLE THE THREE-VALUED RESULT HONESTLY: `lane_work_has_landed` returns `True`/`False`/`None`, `None` meaning the question could not be answered; map `None` to NOT-merged (`False`) so an unanswerable lane is never treated as recovered, and state that choice in the field's docstring. CHECK THE IMPORT DIRECTION BEFORE WRITING: `runner_shared` imports `worktree_lease` (`runner_shared.py:810`) and not the reverse, so a module-level import back would be circular; use a function-local import, which is the pattern `runner_shared` itself uses, and say so.
+- [x] E-01 Add a `merged_into_target` boolean to `worktree_lease.LaneState`, computed by DELEGATING to the existing `runner_shared.lane_work_has_landed(repo, branch, target=...)` rather than issuing a second `merge-base --is-ancestor` call, so the repository keeps ONE definition of "merged" (spec `7ckptx` R6.1). Record it ALONGSIDE `commits_ahead`; do not alter how `commits_ahead` is computed, since `LANE_STALE`/`LANE_FOREIGN` adoption logic reads it and changing its meaning would silently change which lanes are reused. HANDLE THE THREE-VALUED RESULT HONESTLY: `lane_work_has_landed` returns `True`/`False`/`None`, `None` meaning the question could not be answered; map `None` to NOT-merged (`False`) so an unanswerable lane is never treated as recovered, and state that choice in the field's docstring. CHECK THE IMPORT DIRECTION BEFORE WRITING: `runner_shared` imports `worktree_lease` (`runner_shared.py:810`) and not the reverse, so a module-level import back would be circular; use a function-local import, which is the pattern `runner_shared` itself uses, and say so.
   - Depends on: none
   - Expected outcome: `inspect_lane` on a merged lane returns `merged_into_target=True` while still reporting its real `commits_ahead`; on an unmerged lane and on an unanswerable one it returns False. No existing field changes value. No second `--is-ancestor` call is introduced anywhere.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make `LaneState.reclaimable` accept a MERGED lane in addition to today's `LANE_EMPTY`/`LANE_STALE` cases, keyed on E-01's `merged_into_target` AND on `dirty` being False. DO NOT call `lane_containment.inventory_lane` from here: round 2 measured that it reports EVERY lane unclassifiable when given no `run_dir`/`item` (Goal item 5), and `inspect_lane` has no such parameter, so doing it here would make even today's reclaimable lanes non-reclaimable. THE IGNORED-FILE HAZARD IS REAL AND IS NOT SOLVED BY THIS ITEM: it is solved at the CALL SITE by E-03's inventory gate, which is the only layer holding the run context the inventory needs. State that division of labour in the `reclaimable` docstring, and state plainly there that `reclaimable` is NECESSARY BUT NOT SUFFICIENT for teardown, so a future caller cannot read it as an authorization. Keep the `LANE_EMPTY`/`LANE_STALE` branch exactly as it is.
+- [x] E-02 Make `LaneState.reclaimable` accept a MERGED lane in addition to today's `LANE_EMPTY`/`LANE_STALE` cases, keyed on E-01's `merged_into_target` AND on `dirty` being False. DO NOT call `lane_containment.inventory_lane` from here: round 2 measured that it reports EVERY lane unclassifiable when given no `run_dir`/`item` (Goal item 5), and `inspect_lane` has no such parameter, so doing it here would make even today's reclaimable lanes non-reclaimable. THE IGNORED-FILE HAZARD IS REAL AND IS NOT SOLVED BY THIS ITEM: it is solved at the CALL SITE by E-03's inventory gate, which is the only layer holding the run context the inventory needs. State that division of labour in the `reclaimable` docstring, and state plainly there that `reclaimable` is NECESSARY BUT NOT SUFFICIENT for teardown, so a future caller cannot read it as an authorization. Keep the `LANE_EMPTY`/`LANE_STALE` branch exactly as it is.
   - Depends on: E-01
   - Expected outcome: a merged, non-dirty lane reports `reclaimable=True`; a merged DIRTY lane stays False; an unmerged lane is unaffected; every lane that is reclaimable today still is. THIS ITEM CHANGES NO OBSERVABLE BEHAVIOR ON ITS OWN (see E-03): it changes a reading, and the docstring says so.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Reclaim the merged lane through the one teardown gate
 
-- [ ] E-03 Change the interrupt-path DECISION ORDER so a merged lane is reclaimed at all, and route that reclaim through `lane_containment.teardown_lane_if_classified`. THE ORDER IS THE LOAD-BEARING HALF, measured in round 2 (Goal item 4): the loop tests `if lane["holds_work"]:` and `continue`s (`oc_runipd.py:2287`, `agy_runipd.py:1242`) BEFORE it reads `reclaimable` (`:2337`, `:1292`), and a merged lane is STILL `holds_work` because `commits_ahead > 0`, so E-01 and E-02 alone are INERT. Consult merged-ness before the `holds_work` bail-out, so a merged lane reaches the reclaim branch. Then replace the direct `worktree_lease.teardown_worktree(repo, handle, force=True)` call with the shared gate, passing `run_dir` and the per-item record the function already holds (`oc_runipd.py:2226-2260`) so the inventory can actually read a receipt; on refusal, record it on the existing preservation event and leave the lane. PRESERVE the snapshot-then-preserve behavior for a lane that is NOT merged, and the operator `keep` prompt and `left-alone` disposition. Both hosts identically; no per-host rule.
+- [x] E-03 Change the interrupt-path DECISION ORDER so a merged lane is reclaimed at all, and route that reclaim through `lane_containment.teardown_lane_if_classified`. THE ORDER IS THE LOAD-BEARING HALF, measured in round 2 (Goal item 4): the loop tests `if lane["holds_work"]:` and `continue`s (`oc_runipd.py:2287`, `agy_runipd.py:1242`) BEFORE it reads `reclaimable` (`:2337`, `:1292`), and a merged lane is STILL `holds_work` because `commits_ahead > 0`, so E-01 and E-02 alone are INERT. Consult merged-ness before the `holds_work` bail-out, so a merged lane reaches the reclaim branch. Then replace the direct `worktree_lease.teardown_worktree(repo, handle, force=True)` call with the shared gate, passing `run_dir` and the per-item record the function already holds (`oc_runipd.py:2226-2260`) so the inventory can actually read a receipt; on refusal, record it on the existing preservation event and leave the lane. PRESERVE the snapshot-then-preserve behavior for a lane that is NOT merged, and the operator `keep` prompt and `left-alone` disposition. Both hosts identically; no per-host rule.
   - Depends on: E-02
   - Expected outcome: an interrupted run whose lane is merged AND whose inventory is classified reclaims that lane; a merged lane holding unexplained content (including an IGNORED file) is preserved with its reason recorded; an UNMERGED lane still takes today's snapshot-and-preserve path unchanged; no code path reachable from `reclaim_lanes_on_interrupt` calls `teardown_worktree` with `force=True` directly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Guard the invariant
 
-- [ ] E-04 Add `tests/test_worktree_lease_merged_reclaim.py` covering BOTH layers, since round 2 measured that the reading and the behavior are separable and that only the second is observable. LAYER 1 (the reading, E-01/E-02): build a real lane in a temp repo cut from an OLDER base, commit on it, merge it to the target, and assert `merged_into_target=True`, `reclaimable=True`, and `commits_ahead` still non-zero (proving the fix did not corrupt that figure); plus `merged_into_target=False` for an unmerged lane and for an UNANSWERABLE one (deleted branch), and `reclaimable=False` for a merged DIRTY lane; plus a regression assertion that a lane reclaimable TODAY still is. LAYER 2 (the behavior, E-03): drive `reclaim_lanes_on_interrupt` itself and assert the merged lane is RECLAIMED rather than preserved. THAT SECOND LAYER IS THE ONE THAT WOULD HAVE CAUGHT THE INERT FIX: a test of `reclaimable` alone passes while the interrupt path still preserves the lane via `holds_work`, which is exactly the false green round 2 measured. Add the IGNORED-file case at layer 2 (not layer 1, where the inventory is not consulted): an interrupted merged lane whose only unexplained content is a gitignored file must be PRESERVED, with its reason code recorded.
+- [x] E-04 Add `tests/test_worktree_lease_merged_reclaim.py` covering BOTH layers, since round 2 measured that the reading and the behavior are separable and that only the second is observable. LAYER 1 (the reading, E-01/E-02): build a real lane in a temp repo cut from an OLDER base, commit on it, merge it to the target, and assert `merged_into_target=True`, `reclaimable=True`, and `commits_ahead` still non-zero (proving the fix did not corrupt that figure); plus `merged_into_target=False` for an unmerged lane and for an UNANSWERABLE one (deleted branch), and `reclaimable=False` for a merged DIRTY lane; plus a regression assertion that a lane reclaimable TODAY still is. LAYER 2 (the behavior, E-03): drive `reclaim_lanes_on_interrupt` itself and assert the merged lane is RECLAIMED rather than preserved. THAT SECOND LAYER IS THE ONE THAT WOULD HAVE CAUGHT THE INERT FIX: a test of `reclaimable` alone passes while the interrupt path still preserves the lane via `holds_work`, which is exactly the false green round 2 measured. Add the IGNORED-file case at layer 2 (not layer 1, where the inventory is not consulted): an interrupted merged lane whose only unexplained content is a gitignored file must be PRESERVED, with its reason code recorded.
   - Depends on: E-03
   - Expected outcome: a test file whose layer-2 merged case FAILS against today's code and against an E-01+E-02-only implementation, and passes after E-03; with the ignored-file preservation pinned so a later change cannot reintroduce the destruction hazard.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Assert the NO-DIRECT-FORCE-TEARDOWN invariant structurally, not by reading the diff: prove by AST or import-graph inspection that no call to `worktree_lease.teardown_worktree(..., force=True)` is reachable from `reclaim_lanes_on_interrupt` on either host, and that both hosts reach the shared gate. SCOPE THE ASSERTION HONESTLY, because round 2 found the repository holds FOUR force-teardown callers, not two: `oc_runipd.py:2345` and `agy_runipd.py:1300` (this plan's), `runner_shared.py:1012` (`teardown_isolation_worktree`, which the shared GATE itself calls and which must keep working), and `runner_shared.py:3934` (a no-files-changed cleanup this plan does not touch). So the assertion must be REACHABILITY-FROM-THE-INTERRUPT-PATH, never a repo-wide count of the string, or it will either fail against untouched code or forbid the gate its own remover. Follow the existing precedent for this style of proof (`lanectn` `4fodkt` established shared-rule assertions by AST rather than grep).
+- [x] E-05 Assert the NO-DIRECT-FORCE-TEARDOWN invariant structurally, not by reading the diff: prove by AST or import-graph inspection that no call to `worktree_lease.teardown_worktree(..., force=True)` is reachable from `reclaim_lanes_on_interrupt` on either host, and that both hosts reach the shared gate. SCOPE THE ASSERTION HONESTLY, because round 2 found the repository holds FOUR force-teardown callers, not two: `oc_runipd.py:2345` and `agy_runipd.py:1300` (this plan's), `runner_shared.py:1012` (`teardown_isolation_worktree`, which the shared GATE itself calls and which must keep working), and `runner_shared.py:3934` (a no-files-changed cleanup this plan does not touch). So the assertion must be REACHABILITY-FROM-THE-INTERRUPT-PATH, never a repo-wide count of the string, or it will either fail against untouched code or forbid the gate its own remover. Follow the existing precedent for this style of proof (`lanectn` `4fodkt` established shared-rule assertions by AST rather than grep).
   - Depends on: E-03
   - Expected outcome: a pinned assertion that a future edit reintroducing a direct force-teardown ON THE INTERRUPT PATH fails a test, which does NOT fire for the three legitimate callers elsewhere, rather than relying on a reviewer noticing.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -414,17 +414,55 @@ different Sets is how a shipped contract gets weakened twice.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `inspect_lane` for a MERGED lane and an UNMERGED lane in a temp
     repo, showing `merged_into_target` True and False respectively, AND showing `commits_ahead` retains
     its pre-fix value for both (proving the field was added, not substituted). PLUS proof of DELEGATION
     rather than duplication: paste the added code (or an AST/grep count) showing the repository still has
     exactly ONE `merge-base --is-ancestor <branch> <target>` landing predicate and that `inspect_lane`
     calls it. PLUS the unanswerable case: a deleted branch yields `merged_into_target=False`, never True.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED in this lane on real git worktrees (a lane cut from an OLDER base,
+    committed on, then `--no-ff` merged), pasted verbatim:
 
-- [ ] V-02 validates E-02
+    ```text
+    merged+clean                 state=HOLDS-WORK commits_ahead=1 dirty=False merged_into_target=True  holds_work=True  reclaimable=True  is-ancestor(->main) rc=0
+    unmerged                     state=HOLDS-WORK commits_ahead=1 dirty=False merged_into_target=False holds_work=True  reclaimable=False is-ancestor(->main) rc=1
+    merged+dirty-tracked         state=HOLDS-WORK commits_ahead=1 dirty=True  merged_into_target=True  holds_work=True  reclaimable=False is-ancestor(->main) rc=0
+    empty (reclaimable today)    state=EMPTY      commits_ahead=0 dirty=False merged_into_target=True  holds_work=False reclaimable=True  is-ancestor(->main) rc=0
+    unanswerable (branch gone)   state=ABSENT     commits_ahead=0 dirty=False merged_into_target=False holds_work=False reclaimable=False is-ancestor(->main) rc=128
+    ```
+
+    `commits_ahead` RETAINS ITS PRE-FIX VALUE for every row (1 for each merged lane, unchanged by the
+    merge), proving the field was ADDED and not substituted; this is also asserted directly by
+    `test_a_merged_lane_reports_merged_while_KEEPING_its_real_commits_ahead`, which captures the value
+    before the merge and asserts equality after it.
+
+    DELEGATION rather than duplication, asserted by AST over the whole package in
+    `test_the_landing_question_has_exactly_ONE_definition` (green): the repository holds exactly ONE
+    `merge-base --is-ancestor <branch> <target>` landing predicate, in `runner_shared`, and
+    `worktree_lease.lane_merged_into_target` reaches it by calling `lane_work_has_landed` while issuing
+    no `--is-ancestor` argument list of its own. (`worktree_lease`'s own pre-existing `--is-ancestor`
+    call is the STALE/FOREIGN base question, a different question against different refs, and is
+    untouched.) The added code:
+
+    ```python
+    def lane_merged_into_target(repo_root: Path, branch: str) -> bool:
+        if not branch:
+            return False
+        try:
+            from agent_workflows import runner_shared
+
+            return runner_shared.lane_work_has_landed(repo_root, branch) is True
+        except Exception:
+            # FAIL TOWARD PRESERVATION: an unanswerable landing question is NOT-merged, never merged.
+            return False
+    ```
+
+    THE UNANSWERABLE CASE is the last row above (`branch gone`): `merged_into_target=False`, never True,
+    and pinned by `test_an_unanswerable_landing_question_is_NOT_merged`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `reclaimable` and `merged_into_target` for FOUR lanes, each shown separately
     and none argued: merged+clean (True), merged+dirty-tracked (False), unmerged (False), and a lane that
     is reclaimable TODAY (still True, proving no regression to the `LANE_EMPTY`/`LANE_STALE` path). Plus
@@ -432,10 +470,30 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     for teardown. DO NOT PRESENT THIS ITEM AS EVIDENCE THAT A MERGED LANE IS RECLAIMED: round 2 measured
     that the interrupt path never reaches `reclaimable` for a merged lane, so a green V-02 beside an
     unchanged V-03 means the fix is INERT. The IGNORED-file case belongs to V-03, not here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the four lanes are the first four rows of the V-01 table above, each measured
+    separately on a real lane, none argued: merged+clean `reclaimable=True`; merged+dirty-tracked
+    `reclaimable=False`; unmerged `reclaimable=False`; and the lane reclaimable TODAY (`state=EMPTY`,
+    `commits_ahead=0`) still `reclaimable=True`, so the `LANE_EMPTY`/`LANE_STALE` path did not regress.
+    Each is additionally pinned as its own test in `TheReadingTests` (all green).
 
-- [ ] V-03 validates E-03
+    THE DOCSTRING now states the reading is necessary but NOT sufficient, asserted by
+    `test_the_reclaimable_docstring_states_it_is_NOT_an_authorization`:
+
+    ```text
+    Provably EMPTY or provably RECOVERED. NECESSARY BUT NOT SUFFICIENT for teardown.
+    ...
+    THIS IS A READING, NOT AN AUTHORIZATION, and the previous docstring's "safe to tear down" was
+    withdrawn at review when the predicate gained the merged case. `git status --porcelain` (the
+    source of `dirty`) is BLIND TO IGNORED FILES ... So a caller must ALSO clear the
+    spec `7ckptx` R5.5 inventory gate, `lane_containment.teardown_lane_if_classified` ...
+    ```
+
+    NOT PRESENTED AS EVIDENCE THAT A MERGED LANE IS RECLAIMED. That claim is V-03's, and the negative
+    control recorded under V-04 shows this item fully green while the interrupt path still reports the
+    merged lane `preserved`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: DRIVE `reclaim_lanes_on_interrupt` (or a real interrupted run) and paste, for the
     merged lane, `lane["action"]` showing it was RECLAIMED rather than `preserved` or `left-alone`, with
     `git worktree list` before and after. THIS IS THE ITEM THAT PROVES THE FIX IS NOT INERT: an
@@ -448,20 +506,132 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     reclaim and say whether the ref survived, because round 2 measured that the shared gate's default
     remover DELETES it (rc=128, empty reflog), so a claim that the branch is kept requires the mechanism
     OQ-05 chose and is not free.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: DROVE the real `reclaim_lanes_on_interrupt` on BOTH hosts, in a temp repo with
+    real lane worktrees. `git worktree list` before and after, and the per-lane dispositions, pasted:
 
-- [ ] V-04 validates E-04
+    ```text
+    HOST oc: git worktree list BEFORE
+    <repo>                       13d44fb [main]
+    <repo>/.aw/worktrees/emptyl  13d44fb [aw/lane/emptyl]
+    <repo>/.aw/worktrees/mrgacc  8f4db64 [aw/lane/mrgacc]
+    <repo>/.aw/worktrees/mrgign  5eb3265 [aw/lane/mrgign]
+    <repo>/.aw/worktrees/unmrgd  350670b [aw/lane/unmrgd]
+
+    HOST oc: git worktree list AFTER
+    <repo>                       13d44fb [main]
+    <repo>/.aw/worktrees/unmrgd  bd58275 [aw/lane/unmrgd]
+
+    1 MERGED + accounted             action=reclaimed  merged_into_target=True  holds_work=True  reclaimable=True  worktree_exists=False branch rev-parse rc=128
+    2 MERGED + unaccounted IGNORED   action=reclaimed  merged_into_target=True  holds_work=True  reclaimable=True  worktree_exists=False branch rev-parse rc=128
+    3 UNMERGED (dirty)               action=preserved  merged_into_target=False holds_work=True  reclaimable=False worktree_exists=True  branch rev-parse rc=0
+          snapshot     : bd58275e87f9
+    4 PROVABLY EMPTY                 action=reclaimed  merged_into_target=True  holds_work=False reclaimable=True  worktree_exists=False branch rev-parse rc=128
+    ```
+
+    THE SAME FOUR RESULTS ON THE OTHER HOST, byte-identical in every field (the `agy` block of the same
+    probe run), so the fix is not per-host; additionally pinned by
+    `test_the_merged_decision_is_the_SHARED_predicate_on_both_hosts`, which asserts object identity of
+    the shared predicate on both hosts AND spies a real reclaim to prove each host consults it.
+
+    `lane["action"]` FOR THE MERGED LANE IS `reclaimed`, NOT `preserved` OR `left-alone` (row 1). That is
+    the claim this item owns, and the negative control under V-04 shows it reading `preserved` when
+    E-01/E-02 are applied without E-03.
+
+    THE REFUSAL PATH, measured separately on two shapes:
+
+    ```text
+    MERGED + CLEAN + NO COLLECTION RECEIPT:
+      action                 : preserved
+      retention_reason_codes : ['uncollected-submission']
+      retention_reason       : the lane holds content the driver cannot account for: an uncollected
+                               submission (no attempt-keyed collection receipt at
+                               01-norcpt-attempt-1.json; absence means NOT collected (spec R2.5))
+      worktree still exists  : True
+      branch rev-parse rc    : 0
+      item preserved_retention_reasons: ['uncollected-submission']
+
+    MERGED + an unaccounted UNTRACKED file (the `wfamig` hazard class):
+      action                 : preserved
+      worktree still exists  : True
+      file still on disk     : True
+      branch rev-parse rc    : 0
+    ```
+
+    THE GITIGNORED CASE DIFFERS FROM THIS ITEM'S WORDING, AND THE DIFFERENCE IS DELIBERATE. Row 2 above
+    is `reclaimed`, not preserved, and no `unknown-ignored-file` code is emitted. Spec `7ckptx` R5.5 was
+    AMENDED 2026-09-18 - by this plan's own declared dependency `laneign` `5w8g8j` - to make gitignored
+    content DISPOSABLE upon lane destruction, and `RETENTION_UNKNOWN_IGNORED` is documented as "NEVER
+    EMITTED BY `reason_codes` NOW". Measured:
+
+    ```text
+    MERGED lane with ignored    unexplained content -> classified=True  unknown_ignored=('build/precious.txt',) reason_codes=()
+    MERGED lane with untracked  unexplained content -> classified=False unknown_untracked=('unexplained.txt',)  reason_codes=('unknown-untracked-file',)
+    ```
+
+    So honoring this item's literal wording would have FORKED R5.5 (a stricter rule on the interrupt
+    path than on the success path, which R6.1 forbids) and would have red-ed
+    `tests/test_lane_retention.py::test_a_lane_holding_ONLY_gitignored_files_IS_torn_down`. The HAZARD
+    this requirement exists for is fully covered by the two refusal shapes pasted above, both pinned as
+    tests. Recorded as decision `08-65cuw0-D3`, with human review requested on the wording; NO spec file
+    was touched.
+
+    THE UNMERGED LANE still takes the snapshot-and-preserve path (row 3: `action=preserved`, a real
+    `INTERRUPTED SNAPSHOT` commit, worktree intact, branch intact, `git stash list` empty).
+
+    THE BRANCH OUTCOME, STATED EXPLICITLY as this item requires: `git rev-parse --verify <lane branch>`
+    exits **128** after a merged lane is reclaimed, i.e. THE REF IS DELETED. That is what OQ-05 option
+    (c) authorized ("deleting the branch of a provably-merged lane on interrupt is safe and standard Git
+    hygiene since all commits are already in `main`"), and it is inherent to the shared gate's default
+    remover (`teardown_isolation_worktree` -> `teardown_worktree(force=True)` -> `git branch -D`). Every
+    PRESERVED lane keeps its branch (rc=0 in all three preserved rows above).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `python3 -m pytest tests/test_worktree_lease_merged_reclaim.py` summary line, PLUS
     TWO separate failure demonstrations, because one is not enough to prove the test is load-bearing:
     (a) the layer-2 merged case failing against PRE-FIX code, and (b) the layer-2 merged case failing
     against an E-01+E-02-ONLY implementation (apply E-01/E-02 without E-03's reordering and paste the
     failure). Demonstration (b) is what proves the suite would have caught the inert fix round 2 measured;
     a test file that passes with (b) applied is not acceptable evidence for this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the suite, run bare against the finished fix:
 
-- [ ] V-05 validates E-05
+    ```text
+    tests/test_worktree_lease_merged_reclaim.py .....................       [100%]
+    ============================== 21 passed in 6.71s ==============================
+    ```
+
+    DEMONSTRATION (a), THE LAYER-2 MERGED CASE AGAINST PRE-FIX CODE. All four source files restored to
+    `HEAD` (`git diff --stat` empty), then the single test run:
+
+    ```text
+    E               AssertionError: 'preserved' != 'reclaimed'
+    E                : oc: a merged, accounted lane must be reclaimed; got {... 'state': 'HOLDS-WORK',
+                        'commits_ahead': 1, 'dirty': False, 'reclaimable': False, 'holds_work': True,
+                        ... 'action': 'preserved'}
+    ======================= 1 failed, 20 deselected in 0.53s =======================
+    ```
+
+    DEMONSTRATION (b), THE SAME CASE AGAINST AN E-01+E-02-ONLY IMPLEMENTATION. Only
+    `agent_workflows/worktree_lease.py` carried the fix; the two drivers and `runner_shared` were at
+    `HEAD`, confirmed by `git diff --stat` showing exactly one changed file:
+
+    ```text
+     agent_workflows/worktree_lease.py | 104 +++++++++++++++++++++++++++++++++++---
+     1 file changed, 97 insertions(+), 7 deletions(-)
+
+    E               AssertionError: 'preserved' != 'reclaimed'
+    E                : oc: a merged, accounted lane must be reclaimed; got {... 'reclaimable': True,
+                        'holds_work': True, ... 'action': 'preserved'}
+    ======================= 1 failed, 20 deselected in 0.33s =======================
+    ```
+
+    THAT IS EXACTLY THE FALSE GREEN ROUND 2 MEASURED, and the pasted record shows it unambiguously:
+    `reclaimable` is now **True** while `action` is still **preserved**. Eleven of the 21 tests fail in
+    state (b), including every layer-2 behavior test and the AST decision-order assertions, while the
+    ten layer-1 reading tests PASS - which is the separation this file was split to expose.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the pasted structural check showing zero `teardown_worktree(..., force=True)` call
     sites REACHABLE FROM `reclaim_lanes_on_interrupt` on either host, and that both reach
     `teardown_lane_if_classified`. State the METHOD (AST or import graph); a grep over the diff does not
@@ -469,8 +639,46 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     three legitimate force-teardown callers round 2 identified (`runner_shared.py:1012` the gate's own
     remover, `runner_shared.py:3934` the no-files-changed cleanup, and any test double), since an
     over-broad assertion that reds on untouched code would be reverted by the next executor.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: METHOD IS AST, not grep, and not a read of the diff. `TheNoDirectForceTeardownTests`
+    parses each host's real `reclaim_lanes_on_interrupt` with `ast.parse(inspect.getsource(...))`,
+    locates the merged branch by matching the `If` node whose test calls
+    `lane_is_recovered_and_reclaimable`, and walks that subtree's `Call` nodes. All four assertions are
+    green on both hosts:
+
+    ```text
+    tests/test_worktree_lease_merged_reclaim.py::TheNoDirectForceTeardownTests
+      test_the_merged_branch_reaches_the_shared_gate_and_no_direct_force_teardown  PASSED
+      test_the_merged_decision_PRECEDES_the_holds_work_bail_out                    PASSED
+      test_the_gate_helper_calls_the_ONE_shared_teardown_gate                      PASSED
+      test_the_three_legitimate_force_teardown_callers_are_NOT_flagged             PASSED
+    ```
+
+    The merged branch's call set contains `reclaim_lane_through_gate` and contains neither
+    `teardown_worktree` nor `teardown_isolation_worktree`, on BOTH hosts; and
+    `runner_shared.reclaim_lane_through_gate`'s own AST calls `teardown_lane_if_classified` and never
+    `teardown_worktree`, forwarding both run-context keywords the inventory needs.
+
+    A SECOND, INDEPENDENT ASSERTION pins the DECISION ORDER structurally, which no reachability count
+    could: the merged `If`'s line number must be strictly less than every `lane["holds_work"]` guard's.
+    Against an E-01+E-02-only tree this raises `AssertionError: no merged-lane branch found; the fix is
+    INERT without the decision-order change`, which is the failure pasted under V-04(b).
+
+    SCOPED HONESTLY, AND THE SCOPING IS RECORDED RATHER THAN SILENT. The literal wording ("zero
+    `teardown_worktree(..., force=True)` call sites REACHABLE FROM `reclaim_lanes_on_interrupt`") is
+    FALSE by design of this change, because two PRE-EXISTING branches of that function still call it and
+    are deliberately unchanged: the operator-`discard` branch, and the provably-EMPTY branch. Routing
+    the empty branch through the gate was MEASURED to refuse EVERY interrupted lane (no interrupted lane
+    has a completed collection receipt, so `submission_retention` answers `uncollected=True`), turning
+    `action="reclaimed"` into `"preserved"` and red-ing
+    `tests/test_lane_allocation_idempotent.py` and `tests/test_review_lane_isolation.py`. Recorded as
+    decision `08-65cuw0-D1`; the assertion's own scoping rationale is recorded as `08-65cuw0-D2`.
+
+    THE THREE LEGITIMATE CALLERS ARE NOT FLAGGED, enumerated by the same AST walk and asserted:
+    `runner_shared.teardown_isolation_worktree` (the shared GATE'S OWN remover, which must keep
+    working and is asserted to still call it), `runner_shared`'s no-files-changed cleanup, and the two
+    pre-existing driver branches above. The assertion under test never inspects them: it is scoped to
+    the merged branch's own subtree, which is why it cannot red against untouched code.
+  - Result: pass
 
 ## Approval and execution gate
 
