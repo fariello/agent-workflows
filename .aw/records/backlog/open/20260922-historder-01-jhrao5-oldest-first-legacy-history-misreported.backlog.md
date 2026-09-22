@@ -1,0 +1,10 @@
+- Id: jhrao5
+- Status: open
+- Blocks-Release: next
+- Set: historder
+- Priority: medium
+- Work-Kind: bug
+- Summary: attention last_history_at now reports the OLDEST date for 77 legacy artifacts whose inline history is stored oldest-first on disk, because the newest-record rule is positional (first record) by design
+
+## Workflow history
+- 2026-09-22 created (aw backlog): FOUND while executing plan vhbvwz E-02, which fixed attention_contract.last_history_at to mean the NEWEST record. The rule is deliberately POSITIONAL (the FIRST record of the bounded section), because every writer PREPENDS and because a greatest-by-date rule was measured to flip plan_readiness.history_verdict_approves from False to True for 20 plans, silently widening the unattended approval gate. NET EFFECT MEASURED at 2362b102 with the production parser: 533 artifacts (372 plans, 153 backlog items, 8 specs) now report their newest date correctly, up from misreporting. BUT 77 artifacts (66 plans, 3 backlog items, 8 specs) store their inline history OLDEST-FIRST on disk, contrary to the writer contract, and those now report their OLDEST date where the previous last-record rule happened to report their newest. Examples: 20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md, 20260712-aw-install-00-ysuonq, .aw/records/specs/20260706-0000-01-pip-distribution-and-multi-repo-setup.spec.md. This is a DATA problem, not a reader problem: those files were hand-authored oldest-first while the tools prepend, which is exactly the writer/author disagreement backlog tk1gqo catalogues at length. DO NOT fix it by making the reader date-aware (measured: that widens the approval gate) and DO NOT bulk-reorder the files (shared checkout; and spec 2vev8j 4.3 rules that order should become EXPLICIT via a per-artifact monotonic seq rather than inferred from position at all). The honest fix is the seq field spec 2vev8j already approved; this item exists so the residue is tracked rather than discovered later. One further plan (1 of 679) is wrong under BOTH rules because its own records are out of date order internally.

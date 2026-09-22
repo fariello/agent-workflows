@@ -2417,5 +2417,183 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
         self.assertIn("- Status: draft", moved.read_text(encoding="utf-8"))
 
 
+class SameStatusMessageIsRecordedTests(StatusSetTestBase):
+    """A DELIBERATE `--message` is recorded even when the status does not move (bug `x6tk1u`, E-01).
+
+    THE DEFECT, measured before the fix: `apply_status_change` returned early when neither the content
+    nor the path changed, and that return sat BEFORE the history write, so
+    `aw set <current-status> <artifact> -m "<reasoning>"` discarded the message and exited 0. Roughly
+    2000 characters of recorded reasoning were lost that way on this repository, noticed only because
+    `git status` showed no modification. Nothing else caught it: `status_set` writes nothing to the
+    history sidecar, so the note had no second home.
+
+    THE DEDUP HALF IS EQUALLY LOAD-BEARING and is why `test_the_same_message_repeated_records_once`
+    exists. Keying the write on message PRESENCE alone makes an idempotent re-assertion append a
+    duplicate every run, which is the trap `x6tk1u` itself warned about: measured at review, three
+    identical calls produced three identical records, and both runners call `set_plan_approved` with a
+    hardcoded constant message from two sites each, so it is a live path rather than a hypothetical.
+    """
+
+    def _history_records(self, path: Path):
+        from agent_workflows import attention as att
+        from agent_workflows import attention_contract as A
+
+        text = path.read_text(encoding="utf-8")
+        return [
+            ln.strip()
+            for ln in att._history_section_lines(text)
+            if A.HISTORY_RECORD_RE.match(ln.strip())
+        ]
+
+    def test_a_same_status_call_with_a_message_records_exactly_one_record(self):
+        plan = self.create_plan(
+            "20260822-testset-01-ms0001-test-plan.ipd.md",
+            "ms0001",
+            "testset",
+            "reviewed",
+        )
+        before = self._history_records(plan)
+        rc = cli.main(
+            [
+                "set",
+                "reviewed",
+                "ms0001",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+                "-m",
+                "the reasoning that must survive",
+            ]
+        )
+        self.assertEqual(rc, 0)
+        after = self._history_records(plan)
+        self.assertEqual(
+            len(after),
+            len(before) + 1,
+            f"expected exactly ONE new record; got {after}",
+        )
+        # NEWEST-FIRST: the new record leads, and it carries the message verbatim.
+        self.assertIn("the reasoning that must survive", after[0])
+        self.assertIn("reviewed", after[0])
+
+    def test_the_same_message_repeated_records_once(self):
+        """THE MEASURED DUPLICATE-GROWTH TRAP (F-10): three identical calls, ONE record."""
+        plan = self.create_plan(
+            "20260822-testset-01-ms0002-test-plan.ipd.md",
+            "ms0002",
+            "testset",
+            "reviewed",
+        )
+        before = len(self._history_records(plan))
+        for _ in range(3):
+            rc = cli.main(
+                [
+                    "set",
+                    "reviewed",
+                    "ms0002",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                    "-m",
+                    "identical note",
+                ]
+            )
+            self.assertEqual(rc, 0)
+        after = self._history_records(plan)
+        self.assertEqual(
+            len(after),
+            before + 1,
+            f"three identical calls must yield ONE record, not one per call; got {after}",
+        )
+
+    def test_a_genuinely_new_message_is_still_recorded_after_a_repeat(self):
+        """The dedup rule must not silence a NEW note; that would be `x6tk1u` in a new disguise."""
+        plan = self.create_plan(
+            "20260822-testset-01-ms0003-test-plan.ipd.md",
+            "ms0003",
+            "testset",
+            "reviewed",
+        )
+        base = len(self._history_records(plan))
+        for msg in ("first note", "first note", "a second, different note"):
+            cli.main(
+                [
+                    "set",
+                    "reviewed",
+                    "ms0003",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                    "-m",
+                    msg,
+                ]
+            )
+        after = self._history_records(plan)
+        self.assertEqual(len(after), base + 2, after)
+        self.assertIn("a second, different note", after[0])
+        self.assertIn("first note", after[1])
+
+    def test_a_same_status_call_without_a_message_records_nothing(self):
+        plan = self.create_plan(
+            "20260822-testset-01-ms0004-test-plan.ipd.md",
+            "ms0004",
+            "testset",
+            "reviewed",
+        )
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            ["set", "reviewed", "ms0004", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            plan.read_text(encoding="utf-8"),
+            before,
+            "a same-status call with NO message must remain a true no-op",
+        )
+
+    def test_the_dedup_predicate_is_exposed_and_pure(self):
+        """The rule is a named predicate, so it is testable without a file and cannot be re-guessed."""
+        from agent_workflows import status_set as ss
+
+        text = (
+            "# IPD: x\n\n- Status: reviewed\n\n## Workflow history\n"
+            "- 2026-09-22 reviewed (aw set): identical note\n"
+            "- 2026-09-01 draft (aw set): created.\n\n## Goal\n"
+        )
+        self.assertTrue(
+            ss.same_status_message_is_duplicate(
+                text, status="reviewed", date="2026-09-22", message="identical note"
+            )
+        )
+        # a different message, a different date, or a different status are each NOT duplicates.
+        self.assertFalse(
+            ss.same_status_message_is_duplicate(
+                text, status="reviewed", date="2026-09-22", message="a new note"
+            )
+        )
+        self.assertFalse(
+            ss.same_status_message_is_duplicate(
+                text, status="reviewed", date="2026-09-23", message="identical note"
+            )
+        )
+        self.assertFalse(
+            ss.same_status_message_is_duplicate(
+                text, status="approved", date="2026-09-22", message="identical note"
+            )
+        )
+        # AND it compares only against the NEWEST record: the older one does not silence a repeat.
+        self.assertFalse(
+            ss.same_status_message_is_duplicate(
+                text, status="draft", date="2026-09-01", message="created."
+            )
+        )
+        # no history at all is never a duplicate (fail OPEN here: the note must be recorded).
+        self.assertFalse(
+            ss.same_status_message_is_duplicate(
+                "# IPD: x\n", status="reviewed", date="2026-09-22", message="m"
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

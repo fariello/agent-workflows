@@ -70,8 +70,17 @@ here, so the policy has one home.
 - `aw backlog set <status> <id6|setid|fname>...` (or `aw backlog set <path> --status <status>`)
   transition status (moves the file between the disposition dirs), append a history record; moving to
   `blocked` requires a typed gate.
+- `aw backlog note <id6|fname|path> --message "..."` append a history record WITHOUT changing the
+  item's status and without moving its file. Use this whenever the intent is to record a reason, a
+  decision, or a finding on an item. Reach for `set` only when the status actually changes: a
+  same-status `set` is a transition call doing an annotation's job, and history is what suffers.
 - `aw backlog check [--agent]` validate the tree fail-closed (valid enums, status-mirrors-directory,
   gate present-and-valid iff blocked, unique id6, nonempty summary).
+
+History is recorded INLINE in the item's `## Workflow history`, newest record first, and prior records
+are kept. That inline block is the durable copy, because it is the one that is committed and therefore
+the one that survives a clone. The `aw record-history <id6>` sidecar is an additional machine-local
+activity log: it is gitignored, so never rely on it as the only home for a reason worth keeping.
 
 ## Promotion to a plan
 

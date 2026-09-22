@@ -606,20 +606,22 @@ def run_new(args) -> int:
     dest.parent.mkdir(parents=True, exist_ok=True)
     core.atomic_write(dest, rendered)
 
+    # plan `vhbvwz` E-04: REPORT a failed sidecar write instead of swallowing it in a bare
+    # `except Exception: pass`. The inline `## Workflow history` record is already in `rendered` and
+    # was written by the `atomic_write` directly above, so it is unaffected either way; the sidecar is
+    # a machine-local activity log (OQ-01) and must never gate a durable write.
     if item.id:
-        try:
-            from agent_workflows import record_history as _rh
+        from agent_workflows import record_history as _rh
 
-            _rh.append(
-                repo_root,
-                id6=item.id,
-                tree="backlog",
-                workflow="aw backlog",
-                actor="aw backlog",
-                message=((message or "").strip() or item.summary).strip(),
-            )
-        except Exception:
-            pass
+        _rh.append_advisory(
+            repo_root,
+            id6=item.id,
+            tree="backlog",
+            workflow="aw backlog new",
+            actor="aw backlog",
+            message=((message or "").strip() or item.summary).strip(),
+            artifact=dest.name,
+        )
 
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
@@ -729,24 +731,25 @@ def run_set(args) -> int:
     rendered = _reattach_history(
         text, rendered, f"{new_status}", getattr(args, "message", "") or ""
     )
-    # awhistory Order 02: append this transition to the GLOBAL sidecar (full log lives there; the
-    # inline block now keeps only the latest record). id6 = item.id.
+    # Append this transition to the GLOBAL sidecar as well (awhistory Order 02). The inline block now
+    # keeps the FULL history (plan `vhbvwz` E-08 stopped slimming it), so this is an additional
+    # machine-local activity-log entry rather than the only durable copy.
+    #
+    # plan `vhbvwz` E-04: a failure here is REPORTED, never swallowed, and it can never affect the
+    # inline record, which `_reattach_history` has already assembled into `rendered` above and which is
+    # written by the `atomic_write` below regardless of what this call returns.
     if item.id:
-        try:
-            from agent_workflows import record_history as _rh
+        from agent_workflows import record_history as _rh
 
-            _rh.append(
-                repo_root,
-                id6=item.id,
-                tree="backlog",
-                workflow="aw backlog",
-                actor="aw backlog",
-                message=(
-                    getattr(args, "message", "") or f"status -> {new_status}"
-                ).strip(),
-            )
-        except Exception:
-            pass
+        _rh.append_advisory(
+            repo_root,
+            id6=item.id,
+            tree="backlog",
+            workflow="aw backlog set",
+            actor="aw backlog",
+            message=(getattr(args, "message", "") or f"status -> {new_status}").strip(),
+            artifact=src.name,
+        )
     # awrelease Order 02: set/clear the Blocks-Release gate field when requested (a release id6,
     # 'next', or '-' to clear). Applied after render so _render_item stays untouched. If the item
     # already carries one and --blocks-release is not given, preserve it.
@@ -847,6 +850,96 @@ def run_set(args) -> int:
     return 0
 
 
+def run_note(args) -> int:
+    """`aw backlog note <selector> --message ...`: append a history record, changing NO status.
+
+    plan `vhbvwz` E-05. The backlog verb set was `new`, `set`, `check` only, so ANNOTATING an item
+    required a status-setting call - which is how BOTH defects this plan fixes were hit in the first
+    place (a same-status `aw backlog set` used to discard the message outright, and it slimmed the
+    item's history while doing it). `aw specs note` already existed and is the precedent copied here:
+    same flag shape, same history-record behavior, no status change, no file move.
+
+    DELIBERATELY NOT ROUTED THROUGH `run_set`. A note is not a transition: it must not consult the
+    status vocabulary, must not touch the gate fields, must not re-render the metadata block, and must
+    not invoke the release-gate close predicate. Writing the history record directly is both smaller
+    and impossible to confuse with a transition, and it is exactly what `specs.run_note` does.
+    """
+
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    target = getattr(args, "path", None) or getattr(args, "selector", None)
+    message = (getattr(args, "message", "") or "").strip()
+    if not target:
+        sys.stderr.write(
+            "aw backlog note: a selector (id6, filename, or path) is required\n"
+        )
+        return 2
+    if not message:
+        sys.stderr.write(
+            "aw backlog note: --message is required (the note to record)\n"
+        )
+        return 2
+
+    # The ONE unified resolver, exactly as `run_set` uses: an id6, a filename, a stem, or a path.
+    from agent_workflows import selectors as _sel
+
+    res = _sel.resolve(repo_root, "backlog", target)
+    if res.rejected_kind is not None:
+        sys.stderr.write(
+            f"aw backlog note: this verb does not accept a {res.rejected_kind} selector: {target}\n"
+        )
+        return 2
+    if not res.paths:
+        sys.stderr.write(f"aw backlog note: no such item: {target}\n")
+        return 2
+    if len(res.paths) > 1:
+        cand = "\n  ".join(str(p) for p in res.paths)
+        sys.stderr.write(
+            f"aw backlog note: selector '{target}' is ambiguous ({res.kind}); candidates:\n  {cand}\n"
+        )
+        return 2
+
+    src = res.paths[0]
+    text = src.read_text(encoding="utf-8")
+    item = parse_item(text)
+    date = getattr(args, "date", None) or datetime.date.today().isoformat()
+    record = f"- {date} note (aw backlog): {message}"
+
+    # The sidecar remains a machine-local activity log and can never gate this write (E-04).
+    if item.id:
+        from agent_workflows import record_history as _rh
+
+        _rh.append_advisory(
+            repo_root,
+            id6=item.id,
+            tree="backlog",
+            workflow="aw backlog note",
+            actor="aw backlog",
+            message=f"note: {message}",
+            artifact=src.name,
+        )
+
+    # PREPEND under the existing heading (newest-first, matching every other writer). No status is
+    # read or written, and the file is NOT moved, so the item's directory keeps agreeing with it.
+    lines = text.split("\n")
+    out: List[str] = []
+    inserted = False
+    for line in lines:
+        out.append(line)
+        if not inserted and line.strip() == "## Workflow history":
+            out.append(record)
+            inserted = True
+    if not inserted:
+        if out and out[-1].strip() != "":
+            out.append("")
+        out.append("## Workflow history")
+        out.append(record)
+    core.atomic_write(src, "\n".join(out).rstrip() + "\n")
+    sys.stdout.write(f"aw backlog note: appended a history record to {src}\n")
+    return 0
+
+
 def _strip_metadata_and_history(text: str) -> str:
     """Return only the free prose body (after the `## Workflow history` section)."""
 
@@ -865,24 +958,78 @@ def _strip_metadata_and_history(text: str) -> str:
     return "\n".join(out_lines).strip()
 
 
+def _prior_history_records(text: str) -> List[str]:
+    """The item's EXISTING inline history records, in file order (newest-first), or `[]`.
+
+    BOUNDED EXACTLY AS `_strip_metadata_and_history` BOUNDS IT, and that is the whole subtlety. The
+    history block ends at the first line that is neither blank nor a top-level `- ` bullet; everything
+    after it is the PROSE BODY. Matching that same boundary is what keeps the two functions from
+    disagreeing about which lines are records, because they partition the same file between them.
+
+    THE BUG THIS SHAPE PREVENTS, measured on a real legacy item (`tk1gqo`) while implementing
+    `vhbvwz` E-08. An earlier version scanned the whole post-heading region for `HISTORY_RECORD_RE`
+    against `line.strip()`, so five INDENTED, PROSE-QUOTED example lines deep inside that item's body
+    (it is a bug report whose text quotes history lines verbatim) matched as records and were
+    re-emitted into the history block: 11 records became 17, and quoted examples were promoted into
+    the item's own provenance. Hence two rules here: the block is BOUNDED as above, and a record must
+    start at column zero (`ln.startswith("- ")`) so an indented quotation is never mistaken for one.
+    """
+
+    if "\n## Workflow history" not in text:
+        return []
+    after = text.split("\n## Workflow history", 1)[1]
+    out: List[str] = []
+    for ln in after.split("\n")[1:]:
+        if not ln.strip():
+            continue
+        if not ln.startswith("- "):
+            break  # the prose body begins here; everything beyond is not history
+        if A.HISTORY_RECORD_RE.match(ln.strip()):
+            out.append(ln.rstrip())
+    return out
+
+
 def _reattach_history(
     old_text: str, rendered: str, new_status: str, message: str
 ) -> str:
-    """Preserve prior `## Workflow history` records and append one transition record."""
+    """Prepend one transition record to the inline `## Workflow history`, PRESERVING prior records.
+
+    NEWEST-FIRST, and prior records are KEPT (plan `vhbvwz` E-08). This function used to emit ONLY the
+    new record, discarding every earlier one, per awhistory Order 02 / spec `20260818-1525-02` OQ-2,
+    whose stated premise was that "the full chronological log lives in the global
+    .aw/records/history.jsonl sidecar". That premise is false: `.aw/.gitignore` ignores the sidecar, so
+    the slimmed records did not survive a clone and the item's provenance was destroyed for every
+    reader but this machine. The maintainer ruled on 2026-09-10 (plan `vhbvwz` OQ-01) that inline
+    history is the DURABLE home for backlog items and specs, matching plans; spec `20260818-1525-02`
+    is amended in the same change.
+
+    THE PRIOR RECORDS COME FROM `old_text`, NOT FROM `rendered`, AND THAT IS NOT INTERCHANGEABLE.
+    `_strip_metadata_and_history` deliberately discards the history block, and `_render_item` then
+    MINTS A FRESH `created` record stamped with TODAY's date, so `rendered`'s history section holds a
+    synthetic line rather than the item's real past. Reading prior records from `rendered` therefore
+    preserved a re-dated forgery of the oldest record and lost every other one (measured while
+    implementing E-08: an item whose records were 2026-01-01 and 2026-01-02 came back with a single
+    `created` line dated today). `old_text` is the file as it was on disk, so it is the only honest
+    source. The re-minted `created` line is dropped for the same reason.
+
+    THE SIDECAR IS STILL WRITTEN by the caller; it is a machine-local activity log, not the durable
+    store, so it can never gate this write (see `record_history.append_advisory`).
+    """
 
     today = datetime.date.today().isoformat()
     msg = message.strip() or f"status -> {new_status}"
     new_record = f"- {today} set (aw backlog): {msg}"
-    # rebuild: metadata block from `rendered` up to its history header, then ONLY the new record, then body.
-    # awhistory Order 02: the inline block keeps only the LATEST record; the full chronological log lives
-    # in the global .aw/records/history.jsonl sidecar (attention last_history_at reads this latest line).
+    # rebuild: metadata block from `rendered` up to its history header, then the NEW record followed by
+    # every prior record from the FILE AS IT WAS (newest-first, matching status_set's plan writer),
+    # then the prose body.
     head = rendered.split("\n## Workflow history", 1)[0]
     body = ""
     if "\n## Workflow history" in rendered:
         tail = rendered.split("\n## Workflow history", 1)[1]
         body_parts = tail.split("\n\n", 1)
         body = body_parts[1] if len(body_parts) > 1 else ""
-    hist_block = new_record
+    prior = _prior_history_records(old_text)
+    hist_block = "\n".join([new_record] + prior)
     result = head + "\n## Workflow history\n" + hist_block
     if body.strip():
         result += "\n\n" + body.rstrip()

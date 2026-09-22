@@ -416,7 +416,8 @@ _DESCRIPTIONS = {
     "backlog": (
         "Owner verbs for the attention-visible backlog tier (records/backlog): 'new' creates a "
         "committed/uncommitted backlog item, 'set' transitions its status (open/blocked/parked/done) "
-        "and appends history, 'check' validates the tree fail-closed. Committed items surface in "
+        "and appends history, 'note' records a history annotation WITHOUT changing status, 'check' "
+        "validates the tree fail-closed. Committed items surface in "
         "'aw attention'; parked 'maybes' stay hidden until --all."
     ),
     "backlog new": (
@@ -428,6 +429,11 @@ _DESCRIPTIONS = {
         "Transition a backlog item's status, moving the file between the open/blocked/parked/done "
         "directories, appending a workflow-history record. Moving to 'blocked' requires a typed "
         "--gate-kind/--gate-ref pair."
+    ),
+    "backlog note": (
+        "Append a workflow-history record to a backlog item WITHOUT changing its status or moving "
+        "its file. The annotation verb, mirroring 'aw specs note': reach for it whenever the intent "
+        "is to record a reason rather than to transition the item."
     ),
     "backlog check": (
         "Validate the backlog tree against the contract and fail closed: valid enums, "
@@ -4691,17 +4697,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p_backlog = sub.add_parser(
         "backlog",
         parents=[common],
-        help="Owner verbs for the attention-visible backlog tier. 'backlog new' creates an item; 'set' transitions status; 'check' validates.",
+        help="Owner verbs for the attention-visible backlog tier. 'backlog new' creates an item; 'set' transitions status; 'note' annotates; 'check' validates.",
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
             "  aw backlog check             # validate backlog tree fail-closed\n"
             '  aw backlog new --summary "Fix auth" --set auth-01 --apply\n'
             "  aw backlog set open <id6>    # transition backlog item status\n"
+            '  aw backlog note <id6> --message "why"   # annotate, no status change\n'
             "\n"
             "SAFETY & DEFAULTS\n"
             "  'new' is dry-run by default; pass --apply to write.\n"
             "  Moving to 'blocked' requires a typed --gate-kind and --gate-ref pair.\n"
+            "  'note' records history only: it never changes a status or moves a file.\n"
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 1 contract findings, 2 cannot-run/usage error.\n"
@@ -4901,6 +4909,32 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
     _add_commit_flags(p_backlog_set)  # selfcommit jgcm68 E-01/E-05
+
+    # plan `vhbvwz` E-05: the ANNOTATION verb, mirroring the shipped `aw specs note`. Without it the
+    # only way to record a note on a backlog item was a status-setting call, which is how both of the
+    # provenance-loss defects that plan fixes were actually triggered.
+    p_backlog_note = backlog_sub.add_parser(
+        "note",
+        parents=[common],
+        description=(
+            "Append a history record to a backlog item WITHOUT changing its status or moving its "
+            "file. Use this to record a reason, a decision, or a finding on an item; use "
+            "'aw backlog set' only when the item's status actually changes."
+        ),
+        help="Append a history record to a backlog item (no status change).",
+    )
+    p_backlog_note.add_argument(
+        "path", help="Item selector: an id6, a filename, a stem, or a path."
+    )
+    p_backlog_note.add_argument(
+        "--message", required=True, help="History record message (the note to record)."
+    )
+    p_backlog_note.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_backlog_note.add_argument(
+        "--date", default=None, help="Override the history date (YYYY-MM-DD)."
+    )
 
     p_backlog_check = backlog_sub.add_parser(
         "check",
@@ -13337,6 +13371,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     else getattr(args, "path", None)
                 )
                 return backlog_mod.run_set(args)
+        if backlog_cmd == "note":
+            return backlog_mod.run_note(args)
         if backlog_cmd == "check":
             return backlog_mod.run_check(args)
         return _show_family_help(parser, "backlog", "aw backlog check", term, context)

@@ -71,6 +71,61 @@ def append(
         f.write(json.dumps(rec, ensure_ascii=True) + "\n")
 
 
+def append_advisory(
+    repo_root,
+    *,
+    id6: str,
+    tree: str,
+    workflow: str,
+    actor: str,
+    message: str,
+    date: Optional[str] = None,
+    artifact: str = "",
+) -> bool:
+    """:func:`append`, but a FAILURE IS REPORTED ON STDERR AND RETURNED, never raised and never silent.
+
+    Returns True when the record was written, False when it was not. The caller MUST NOT make its own
+    inline history write conditional on this result.
+
+    WHY THIS EXISTS (plan ``vhbvwz`` E-04, finding F-5). The three sidecar call sites each wrapped
+    :func:`append` in a bare ``except Exception: pass``, so a failed sidecar write was completely
+    invisible: nothing on stderr, nothing in the exit code, nothing in the record. Combined with the
+    inline slimming that shipped at the same time, a swallowed sidecar write plus a successful slim
+    LOST the record entirely and still exited 0. E-08 removed the slimming half, so the remaining
+    defect is the silence, and this helper is the fix for it: one shared decision, so the three sites
+    cannot drift into three different answers.
+
+    WHY IT WARNS RATHER THAN RAISING, and why the inline write must not depend on it. The maintainer
+    ruled on 2026-09-10 (``vhbvwz`` OQ-01) that INLINE history is the durable home and the sidecar is a
+    machine-local ACTIVITY LOG - it is gitignored, so it does not survive a clone. Letting an advisory
+    log failure abort or gate a durable provenance write would invert exactly the durability model
+    that ruling chose. So: say so loudly, write the record that matters anyway.
+    """
+
+    import sys as _sys
+
+    try:
+        append(
+            repo_root,
+            id6=id6,
+            tree=tree,
+            workflow=workflow,
+            actor=actor,
+            message=message,
+            date=date,
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001 - deliberately broad; the point is to REPORT, not select
+        where = artifact or id6
+        _sys.stderr.write(
+            f"{workflow}: warning: could not append to the history sidecar "
+            f"({SIDECAR_RELPATH}) for {where}: {type(exc).__name__}: {exc}. The inline "
+            "`## Workflow history` record is the durable one and was written; the sidecar is a "
+            "machine-local activity log, so this does not lose provenance.\n"
+        )
+        return False
+
+
 def read_for(repo_root, id6: str) -> List[dict]:
     """Every history record for `id6`, in file (chronological append) order. `[]` if the sidecar is
     missing; skips any line that is not valid JSON."""
