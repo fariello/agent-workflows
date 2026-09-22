@@ -14701,6 +14701,82 @@ def compute_scope_reconciliation(
     return reasons, acks
 
 
+# --------------------------------------------------------------------------------------
+# FINALIZE IDEMPOTENCE (finidem `ld8lb3` E-04/E-05, backlog `02371s`).
+#
+# THE DEFECT. A begin receipt is a SINGLE-USE token and, with `self_finalize` true (the default),
+# TWO actors try to spend it: the agent turn finalizes the plan itself (its own plan's execution gate
+# tells it to), which SUCCEEDS and CONSUMES the receipt, and the driver's `driver_finalize` then runs
+# finalize a SECOND time and is refused. Measured in run `run-20260917T210518Z-1714328` (IPD
+# `63425h`): a complete, committed, already-`executed/` item was recorded `substantially-complete`
+# with its lane PRESERVED as not-integrated, and a human had to merge it by hand (`2cfdb85d`).
+#
+# THE FIX IS NOT TOLERANCE OF A MISSING RECEIPT, which would convert "no receipt = no execution
+# authority" from FAIL-CLOSED to FAIL-OPEN. It is for the driver to OBSERVE that the transition it
+# wanted HAS ALREADY HAPPENED, which is a strictly STRONGER claim than "the receipt is gone".
+#
+# HOW THE DRIVER LEARNS THE CAUSE: option (a), the IN-PROCESS PREDICATE, chosen over (b) adding
+# structured output to the `aw ipd finalize` CLI surface. `driver_finalize` returns only
+# `(returncode, text)` and `aw ipd finalize` registers no `--agent`/`--json` on that path, so the
+# subprocess boundary destroys `finalize_precheck`'s structured `findings`. Calling the predicate
+# directly (1) needs no new CLI contract and no `cli.py` scope widening, (2) is a read-only path
+# inspection plus at most one `git log`, and (3) CANNOT be satisfied by substring-matching refusal
+# prose, which is the fragile coupling this plan's own tests exist to ban.
+# --------------------------------------------------------------------------------------
+
+
+def finalize_already_done(repo: Path, plan_path: Path, id6: str) -> bool:
+    """True iff ``plan_path``'s terminal transition ALREADY happened, so a finalize is a no-op.
+
+    The ONE question both hosts' `driver_finalize` ask before reporting a refusal, delegating to
+    `ipd_lifecycle.plan_already_finalized` so there is exactly one definition of "already finalized"
+    across the lifecycle gate and the two drivers.
+
+    Deliberately returns a BARE BOOL rather than the verdict tuple: a caller here needs a decision,
+    and the evidence that produced it is already recorded by `finalize_precheck` for the human.
+
+    FAILS CLOSED. Any exception (an unreadable tree, a git failure) yields False, i.e. "not already
+    finalized", which leaves the existing refusal in place. That direction is the safe one: a false
+    False costs the pre-fix behavior (a preserved lane a human can merge), while a false True would
+    integrate work that never earned a transition.
+    """
+    try:
+        from agent_workflows import ipd_lifecycle
+
+        return bool(ipd_lifecycle.plan_already_finalized(repo, plan_path, id6).already)
+    except Exception:
+        return False
+
+
+def finalize_outcome(
+    repo: Path, plan_path: Path, id6: str, returncode: int, message: str
+) -> tuple[int, str]:
+    """Map one raw `aw ipd finalize` result onto the driver's `(exit_code, message)`, idempotently.
+
+    Called by BOTH hosts' `driver_finalize` as the LAST step, so the idempotence rule is defined once
+    even though `driver_finalize` itself is still duplicated per host (`oc_runipd`, `agy_runipd`;
+    `tests/test_rununify_execute_item.py` tracks that duplication deliberately, so this plan does not
+    unilaterally lift those bodies while the `rununify`/`hostdedup` Sets are moving the same symbols).
+    Placing the rule here rather than in each body is what makes "the twins stay twins" true by
+    construction.
+
+    A ZERO RETURN IS PASSED THROUGH UNTOUCHED: the normal path is not routed through any new logic.
+    A NONZERO return is re-examined exactly once, and only the ALREADY-FINALIZED case is converted to
+    success, so every other refusal (never-issued receipt, stale receipt, failing pre-transition lint,
+    unreconciled scope) still reaches `handle_finalize_refusal` with its exit code and text intact.
+    """
+    if returncode == 0:
+        return returncode, message
+    if not finalize_already_done(repo, plan_path, id6):
+        return returncode, message
+    return 0, (
+        f"finalize is a NO-OP for {id6}: the terminal transition already succeeded (the plan is in "
+        "executed/ and the success consumed the begin receipt), so this run treats it as finalized "
+        "and proceeds to integration. The gate's own words were: "
+        + (message or "(no output)")
+    )
+
+
 def detect_driver_command(*, labels: HostLabels) -> str:
     """Detect the command prefix used to invoke the runner, defaulting to `labels.command`.
 

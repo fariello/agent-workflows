@@ -1394,7 +1394,14 @@ def driver_finalize(
     changed paths, `--scope-ack` for declared-but-unmodified paths) from the plan's Scope-Paths vs
     the actual changed paths, then invokes the SAME gated finalize surface (no forked path). Never
     forces the transition (mirrors `finalize_orchestrator`): a refusal returns nonzero and the
-    caller records the child NOT-executed. Returns (exit_code, stderr)."""
+    caller records the child NOT-executed. Returns (exit_code, stderr).
+
+    IDEMPOTENT (finidem `ld8lb3` E-04). A plan whose terminal transition ALREADY SUCCEEDED - because
+    the agent turn finalized it itself, which is what `self_finalize` runs measurably produce - is
+    reported as SUCCESS so the caller proceeds to INTEGRATION, instead of being refused for the
+    receipt its own success consumed. The decision is `runner_shared.finalize_outcome`, shared with
+    the agy twin, and it keys on the POSITIVE observation that the plan is in `executed/`, NEVER on
+    the absence of a receipt (which would make this gate fail-open)."""
     reasons, acks = _compute_scope_reconciliation(repo, plan_path)
     # lanetruth Order 01 (af7i6p): THE primary lane-shadowed site. `repo` here is the LANE
     # worktree (the caller passes `finalize_repo = Path(work_dir) if (work_dir and wt_handle)
@@ -1432,7 +1439,15 @@ def driver_finalize(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    return result.returncode, (result.stderr or result.stdout or "").strip()
+    # finidem `ld8lb3` E-04: the LAST step, so a zero return is passed through untouched and only a
+    # refusal is re-examined. The rule lives in `runner_shared` (shared with the agy twin), not here.
+    return runner_shared.finalize_outcome(
+        repo,
+        plan_path,
+        id6,
+        result.returncode,
+        (result.stderr or result.stdout or "").strip(),
+    )
 
 
 # --- bkclose (zhr6mc): close a backlog item when the run executes its last carrier ----------------

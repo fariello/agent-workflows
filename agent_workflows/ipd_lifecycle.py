@@ -30,6 +30,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import (
@@ -876,6 +877,128 @@ def read_receipt(repo_root: Path, plan_id: str) -> Optional[Dict[str, Any]]:
         return json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+# --------------------------------------------------------------------------------------
+# RECEIPT-ABSENCE CLASSIFICATION (finidem `ld8lb3` E-02, backlog `894vzu`).
+#
+# THE RECEIPT IS DELIBERATELY SINGLE-USE and that is NOT what is being changed here: a successful
+# finalize consumes it (see the "Consume the begin receipt" step in `_complete_after_commit`), which
+# is what makes it a PROOF of a completed transaction rather than a flag. What WAS wrong is that ONE
+# condition (`receipt is None`) was mapped onto a message asserting ONE specific cause, so three
+# situations with OPPOSITE meanings were indistinguishable:
+#
+#   * NEVER-ISSUED    - begin never ran. "No execution authority" is TRUE; `aw ipd begin` is the
+#                       correct remedy; the refusal is correct and its wording is unchanged.
+#   * ALREADY-FINALIZED - begin ran, the transition SUCCEEDED, and the success consumed the receipt.
+#                       "No execution authority" is FALSE, and the prescribed remedy is actively
+#                       HARMFUL: running `aw ipd begin` again would mint fresh authority for work
+#                       that is already complete and committed.
+#   * STALE           - a receipt exists but the reviewed contract moved. Untouched by this change.
+#
+# Measured cost of the conflation, in run `run-20260917T210518Z-1714328` (IPD `63425h`): the agent
+# finalized its own plan, the driver's `driver_finalize` ran finalize a SECOND time 5m38s later, and
+# the false "no execution authority" refusal left a COMPLETE, COMMITTED, already-`executed/` item
+# recorded `substantially-complete` with its lane preserved as not-integrated. A human merged it by
+# hand.
+#
+# WHY A POSITIVE OBSERVATION AND NOT "THE RECEIPT IS GONE" (OQ-02, non-negotiable). "No receipt = no
+# execution authority" is FAIL-CLOSED, and keying success on ABSENCE would invert it into FAIL-OPEN:
+# every path that lost or never wrote a receipt would read as success. So ALREADY-FINALIZED is
+# recognized only from evidence that the transition DEMONSTRABLY HAPPENED.
+# --------------------------------------------------------------------------------------
+
+#: The three DISTINCT finding ids a caller branches on, so no one has to match refusal PROSE. Kept as
+#: separate module constants (not an enum) to match the finding vocabulary already in this module
+#: (`ROLLUP_REFUSED_*`), and pinned distinct by `tests/test_finidem_double_finalize.py`.
+FINDING_RECEIPT_NEVER_ISSUED = "receipt-never-issued"
+FINDING_RECEIPT_ALREADY_FINALIZED = "receipt-consumed-already-finalized"
+
+#: THE STALE BRANCH KEEPS ITS EXISTING TEXT AS ITS ID, deliberately, and that is why this constant is
+#: a sentence rather than a token like its two siblings. The plan requires the STALE branch's behavior
+#: to be UNCHANGED from HEAD (V-02), and this exact string is already its first finding and is already
+#: pinned as such by `tests/test_finalize_sendback.py`'s `STALE_RECEIPT_REFUSAL`. Minting a new token
+#: for it would either change the emitted findings (breaking that pin and the "unchanged" requirement)
+#: or add a fourth string nothing emits. So the constant NAMES the shipped behavior instead of
+#: replacing it, which is what gives a caller a third thing to branch on at zero behavioral cost.
+FINDING_RECEIPT_STALE = "plan content digest no longer matches the receipt"
+
+
+class AlreadyFinalizedVerdict(NamedTuple):
+    """Did this plan's terminal transition ALREADY happen? Plus the evidence that says so.
+
+    ``already``           the verdict, and the ONLY field a gate may branch on.
+    ``bucket``            the plan's lifecycle DIRECTORY (`runner_shared.plan_bucket`), for the
+                          message and the recorded evidence.
+    ``lifecycle_commit``  the plan-bound ``lifecycle(<id6>): finalize`` commit when resolvable from
+                          this checkout, else None. STRONGER evidence than the directory because it
+                          is plan-bound by construction, and it is already the pre-commit gate's own
+                          proof of a genuine finalize (`hooks/executed_transition_gate.py`).
+    """
+
+    already: bool
+    bucket: Optional[str]
+    lifecycle_commit: Optional[str]
+
+
+def plan_already_finalized(
+    repo_root: Path, plan_path: Path, plan_id: str
+) -> AlreadyFinalizedVerdict:
+    """True iff ``plan_path``'s terminal transition DEMONSTRABLY already happened.
+
+    THE PREDICATE IS THE ``executed`` BUCKET, optionally corroborated by the plan-bound lifecycle
+    commit. Both signals are POSITIVE observations about this specific plan, which is the property
+    OQ-02 requires; neither is "the receipt is absent".
+
+    ``run_selection_policy.is_in_terminal_directory`` IS NOT USABLE HERE and must never be
+    substituted, which is why this function exists rather than that one being reused.
+    ``TERMINAL_DIRECTORY_SEGMENTS`` contains FOUR segments and the fourth is ``/reusable/``, which is
+    NOT a completed disposition: ``.aw/records/plans/reusable/README.md`` says "Not a terminal state"
+    and ``run_selection_policy._IPD_ACTIONS["reusable"]`` is ``ACTION_EXECUTE``, so a reusable plan is
+    one the runner DISPATCHES REPEATEDLY. Measured: ``is_in_terminal_directory`` returns True for a
+    ``/reusable/`` path. Keying on it would therefore make EVERY reusable-plan run read a
+    never-issued receipt as "already finalized" and proceed with no execution authority at all - the
+    exact fail-open inversion this classification exists to avoid, delivered by the predicate that
+    looks safest. ``tests/test_finidem_double_finalize.ReusablePlanIsNotAlreadyFinalized`` fails if
+    the substitution is ever made.
+
+    THE COMMIT IS CORROBORATION, NOT A REQUIREMENT, and the asymmetry is deliberate. A plan can sit in
+    ``executed/`` with its lifecycle commit unreachable from THIS checkout's HEAD, because finalize
+    legitimately ran on a lane branch that was never merged here - which is precisely the measured
+    incident's own shape, where the driver asked this question from the main checkout about a lane
+    that had finalized. Requiring the commit would therefore refuse the exact case this fix is for.
+    The bucket alone is the weakest ADMISSIBLE signal; the commit is reported when available because
+    a message citing it is far more useful to a human than one citing a directory.
+
+    Cheap by construction: one path inspection, and ONE ``git log`` only when the bucket already says
+    `executed`, so the common (non-terminal) case costs no subprocess at all.
+    """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import runner_shared as _rs
+
+    bucket = _rs.plan_bucket(plan_path)
+    if bucket != "executed":
+        return AlreadyFinalizedVerdict(False, bucket, None)
+    commit: Optional[str] = None
+    if plan_id:
+        subject = _core.finalize_commit_subject(plan_id)
+        # `--grep` is anchored with `^` because the reader contract is "STARTS WITH this subject"
+        # (the producer appends `<id6> -> executed`); a looser match would let an ordinary work
+        # commit naming the plan pass as finalize evidence, which the pre-commit gate's OQ-02
+        # already rejected for the same reason.
+        rc, out, _err = _git(
+            repo_root,
+            [
+                "log",
+                "--format=%H",
+                "-1",
+                "--extended-regexp",
+                f"--grep=^{re.escape(subject)}",
+            ],
+        )
+        if rc == 0 and out.strip():
+            commit = out.strip().splitlines()[0].strip()
+    return AlreadyFinalizedVerdict(True, bucket, commit)
 
 
 def receipt_is_current(receipt: Dict[str, Any], plan_text: str) -> bool:
@@ -1902,14 +2025,48 @@ def finalize_precheck(
         return EXIT_CANNOT_RUN, f"plan {plan_path} has no '- Id:' handle.", evidence, ()
 
     # 1. matching begin receipt must exist and still match the plan digest.
+    #
+    # RECEIPT ABSENCE IS CLASSIFIED, NOT ASSUMED (finidem `ld8lb3` E-02/E-03, backlog `894vzu`). Both
+    # branches still REFUSE with `EXIT_FINDINGS` - this function's verdict is unchanged and no gate is
+    # weakened here - but they now carry DISTINCT finding ids and say what is actually true, so the
+    # driver's finalize step can be idempotent (E-04) without ever keying on receipt ABSENCE.
     receipt = read_receipt(repo_root, plan_id)
     if receipt is None:
+        finalized = plan_already_finalized(repo_root, plan_path, plan_id)
+        if finalized.already:
+            evidence["already_finalized"] = {
+                "bucket": finalized.bucket,
+                "lifecycle_commit": finalized.lifecycle_commit,
+                "note": (
+                    "the receipt is absent because a SUCCESSFUL finalize consumed it; the terminal "
+                    "transition already happened, so there is nothing left to authorize."
+                ),
+            }
+            where = (
+                f"the lifecycle commit {finalized.lifecycle_commit[:12]}"
+                if finalized.lifecycle_commit
+                else f"the {finalized.bucket}/ directory"
+            )
+            # DO NOT PRESCRIBE `aw ipd begin` HERE (E-03). Minting fresh authority for work that is
+            # already finalized and committed is the actively harmful remedy the old wording
+            # recommended, and it is what made this refusal worse than merely uninformative.
+            return (
+                EXIT_FINDINGS,
+                f"{plan_id} is ALREADY FINALIZED: its terminal transition already succeeded (see "
+                f"{where}) and that success consumed the begin receipt. Nothing remains to "
+                "transition; treat this as done rather than re-authorizing it.",
+                evidence,
+                (FINDING_RECEIPT_ALREADY_FINALIZED,),
+            )
         return (
             EXIT_FINDINGS,
             f"no begin receipt for {plan_id}: run `aw ipd begin` first (fail-closed: no receipt = "
             "no execution authority).",
             evidence,
-            (f"missing begin receipt at {receipt_path_for(repo_root, plan_id)}",),
+            (
+                FINDING_RECEIPT_NEVER_ISSUED,
+                f"missing begin receipt at {receipt_path_for(repo_root, plan_id)}",
+            ),
         )
     widened_paths: List[str] = []
     if not receipt_is_current(receipt, plan_text):
@@ -1924,9 +2081,9 @@ def finalize_precheck(
         # addition, an ineligible receipt shape - still refuses with the identical message below.
         cmp_result = frozen_region_comparison(receipt, plan_text, repo_root=repo_root)
         if not widening_is_acceptable(cmp_result):
-            stale_findings: List[str] = [
-                "plan content digest no longer matches the receipt"
-            ]
+            # `FINDING_RECEIPT_STALE` IS this shipped string (see the constant), so naming it here
+            # changes no emitted byte while giving a caller the third id to branch on.
+            stale_findings: List[str] = [FINDING_RECEIPT_STALE]
             if cmp_result.ineligible_reason:
                 stale_findings.append(cmp_result.ineligible_reason)
             if cmp_result.removed:
@@ -3368,6 +3525,7 @@ def finalize(
     prompt=None,
     plan_selector: Optional[str] = None,
     fault_injection: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
 ) -> FinalizeResult:
     """The atomic terminal transaction for one IPD (precheck + two-way reconciliation + transition).
 
@@ -3379,10 +3537,50 @@ def finalize(
     fail-loud, create the path-scoped lifecycle commit, run post-transition lint, and report the
     commit + three-phase gate evidence. A missing reason/ack fails closed naming the exact
     re-invocation. (Rollback/failure semantics are Order 06.)
+
+    ``env`` defaults to ``os.environ`` and exists so the worker-role refusal below is testable without
+    mutating global process state, mirroring `worker_role_active`'s and `retire_orchestrator`'s design.
     """
     from agent_workflows import status_set as _ss
 
     evidence: Dict[str, Any] = {}
+
+    # --- GATE: worker role. FIRST, before the actor gate, the file-exists check, crash recovery, the
+    # precheck, or any mutation, so a refused invocation has NO side effect at all (finidem `ld8lb3`
+    # E-06, closing the hole F-10b measured).
+    #
+    # WHY IT HAD TO MOVE HERE RATHER THAN BEING LEFT TO THE CLI. `worker_role_active` was checked in
+    # the CLI WRAPPERS `run_begin`/`run_finalize` ONLY, and `status_set` contains ZERO references to
+    # it, so `aw set executed <plan>` / `aw ipd set executed` - which delegate STRAIGHT into
+    # `_delegate_plan_executed_to_finalize` -> this function - performed a FULL terminal transaction
+    # from a managed worker lane with no role refusal whatsoever. Measured at authoring:
+    # `worker_role_active` present in `run_finalize` True, in `finalize` False, in `status_set` False.
+    #
+    # `retire_orchestrator` had the IDENTICAL gap and closed it the same way, by checking the
+    # predicate itself rather than hoping to inherit it; `ROLLUP_SHARED_GATES` records that as
+    # `"worker-role-refusal"` with the note that it is NOT inherited. Putting the check at THIS choke
+    # point is strictly better than a third copy in `status_set`, because this one site covers all
+    # THREE callers (the CLI, the rollup's delegation, and `aw set executed`) and no future caller can
+    # reach the transaction around it. `ROLLUP_REFUSED_WORKER_ROLE` is REUSED as the finding id so the
+    # two transition paths report one vocabulary rather than two.
+    #
+    # HONEST LIMIT, stated rather than implied: the env marker is a SELECTOR, not a boundary (its own
+    # comment says so), and the measured incident DEFEATED it with `env -u AW_EXECUTION_ROLE`. Closing
+    # THAT needs an OS sandbox or a separate principal and is explicitly out of scope. Note also that
+    # the `env -u` habit is driven by a real defect - lifecycle tests fail inside a lane (backlog
+    # `770fkp`/`s0303g`) - so agents will keep reaching for it until that is fixed; instruction alone
+    # will not hold.
+    if worker_role_active(os.environ if env is None else env):
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"{LIFECYCLE_ROLE_ERROR} (refused: terminal finalize transaction). The runner performs "
+            "begin/finalize for this lane from the coordinator role; report your result instead "
+            "(write the outcome file the prompt names) and let the driver transition the plan.",
+            evidence,
+            (ROLLUP_REFUSED_WORKER_ROLE,),
+        )
+
     if not actor or not actor.strip():
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, "finalize requires a non-empty --actor."
