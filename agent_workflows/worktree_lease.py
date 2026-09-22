@@ -181,6 +181,26 @@ class LaneState(NamedTuple):
     dirty: bool  # uncommitted changes in the lane worktree
     owner: Optional[dict]  # durable owner record (E-08), if readable
     owner_live: Optional[bool]  # True/False when determinable, None when unknown
+    # laneorph Order 01 (`65cuw0`) E-01: has this lane's work REACHED THE INTEGRATION TARGET?
+    #
+    # A SEPARATE QUESTION FROM `commits_ahead`, and the whole point of adding a field rather than
+    # changing one. `commits_ahead` is measured against the lane's OWN creation base, so it stays
+    # non-zero FOREVER after a successful merge; that figure is still the right input to the lane-REUSE
+    # question (`LANE_EMPTY`/`LANE_STALE`/`LANE_FOREIGN` decide whether a lane may be adopted for a
+    # fresh execution) and is deliberately left alone. This field answers the RECOVERY question
+    # instead: is the lane's content already safe in the target, so nothing is lost by reclaiming it?
+    #
+    # DELEGATED, NEVER RE-DERIVED (spec `7ckptx` R6.1). It is `runner_shared.lane_work_has_landed`'s
+    # answer, the repository's ONE `git merge-base --is-ancestor <branch> <target>` landing predicate,
+    # reached by a function-local import because this module deliberately imports no other package
+    # module at module level (see the header note above) and `runner_shared` imports THIS one.
+    #
+    # THREE-VALUED SOURCE, COLLAPSED IN THE SAFE DIRECTION. `lane_work_has_landed` returns
+    # `True`/`False`/`None`, `None` meaning the question could not be answered (the branch is gone, the
+    # target does not resolve, or git failed). A `NamedTuple` boolean cannot express that, so `None`
+    # maps to `False`: an UNANSWERABLE lane is never treated as recovered, because this field widens
+    # `reclaimable`, and a false True there is what would authorize destroying unproven work.
+    merged_into_target: bool = False
 
     @property
     def exists(self) -> bool:
@@ -192,12 +212,36 @@ class LaneState(NamedTuple):
 
     @property
     def reclaimable(self) -> bool:
-        """Provably empty: safe to tear down. NEVER true for a lane holding commits or dirty files."""
-        return (
-            self.state in (LANE_EMPTY, LANE_STALE)
-            and not self.dirty
-            and self.commits_ahead == 0
-        )
+        """Provably EMPTY or provably RECOVERED. NECESSARY BUT NOT SUFFICIENT for teardown.
+
+        TWO WAYS A LANE HOLDS NOTHING WORTH KEEPING, and the second was missing until laneorph Order
+        01 (`65cuw0`) E-02:
+
+          * PROVABLY EMPTY: no commits beyond its own base and a clean tree (`LANE_EMPTY`/`LANE_STALE`).
+          * PROVABLY RECOVERED: `merged_into_target`, i.e. every commit it holds is already reachable
+            from the integration target, with a clean tree. Before E-02 such a lane was non-reclaimable
+            FOREVER, because `commits_ahead` is measured against the lane's own base and so never
+            returns to zero after a merge; the interrupt-path reclaimer therefore left an already-merged
+            lane on disk permanently.
+
+        NEVER TRUE FOR A DIRTY LANE, in either case: uncommitted content is invisible to every
+        merged-ness test, so merged-ness alone must never satisfy this.
+
+        THIS IS A READING, NOT AN AUTHORIZATION, and the previous docstring's "safe to tear down" was
+        withdrawn at review when the predicate gained the merged case. `git status --porcelain` (the
+        source of `dirty`) is BLIND TO IGNORED FILES, and `git worktree remove` does NOT refuse for an
+        ignored file (measured, git 2.43.0: plain porcelain empty, `--ignored=traditional` naming the
+        file, removal WITHOUT `--force` exiting 0 and deleting it). So a caller must ALSO clear the
+        spec `7ckptx` R5.5 inventory gate, `lane_containment.teardown_lane_if_classified`, which sees
+        ignored content and an uncollected submission. That gate cannot live here: it needs the run
+        directory and the item record, which this run-context-free reading has no way to obtain, and
+        which this module is pinned never to take (see `inspect_lane`).
+        """
+        if self.dirty:
+            return False
+        if self.state in (LANE_EMPTY, LANE_STALE) and self.commits_ahead == 0:
+            return True
+        return self.merged_into_target
 
 
 _WORKTREE_CACHE: Optional[Dict[str, dict]] = None
@@ -272,6 +316,38 @@ def _registered_worktrees(repo_root: Path) -> Dict[str, dict]:
     return by_branch
 
 
+def lane_merged_into_target(repo_root: Path, branch: str) -> bool:
+    """Is `branch`'s work already reachable from the integration target? (laneorph `65cuw0` E-01.)
+
+    DELEGATES to `runner_shared.lane_work_has_landed`, which is the repository's ONE landing predicate
+    (`git merge-base --is-ancestor <branch> <target>`), so no second definition of "merged" exists
+    (spec `7ckptx` R6.1). The TARGET is that function's own `LANE_INTEGRATION_TARGET_FALLBACK`
+    (`HEAD`), which is the honest default: both drivers merge a verified lane into whatever the shared
+    checkout has checked out, so `HEAD` is the branch the merge would actually land on. A fork using
+    `master` or `trunk` is therefore correct with no configuration, and hardcoding `"main"` would be
+    the one wrong answer.
+
+    THE IMPORT IS FUNCTION-LOCAL AND MUST STAY THAT WAY. This module deliberately imports no other
+    package module at module level (see the header note on `INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX`), and
+    `runner_shared` already imports THIS module, so a module-level import back would be circular.
+    `runner_shared` uses the same function-local pattern for its own dependency on this module.
+
+    RETURNS A PLAIN BOOL, collapsing the delegate's three-valued answer in the SAFE direction: `None`
+    (unanswerable - branch gone, target unresolvable, or git failed) becomes `False`, so an unproven
+    lane is never reported as recovered. An import or call failure is treated the same way, because
+    this feeds `LaneState.reclaimable` and a false True there authorizes destruction.
+    """
+    if not branch:
+        return False
+    try:
+        from agent_workflows import runner_shared
+
+        return runner_shared.lane_work_has_landed(repo_root, branch) is True
+    except Exception:
+        # FAIL TOWARD PRESERVATION: an unanswerable landing question is NOT-merged, never merged.
+        return False
+
+
 def _lane_base_sha(repo_root: Path, branch: str, head: str) -> Optional[str]:
     """The commit the lane was CUT FROM, read from the branch's creation reflog entry.
 
@@ -309,7 +385,16 @@ def inspect_lane(
 
     Reports the branch, the registered worktree, the lane head, the lane's OWN base sha (not merely a
     boolean, so callers can compare rather than re-probe), whether the tree is dirty, how far the lane
-    is ahead of its base, the durable owner record, and one of the five `LANE_STATES`.
+    is ahead of its base, whether its work has already reached the integration target, the durable
+    owner record, and one of the five `LANE_STATES`.
+
+    STILL RUN-CONTEXT-FREE, and it must stay that way (pinned by
+    `tests/test_lane_allocation_idempotent.py::test_worktree_lease_stays_stdlib_only`, which forbids
+    this module even NAMING a run-context parameter). It takes no run directory and no item record, so
+    the spec `7ckptx` R5.5 RETENTION inventory cannot live here: measured, `inventory_lane` given
+    neither answers EVERY lane unclassifiable ("no run directory or item was supplied"), so consulting
+    it from this reading would make even a provably empty lane non-reclaimable. Retention
+    classification belongs where the run context is, at the driver call site.
     """
     branch = lane_branch_name(lane_id)
     ref = "refs/heads/" + branch
@@ -421,6 +506,13 @@ def inspect_lane(
     else:
         state = LANE_FOREIGN
 
+    # laneorph `65cuw0` E-01: the RECOVERY reading, asked only for a lane whose BRANCH exists (the
+    # landing predicate has nothing to resolve otherwise, and would answer `None` anyway). Recorded
+    # ALONGSIDE `commits_ahead`, which is untouched above and keeps its own meaning.
+    merged_into_target = (
+        lane_merged_into_target(repo_root, branch) if branch_exists else False
+    )
+
     return LaneState(
         lane_id=lane_id,
         state=state,
@@ -435,6 +527,7 @@ def inspect_lane(
         dirty=dirty,
         owner=owner,
         owner_live=owner_live,
+        merged_into_target=merged_into_target,
     )
 
 
