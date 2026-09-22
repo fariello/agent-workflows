@@ -7,20 +7,20 @@
   THE ITEM'S THIRD STEP IS NOW SOMEONE ELSE'S, AND MUST NOT BE REBUILT HERE. Step (3) was "teach finalize to attribute a committed path by trailer instead of by changed-since-base_head". APPROVED plan `h9cn0y` (`scopeattr-01`, `- Status: approved`, `- From-Backlog: hyx1dg`) now owns finalize's committed-half attribution and is executing on it. Its review measured, in F-14, that git authorship cannot partition actors here and that the run record is unreachable from finalize, and concluded that trailers "are not merely a nicer future substrate, they are the ONLY identified way to attribute a commit to an execution here". It ships the weaker ownership-PREDICATE fix with a stated accepted cost, and explicitly defers trailers to a later plan, naming `a8eufb`. So this plan's job is to make the substrate EXIST so that cost can later be revisited; it must NOT re-implement the attribution logic `h9cn0y` is landing.
   THE ITEM'S SEQUENCING WARNING IS SUBSTANTIALLY WEAKER THAN WHEN IT WAS WRITTEN, which is what makes this graduable now. The item says wiring this means editing "the highest-contention files in the repo", cites "21 unexecuted plans" declaring them and the 7-plan `lanectn` Set as unexecuted, and recommends waiting for lane containment to remove the trigger. RE-MEASURED: 18 pending plans declare a runner file in `Scope-Paths`, and FOUR of `lanectn`'s children have EXECUTED (`cqx5v7`, `lhmrhx`, `y5od1h`, `604wra`), with three remaining approved. More decisively, the item's "cheaper path already queued" is now the DEFAULT: `--no-isolate-worktree` has `default=True` for `isolate_worktree` (`oc_runipd.py:7661-7665`), so every execute turn is isolated unless explicitly opted out, and an isolated lane is immune to the attribution noise by the item's own analysis. That does not make this work unnecessary, because the trailer is the substrate for a real fix rather than for noise suppression, but it does mean this plan is no longer starting the riskiest work in the repo to quiet paperwork.
 - Scope: Make the runner PASS the trailers it already has the machinery to write, at the ONE shared commit call site both hosts reach, so THAT commit carries machine-readable run and item ownership. SCOPE CORRECTED AT REVIEW, because the authored wording implied far more reach than the wiring has (PR-801): the wired site is `commit_backlog_close`, which produced exactly THREE commits in the repository's entire 2926-commit history, each touching exactly ONE `.backlog.md` file. It does NOT make the agent's own code commits attributable; those are made by the agent via raw `git commit` per the runbook directive (`oc_runipd.py:2607`) in the `base..HEAD` range finalize actually reads, and reaching them is a DIFFERENT and much larger piece of work (see Deferred). So this plan converts a built-but-unreachable parameter into a live, tested, correctly-scoped driver-side writer, and it is honest about that being a foundation rather than the fix. Attribution CONSUMPTION is excluded: `h9cn0y` (now `executed`) owns finalize's committed-half logic and this plan must not touch it. This plan makes a writer real; it does not add a reader.
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/git_commit_helper.py, tests/test_runner_backlog_close.py, tests/test_run_trailer_wiring.py
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/git_commit_helper.py, agent_workflows/work_cmd.py, tests/test_runner_backlog_close.py, tests/test_run_trailer_wiring.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runtrailwire
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wao266
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: a8eufb
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: wao266 verified (set runtrailwire, attempt 1). [Scope reconciliation - widened-scope agent_workflows/work_cmd.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); in-scope-unmodified tests/test_runner_backlog_close.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED. Readiness go-pending-approval. OQ-04 raised (non-blocking): the wired path produces 3 commits in 2926, so the Blocks-Release gate is a maintainer call.
 
@@ -34,6 +34,18 @@
   DISCLOSURE: same repository and same model family as the plan's author, so this is closer to a self-review than an independent one.
 - 2026-09-08 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `a8eufb`, NARROWED to step (1) of the item's own three-step plan, with steps (2) and (3) verified DEAD or OWNED. Step (2) ("give the antigravity runner the same commit path") is already satisfied: `agy_runipd.py` imports `commit_backlog_close` from `oc_runipd` (`:320`) and calls the shared `process_backlog_close` (`:3907`), so ONE call site (`oc_runipd.py:1405`) serves both hosts and building a second would be a regression against the rununify extraction. Step (3) (teach finalize to attribute by trailer) is owned by APPROVED plan `h9cn0y`, whose review F-14 independently reached this item's conclusion (trailers are the only available attribution channel), which ships the weaker predicate fix with a stated accepted cost and defers trailers to a later plan naming `a8eufb`. Re-graduating step (3) would re-implement work an approved plan already declares. ALSO re-measured: the item's contention warning is weaker than written (18 pending plans declare a runner file, not 21; four of seven `lanectn` children have EXECUTED), and its "cheaper path already queued" mitigation is now the DEFAULT (`isolate_worktree` defaults True), so the item's reason for staying open no longer holds. The item's own SECOND paragraph is also stale and was NOT carried forward: its claim that "no durable per-commit ownership record exists" was already corrected in the item itself on 2026-09-03, and this plan starts from the corrected state.
 
+## Execution notes
+
+EXECUTION NOTES (2026-09-22, opencode its_direct/pt3-claude-opus-5-1m-us, run `run-20260922T023526Z-2065001` position 21, lane `aw/lane/wao266`). These are the executor's own notes; the authoritative terminal history entry is the one `aw ipd finalize` appends.
+
+All five E-items performed, all five V-items verified with pasted evidence, `aw ipd lint --phase pre-transition` conforming, `aw sanitize --agent` clean. Bare suite delta EMPTY by node id (`1 failed, 8194 passed` before -> `1 failed, 8208 passed` after; the same pre-existing `tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped` in both, and +14 passed is exactly the new module).
+  WHAT LANDED: `commit_backlog_close` gains keyword-only `run_id`/`plan_id6` and passes `run_item_trailers(run_id, plan_id6)` at the one shared `offer_commit` site; `process_backlog_close` threads them from `state["run_id"]` and `item["id6"]`. New `tests/test_run_trailer_wiring.py` (14 tests) proves both keys read back through GIT'S OWN parser, the no-run-id message is byte-identical, the shared-object identity across hosts, that `agy_runipd` has ZERO `offer_commit` call nodes by AST, that all five existing guards still hold WITH trailers present, and that NO trailer consumer was added.
+  CLAIM (e) DIVERGED FROM REVIEW, IN THE PLAN'S FAVOUR, and the E-item invited reporting that: the wired path has produced **46** commits of **3971** (review measured 3 of 2926), spanning 2026-09-04 to this run's own day, so it is in routine active use rather than dormant. The file-shape half reproduced exactly: every touched file is a `.backlog.md`. So the plan's honesty constraint is unchanged - this does NOT make the agent's code commits attributable and finalize is exactly as capable as before - but the maintainer's OQ-04 gate question was framed on a figure that is 15x low. Decision `21-wao266-D1`.
+  DEFECT FOUND IN ADJACENT CODE, FILED AS `mx1b4v` (`bug`, `Blocks-Release: next`): `git_commit_helper._staged_paths` reads `git diff --name-only --cached` with rename detection ON, so a realistic backlog item's write+unlink move is reported as one `R098` pair and only the DESTINATION reaches `our_staged`; the commit lands the addition and leaves the deletion staged-but-uncommitted. 42 of 47 real close commits contain the addition alone, and 22 of 128 items in `done/` at HEAD ALSO still exist in `graduated/`. Verified pre-existing against unmodified HEAD with my change stashed, and one layer down by calling `offer_commit` directly. NOT fixed here (out of scope, and that function carries measured scar tissue about staged renames). The suite is green over it only because its 3-line stub fixture pairs at `R055` and reports both paths. Decision `21-wao266-D2`.
+  DECLARED SCOPE WIDENING: `agent_workflows/work_cmd.py` docstring only (prose, no code line), correcting "the runner wiring is deliberately deferred" to state both halves precisely, as the plan's spec-sync section requires. Decision `21-wao266-D3`.
+  FOLLOW-UPS FILED as the post-gate contract requires: `am1g38` (revisit `h9cn0y`'s now-live accepted cost once a reader exists), `j2srcc` (trailer the agent's own code commits - the half that would matter, with both candidate routes and their costs stated as a maintainer decision), and `j0ag0u` (spec `25kzda`'s "NOTHING PASSES THEM" sentence is now partly false; not edited here since the spec is not in `Scope-Paths`).
+  NO push. OQ-04 left OPEN and untouched: the gate is the maintainer's call.
+
 ## Goal
 
 Turn a built-but-unreachable ownership mechanism into a live driver-side writer, so the mechanism has a real consumer, a real test, and a proven git-parseable output instead of a parameter nobody passes.
@@ -46,7 +58,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the live state, since three of the item's premises have moved
 
-- [ ] E-01 RE-MEASURE THE FIVE CLAIMS THIS PLAN RESTS ON, by symbol, and write each down. Do not inherit them from this plan's prose; three of them drifted between authoring and review.
+- [x] E-01 RE-MEASURE THE FIVE CLAIMS THIS PLAN RESTS ON, by symbol, and write each down. Do not inherit them from this plan's prose; three of them drifted between authoring and review.
   THE FIVE: (a) the trailer machinery exists and `offer_commit` accepts `trailers` defaulting empty; (b) NO commit in recent history carries an `AW-Run` trailer and no CLI flag mentions it; (c) `commit_backlog_close` is the ONLY `offer_commit` call site in either runner, and `agy_runipd.py` reaches it by IMPORT rather than by its own copy; (d) `h9cn0y`'s STATUS (see below: it is now `executed`, not `approved`); and (e) NEW AT REVIEW, the load-bearing one: HOW MANY COMMITS THE WIRED PATH ACTUALLY PRODUCES, and WHICH FILES THEY TOUCH.
   MEASURE (e) BEFORE ANYTHING ELSE, BECAUSE IT DECIDES WHETHER THIS PLAN IS WORTH EXECUTING (review PR-801). Measured at review over ALL 2926 commits on all refs: exactly THREE commits were produced by `commit_backlog_close`, and each touched EXACTLY ONE FILE, a `.backlog.md`. That is the entire population this plan's wiring would have trailered. Meanwhile the commits finalize actually needs to attribute are the AGENT's own code commits in `base..HEAD` (`ipd_lifecycle._changed_path_sources` diffs `base_head..HEAD`), and those are made by the agent running raw `git commit -m msg -- <path>` per the runbook directive at `oc_runipd.py:2607`, on a path this plan does not touch. So wiring this one site produces a trailer on the backlog-close commit and on NOTHING that the attribution consumer reads. Run the measurement (`git log --all --format='%s' | grep -c "closed by aw"`, then `git show --stat` each hit) and PASTE it.
   IF (e) CONFIRMS THE REVIEW MEASUREMENT, THIS PLAN STILL EXECUTES BUT ITS CLAIM MUST NARROW, and the narrowing is already applied in Goal, Scope and the Deferred section: it wires the one shipped DRIVER-side commit, which is a real and correctly-scoped writer, and it does NOT make agent code commits attributable. Do not restate the Concern's implication that this closes the attribution gap. If your measurement DIFFERS (for example the runner has gained a driver-side code commit), report that as the more valuable finding.
@@ -54,43 +66,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   (d) HAS ALREADY CHANGED: `h9cn0y` IS `executed`, NOT `approved` (review PR-802). It landed at `.aw/records/plans/executed/20260906-scopeattr-01-h9cn0y-attribute-a-scope-audit-to-the-execution-s-own-commits-inste.ipd.md`. Two consequences the plan was authored without. FIRST, its accepted cost is LIVE in the tree now, not prospective, so the follow-up this plan promises is a real outstanding gap rather than a hypothetical one. SECOND, it ALREADY INVERTED `test_committed_half_of_a_coworker_is_STILL_refused_documented_limitation` to `..._is_now_disregarded_gap_CLOSED` (its own history records this as decision `09-h9cn0y-D2`), so this plan's Deferred entry claiming that inversion is still outstanding is stale. Re-confirm both at your HEAD and state them.
   - Depends on: none
   - Expected outcome: a written, symbol-cited statement of all five claims as they stand at your HEAD, including the measured count and file-shape of the commits the wired path actually produces; an explicit re-scope or STOP if (c) has moved; and a statement of `h9cn0y`'s executed state and what it already did.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pass the trailers at the one shared site
 
-- [ ] E-02 PASS `run_item_trailers(run_id, item_id6)` AT THE SHARED `offer_commit` CALL SITE, and derive both values from the live run's own state rather than reconstructing them. `commit_backlog_close` currently calls `offer_commit(repo, paths, message=..., assume_yes=True, interactive=False)` with no `trailers=`.
+- [x] E-02 PASS `run_item_trailers(run_id, item_id6)` AT THE SHARED `offer_commit` CALL SITE, and derive both values from the live run's own state rather than reconstructing them. `commit_backlog_close` currently calls `offer_commit(repo, paths, message=..., assume_yes=True, interactive=False)` with no `trailers=`.
   USE THE CANONICAL FORMATTER, NEVER A HAND-BUILT STRING. `run_item_trailers` exists precisely "so callers do not hand-format the keys (and drift)" and skips an absent value, returning `[]` when both are missing, which composes to an unchanged message. That empty-safe behavior is what makes this change safe for any path lacking a run id.
   THE VALUES MUST COME FROM THE RUN, NOT FROM A GUESS. `commit_backlog_close`'s current signature is `(repo, item_id6, message)` and it has no run id, so the run id must be threaded from the state the caller already holds (`process_backlog_close` receives `state`, which carries `run_id`, and `oc_runipd.py:1487` is the call). Thread it explicitly; do NOT read a global, and do NOT reach into `.aw/records/runs/`, which is gitignored and absent from a lane worktree.
   DO NOT BREAK THE SHARED IMPORT. `agy_runipd.py` imports `commit_backlog_close` by name (`:320`); a signature change must keep that import valid, and `tests/test_runner_backlog_close.py:1166` asserts on that name. Prefer an optional keyword so both hosts and every existing test keep working.
   MIND WHAT THAT FUNCTION ALREADY GUARDS, and preserve all of it: it filters paths to basenames containing the item's id6 so a co-worker's concurrent edit cannot be swept in, it requires `-uall` porcelain, it parses the status field rather than slicing a fixed width, and it FAILS CLOSED when fewer than two paths are seen because a legitimate close always yields both sides of a move. Each of those is a fix for a measured live failure. Adding a trailer must change nothing about them.
   - Depends on: E-01
   - Expected outcome: the shared call site passes canonically formatted trailers derived from the live run and item; `agy_runipd.py`'s import still resolves; every existing guard in that function is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DECIDE AND RECORD WHAT HAPPENS WHEN THERE IS NO RUN ID, rather than letting it fall out of the code. A hand-run `aw` invocation, a resumed path, or a test double may have no run id at all.
+- [x] E-03 DECIDE AND RECORD WHAT HAPPENS WHEN THERE IS NO RUN ID, rather than letting it fall out of the code. A hand-run `aw` invocation, a resumed path, or a test double may have no run id at all.
   THE ANSWER SHOULD BE: OMIT THE TRAILER, NEVER FABRICATE ONE. `run_item_trailers` already skips an absent value, so the safe behavior is the default. State it in a comment at the site, because the tempting "improvement" is to synthesize an id from a timestamp or a plan id, and a trailer that ASSERTS run ownership it cannot substantiate is worse than no trailer: the whole value of an immutable trailer is that a later reader can trust it. This is the same discipline `h9cn0y` E-03 applies when it refuses to name a responsible sha it cannot substantiate.
   DO NOT ADD A CLI FLAG. `work_cmd._trailers_from_args`'s docstring already records the reasoning: "a public flag whose only consumer does not exist yet is a contract taken on for nothing". That reasoning still holds for a flag on the RUNNER, whose values come from the run itself and never from a human.
   - Depends on: E-02
   - Expected outcome: a missing run id omits the trailer with the reason stated in a comment at the site; nothing is synthesized; no new CLI flag exists.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the trailer is real and prove nothing else moved
 
-- [ ] E-04 PROVE A REAL COMMIT CARRIES THE TRAILER, READ BACK THROUGH GIT'S OWN PARSER. An assertion on the composed message string is not enough: the point of a trailer is that `git` recognizes it as one.
+- [x] E-04 PROVE A REAL COMMIT CARRIES THE TRAILER, READ BACK THROUGH GIT'S OWN PARSER. An assertion on the composed message string is not enough: the point of a trailer is that `git` recognizes it as one.
   READ IT BACK WITH `git log --format='%(trailers:key=AW-Run,valueonly)'`, which is the same interface any future consumer would use, in a throwaway repository. A test that only checks the message text would pass even if the trailer block were malformed and git ignored it, which is exactly the failure mode that would make a future reader's attribution silently empty.
   ASSERT BOTH KEYS AND THE EMPTY CASE: a commit made with a run id and item id6 carries both `AW-Run` and `AW-Item`; a commit made without them carries NEITHER and its message is byte-identical to what it is today. The second assertion is what proves this change is additive.
   ASSERT BOTH HOSTS ARE COVERED BY THE ONE CHANGE, since that is this plan's central claim. Prove it structurally rather than by running two runners: assert that `agy_runipd.commit_backlog_close is oc_runipd.commit_backlog_close`, which is the same shape `tests/test_runner_refork_guard.py` already uses for shared symbols.
   - Depends on: E-03
   - Expected outcome: a real commit's trailers read back through git's own parser for both keys; the no-run-id commit is byte-identical to today; the shared-object identity between hosts is asserted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE COMMIT PATH'S EXISTING BEHAVIOR IS UNCHANGED, because this function is the runner's only shipped commit and its guards each fix a measured live failure. Assert every one still holds with trailers present: the id6 basename filter still excludes a co-worker's concurrently-modified DIFFERENT backlog item; the fewer-than-two-paths case still returns None rather than committing half a move; the porcelain parse still handles a `" D <path>"` entry without eating the path's first character; and the untracked-file case still stages the individual FILE rather than the directory.
+- [x] E-05 PROVE THE COMMIT PATH'S EXISTING BEHAVIOR IS UNCHANGED, because this function is the runner's only shipped commit and its guards each fix a measured live failure. Assert every one still holds with trailers present: the id6 basename filter still excludes a co-worker's concurrently-modified DIFFERENT backlog item; the fewer-than-two-paths case still returns None rather than committing half a move; the porcelain parse still handles a `" D <path>"` entry without eating the path's first character; and the untracked-file case still stages the individual FILE rather than the directory.
   RUN THE EXISTING SUITE FOR THAT FUNCTION AND PASTE ITS OWN SUMMARY LINE. `tests/test_runner_backlog_close.py` covers it. ITS GUARD IS STRUCTURAL, NOT A SUBSTRING MATCH (F-9 corrected at review): `test_the_commit_is_path_scoped_to_this_item_only` (`:574`) reads `inspect.getsource` but then `ast.parse`s it and asserts an `ast.Compare`/`In` over `item_id6`/`name`, with the comment "STRUCTURAL, not textual: ... reformatting cannot break the guard". So adding a keyword argument cannot trip it, and the authored fragility warning was overstated. What it DOES still forbid TEXTUALLY, over raw source including comments, is `-A` and `add_all`: do not write `git add -A` even inside an explanatory comment at the site.
   RUN THE SUITE BARE (`python3 -m pytest`) and judge on the DELTA of failing NODE IDS. THE AUTHORED BASELINE IS WRONG (F-15, review PR-805). Re-measured at HEAD `bf2c6b46`: `2 failed, 5957 passed, 3 skipped, 2 xfailed`, and the named `test_orchestrator_retirement` PASSES (`112 passed` in isolation). CRITICALLY, one of the two failures is IN A FILE THIS PLAN DECLARES: `tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`. It passes in isolation (`47 passed`) and fails on a 30-second subprocess timeout under `-n auto`, so it is LOAD-SENSITIVE and PRE-EXISTING, not your regression; confirm that by running the file alone before concluding anything. The other failure is `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, caused by the GITIGNORED `opencode-recovery/` tree of another party's session transcripts (`.gitignore:49`); DO NOT delete, move or clean it to green the suite. Criterion: AFTER minus BEFORE is EMPTY by node id, never an absolute count.
   ALSO ASSERT NO CONSUMER WAS ADDED. Show that nothing in `ipd_lifecycle.py` reads a trailer, so this plan cannot be mistaken for having done `h9cn0y`'s job or for having changed finalize's behavior.
   - Depends on: E-04
   - Expected outcome: every existing guard holds with trailers present; the function's own suite passes with its summary line pasted; the bare-suite delta is empty; no trailer consumer exists anywhere.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -133,8 +145,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- TEACHING FINALIZE TO ATTRIBUTE BY TRAILER (the item's step 3). Owned by `h9cn0y`, which is now **`executed`** (not `approved`, corrected at review, F-13) and which explicitly defers trailers to a later plan naming this item. This plan supplies a substrate ONLY. Its accepted cost is therefore ALREADY LIVE in the tree, so the follow-up that revisits `h9cn0y` E-02's accepted cost (excluding the unowned committed class also stops demanding a reason for the executor's OWN out-of-scope commit) and E-03's message is a real outstanding gap, not a hypothetical one. Filing that follow-up is the honest successor to this plan, not part of it.
-- TRAILERING THE AGENT'S OWN CODE COMMITS, which is the work that would actually make finalize's attribution possible (F-12, review PR-801). THIS IS THE BIG ONE AND IT IS NOT DONE BY THIS PLAN. `ipd_lifecycle._changed_path_sources` attributes by diffing `base_head..HEAD`, and every commit in that range is made by the AGENT running raw `git commit -m msg -- <path>`, as the runbook directs at `oc_runipd.py:2607`. Those commits pass through no `offer_commit` call and therefore cannot be reached by wiring one. Making them carry trailers means changing what the runner INSTRUCTS the agent to do (a prompt/runbook change whose compliance cannot be enforced by a code path), or routing agent commits through `aw commit`, whose `_trailers_from_args` already accepts the ids. Either is a materially larger design decision with its own failure modes (an agent that ignores the instruction produces silently untrailered commits, which is the fail-open inference OQ-03 forbids). It needs its own plan and its own maintainer decision; naming it here is the point, so the next reader does not assume this plan delivered it.
+- TEACHING FINALIZE TO ATTRIBUTE BY TRAILER (the item's step 3). Owned by `h9cn0y`, which is now **`executed`** (not `approved`, corrected at review, F-13) and which explicitly defers trailers to a later plan naming this item. This plan supplies a substrate ONLY. Its accepted cost is therefore ALREADY LIVE in the tree, so the follow-up that revisits `h9cn0y` E-02's accepted cost (excluding the unowned committed class also stops demanding a reason for the executor's OWN out-of-scope commit) and E-03's message is a real outstanding gap, not a hypothetical one. Filing that follow-up is the honest successor to this plan, not part of it. FILED AT EXECUTION as backlog `am1g38` (`trailread` set, `followup`), which records the live accepted cost, the fail-closed requirement on an untrailered commit, and its practical dependency on `j2srcc` below.
+- TRAILERING THE AGENT'S OWN CODE COMMITS, which is the work that would actually make finalize's attribution possible (F-12, review PR-801). THIS IS THE BIG ONE AND IT IS NOT DONE BY THIS PLAN. `ipd_lifecycle._changed_path_sources` attributes by diffing `base_head..HEAD`, and every commit in that range is made by the AGENT running raw `git commit -m msg -- <path>`, as the runbook directs at `oc_runipd.py:2607`. Those commits pass through no `offer_commit` call and therefore cannot be reached by wiring one. Making them carry trailers means changing what the runner INSTRUCTS the agent to do (a prompt/runbook change whose compliance cannot be enforced by a code path), or routing agent commits through `aw commit`, whose `_trailers_from_args` already accepts the ids. Either is a materially larger design decision with its own failure modes (an agent that ignores the instruction produces silently untrailered commits, which is the fail-open inference OQ-03 forbids). It needs its own plan and its own maintainer decision; naming it here is the point, so the next reader does not assume this plan delivered it. FILED AT EXECUTION as backlog `j2srcc` (`trailread` set, `feature`), which states both candidate routes with their costs, records that the choice between them is a maintainer decision about the agent's committing contract rather than a fact recoverable from the repository, and names the fail-open trap. UPDATED MEASUREMENT: the wired path has produced 46 commits of the repository's 3971, not 3 of 2926 (see V-01 and decision `21-wao266-D1`); every one still touches only `.backlog.md` files, so this entry's conclusion is unchanged and only its arithmetic moved.
 - GIVING THE AGY RUNNER ITS OWN COMMIT PATH (the item's step 2). Already satisfied: both hosts reach one shared function by import. Building a second would regress the rununify de-duplication that `5e4sb6` exists to complete.
 - INVERTING `test_committed_half_of_a_coworker_is_STILL_refused_documented_limitation`. STALE AS WRITTEN, CORRECTED AT REVIEW (F-13): `h9cn0y` ALREADY DID THIS when it executed, renaming the test to `..._is_now_disregarded_gap_CLOSED` and keeping its same-identity measurement as positive evidence that cohesion rather than authorship did the work (its history records it as decision `09-h9cn0y-D2`). So there is nothing outstanding here; the entry is retained only to record that it was checked and found done. This plan still touches neither that test nor `tests/test_finalize_scope_ownership.py`.
 - BINDING `RUN-COMMIT-CONTENTS` / `RUN-COMMIT-GATEWAY`. Both are unbound because nothing READS a trailer, and writing one is not proving a commit's tree diff equals the item-owned delta. Binding them on the strength of a writer would be exactly the fail-open error `wlxkoz` documents.
@@ -144,7 +156,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. One call site, one threaded parameter, two test modules.
+- Over-scope: ONE declared widening, made deliberately and recorded rather than taken silently: `agent_workflows/work_cmd.py` was added to `Scope-Paths` AT EXECUTION for a DOCSTRING-ONLY edit (no code line changed; verified by reading the whole file diff). The plan's own spec-sync section requires correcting `_trailers_from_args`'s now-partly-false "the runner wiring is deliberately deferred" sentence and offers exactly two routes ("Do not leave a knowingly false docstring without doing one or the other"); I took the edit route. The finalize scope gate CORRECTLY REFUSED the commit until this line declared the path, which is the gate working as intended and is why the declaration is here rather than in a bypass. See decision `21-wao266-D3`. Otherwise: one call site, one threaded parameter, two test modules.
 - Scope-Paths justification: `agent_workflows/oc_runipd.py` holds `commit_backlog_close` and its `offer_commit` call, plus `process_backlog_close` which already receives the `state` carrying `run_id`, i.e. E-02 and E-03 in full; `agent_workflows/git_commit_helper.py` holds `run_item_trailers` and `offer_commit` and is in scope ONLY in case the canonical formatter needs a docstring correction now that a real consumer exists (a change of substance there would be a scope-widening finding, since the mechanism is already tested and correct); `tests/test_runner_backlog_close.py` is the existing suite for the target function and must show its guards unchanged (E-05), including its source-substring assertion; `tests/test_run_trailer_wiring.py` is new and carries the git-parser read-back, the empty case, and the shared-object identity assertion (E-04). `agy_runipd.py` is deliberately NOT in scope: F-2 establishes it reaches the shared function by import, so it needs no edit, and editing it would contradict this plan's central claim.
 - Under-scope, stated rather than left as `none`, and EXPANDED AT REVIEW because the authored list omitted the largest gap: this plan adds no trailer READER, does not touch finalize or `ipd_lifecycle.py`, does not touch `tests/test_finalize_scope_ownership.py` (whose characterization test `h9cn0y` already inverted), does not bind either waiting finding code, adds no CLI flag, backfills nothing, and does not widen which commit paths carry trailers. MOST IMPORTANTLY (F-12): it does NOT make the AGENT's code commits carry trailers, and those are the only commits finalize's attribution reads (`base_head..HEAD`). The wired site produced 3 commits in 2926, each touching one `.backlog.md`. So after this plan, finalize's attribution is EXACTLY as capable as before, and `h9cn0y`'s live accepted cost is unchanged. The value delivered is a proven, tested, non-dead writer plus a git-parser-verified end-to-end path; the attribution gap itself stays open and is named in Deferred.
 
@@ -205,30 +217,161 @@ Spec `25kzda` 4.6 already specifies the trailers, and 4.2's `RUN-COMMIT-CONTENTS
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL output for all FIVE claims at your HEAD: the trailer symbols and `offer_commit`'s signature; the trailer-count search over recent history and the `cli.py` grep; the `offer_commit` call-site count in BOTH runners plus `agy_runipd.py`'s import line; `h9cn0y`'s current `- Status:` and its path (review measured `executed`); and CLAIM (e), the count of commits the wired path has actually produced across all refs plus `git show --stat` for each, which review measured as 3 commits of 1 `.backlog.md` file each. State explicitly whether claim (c) has moved, and if so paste the re-scope or the STOP rather than proceeding. State what (e) implies for this plan's reach, and do not restate any claim that this closes finalize's attribution gap.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: measured at HEAD `c6596383` (lane `aw/lane/wao266`).
+    (a) VERIFIED. `grep -n` in `git_commit_helper.py`: `48:TRAILER_KEY_RUN = "AW-Run"`, `49:TRAILER_KEY_ITEM = "AW-Item"`, `226:def run_item_trailers(run_id: Optional[str], item_id6: Optional[str]) -> List[str]:`, `418:def offer_commit(` with line 416 of the signature reading `    trailers: Sequence[str] = (),` (empty default intact).
+    (b) VERIFIED. `git log --all -600 --format='%(trailers:key=AW-Run,valueonly)' | grep -c .` -> `0`. `grep -c 'AW-Run' agent_workflows/cli.py` -> `0`. So no commit in recent history carried the trailer and no CLI flag mentions it.
+    (c) VERIFIED, NOT MOVED, so no re-scope and no STOP. `grep -c '_gch.offer_commit(' agent_workflows/oc_runipd.py` -> `1` (the single call inside `commit_backlog_close`). `grep -c offer_commit agent_workflows/agy_runipd.py` -> `0`. `agy_runipd.py:500` reads `    commit_backlog_close as commit_backlog_close,` inside its import block from `oc_runipd`, and `:504`/`:1663` import and call the shared `process_backlog_close`. Object identity confirmed in a live interpreter: `agy_runipd.commit_backlog_close is oc_runipd.commit_backlog_close` -> `True`. One call site still serves both hosts, so the plan's shape holds.
+    (d) CONFIRMED AS REVIEW MEASURED. `h9cn0y` is at `.aw/records/plans/executed/20260906-scopeattr-01-h9cn0y-attribute-a-scope-audit-to-the-execution-s-own-commits-inste.ipd.md` with line 12 reading `- Status: executed`. Its accepted cost is therefore LIVE in the tree, and the characterization-test inversion this plan's Deferred section once listed as outstanding was already done by it.
+    (e) MEASURED, AND IT DIFFERS MATERIALLY FROM REVIEW, IN THE PLAN'S FAVOUR. `git log --all --format='%H %s' | grep -ci "closed by aw"` -> **46** (review measured 3). `git rev-list --all --count` -> **3971** (review counted 2926). Per-commit `git show --stat`: 40 of the 46 touch ONE file and 6 touch TWO (51 file entries total); `grep -cv 'backlog\.md'` over every touched path -> `0`, i.e. EVERY file is a `.backlog.md`, exactly as review measured. Dates span `2026-09-04 02:29` to `2026-09-22 04:12`, so the newest is from this run's own day and the path is in routine active use rather than historical.
+    WHAT (e) IMPLIES FOR REACH, stated without overclaiming. The wired site is used far more than review believed (46 and growing daily, not 3 and dormant), so making it a live writer is worth more than the review's figure suggested. BUT the file-shape half of review's measurement reproduced exactly: every commit this wiring trailers touches only `.backlog.md` records. The commits `ipd_lifecycle._changed_path_sources` reads for attribution are the AGENT's code commits in `base_head..HEAD`, made by the agent via raw `git commit -m msg -- <path>` per the runbook directive, which pass through no `offer_commit` call. This plan therefore does NOT close finalize's attribution gap and `h9cn0y`'s accepted cost is unchanged by it; see decision `21-wao266-D1` and the Deferred section.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the changed call site showing `run_item_trailers` used (not a hand-built string) and the run id threaded from state. Paste NEGATIVE proof that no `.aw/records/runs/` read and no global lookup was introduced. Paste the signature change and confirm `agy_runipd.py`'s import still resolves by importing it in a live interpreter. THEN paste a diff or side-by-side of the function's four guards showing each is textually unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE CHANGED CALL SITE, using the canonical formatter and NOT a hand-built string (`oc_runipd.commit_backlog_close`):
+    ```
+            outcome = _gch.offer_commit(
+                repo,
+                paths,
+                message=message,
+                assume_yes=True,
+                interactive=False,
+                # RUN OWNERSHIP, MACHINE-READABLE AND IMMUTABLE (E-02/E-03). The canonical formatter, not
+                # a hand-built string, so the key spelling lives in ONE place. ...
+                trailers=_gch.run_item_trailers(run_id, plan_id6),
+            )
+    ```
+    THE RUN ID THREADED FROM STATE (`oc_runipd.process_backlog_close`), which receives `state` and the queue `item`:
+    ```
+        record["commit"] = commit_backlog_close(
+            write_repo,
+            item_id6,
+            message,
+            run_id=state.get("run_id"),
+            plan_id6=item.get("id6"),
+        )
+    ```
+    NEGATIVE PROOF, NO `.aw/records/runs/` READ AND NO GLOBAL. Tokenized both functions with `tokenize`, discarding COMMENT and STRING tokens so only CODE remains, then searched the result: `commit_backlog_close` -> `.aw/records/runs` False, `global ` False; `process_backlog_close` CODE -> `.aw/records/runs` False, `global ` False, `runs/` False. The only textual hits anywhere are in a comment I added that states the prohibition: `# global and never from a read of `.aw/records/runs/`, which is gitignored and absent from a lane`. No runtime path reads the run directory.
+    THE SIGNATURE CHANGE, keyword-only with defaults so every existing three-positional call stays valid:
+    ```
+    def commit_backlog_close(
+        repo: Path,
+        item_id6: str,
+        message: str,
+        *,
+        run_id: str | None = None,
+        plan_id6: str | None = None,
+    ) -> str | None:
+    ```
+    `agy_runipd.py`'s IMPORT STILL RESOLVES, confirmed in a live interpreter: `python3 -c "import agent_workflows.work_cmd, agent_workflows.oc_runipd, agent_workflows.agy_runipd; ..."` printed `imports OK` and `shared object: True`. `tests/test_runner_backlog_close.py`'s `SharedNotCopied` (which asserts on the NAME `commit_backlog_close`) passes: `49 passed`.
+    THE FOUR GUARDS ARE TEXTUALLY UNCHANGED, proven by the DIFF's deletion set. `git diff -U0 agent_workflows/oc_runipd.py | grep -E '^-' | grep -v '^---'` yields exactly TWO deleted lines in the whole file, both of which are lines I re-wrote in place: the old `def commit_backlog_close(repo: Path, item_id6: str, message: str) -> str | None:` header and the old `record["commit"] = commit_backlog_close(write_repo, item_id6, message)` call. NO line belonging to the id6 basename filter, the `-uall` porcelain invocation, the width-independent `split(None, 1)` parse, or the `if len(paths) < 2: return None` fail-closed guard appears as a deletion, so none of them was touched. Their continued BEHAVIOR is separately asserted by the five tests in `TheExistingGuardsStillHoldWithTrailersPresent` (see V-05).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the comment at the site stating that a missing run id omits the trailer and that nothing is synthesized. Paste proof that no new CLI flag exists (search for the trailer keys and any new argument in both runners and `cli.py`). Quote the code path showing the omission is achieved by the formatter's own empty-safe behavior rather than by a special case.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE COMMENT AT THE SITE (inside the `offer_commit` call in `commit_backlog_close`), verbatim:
+    ```
+                # RUN OWNERSHIP, MACHINE-READABLE AND IMMUTABLE (E-02/E-03). The canonical formatter, not
+                # a hand-built string, so the key spelling lives in ONE place. Values come from the LIVE
+                # run threaded in by the caller; when a caller has no run id (a hand-driven or test
+                # invocation) this returns `[]` and the message composes BYTE-IDENTICALLY to today's.
+                # NOTHING IS SYNTHESIZED to fill the gap: an absent trailer means UNKNOWN ownership, while
+                # a fabricated one would be a false ownership claim in permanent history.
+    ```
+    The same rule is stated in the function's docstring ("WITH NO RUN ID THE TRAILER IS OMITTED, NEVER SYNTHESIZED (E-03)"), which is what a reader sees from `help()` without opening the file.
+    NO NEW CLI FLAG. Per-file counts: `oc_runipd.py` -> `AW-Run=1 AW-Item=1` (both inside the docstring/comment prose I added, not argparse), `add_argument.*trailer=0`; `agy_runipd.py` -> `AW-Run=0 AW-Item=0 add_argument.*trailer=0`; `cli.py` -> `AW-Run=0 AW-Item=0 add_argument.*trailer=0`. And `git diff agent_workflows/ | grep -c "add_argument"` -> `0`, so my change adds no argparse argument of any kind anywhere. `tests/test_run_trailer_wiring.py` has no flag test because there is no flag; the reasoning recorded in `work_cmd._trailers_from_args` (values come from a live run, never a human) still holds and is preserved in that docstring.
+    THE OMISSION IS THE FORMATTER'S OWN EMPTY-SAFE BEHAVIOR, NOT A SPECIAL CASE. There is no `if run_id:` branch at the call site: `trailers=_gch.run_item_trailers(run_id, plan_id6)` is passed unconditionally, and the skipping happens inside the canonical formatter:
+    ```
+    def run_item_trailers(run_id: Optional[str], item_id6: Optional[str]) -> List[str]:
+        out: List[str] = []
+        if run_id and str(run_id).strip():
+            out.append(f"{TRAILER_KEY_RUN}: {str(run_id).strip()}")
+        if item_id6 and str(item_id6).strip():
+            out.append(f"{TRAILER_KEY_ITEM}: {str(item_id6).strip()}")
+        return out
+    ```
+    which returns `[]` when both are absent, and `compose_message_with_trailers` then returns the message "byte-for-byte identical: the existing-caller guarantee". Asserted behaviorally by `WithNoRunIdNothingChangesAndNothingIsInvented::test_neither_key_appears_and_the_message_is_byte_identical` and, for the one-sided case, `..._test_a_run_id_alone_still_omits_only_the_missing_key` (a run id with no plan id6 yields `AW-Run` only).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the ACTUAL passing output of the read-back test AND quote the `git log --format='%(trailers:key=AW-Run,valueonly)'` assertion, so it is visible that git's own parser recognized the trailer rather than the test matching a substring. Paste the `AW-Item` assertion too. Paste the empty-case assertion showing the message is byte-identical without a run id. Paste the `agy_runipd.commit_backlog_close is oc_runipd.commit_backlog_close` assertion and its result. PASTE PROOF THE FIXTURE ACTUALLY COMMITTED (F-14): show the fixture builds a genuine two-path move and that `commit_backlog_close` returned a sha rather than None, since the `len(paths) < 2` early return sits ABOVE `offer_commit` and a one-file fixture would make every trailer assertion pass vacuously.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_run_trailer_wiring.py -o addopts="" -v`:
+    ```
+    tests/test_run_trailer_wiring.py::OneChangeCoversBothHosts::test_agy_holds_no_offer_commit_call_of_its_own PASSED [  7%]
+    tests/test_run_trailer_wiring.py::OneChangeCoversBothHosts::test_the_commit_path_is_the_same_object_in_both_drivers PASSED [ 14%]
+    tests/test_run_trailer_wiring.py::TheRunnersCommitCarriesRunOwnership::test_the_body_is_preserved_ahead_of_the_trailer_block PASSED [ 21%]
+    tests/test_run_trailer_wiring.py::TheRunnersCommitCarriesRunOwnership::test_git_itself_parses_both_keys_off_the_real_commit PASSED [ 28%]
+    tests/test_run_trailer_wiring.py::TheRunnersCommitCarriesRunOwnership::test_the_canonical_formatter_is_used_rather_than_a_hand_built_string PASSED [ 35%]
+    tests/test_run_trailer_wiring.py::WithNoRunIdNothingChangesAndNothingIsInvented::test_a_run_id_alone_still_omits_only_the_missing_key PASSED [ 42%]
+    tests/test_run_trailer_wiring.py::WithNoRunIdNothingChangesAndNothingIsInvented::test_the_positional_call_form_still_works PASSED [ 50%]
+    tests/test_run_trailer_wiring.py::WithNoRunIdNothingChangesAndNothingIsInvented::test_neither_key_appears_and_the_message_is_byte_identical PASSED [ 57%]
+    tests/test_run_trailer_wiring.py::NoConsumerWasAdded::test_nothing_in_the_lifecycle_module_reads_a_trailer PASSED [ 64%]
+    tests/test_run_trailer_wiring.py::TheExistingGuardsStillHoldWithTrailersPresent::test_the_deleted_side_parses_without_eating_the_paths_first_character PASSED [ 71%]
+    tests/test_run_trailer_wiring.py::TheExistingGuardsStillHoldWithTrailersPresent::test_a_coworkers_different_backlog_item_is_still_never_swept_in PASSED [ 78%]
+    tests/test_run_trailer_wiring.py::TheExistingGuardsStillHoldWithTrailersPresent::test_the_untracked_addition_is_named_as_a_file_not_as_its_directory PASSED [ 85%]
+    tests/test_run_trailer_wiring.py::TheExistingGuardsStillHoldWithTrailersPresent::test_the_commit_is_still_unattended_and_never_prompts PASSED [ 92%]
+    tests/test_run_trailer_wiring.py::TheExistingGuardsStillHoldWithTrailersPresent::test_fewer_than_two_paths_still_returns_none_and_commits_nothing PASSED [100%]
+    ============================== 14 passed in 2.12s ==============================
+    ```
+    GIT'S OWN PARSER IS THE AUTHORITY, not a substring match. The read-back helper and the two assertions:
+    ```
+    def _trailer_values(repo: Path, sha: str | None, key: str) -> list[str]:
+        out = git(
+            repo, "log", "-1", f"--format=%(trailers:key={key},valueonly)", sha
+        ).stdout
+        return [ln.strip() for ln in out.splitlines() if ln.strip()]
+    ...
+        self.assertEqual(_trailer_values(self.root, sha, "AW-Run"), [RUN_ID], ...)
+        self.assertEqual(_trailer_values(self.root, sha, "AW-Item"), [PLAN_ID6], ...)
+    ```
+    with `RUN_ID = "run-20260908T010203Z-424242"` and `PLAN_ID6 = "wao266"`. Independently reproduced by hand outside pytest on a scratch repo: `git log -1 --format='%(trailers:key=AW-Run,valueonly)'` printed `run-X` for a commit made through `commit_backlog_close(..., run_id='run-X', plan_id6='wao266')`.
+    THE EMPTY CASE IS BYTE-IDENTICAL:
+    ```
+        self.assertEqual(
+            _stored_message(self.root, sha),
+            message + "\n",
+            "the stored message must be BYTE-IDENTICAL to what a caller passing no ids gets today ...",
+        )
+    ```
+    read via `git cat-file commit <sha>` (not `%B`, which appends a newline of its own and so cannot support a byte-for-byte claim), together with `_trailer_values(..., "AW-Run") == []` and `... "AW-Item") == []`.
+    BOTH HOSTS, BY OBJECT IDENTITY: `self.assertIs(agy_runipd.commit_backlog_close, oc_runipd.commit_backlog_close, ...)` PASSED, and independently in a live interpreter `shared object: True`. Reinforced by `test_agy_holds_no_offer_commit_call_of_its_own`, which walks `agy_runipd.py`'s AST and asserts ZERO `offer_commit` call nodes (so a mention in prose can neither satisfy nor break it).
+    THE FIXTURE ACTUALLY COMMITTED, AND THE TWO-PATH INPUT IS PROVEN, NOT ASSUMED (F-14). `assertBothSidesWerePresentedToTheCommitPath` reads the SAME `git status --porcelain -uall` view the function itself reads and asserts it lists exactly the graduated and done paths, so the `len(paths) < 2` early return cannot be silently taken; `assertRealTwoPathCommit` then asserts `sha is not None` with the message "`commit_backlog_close` returned None, so NOTHING was committed and every trailer assertion in this test would be vacuous", and that the commit is scoped to this item's two paths. The complementary direction is pinned by `test_fewer_than_two_paths_still_returns_none_and_commits_nothing`, which presents ONE side and asserts `sha is None` AND that HEAD did not move: so the suite proves the guard both fires and does not fire, for the right inputs.
+    ONE HONEST LIMIT, RECORDED RATHER THAN PAPERED OVER. `assertRealTwoPathCommit` asserts the commit contains the move's DESTINATION and nothing outside this item's two paths; it deliberately does NOT assert the DELETION landed, because today it does not, for a PRE-EXISTING reason in the shared commit helper that this plan must not fix. Measured: `git_commit_helper._staged_paths` reads `git diff --name-only --cached` with rename detection ON, so a realistic item's write+unlink move pairs at `R098` and reports only the destination, while the existing suite's 3-line stub pairs at `R055` and reports both (which is why the existing end-to-end test legitimately passes over it). Verified against UNMODIFIED HEAD code with my change stashed, and one layer down by calling `offer_commit` directly (`staged=(dst,)`, `D <src>` left behind). In real history 42 of 47 close commits contain the addition alone and 22 items exist in BOTH `graduated/` and `done/` at HEAD. Filed as backlog `mx1b4v` (`bug`, `Blocks-Release: next`); see decision `21-wao266-D2`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `tests/test_runner_backlog_close.py`'s OWN summary line, run PER-FILE, because that file contains a load-sensitive pre-existing failure under `-n auto` (F-15) and a bare-suite result alone cannot tell you whether you caused it. If its STRUCTURAL guard (`test_the_commit_is_path_scoped_to_this_item_only`, `:574`) failed, quote what it asserts and justify the edit rather than loosening it; note it is an AST assertion so a keyword addition should not trip it, and confirm you wrote no `-A`/`add_all` token even in a comment. Paste the four guard-preservation assertions and their results. Paste NEGATIVE proof that nothing in `ipd_lifecycle.py` reads a trailer. THEN paste the BARE `python3 -m pytest` summary lines before and after and state the failing NODE-ID delta explicitly against the RE-MEASURED baseline (`2 failed, 5957 passed` at `bf2c6b46`, both node ids named in the required-tests section), not the wrong authored figure; confirm each pre-existing failure is pre-existing and state that you did not touch `opencode-recovery/`. If you could not produce a real trailered commit in this repository's history, say so plainly rather than claiming history now contains one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE DECLARED FILE'S OWN SUMMARY LINE, RUN PER-FILE, `python3 -m pytest tests/test_runner_backlog_close.py -o addopts="" -q`:
+    ```
+    .................................................                        [100%]
+    49 passed in 5.52s
+    ```
+    So the guard suite is fully green per-file and the load-sensitive `ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130` that F-15 warned about did NOT fail here, either per-file or in the bare run.
+    THE STRUCTURAL GUARD DID NOT FAIL, so no edit to it was needed or made (it is included in the 49 above). Note its shape has ALSO moved since review: `test_the_commit_is_path_scoped_to_this_item_only` no longer does an AST check at all - its docstring records that the `inspect.getsource` AST assertion and two banned-substring searches were REPLACED in a 2026-09-19 audit by a SPY on `git_commit_helper.offer_commit`, asserting it is called once and that every path it receives carries this item's id6. My change adds a keyword argument to that same call, which the spy forwards (`def spy(repo, paths, **kwargs)`), so it passes. And the banned tokens are gone regardless: `inspect.getsource(commit_backlog_close)` contains `-A` -> `False` and `add_all` -> `False`, so I wrote neither token anywhere in that function, including in a comment.
+    THE GUARD-PRESERVATION ASSERTIONS, all five PASSED with trailers present (`TheExistingGuardsStillHoldWithTrailersPresent`, node ids in V-04's output):
+      * `test_a_coworkers_different_backlog_item_is_still_never_swept_in` - commits with a co-worker's DIFFERENT backlog item holding an uncommitted edit; asserts every committed path's basename carries this item's id6, and that the co-worker's edit is still on disk untouched. PASSED.
+      * `test_fewer_than_two_paths_still_returns_none_and_commits_nothing` - presents only one side of the move; asserts `commit_backlog_close` returns None AND that HEAD did not move. PASSED.
+      * `test_the_deleted_side_parses_without_eating_the_paths_first_character` - asserts the fixture really presents the `" D .aw/records/backlog/graduated/..."` leading-space shape, then spies the commit helper and asserts the deletion reaches it as `.aw/records/backlog/graduated/<name>` with its leading `.` intact (the measured fixed-slice bug would have produced `aw/records/...`). PASSED.
+      * `test_the_untracked_addition_is_named_as_a_file_not_as_its_directory` - asserts the requested set names the individual FILE, and that no bare directory entry is in it (`-uall` still load-bearing). PASSED.
+      * `test_the_commit_is_still_unattended_and_never_prompts` - asserts `interactive=False`, `assume_yes=True`, and that `trailers` is passed to the shared helper rather than composed into the message by hand. PASSED.
+    NEGATIVE PROOF THAT NO CONSUMER WAS ADDED: `grep -c "trailers:key\|interpret-trailers" agent_workflows/ipd_lifecycle.py` -> `0`. Pinned as a test by `NoConsumerWasAdded::test_nothing_in_the_lifecycle_module_reads_a_trailer`, which also asserts no `read_run_trailers` helper appeared. `ipd_lifecycle.py` is not in `Scope-Paths` and was not edited.
+    BARE SUITE, BEFORE AND AFTER, with the NODE-ID delta. BEFORE (at lane HEAD `c6596383`, before any edit of mine, `python3 -m pytest`):
+    ```
+    1 failed, 8194 passed, 3 skipped, 2 xfailed, 3 warnings in 124.45s (0:02:04)
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    ```
+    AFTER (all edits in place):
+    ```
+    1 failed, 8208 passed, 3 skipped, 2 xfailed, 3 warnings in 118.13s (0:01:58)
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    ```
+    AFTER minus BEFORE by NODE ID is **EMPTY**: the same single node fails in both runs. Passed count rose by exactly 14, which is exactly the number of tests in the new module. The baseline I measured differs from the plan's re-measured figure (`2 failed, 5957 passed` at `bf2c6b46`) because the tree has moved on by ~2250 tests since; I judged on my own before/after delta as instructed, never on an absolute count.
+    THE PRE-EXISTING FAILURE IS PRE-EXISTING AND IS NOT MINE. `tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped` failed identically BEFORE I touched anything, and `git status --porcelain -uall` was CLEAN at that point (no uncommitted changes of mine or anyone else's). It asserts a non-isolated turn gets NO `OPENCODE_CONFIG_CONTENT` denial policy; it fails because this very turn runs with that env set, i.e. the test is sensitive to being run INSIDE an isolated lane. It touches nothing this plan changes. Neither of F-15's two named failures reproduced.
+    `opencode-recovery/` WAS NOT TOUCHED. It does not exist in this lane worktree at all (`ls -d opencode-recovery` -> not present), and `git status --porcelain -uall | grep -c opencode-recovery` -> `0`. The `tests/test_reporting_contract.py::ParityTests` failure F-15 attributed to it did not occur here, consistent with the tree being absent.
+    NO CLAIM THAT THIS REPOSITORY'S HISTORY NOW CONTAINS A TRAILER, stated plainly as required. My own commits for this plan are made by me via the tooled commit path with no live run id threaded, so they carry NO `AW-Run` trailer, and `commit_backlog_close` is invoked by the DRIVER rather than by me, so I could not produce a real trailered commit in this repository's history within this turn. The end-to-end proof is therefore the throwaway-repository test that drives the real function and reads the trailer back through git's own parser. The first real trailered commit in this repository will appear the next time a run closes a backlog item through the non-isolated path.
+  - Result: pass
 
 ## Approval and execution gate
 

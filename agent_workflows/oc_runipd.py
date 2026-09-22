@@ -1806,10 +1806,32 @@ def close_backlog_item(
         return 1, str(exc).strip()
 
 
-def commit_backlog_close(repo: Path, item_id6: str, message: str) -> str | None:
+def commit_backlog_close(
+    repo: Path,
+    item_id6: str,
+    message: str,
+    *,
+    run_id: str | None = None,
+    plan_id6: str | None = None,
+) -> str | None:
     """Path-scoped-commit the item file the setter just MOVED, via the shared tooled commit path.
 
     Returns the new commit sha, or None when nothing was committed.
+
+    RUN OWNERSHIP TRAILERS (runtrailwire-01 `wao266` E-02/E-03). ``run_id`` is the live run's own id
+    and ``plan_id6`` the queue item (plan) whose execution earned the close; both are threaded from
+    the caller's `state`/`item` and formatted by the canonical `git_commit_helper.run_item_trailers`,
+    never hand-built, so the `AW-Run`/`AW-Item` key spelling is single-sourced and cannot drift.
+    KEYWORD-ONLY AND OPTIONAL BY DESIGN: `agy_runipd` imports this function BY NAME and both drivers
+    must keep resolving the same object, so the existing three-positional call form stays valid.
+
+    WITH NO RUN ID THE TRAILER IS OMITTED, NEVER SYNTHESIZED (E-03). `run_item_trailers` already
+    skips an absent value and returns `[]` when both are absent, which `offer_commit` composes into a
+    BYTE-IDENTICAL message, so the safe behavior is the default and needs no special case here. The
+    tempting "improvement" is to synthesize an id from a timestamp or the plan id; do not. The whole
+    value of an immutable trailer is that a later reader can TRUST it, so a trailer asserting run
+    ownership it cannot substantiate is strictly worse than no trailer at all (the same discipline
+    `h9cn0y` E-03 applies when it refuses to name a responsible sha it cannot substantiate).
 
     WHICH PATH STILL CALLS THIS (dirtygates-03 `9iq461` E-02): the NON-ISOLATED one only
     (`--no-isolate-worktree`), where the setter genuinely wrote into the shared checkout and leaving
@@ -1894,6 +1916,13 @@ def commit_backlog_close(repo: Path, item_id6: str, message: str) -> str | None:
             message=message,
             assume_yes=True,
             interactive=False,
+            # RUN OWNERSHIP, MACHINE-READABLE AND IMMUTABLE (E-02/E-03). The canonical formatter, not
+            # a hand-built string, so the key spelling lives in ONE place. Values come from the LIVE
+            # run threaded in by the caller; when a caller has no run id (a hand-driven or test
+            # invocation) this returns `[]` and the message composes BYTE-IDENTICALLY to today's.
+            # NOTHING IS SYNTHESIZED to fill the gap: an absent trailer means UNKNOWN ownership, while
+            # a fabricated one would be a false ownership claim in permanent history.
+            trailers=_gch.run_item_trailers(run_id, plan_id6),
         )
     except Exception:
         return None
@@ -2041,7 +2070,19 @@ def process_backlog_close(
     # uncommitted change is not in the merge at all, and `teardown_lane_if_classified` then refuses to
     # tear down a lane holding a dirty tracked file -- so the close would be silently dropped AND the
     # lane stranded. For a NON-ISOLATED turn this is the pre-existing behavior, unchanged.
-    record["commit"] = commit_backlog_close(write_repo, item_id6, message)
+    #
+    # AND IT CARRIES RUN OWNERSHIP (runtrailwire-01 `wao266` E-02). The ids come from the LIVE run's
+    # own state and the queue item in hand -- `state["run_id"]` and `item["id6"]` -- never from a
+    # global and never from a read of `.aw/records/runs/`, which is gitignored and absent from a lane
+    # worktree. `state.get` rather than `state[...]` because a hand-built or legacy state may carry no
+    # run id, and the correct answer there is an omitted trailer, not a KeyError mid-close.
+    record["commit"] = commit_backlog_close(
+        write_repo,
+        item_id6,
+        message,
+        run_id=state.get("run_id"),
+        plan_id6=item.get("id6"),
+    )
     item["backlog_close"] = record
     append_jsonl(
         run_dir / "events.jsonl",
