@@ -2884,6 +2884,231 @@ def find_from_backlog_artifacts(
     )
 
 
+# --------------------------------------------------------------------------------------
+# graduate Order 01 (`jxxec8`): the REVERSE direction of the source link.
+#
+# `check.from-backlog-dangling` and `check.from-spec-dangling` ask the FORWARD question ("does THIS
+# artifact's source link resolve?"). Nothing asked the reverse ("what already exists for this
+# source?"), so whoever graduates a spec or backlog item had no way to see that the source already
+# has plans. Measured at authoring: 33 sources carry MORE THAN ONE artifact, the largest being spec
+# `25kzda` with ten, and spec `6m4kow` (the motivating case of backlog `6h7y2y`) already had three
+# executed plans when that item was filed, two of whose premises had therefore already shipped.
+#
+# PLANS **AND** SPECS, NOT PLANS ONLY. A spec is an "equally valid gate carrier" (AGENTS.md), which
+# is exactly why `find_from_backlog_artifacts` above exists: the handoff route once scanned plan
+# IPDs only, so a spec-first graduation was invisible. Measured, SIX spec records carry a source
+# link and they sit on the biggest clusters (`6m4kow`->`25kzda`, `77tr3o`->`kxkc04`,
+# `c4gd2h`->`kjzlgw`, `7ckptx`->`vqv9im`, ...), so a plans-only index would answer "what exists for
+# 25kzda" with nine plans and stay silent about the spec that already addresses it.
+#
+# EVERY SOURCE BULLET, NOT THE FIRST MATCH, and this is a MEASURED requirement. Six plans carry BOTH
+# a `From-Backlog:` and a `From-Spec:` bullet (the four `orchretire` plans plus `h0zljh` and
+# `4fodkt`), so the single-match `.search` the forward readers use - correct for THEIR question -
+# would drop one edge per dual-link plan and under-report two real clusters. Hence `finditer`.
+#
+# ONE PASS OVER THE CORPUS, NOT ONE PASS PER SOURCE. `find_from_backlog_artifacts` is the right
+# shared lookup for a SINGLE backlog id6 and is reused by `graduation_cluster` below for a
+# cross-check; it cannot build the whole reverse map, because calling it per source re-walks the
+# entire tree per source (the cost `plan_gates_by_backlog` already works around further down with a
+# single-pass index). This builds the same single-pass shape and reuses the SAME field readers
+# (`_META_FROM_BACKLOG_RE`, `_ITEM_FROM_SPEC_RE`) and the SAME iterators (`_iter_plan_ipds`,
+# `_iter_spec_records`); it adds NO third parser for either field and NO new tree literal.
+# --------------------------------------------------------------------------------------
+
+#: The artifact types the reverse index covers, in report order. Plans first, mirroring
+#: `find_from_backlog_artifacts`, so a cluster reads plan-then-spec.
+GRADUATION_ARTIFACT_TYPES: Tuple[str, ...] = ("plan", "spec")
+
+#: The two source KINDS a `From-*` bullet can name.
+GRADUATION_SOURCE_KINDS: Tuple[str, ...] = ("backlog", "spec")
+
+
+class GraduationArtifact(NamedTuple):
+    """One artifact citing a source, as the pre-graduation view reports it.
+
+    artifact_type: 'plan' | 'spec' (a cluster may MIX them, and `to-review` means a different thing
+                   on each, so the type is carried rather than inferred from the path).
+    id6:           the artifact's declared `- Id:`, or '' when it declares none (legacy specs).
+    status:        its `- Status:` value, or '' when unreadable. This is what distinguishes
+                   "already built" from "in flight", which is the whole point of the view.
+    setid:         its `- Set:` terse id, or ''. One Set with many Orders is legitimate
+                   decomposition; several DIFFERENT Sets is the case a human must look at.
+    path:          repo-relative path, so the reader can open it.
+    """
+
+    artifact_type: str
+    id6: str
+    status: str
+    setid: str
+    path: str
+
+
+def build_graduation_reverse_index(
+    repo_root: Path,
+) -> Dict[Tuple[str, str], List[GraduationArtifact]]:
+    """Map every source `(kind, id6)` to the PLANS AND SPECS whose `From-*` bullet names it.
+
+    ``kind`` is ``'backlog'`` or ``'spec'`` (i.e. which of the two link fields carried it), so a
+    backlog item and a spec that happen to share an id6 prefix can never be conflated.
+
+    Built in ONE pass over both iterators; every source bullet on an artifact is indexed, not the
+    first. Artifacts are yielded plans-before-specs and path-sorted within a type, which makes the
+    output stable for a test that asserts membership rather than order.
+    """
+    index: Dict[Tuple[str, str], List[GraduationArtifact]] = {}
+    for artifact_type, iterator in (
+        ("plan", _iter_plan_ipds),
+        ("spec", _iter_spec_records),
+    ):
+        for path, text in iterator(repo_root):
+            sources: List[Tuple[str, str]] = [
+                ("backlog", m.group(1)) for m in _META_FROM_BACKLOG_RE.finditer(text)
+            ] + [("spec", m.group(1)) for m in _ITEM_FROM_SPEC_RE.finditer(text)]
+            if not sources:
+                continue
+            declared_id = _read_declared_id(text) or ""
+            status_match = _PLAN_STATUS_RE.search(_metadata_region(text))
+            setid, _descriptive = _parse_setid(text)
+            try:
+                rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
+            except ValueError:
+                rel = str(path)
+            record = GraduationArtifact(
+                artifact_type=artifact_type,
+                id6=declared_id,
+                status=status_match.group(1) if status_match else "",
+                setid=setid or "",
+                path=rel,
+            )
+            for key in sources:
+                bucket = index.setdefault(key, [])
+                if record not in bucket:
+                    bucket.append(record)
+    return index
+
+
+class GraduationCluster(NamedTuple):
+    """What the pre-graduation view knows about ONE source.
+
+    source_kind/source_id6: the source this answers about.
+    artifacts:              every plan and spec citing it (possibly empty, which is the COMMON and
+                            reassuring answer, not an error).
+    setids:                 the distinct Sets those artifacts belong to, sorted. One Set is
+                            decomposition; several is the partly-visible duplication case.
+    """
+
+    source_kind: str
+    source_id6: str
+    artifacts: Tuple[GraduationArtifact, ...]
+    setids: Tuple[str, ...]
+
+    @property
+    def artifact_count(self) -> int:
+        """How many artifacts cite this source. NAMED `artifact_count` rather than `count` because
+        this is a `NamedTuple`, so a `count` member would SHADOW `tuple.count` with an incompatible
+        signature."""
+        return len(self.artifacts)
+
+    @property
+    def terminal_artifacts(self) -> Tuple[GraduationArtifact, ...]:
+        """The members that already reached a TERMINAL status, i.e. the costly case: work that has
+        LANDED. Deliberately computed from the artifacts rather than from the directory, because a
+        status is what a reader acts on."""
+        return tuple(
+            a for a in self.artifacts if a.status in GRADUATION_TERMINAL_STATUSES
+        )
+
+
+#: Statuses that mean the artifact's work is OVER (in either direction). Used only to HIGHLIGHT the
+#: already-landed members, never to filter them out: a view that read `pending/` only would miss
+#: every executed sibling and would be worst exactly where re-doing work is most expensive.
+GRADUATION_TERMINAL_STATUSES: frozenset = frozenset(
+    {
+        "executed",
+        "superseded",
+        "not-executed",
+        "implemented",
+        "deferred",
+        "parked",
+    }
+)
+
+
+def graduation_cluster(
+    repo_root: Path,
+    source_id6: str,
+    *,
+    source_kind: Optional[str] = None,
+    index: Optional[Dict[Tuple[str, str], List[GraduationArtifact]]] = None,
+) -> GraduationCluster:
+    """Every plan and spec already citing ``source_id6``, for the pre-graduation view.
+
+    ``source_kind`` narrows to one link field; omitted (the usual case, since an operator types an
+    id6 and not a field name) it UNIONS both, because an id6 is unique across the inventory so a
+    token naming a backlog item cannot also name a spec.
+
+    Pass ``index`` to reuse an already-built reverse index (the whole-corpus shape); otherwise one
+    pass is built here. READ-ONLY: it reports and decides nothing, and it applies no
+    ``count > 1`` judgement, because multiple artifacts per source is legitimate decomposition.
+    """
+    idx = index if index is not None else build_graduation_reverse_index(repo_root)
+    kinds = (source_kind,) if source_kind else GRADUATION_SOURCE_KINDS
+    artifacts: List[GraduationArtifact] = []
+    for kind in kinds:
+        for record in idx.get((kind, source_id6), []):
+            if record not in artifacts:
+                artifacts.append(record)
+    setids = tuple(sorted({a.setid for a in artifacts if a.setid}))
+    return GraduationCluster(
+        source_kind=source_kind or "any",
+        source_id6=source_id6,
+        artifacts=tuple(artifacts),
+        setids=setids,
+    )
+
+
+#: THE VIEW'S OWN HONESTY, AS DATA, so it can be rendered into the OUTPUT rather than living only in
+#: a plan file. Backlog `6h7y2y` names three cases and requires the work to "say honestly which of
+#: the three cases above it can and cannot detect"; a limit recorded only in a plan is invisible to
+#: the person reading the view, which is exactly who needs it.
+#:
+#: Each row is (case, verdict, why). The verdicts are deliberately NOT all positive: over-claiming
+#: here would be the same false confidence backlog `6h7y2y` exists to prevent.
+GRADUATION_VIEW_LIMITS: Tuple[Tuple[str, str, str], ...] = (
+    (
+        "legitimate decomposition",
+        "VISIBLE",
+        "the Set and Order of each artifact are shown, so one Set with several Orders reads as the "
+        "deliberate decomposition it is; a source with many artifacts is NOT a defect",
+    ),
+    (
+        "accidental duplication",
+        "PARTLY VISIBLE",
+        "the view shows that two artifacts belong to DIFFERENT Sets, but it cannot compare their "
+        "scopes, so it cannot tell overlapping work from adjacent work; a human must read them",
+    ),
+    (
+        "already implemented",
+        "NOT DETECTABLE",
+        "there is no per-requirement tracking: a spec carries ONE whole-artifact status with no "
+        "partial-implementation state, and `implemented` requires only a resolvable citation rather "
+        "than semantic verification, so 'is requirement G5 built?' cannot be answered mechanically. "
+        "Tracked by backlog `f1sw71`",
+    ),
+)
+
+#: WHAT A ZERO-RESULT DOES AND DOES NOT PROVE. The index's input is the `From-Backlog:`/`From-Spec:`
+#: BULLET, not the work, so an artifact that addresses a source without carrying such a link is
+#: invisible to it. Reported with every answer, because a silence mistaken for "nothing exists" would
+#: cause the very duplication the view exists to prevent.
+GRADUATION_VIEW_COVERAGE: str = (
+    "Searched: PLANS and SPECS (every lifecycle directory, including executed/ and the other "
+    "terminal ones), matched by their `- From-Backlog:` / `- From-Spec:` bullet. Work that "
+    "addresses this source WITHOUT carrying such a bullet is invisible here, so 'no artifacts' "
+    "means 'nothing LINKED to it', never 'nothing exists'."
+)
+
+
 class CloseVerdict(NamedTuple):
     """Structured verdict from `evaluate_blocking_close`.
 

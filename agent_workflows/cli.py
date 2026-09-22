@@ -373,6 +373,17 @@ _DESCRIPTIONS = {
         "point the records lookup at a specific repo."
     ),
     "record-history": "Print a record's full chronological workflow history from the global .aw/records/history.jsonl sidecar, looked up by its 6-char id6.",
+    "graduation": (
+        "Pre-graduation view: report every PLAN and SPEC that already carries a `- From-Spec:` or "
+        "`- From-Backlog:` bullet naming the given source id6, with each artifact's type, status and "
+        "Set, so whoever is about to graduate that source sees what exists before authoring another "
+        "plan for it. Read-only and ADVISORY: it shows and never refuses, and it adds no uniqueness "
+        "rule, because a source decomposing into several children of one Set is correct. Every answer "
+        "states which of the three cases it can detect (legitimate decomposition), can only partly "
+        "detect (accidental duplication across different Sets), and cannot detect at all (already "
+        "implemented), plus what its silence does and does not prove. Exit 0 always on a resolvable "
+        "id6, including the common 'nothing yet' answer."
+    ),
     "check": "Validate the artifacts of a given TYPE (plans, specs, ...) against their contract; exit 0 clean, 1 findings, 2 cannot-run.",
     "find": "Find artifacts of a given TYPE by selector (id6, status, Set, filename fragment), or across all types when omitted.",
     "search": "Search the artifacts of a given TYPE for matching content (regex-enabled), or across all types when omitted. Groups matches by file with color highlighting.",
@@ -3573,6 +3584,40 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir",
         default=None,
         help="Repo root to search for a records artifact (default: current directory).",
+    )
+
+    # graduate Order 01 (`jxxec8`): the PRE-GRADUATION VIEW. Read-only and advisory: it reports the
+    # plans and specs a source already has so whoever is about to graduate it sees the cluster BEFORE
+    # authoring. It is a READ SURFACE and NOT a `check` rule (OQ-01): a rule would fire on every
+    # `aw check` over the 33 measured multi-artifact clusters, most of which are legitimate
+    # decomposition, so it would have to be `info` and would be noise in a stream a reader already
+    # filters. This answers the question someone actually asks ("I am about to graduate X, what
+    # exists?"), which needs a selector rather than a corpus dump.
+    p_graduation = sub.add_parser(
+        "graduation",
+        parents=[common],
+        help="Show the plans/specs a source (spec or backlog id6) ALREADY has, before authoring another.",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw graduation 25kzda         # every plan/spec already citing spec 25kzda\n"
+            "  aw graduation 6h7y2y        # same for a backlog item\n"
+            "  aw graduation 25kzda --agent # machine-readable cluster + stated limits\n"
+        ),
+    )
+    p_graduation.add_argument(
+        "source",
+        help="The SOURCE id6 to report on: a spec id6 or a backlog item id6 (as a From-Spec:/From-Backlog: bullet would name it).",
+    )
+    p_graduation.add_argument(
+        "--kind",
+        dest="source_kind",
+        default=None,
+        choices=("backlog", "spec"),
+        help="Narrow to one link field (default: union both; an id6 is unique across the inventory).",
+    )
+    p_graduation.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
     )
 
     # setupmarker Order 01: the operational-action ledger was removed (redundant with backlog);
@@ -9445,6 +9490,165 @@ def _run_record_history(
     return 0
 
 
+def _run_graduation(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
+    """`aw graduation <source-id6>`: the READ-ONLY pre-graduation view (graduate `jxxec8`).
+
+    Reports every plan and spec already citing the source, with its type, status and Set, and states
+    its own limits IN THE OUTPUT. It DECIDES NOTHING: there is no `count > 1` comparison anywhere on
+    this path, because a source decomposing into several children of one Set is correct by design
+    (measured: the largest real cluster is legitimate), and flagging it would teach a reader to ignore
+    the view. Exit 0 on any resolvable id6, including the common and reassuring "nothing yet" answer,
+    which is rendered as an AFFIRMATIVE statement rather than as an error or as empty output.
+    """
+    import os
+    from pathlib import Path
+
+    from agent_workflows import check_engine as ce
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
+
+    ctx = context or select_output(args)
+    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    source = (getattr(args, "source", None) or "").strip()
+    source_kind = getattr(args, "source_kind", None)
+
+    cluster = ce.graduation_cluster(repo_root, source, source_kind=source_kind)
+    artifacts = [a._asdict() for a in cluster.artifacts]
+    terminal = cluster.terminal_artifacts
+    limits = [
+        {"case": case, "verdict": verdict, "why": why}
+        for case, verdict, why in ce.GRADUATION_VIEW_LIMITS
+    ]
+    summary = (
+        f"{source}: {cluster.artifact_count} linked artifact(s)"
+        f" across {len(cluster.setids)} Set(s); {len(terminal)} already terminal"
+        if cluster.artifact_count
+        else f"{source}: no LINKED plan or spec yet (nothing carries a From-* bullet naming it)"
+    )
+    data = {
+        "repo_root": str(repo_root),
+        "source": source,
+        "source_kind": source_kind or "any",
+        "artifacts": artifacts,
+        "artifact_count": cluster.artifact_count,
+        "setids": list(cluster.setids),
+        "terminal_count": len(terminal),
+        # E-03: the honesty travels WITH the answer, in the machine surface too, so a consumer
+        # cannot read the cluster without the statement of what it does and does not mean.
+        "limits": limits,
+        "coverage": ce.GRADUATION_VIEW_COVERAGE,
+        "advisory": True,
+    }
+
+    if ctx.is_agent or ctx.is_json:
+        # THE LIMITS TRAVEL AS EVIDENCE, NOT ONLY IN `data`, AND THAT IS DELIBERATE (E-03). The
+        # COMPACT `--agent` record drops `data` by design (`CommandResult.to_agent_record`), so a
+        # machine consumer reading `--agent` would otherwise receive the cluster with NO statement of
+        # what it does and does not mean, which is the same over-claim the human output is forbidden
+        # to make. `sanitize_evidence_item` renders a string-valued Evidence as `key:value`, so each
+        # verdict survives compaction.
+        res = CommandResult(
+            command="graduation",
+            status="clean",
+            exit_code=0,
+            summary=summary,
+            evidence=[
+                Evidence(
+                    key="graduation-cluster",
+                    value={
+                        "source": source,
+                        "artifacts": cluster.artifact_count,
+                        "terminal": len(terminal),
+                    },
+                    status="verified",
+                )
+            ]
+            + [
+                Evidence(
+                    key=f"limit:{case}",
+                    value=verdict,
+                    status="verified",
+                    detail=why,
+                )
+                for case, verdict, why in ce.GRADUATION_VIEW_LIMITS
+            ]
+            + [
+                Evidence(
+                    key="coverage",
+                    value=ce.GRADUATION_VIEW_COVERAGE,
+                    status="verified",
+                )
+            ],
+            next_actions=[
+                NextAction(
+                    command=f"aw show {source}",
+                    description="read the source before authoring",
+                )
+            ],
+            data=data,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    term.heading(f"Existing artifacts for source {source}")
+    if not cluster.artifact_count:
+        # THE AFFIRMATIVE ZERO ANSWER (OQ-02). This is the most frequent honest answer and it is
+        # good news, so it must not render like a failure or like empty output. Emitted through the
+        # SHARED empty-result renderer, which is what this leaf's `empty_error_renderer=
+        # "shared_empty_result"` declaration asserts; the limits block below still follows, because
+        # an unqualified "nothing" is the one answer that can cause the duplication this view exists
+        # to prevent.
+        term.empty_result(
+            summary=f"nothing yet: no plan or spec links to source {source}. Proceed.",
+            filters={"source": source, "kind": source_kind or "any"},
+            next_action=NextAction(
+                command=f"aw show {source}",
+                description="read the source before authoring",
+            ),
+            status="clean",
+        )
+    else:
+        term.table(
+            ["TYPE", "ID", "STATUS", "SET", "PATH"],
+            [
+                [
+                    a.artifact_type,
+                    a.id6 or "-",
+                    a.status or "-",
+                    a.setid or "-",
+                    a.path,
+                ]
+                for a in cluster.artifacts
+            ],
+        )
+        term.line("")
+        term.line(
+            f"  {cluster.artifact_count} linked artifact(s); Sets: "
+            f"{', '.join(cluster.setids) if cluster.setids else '-'}"
+        )
+        if terminal:
+            term.line(
+                f"  ALREADY LANDED ({len(terminal)}): "
+                + ", ".join(f"{a.id6 or a.path} [{a.status}]" for a in terminal)
+                + " - read these before authoring; re-doing landed work is the costly case."
+            )
+    term.line("")
+    term.line(
+        "  ADVISORY ONLY: this view shows; it does not decide, and it refuses nothing."
+    )
+    term.line("  What it can and cannot tell you:")
+    for case, verdict, why in ce.GRADUATION_VIEW_LIMITS:
+        term.line(f"    - {case}: {verdict} - {why}")
+    term.line(f"  {ce.GRADUATION_VIEW_COVERAGE}")
+    return 0
+
+
 def _nv_resolve_types(args, term, verb):
     """Resolve the verb's TYPE argument to a list of supported types, or None on error (after
     emitting a fail). `all` expands to every type this verb has a backend for."""
@@ -12283,6 +12487,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_show(args, term, context=context)
     if args.command == "record-history":
         return _run_record_history(args, term, context=context)
+    if args.command == "graduation":
+        return _run_graduation(args, term, context=context)
     if args.command in ("check", "find", "search", "index", "rename", "group"):
         return _run_noun_verb(args, term, context=context)
     if args.command == "migrate-layout":
