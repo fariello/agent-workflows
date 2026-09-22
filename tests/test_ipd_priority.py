@@ -138,6 +138,7 @@ class PrioritySetterTests(unittest.TestCase):
                     "set001",
                     "--priority",
                     "medium",
+                    "--yes",
                     "--dir",
                     str(root),
                     "-m",
@@ -148,7 +149,17 @@ class PrioritySetterTests(unittest.TestCase):
             self.assertIn("- Priority: medium", p.read_text(encoding="utf-8"))
             # same-status no-op re-run WITHOUT --priority -> line persists
             cli.main(
-                ["ipd", "set", "approved", "set001", "--dir", str(root), "-m", "noop"]
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "set001",
+                    "--yes",
+                    "--dir",
+                    str(root),
+                    "-m",
+                    "noop",
+                ]
             )
             self.assertIn("- Priority: medium", p.read_text(encoding="utf-8"))
             # clear with '-'
@@ -160,6 +171,7 @@ class PrioritySetterTests(unittest.TestCase):
                     "set001",
                     "--priority",
                     "-",
+                    "--yes",
                     "--dir",
                     str(root),
                     "-m",

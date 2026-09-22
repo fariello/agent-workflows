@@ -520,6 +520,7 @@ Body.
                     str(root),
                     "--message",
                     "reclassify followup -> bug",
+                    "--yes",
                     "--no-commit",
                 ]
             )
@@ -562,6 +563,7 @@ Body.
                     str(root),
                     "--message",
                     "reclassify followup -> bug",
+                    "--yes",
                     "--no-commit",
                 ]
             )
@@ -591,6 +593,7 @@ Body.
                         "high",
                         "--dir",
                         str(root),
+                        "--yes",
                         "--no-commit",
                     ]
                 ),
@@ -616,6 +619,7 @@ Body.
                         "high",
                         "--dir",
                         str(root),
+                        "--yes",
                         "--no-commit",
                     ]
                 ),
@@ -653,6 +657,7 @@ Body.
                     "low",
                     "--dir",
                     str(root),
+                    "--yes",
                     "--no-commit",
                 ]
                 self.assertEqual(self._run_cli(argv), 0, self._last_output)
@@ -770,6 +775,7 @@ Body.
                     "abc123",
                     "--dir",
                     str(root),
+                    "--yes",
                     "--no-commit",
                 ]
             )
@@ -807,6 +813,7 @@ Body.
                     "bug",
                     "--dir",
                     str(root),
+                    "--yes",
                     "--no-commit",
                 ]
             )

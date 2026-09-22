@@ -1042,6 +1042,14 @@ def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
             # Parenthesis-free `key=value`, the shape every writer in the toolkit emits (see
             # `driver_actor` below and `attention_contract.actor_refusal`).
             "aw oc run step=orchestrator-rollup",
+            # setterguard `4bc1nd` E-03: `--yes` matches the sibling `set_plan_approved` above and
+            # STATES THE INTENT of a deliberate unattended transition. This site is a LATENT break,
+            # not an observed one: `run_set_command` now refuses an unconfirmed mutation from every
+            # caller, and this argv is saved TODAY only because a plan->`executed` request is
+            # intercepted by the `aw ipd finalize` delegation which returns BEFORE the confirmation
+            # check is reached. That ordering is incidental rather than a guarantee, so relying on it
+            # would leave a trap for whoever next changes either path.
+            "--yes",
             "--dir",
             str(repo),
             "-m",

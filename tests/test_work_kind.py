@@ -359,6 +359,7 @@ class PlanSetterTests(unittest.TestCase):
                     "set001",
                     "--work-kind",
                     "bug",
+                    "--yes",
                     "--dir",
                     str(root),
                     "-m",
@@ -369,7 +370,17 @@ class PlanSetterTests(unittest.TestCase):
             self.assertIn("- Work-Kind: bug", p.read_text(encoding="utf-8"))
             # same-status no-op re-run WITHOUT --work-kind -> line persists
             cli.main(
-                ["ipd", "set", "approved", "set001", "--dir", str(root), "-m", "noop"]
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "set001",
+                    "--yes",
+                    "--dir",
+                    str(root),
+                    "-m",
+                    "noop",
+                ]
             )
             self.assertIn("- Work-Kind: bug", p.read_text(encoding="utf-8"))
             # clear with '-'
@@ -381,6 +392,7 @@ class PlanSetterTests(unittest.TestCase):
                     "set001",
                     "--work-kind",
                     "-",
+                    "--yes",
                     "--dir",
                     str(root),
                     "-m",
@@ -427,6 +439,7 @@ class PlanSetterTests(unittest.TestCase):
                     "set003",
                     "--work-kind",
                     "chore",
+                    "--yes",
                     "--dir",
                     str(root),
                     "-m",
@@ -445,6 +458,7 @@ class PlanSetterTests(unittest.TestCase):
                     "set003",
                     "--work-kind",
                     "-",
+                    "--yes",
                     "--dir",
                     str(root),
                     "-m",

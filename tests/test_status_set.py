@@ -211,6 +211,20 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertNotIn("executed (aw set)", plan.read_text(encoding="utf-8"))
 
     def test_set_plan_status_from_executed_to_pending_moves_file_back(self):
+        """REOPENING AN EXECUTED PLAN NOW REQUIRES THE NAMED OVERRIDE (setterguard `4bc1nd` E-02).
+
+        THIS TEST ASSERTED THE DEFECT. As written it pinned `aw set to-review <an executed plan>`
+        succeeding at exit 0 and the file moving back to `pending/`, which is precisely the ungated
+        backwards transition that reverted seven real executed plans on 2026-09-10 and which
+        `AGENTS.md` forbids ("Do NOT add commits to a plan already in executed/; close a
+        post-execution gap with a new corrective IPD"). So the CONTRACT changed deliberately and the
+        test was updated to the new one rather than the guard being weakened to keep it green.
+
+        WHAT IS STILL PINNED, because it is the part that was always legitimate: the MECHANICS of a
+        backwards move still work correctly (the file moves between disposition directories and the
+        status bullet is rewritten) when the caller states the intent with `--allow-terminal-reopen`.
+        The bare form is now refused, and both halves are asserted here so neither can regress.
+        """
         plan = self.create_plan(
             "20260822-testset-01-pl0020-test-plan.ipd.md",
             "pl0020",
@@ -218,8 +232,27 @@ class TestStatusSetCommands(StatusSetTestBase):
             "executed",
             disposition="executed",
         )
-        rc = cli.main(
+        before = plan.read_text(encoding="utf-8")
+
+        # Without the override: refused, and nothing on disk changed or moved.
+        rc_refused = cli.main(
             ["set", "to-review", "pl0020", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc_refused, 2)
+        self.assertTrue(plan.exists())
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+        # With the override: performed, exactly as this test originally asserted.
+        rc = cli.main(
+            [
+                "set",
+                "to-review",
+                "pl0020",
+                "--yes",
+                "--allow-terminal-reopen",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc, 0)
         self.assertFalse(plan.exists())
@@ -2011,6 +2044,377 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
         self.assertEqual(rc, 0)
         self.assertIn("- Status: to-review", plan1.read_text(encoding="utf-8"))
         self.assertIn("- Status: to-review", plan2.read_text(encoding="utf-8"))
+
+
+class FlaglessConfirmationRefusalTests(StatusSetTestBase):
+    """setterguard `4bc1nd` E-04: the confirmation refusal reaches EVERY caller, not only a flagged one.
+
+    THE FLAGGED CASES ARE ALREADY COVERED ELSEWHERE and are deliberately NOT duplicated here:
+    `TestStatusSetCommands.test_json_output_mode` and `test_agent_output_mode` in this module assert
+    the `--json` and `--agent` refusals, and `tests/test_cli_mutations_and_previews.py` covers the
+    preview surface. What had NO coverage, and what let the measured incident happen, is the FLAGLESS
+    call (neither `--agent` nor `--json`), which wrote immediately at exit 0.
+
+    Built from the MEASURED 2026-09-10 incident: one flagless `aw ipd set approved <setid>` reverted
+    seven plans out of `.aw/records/plans/executed/`. The fixture is the minimal isolated form of it
+    (two plans sharing one setid) so it does not depend on this repository's corpus.
+    """
+
+    def _two_plan_set(self) -> tuple[Path, Path]:
+        a = self.create_plan(
+            "20260910-guardset-01-gd0001-a.ipd.md", "gd0001", "guardset", "to-review"
+        )
+        b = self.create_plan(
+            "20260910-guardset-02-gd0002-b.ipd.md", "gd0002", "guardset", "to-review"
+        )
+        return a, b
+
+    def test_a_flagless_call_refuses_and_writes_nothing(self):
+        """Exit 2, and NOTHING on disk moved or changed.
+
+        ASSERTS THE FILESYSTEM, not only the exit code: the original incident MOVED FILES between
+        disposition directories, so a test checking only the status bullet would miss half the damage.
+        """
+        a, b = self._two_plan_set()
+        before_a, before_b = (
+            a.read_text(encoding="utf-8"),
+            b.read_text(encoding="utf-8"),
+        )
+
+        rc = cli.main(
+            ["ipd", "set", "approved", "guardset", "--dir", str(self.repo_root)]
+        )
+
+        self.assertEqual(rc, 2, "a flagless mutating set must REFUSE, not write")
+        # The status bullet is untouched...
+        self.assertEqual(a.read_text(encoding="utf-8"), before_a)
+        self.assertEqual(b.read_text(encoding="utf-8"), before_b)
+        # ...AND each file is still in its original disposition directory.
+        self.assertTrue(a.is_file())
+        self.assertTrue(b.is_file())
+        self.assertEqual(a.parent.name, "pending")
+        self.assertEqual(b.parent.name, "pending")
+
+    def test_the_same_call_with_yes_performs_the_transition(self):
+        """`--yes` behaves exactly as before: the speed bump is a bump, not a wall."""
+        a, b = self._two_plan_set()
+        rc = cli.main(
+            [
+                "ipd",
+                "set",
+                "approved",
+                "guardset",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Status: approved", a.read_text(encoding="utf-8"))
+        self.assertIn("- Status: approved", b.read_text(encoding="utf-8"))
+
+    def test_dry_run_still_previews_without_writing(self):
+        """`--dry-run` semantics are UNCHANGED by E-01: it still previews at exit 0."""
+        a, b = self._two_plan_set()
+        before_a = a.read_text(encoding="utf-8")
+        rc = cli.main(
+            [
+                "ipd",
+                "set",
+                "approved",
+                "guardset",
+                "--dry-run",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0, "--dry-run previews and must NOT be refused")
+        self.assertEqual(a.read_text(encoding="utf-8"), before_a)
+        self.assertIn("- Status: to-review", b.read_text(encoding="utf-8"))
+
+    def test_the_refusal_does_not_depend_on_stdout_being_a_tty(self):
+        """THE FLAG-INDEPENDENCE PROPERTY, which is what the corrected diagnosis (F-7) turns on.
+
+        `select_output` consults NO `isatty` for mode selection (ttyflags `yaxr4i` retracted the
+        never-implemented non-TTY rule), so the refusal must fire identically whether stdout is a
+        terminal or a pipe. Pinning it here guards against a future "fix" that reclassifies piped
+        callers as AGENT, which would otherwise silently re-open the hole E-01 closes by routing them
+        back to a path that only refused because it was flagged.
+        """
+        a, _b = self._two_plan_set()
+        before = a.read_text(encoding="utf-8")
+        piped = io.StringIO()  # a non-TTY stdout
+        with patch("sys.stdout", piped):
+            rc = cli.main(
+                ["ipd", "set", "approved", "guardset", "--dir", str(self.repo_root)]
+            )
+        self.assertEqual(
+            rc, 2, "a piped flagless call must refuse exactly as a TTY one does"
+        )
+        self.assertEqual(a.read_text(encoding="utf-8"), before)
+        self.assertIn("confirmation required", piped.getvalue())
+
+
+class TerminalReopenRefusalTests(StatusSetTestBase):
+    """setterguard `4bc1nd` E-05: a plan may not be walked BACKWARDS out of a terminal disposition.
+
+    There was a gate for entering `executed` and none for leaving it. `AGENTS.md` forbids re-opening
+    an executed plan in place and directs a corrective IPD, so this pins the tool to the contract.
+    """
+
+    def test_executed_is_not_reverted_even_with_yes(self):
+        """A SECOND, INDEPENDENT guard: `--yes` answers a different question and must not satisfy it."""
+        plan = self.create_plan(
+            "20260910-reopen-01-rp0001-done.ipd.md",
+            "rp0001",
+            "reopen",
+            "executed",
+            disposition="executed",
+        )
+        before = plan.read_text(encoding="utf-8")
+
+        rc = cli.main(
+            ["ipd", "set", "approved", "rp0001", "--yes", "--dir", str(self.repo_root)]
+        )
+
+        self.assertEqual(rc, 2)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+        self.assertTrue(plan.is_file())
+        self.assertEqual(
+            plan.parent.name, "executed", "the file must not move out of executed/"
+        )
+
+    def test_the_refusal_names_the_offending_plan_and_cites_the_corrective_route(self):
+        self.create_plan(
+            "20260910-reopen-02-rp0002-done.ipd.md",
+            "rp0002",
+            "reopen2",
+            "executed",
+            disposition="executed",
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "rp0002",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        out = buf.getvalue()
+        self.assertEqual(rc, 2)
+        self.assertIn("20260910-reopen-02-rp0002-done.ipd.md", out)
+        self.assertIn("CORRECTIVE IPD", out)
+        self.assertIn("--allow-terminal-reopen", out)
+
+    def test_an_uppercase_terminal_status_is_refused_identically(self):
+        """THE CASE-FOLD, and it is correctness rather than tidiness.
+
+        `read_artifact_record` captures the on-disk token VERBATIM, and 25 of 479 plans in
+        `.aw/records/plans/executed/` carry `- Status: EXECUTED` or `- Status: DONE` from the
+        pre-vocabulary era. A case-SENSITIVE guard would pass every other assertion in this class
+        while leaving exactly those 25 files unprotected, which is a silent hole in the middle of the
+        corpus the guard exists to protect.
+        """
+        plan = self.create_plan(
+            "20260910-reopen-03-rp0003-shout.ipd.md",
+            "rp0003",
+            "reopen3",
+            "EXECUTED",
+            disposition="executed",
+        )
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            ["ipd", "set", "approved", "rp0003", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 2)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+    def test_the_done_alias_spelling_is_refused_identically(self):
+        """`- Status: DONE` is the other pre-vocabulary terminal spelling in the corpus."""
+        plan = self.create_plan(
+            "20260910-reopen-07-rp0007-alias.ipd.md",
+            "rp0007",
+            "reopen7",
+            "DONE",
+            disposition="executed",
+        )
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            ["ipd", "set", "approved", "rp0007", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 2)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+    def test_superseded_to_draft_is_refused_too(self):
+        """Guarding only `executed` would leave a second backwards route open.
+
+        Measured on the pre-fix code, `superseded -> draft` succeeded silently at exit 0. It is the
+        corrective un-supersede spelling a plan could be walked back through.
+        """
+        (self.repo_root / ".aw" / "records" / "plans" / "superseded").mkdir(
+            parents=True, exist_ok=True
+        )
+        plan = self.create_plan(
+            "20260910-reopen-04-rp0004-retired.ipd.md",
+            "rp0004",
+            "reopen4",
+            "superseded",
+            disposition="superseded",
+        )
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            ["ipd", "set", "draft", "rp0004", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 2)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+    def test_the_override_performs_it_and_records_itself_in_the_history(self):
+        """The escape hatch exists (OQ-01) and is AUDITABLE IN THE FILE, not only in a shell history."""
+        plan = self.create_plan(
+            "20260910-reopen-05-rp0005-mistake.ipd.md",
+            "rp0005",
+            "reopen5",
+            "executed",
+            disposition="executed",
+        )
+        rc = cli.main(
+            [
+                "ipd",
+                "set",
+                "approved",
+                "rp0005",
+                "--yes",
+                "--allow-terminal-reopen",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        moved = self.repo_root / ".aw" / "records" / "plans" / "pending" / plan.name
+        text = moved.read_text(encoding="utf-8")
+        self.assertIn("- Status: approved", text)
+        self.assertIn("--allow-terminal-reopen", text)
+
+    # ---------------------------------------------------------------------------------
+    # THE MUST-STILL-WORK HALF. This guard is the one most likely to OVER-refuse, and an
+    # over-broad version would have blocked the very cleanup that discovered the bug,
+    # which performed three retirements.
+    # ---------------------------------------------------------------------------------
+
+    def test_a_nonterminal_plan_still_advances(self):
+        plan = self.create_plan(
+            "20260910-fwd-01-fw0001-a.ipd.md", "fw0001", "fwd", "to-review"
+        )
+        self.assertEqual(
+            cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "reviewed",
+                    "fw0001",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            ),
+            0,
+        )
+        self.assertIn("- Status: reviewed", plan.read_text(encoding="utf-8"))
+        self.assertEqual(
+            cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "fw0001",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            ),
+            0,
+        )
+        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+
+    def test_retirement_into_a_terminal_state_still_works(self):
+        """`reviewed -> superseded` is terminal but FORWARD, so it must remain allowed."""
+        self.create_plan(
+            "20260910-fwd-02-fw0002-retire.ipd.md", "fw0002", "fwd2", "reviewed"
+        )
+        rc = cli.main(
+            [
+                "ipd",
+                "set",
+                "superseded",
+                "fw0002",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0, "retirement must NOT be refused by the reopen guard")
+        retired = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "superseded"
+            / "20260910-fwd-02-fw0002-retire.ipd.md"
+        )
+        self.assertTrue(retired.is_file())
+        self.assertIn("- Status: superseded", retired.read_text(encoding="utf-8"))
+
+    def test_a_spec_transition_the_spec_table_permits_is_untouched(self):
+        """SPECS ARE OUT OF SCOPE BY CONSTRUCTION, and that is required rather than incidental.
+
+        `attention_contract.SPEC_TRANSITIONS` legitimately permits `superseded -> draft`, which the
+        PLAN vocabulary would call backwards. E-02 keys on `record_type == "plans"`; this pins that so
+        a later widening to "all types" cannot quietly break the shipped spec lifecycle.
+        """
+        spec = self.create_spec(
+            "20260910-specok-01-sp0009-a.spec.md", "sp0009", "specok", "superseded"
+        )
+        rc = cli.main(
+            ["specs", "set", "draft", "sp0009", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0, "a permitted spec transition must not be refused")
+        self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
+
+    def test_a_non_plan_artifact_transition_is_unaffected(self):
+        """A PROMPT shares the `executed` token with plans and must NOT inherit the plan guard.
+
+        This is why E-02 keys on the NORMALIZED target of a `plans` record rather than on the status
+        token alone: `executed`/`done` are spellings prompts use too, and a token-keyed guard would
+        have frozen every prompt in `executed/`. Driven through the UNTYPED `aw set other` spelling
+        because `aw prompts set` is not a live parser surface (`aw prompts` accepts only `new`); the
+        untyped verb is the shipped route to a prompt transition and reaches the same code.
+        """
+        prompt = self.create_prompt(
+            "20260910-pr-01-pm0001-a.prompt.md",
+            "pm0001",
+            "prset",
+            "executed",
+            disposition="executed",
+        )
+        rc = cli.main(
+            [
+                "set",
+                "prompts",
+                "draft",
+                "pm0001",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0, "prompts are not governed by the plan terminal guard")
+        moved = self.repo_root / ".aw" / "records" / "prompts" / "pending" / prompt.name
+        self.assertIn("- Status: draft", moved.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

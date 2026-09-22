@@ -744,6 +744,19 @@ def apply_status_change(
         or (rec.record_type == "specs" and norm_status == "approved")
     ):
         actor = f"{actor}, --allow-open-questions"
+    # setterguard `4bc1nd` E-02: the terminal-reopen OVERRIDE must be auditable in the ARTIFACT, not
+    # only in someone's shell history - the same reasoning as `--allow-open-questions` directly above,
+    # and the property OQ-01's review note required of this flag. Recorded ONLY where it could have
+    # had an effect (a PLAN actually leaving a terminal status for a nonterminal one), so the flag
+    # never litters history with a false claim on a transition it did not unlock.
+    if getattr(args, "allow_terminal_reopen", False) and rec.record_type == "plans":
+        _terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
+        _was_terminal = (
+            normalize_target_status((rec.status or ""), "plans").strip().lower()
+            in _terminal_statuses
+        )
+        if _was_terminal and norm_status.strip().lower() not in _terminal_statuses:
+            actor = f"{actor}, --allow-terminal-reopen"
 
     text = rec.path.read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -1664,10 +1677,136 @@ def run_set_command(
             _plan_executed, matched_records, repo_root, args, term
         )
 
+    # setterguard `4bc1nd` E-02: REFUSE WALKING A PLAN BACKWARDS OUT OF A TERMINAL DISPOSITION.
+    # There was a gate for entering `executed` (the delegation directly above) and NONE for leaving
+    # it, so `executed -> approved` took the raw ungated path. MEASURED 2026-09-10: a bare
+    # `aw ipd set approved <setid>` reverted SEVEN plans out of `.aw/records/plans/executed/` at exit
+    # 0, fabricating a regression of a completed Set. `AGENTS.md` already forbids re-opening an
+    # executed plan in place and directs a corrective IPD instead, so this ENFORCES a stated contract
+    # rather than inventing policy.
+    #
+    # THIS IS A SECOND, INDEPENDENT GUARD AND IS DELIBERATELY ABOVE THE `--yes` CHECK: confirming you
+    # meant to run a bulk transition is a different question from being allowed to un-execute a plan,
+    # so `--yes` must NOT satisfy it.
+    #
+    # KEYED LIKE THE FORWARD GATE, for the same reasons: `record_type == "plans"` (so PROMPTS, which
+    # share the `executed`/`done` tokens, and SPECS, which have their own transition table permitting
+    # `implemented -> deferred` and `superseded -> draft`, are untouched BY CONSTRUCTION), plus the
+    # NORMALIZED target rather than the raw token.
+    #
+    # THE TERMINAL SET IS DERIVED, NEVER RE-LISTED (`_plans_mod.TERMINAL`), per GUIDING_PRINCIPLES P8
+    # and the precedent stated in the `backlog` entry of `TYPE_STATUSES` above: a re-listed copy is
+    # what desynced this setter once already.
+    #
+    # THE CURRENT STATUS IS CASE-FOLDED, and that is a CORRECTNESS requirement rather than tidiness.
+    # `read_artifact_record` captures the on-disk token VERBATIM with no normalization, and 25 of 479
+    # plans in `.aw/records/plans/executed/` carry an uppercase `- Status: EXECUTED` or `- Status:
+    # DONE` from the pre-vocabulary era. A guard comparing `rec.status` directly against lowercase
+    # `TERMINAL` would silently miss exactly those 25 files. The `done` alias is routed through
+    # `normalize_target_status` for the same reason.
+    #
+    # FORWARD moves INTO a terminal state are UNAFFECTED: retirement (`reviewed -> superseded`,
+    # `-> not-executed`) stays allowed, because the target is terminal too. An over-broad guard here
+    # would have blocked the very cleanup that discovered this bug, which performed three retirements.
+    _norm_for_plans = normalize_target_status(target_status, "plans")
+    _terminal = {s.strip().lower() for s in _plans_mod.TERMINAL}
+    _reopened = (
+        [
+            rec
+            for rec in matched_records
+            if rec.record_type == "plans"
+            and normalize_target_status((rec.status or ""), "plans").strip().lower()
+            in _terminal
+        ]
+        if _norm_for_plans not in _terminal
+        else []
+    )
+    if _reopened and not getattr(args, "allow_terminal_reopen", False):
+        # A DEDICATED override flag, NOT `--force`. `--force` already means "act on all of an
+        # ambiguous multi-match" in this same function, and overloading one flag to also mean "yes,
+        # un-execute a completed plan" would make it answer two unrelated risk questions at once, so
+        # a caller disambiguating a filename substring would silently acquire reopen authority.
+        # Follows `--allow-open-questions` in all three of its properties (apprvguard `d7bnhc` E-06):
+        # a named flag, declared on EVERY surface routing here so the gate cannot be dodged by
+        # choosing another spelling, and RECORDED IN THE ARTIFACT'S actor string (see
+        # `apply_status_change`) so the override is auditable in the FILE and not only in a shell
+        # history. OQ-01 recommended exactly this shape over an absolute refusal, on the grounds that
+        # a refusal with no escape hatch gets routed around by hand-editing, which is less auditable.
+        _listing = "\n".join(
+            f"  {rec.path.name}  (- Status: {rec.status or '-'})" for rec in _reopened
+        )
+        _summary = (
+            f"refusing to move {len(_reopened)} plan(s) BACKWARDS out of a terminal disposition "
+            f"to '{_norm_for_plans}'. A terminal plan is a historical record: re-opening it in place "
+            "would assert that completed, validated work is pending again. AGENTS.md directs a "
+            "CORRECTIVE IPD for a post-execution gap, not an in-place edit of the executed plan. "
+            "If this plan reached a terminal state in error, pass --allow-terminal-reopen (recorded "
+            "in the artifact's history)."
+        )
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="set",
+                status="cannot-run",
+                exit_code=2,
+                summary=_summary,
+                diagnostics=[
+                    Diagnostic(
+                        location=str(rec.path),
+                        rule="status.terminal_reopen_refused",
+                        detail=(
+                            f"current status '{rec.status or '-'}' is terminal; target "
+                            f"'{_norm_for_plans}' is not"
+                        ),
+                        severity="error",
+                    )
+                    for rec in _reopened
+                ],
+                next_actions=[
+                    NextAction(
+                        command="aw ipd scaffold --title <corrective plan title>",
+                        description="Write a corrective IPD instead (the AGENTS.md route)",
+                    ),
+                    NextAction(
+                        command=f"aw set {' '.join(raw_args)} --allow-terminal-reopen --yes",
+                        description="Override: reopen anyway, recorded in the artifact history",
+                    ),
+                ],
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status("fail", f"{_summary}\nRefusing; nothing was written:\n{_listing}")
+        return 2
+
     is_dry_run = getattr(args, "dry_run", False)
     yes = getattr(args, "yes", False) or getattr(args, "assume_yes", False)
 
-    if (ctx.is_agent or ctx.is_json) and not is_dry_run and not yes:
+    # setterguard `4bc1nd` E-01: THE CONFIRMATION REFUSAL APPLIES TO EVERY CALLER, not only one
+    # renderer's. This predicate used to read `(ctx.is_agent or ctx.is_json) and not is_dry_run and
+    # not yes`, so the speed bump before a destructive bulk write existed ONLY for a caller that
+    # passed `--agent` or `--json`.
+    #
+    # WHAT THAT CONDITION ACTUALLY TESTED, stated precisely because the obvious reading is wrong: it
+    # tested THE `--agent`/`--json` FLAGS AND NOTHING ELSE. `select_output` consults no `isatty` for
+    # mode selection at all (`result_types.select_output`, whose docstring now says so explicitly
+    # after ttyflags `yaxr4i` retracted the never-implemented non-TTY rule), so the unguarded set was
+    # "every caller that passed NEITHER flag", TTY or pipe, human or script -- NOT "the human path".
+    # Do not re-describe this as protecting a machine rather than a human; that framing is the
+    # misreading this plan's review corrected (F-7), and it would have mislabelled the fix.
+    #
+    # WHY THE OLD SPLIT WAS BACKWARDS: the flags mark the AUDIENCE, not the RISK. A `--agent` caller
+    # is the one best able to parse a structured refusal and retry with `--yes`, while a flagless
+    # caller got an immediate multi-file write with no preview and no undo. MEASURED 2026-09-10 on
+    # the real repository: a bare `aw ipd set approved <setid>` moved SEVEN plans out of
+    # `.aw/records/plans/executed/` into `pending/` and rewrote each status, printing six
+    # `executed -> approved` lines at exit 0.
+    #
+    # The refusal below (its `exit_code=2`, its `Change` blast-radius list and its `NextAction`) is
+    # REUSED, never duplicated: this is the single construction site, so the two paths cannot drift.
+    # The human renderer already prints each `Change` under a `Would change:` header
+    # (`renderers.HumanRenderer`), so no second rendering is needed. `--dry-run` and `--yes`
+    # semantics are unchanged.
+    if not is_dry_run and not yes:
         changes = [
             Change(
                 path=str(r.path),

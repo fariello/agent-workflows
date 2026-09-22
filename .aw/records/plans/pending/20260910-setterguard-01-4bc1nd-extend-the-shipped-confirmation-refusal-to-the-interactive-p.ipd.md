@@ -7,7 +7,7 @@
   AND THERE IS A GATE FOR ENTERING `executed` BUT NONE FOR LEAVING IT. `status_set.py:1312-1328` deliberately intercepts a PLAN moving TO `executed` and delegates into the gated `aw ipd finalize` transaction (begin receipt, scope reconciliation, three gates, attributed history, rollback). The reverse direction has no counterpart, so `executed -> approved` took the raw ungated path. `AGENTS.md` already forbids re-opening an executed plan in place and directs a corrective IPD instead, so the tool permits what the contract prohibits.
   CORRECTED AT REVIEW (2026-09-10), because the framing "a HUMAN terminal is unprotected and a MACHINE is protected" is NOT what the code does and the difference decides the blast radius. `ctx` comes from `result_types.select_output`, whose DOCSTRING promises "non-TTY stdout -> OutputMode.AGENT" but whose BODY contains NO `isatty` call at all (`grep -n isatty agent_workflows/result_types.py` -> only the two docstring lines, `:75-76`). Measured: `select_output(Namespace(), stdout=io.StringIO())` returns `OutputMode.HUMAN`. So the mode is decided by the `--agent`/`--json` FLAGS ALONE, and the unguarded set is every caller that passes NEITHER FLAG, whether or not a human is present. That was confirmed live: a PIPED `aw ipd set approved demo` (stdout not a TTY, no flags) still wrote and exited 0 in a scratch repo. This makes the defect WIDER than the plan claimed (every in-process and subprocess caller that omits the flags is also unguarded, which is why F-8's caller inventory is larger than F-4 predicted) and it means E-01 must NOT be described as "the human path", since the condition it removes never tested for a human.
 - Scope: The two missing speed bumps on the status setters. IN: extending the EXISTING confirmation refusal to the FLAGLESS (neither `--agent` nor `--json`) path, which is every caller the guard misses; refusing a backwards transition out of a terminal disposition (`executed`, `superseded`, `not-executed`) unless explicitly overridden, and naming the offending artifacts; a survey of in-repo callers that would newly be refused, with `--yes` added where the call is deliberate, INCLUDING the two production callers measured at review to break (`work_cmd.run_finish` and `oc_runipd.finalize_orchestrator`); regression fixtures for both. OUT: making `--dry-run` the DEFAULT for the setters (a larger behavior change deserving its own decision, recorded as deferred); anything about what a bare setid MEANS, since within-type fan-out is deliberate (`laykok` E-07) and correct; the history-message and durability defects (Order 02 of this Set); FIXING `select_output`'s docstring/behavior mismatch (a separate defect this plan must not silently absorb; recorded as deferred with its own carrier).
-- Scope-Paths: agent_workflows/status_set.py, agent_workflows/work_cmd.py, agent_workflows/oc_runipd.py, tests/test_status_set.py, tests/test_work_primitives.py, tests/test_work_kind.py, tests/test_ipd_priority.py
+- Scope-Paths: agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/work_cmd.py, agent_workflows/oc_runipd.py, tests/test_status_set.py, tests/test_work_primitives.py, tests/test_work_kind.py, tests/test_ipd_priority.py, tests/test_backlog_work_kind_rename.py
 - Item-Dependencies: none
 - Status: approved
 - Blocks-Release: next
@@ -21,6 +21,7 @@
 - From-Backlog: f5pttg
 
 ## Workflow history
+- 2026-09-22 executing (opencode/its_direct/pt3-claude-opus-5-1m-us): SCOPE AMENDED AT EXECUTION, declared rather than edited silently. Added `agent_workflows/cli.py`, which E-02's own text REQUIRES touching ("DECLARE the new flag on EVERY surface that routes to `run_set_command`") but which the authored `- Scope-Paths:` omitted; the override flag is registered on the four LIVE surfaces (`aw set`, `aw ipd set`, `aw specs set`, `aw backlog set`). Added `tests/test_backlog_work_kind_rename.py`, an E-03 caller-survey MISS: the review measured four failing tests in three modules, and the corrected full-suite run found FIVE more in a fourth module (seven real-CLI `backlog set` invocations asserting a performed write, now passing `--yes`; the two argparse-refusal cases deliberately left flagless). Also measured: `aw prompts set` is NOT a live parser surface (`aw prompts` accepts only `new`), so the flag is declared on four surfaces rather than the five the plan predicted, and the prompts assertion in E-05 uses the untyped `aw set prompts` spelling.
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 
@@ -38,50 +39,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reach the guard that already exists
 
-- [ ] E-01 EXTEND THE EXISTING CONFIRMATION REFUSAL TO EVERY FLAGLESS CALLER by removing the output-mode condition at `status_set.py:1333`, so the predicate becomes "not a dry run and not `--yes`" regardless of renderer. Do NOT write a new prompt or a new refusal: the refusal, its `exit_code=2`, its `Change` list and its `NextAction` hint are already built immediately below that line, and the newly-guarded path must reach the SAME code so the two cannot drift. The human renderer ALREADY prints the per-artifact `status: <old> -> <new>` detail under a `Would change:` header (`renderers.py:141-151`, measured), so DO NOT add a second rendering; if you want the artifact COUNT it is absent today and must be added to `CommandResult.summary`, not to the renderer. KEEP `--dry-run` and `--yes` semantics unchanged. State in a comment what the condition ACTUALLY did (gate on the `--agent`/`--json` FLAGS, since `select_output` has no `isatty` call: `result_types.py:75-76` promises non-TTY implies AGENT and the body never implements it) and why that is wrong: the flags mark the AUDIENCE, not the risk, so the guard covered the callers best able to recover from a refusal and missed every other one. DO NOT write the comment as "protects the machine, not the human"; that wording is the misreading this review corrected (F-7).
+- [x] E-01 EXTEND THE EXISTING CONFIRMATION REFUSAL TO EVERY FLAGLESS CALLER by removing the output-mode condition at `status_set.py:1333`, so the predicate becomes "not a dry run and not `--yes`" regardless of renderer. Do NOT write a new prompt or a new refusal: the refusal, its `exit_code=2`, its `Change` list and its `NextAction` hint are already built immediately below that line, and the newly-guarded path must reach the SAME code so the two cannot drift. The human renderer ALREADY prints the per-artifact `status: <old> -> <new>` detail under a `Would change:` header (`renderers.py:141-151`, measured), so DO NOT add a second rendering; if you want the artifact COUNT it is absent today and must be added to `CommandResult.summary`, not to the renderer. KEEP `--dry-run` and `--yes` semantics unchanged. State in a comment what the condition ACTUALLY did (gate on the `--agent`/`--json` FLAGS, since `select_output` has no `isatty` call: `result_types.py:75-76` promises non-TTY implies AGENT and the body never implements it) and why that is wrong: the flags mark the AUDIENCE, not the risk, so the guard covered the callers best able to recover from a refusal and missed every other one. DO NOT write the comment as "protects the machine, not the human"; that wording is the misreading this review corrected (F-7).
   - Depends on: none
   - Expected outcome: a flagless `aw ipd set approved <setid>` (TTY or piped) REFUSES with exit 2, lists what it would change, and names a `--yes` form; with `--yes` it behaves exactly as before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REFUSE A BACKWARDS TRANSITION OUT OF A TERMINAL DISPOSITION unless explicitly overridden. Terminal for a plan is `executed`, `superseded`, `not-executed`. Mirror the SHAPE of the existing forward gate at `:1312-1328`, which keys on `record_type == "plans"` AND the NORMALIZED target status (deliberately not the raw token, because prompts share the `executed`/`done` tokens); key this one on the artifact's CURRENT status being terminal and the target being non-terminal. DERIVE the terminal set from `plans.TERMINAL` (`plans.py:26`, already imported into this module as `_plans_mod` at `status_set.py:32`); do NOT re-list the three tokens, per GUIDING_PRINCIPLES P8 and the precedent the `backlog` entry of `TYPE_STATUSES` states in its own comment (`status_set.py:76-78`: a re-listed copy is what desynced the setter once already).
+- [x] E-02 REFUSE A BACKWARDS TRANSITION OUT OF A TERMINAL DISPOSITION unless explicitly overridden. Terminal for a plan is `executed`, `superseded`, `not-executed`. Mirror the SHAPE of the existing forward gate at `:1312-1328`, which keys on `record_type == "plans"` AND the NORMALIZED target status (deliberately not the raw token, because prompts share the `executed`/`done` tokens); key this one on the artifact's CURRENT status being terminal and the target being non-terminal. DERIVE the terminal set from `plans.TERMINAL` (`plans.py:26`, already imported into this module as `_plans_mod` at `status_set.py:32`); do NOT re-list the three tokens, per GUIDING_PRINCIPLES P8 and the precedent the `backlog` entry of `TYPE_STATUSES` states in its own comment (`status_set.py:76-78`: a re-listed copy is what desynced the setter once already).
   CASE-FOLD THE CURRENT STATUS BEFORE TESTING IT, and treat this as a correctness requirement rather than tidiness. MEASURED at review: 25 of 479 plans in `executed/` carry an UPPERCASE `- Status: EXECUTED` or `- Status: DONE` (15 `EXECUTED` plus 7 `DONE` plus more, from the pre-vocabulary era), and `rec.status` is the raw captured token (`status_set.py:240`, no normalization). A guard comparing `rec.status` directly against lowercase `plans.TERMINAL` therefore MISSES exactly those 25 files, which is not a cosmetic gap: it is a silent hole in the middle of the corpus the guard exists to protect. Verified live in a scratch repo, on the CURRENT code, that `- Status: EXECUTED` reverts to `approved` with no complaint. Fold with `(rec.status or "").strip().lower()` and ALSO map the `done` alias through `normalize_target_status`, which already resolves `done -> executed` for plans (`:439-447`).
   The refusal must NAME every offending artifact and its current status, and must point at the corrective-IPD route that `AGENTS.md` already prescribes for a post-execution gap rather than implying the transition is merely inconvenient. DECIDE AND RECORD the override's shape (a dedicated flag such as `--allow-terminal-reopen`, versus accepting `--force`): prefer a DEDICATED flag, because `--force` already means "act on an ambiguous multi-match" in this same code path (`:1250-1257`) and overloading it would make one flag mean two unrelated risks. Whatever you choose, state the reasoning in the code, and DECLARE the new flag on EVERY surface that routes to `run_set_command` (`aw set`, `aw ipd set`, `aw specs set`, `aw backlog set`, `aw prompts set`; measured at `cli.py:10927`, `:11029`, `:11106`, `:11233`, `:11274`), following the precedent `--allow-open-questions` sets for exactly this reason (`cli.py:3219-3230`: "declared on every surface that reaches the approval path so the gate is not bypassable by choosing a different spelling").
   - Depends on: E-01
   - Expected outcome: `aw ipd set approved <a setid whose plans are executed>` refuses even WITH `--yes`, names the executed plans, and cites the corrective-IPD route; a `- Status: EXECUTED` (uppercase) plan is refused identically; the override performs it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: do not break the callers
 
-- [ ] E-03 FIX THE TWO MEASURED PRODUCTION CALLERS THAT E-01 BREAKS, then re-run the survey. This is the item that makes E-01 safe, and it is NOT the small confirmation the authored version predicted: the plan claimed the blast radius was limited to the two runner sites that already pass `--yes`, and that claim was WRONG because it only inspected the argv-building sites, not the in-process callers. MEASURED AT REVIEW by applying E-01 in an isolated worktree and running the bare suite: `5955 passed, 4 failed` (baseline on the same worktree, unpatched: `5959 passed`, zero failures). The four failures are two distinct production defects, not test noise:
+- [x] E-03 FIX THE TWO MEASURED PRODUCTION CALLERS THAT E-01 BREAKS, then re-run the survey. This is the item that makes E-01 safe, and it is NOT the small confirmation the authored version predicted: the plan claimed the blast radius was limited to the two runner sites that already pass `--yes`, and that claim was WRONG because it only inspected the argv-building sites, not the in-process callers. MEASURED AT REVIEW by applying E-01 in an isolated worktree and running the bare suite: `5955 passed, 4 failed` (baseline on the same worktree, unpatched: `5959 passed`, zero failures). The four failures are two distinct production defects, not test noise:
   (a) `work_cmd.run_finish` (`work_cmd.py:562-573`) calls `run_set_command` with a hand-built `argparse.Namespace(dir=..., message=...)` carrying NO `yes` attribute, so `getattr(args, "yes", False)` is False and `aw finish --to reviewed` returns exit 2 having written nothing. `aw finish` has NO `--yes` flag to forward (`aw finish --help`: `[--to TO] [--dir DIR]` only), so the fix is to set `yes=True` on that Namespace, which is correct on the merits: `aw finish` already gated the mutation on its own evidence check (bound, current-tree, passing), so the caller has ALREADY confirmed. Pinned by `tests/test_work_primitives.py::WorkPrimitivesTest::test_finish_transitions_non_authoritative_with_evidence`.
   (b) `oc_runipd.finalize_orchestrator` (`oc_runipd.py:841-855`) builds `["ipd","set","executed",id6,"--actor",...,"--dir",...,"-m",...]` with NO `--yes`, unlike its sibling `set_plan_approved` (`:762-772`) which has it. Today that argv is saved by the `plan->executed` delegation intercepting BEFORE the confirmation check (`status_set.py:1319-1328` returns at `:1326`, above the `:1333` guard), so the runner's orchestrator rollup never reaches the gate; verified in a scratch repo that it refuses for the unrelated missing-receipt reason. It is therefore latent rather than broken TODAY, and it must still be fixed: the ordering that saves it is incidental, and a `--yes` there matches the sibling and states the intent. Say plainly in the plan record that this one is a latent, not an observed, break.
   THEN RE-RUN THE FULL SURVEY, because the authored survey's METHOD was the defect: grepping for argv lists finds subprocess callers and misses in-process ones. Search for `run_set_command` callers (measured: `cli.py:10927`, `:11029`, `:11106`, `:11233`, `:11274` all forward the parsed `args`, so all five CLI surfaces are safe; `work_cmd.py:567` and `specs.py:566` are the non-CLI ones) AND argv-building sites AND `.aw/system/workflows/`, `Makefile`, `.pre-commit-config.yaml`. Classify each as deliberate-automation (add `--yes`), already-safe (forwards a parsed namespace), or human-facing (leave it to refuse), and PASTE the classified list plus the before/after suite node-id comparison. If a caller CANNOT pass `--yes`, report it; do not weaken E-01.
   - Depends on: E-01
   - Expected outcome: a pasted, classified inventory produced by the corrected method; `work_cmd.run_finish` fixed and its test green; `finalize_orchestrator` carries `--yes`; the bare suite returns to zero failures, compared to the pasted pre-change baseline by NODE ID.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin both refusals
 
-- [ ] E-04 PIN THE CONFIRMATION REFUSAL WITH THE MEASURED FIXTURE. Build the minimal isolated case from the reproduction: a temp repo with two plans sharing one setid, then assert that a FLAGLESS call WRITES NOTHING (statuses unchanged, files still in their original directory, exit 2) and that the same call with `--yes` performs the transition. ASSERT ON THE FILESYSTEM, not only the exit code: the original incident MOVED FILES between disposition directories, so a test that checks only the status bullet would miss half the damage. Include a `--dry-run` case proving it still previews without writing.
+- [x] E-04 PIN THE CONFIRMATION REFUSAL WITH THE MEASURED FIXTURE. Build the minimal isolated case from the reproduction: a temp repo with two plans sharing one setid, then assert that a FLAGLESS call WRITES NOTHING (statuses unchanged, files still in their original directory, exit 2) and that the same call with `--yes` performs the transition. ASSERT ON THE FILESYSTEM, not only the exit code: the original incident MOVED FILES between disposition directories, so a test that checks only the status bullet would miss half the damage. Include a `--dry-run` case proving it still previews without writing.
   ASSERT THE FLAG-INDEPENDENCE EXPLICITLY, because it is the property the corrected diagnosis turns on (F-7) and no existing test covers it: the same flagless call must refuse identically whether stdout is a TTY or a pipe. Since `select_output` reads no `isatty` (`result_types.py:75-76` docstring versus body), pass a non-TTY `stdout` and assert the refusal STILL fires, which pins the behavior against a future "fix" to `select_output` that would otherwise silently re-open this hole by reclassifying piped callers as AGENT.
   NOTE the three existing tests that ALREADY assert the refusal in `--json` and `--agent` mode (`tests/test_status_set.py:664-720`, `test_json_output_mode` and `test_agent_output_mode`) plus `tests/test_cli_mutations_and_previews.py:86-135`. Do NOT duplicate those; add the flagless case beside them and say in the test docstring that the flagged cases are already covered there.
   - Depends on: E-01
   - Expected outcome: three cases (flagless refuses and writes nothing; `--yes` performs; `--dry-run` previews), each asserting both status text and file location, plus the piped-stdout flagless case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PIN THE TERMINAL-REOPEN REFUSAL, INCLUDING THE EXACT MEASURED INCIDENT. Assert that plans in `executed/` are NOT reverted by `aw ipd set approved <setid>` even with `--yes`, that the refusal names them, and that the override flag performs it. Add the UPPERCASE case as its own assertion (`- Status: EXECUTED` must be refused exactly as `executed` is), since 25 corpus files carry it and a case-sensitive guard would pass every other test in this item while leaving those unprotected. Add `superseded -> draft` too: measured live on current code, it succeeds silently (exit 0), and it is the corrective-un-supersede spelling a plan could be walked back through if only `executed` were guarded.
+- [x] E-05 PIN THE TERMINAL-REOPEN REFUSAL, INCLUDING THE EXACT MEASURED INCIDENT. Assert that plans in `executed/` are NOT reverted by `aw ipd set approved <setid>` even with `--yes`, that the refusal names them, and that the override flag performs it. Add the UPPERCASE case as its own assertion (`- Status: EXECUTED` must be refused exactly as `executed` is), since 25 corpus files carry it and a case-sensitive guard would pass every other test in this item while leaving those unprotected. Add `superseded -> draft` too: measured live on current code, it succeeds silently (exit 0), and it is the corrective-un-supersede spelling a plan could be walked back through if only `executed` were guarded.
   Then assert the transitions that MUST STILL WORK, because this guard is the one most likely to over-refuse: a nonterminal plan advancing (`to-review -> reviewed`, `reviewed -> approved`), a plan RETIRING (`reviewed -> superseded`, terminal but FORWARD, which this cleanup itself relied on three times), and a non-plan artifact's ordinary transition. A guard that blocks retirement would have blocked the very cleanup that found this bug.
   ASSERT THE SPEC CASE EXPLICITLY RATHER THAN LEAVING IT TO "non-plan", because specs are the one type with their OWN transition table and it already permits two moves this guard's PLAN vocabulary would call backwards: `implemented -> deferred` and `superseded -> draft` (`attention_contract.SPEC_TRANSITIONS`, `attention_contract.py:367-395`, measured). E-02 keys on `record_type == "plans"`, so specs are untouched BY CONSTRUCTION; pin that with a test so a later widening to "all types" cannot quietly break the shipped spec lifecycle.
   - Depends on: E-02
   - Expected outcome: the reopen is refused and named for lowercase, UPPERCASE, and the `superseded -> draft` spelling; advancing, retiring, spec, and other non-plan transitions are all unaffected, each with its own assertion.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: carry what this plan does not fix
 
-- [ ] E-06 GIVE EACH DEFERRED FINDING A DURABLE CARRIER BEFORE FINALIZING, because this plan moves to `executed/` and nothing re-reads a terminal plan's deferral prose, so a finding recorded only here is a finding lost. File one backlog item per row with `aw backlog new` and cite the minted id6 in the matching bullet of `## Deferred / out of scope`: (a) F-12, `select_output`'s docstring promising a non-TTY rule its body does not implement, noting explicitly that "fixing" it toward the docstring would re-open the hole E-01 closes; (b) F-11, the `NextAction` retry hint that drops `--actor`/`-m`/`--no-commit` and rewrites `aw ipd set` as `aw set`, which E-01 makes newly visible to every flagless caller; (c) F-13, the four documented setter examples that E-01 makes refuse as written (`.aw/records/plans/README.md:62-64`, `.aw/records/backlog/README.md:65`, `.aw/records/specs/README.md:25`, `README.md:53`), which principle 2 forbids leaving false. DO THIS EVEN IF the maintainer answers OQ-02 by folding the documentation edits into this plan: (a) and (b) still need carriers either way. If the maintainer folds (c) in, declare the four paths in `- Scope-Paths:` first and note the scope change in the workflow history rather than editing silently.
+- [x] E-06 GIVE EACH DEFERRED FINDING A DURABLE CARRIER BEFORE FINALIZING, because this plan moves to `executed/` and nothing re-reads a terminal plan's deferral prose, so a finding recorded only here is a finding lost. File one backlog item per row with `aw backlog new` and cite the minted id6 in the matching bullet of `## Deferred / out of scope`: (a) F-12, `select_output`'s docstring promising a non-TTY rule its body does not implement, noting explicitly that "fixing" it toward the docstring would re-open the hole E-01 closes; (b) F-11, the `NextAction` retry hint that drops `--actor`/`-m`/`--no-commit` and rewrites `aw ipd set` as `aw set`, which E-01 makes newly visible to every flagless caller; (c) F-13, the four documented setter examples that E-01 makes refuse as written (`.aw/records/plans/README.md:62-64`, `.aw/records/backlog/README.md:65`, `.aw/records/specs/README.md:25`, `README.md:53`), which principle 2 forbids leaving false. DO THIS EVEN IF the maintainer answers OQ-02 by folding the documentation edits into this plan: (a) and (b) still need carriers either way. If the maintainer folds (c) in, declare the four paths in `- Scope-Paths:` first and note the scope change in the workflow history rather than editing silently.
   - Depends on: E-01
   - Expected outcome: three backlog items exist, each id6 cited in the matching deferral bullet; `aw attention` can see all three; no deferred finding survives only as prose in this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,11 +125,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - MAKING `--dry-run` THE DEFAULT for the setters: a bigger behavior change than either fix here, affecting every caller and every muscle memory, and it deserves its own decision. Fixes E-01 and E-02 remove the sharp edge without it. Recorded in backlog `f5pttg` as its third suggested fix.
+  - Carrier: f5pttg
 - THE HISTORY-MESSAGE AND DURABILITY DEFECTS (`x6tk1u`, `hg2oop`): Order 02 of this Set. They touch the same setters but are a different failure (provenance loss, not unguarded mutation) and have different tests.
+  - Carrier: vhbvwz
 - WHAT A BARE SETID MEANS: deliberate (`laykok` E-07) and preserved.
+  - Carrier-Declined: NOT A DEFERRAL, A PRESERVED DESIGN DECISION. Within-type setid fan-out is deliberate and correct (`laykok` E-07 distinguishes setid fan-out from a unique-id collision from a substring match); this plan adds a speed bump in front of it and narrows nothing. There is no outstanding work to carry, and filing one would assert a defect that does not exist.
 - THE `aw backlog note` GAP: recorded in `hg2oop`; belongs with Order 02 if it is done at all.
-- `select_output`'s DOCSTRING/BEHAVIOR MISMATCH (F-7): its docstring promises "non-TTY stdout -> AGENT" and the body implements no such rule. DEFERRED, Remediation Risk HIGH on functionality: `select_output` is the single output-mode authority for the whole CLI, so making the docstring true would reclassify EVERY piped invocation of EVERY verb from HUMAN to AGENT output, and making the body's behavior documented is a one-line docstring fix that belongs with whoever owns that contract. Either direction is far larger than this plan and neither is needed for E-01, which after this review keys on the flags as they actually behave. REQUIRED CARRIER: file a backlog item before execution and cite its id6 here, so the finding does not survive only in this plan's prose (see OQ-02). CONSEQUENCE IF UNRESOLVED: a later "fix" that makes piped callers AGENT would silently re-open the hole E-01 closes, which is exactly why E-04 pins the piped case.
-- THE `NextAction` FLAG-DROPPING DEFECT (F-11): the suggested retry command is rebuilt from `raw_args` plus `--yes`, losing `--actor`, `-m`, `--no-commit` and rewriting `aw ipd set` as `aw set`. DEFERRED rather than fixed here, Remediation Risk MEDIUM-HIGH on functionality: constructing a faithful retry string means reconstructing the invoked verb and every declared flag from the parsed namespace, which is a general CLI-echo capability with its own correctness surface (which flags are safe to echo, which carry secrets, how the five routing spellings map back to their verb), and getting it wrong prints a command that does something OTHER than what the caller asked, which is worse than printing an under-specified one. E-01 does make this newly VISIBLE to every flagless caller, so it must be carried, not dropped: file it as a backlog item with its id6 cited here (OQ-02). Interim mitigation, in scope for E-01: the refusal already lists the full change set, so a caller can see what would happen even when the suggested command is incomplete.
+  - Carrier: hg2oop
+- `select_output`'s DOCSTRING/BEHAVIOR MISMATCH (F-7): its docstring promises "non-TTY stdout -> AGENT" and the body implements no such rule. DEFERRED, Remediation Risk HIGH on functionality: `select_output` is the single output-mode authority for the whole CLI, so making the docstring true would reclassify EVERY piped invocation of EVERY verb from HUMAN to AGENT output, and making the body's behavior documented is a one-line docstring fix that belongs with whoever owns that contract. Either direction is far larger than this plan and neither is needed for E-01, which after this review keys on the flags as they actually behave. REQUIRED CARRIER: RESOLVED AT EXECUTION WITHOUT ONE, because the underlying defect was ALREADY FIXED UPSTREAM before this plan ran and filing a carrier for it would have filed a false claim. MEASURED 2026-09-22 at execution: the docstring no longer promises the non-TTY rule and now explicitly retracts it (`'non-TTY stdout -> AGENT' in select_output.__doc__` is False; `'NEITHER WAS EVER IMPLEMENTED' in ...` is True), retracted by commit `67c15b2f` "retract the non-TTY promise" under ttyflags `yaxr4i` OQ-01, which the maintainer resolved by RETRACTING the policy rather than implementing it. So E-06 filed two carriers, not three, and this row is closed by evidence rather than deferred. CONSEQUENCE IF UNRESOLVED: a later "fix" that makes piped callers AGENT would silently re-open the hole E-01 closes, which is exactly why E-04 pins the piped case and why that test is kept even though the docstring is now honest.
+  - Carrier-Declined: ALREADY FIXED UPSTREAM, so there is no live defect to carry and filing one would assert a bug that does not exist. MEASURED 2026-09-22 at execution: `'non-TTY stdout -> AGENT' in select_output.__doc__` is False and `'NEITHER WAS EVER IMPLEMENTED' in select_output.__doc__` is True. The docstring was corrected by commit `67c15b2f` ("retract the non-TTY promise") under ttyflags `yaxr4i` OQ-01, where the maintainer resolved the divergence by RETRACTING the unimplemented policy rather than implementing it. The E-04 piped-stdout test is kept regardless, so a later change in the opposite direction cannot silently re-open the hole E-01 closes.
+- THE `NextAction` FLAG-DROPPING DEFECT (F-11): the suggested retry command is rebuilt from `raw_args` plus `--yes`, losing `--actor`, `-m`, `--no-commit` and rewriting `aw ipd set` as `aw set`. DEFERRED rather than fixed here, Remediation Risk MEDIUM-HIGH on functionality: constructing a faithful retry string means reconstructing the invoked verb and every declared flag from the parsed namespace, which is a general CLI-echo capability with its own correctness surface (which flags are safe to echo, which carry secrets, how the five routing spellings map back to their verb), and getting it wrong prints a command that does something OTHER than what the caller asked, which is worse than printing an under-specified one. E-01 does make this newly VISIBLE to every flagless caller, so it must be carried, not dropped: CARRIER FILED at execution as backlog `pftva5` (work-kind `bug`, `Blocks-Release: next`, carrying the measured scratch-repo reproduction showing `--actor`/`-m`/`--no-commit` dropped and `ipd set` rewritten as `set`). Interim mitigation, in scope for E-01: the refusal already lists the full change set, so a caller can see what would happen even when the suggested command is incomplete.
+  - Carrier: pftva5
 
 ## Scope check
 
@@ -145,60 +152,227 @@ Beyond the suite: the measured incident re-run in a SCRATCH repo before and afte
 
 NO SPEC IS AMENDED and none is declared in `- Scope-Paths:`. No spec governs setter confirmation behavior; the relevant rule is the `AGENTS.md` execution contract's prohibition on re-opening an executed plan, which E-02 ENFORCES rather than changes.
 
-DOCUMENTATION: RESOLVED AT REVIEW, NOT DEFERRED (was raised as a question for the reviewer). The setter examples in `.aw/records/plans/README.md:62-64`, `.aw/records/backlog/README.md:65`, `.aw/records/specs/README.md:25` and `README.md:53` will all become commands that REFUSE as written once E-01 lands. Documented examples that no longer work are a GUIDING_PRINCIPLES principle 2 violation (honest documentation over aspirational), so the honest options are to update them or to leave them false, and leaving them false is not an option a review may choose. It is nonetheless NOT added to this plan's scope: four README files across four record trees is a documentation sweep with its own reviewable surface, and bundling it here would widen a two-guard change into a docs migration. DECIDED: the documentation update is a REQUIRED FOLLOW-UP carried by its own backlog item, filed before execution with its id6 cited here (OQ-02), and E-03's inventory must list every documentation occurrence it finds so the follow-up starts from a measured list rather than a fresh grep. If the maintainer prefers the edits IN this plan instead, that is a scope decision for them and the four paths must be declared in `- Scope-Paths:` before execution.
+DOCUMENTATION: RESOLVED AT REVIEW, NOT DEFERRED (was raised as a question for the reviewer). The setter examples in `.aw/records/plans/README.md:62-64`, `.aw/records/backlog/README.md:65`, `.aw/records/specs/README.md:25` and `README.md:53` will all become commands that REFUSE as written once E-01 lands. Documented examples that no longer work are a GUIDING_PRINCIPLES principle 2 violation (honest documentation over aspirational), so the honest options are to update them or to leave them false, and leaving them false is not an option a review may choose. It is nonetheless NOT added to this plan's scope: four README files across four record trees is a documentation sweep with its own reviewable surface, and bundling it here would widen a two-guard change into a docs migration. DECIDED: the documentation update is a REQUIRED FOLLOW-UP carried by its own backlog item, FILED AT EXECUTION as backlog `7q9ycn` (priority `high`, per OQ-02's recommendation, since it is the only deferral a user meets directly). Its body carries the measured occurrence list E-03's survey produced rather than a fresh grep: `README.md:53`, `.aw/records/plans/README.md:63` and `:64`, `.aw/records/backlog/README.md:70`, `.aw/records/specs/README.md:24`. NOTE two line numbers MOVED from the values recorded at review (`backlog/README.md` 65 -> 70 and `specs/README.md` 25 -> 24, the files having changed since), which is why the carrier records the content of each example and not only its address. If the maintainer prefers the edits IN this plan instead, that is a scope decision for them and the four paths must be declared in `- Scope-Paths:` before execution.
 
 ## Open questions
 
 ### OQ-01: Should the terminal-reopen override be a dedicated flag or should the transition be refused outright with no override?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT blocking, because E-02 delivers the REFUSAL either way and the only variable is whether an escape hatch exists. Recorded because it is a policy judgement rather than a mechanism one, and because the two answers age differently. A DEDICATED FLAG treats reopening as legitimate-but-rare and keeps a documented path for a genuine mistake (a plan marked executed in error). NO OVERRIDE makes the `AGENTS.md` rule absolute and forces the corrective-IPD route always, which is stricter and matches how `aw ipd finalize` refuses rather than offering a bypass; the cost is that a genuinely mis-filed plan then needs a hand edit, which is exactly the untooled write the repository's own hooks discourage. RECOMMENDATION: a dedicated flag (`--allow-terminal-reopen`), on the grounds that a refusal with no escape tends to be routed around by hand editing, which is less auditable than a named flag whose use appears in the shell history and can be pinned by a test. Not resolved unilaterally because it is a contract-shaped decision about how strict the lifecycle is.
+- Resolution or deferral rationale: RESOLVED AT EXECUTION as the RECOMMENDED option, a dedicated `--allow-terminal-reopen` flag. Implemented with all three properties the review note required: NAMED (not an overloaded `--force`, which still means only "act on all of an ambiguous multi-match" at `status_set.py:1540`); DECLARED ON EVERY LIVE ROUTING SURFACE so the gate cannot be dodged by spelling (`aw set`, `aw ipd set`, `aw specs set`, `aw backlog set`; `aw prompts set` was measured NOT to exist as a parser, so four surfaces cover every live route); and AUDITABLE IN THE ARTIFACT, folded into the actor string exactly as `--by-human` and `--allow-open-questions` are, verified in a scratch repo producing the history line `- 2026-09-22 approved (aw set, --allow-terminal-reopen): status set to approved`. Recorded only where the flag could have had an effect (a plan actually leaving a terminal status for a nonterminal one), so it never litters history with a false claim. Nothing outstanding; no carrier owed.
+  ORIGINAL RATIONALE, KEPT FOR THE RECORD: NOT blocking, because E-02 delivers the REFUSAL either way and the only variable is whether an escape hatch exists. Recorded because it is a policy judgement rather than a mechanism one, and because the two answers age differently. A DEDICATED FLAG treats reopening as legitimate-but-rare and keeps a documented path for a genuine mistake (a plan marked executed in error). NO OVERRIDE makes the `AGENTS.md` rule absolute and forces the corrective-IPD route always, which is stricter and matches how `aw ipd finalize` refuses rather than offering a bypass; the cost is that a genuinely mis-filed plan then needs a hand edit, which is exactly the untooled write the repository's own hooks discourage. RECOMMENDATION: a dedicated flag (`--allow-terminal-reopen`), on the grounds that a refusal with no escape tends to be routed around by hand editing, which is less auditable than a named flag whose use appears in the shell history and can be pinned by a test. Not resolved unilaterally because it is a contract-shaped decision about how strict the lifecycle is.
   REVIEW NOTE (2026-09-10): the recommendation is STRENGTHENED by a precedent the authored version did not cite. `--allow-open-questions` is the same shape of override on the same code path (an escape hatch for a gate that must normally refuse), it records its own use in the artifact's actor string so the override is auditable in the FILE and not only in a shell history (`status_set.py:604-610`), and it is declared on every routing surface so it cannot be dodged by spelling. If the maintainer chooses the dedicated flag, E-02 should follow all three of those properties, including the history-attribution one, which the authored E-02 did not mention.
 
 ### OQ-02: Should the documentation fix for the four now-false setter examples land IN this plan, or as the follow-up E-06 files?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: F-13
-- Resolution or deferral rationale: NOT BLOCKING, and the reason is worth stating because an earlier draft of this review DID mark it blocking and that was over-escalation. The underlying RISK (a deferred finding surviving only as prose in a plan that is about to move to `executed/`, where no status view reads it) is now discharged by E-06, which files a durable carrier for each of F-11, F-12 and F-13 as a required execution item with pasted evidence in V-06. So the plan is complete and correct with the DEFAULT answer (docs handled by follow-up), and the only thing left is a maintainer PREFERENCE about where the edit lands and how it is prioritized. Marking a preference blocking would stop an otherwise-executable plan over a question whose wrong answer costs one follow-up commit.
+- Resolution or deferral rationale: RESOLVED AT EXECUTION with the RECOMMENDED (default) answer: the documentation edits did NOT land in this plan and are carried by backlog `7q9ycn`, filed at `high` priority exactly as the recommendation specified, since it is the only deferral a user meets directly. No documentation file was modified by this execution and the four README paths were deliberately NOT added to `- Scope-Paths:`. The carrier records each example's CONTENT rather than only its line number, because two of the review's addresses had already MOVED (`backlog/README.md` 65 -> 70, `specs/README.md` 25 -> 24). E-06 therefore filed two carriers rather than three, the third row (F-12) having been measured already fixed upstream.
+  ORIGINAL RATIONALE, KEPT FOR THE RECORD: NOT BLOCKING, and the reason is worth stating because an earlier draft of this review DID mark it blocking and that was over-escalation. The underlying RISK (a deferred finding surviving only as prose in a plan that is about to move to `executed/`, where no status view reads it) is now discharged by E-06, which files a durable carrier for each of F-11, F-12 and F-13 as a required execution item with pasted evidence in V-06. So the plan is complete and correct with the DEFAULT answer (docs handled by follow-up), and the only thing left is a maintainer PREFERENCE about where the edit lands and how it is prioritized. Marking a preference blocking would stop an otherwise-executable plan over a question whose wrong answer costs one follow-up commit.
   WHAT IS ACTUALLY BEING ASKED: `.aw/records/plans/README.md:62-64`, `.aw/records/backlog/README.md:65`, `.aw/records/specs/README.md:25` and `README.md:53` all show a setter invocation that will REFUSE once E-01 lands, so GUIDING_PRINCIPLES principle 2 (honest over aspirational documentation) requires they be corrected. RECOMMENDATION: leave them to the follow-up item, because four README files across four record trees is a documentation sweep with its own reviewable surface and bundling it here widens a two-guard change; file that item at HIGH priority, since it is the only one of the three deferrals a user meets directly. IF THE MAINTAINER PREFERS THEM HERE, the four paths must be added to `- Scope-Paths:` before execution and the scope change noted in the workflow history, and E-06 then files two carriers rather than three.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the flagless call REFUSING (exit code shown) with its listed changes, and the same call with `--yes` SUCCEEDING, both from a scratch repo. Paste `git status --porcelain` after the refusal proving nothing was written. Paste the code comment and CONFIRM IT DOES NOT SAY the guard protected machines rather than humans: it must state that the condition keyed on the `--agent`/`--json` flags and that `select_output` implements no TTY rule. Confirm the newly-guarded path reaches the SAME refusal construction rather than a duplicate (show the single call site).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE FLAGLESS CALL REFUSES, exit 2, nothing written. Scratch repo, pinned to this lane's code:
+    ```
+    $ python3 -m agent_workflows ipd set approved aaaa03 --dir .
+    AW set
+    cannot-run CANNOT-RUN  confirmation required (--yes needed to execute mutation)
 
-- [ ] V-02 validates E-02
+    Would change:
+      update  .../tmp/sc/.aw/records/plans/pending/20260922-scratchset-03-aaaa03-three.ipd.md (status: to-review -> approved)
+
+    Next  aw set approved aaaa03 --yes (Apply status changes)
+    EXIT=2
+    $ git status --porcelain
+    (empty)
+    ```
+    THE SAME CALL WITH `--yes` SUCCEEDS, so the speed bump is a bump and not a wall:
+    ```
+    $ python3 -m agent_workflows ipd set approved aaaa03 --yes --dir .
+    -    plan        20260922-scratchset-03-aaaa03  to-review -> approved
+    EXIT=0
+    ```
+    ALSO MEASURED SEPARATELY, on a freshly built clean scratch repo running ONLY the refusal, that the refusal writes NOTHING AT ALL including no `INDEX.json`/`INDEX.md` (`git status --porcelain` empty afterwards). Worth stating because an earlier capture showed two untracked INDEX files that were residue from a PRECEDING `--yes` run in the same tree, not from the refusal.
+    SINGLE CONSTRUCTION SITE, NOT A DUPLICATE: `grep -c 'confirmation required' agent_workflows/status_set.py` -> 1, at `status_set.py:1809`, whose predicate now reads `if not is_dry_run and not yes:`. The newly-guarded path reaches that same `CommandResult`, so the two cannot drift.
+    THE CODE COMMENT DOES NOT SAY THE GUARD PROTECTED MACHINES RATHER THAN HUMANS. It states that the old condition "tested THE `--agent`/`--json` FLAGS AND NOTHING ELSE", that `select_output` "consults no `isatty` for mode selection at all", that the unguarded set was therefore "every caller that passed NEITHER flag, TTY or pipe, human or script -- NOT the human path", and it explicitly warns: "Do not re-describe this as protecting a machine rather than a human; that framing is the misreading this plan's review corrected (F-7)."
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the refusal for `executed -> approved` INCLUDING with `--yes` (proving it is a second, independent guard), showing the offending plans named and the corrective-IPD route cited. Paste the override performing it. State which override shape you implemented and why, and confirm `--force` was NOT overloaded. SHOW the terminal set is DERIVED from `plans.TERMINAL` rather than re-listed (paste the line), and show the case-fold: paste a refusal for a plan carrying uppercase `- Status: EXECUTED`. Paste the flag registered on all five routing surfaces, or state which you deliberately omitted and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: REFUSED EVEN WITH `--yes`, proving a second independent guard, with every offending plan named and the corrective route cited:
+    ```
+    $ python3 -m agent_workflows ipd set approved scratchset --yes --dir .
+    FAIL     refusing to move 3 plan(s) BACKWARDS out of a terminal disposition to 'approved'. A terminal
+    plan is a historical record: re-opening it in place would assert that completed, validated work is
+    pending again. AGENTS.md directs a CORRECTIVE IPD for a post-execution gap, not an in-place edit of
+    the executed plan. If this plan reached a terminal state in error, pass --allow-terminal-reopen
+    (recorded in the artifact's history).
+    Refusing; nothing was written:
+      20260922-scratchset-01-aaaa01-one.ipd.md  (- Status: executed)
+      20260922-scratchset-02-aaaa02-two.ipd.md  (- Status: EXECUTED)
+      20260922-scratchset-04-aaaa04-four.ipd.md  (- Status: superseded)
+    EXIT=2
+    $ git status --porcelain
+    (empty)
+    ```
+    THE CASE-FOLD IS PROVEN BY THAT SAME CAPTURE: the uppercase `- Status: EXECUTED` plan is named in the refusal alongside the lowercase one. `superseded` is named too, closing the second backwards route.
+    THE OVERRIDE PERFORMS IT, AND IS AUDITABLE IN THE FILE:
+    ```
+    $ python3 -m agent_workflows ipd set approved aaaa01 --yes --allow-terminal-reopen --dir .
+    -    plan        20260922-scratchset-01-aaaa01  executed -> approved
+    EXIT=0
+    $ grep -n 'allow-terminal-reopen' .aw/records/plans/pending/*aaaa01*
+    12:- 2026-09-22 approved (aw set, --allow-terminal-reopen): status set to approved
+    ```
+    OVERRIDE SHAPE AND WHY: a DEDICATED `--allow-terminal-reopen`, per OQ-01's recommendation and its review note. `--force` was NOT overloaded; it still means only "act on all of an ambiguous multi-match" (`status_set.py:1540`, `pass --force to act on all`). The flag follows all three `--allow-open-questions` properties: named, declared on every routing surface, and folded into the actor string so the override lives in the ARTIFACT rather than only a shell history.
+    THE TERMINAL SET IS DERIVED, NOT RE-LISTED, in both places it is needed:
+    ```
+    status_set.py:1712:    _terminal = {s.strip().lower() for s in _plans_mod.TERMINAL}
+    status_set.py:753:     _terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
+    ```
+    FLAG REGISTERED ON EVERY LIVE SURFACE (count of `allow-terminal-reopen` occurrences in each `--help`):
+    ```
+    aw set          : 2
+    aw ipd set      : 2
+    aw specs set    : 2
+    aw backlog set  : 2
+    aw prompts set  : NOT A LIVE PARSER SURFACE (aw prompts accepts only 'new')
+    ```
+    DELIBERATE OMISSION, STATED: the plan predicted FIVE surfaces, but `aw prompts set` DOES NOT EXIST as a parser (`aw prompts set --help` -> `argument prompts_command: invalid choice: 'set' (choose from 'new')`). A prompt transition is reached through the untyped `aw set prompts <status> <sel>` spelling, which is covered by the `aw set` registration. So four registrations cover every live route, and E-05's prompt assertion uses that untyped spelling.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the CLASSIFIED caller inventory produced by the CORRECTED method (in-process `run_set_command` callers AND argv sites AND docs), each marked deliberate-automation, already-safe, or human-facing. Paste the diff of the `work_cmd.run_finish` and `finalize_orchestrator` fixes. Paste the bare suite BEFORE (the four named failing node ids) and AFTER (those four green), compared by NODE ID, not by total. State explicitly that `finalize_orchestrator` was a LATENT break saved only by the delegation ordering, so nobody later reads it as an observed regression. If any caller could not pass `--yes`, say so rather than omitting it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE CLASSIFIED INVENTORY, produced by the CORRECTED method (in-process `run_set_command` callers AND argv sites AND workflows/Makefile/pre-commit), not by grepping argv lists alone:
 
-- [ ] V-04 validates E-04
+    | Caller | Kind | Classification | Action |
+    | --- | --- | --- | --- |
+    | `cli.py:12676` (`aw set`) | in-process | already-safe | forwards the parsed `args` |
+    | `cli.py:12800` (`aw ipd set`) | in-process | already-safe | forwards the parsed `args` |
+    | `cli.py:12883` (`aw prompts set`, dead branch) | in-process | already-safe | forwards the parsed `args` |
+    | `cli.py:13010` (`aw backlog set`) | in-process | already-safe | forwards the parsed `args` |
+    | `cli.py:13051` (`aw specs set`) | in-process | already-safe | forwards the parsed `args` |
+    | `status_set.py:2168` (`run_dependencies_set_command`) | in-process | already-safe | its Namespace already sets `yes=True` |
+    | `work_cmd.py:700` (`aw finish`) | in-process | deliberate-automation, OBSERVED BREAK | FIXED: `yes=True` on the Namespace |
+    | `oc_runipd.finalize_orchestrator` | argv | deliberate-automation, LATENT | FIXED: `--yes` added |
+    | `oc_runipd.py:950,981` (`set_plan_approved`, both forms) | argv | already-safe | already passed `--yes` |
+    | `agy_runipd.py:1029,1057` (agy twin, both forms) | argv | already-safe | already passed `--yes` |
+    | `oc_runipd.py:1407`, `agy_runipd.py:1141` | argv | not applicable | invoke `ipd finalize`, not `set` |
+    | `specs.py` `run_set` (`--status` spelling) | in-process | not applicable | a separate fork that never reaches `run_set_command` |
+    | `.aw/system/workflows/ipd-lifecycle.md:109,144` | doc prose | human-facing | prose ABOUT the forbidden `aw set executed` bypass, not a live invocation |
+    | `.aw/system/workflows/spec-review.md:77,261` | doc prose | human-facing, now under-specified | `aw specs set reviewed <id6>` needs `--yes`; carried by backlog `7q9ycn` |
+    | `README.md:53`, `plans/README.md:63,64`, `backlog/README.md:70`, `specs/README.md:24` | doc | human-facing, now refuse as written | carried by backlog `7q9ycn` (F-13) |
+    | `.pre-commit-config.yaml:89` | config comment | not applicable | a comment, no invocation |
+
+    EVERY CALLER COULD PASS `--yes` OR ALREADY DID; none had to be reported as unable, and E-01 was not weakened.
+    THE TWO PRODUCTION FIXES:
+    - `work_cmd.run_finish`: the hand-built Namespace now carries `yes=True`. Correct on the merits, NOT a weakened gate: every `aw finish` check (evidence present, bound to the CURRENT tree, recording a PASSING run, authoritative target refused outright) runs BEFORE the delegation and fails closed, so the confirmation is already earned; and `aw finish` has no `--yes` of its own to forward (`[--to TO] [--dir DIR]`).
+    - `oc_runipd.finalize_orchestrator`: `--yes` added, matching its sibling `set_plan_approved`.
+    `finalize_orchestrator` IS A LATENT BREAK, NOT AN OBSERVED REGRESSION, and this is stated so nobody later reads it as one: a plan->`executed` request is intercepted by the `aw ipd finalize` delegation which RETURNS BEFORE the confirmation check is reached, so the argv is saved today by ORDERING ALONE. That ordering is incidental rather than guaranteed, which is why it was fixed anyway.
+    BEFORE (E-01 applied, callers unfixed), by NODE ID -- FIVE failures in THREE modules, one MORE than the review predicted:
+    ```
+    FAILED tests/test_ipd_priority.py::PrioritySetterTests::test_set_writes_persists_on_noop_and_clears
+    FAILED tests/test_work_kind.py::PlanSetterTests::test_writing_work_kind_does_not_disturb_the_structural_kind
+    FAILED tests/test_work_kind.py::PlanSetterTests::test_set_writes_persists_on_noop_and_clears
+    FAILED tests/test_work_primitives.py::WorkPrimitivesTest::test_finish_never_pushes_or_tags_measured_over_real_git_invocations
+    FAILED tests/test_work_primitives.py::WorkPrimitivesTest::test_finish_gates_every_shape_of_evidence_and_authority
+    5 failed, 39 passed in 3.04s
+    ```
+    AFTER, same three modules, all green:
+    ```
+    44 passed in 6.74s
+    ```
+    AND A FOURTH MODULE THE SURVEY MISSED, found only by running the FULL suite rather than the three predicted modules -- the reason the plan's own warning about survey METHOD applies to the review's survey too:
+    ```
+    FAILED tests/test_backlog_work_kind_rename.py::BacklogSetClassificationTests::test_both_fields_together_land_identically_on_both_spellings
+    FAILED tests/test_backlog_work_kind_rename.py::BacklogSetClassificationTests::test_a_reclassification_preserves_a_blocks_release_gate
+    FAILED tests/test_backlog_work_kind_rename.py::BacklogSetClassificationTests::test_a_noop_reclassification_persists_on_the_positional_spelling
+    FAILED tests/test_backlog_work_kind_rename.py::BacklogSetClassificationTests::test_priority_is_settable_on_both_spellings
+    FAILED tests/test_backlog_work_kind_rename.py::BacklogSetClassificationTests::test_a_reclassification_preserves_the_typed_gate_and_its_spelling
+    ```
+    Seven real-CLI `backlog set` invocations there assert a PERFORMED write and now pass `--yes`; the TWO negative cases (the `-` clear sentinel and the out-of-vocab value, both argparse refusals) were deliberately LEFT flagless so they keep failing before any write. That module now reports `36 passed`, and its path was ADDED to `- Scope-Paths:` with the change recorded in the workflow history.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste all three cases passing (flagless refuses; `--yes` performs; `--dry-run` previews), each asserting BOTH the status bullet and the file's directory, PLUS the piped-stdout case proving the refusal does not depend on a TTY. Plus a MUTATION CHECK: restore the old output-mode condition, show the flagless-refusal test FAILS, revert, show it passes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_status_set.py::FlaglessConfirmationRefusalTests`, four cases, all passing (`4 passed`), each asserting BOTH the status bullet and the file's directory:
+    - `test_a_flagless_call_refuses_and_writes_nothing`: exit 2; both files byte-identical; both still in `pending/` (asserts `a.parent.name == "pending"`), because the original incident MOVED FILES and a status-only assertion would miss half the damage.
+    - `test_the_same_call_with_yes_performs_the_transition`: exit 0, both rewritten to `approved`.
+    - `test_dry_run_still_previews_without_writing`: exit 0 and unchanged on disk, pinning that `--dry-run` is NOT swept into the refusal.
+    - `test_the_refusal_does_not_depend_on_stdout_being_a_tty`: a non-TTY `StringIO` stdout still refuses at exit 2 with `confirmation required` in the output, pinning the flag-independence property against a future `select_output` change that would otherwise re-open the hole.
+    NOT DUPLICATED: the test docstring records that the `--json` and `--agent` refusals are already covered by `TestStatusSetCommands.test_json_output_mode` / `test_agent_output_mode` in this same module and by `tests/test_cli_mutations_and_previews.py`; only the flagless case was uncovered.
+    THE MUTATION CHECK, which is what proves these tests are load-bearing rather than vacuous. Restoring the OLD output-mode condition (`if (ctx.is_agent or ctx.is_json) and not is_dry_run and not yes:`) and re-running:
+    ```
+    MUTATION APPLIED: old output-mode condition restored
+    >       self.assertEqual(rc, 2, "a piped flagless call must refuse exactly as a TTY one does")
+    E       AssertionError: 0 != 2 : a piped flagless call must refuse exactly as a TTY one does
+    FAILED tests/test_status_set.py::FlaglessConfirmationRefusalTests::test_a_flagless_call_refuses_and_writes_nothing
+    FAILED tests/test_status_set.py::FlaglessConfirmationRefusalTests::test_the_refusal_does_not_depend_on_stdout_being_a_tty
+    2 failed, 2 passed in 0.52s
+    ```
+    Reverted, and green again: `4 passed in 0.41s`. Note the mutant scores `0 != 2` on the piped case, which is exactly the silent-write defect this plan exists to close.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the reopen-refused assertions for all THREE spellings (lowercase `executed`, uppercase `EXECUTED`, and `superseded -> draft`), AND the must-still-work assertions for a nonterminal advance, a RETIREMENT to `superseded` (forward into a terminal state, which must remain allowed), a SPEC transition the spec table permits but a plan-vocabulary guard would call backwards (`implemented -> deferred` or `superseded -> draft`), and one other non-plan artifact transition. State plainly that retirement still works, since an over-broad guard would have blocked the three retirements performed during the cleanup that found this bug.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_status_set.py::TerminalReopenRefusalTests`, and the whole module passes (`76 passed`).
+    REOPEN REFUSED, all spellings, each its own assertion:
+    - `test_executed_is_not_reverted_even_with_yes`: exit 2 WITH `--yes`, file byte-identical AND still in `executed/`.
+    - `test_an_uppercase_terminal_status_is_refused_identically`: `- Status: EXECUTED` refused, the 25-corpus-file case.
+    - `test_the_done_alias_spelling_is_refused_identically`: `- Status: DONE`, the other pre-vocabulary spelling (added beyond the plan's list, since the corpus census counted 7 of them).
+    - `test_superseded_to_draft_is_refused_too`: the second backwards route, which succeeded silently at exit 0 before this change.
+    - `test_the_refusal_names_the_offending_plan_and_cites_the_corrective_route`: asserts the filename, the string `CORRECTIVE IPD`, and `--allow-terminal-reopen` all appear.
+    - `test_the_override_performs_it_and_records_itself_in_the_history`: exit 0, file moved to `pending/`, and `--allow-terminal-reopen` present IN THE FILE.
+    THE MUST-STILL-WORK HALF, since this guard is the one most likely to over-refuse:
+    - `test_a_nonterminal_plan_still_advances`: `to-review -> reviewed -> approved`, both exit 0.
+    - `test_retirement_into_a_terminal_state_still_works`: `reviewed -> superseded` exit 0 and the file lands in `superseded/`. RETIREMENT STILL WORKS, stated plainly because an over-broad guard would have blocked the three retirements performed by the very cleanup that discovered this bug.
+    - `test_a_spec_transition_the_spec_table_permits_is_untouched`: `aw specs set draft <a superseded spec>` exit 0, which `SPEC_TRANSITIONS` permits and a plan-vocabulary guard would call backwards. This pins that a later widening to "all types" cannot quietly break the shipped spec lifecycle.
+    - `test_a_non_plan_artifact_transition_is_unaffected`: a PROMPT in `executed/` still moves to `draft` (exit 0), which is why the guard keys on `record_type == "plans"` and not on the shared `executed`/`done` token.
+    ONE PRE-EXISTING TEST ASSERTED THE DEFECT AND WAS UPDATED, NOT DELETED, and this is reported explicitly because it is a deliberate CONTRACT CHANGE rather than a test fix: `TestStatusSetCommands::test_set_plan_status_from_executed_to_pending_moves_file_back` pinned `aw set to-review <an executed plan>` SUCCEEDING at exit 0 with the file moved back to `pending/` -- exactly the ungated reversion this plan forbids and that `AGENTS.md` already prohibited. It now asserts BOTH halves: the bare form is refused at exit 2 with nothing changed, and the override still performs the move correctly. The guard was not weakened to keep the old assertion green.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the `aw backlog new` output for each of the three items and the resulting id6s, then paste the three `## Deferred / out of scope` bullets showing each id6 cited in place. Paste `aw attention` (or `aw backlog`) output showing all three are visible in the status view. If OQ-02 was answered by folding the documentation edits into this plan instead, paste the amended `- Scope-Paths:` line and the workflow-history note recording that scope change, and state that only two carriers were needed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: TWO carriers were needed, not three, because one deferred finding was measured ALREADY FIXED upstream and filing it would have filed a false claim.
+    ```
+    $ aw backlog new --summary "Correct the aw set confirmation refusal's retry hint: it drops the caller's flags and rewrites the verb" ... --apply
+    aw backlog new: wrote .aw/records/backlog/open/20260922-pftva5-01-pftva5-setter-refusal-retry-hint-drops-flags.backlog.md
+
+    $ aw backlog new --summary "Update the four documented setter examples that now refuse without --yes" ... --apply
+    aw backlog new: wrote .aw/records/backlog/open/20260922-7q9ycn-01-7q9ycn-setter-docs-need-yes-flag.backlog.md
+    ```
+    - F-11 -> backlog `pftva5` (work-kind `bug`, `Blocks-Release: next` per the live-bug release gate), carrying the scratch reproduction measured at execution: `aw ipd set reviewed aaaa03 --actor 'me model=x' -m 'retire note' --no-commit` prints `Next  aw set reviewed aaaa03 --yes`, dropping `--actor`, `-m` and `--no-commit` and rewriting `ipd set` as `set`. Cited in its deferral bullet.
+    - F-13 -> backlog `7q9ycn` (priority `high`, per OQ-02's recommendation, since it is the only deferral a user meets directly), carrying the measured occurrence list. Cited in the spec/documentation-sync section. TWO OF THE REVIEW'S LINE NUMBERS HAD MOVED (`backlog/README.md` 65 -> 70, `specs/README.md` 25 -> 24), so the carrier records each example's CONTENT and not only its address.
+    - F-12 -> NO CARRIER, RESOLVED BY EVIDENCE. The defect was the `select_output` docstring promising a non-TTY rule its body never implemented. Measured at execution:
+      ```
+      mentions non-TTY->AGENT promise: False
+      explicitly retracts it: True
+      ```
+      Fixed upstream by commit `67c15b2f` ("retract the non-TTY promise") under ttyflags `yaxr4i` OQ-01, where the maintainer resolved the divergence by RETRACTING the policy rather than implementing it. Filing a carrier for an already-fixed defect would have asserted a live bug that does not exist, so the deferral bullet was updated to record the measurement and close the row. The E-04 piped-stdout test is KEPT regardless, because it pins the behavior against the docstring being "fixed" in the other direction later.
+    BOTH ITEMS ARE VISIBLE TO THE STATUS VIEW:
+    ```
+    $ aw attention --format json   # the two items' own records, verbatim
+    {"id": "pftva5", "path": ".aw/records/backlog/open/20260922-pftva5-01-pftva5-setter-refusal-retry-hint-drops-flags.backlog.md",
+     "tree": "backlog", "native_status": "open", "attention_class": "ready", "gate": null,
+     "priority": "medium", "blocks_release": "next",
+     "detail_text": "Correct the aw set confirmation refusal's retry hint: it drops the caller's flags and rewrites the verb"}
+    {"id": "7q9ycn", "path": ".aw/records/backlog/open/20260922-7q9ycn-01-7q9ycn-setter-docs-need-yes-flag.backlog.md",
+     "tree": "backlog", "native_status": "open", "attention_class": "ready", "gate": null,
+     "priority": "high", "blocks_release": null,
+     "detail_text": "Update the four documented setter examples that now refuse without --yes"}
+    ```
+    Both resolve to `attention_class: ready`, so neither finding can be lost the way prose in a terminal plan is. Note `pftva5` carries `blocks_release: next` (it is work-kind `bug`, and a live bug gates the next release) while `7q9ycn` is a `chore` and carries no gate.
+    OQ-02 WAS NOT FOLDED IN: the documentation edits stayed OUT of this plan (the default answer), so the four README paths are NOT in `- Scope-Paths:` and no documentation file was modified by this execution.
+  - Result: pass
 
 ## Approval and execution gate
 

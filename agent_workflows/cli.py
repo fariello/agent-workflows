@@ -1447,6 +1447,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Approve a plan over an unresolved BLOCKING open question, recording the override in "
         "its history. Does NOT override a negative review verdict (that has no override).",
     )
+    # setterguard 4bc1nd E-02: the named override on the terminal-reopen refusal, declared on EVERY
+    # surface that reaches `run_set_command` so the gate cannot be dodged by choosing a different
+    # spelling (the `--allow-open-questions` precedent directly above). Deliberately NOT `--force`,
+    # which already means "act on all of an ambiguous multi-match" on this same path.
+    p_ipd_set.add_argument(
+        "--allow-terminal-reopen",
+        dest="allow_terminal_reopen",
+        action="store_true",
+        help="Move a PLAN backwards out of a terminal disposition (executed/superseded/"
+        "not-executed), recording the override in its history. Prefer a corrective IPD; use this "
+        "only when a plan reached a terminal state in error.",
+    )
     p_ipd_set.add_argument(
         "--actor",
         default=None,
@@ -3867,6 +3879,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Approve an artifact over an unresolved BLOCKING open question, recording the override "
         "in its history. Does NOT override a negative review verdict (that has no override).",
     )
+    # setterguard 4bc1nd E-02: same named override as `aw ipd set`, on this untyped surface too.
+    p_set.add_argument(
+        "--allow-terminal-reopen",
+        dest="allow_terminal_reopen",
+        action="store_true",
+        help="Move a PLAN backwards out of a terminal disposition (executed/superseded/"
+        "not-executed), recording the override in its history. Prefer a corrective IPD; use this "
+        "only when a plan reached a terminal state in error.",
+    )
     p_set.add_argument(
         "--actor",
         default=None,
@@ -4797,6 +4818,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "not been executed; 'done' claims the code is written and validated.",
     )
     p_backlog_set.add_argument("--message", default="", help="History record message.")
+    # setterguard 4bc1nd E-02: declared here for UNIFORMITY across every surface reaching
+    # `run_set_command`, so the gate cannot be dodged by choosing a different spelling. The refusal
+    # it overrides keys on `record_type == "plans"`, so it is inert for a backlog item; declaring it
+    # anyway matches the `--allow-open-questions` precedent and costs nothing.
+    p_backlog_set.add_argument(
+        "--allow-terminal-reopen",
+        dest="allow_terminal_reopen",
+        action="store_true",
+        help="Move a PLAN backwards out of a terminal disposition (executed/superseded/"
+        "not-executed), recording the override in its history. Inert for backlog items.",
+    )
     p_backlog_set.add_argument(
         "--gate-kind",
         dest="gate_kind",
@@ -5060,6 +5092,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "--status", default=None, help="Target spec status (the closed enum)."
     )
     p_specs_set.add_argument("--message", default="", help="History record message.")
+    # setterguard 4bc1nd E-02: declared here for UNIFORMITY across every surface reaching
+    # `run_set_command`. The refusal it overrides is keyed on `record_type == "plans"` BY
+    # CONSTRUCTION, precisely because specs have their OWN transition table that legitimately permits
+    # moves a plan-vocabulary guard would call backwards (`implemented -> deferred`, `superseded ->
+    # draft`; see `attention_contract.SPEC_TRANSITIONS`). So this flag is inert for a spec and must
+    # stay that way; pinned by a test.
+    p_specs_set.add_argument(
+        "--allow-terminal-reopen",
+        dest="allow_terminal_reopen",
+        action="store_true",
+        help="Move a PLAN backwards out of a terminal disposition (executed/superseded/"
+        "not-executed), recording the override in its history. Inert for specs (they have their own "
+        "transition table).",
+    )
     p_specs_set.add_argument(
         "--gate-kind",
         dest="gate_kind",
