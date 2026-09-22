@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/runner_shutdown.py, tests/test_runner_shared.py, tests/test_runner_refork_guard.py, tests/test_rununify_characterization.py, .aw/records/research
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: runresidue
 - Order: 1
 - Highest E allocated: 08
