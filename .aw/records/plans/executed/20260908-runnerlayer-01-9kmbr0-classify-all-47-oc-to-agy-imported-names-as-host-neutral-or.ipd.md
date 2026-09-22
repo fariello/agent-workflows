@@ -12,17 +12,17 @@
   THE SET SIZE IS "WHATEVER THE AST SAYS AT EXECUTION TIME", NOT A NUMBER FROM THIS PLAN. Stated in Scope because it defines what "every name" obliges: the count was 40 at filing, 47 at authoring and 48 at review, so a run that classifies "the 47" has left a name unclassified. Classify the set you MEASURE, report the count you found, and note any delta against this plan's prose. A count differing from 48 is CORRECT and expected, not a discrepancy to reconcile away.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_layering.py, tests/test_runner_item_dependencies.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runnerlayer
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 9kmbr0
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: cnwy8g
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 9kmbr0 verified (set runnerlayer, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_runner_item_dependencies.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-C01..PR-C09 all FIXED; readiness go-pending-approval
 
