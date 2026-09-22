@@ -45,6 +45,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from tests import support
 from tests.support import REPO_ROOT
 
 _DRIVERS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
@@ -344,6 +345,13 @@ def _fake_agent(run_dir: Path, *, observe: dict | None = None):
 
 
 class TheCloseHappensInTheLane(unittest.TestCase):
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
+
     def test_main_stays_clean_and_the_move_rides_the_merge(self):
         """V-01/V-02: main's porcelain EMPTY across the item, the move INSIDE the merge, and NO
         separate close commit on main."""
@@ -464,6 +472,13 @@ class TheCloseHappensInTheLane(unittest.TestCase):
 
 
 class EligibilityIsDecidedInMain(unittest.TestCase):
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
+
     def test_a_multi_carrier_item_with_an_unexecuted_sibling_is_not_closed(self):
         """OQ-01's whole point, on a THREE-carrier shape (F-12 measured the tail at 9/6/5/4/4/4, so a
         pair is the easiest case rather than a representative one)."""
@@ -629,6 +644,13 @@ class EligibilityIsDecidedInMain(unittest.TestCase):
 
 
 class TheReleaseGateIsNotWidened(unittest.TestCase):
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
+
     def test_a_release_gated_item_reaches_main_s_verdict_not_the_lane_s(self):
         """F-10: `--dir` also re-points `check_engine.evaluate_blocking_close`'s carrier scan.
 
@@ -729,6 +751,13 @@ class TheReleaseGateIsNotWidened(unittest.TestCase):
 
 
 class ThreeItemsAndMainStaysClean(unittest.TestCase):
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
+
     def test_item_one_closing_a_backlog_item_does_not_block_items_two_and_three(self):
         """THE REGRESSION FOR THE MEASURED OUTAGE. Item 1 closes a backlog item; items 2 and 3 must
         still run, and MAIN must be clean after item 1.
@@ -845,6 +874,13 @@ class TheClosingLaneIsStillTornDown(unittest.TestCase):
     accumulating one per closing item is how a run fills its worktree directory.
     """
 
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
+
     def test_the_sidecar_predicate_is_exact(self):
         from agent_workflows import lane_containment, record_history
 
@@ -945,6 +981,13 @@ class AgyHostClosesInTheLaneToo(unittest.TestCase):
     **kwargs)`, and its verifier turn is keyed on `log_suffix == "verify"` rather than
     `fresh_session`), which is precisely why a shared fake would not have caught a divergence here.
     """
+
+    def setUp(self) -> None:
+        # DECLARE the coordinator role rather than inheriting it: this test drives the
+        # lifecycle verbs, which read the ambient environment, so a runner-launched suite
+        # would otherwise hand it `AW_EXECUTION_ROLE=worker` and it would measure the
+        # `AW-LIFECYCLE-ROLE-001` refusal instead of the behavior it asserts (plan `e4lkv5`).
+        support.declare_execution_role(self)
 
     def _fake_turn(self, run_dir: Path):
         def fake_turn(state, rd, item, prompt_path, attempt_no, **kwargs):
