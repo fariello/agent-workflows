@@ -71,6 +71,53 @@ LIFECYCLE_ROLE_ERROR = (
 )
 
 
+def runner_owns_lifecycle_notice(driver_owns_transition: bool) -> str:
+    """The turn-start ADVERTISEMENT of the rule :data:`LIFECYCLE_ROLE_ERROR` enforces at turn end.
+
+    roleadv-01 (`8b9ufm`) E-02/E-03, from backlog `fvl44r`. Returns the prompt block when the DRIVER
+    owns the lifecycle transition, and ``""`` when it does not. ONE definition, so every prompt
+    surface on every host renders byte-identical text and no host can drift from the other on an
+    AUTHORITY rule.
+
+    WHY IT IS ADVERTISED AT ALL, since the rule was already enforced. `_refuse_worker_role_verb`
+    states the rule correctly but only at the END of a turn, in the agent's face, after the work is
+    done; the prompt that OPENED the turn said nothing about who owns the transition and its only
+    mention of finalize presupposed the agent performed it. Measured cost: plan `03ie04` completed
+    every `E-*` and `V-*` item with evidence and then spent its terminal output reasoning at length
+    about a refusal that is the expected path. Enforcement and advertisement are not alternatives;
+    enforcing an unadvertised rule bills a whole agent turn to teach it.
+
+    WHY IT IS CONDITIONAL, which is the load-bearing half. `--no-self-finalize` is a shipped run
+    option whose own help text says "the agent must move the plan itself", and under it the runner
+    never calls `driver_begin`/`driver_finalize`. An UNCONDITIONAL statement would therefore tell the
+    one agent that MUST transition its own plan not to, leaving the plan in `pending/` transitioned by
+    nobody: strictly worse than the wasted turn this fixes. The caller passes the run's OWN frozen
+    `options.self_finalize` (default True, matching the shipped default), never an environment probe:
+    at prompt-build time `os.environ` is the DRIVER's environment, not the child's, and
+    `lane_root is not None` answers "am I isolated", which is a different question (a non-isolated
+    turn under `--no-isolate-worktree` still gets a driver finalize).
+
+    WHAT IT DELIBERATELY DOES NOT SAY: that the driver WILL transition the plan. Ownership is not
+    outcome. A driver finalize additionally requires the integration gate to be earned, which under
+    the default `--validate=false` needs a passing driver-run suite; measured over 47 runs whose
+    outcomes mention this token, 22 items never reached `executed`. So this states OWNERSHIP and the
+    agent's own terminal OBLIGATION, and promises nothing about the result.
+
+    Pure and ASCII-only: the prompts that embed it are asserted pure ASCII
+    (`tests/test_reporting_contract.py::DriverPromptTests::test_prompts_are_pure_ascii`).
+    """
+    if not driver_owns_transition:
+        return ""
+    return (
+        "## Who performs the lifecycle transition\n"
+        "\n"
+        "The runner performs `aw ipd begin` and `aw ipd finalize` for this run. Do NOT run them\n"
+        "yourself: a worker-role process is refused with `AW-LIFECYCLE-ROLE-001`, because a second\n"
+        "receipt and a second lifecycle transaction the driver cannot see would fork the plan's\n"
+        "authority. Your terminal obligation is to write the outcome file named above and stop.\n"
+    )
+
+
 def worker_role_active(env: "Mapping[str, str]") -> bool:
     """True iff ``env`` marks this process as a MANAGED WORKER lane (``AW_EXECUTION_ROLE=worker``).
 
@@ -88,13 +135,35 @@ def _refuse_worker_role_verb(verb: str) -> int:
     structured output is unaffected) and returns :data:`EXIT_CANNOT_RUN`. Called BEFORE any selector
     resolution, gate, receipt write, or plan mutation, so a refused invocation has NO side effect
     whatsoever - that is the point: a forked worker receipt is exactly what this prevents.
+
+    THE EXPECTED-PATH FRAMING (roleadv-01 `8b9ufm` E-05) exists because this is a NON-ERROR path for a
+    managed lane that READS as a hard failure: stderr plus a nonzero exit. An agent that hits it after
+    doing everything right has historically spent its terminal output explaining a refusal that was
+    simply the normal handoff (measured: plan `03ie04` reported `substantially-complete` with a long
+    `incomplete_requirements` entry, every word correct and none of it necessary).
+
+    IT SAYS OBLIGATION DISCHARGED, NEVER OUTCOME GUARANTEED, and the distinction is deliberate. This
+    function runs in the AGENT's process, which cannot see the run's options, and a driver finalize
+    needs more than ownership: the integration gate must be earned, which under the default
+    `--validate=false` requires a passing driver-run suite. Measured over 47 runs whose outcomes
+    mention this token, 22 items never reached `executed`. So "you have nothing further to do" is true
+    (the agent genuinely may not act), while "the driver will now transition the plan" would be a
+    promise broken in roughly a fifth of real cases, and an agent that believed it would claim success
+    it did not earn.
+
+    THE CHANNEL AND THE EXIT CODE ARE UNCHANGED AND LOAD-BEARING. A "this is fine" message on exit 0
+    would be a real regression: the verb genuinely did not do what was asked, and a scripted
+    `aw ipd finalize` inside a lane must fail rather than appear to succeed.
     """
     import sys as _sys
 
     print(
         f"{LIFECYCLE_ROLE_ERROR} (refused: aw ipd {verb}). "
         "The runner performs begin/finalize for this lane; report your result instead "
-        "(write the outcome file the prompt names) and let the driver transition the plan.",
+        "(write the outcome file the prompt names) and let the driver transition the plan. "
+        "THIS IS THE EXPECTED PATH FOR A MANAGED LANE, not a failure of your work: once your "
+        "outcome file is written your obligation is discharged and NO FURTHER ACTION is required "
+        "from you here.",
         file=_sys.stderr,
     )
     return EXIT_CANNOT_RUN

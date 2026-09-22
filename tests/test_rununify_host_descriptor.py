@@ -448,9 +448,21 @@ class ThePromptsTests(unittest.TestCase):
 
     def test_the_safety_instructions_reach_BOTH_hosts_agents(self) -> None:
         """The substance of OQ-03. These four were present only on the OpenCode host, so the other
-        host's agents were likelier to strand partial work and to over-claim completion."""
+        host's agents were likelier to strand partial work and to over-claim completion.
+
+        THE FIRST CLAUSE WAS REWORDED, NOT WEAKENED (roleadv-01 `8b9ufm` E-04). It used to read "the
+        repository-supported nonterminal checkpoint mechanism or an attributable isolated
+        branch/worktree", which named a mechanism that does not exist: `aw ipd` exposes no checkpoint
+        verb, so an agent following it hunted for something unbuildable. It now names the route that
+        DOES exist (the isolated branch the turn is already on, plus the outcome file's
+        `partial_work_location` field the prompt already requires). The PROPERTY under test is
+        unchanged and is what these assertions still pin: both hosts' agents are told to preserve
+        partial work somewhere attributable rather than stranding or discarding it.
+        """
         required = (
-            "nonterminal checkpoint mechanism or an attributable isolated branch/worktree",
+            "preserve partial work on the branch this turn is already",
+            "attributable isolated branch/worktree",
+            "`partial_work_location`",
             "Leave every",
             "Never claim executed unless the real",
             # Wrapped across a line break in the rendered prompt, so match on collapsed whitespace.

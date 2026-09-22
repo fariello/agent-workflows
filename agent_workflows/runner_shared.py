@@ -15497,8 +15497,18 @@ def build_verifier_prompt(
     nothing). It is stated rather than inferred because a verdict computed with NO historical base
     means something narrower than one computed with the real base, and the reader has to be told
     which they are holding (E-02). Ignored unless ``audit`` is set.
+
+    THE LIFECYCLE-ROLE NOTICE REACHES THIS PROMPT TOO (roleadv-01 `8b9ufm` E-03), from the SAME
+    constant and under the SAME ownership gate as the execute prompt. This prompt never MISLED the
+    agent about finalize (it was silent on it, measured: zero occurrences), but silence is not safety:
+    a verifier turn is launched with the SAME work directory as the execute turn, so it carries the
+    same `AW_EXECUTION_ROLE=worker` marking and an agent that decides on its own to "helpfully
+    finalize" after verifying hits the identical refusal. This is PREVENTION, not an observed-cost
+    fix: the verifier runs only under `--validate`, which defaults FALSE, so no measured turn reached
+    the refusal from here. The ownership signal comes from ``state`` (which this narrower signature
+    already receives) rather than from a parameter that would have to be added.
     """
-    from agent_workflows import reporting_contract
+    from agent_workflows import ipd_lifecycle, reporting_contract
 
     test_tool = f" using `{labels.shell_tool}`" if labels.shell_tool else ""
     outcome = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
@@ -15506,6 +15516,9 @@ def build_verifier_prompt(
         run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}-verification.json"
     )
     if audit:
+        # DELIBERATELY BEFORE the role notice is even computed: an AUDIT's subject plan is already
+        # TERMINAL (`plan_audit_target` refuses anything not in `executed/`), so there is no pending
+        # transition for anyone to own and the statement would be describing a decision already made.
         return _build_audit_prompt(
             item=item,
             state=state,
@@ -15515,6 +15528,10 @@ def build_verifier_prompt(
             verify_outcome=verify_outcome,
             diff_basis=diff_basis,
         )
+    role_notice = ipd_lifecycle.runner_owns_lifecycle_notice(
+        bool(state.get("options", {}).get("self_finalize", True))
+    )
+    role_block = f"{role_notice}\n" if role_notice else ""
     return f"""# Independent Rigorous Verification of Executed IPD
 
 Plan: `{plan_path}`
@@ -15570,7 +15587,7 @@ and documentation satisfy every requirement before this plan can be considered e
      "corrections_made": []
    }}
 
-Begin independent verification now.
+{role_block}Begin independent verification now.
 {reporting_contract.prompt_block()}"""
 
 
@@ -15790,8 +15807,13 @@ def build_prompt(
     `build_isolation_notice` and `build_verify_and_continue_notice` are INJECTED rather than imported,
     per this module's standing rule: a shared module must not import a runner, and these two still
     live per host at this point in the Set's sequence.
+
+    THE LIFECYCLE-ROLE NOTICE (roleadv-01 `8b9ufm` E-02) is rendered from the ONE constant in
+    `ipd_lifecycle`, beside the refusal token it quotes, and is GATED on this run's own frozen
+    `options.self_finalize` (default True). See `ipd_lifecycle.runner_owns_lifecycle_notice` for why
+    the statement exists and why it must be conditional.
     """
-    from agent_workflows import lane_containment, reporting_contract
+    from agent_workflows import ipd_lifecycle, lane_containment, reporting_contract
 
     setid = item["setid"]
     # lanectn `cqx5v7` E-01 (spec R1.1, R1.3): every worker-facing path is projected through the ONE
@@ -15835,6 +15857,13 @@ def build_prompt(
         else ""
     )
     isolation_notice = build_isolation_notice(lane_root)
+    # WHO OWNS THE TRANSITION is a RUN OPTION, read here exactly as the dispatcher reads it before
+    # calling `driver_begin` (`state["options"]["self_finalize"]`, defaulting True), so the prompt can
+    # never claim an ownership the run does not have.
+    role_notice = ipd_lifecycle.runner_owns_lifecycle_notice(
+        bool(state.get("options", {}).get("self_finalize", True))
+    )
+    role_block = f"\n{role_notice}" if role_notice else ""
     return f"""# {labels.product} IPD Driver Turn
 
 Mode: {mode}{lane_notice}{verify_notice}{isolation_notice}
@@ -15880,10 +15909,10 @@ scope, bypass lifecycle controls, discard unrelated work, or push. Do not use gi
 git add ., git commit -a, --no-verify, destructive reset/clean, or stashing that could hide
 ownership. Use the lifecycle available at this bootstrap stage and path-scoped commits.
 
-If the IPD cannot validly finalize, preserve partial work using the repository-supported
-nonterminal checkpoint mechanism or an attributable isolated branch/worktree. Leave every
-checkout you did not own safe for subsequent turns. Never claim executed unless the real
-terminal state and acceptance criteria support it.
+If the work is not validly complete, preserve partial work on the branch this turn is already
+on (an attributable isolated branch/worktree) and name that location in your outcome file's
+`partial_work_location`. Leave every checkout you did not own safe for subsequent turns. Never
+claim executed unless the real terminal state and acceptance criteria support it.
 
 Run every command you need the RESULT of in the FOREGROUND and wait for it to finish. Do not
 start a long command as a background or scheduled task and then end your turn: your turn's
@@ -15892,7 +15921,7 @@ you will have produced nothing. This applies above all to the validation suite, 
 minutes in this repository. Never end your turn while waiting for a command you started. If a
 command genuinely cannot finish in this turn, treat that as a deferred question and record the
 preserved state, rather than exiting with the work outstanding.
-
+{role_block}
 Before exiting, write valid JSON to {outcome} with at least:
 {{
   "schema_version": 1,

@@ -76,6 +76,156 @@ def _ready_plan_text(*, plan_id: str = "abc123") -> str:
     return "\n".join(out) + "\n"
 
 
+class RoleStatementInPromptsTests(unittest.TestCase):
+    """roleadv-01 (`8b9ufm`) E-01: the rule is ADVERTISED at turn start, not only refused at turn end.
+
+    WHY THIS LIVES BESIDE THE REFUSAL TESTS rather than with the other prompt tests: the advertisement
+    and the enforcement are one contract, and a reader who changes either must see the other. The
+    refusal (`AW-LIFECYCLE-ROLE-001`) is correct and nothing here weakens it; what was missing is that
+    the prompt opening the turn said NOTHING about who owns begin/finalize, so an agent paid a whole
+    turn to learn a rule that fits in one sentence (measured: plan `03ie04` spent its terminal output
+    reasoning about the refusal).
+
+    FOUR BUILDERS, TWO OWNERSHIP BRANCHES, EIGHT ASSERTIONS. The builders are
+    `oc_runipd.build_prompt`, `oc_runipd.build_verifier_prompt`, `agy_runipd.build_prompt` and
+    `agy_runipd.build_verifier_prompt` (each now a thin host binding over the ONE shared composer in
+    `runner_shared`, which is why the statement can be a single constant).
+
+    THE ASYMMETRY A READER MUST NOT MISREAD, stated because eight green assertions look like eight
+    proofs and are not. At HEAD, before E-02/E-03, the FOUR POSITIVE assertions (statement PRESENT
+    when the driver owns the transition) FAIL, and the FOUR NEGATIVE ones (statement ABSENT under
+    `--no-self-finalize`) PASS VACUOUSLY because nothing is emitted in either branch yet. The negative
+    four only become load-bearing AFTER the statement exists: they are what stops an unconditional
+    statement from telling the one agent that MUST transition its own plan not to.
+
+    RENDERED OUTPUT, NOT SOURCE TEXT. Every assertion CALLS a builder and inspects the returned
+    string. A source grep would pass while the sentence sat in a branch no invocation reaches.
+
+    NO AMBIENT ENV. The ownership signal is the run's own frozen `options.self_finalize`, passed
+    through the constructed `state` dict, so these assertions behave identically inside a managed
+    worker lane and outside one. (This module's
+    `ChildEnvWorkerRoleTests.test_driver_own_process_is_not_worker_role` legitimately reds inside a
+    lane; nothing here may join it.)
+    """
+
+    #: A SHORT STABLE ANCHOR, deliberately not a whole sentence: the rule's token plus one invariant
+    #: phrase. A whole-sentence match breaks on every prose improvement, which is how prompt tests
+    #: earn their reputation and then get deleted; this shape survives rewording and still fails if
+    #: the statement disappears.
+    ANCHOR_TOKEN = "AW-LIFECYCLE-ROLE-001"
+    ANCHOR_PHRASE = "runner performs `aw ipd begin`"
+
+    def _item(self) -> dict:
+        return {"position": 1, "id6": "abc123", "setid": "demo", "attempts": []}
+
+    def _state(self, *, self_finalize: bool | None) -> dict:
+        """The run state a builder receives. ``None`` omits ``options`` entirely (defaults to owned)."""
+        state: dict = {"run_id": "run-20260101T000000Z-1", "repo": "."}
+        if self_finalize is not None:
+            state["options"] = {"self_finalize": self_finalize}
+        return state
+
+    def _exec_prompt(self, mod, *, self_finalize: bool | None) -> str:
+        return mod.build_prompt(
+            self._item(),
+            self._state(self_finalize=self_finalize),
+            Path("/tmp/run-dir"),
+            Path("/tmp/repo/plan.ipd.md"),
+            False,
+        )
+
+    def _verifier_prompt(self, mod, *, self_finalize: bool | None) -> str:
+        return mod.build_verifier_prompt(
+            self._item(),
+            self._state(self_finalize=self_finalize),
+            Path("/tmp/run-dir"),
+            Path("/tmp/repo/plan.ipd.md"),
+        )
+
+    def _builders(self):
+        for mod in (oc_runipd, agy_runipd):
+            yield f"{mod.__name__}.build_prompt", self._exec_prompt, mod
+            yield f"{mod.__name__}.build_verifier_prompt", self._verifier_prompt, mod
+
+    def test_all_four_builders_state_the_role_when_the_driver_owns_the_transition(self):
+        """THE FOUR POSITIVE ASSERTIONS. These FAIL at HEAD; that failure is E-01's whole point."""
+
+        for label, build, mod in self._builders():
+            for owned in (None, True):  # absent options defaults to owned
+                with self.subTest(builder=label, self_finalize=owned):
+                    prompt = build(mod, self_finalize=owned)
+                    self.assertIn(
+                        self.ANCHOR_TOKEN,
+                        prompt,
+                        f"{label} does not name the rule the runner will refuse",
+                    )
+                    self.assertIn(
+                        self.ANCHOR_PHRASE,
+                        prompt,
+                        f"{label} does not say who performs begin/finalize",
+                    )
+
+    def test_no_builder_states_the_role_when_the_agent_owns_the_transition(self):
+        """THE FOUR NEGATIVE ASSERTIONS, vacuous at HEAD and load-bearing after E-02/E-03.
+
+        Under `--no-self-finalize` the AGENT is the only party that can transition the plan (that
+        flag's own help text says "the agent must move the plan itself"), so telling it the runner
+        owns the verbs would leave the plan in `pending/` transitioned by nobody.
+        """
+
+        for label, build, mod in self._builders():
+            with self.subTest(builder=label, self_finalize=False):
+                prompt = build(mod, self_finalize=False)
+                self.assertNotIn(
+                    self.ANCHOR_TOKEN,
+                    prompt,
+                    f"{label} claims the runner owns begin/finalize under --no-self-finalize, "
+                    "where the agent is the only party that can transition the plan",
+                )
+                self.assertNotIn(
+                    self.ANCHOR_PHRASE,
+                    prompt,
+                    f"{label} states the role under --no-self-finalize",
+                )
+
+    def test_the_statement_is_ONE_constant_so_the_hosts_cannot_drift(self):
+        """Host symmetry as a PROPERTY: the rendered statement is byte-identical across all four."""
+
+        from agent_workflows import ipd_lifecycle as _LC
+
+        block = _LC.runner_owns_lifecycle_notice(True)
+        self.assertTrue(block.strip(), "the notice must be non-empty when owned")
+        self.assertEqual(
+            _LC.runner_owns_lifecycle_notice(False),
+            "",
+            "the notice must be EMPTY when the agent owns the transition",
+        )
+        for label, build, mod in self._builders():
+            with self.subTest(builder=label):
+                self.assertIn(
+                    block.strip(),
+                    build(mod, self_finalize=True),
+                    f"{label} does not render the ONE shared constant",
+                )
+
+    def test_the_statement_names_the_agents_terminal_obligation(self):
+        """It must say three things and no more: who performs them, that the agent must not, and stop."""
+
+        from agent_workflows import ipd_lifecycle as _LC
+
+        block = _LC.runner_owns_lifecycle_notice(True)
+        flat = " ".join(block.split())
+        self.assertIn("AW-LIFECYCLE-ROLE-001", flat)
+        self.assertIn("runner performs `aw ipd begin` and `aw ipd finalize`", flat)
+        self.assertIn("Do NOT run them", flat)
+        self.assertIn("outcome file", flat)
+        self.assertEqual(
+            sorted({c for c in block if ord(c) > 127}),
+            [],
+            "the statement reaches a prompt asserted pure ASCII",
+        )
+
+
 class WorkerRolePredicateTests(unittest.TestCase):
     """E-04: the pure predicate and the deterministic error token."""
 

@@ -8,7 +8,7 @@
   THE OBSERVED COST, which is why this is a bug and not a wording preference. Plan `03ie04` completed all seven E-items and all seven V-items with pasted evidence, then reported `substantially-complete` with an `incomplete_requirements` entry explaining at length that finalize had refused with `AW-LIFECYCLE-ROLE-001`, that no begin receipt existed, and enumerating scope-reconciliation inputs for a human. Every word was correct and none of it should have been necessary. The refusal is a NON-ERROR path for a managed lane and reads as a hard failure: it is printed to stderr and returns `EXIT_CANNOT_RUN` (2) (`ipd_lifecycle.py:94-100`). RE-MEASURED AT REVIEW over the 142 run directories present in the main checkout (`.aw/records/runs/`, gitignored but NOT absent here): 47 outcome files mention the token, and their items ended `executed` 25, `substantially-complete` 14, `integration-blocked` 4, `merge-conflict` 3, `interrupted` 1, with the driver-run suite passing in 33 and failing in 11. So the handoff DOES recover in 25 of 47, and the 11 suite failures are `daexj1`'s, exactly as the item claimed.
   WHO OWNS THE TRANSITION IS A RUN OPTION, NOT A CONSTANT, AND THAT IS WHAT MAKES THE STATEMENT CONDITIONAL (review finding PR-001). `--no-self-finalize` exists and is a frozen run option (`oc_runipd.py:7880-7885`, `agy_runipd.py:4751-4756`, frozen at `oc_runipd.py:3047`), and its own help text says the consequence out loud: "the agent must move the plan itself". Under that flag `driver_begin`/`driver_finalize` are never called (both are inside `if self_finalize and not is_review:`, `oc_runipd.py:6151`, `agy_runipd.py:3291`), so an UNCONDITIONAL "the runner performs begin/finalize; you must not run them" would instruct the agent to skip a transition it is the only party able to perform, leaving the plan in `pending/` with no transition at all. So the statement must be emitted only when the DRIVER actually owns the transition.
 - Scope: State the role UP FRONT in all four prompt builders WHENEVER THE DRIVER OWNS THE TRANSITION (derived from the run's own frozen `self_finalize` option, never asserted unconditionally), reword the one misleading sentence, and add the "expected path, no further action" framing to the refusal message, each pinned by a prompt-text test asserting BOTH branches so it cannot silently regress. EXCLUDES weakening or removing the role rule; excludes the suite gate that actually stranded the eleven lanes (`daexj1` owns it); excludes the green-COMPLETED misreport for a stranded run (`ys1dor`); excludes `aw attention` blindness to a stranded lane (`pr5b0t`, from backlog `nuanaw`); and excludes two of the item's five asks, which MEASUREMENT SHOWS ARE ALREADY SATISFIED (see Findings F-4 and F-5).
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_lifecycle.py, tests/test_worker_role_refusal.py
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_worker_role_refusal.py, tests/test_defect_report.py, tests/test_rununify_host_descriptor.py
 - Item-Dependencies: none
 - Status: approved
 - Set: roleadv
@@ -37,18 +37,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the absence before fixing it
 
-- [ ] E-01 WRITE THE FAILING PROMPT-TEXT TEST FIRST, covering all four builders IN BOTH OWNERSHIP BRANCHES, so the fix is demonstrated rather than asserted and cannot silently regress. Assert that each of `oc_runipd.build_prompt`, `oc_runipd.build_verifier_prompt`, `agy_runipd.build_prompt` and `agy_runipd.build_verifier_prompt`, invoked with a state whose `options.self_finalize` is TRUE (or absent, which defaults true), produces text containing the role statement; and that the SAME four builders invoked with `options.self_finalize` FALSE produce text that does NOT contain it. Eight assertions. The four positive ones must FAIL at HEAD; paste that failure. The four negative ones PASS at HEAD vacuously (nothing is emitted yet) and are the ones that keep E-02/E-03 honest afterwards, so state that asymmetry in the test's own docstring rather than letting a reader mistake a vacuous pass for coverage.
+- [x] E-01 WRITE THE FAILING PROMPT-TEXT TEST FIRST, covering all four builders IN BOTH OWNERSHIP BRANCHES, so the fix is demonstrated rather than asserted and cannot silently regress. Assert that each of `oc_runipd.build_prompt`, `oc_runipd.build_verifier_prompt`, `agy_runipd.build_prompt` and `agy_runipd.build_verifier_prompt`, invoked with a state whose `options.self_finalize` is TRUE (or absent, which defaults true), produces text containing the role statement; and that the SAME four builders invoked with `options.self_finalize` FALSE produce text that does NOT contain it. Eight assertions. The four positive ones must FAIL at HEAD; paste that failure. The four negative ones PASS at HEAD vacuously (nothing is emitted yet) and are the ones that keep E-02/E-03 honest afterwards, so state that asymmetry in the test's own docstring rather than letting a reader mistake a vacuous pass for coverage.
   ASSERT ON RENDERED OUTPUT, NOT ON SOURCE TEXT. A test that greps the .py file would pass while the sentence sat in a branch no invocation reaches. Build the prompt by CALLING each function with a minimal state/item and assert on the returned string. `tests/test_reporting_contract.py::DriverPromptTests` (`:496-522`) is the closest existing shape and already parameterizes over BOTH driver modules with `_item()`/`_state()`/`_exec_prompt()`/`_verifier_prompt()` helpers; reuse that shape rather than inventing a third fixture idiom. Note its `_state()` supplies no `options` key at all, which is exactly the defaults-to-true case, so a copy of it exercises the positive branch by default.
   ASSERT A STABLE ANCHOR, NOT A WHOLE SENTENCE. Pin on the token `AW-LIFECYCLE-ROLE-001` plus a short invariant phrase, so a later prose improvement does not break the test for no reason. Choosing a whole-sentence match is the failure mode that makes prompt tests hated and then deleted.
   PUT THEM IN `tests/test_worker_role_refusal.py`, beside the refusal's existing behavior tests, so a reader sees the advertisement and the enforcement pinned in one place. NAME THE CLASS FROM WHAT EXISTS: that module's classes are `WorkerRolePredicateTests`, `WorkerRoleCliRefusalTests` and `ChildEnvWorkerRoleTests`; there is NO `RefusalTests` (an earlier draft of this plan cited one). Add a new class rather than editing those three, whose assertions E-05 must leave green.
   MIND THE ENVIRONMENTAL RED IN A LANE. That module's `test_driver_own_process_is_not_worker_role` asserts `os.environ["AW_EXECUTION_ROLE"] != "worker"`, so it FAILS BY CONSTRUCTION inside a managed worker lane (reproduced at review: `AW_EXECUTION_ROLE=worker python3 -m pytest tests/test_worker_role_refusal.py -o addopts=""` gives `1 failed, 6 passed`, that test alone). Your new assertions must not depend on ambient `os.environ`: pass the ownership signal through the `state` dict you construct, so they pass in a lane and outside one alike.
   - Depends on: none
   - Expected outcome: eight assertions (four builders x two ownership branches), the four positive ones failing at HEAD with pasted output, asserting on RENDERED prompt text, pinned to a short stable anchor, taking the ownership signal from the constructed `state` rather than `os.environ`, in a NEW class in `tests/test_worker_role_refusal.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: advertise the rule where the agent will act on it
 
-- [ ] E-02 ADD THE ROLE STATEMENT TO BOTH EXECUTE PROMPTS, in `oc_runipd.build_prompt` and `agy_runipd.build_prompt` (both re-located by NAME; the review measured them at `oc_runipd.py:4785` and `agy_runipd.py:2343`, and the plan's earlier `:2297` was already stale by 46 lines). It must say three things and no more: the RUNNER performs `aw ipd begin` and `aw ipd finalize` for this run; the agent must NOT run them; the agent's terminal obligation is to write the outcome file the prompt already names and stop.
+- [x] E-02 ADD THE ROLE STATEMENT TO BOTH EXECUTE PROMPTS, in `oc_runipd.build_prompt` and `agy_runipd.build_prompt` (both re-located by NAME; the review measured them at `oc_runipd.py:4785` and `agy_runipd.py:2343`, and the plan's earlier `:2297` was already stale by 46 lines). It must say three things and no more: the RUNNER performs `aw ipd begin` and `aw ipd finalize` for this run; the agent must NOT run them; the agent's terminal obligation is to write the outcome file the prompt already names and stop.
   EMIT IT ONLY WHEN THE DRIVER ACTUALLY OWNS THE TRANSITION. Read the run's own frozen option, `state.get("options", {}).get("self_finalize", True)`, which is the SAME read both drivers already perform before calling `driver_begin` (`oc_runipd.py:6100`, `agy_runipd.py:3249`). When it is FALSE, emit NOTHING: `--no-self-finalize` means the agent IS the party that must transition the plan (its own help text says "the agent must move the plan itself", `oc_runipd.py:7884`), and telling that agent not to run the verbs would leave the plan in `pending/` with no transition performed by anyone. Defaulting the read to TRUE preserves the shipped default, where the driver does own it.
   DO NOT KEY IT ON `lane_root` OR ON THE WORKER ENV VAR INSTEAD. Two plausible-looking alternatives are both wrong. `lane_root is not None` answers "am I isolated", and isolation is what sets `AW_EXECUTION_ROLE=worker` (`oc_runipd.py:5553`), but a NON-isolated turn under `--no-isolate-worktree` still gets a driver finalize, so keying on the lane would withhold the statement from a turn the driver does own. And `os.environ` is the DRIVER's environment at prompt-build time, never the child's, so reading it here would answer about the wrong process.
   PLACE IT WHERE THE AGENT WILL READ IT BEFORE WORKING, not in a trailing block. The natural seam is immediately before the outcome-JSON instructions (`oc_runipd.py:4886`, agy `:2429`), because that is where the prompt already tells the agent what "finishing" means, and the role statement is precisely a correction to that meaning. Do NOT append it after `reporting_contract.prompt_block()`: `tests/test_reporting_contract.py::ParityTests::test_all_prose_surfaces_are_byte_equal_to_the_source` (`:613`) slices from the contract heading to END OF STRING and byte-compares it against `reporting_contract.contract_text()`, so anything placed after that block fails that test. Verified at review: the contract really is the prompt's tail today (slice from `REPORTING_SECTION_TITLE` equals the canonical text exactly).
@@ -57,35 +57,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KEEP IT PURE ASCII. `tests/test_reporting_contract.py::DriverPromptTests::test_prompts_are_pure_ascii` (`:572`) fails on any codepoint above 127 in either prompt, so no typographic dashes or quotes.
   - Depends on: E-01
   - Expected outcome: both execute prompts state runner-owns-begin/finalize when and only when `options.self_finalize` is true, name the token, name the outcome file as the terminal obligation, render from ONE shared constant so the two hosts cannot drift, sit before the outcome-JSON block (not after the reporting contract), and are pure ASCII.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD THE SAME STATEMENT TO BOTH VERIFIER PROMPTS, `oc_runipd.build_verifier_prompt` and `agy_runipd.build_verifier_prompt` (re-located by NAME; measured at review `oc_runipd.py:4913` and `agy_runipd.py:2456`, the plan's earlier agy `:2410` being stale by 46 lines), rendered from the SAME shared constant E-02 introduced and gated on the SAME ownership read, and note in the change WHY it belongs there even though neither mentions finalize today.
+- [x] E-03 ADD THE SAME STATEMENT TO BOTH VERIFIER PROMPTS, `oc_runipd.build_verifier_prompt` and `agy_runipd.build_verifier_prompt` (re-located by NAME; measured at review `oc_runipd.py:4913` and `agy_runipd.py:2456`, the plan's earlier agy `:2410` being stale by 46 lines), rendered from the SAME shared constant E-02 introduced and gated on the SAME ownership read, and note in the change WHY it belongs there even though neither mentions finalize today.
   THE ITEM'S DIAGNOSIS IS WRONG HERE AND THE REMEDY IS STILL RIGHT. The verifier prompts are SILENT on finalize, not misleading (substring-verified at review: zero `finalize` occurrences in either). But silence is not safety: a verifier turn is launched with the SAME `work_dir` as the execute turn (`oc_runipd.py:6610`), so it carries the same `AW_EXECUTION_ROLE=worker` marking and is subject to the same refusal, and an agent that decides on its own to "helpfully finalize" after verifying hits it identically. State the rule.
   THE VERIFIER RUNS ONLY UNDER `--validate`, WHICH DEFAULTS FALSE, so this half of the fix is dormant in the shipped default configuration (`oc_runipd.py:7871-7878`, gate at `:6571-6577`). That is not a reason to skip it, and it IS a reason not to claim this E-item fixes an observed cost: no measured turn hit the refusal from a verifier. Record it as prevention, not as a bug fix.
   MIND THE NARROWER SIGNATURE. `build_verifier_prompt` takes `(item, state, run_dir, plan_path)` with no `lane_root` and no `recovery`, so the ownership read must come from `state` (which it already receives) and not from a parameter you would otherwise have to add. Passing the whole `state` is why E-02's helper should take the resolved boolean rather than the state dict: both call sites then read the option the same way.
   DO NOT COPY THE MISLEADING SENTENCE INTO THEM. E-04 is deleting that sentence's implication from the one place it exists; reproducing it in two more prompts while fixing it in one would be a net loss.
   - Depends on: E-02
   - Expected outcome: both verifier prompts carry the identical role statement from the same shared constant under the same ownership gate, with the change recording that the verifier was silent rather than misleading, that it runs only under `--validate` (default off), and why the statement still belongs.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the two remaining mis-signals
 
-- [ ] E-04 REWORD THE ONE MISLEADING SENTENCE, at `oc_runipd.py:4881-4884` only (re-locate by the string `cannot validly finalize`, not by line number). It must describe the CONDITION ("the work is not validly complete") rather than the ACTION the agent is forbidden to take ("the IPD cannot validly finalize"). The preserve-partial-work instruction that follows is CORRECT and must survive intact; only the clause that presupposes the agent finalizes changes.
+- [x] E-04 REWORD THE ONE MISLEADING SENTENCE, at `oc_runipd.py:4881-4884` only (re-locate by the string `cannot validly finalize`, not by line number). It must describe the CONDITION ("the work is not validly complete") rather than the ACTION the agent is forbidden to take ("the IPD cannot validly finalize"). The preserve-partial-work instruction that follows is CORRECT and must survive intact; only the clause that presupposes the agent finalizes changes.
   THERE IS EXACTLY ONE SITE. Verified by substring across the package at review: `cannot validly finalize` appears only at `oc_runipd.py:4881` (the sole other hit is the stale `.pyc`). Do NOT add the sentence to `agy_runipd.build_prompt` in order to "make the hosts match": that would create the defect on a second host in the name of symmetry. The hosts must match on the STATEMENT (E-02), not on the misleading sentence.
   DO NOT DELETE THE SENTENCE OUTRIGHT, AND SAY WHY IN THE CHANGE. It is the ONLY instruction in either execute prompt covering the strand case, and it stays correct under `--no-self-finalize` (where the agent really may need to preserve partial work rather than transition). Deleting it would remove the sole preserve-partial-work directive in service of a wording fix. Reword the presupposing clause; keep the directive.
   THE "REPOSITORY-SUPPORTED NONTERMINAL CHECKPOINT MECHANISM" IT NAMES DOES NOT EXIST AS A VERB. `aw ipd` exposes `lint scaffold sync execute-set board set dependencies begin finalize` and nothing checkpoint-shaped (checked at review). Do not invent one and do not silently drop the phrase: replace it with the concrete route the prompt can honestly name (the isolated lane branch the turn is already on, plus the outcome file's `partial_work_location` field the prompt already requires). If you judge the phrase should stay, record that judgement in the change; either way do not leave an agent hunting for a verb the CLI does not have.
   - Depends on: E-03
   - Expected outcome: the OpenCode prompt's finalize sentence describes the condition, not the forbidden action; the preserve-partial-work directive survives and names a route that actually exists; `agy_runipd` still contains no such sentence.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 MAKE THE REFUSAL SAY "EXPECTED, NOT BROKEN", in `_refuse_worker_role_verb` (`ipd_lifecycle.py:84`), whose message is at `:94-100`. Add that this is the NORMAL path for a managed lane and that NO FURTHER ACTION is required from the agent beyond its outcome file. Keep every word that is already there: the token, "The runner performs begin/finalize for this lane", "report your result instead", "let the driver transition the plan".
+- [x] E-05 MAKE THE REFUSAL SAY "EXPECTED, NOT BROKEN", in `_refuse_worker_role_verb` (`ipd_lifecycle.py:84`), whose message is at `:94-100`. Add that this is the NORMAL path for a managed lane and that NO FURTHER ACTION is required from the agent beyond its outcome file. Keep every word that is already there: the token, "The runner performs begin/finalize for this lane", "report your result instead", "let the driver transition the plan".
   DO NOT PROMISE THAT THE DRIVER WILL TRANSITION THE PLAN. This is the one wording trap in the E-item and it is the same conditionality E-02 handles, arriving at a different seam. The refusal runs in the AGENT's process, which cannot see the run's options, and the driver's finalize is gated on more than ownership: `integration_is_earned` must return true, which under the default `--validate=false` means the DRIVER-RUN SUITE must pass (`oc_runipd.py:3740`, gate at `:6707`). Measured over the 47 token-bearing outcomes, the suite failed in 11, and 22 of the 47 items never reached `executed`. So "no further action is required" is safe (the agent genuinely has nothing further it may do) while "the driver will now transition the plan" would be a promise broken in roughly a fifth of real cases, and an agent that believed it would report success it did not earn. Word it as OBLIGATION DISCHARGED, never as OUTCOME GUARANTEED.
   DO NOT CHANGE THE CHANNEL OR THE EXIT CODE. It writes to stderr and returns `EXIT_CANNOT_RUN` (2). Both are load-bearing: stderr keeps a caller parsing stdout unaffected (stated in the docstring at `:85-91`), and a nonzero code is what makes a scripted `aw ipd finalize` in a lane fail rather than appear to succeed. A "this is fine" message on exit 0 would be a genuine regression, since the verb really did not do what was asked. This is a WORDING fix; the exit-code question is settled in OQ-02 (resolved: keep 2).
   DO NOT REMOVE THE SCOPE-RECONCILIATION DEMAND, because it is NOT THERE. The item's ask (4) is a no-op at this HEAD (see F-4, re-verified at review by invoking the function and substring-checking its stderr: neither `--scope-reason` nor `--scope-ack` appears). If the executor finds it present after all, that is a finding to report, not a silent scope expansion.
   PRESERVE ZERO SIDE EFFECTS, which is already guaranteed by the guard's placement as the first statement of `run_begin` (`ipd_lifecycle.py:2946`) and `run_finalize` (`:3126`) and already pinned by `tests/test_worker_role_refusal.py` (exit code, token, no receipt written, plan not moved) and `tests/test_turn_bounds.py::TestExecutionRoleSelector`. Nothing to build; those tests must stay green.
   - Depends on: E-04
   - Expected outcome: the refusal states the expected-path framing and that the agent's obligation is discharged (never that the driver will succeed), with the token, remedy, stderr channel and exit code 2 all unchanged, and the existing zero-side-effect tests green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,6 +156,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Over-scope: none. Four prompt strings, one shared constant, one sentence reworded, one message extended, one test module.
 - Scope-Paths justification: `agent_workflows/oc_runipd.py` holds `build_prompt` (`:4785`), its misleading sentence (`:4881-4884`), `build_verifier_prompt` (`:4913`), the `self_finalize` freeze and read (`:3047`, `:6100`) the ownership gate depends on, and `DEFAULT_RUNBOOK_TEXT` (`:2598`) checked for the rule's absence; `agent_workflows/agy_runipd.py` holds the two peer builders (`:2343`, `:2456`) that must carry the identical statement plus its own option read (`:3249`); `agent_workflows/ipd_lifecycle.py` holds `_refuse_worker_role_verb` (`:84`) and its message (`:94-100`) that E-05 reframes, the two guard call sites (`:2946`, `:3126`) whose placement E-05 must not disturb, and `LIFECYCLE_ROLE_ERROR` (`:68-71`) beside which E-02 homes the shared prompt constant; `tests/test_worker_role_refusal.py` holds the existing zero-side-effect assertions and is where E-01's eight prompt-text assertions belong so advertisement and enforcement are pinned together.
+- ADDITIVE WIDENING DECLARED AT EXECUTION (2026-09-22, lane 8b9ufm), with the reason per path, because the architecture moved between authoring and execution. `rununify` Order 04 (`tx6q0h`) DE-DUPLICATED all four prompt builders into `agent_workflows/runner_shared.py`; `oc_runipd.build_prompt`/`build_verifier_prompt` and their `agy_runipd` twins are now one-line host bindings. So the text E-02/E-03/E-04 must change physically lives in a file the plan could not have named. Three literal files added, NOTHING removed:
+  - `agent_workflows/runner_shared.py`: now holds `build_prompt` (`:15783`) and `build_verifier_prompt` (`:15453`), i.e. the four prompt surfaces this plan edits, plus the single site of the sentence E-04 rewords (`:15912`). This is where `oc_runipd.py`/`agy_runipd.py` were declared FOR, and those two remain declared and are legitimately unmodified (the host bindings needed no change, which is itself evidence the de-duplication holds).
+  - `tests/test_defect_report.py`: `PromptSizeBudgetTests.BASELINE` is a SNAPSHOT of the execute prompt's length without the defect report, so it must be re-based by any legitimate prompt growth (+438 here). Its own comment says exactly that. The property under test (the report costs <= 1500) is untouched and still measures 1137.
+  - `tests/test_rununify_host_descriptor.py`: `test_the_safety_instructions_reach_BOTH_hosts_agents` pinned the LITERAL phrase E-04 was mandated to reword ("nonterminal checkpoint mechanism..."), so the reword could not land without updating the pin. Its assertions now pin the replacement route, keeping the property (both hosts told to preserve partial work attributably).
+  VERIFIED AN ACCEPTABLE ADDITIVE WIDENING rather than asserted, via `ipd_lifecycle.frozen_region_comparison` against this execution's live begin receipt (base `d1d6b6eb`): `added: ('agent_workflows/runner_shared.py', 'tests/test_defect_report.py', 'tests/test_rununify_host_descriptor.py')`, `removed: ()`, `non_scope_identical: True`, `eligible: True`, `widening_is_acceptable: True`. All three entries are literal files, so the fence is not widened to a directory or glob.
 - Under-scope, stated rather than left as `none`: this plan does not touch any gate, does not change the refusal's exit code or channel, does not promise the driver will SUCCEED (F-13), does not add the conditional "the runner will not finalize" signal (OQ-01), does not add a checkpoint verb (F-17), does not re-home or unify the builders, does not edit `lane_containment.isolation_notice` or `DEFAULT_RUNBOOK_TEXT`, and writes no spec. The builders are chosen over `isolation_notice` for a MEASURED reason rather than a stylistic one: it returns `""` when `lane_root is None`, so a non-isolated turn under `--no-isolate-worktree` (which the driver still finalizes) would receive nothing, and the verifier prompt never includes that block at all (verified: `## Work here` is absent from the verifier prompt).
 
 ## Required tests / validation
@@ -209,30 +214,200 @@ THE PROMPT TEXT ITSELF IS AGENT-FACING, not end-user prose, so the no-dashes rul
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new test body and its ACTUAL FAILING output at HEAD, before any prompt edit, showing the FOUR POSITIVE builder assertions failing. State explicitly that the four NEGATIVE assertions pass vacuously at HEAD and are the ones that become load-bearing after E-02/E-03, so nobody reads eight passes as eight proofs. Confirm by quoting the test that it CALLS each builder and asserts on the returned string rather than reading the source file, and that the ownership signal comes from the constructed `state` and not `os.environ`. Quote the chosen anchor and state in one sentence why it is short and stable rather than a whole sentence. Name the class you added and confirm the three pre-existing classes were not edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CLASS ADDED: `RoleStatementInPromptsTests` in `tests/test_worker_role_refusal.py`. The three pre-existing classes (`WorkerRolePredicateTests`, `WorkerRoleCliRefusalTests`, `ChildEnvWorkerRoleTests`) were NOT edited: `git diff tests/test_worker_role_refusal.py` is a single contiguous insertion above `class WorkerRolePredicateTests`, and all seven of their tests remain green (see V-05).
+    ANCHOR: `ANCHOR_TOKEN = "AW-LIFECYCLE-ROLE-001"` plus `ANCHOR_PHRASE = "runner performs \`aw ipd begin\`"`. Short and stable because it pins the RULE'S IDENTIFIER and the one clause that cannot change without changing the rule itself, so a later prose improvement to the surrounding sentence does not break the test while deleting the statement still does.
+    IT CALLS EACH BUILDER AND ASSERTS ON THE RETURNED STRING, not on source text. The helper is `_exec_prompt`/`_verifier_prompt` invoking `mod.build_prompt(...)` / `mod.build_verifier_prompt(...)` and the assertions read that return value:
 
-- [ ] V-02 validates E-02
+        def _exec_prompt(self, mod, *, self_finalize: bool | None) -> str:
+            return mod.build_prompt(
+                self._item(),
+                self._state(self_finalize=self_finalize),
+                Path("/tmp/run-dir"),
+                Path("/tmp/repo/plan.ipd.md"),
+                False,
+            )
+
+    THE OWNERSHIP SIGNAL COMES FROM THE CONSTRUCTED `state`, NEVER `os.environ` (the word `environ` does not appear in the new class):
+
+        def _state(self, *, self_finalize: bool | None) -> dict:
+            state: dict = {"run_id": "run-20260101T000000Z-1", "repo": "."}
+            if self_finalize is not None:
+                state["options"] = {"self_finalize": self_finalize}
+            return state
+
+    ACTUAL FAILING OUTPUT AT HEAD, before any production edit (`python3 -m pytest tests/test_worker_role_refusal.py::RoleStatementInPromptsTests -o addopts="" -p no:randomly`):
+
+        collected 4 items
+        tests/test_worker_role_refusal.py F.FF                                   [100%]
+        E                   AssertionError: 'AW-LIFECYCLE-ROLE-001' not found in '# OpenCode IPD Driver Turn ... : agent_workflows.oc_runipd.build_prompt does not name the rule the runner will refuse
+        tests/test_worker_role_refusal.py:157: AssertionError
+        E       AttributeError: module 'agent_workflows.ipd_lifecycle' has no attribute 'runner_owns_lifecycle_notice'
+        FAILED tests/test_worker_role_refusal.py::RoleStatementInPromptsTests::test_all_four_builders_state_the_role_when_the_driver_owns_the_transition
+        FAILED tests/test_worker_role_refusal.py::RoleStatementInPromptsTests::test_the_statement_is_ONE_constant_so_the_hosts_cannot_drift
+        FAILED tests/test_worker_role_refusal.py::RoleStatementInPromptsTests::test_the_statement_names_the_agents_terminal_obligation
+        ========================= 3 failed, 1 passed in 0.35s ==========================
+
+    AND THE PER-BUILDER ABSENCE AT HEAD, measured directly so the failure is not read as one builder's problem (production code untouched at the time of this capture):
+
+        agent_workflows.oc_runipd.build_prompt           self_finalize=None  token=False phrase=False
+        agent_workflows.oc_runipd.build_prompt           self_finalize=True  token=False phrase=False
+        agent_workflows.oc_runipd.build_prompt           self_finalize=False token=False phrase=False
+        agent_workflows.oc_runipd.build_verifier_prompt  self_finalize=None  token=False phrase=False
+        agent_workflows.oc_runipd.build_verifier_prompt  self_finalize=True  token=False phrase=False
+        agent_workflows.oc_runipd.build_verifier_prompt  self_finalize=False token=False phrase=False
+        agent_workflows.agy_runipd.build_prompt           self_finalize=None  token=False phrase=False
+        agent_workflows.agy_runipd.build_prompt           self_finalize=True  token=False phrase=False
+        agent_workflows.agy_runipd.build_prompt           self_finalize=False token=False phrase=False
+        agent_workflows.agy_runipd.build_verifier_prompt  self_finalize=None  token=False phrase=False
+        agent_workflows.agy_runipd.build_verifier_prompt  self_finalize=True  token=False phrase=False
+        agent_workflows.agy_runipd.build_verifier_prompt  self_finalize=False token=False phrase=False
+
+    THE ASYMMETRY, STATED EXPLICITLY SO NOBODY READS EIGHT PASSES AS EIGHT PROOFS: the FOUR POSITIVE assertions (statement present for each of the four builders when the driver owns the transition) FAILED at HEAD, as the run above shows. The FOUR NEGATIVE assertions (statement absent under `options.self_finalize: False`) PASSED VACUOUSLY at HEAD, because nothing was emitted in either branch; that is why `test_no_reworded...`-style vacuity is called out in the test's own docstring, and why V-02 additionally proves the negative branch NON-VACUOUS from the fixed code. Only four red-to-green transitions occurred, not eight. AFTER the fix the whole module is green: `11 passed in 3.27s`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the shared constant and BOTH hosts' references to it, and show the rendered statement is byte-identical between `oc_runipd.build_prompt` and `agy_runipd.build_prompt`. Confirm the statement names `AW-LIFECYCLE-ROLE-001`, says the runner performs begin/finalize, says the agent must not run them, and names the outcome file as the terminal obligation. Paste the rendered prompt region showing WHERE it sits relative to the outcome-JSON block, and confirm nothing was appended after `reporting_contract.prompt_block()`. THEN THE OWNERSHIP GATE, which is the finding this V-item exists to close: paste, from the FIXED code, the same builder rendered TWICE, once with `options.self_finalize` FALSE (statement ABSENT) and once with it absent-or-true (statement PRESENT), so the negative branch is proven non-vacuous. Quote the line of code that reads the option and confirm it defaults to TRUE. Paste the summary lines of `tests/test_reporting_contract.py` and `tests/test_lane_prompt_purity.py` green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ONE ARCHITECTURAL CORRECTION FIRST, because it changes WHERE the work landed and a reviewer must not hunt for it at the cited lines. Since this plan was authored, `rununify` Order 04 (`tx6q0h`) DE-DUPLICATED all four builders into `runner_shared`: `oc_runipd.build_prompt` (`:5254`) and `agy_runipd.build_prompt` (`:2383`) are now one-line host bindings over `runner_shared.build_prompt` (`:15783`), and the same holds for the two verifier builders over `runner_shared.build_verifier_prompt` (`:15453`). So the statement is emitted from ONE composer rather than two, which SATISFIES the plan's host-symmetry requirement by construction rather than by two hand-kept copies. The four builders are still asserted individually (V-01), because a host binding could still diverge.
+    THE SHARED CONSTANT, `agent_workflows/ipd_lifecycle.py:74` `runner_owns_lifecycle_notice`, homed beside `LIFECYCLE_ROLE_ERROR` (`:68-71`) whose token it quotes, returning `""` when the driver does not own the transition:
 
-- [ ] V-03 validates E-03
+        def runner_owns_lifecycle_notice(driver_owns_transition: bool) -> str:
+            ...
+            if not driver_owns_transition:
+                return ""
+            return (
+                "## Who performs the lifecycle transition\n"
+                "\n"
+                "The runner performs `aw ipd begin` and `aw ipd finalize` for this run. Do NOT run them\n"
+                "yourself: a worker-role process is refused with `AW-LIFECYCLE-ROLE-001`, because a second\n"
+                "receipt and a second lifecycle transaction the driver cannot see would fork the plan's\n"
+                "authority. Your terminal obligation is to write the outcome file named above and stop.\n"
+            )
+
+    THE OWNERSHIP READ, `agent_workflows/runner_shared.py:15863-15865`, the SAME expression the dispatcher uses before calling `driver_begin` (`:17189`), DEFAULTING TO TRUE so the shipped default is preserved:
+
+        role_notice = ipd_lifecycle.runner_owns_lifecycle_notice(
+            bool(state.get("options", {}).get("self_finalize", True))
+        )
+
+    THE FOUR CONTENT REQUIREMENTS, checked against the rendered statement: it names `AW-LIFECYCLE-ROLE-001`; it says "The runner performs `aw ipd begin` and `aw ipd finalize` for this run"; it says "Do NOT run them yourself"; and it names the agent's terminal obligation as "write the outcome file named above and stop". Pinned by `test_the_statement_names_the_agents_terminal_obligation`.
+    HOST SYMMETRY, measured over all four builders in both branches. `distinct rendered statements across all four builders: 1`:
+
+        agent_workflows.oc_runipd.build_prompt           sf=None  statement_present=True
+        agent_workflows.oc_runipd.build_prompt           sf=True  statement_present=True
+        agent_workflows.oc_runipd.build_prompt           sf=False statement_present=False
+        agent_workflows.oc_runipd.build_verifier_prompt  sf=None  statement_present=True
+        agent_workflows.oc_runipd.build_verifier_prompt  sf=True  statement_present=True
+        agent_workflows.oc_runipd.build_verifier_prompt  sf=False statement_present=False
+        agent_workflows.agy_runipd.build_prompt           sf=None  statement_present=True
+        agent_workflows.agy_runipd.build_prompt           sf=True  statement_present=True
+        agent_workflows.agy_runipd.build_prompt           sf=False statement_present=False
+        agent_workflows.agy_runipd.build_verifier_prompt  sf=None  statement_present=True
+        agent_workflows.agy_runipd.build_verifier_prompt  sf=True  statement_present=True
+        agent_workflows.agy_runipd.build_verifier_prompt  sf=False statement_present=False
+
+    THE NEGATIVE BRANCH IS NON-VACUOUS FROM THE FIXED CODE, which is the BLOCKER (F-12) this V-item exists to close. The `sf=False` rows above are ABSENT and the `sf=None`/`sf=True` rows are PRESENT, from the SAME run of the SAME builders, and `runner_owns_lifecycle_notice(False)` returns `''` while `runner_owns_lifecycle_notice(True)` returns the block. So the statement really is withheld under `--no-self-finalize`, where the agent is the only party able to transition its plan.
+    PLACEMENT, rendered: immediately BEFORE the outcome-JSON instructions and AFTER the foreground-execution paragraph.
+
+        command genuinely cannot finish in this turn, treat that as a deferred question and record the
+        preserved state, rather than exiting with the work outstanding.
+
+        ## Who performs the lifecycle transition
+
+        The runner performs `aw ipd begin` and `aw ipd finalize` for this run. Do NOT run them
+        yourself: a worker-role process is refused with `AW-LIFECYCLE-ROLE-001`, because a second
+        receipt and a second lifecycle transaction the driver cannot see would fork the plan's
+        authority. Your terminal obligation is to write the outcome file named above and stop.
+
+        Before exiting, write valid JSON to /tmp/r/outcomes/01-abc123.json with at least:
+
+    NOTHING WAS APPENDED AFTER `reporting_contract.prompt_block()`: slicing the prompt from `REPORTING_SECTION_TITLE` to end of string still byte-equals `reporting_contract.contract_text()` (`tail byte-equal to canonical contract: True`), and the statement's index (3691) is less than the contract heading's (5961).
+    THE TWO PROMPT-INVARIANT MODULES GREEN: `python3 -m pytest tests/test_reporting_contract.py tests/test_lane_prompt_purity.py -o addopts=""` -> `64 passed in 16.25s` (this covers `ParityTests::test_all_prose_surfaces_are_byte_equal_to_the_source`, `DriverPromptTests::test_prompts_are_pure_ascii`, `::test_execution_prompts_retain_required_json_keys_and_rules`, and `test_lane_prompt_purity.py::test_no_reworded_exception_survives_either`, which the new wording does not trip).
+    TWO SHIPPED PINS LEGITIMATELY MOVED AND ARE RE-BASED, NOT WEAKENED, each disclosed here because a reviewer must judge them: (1) `tests/test_defect_report.py::PromptSizeBudgetTests.BASELINE`, which is DEFINED as "the execute prompt's length WITHOUT the defect report" and therefore must move whenever the surrounding prompt legitimately changes, went 6089 -> 6527 (oc) and 6092 -> 6530 (agy), exactly the +438 this change adds (394 statement + 44 E-04 rewording); the QUANTITY UNDER TEST is unchanged, the report still costing EXACTLY 1137 characters on both hosts against an untouched 1500 ceiling. (2) `tests/test_rununify_host_descriptor.py::ThePromptsTests::test_the_safety_instructions_reach_BOTH_hosts_agents` pinned the literal phrase E-04 reworded; its assertions now pin the REPLACEMENT route (`preserve partial work on the branch this turn is already`, `attributable isolated branch/worktree`, `` `partial_work_location` ``) so the PROPERTY it exists to enforce (both hosts told to preserve partial work attributably) is still asserted.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the added statement from BOTH verifier builders and show it is the SAME shared constant E-02 introduced (not a second copy). Paste the substring check proving neither verifier prompt gained a "cannot validly finalize" style sentence. Show the ownership gate applies here too, by rendering one verifier prompt in each branch. State in one sentence the recorded reason the statement belongs in a prompt that never mentioned finalize, and state that the verifier runs only under `--validate` (default false) so this is prevention rather than an observed-cost fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: SAME CONSTANT, NOT A SECOND COPY, and this is now a structural property rather than a diff to eyeball: both verifier builders are one-line bindings over the ONE `runner_shared.build_verifier_prompt` (`:15453`), which calls the SAME `ipd_lifecycle.runner_owns_lifecycle_notice` under the SAME ownership read (`runner_shared.py:15531-15533`). `tests/test_standalone_verify.py::test_both_hosts_delegate_to_the_single_shared_composer` already pins that both hosts reach that one composer, and V-02's measurement shows `distinct rendered statements across all four builders: 1`.
+    RENDERED IN THE VERIFIER PROMPT, after requirement 5's outcome JSON and before "Begin independent verification now.":
 
-- [ ] V-04 validates E-04
+        5. **Write Verification Outcome**:
+           Before exiting, write valid JSON to `/tmp/r/outcomes/01-abc123-verification.json`:
+           { ... "corrections_made": [] }
+
+        ## Who performs the lifecycle transition
+
+        The runner performs `aw ipd begin` and `aw ipd finalize` for this run. Do NOT run them
+        yourself: a worker-role process is refused with `AW-LIFECYCLE-ROLE-001`, because a second
+        receipt and a second lifecycle transaction the driver cannot see would fork the plan's
+        authority. Your terminal obligation is to write the outcome file named above and stop.
+
+        Begin independent verification now.
+
+    THE "NAMED ABOVE" REFERENCE IS ACCURATE HERE, checked rather than assumed: the verification outcome path is named at prompt index 173 and the statement sits at index 2972, so "the outcome file named above" points at something the agent has already read.
+    THE OWNERSHIP GATE APPLIES HERE TOO, both branches from V-02's table: `build_verifier_prompt` with `sf=False` -> statement ABSENT, with `sf=None`/`sf=True` -> statement PRESENT, on both hosts.
+    NO "cannot validly finalize" STYLE SENTENCE WAS COPIED IN: the string is absent package-wide (see V-04) and neither verifier prompt contains it; the verifier gained ONLY the shared statement.
+    ONE MORE GATE THAN THE PLAN ASKED FOR, disclosed because it is a judgement I made: the statement is deliberately NOT emitted into the AUDIT rendering (`_build_audit_prompt`, reached via `audit=True`). An audit's subject plan is already TERMINAL (`plan_audit_target` refuses anything not in `executed/`), so there is no pending transition for anyone to own and the statement would describe a decision already made. The early return is placed before the notice is computed and the reason is recorded in the code comment there.
+    WHY IT BELONGS IN A PROMPT THAT NEVER MENTIONED FINALIZE, in one sentence: the verifier turn is launched with the SAME work directory as the execute turn, so it carries the same `AW_EXECUTION_ROLE=worker` marking and an agent that decides on its own to "helpfully finalize" after verifying hits the identical refusal, meaning the prompt was SILENT rather than safe.
+    AND THIS HALF IS PREVENTION, NOT AN OBSERVED-COST FIX: the verifier runs only under `--validate`, which defaults FALSE, so no measured turn reached the refusal from a verifier. The code comment records exactly that, so a later reader does not credit this E-item with the measured `03ie04` cost.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the reworded sentence with its file:line, showing it describes the CONDITION and no longer presupposes the agent finalizes, and showing the preserve-partial-work directive that follows SURVIVES (it must not be deleted). State which concrete preservation route it now names and confirm that route exists, since the prior wording cited a "nonterminal checkpoint mechanism" that `aw ipd` does not expose; if you chose to keep the phrase, say why. Paste TWO negative checks: `cannot validly finalize` absent package-wide, and `agy_runipd.build_prompt` still containing no finalize sentence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE SITE MOVED, for the same de-duplication reason V-02 records: the sentence is no longer in `oc_runipd.py` at all but in the ONE shared composer, `agent_workflows/runner_shared.py:15912-15915`. It remains exactly ONE site, and re-locating by the string (as the E-item instructs) is what found it.
+    BEFORE (at HEAD):
 
-- [ ] V-05 validates E-05
+        If the IPD cannot validly finalize, preserve partial work using the repository-supported
+        nonterminal checkpoint mechanism or an attributable isolated branch/worktree. Leave every
+        checkout you did not own safe for subsequent turns. Never claim executed unless the real
+        terminal state and acceptance criteria support it.
+
+    AFTER (`runner_shared.py:15912`, as RENDERED into the prompt):
+
+        If the work is not validly complete, preserve partial work on the branch this turn is already
+        on (an attributable isolated branch/worktree) and name that location in your outcome file's
+        `partial_work_location`. Leave every checkout you did not own safe for subsequent turns. Never
+        claim executed unless the real terminal state and acceptance criteria support it.
+
+    IT DESCRIBES THE CONDITION, NOT THE FORBIDDEN ACTION: the opening clause is now "If the work is not validly complete", which is a fact about the WORK, and it no longer presupposes that the agent is the party attempting a finalize.
+    THE PRESERVE-PARTIAL-WORK DIRECTIVE SURVIVES INTACT AND WAS NOT DELETED: "preserve partial work ...", "Leave every checkout you did not own safe for subsequent turns" and "Never claim executed unless the real terminal state and acceptance criteria support it" are all still present, verbatim.
+    THE ROUTE IT NOW NAMES, and it exists: the isolated branch/worktree the turn is ALREADY on (created by the runner's own `isolate_worktree` default, and the branch this very turn is running on is `aw/lane/8b9ufm`), plus the outcome file's `partial_work_location` field, which the same prompt already requires in its JSON schema. I did NOT keep the "repository-supported nonterminal checkpoint mechanism" phrase: `aw ipd --help` exposes `lint scaffold sync execute-set board set dependencies begin finalize` and nothing checkpoint-shaped, so the old phrase sent an agent hunting for a verb the CLI does not have (F-17).
+    NEGATIVE CHECK 1, `cannot validly finalize` absent package-wide: `grep -rn "cannot validly finalize" agent_workflows/ --include=*.py` -> no output. (Remaining hits in the repo are inside PLAN and BACKLOG records quoting the retired sentence, which is correct: they are history.) Rendered check: `agent_workflows.oc_runipd: 'cannot validly finalize' in prompt = False`, `agent_workflows.agy_runipd: 'cannot validly finalize' in prompt = False`.
+    NEGATIVE CHECK 2, the defect did not spread to the other host: `"validly finalize" in open("agent_workflows/agy_runipd.py").read()` -> `False`. `agy_runipd` carries no finalize sentence of its own; both hosts now receive the reworded one from the single shared composer, which is host symmetry on the STATEMENT rather than on the defect.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the refusal's stderr BEFORE and AFTER, captured by invoking `_refuse_worker_role_verb("finalize")`, showing the new expected-path framing and showing the token, the "runner performs begin/finalize" clause, the "report your result instead" clause and the driver-transition clause all retained. QUOTE THE ADDED SENTENCE AND CONFIRM IN WORDS that it asserts the agent's obligation is discharged and does NOT promise the driver will succeed in transitioning the plan (measured: 22 of 47 token-bearing items never reached `executed`). Paste the UNPIPED exit code (`cmd >/dev/null 2>&1; echo $?`) as 2 both times. Paste the summary lines of `tests/test_worker_role_refusal.py` and `tests/test_turn_bounds.py` showing the zero-side-effect assertions green; if this lane runs as `worker`, name `test_driver_own_process_is_not_worker_role` as the environmental red, say so explicitly, confirm you did not modify it, and paste a run from a non-worker environment. THEN paste the BARE `python3 -m pytest` summaries before and after and state the failure-set delta explicitly, naming any residual failure as environmental and confirming no `opencode-recovery/*` file was touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BEFORE (the HEAD copy of `ipd_lifecycle.py`, loaded from `git show HEAD:` so the comparison is against real HEAD and not a memory), stderr from `_refuse_worker_role_verb("finalize")`:
+
+        AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role process must not run them (refused: aw ipd finalize). The runner performs begin/finalize for this lane; report your result instead (write the outcome file the prompt names) and let the driver transition the plan.
+        RETURN: 2 EXIT_CANNOT_RUN= 2
+
+    AFTER (`agent_workflows/ipd_lifecycle.py:84`):
+
+        AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role process must not run them (refused: aw ipd finalize). The runner performs begin/finalize for this lane; report your result instead (write the outcome file the prompt names) and let the driver transition the plan. THIS IS THE EXPECTED PATH FOR A MANAGED LANE, not a failure of your work: once your outcome file is written your obligation is discharged and NO FURTHER ACTION is required from you here.
+        RETURN: 2 EXIT_CANNOT_RUN= 2
+
+    EVERY PRIOR CLAUSE RETAINED, checked by substring rather than by eye: `token retained: True`, `runner-performs clause retained: True`, `report-instead clause retained: True`, `driver-transition clause retained: True`.
+    THE ADDED SENTENCE, quoted: "THIS IS THE EXPECTED PATH FOR A MANAGED LANE, not a failure of your work: once your outcome file is written your obligation is discharged and NO FURTHER ACTION is required from you here." IN WORDS, IT ASSERTS OBLIGATION DISCHARGED AND NOT OUTCOME GUARANTEED: it says what is true of the AGENT (its obligation ends at the outcome file, and there is nothing further it may legitimately do), and it makes NO claim about what the driver will achieve. It does not say the driver will transition the plan, will finalize, or will succeed; checked mechanically, `promises the driver WILL succeed: False` for the phrases "the driver will transition", "will now transition", "will finalize". That restraint is deliberate and measured: a driver finalize additionally needs the integration gate earned, which under the default `--validate=false` needs a passing driver-run suite, and 22 of 47 token-bearing items never reached `executed`, so a promise here would be broken in roughly a fifth of real cases.
+    UNPIPED EXIT CODE, 2 BOTH TIMES (`cmd >/dev/null 2>&1; echo $?`): BEFORE -> `2`; AFTER -> `2`. Channel unchanged (stderr) and `EXIT_CANNOT_RUN` unchanged, per OQ-02's resolution.
+    F-4 RE-CONFIRMED AT EXECUTION rather than assumed from the plan: the refusal emits neither flag (`--scope-reason present: False`, `--scope-ack present: False`), so ask (4) really was a no-op and nothing was removed.
+    THE ZERO-SIDE-EFFECT TESTS GREEN. `python3 -m pytest tests/test_worker_role_refusal.py -o addopts=""` -> `11 passed in 3.27s` (7 pre-existing + 4 new). `python3 -m pytest tests/test_turn_bounds.py -o addopts=""` -> `1 failed, 75 passed in 8.19s`.
+    THE ENVIRONMENTAL RED IS **NOT** THE ONE THE PLAN PREDICTED, and the correction matters. The plan expected `ChildEnvWorkerRoleTests::test_driver_own_process_is_not_worker_role` to red inside a worker lane; it does NOT, because `conftest.py:78` now pops `AW_EXECUTION_ROLE` at import time precisely so the test session is a COORDINATOR (backlog `1uq1cu`). The actual red is `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, which asserts a non-isolated turn's child carries no `OPENCODE_CONFIG_CONTENT`; this lane's own environment exports that variable, so the child inherits it. PROVED ENVIRONMENTAL by removing only that variable: `env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py -o addopts=""` -> `76 passed in 8.04s`. I did not modify that test, and I did not modify `test_driver_own_process_is_not_worker_role` either.
+    BARE `python3 -m pytest`, BEFORE (at HEAD `d1d6b6eb`, this lane, before any edit):
+
+        FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+        1 failed, 8157 passed, 3 skipped, 2 xfailed, 3 warnings in 119.88s (0:01:59)
+
+    BARE `python3 -m pytest`, AFTER:
+
+        FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+        1 failed, 8161 passed, 3 skipped, 2 xfailed, 3 warnings in 109.69s (0:01:49)
+
+    FAILURE-SET DELTA: **EMPTY**. The same single test fails before and after, it is the environmental one named above, and the passing count rose by 4 (the four new assertions). Judged on the delta as the plan requires, not on an absolute count.
+    NO `opencode-recovery/*` FILE WAS TOUCHED, staged, moved or deleted (none appears in `git status --short` output I produced or in the staged set I committed). `aw sanitize --agent` -> `{"outcome":"clean","exit":0,"findings":0}`.
+  - Result: pass
 
 ## Approval and execution gate
 

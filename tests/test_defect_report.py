@@ -190,7 +190,17 @@ class PromptSizeBudgetTests(unittest.TestCase):
     #: prompt growth to the defect report and fail this test for a reason it does not measure. The
     #: quantity actually under test is UNCHANGED: measured at this HEAD the report still costs exactly
     #: 1137 characters on both hosts, the same figure as before, against an untouched 1500 ceiling.
-    BASELINE = {"agent_workflows.oc_runipd": 6089, "agent_workflows.agy_runipd": 6092}
+    #:
+    #: RE-BASED AGAIN (roleadv-01 `8b9ufm`, from backlog `fvl44r`) by the same method and for the same
+    #: reason: the shared execute prompt gained the LIFECYCLE-ROLE statement (394 characters, from
+    #: `ipd_lifecycle.runner_owns_lifecycle_notice`, emitted only when the driver owns the transition)
+    #: and its preserve-partial-work sentence was reworded (+44), so the report-free prompt legitimately
+    #: grew by 438 on both hosts (6089 -> 6527 on oc, 6092 -> 6530 on agy). The statement exists because
+    #: the prompt previously said NOTHING about who performs begin/finalize while its only mention of
+    #: finalize presupposed the agent did, so a managed lane paid a whole turn to discover
+    #: `AW-LIFECYCLE-ROLE-001` (measured: plan `03ie04`). The report cost is again EXACTLY 1137 on both
+    #: hosts, which is the evidence that this re-base moves the snapshot and not the property.
+    BASELINE = {"agent_workflows.oc_runipd": 6527, "agent_workflows.agy_runipd": 6530}
 
     #: What the report may cost. The demand plus the schema literal is ~1.2KB; the ceiling leaves
     #: room for a wording fix and no room for a fifth field.
