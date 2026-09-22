@@ -1300,17 +1300,48 @@ LANE_LIVE = "LIVE"
 #: shaped `1f9m2j`/`zexed1`: do not print a green verdict the data does not support.
 LANE_UNKNOWN = "UNKNOWN"
 
+#: A lane whose OWN commits never reached the target, but whose PLAN has since reached a TERMINAL
+#: lifecycle directory: the work was REDONE by a later attempt and landed that way, so this lane is a
+#: superseded husk rather than work at risk.
+#:
+#: WHY THIS STATE EXISTS, measured 2026-09-22. Thirteen lanes reported `STRANDED` and TEN of them held
+#: nothing recoverable: their plans were `executed` with the deliverable verifiably live on `main`,
+#: landed by a DIFFERENT commit from a second attempt. Neither existing reading can see that.
+#: `lane_work_has_landed` asks ANCESTRY (the lane's commits are not ancestors of the target) and
+#: `lane_work_landed_by_content` asks PATCH ID (the second attempt wrote different bytes, so the ids
+#: differ). `git cherry` confirms it mechanically: every commit reports absent upstream for all ten,
+#: even where the feature is demonstrably present and under test.
+#:
+#: THE COST OF NOT HAVING IT was a board stuck at `VIEW INVALID` on work that DID land. That matters
+#: because this surface exists to stop the OPPOSITE error - its own header records plan `03ie04` being
+#: paid for TWICE after a silent stranding - and a gate that reds forever on landed work is the exact
+#: failure mode that trains an operator to stop reading it.
+#:
+#: IT IS REPORTED, NOT SILENT, AND IT DOES NOT FAIL THE GATE. A superseded lane still holds commits
+#: and still occupies a worktree, so an operator should still see it and prune it; what it must not do
+#: is assert that work is at risk when it is not. See :func:`lane_drift_severity` for the severity.
+LANE_SUPERSEDED = "SUPERSEDED"
+
 LANE_REPORT_STATES: tuple[str, ...] = (
     LANE_STRANDED,
     LANE_LANDED,
     LANE_EMPTY_OF_WORK,
     LANE_LIVE,
     LANE_UNKNOWN,
+    LANE_SUPERSEDED,
 )
 
 #: The states that need a human act, and are therefore worth reporting. `LANDED`, `EMPTY` and `LIVE`
 #: are correct behavior and are deliberately silent.
-LANE_ATTENTION_STATES: frozenset[str] = frozenset((LANE_STRANDED, LANE_UNKNOWN))
+#: THE STATES A CALLER SHOULD SHOW. Note this is "worth reporting", NOT "fails the gate": those are two
+#: different questions and conflating them is what made `SUPERSEDED` necessary. `LANE_SUPERSEDED` is a
+#: member because the lane still exists, still holds commits and still occupies a worktree, so an
+#: operator should see it and prune it; `attention.lane_drift_severity` separately grades it `info` so
+#: it does NOT fail `--check`. A state that is neither reported nor graded would be invisible, which is
+#: the silent-loss failure this whole surface exists to prevent.
+LANE_ATTENTION_STATES: frozenset[str] = frozenset(
+    (LANE_STRANDED, LANE_UNKNOWN, LANE_SUPERSEDED)
+)
 
 #: The integration target the landing question asks about, when the run record names no other. Both
 #: drivers merge a verified lane into whatever the shared checkout has checked out, which is `main` in
@@ -1417,6 +1448,66 @@ def lane_work_landed_by_content(
     if any(ln.startswith("+") for ln in lines):
         return False
     return any(ln.startswith("-") for ln in lines)
+
+
+def lane_plan_is_terminal(repo: Path, lane: Mapping[str, Any]) -> Optional[bool]:
+    """Has this lane's PLAN reached a terminal lifecycle directory? Three-valued; no git, no content.
+
+    THE QUESTION THIS ANSWERS is the one neither landing reading can (see :data:`LANE_SUPERSEDED` for
+    the measurement): a lane whose commits never reached the target, but whose plan was REDONE by a
+    later attempt and landed that way, is a superseded husk rather than work at risk.
+
+    `True` when the plan resolves to one of the terminal buckets, `False` when it resolves to a
+    non-terminal one (`pending`), and `None` when the plan CANNOT BE RESOLVED AT ALL. The `None` is the
+    load-bearing value: an unresolvable plan is an unanswered question, and the caller must treat it as
+    "not superseded" so an unreadable record can never downgrade a real stranding. That is the same
+    fail-closed discipline `classify_lane_integration` already applies to its content reading, where a
+    `None` never rescues a lane.
+
+    IT READS ONLY THE PLAN'S LOCATION, deliberately. `plan_bucket`'s own docstring states the contract
+    this depends on - "A BUCKET IS A DIRECTORY; READINESS IS A FIELD" - so a plan stays in `pending/`
+    through its whole non-terminal life and ONLY a terminal state moves the file. That makes the
+    directory a durable, git-visible fact rather than a claim, which is why this asks the directory and
+    not the `- Status:` field: a field can be hand-edited into any value, while moving the file is what
+    the lifecycle transaction actually does.
+
+    WHAT IT DELIBERATELY DOES NOT DO: it does not verify the plan's DELIVERABLE is present. Proving
+    that requires reading code semantics (I tried symbol-set comparison while triaging and it was
+    WRONG: a second attempt legitimately restructures names, so a symbol missing from the target proves
+    nothing). The honest signal is the lifecycle record, which is why a superseded lane is still
+    REPORTED for an operator to prune rather than silently dropped.
+    """
+
+    id6 = str(lane.get("id6") or lane.get("lane_id") or "").strip()
+    if not id6:
+        return None
+    try:
+        plan_path = resolve_plan_path(repo, str(lane.get("configured_file") or ""), id6)
+    except Exception:
+        # UNRESOLVABLE IS UNKNOWN, NEVER "not terminal". A plan this function cannot find must not be
+        # reported as non-terminal, because the caller would then keep a STRANDED verdict it has no
+        # evidence for either way; returning None makes the caller fall through to its existing
+        # readings unchanged.
+        return None
+    if plan_bucket(plan_path) is None:
+        # NOT IN A RECOGNIZED LIFECYCLE DIRECTORY AT ALL, so the question is unanswered rather than
+        # answered "no". Asked through `plan_bucket` because it is the one path inspector for this
+        # layout; its result is otherwise unused here (see below).
+        return None
+    # FUNCTION-LOCAL, per this module's own convention: its module-level first-party imports are PINNED
+    # to exactly `render_stream` + `runner_profiles` by
+    # `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`,
+    # because an import added here changes the import graph for EVERY host driver.
+    from agent_workflows import run_selection_policy as _rsp
+
+    # THE SHIPPED PREDICATE DECIDES, NOT A COMPARISON AGAINST THE SEGMENT TUPLE. Measured while writing
+    # this: `TERMINAL_DIRECTORY_SEGMENTS` holds PATH SEGMENTS (`/executed/`, `/superseded/`,
+    # `/not-executed/`, `/reusable/`), not bare bucket words, so a `bucket in TERMINAL_...` test is
+    # ALWAYS False and would have reported every superseded lane as stranded - the exact defect this
+    # function exists to remove, reintroduced one layer down. `is_in_terminal_directory` is the reader
+    # that owns the segment comparison (it normalizes separators and anchors the leading slash), so it
+    # is called rather than reimplemented.
+    return _rsp.is_in_terminal_directory(plan_path)
 
 
 def classify_lane_integration(
@@ -1538,10 +1629,31 @@ def classify_lane_integration(
                 # from a negative ancestry reading: a false LANDED hides real loss and is strictly
                 # worse than the false STRANDED this pair of readings narrows.
                 landed_by = None
-                state = LANE_STRANDED
-                why = "the lane holds work that is NOT reachable from {0}".format(
-                    target
-                )
+                # THE THIRD READING, and it changes the WORD rather than the landing verdict. Neither
+                # reading above can see a lane whose work was REDONE: ancestry says no (different
+                # commits) and patch id says no (different bytes), yet the plan reached a terminal
+                # directory because a later attempt landed it. Measured on ten lanes 2026-09-22.
+                #
+                # `landed` STAYS False ON PURPOSE. This lane's OWN commits genuinely did not reach the
+                # target, and overwriting that to True would be a false claim about THIS branch and
+                # would also silence the row entirely. What changes is the operator-facing meaning:
+                # SUPERSEDED says "prune this husk", STRANDED says "recover this work", and they are
+                # different actions. Only an explicit True downgrades, so an unresolvable plan (None)
+                # leaves the STRANDED verdict exactly as it was.
+                if lane_plan_is_terminal(repo, lane) is True:
+                    state = LANE_SUPERSEDED
+                    why = (
+                        "the lane's own commits are NOT reachable from {0}, but its plan has reached a "
+                        "TERMINAL lifecycle directory, so the work was redone by a later attempt and "
+                        "landed another way; this lane is a superseded husk, not work at risk".format(
+                            target
+                        )
+                    )
+                else:
+                    state = LANE_STRANDED
+                    why = "the lane holds work that is NOT reachable from {0}".format(
+                        target
+                    )
             else:
                 landed_by = None
                 state = LANE_UNKNOWN

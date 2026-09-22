@@ -1376,16 +1376,61 @@ LANE_STRANDED_RULE = "attention.lane-stranded"
 #: human actions even though both fail the gate.
 LANE_UNKNOWN_RULE = "attention.lane-unknown"
 
+#: The stable rule id for a SUPERSEDED lane: its own commits never landed, but its plan reached a
+#: terminal directory, so a later attempt redid the work. SEPARATE from the stranded rule because the
+#: operator action differs ("prune this husk" vs "recover this work"), and because a consumer keying on
+#: `attention.lane-stranded` must not start matching lanes that hold nothing at risk. Graded `info` by
+#: `lane_drift_severity`, so it reports without failing `--check`.
+LANE_SUPERSEDED_RULE = "attention.lane-superseded"
+
 
 def lane_drift_severity(lane_state: str) -> str:
-    """The `Drift` severity for a lane state. Both reportable states FAIL the gate.
+    """The `Drift` severity for a lane state. STRANDED and UNKNOWN FAIL the gate; SUPERSEDED does not.
 
     FAIL CLOSED, on `nuanaw` ask 3 and on the spec's G3. `artifact_core.drift_exit_code` exempts
     exactly `info`, so an `info` severity would report the lane and still exit 0, which is the
     self-contradiction (`valid: true` beside lost work) this whole surface exists to remove. UNKNOWN
     fails too rather than warning: a landing question we cannot answer is not evidence the work landed.
+
+    SUPERSEDED IS THE ONE EXEMPTION, AND IT IS NOT A WEAKENING. It means the lane's own commits did not
+    reach the target AND its plan has since reached a terminal lifecycle directory, so the work was
+    redone by a later attempt and landed another way (see `runner_shared.LANE_SUPERSEDED` for the
+    measurement: ten such lanes on 2026-09-22, all with live, tested deliverables on `main`). Nothing
+    is at risk, so failing the gate on it would assert a loss that did not happen.
+    THE REASON THIS MATTERS RATHER THAN BEING COSMETIC: those ten held the board at `VIEW INVALID`
+    indefinitely, and a gate that reds forever on landed work is precisely what teaches an operator to
+    stop reading it - the failure mode that lets the NEXT real stranding through. It stays REPORTED at
+    `info` (the lane still exists and should still be pruned), so this trades a false failure for a true
+    notice and never hides a lane.
+    ONLY AN EXPLICIT SUPERSEDED VERDICT QUALIFIES. `classify_lane_integration` sets it only when the
+    plan is PROVABLY in a terminal directory; an unresolvable plan leaves the state STRANDED, so an
+    unreadable record can never buy a lane an exemption.
     """
+    if lane_state == rs_lane_superseded():
+        return "info"
     return "error"
+
+
+def rs_lane_superseded() -> str:
+    """The `SUPERSEDED` lane-state token, read from its owner rather than re-spelled here.
+
+    ONE DEFINITION. `runner_shared` owns the lane-state vocabulary and this module only renders and
+    gates on it, so the literal lives there; a copy here is the F-4 drift class this repository has
+    already paid for (a renderer reading one spelling while the producer writes another). Imported
+    lazily for the reason every `runner_shared` reference in this module is lazy: `attention` must stay
+    importable without pulling the runner in.
+    """
+
+    try:
+        from agent_workflows import runner_shared as rs
+
+        return str(rs.LANE_SUPERSEDED)
+    except (
+        Exception
+    ):  # pragma: no cover - defensive; an unimportable runner cannot grant an exemption
+        # FAIL CLOSED: returning a token nothing matches means every lane keeps `error`, which is the
+        # pre-existing behavior rather than a silent exemption.
+        return "\x00-unavailable"
 
 
 def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
@@ -1454,7 +1499,12 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
     for rec in records:
         branch = str(rec.get("branch") or rec.get("lane_id") or "(unnamed lane)")
         state = str(rec.get("lane_state") or rs.LANE_UNKNOWN)
-        rule = LANE_STRANDED_RULE if state == rs.LANE_STRANDED else LANE_UNKNOWN_RULE
+        if state == rs.LANE_STRANDED:
+            rule = LANE_STRANDED_RULE
+        elif state == rs.LANE_SUPERSEDED:
+            rule = LANE_SUPERSEDED_RULE
+        else:
+            rule = LANE_UNKNOWN_RULE
         bits = ["{0} lane".format(state)]
         if rec.get("id6"):
             bits.append("plan {0}".format(rec["id6"]))
@@ -1546,14 +1596,28 @@ def render_stranded_lane_section(drift: List[core.Drift]) -> str:
     """The LOUD human section for stranded lanes, or `""` when none. One row per lane."""
     from agent_workflows import runner_shared as rs
 
-    lanes = [d for d in drift if d.rule in (LANE_STRANDED_RULE, LANE_UNKNOWN_RULE)]
+    lanes = [
+        d
+        for d in drift
+        if d.rule in (LANE_STRANDED_RULE, LANE_UNKNOWN_RULE, LANE_SUPERSEDED_RULE)
+    ]
     if not lanes:
         return ""
-    header = (
-        "## {0} LANES ({1}): work that never reached the integration target\n".format(
-            rs.LANE_STRANDED, len(lanes)
-        )
-    )
+    # THE HEADER MUST NOT OVER-CLAIM. It used to hardcode `STRANDED ... work that never reached the
+    # integration target`, which is FALSE for a SUPERSEDED lane: that lane's work DID reach the target,
+    # by a later attempt. So the words follow the states actually present, and the at-risk sentence is
+    # printed only when an at-risk state is among them.
+    at_risk = [d for d in lanes if d.rule != LANE_SUPERSEDED_RULE]
+    if at_risk and len(at_risk) != len(lanes):
+        title = "{0} + {1} LANES".format(rs.LANE_STRANDED, rs.LANE_SUPERSEDED)
+        gloss = "some hold work that never reached the integration target; superseded ones were redone and can be pruned"
+    elif at_risk:
+        title = "{0} LANES".format(rs.LANE_STRANDED)
+        gloss = "work that never reached the integration target"
+    else:
+        title = "{0} LANES".format(rs.LANE_SUPERSEDED)
+        gloss = "redone by a later attempt and already landed; safe to prune, nothing at risk"
+    header = "## {0} ({1}): {2}\n".format(title, len(lanes), gloss)
     body = "".join("- {0}: {1}\n".format(d.location, d.detail) for d in lanes)
     return header + body
 
@@ -1567,7 +1631,11 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
     obj = {
         "schema_version": SCHEMA_VERSION,
         "mapping_version": MAPPING_VERSION,
-        "valid": len(drift) == 0,
+        # THE SAME CONVENTION AS THE EXIT CODE, deliberately. `core.drift_exit_code` exempts exactly
+        # `info`, so computing `valid` from the raw LENGTH would report `valid: false` beside an exit 0
+        # for an advisory-only run. That is the same payload/gate contradiction this surface exists to
+        # remove, pointing the other way. Any non-`info` drift still makes this false.
+        "valid": core.drift_exit_code(drift) == 0,
         "items": [
             {
                 "id": it.id,
@@ -1604,7 +1672,7 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
         "stranded_lanes": [
             {"branch": d.location, "rule": d.rule, "detail": d.detail}
             for d in drift
-            if d.rule in (LANE_STRANDED_RULE, LANE_UNKNOWN_RULE)
+            if d.rule in (LANE_STRANDED_RULE, LANE_UNKNOWN_RULE, LANE_SUPERSEDED_RULE)
         ],
     }
     # canonical: fixed key order (insertion order above), 2-space indent, sorted item keys off, LF, final newline

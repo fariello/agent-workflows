@@ -388,12 +388,21 @@ _RELEASES_MAP: Dict[str, str] = {
 #                        lane `active` too would double-count one piece of work as two attention items.
 #   EMPTY    -> done     The lane holds no commits beyond its base and its tree is clean. There is
 #                        nothing to lose and nothing to do.
+#   SUPERSEDED -> done   The lane's OWN commits never reached the target, but its PLAN has reached a
+#                        terminal directory, so a later attempt redid the work and landed it. `done` is
+#                        correct for the same reason LANDED is: nothing is OWED, and nothing is at risk.
+#                        It is deliberately NOT `blocked`: no human act is required to save anything,
+#                        and classing it `blocked` is exactly what held this board at `VIEW INVALID` on
+#                        ten already-landed lanes (2026-09-22), which is how a gate teaches operators to
+#                        stop reading it. Pruning the husk is tidy-up, not owed work, so it is reported
+#                        at `info` severity rather than carried as an attention item.
 _LANES_MAP: Dict[str, str] = {
     "STRANDED": BLOCKED,
     "UNKNOWN": BLOCKED,
     "LIVE": ACTIVE,
     "LANDED": DONE,
     "EMPTY": DONE,
+    "SUPERSEDED": DONE,
 }
 
 # The registry of mapping fragments, one per tracked tree (plus the synthetic `lanes` tree above).

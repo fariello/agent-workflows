@@ -5549,6 +5549,149 @@ def _cherry_pick_onto_main(repo: pathlib.Path, rev: str) -> None:
     )
 
 
+class SupersededLaneTests(unittest.TestCase):
+    """A lane whose PLAN went terminal is SUPERSEDED, not STRANDED, and must not fail the gate.
+
+    THE MEASURED DEFECT, 2026-09-22. Thirteen lanes reported `STRANDED`; TEN held nothing recoverable,
+    because a LATER attempt redid the work and landed it, leaving the first lane a husk. Neither
+    existing reading can see that: ancestry says no (the lane's commits are not ancestors of the
+    target) and patch id says no (the second attempt wrote different bytes), and `git cherry` agreed,
+    reporting every commit absent upstream even where the feature was demonstrably live and tested.
+    The board therefore sat at `VIEW INVALID` on work that HAD landed, which is the failure mode that
+    teaches an operator to stop reading the gate and so lets the NEXT real stranding through.
+
+    A NOTE ON THE EVIDENCE, because I got it wrong first. While triaging I "proved" supersession by
+    comparing symbol sets between the lane and the target, and that reasoning is INVALID: a second
+    attempt legitimately restructures names, so a symbol present in the lane and absent from the
+    target proves nothing at all. The signal these tests pin is the LIFECYCLE RECORD (the plan reached
+    a terminal directory), which is a durable git-visible fact rather than an inference about code.
+    """
+
+    def _plan(self, repo: pathlib.Path, id6: str, bucket: str) -> None:
+        """Write a minimal plan for ``id6`` into ``bucket`` and commit it."""
+        d = repo / ".aw" / "records" / "plans" / bucket
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "20260101-set-01-{0}-slug.ipd.md".format(id6)).write_text(
+            "# IPD: probe\n\n- Id: {0}\n- Status: executed\n".format(id6),
+            encoding="utf-8",
+        )
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "-m", "plan {0} in {1}".format(id6, bucket))
+
+    def test_a_lane_whose_plan_is_EXECUTED_is_superseded_not_stranded(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            self._plan(repo, "aaa111", "executed")
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            lane["id6"] = "aaa111"
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(
+                rec["lane_state"],
+                runner_shared.LANE_SUPERSEDED,
+                "a lane whose plan reached a terminal directory holds nothing at risk; calling it "
+                "STRANDED is what held the board invalid on ten landed lanes",
+            )
+            self.assertIs(
+                rec["landed"],
+                False,
+                "`landed` describes THIS branch and must stay False: its own commits really did not "
+                "reach the target. Overwriting it would be a false claim about the branch",
+            )
+            self.assertTrue(
+                rec["needs_attention"],
+                "it must still be REPORTED: the lane exists, holds commits and occupies a worktree, "
+                "so an operator should see it and prune it",
+            )
+
+    def test_a_lane_whose_plan_is_still_PENDING_stays_stranded(self):
+        """The direction that must NOT move: real unlanded work keeps its alarm."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            self._plan(repo, "bbb222", "pending")
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            lane["id6"] = "bbb222"
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
+            self.assertIs(rec["landed"], False)
+
+    def test_an_UNRESOLVABLE_plan_stays_stranded_fail_closed(self):
+        """The fail-closed arm: an unreadable record must never buy a lane an exemption."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            lane["id6"] = "nosuch"  # no plan file anywhere
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(
+                rec["lane_state"],
+                runner_shared.LANE_STRANDED,
+                "an unresolvable plan is an UNANSWERED question, not a terminal one; downgrading here "
+                "would let an unreadable record silence a real stranding",
+            )
+
+    def test_the_predicate_is_three_valued(self):
+        """`lane_plan_is_terminal` must distinguish no/yes/unknown, since the caller keys on `is True`."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            self._plan(repo, "ccc333", "executed")
+            self._plan(repo, "ddd444", "pending")
+            self.assertIs(
+                runner_shared.lane_plan_is_terminal(repo, {"id6": "ccc333"}), True
+            )
+            self.assertIs(
+                runner_shared.lane_plan_is_terminal(repo, {"id6": "ddd444"}), False
+            )
+            self.assertIsNone(
+                runner_shared.lane_plan_is_terminal(repo, {"id6": "missin"})
+            )
+            self.assertIsNone(
+                runner_shared.lane_plan_is_terminal(repo, {}),
+                "no id6 at all is UNKNOWN, never False",
+            )
+
+    def test_superseded_is_reported_but_does_NOT_fail_the_gate(self):
+        """The severity split is the whole point: report it, do not red the board for it."""
+        from agent_workflows import artifact_core as core
+        from agent_workflows import attention
+
+        self.assertEqual(
+            attention.lane_drift_severity(runner_shared.LANE_SUPERSEDED), "info"
+        )
+        self.assertEqual(
+            attention.lane_drift_severity(runner_shared.LANE_STRANDED), "error"
+        )
+        self.assertEqual(
+            attention.lane_drift_severity(runner_shared.LANE_UNKNOWN),
+            "error",
+            "an unanswerable landing question is not evidence the work landed",
+        )
+        # And the exit convention must actually exempt it, or the split is cosmetic.
+        self.assertEqual(
+            core.drift_exit_code(
+                [core.Drift("l", attention.LANE_SUPERSEDED_RULE, "d", severity="info")]
+            ),
+            0,
+        )
+        self.assertEqual(
+            core.drift_exit_code(
+                [core.Drift("l", attention.LANE_STRANDED_RULE, "d", severity="error")]
+            ),
+            1,
+        )
+
+    def test_superseded_gets_its_OWN_rule_id(self):
+        """A consumer keying on the stranded rule must not start matching lanes with nothing at risk."""
+        from agent_workflows import attention
+
+        self.assertNotEqual(
+            attention.LANE_SUPERSEDED_RULE, attention.LANE_STRANDED_RULE
+        )
+        self.assertEqual(attention.LANE_SUPERSEDED_RULE, "attention.lane-superseded")
+
+
 class ContentLandedReadingTests(unittest.TestCase):
     """E-01/E-02: patch-id landing, its two parse guards, and the DIRTY lane that must never be silenced.
 
