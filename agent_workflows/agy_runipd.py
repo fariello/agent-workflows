@@ -432,6 +432,29 @@ from agent_workflows.runner_shared import (
     format_slated_artifacts_table as format_slated_artifacts_table,
 )
 
+# retrywire (`xipfy1`) E-07: the TURN-FAILURE CORRECTION layer, the twin of the oc block. Bound from
+# `runner_shared` and NOT from `oc_runipd`, so this adds no cross-driver import: the layer is
+# host-neutral, and importing it through the peer driver would make agy depend on oc for a rule
+# neither host owns.
+from agent_workflows.runner_shared import (
+    TURN_RETRYABLE_DISPOSITIONS as TURN_RETRYABLE_DISPOSITIONS,
+)
+from agent_workflows.runner_shared import (
+    TURN_RETRY_CLASSIFICATION as TURN_RETRY_CLASSIFICATION,
+)
+from agent_workflows.runner_shared import (
+    turn_failure_is_retryable as turn_failure_is_retryable,
+)
+from agent_workflows.runner_shared import (
+    turn_retry_decision as turn_retry_decision,
+)
+from agent_workflows.runner_shared import (
+    turn_retry_budget_remaining as turn_retry_budget_remaining,
+)
+from agent_workflows.runner_shared import (
+    handle_turn_failure_retry as handle_turn_failure_retry,
+)
+
 # lanetruth Order 01 (af7i6p) E-02: import the SINGLE shared definition of the nested-`aw` pin
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
 # how the previous inert half-pin came to differ from what it looked like it did. `oc_runipd` does

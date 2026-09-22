@@ -267,6 +267,33 @@ from agent_workflows.runner_shared import (
     format_slated_artifacts_table as format_slated_artifacts_table,
 )
 
+# retrywire (`xipfy1`) E-07: the TURN-FAILURE CORRECTION layer, bound in the same `as <same-name>`
+# form and pinned by OBJECT IDENTITY in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`. Bound
+# here rather than reached as `runner_shared.<name>` at the call site because that table's identity
+# half asserts each driver CARRIES the attribute and that both carry the SAME object - the guard that
+# caught agy running its own copy of `dependency_status_detailed` for months. The decision, the
+# performer and the classification table are all registered: a host that re-forked only the TABLE
+# would agree about the mechanism and disagree about which failures are retryable, which is the more
+# dangerous half (it decides what the run spends paid model turns on).
+from agent_workflows.runner_shared import (
+    TURN_RETRYABLE_DISPOSITIONS as TURN_RETRYABLE_DISPOSITIONS,
+)
+from agent_workflows.runner_shared import (
+    TURN_RETRY_CLASSIFICATION as TURN_RETRY_CLASSIFICATION,
+)
+from agent_workflows.runner_shared import (
+    turn_failure_is_retryable as turn_failure_is_retryable,
+)
+from agent_workflows.runner_shared import (
+    turn_retry_decision as turn_retry_decision,
+)
+from agent_workflows.runner_shared import (
+    turn_retry_budget_remaining as turn_retry_budget_remaining,
+)
+from agent_workflows.runner_shared import (
+    handle_turn_failure_retry as handle_turn_failure_retry,
+)
+
 
 # integpath-02 (`6sb3yu`): a PURE move, so it is bound by re-export rather than wrapped (unlike its
 # two neighbours, which need this host's `run_checked`/`host_label`). The `as <same-name>` FORM is
