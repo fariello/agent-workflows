@@ -11,6 +11,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_gate_answer_propagation.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:tgyfs2
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: gateinert
 - Order: 1
 - Highest E allocated: 07
