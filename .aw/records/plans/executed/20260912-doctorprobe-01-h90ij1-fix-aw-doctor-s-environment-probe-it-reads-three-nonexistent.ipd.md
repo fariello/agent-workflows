@@ -6,18 +6,18 @@
 - Scope: Repoint `doctor.probe_environment`'s three misresolved reads at the canonical locations, delegating version resolution to the single existing authority (`engine.read_installed_version`) instead of a second divergent path list; add regression tests that fail on the current code.
 - Scope-Paths: agent_workflows/doctor.py, agent_workflows/cli.py, agent_workflows/project_context.py, tests/test_doctor.py, tests/test_cli.py, tests/test_renderer_boundary.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: doctorprobe
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode
 - Id: h90ij1
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: hdhzr2
 - Blocks-Release: f33nrj
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: h90ij1 verified (set doctorprobe, attempt 1). [Scope reconciliation - widened-scope agent_workflows/project_context.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope tests/test_renderer_boundary.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); in-scope-unmodified tests/test_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED
 
