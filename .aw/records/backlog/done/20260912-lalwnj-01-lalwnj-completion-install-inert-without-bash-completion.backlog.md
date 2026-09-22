@@ -8,6 +8,8 @@
 
 ## Workflow history
 - 2026-09-21 set (aw backlog): closed by aw oc run: IPD 92u0v9 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260912-compinert-01-92u0v9-report-and-remediate-a-completion-install-that-cannot-take-e.ipd.md); evidence .aw/records/plans/executed/20260912-compinert-01-92u0v9-report-and-remediate-a-completion-install-that-cannot-take-e.ipd.md
+- 2026-09-12 graduated (aw set): Graduated to plan 92u0v9 (Set compinert), which inherits Blocks-Release: next. Design is handed off; code not yet written.
+- 2026-09-12 created (aw backlog): aw completion install reports success into a shell where completion cannot work: it never checks whether bash-completion is loadable, and offers no way to make it so
 
 ## How this was found
 

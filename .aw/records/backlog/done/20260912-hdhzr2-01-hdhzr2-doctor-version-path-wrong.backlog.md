@@ -8,6 +8,9 @@
 
 ## Workflow history
 - 2026-09-22 set (aw backlog): closed by aw oc run: IPD h90ij1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260912-doctorprobe-01-h90ij1-fix-aw-doctor-s-environment-probe-it-reads-three-nonexistent.ipd.md); evidence .aw/records/plans/executed/20260912-doctorprobe-01-h90ij1-fix-aw-doctor-s-environment-probe-it-reads-three-nonexistent.ipd.md
+- 2026-09-12 graduated (aw set): Design handed off to a review-ready IPD authored from repo-verified root cause
+- 2026-09-12 open (aw set): status set to open
+- 2026-09-12 created (aw backlog): Found by an upgrade rehearsal against a real 1.2.1 legacy repo (tools/aw_upgrade_test.py)
 
 doctor.py reads the installed framework version from '.aw/VERSION' or '.agents/VERSION'. Neither is a real location: engine.read_installed_version probes '.aw/system/VERSION', '.aw/system/workflows/VERSION', then '.agents/workflows/VERSION' (engine.py read_installed_version). So doctor's version currency check always sees None.
 

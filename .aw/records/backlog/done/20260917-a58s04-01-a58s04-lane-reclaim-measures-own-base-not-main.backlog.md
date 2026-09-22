@@ -8,6 +8,8 @@
 
 ## Workflow history
 - 2026-09-22 set (aw backlog): closed by aw oc run: IPD 65cuw0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md); evidence .aw/records/plans/executed/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
+- 2026-09-17 created (aw backlog): Lane teardown never reclaims a merged lane: commits_ahead is measured against the lane's OWN base, so an integrated lane reports HOLDS-WORK forever and 28 of 38 worktrees accumulated to 4.7G
 
 ## Observed
 

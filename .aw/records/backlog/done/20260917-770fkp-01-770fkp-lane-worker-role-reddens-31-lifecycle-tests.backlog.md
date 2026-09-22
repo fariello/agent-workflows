@@ -8,6 +8,9 @@
 
 ## Workflow history
 - 2026-09-22 set (aw backlog): closed by aw oc run: IPD e4lkv5 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260917-lanesuite-01-e4lkv5-make-the-suite-green-inside-a-lane-by-controlling-the-execut.ipd.md); evidence .aw/records/plans/executed/20260917-lanesuite-01-e4lkv5-make-the-suite-green-inside-a-lane-by-controlling-the-execut.ipd.md
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
+- 2026-09-18 graduated (aw set): Graduated into IPD e4lkv5 (lanesuite Order 01); design handed off, code not yet written
+- 2026-09-17 created (aw backlog): 31 tests fail inside any runner lane because AW_EXECUTION_ROLE=worker refuses aw ipd begin/finalize
 
 Measured at 4a1bb873 by plan s16omw (rununify Order 10), while taking the pre-change baseline the plan's V-05 requires.
 

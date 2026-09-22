@@ -7,6 +7,8 @@
 
 ## Workflow history
 - 2026-09-20 set (aw backlog): closed by aw oc run: IPD at61gc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260908-instdiff-01-at61gc-show-generated-skill-members-in-aw-install-diff-so-the-previ.ipd.md); evidence .aw/records/plans/executed/20260908-instdiff-01-at61gc-show-generated-skill-members-in-aw-install-diff-so-the-previ.ipd.md
+- 2026-09-08 graduated (aw set): MOSTLY OBSOLETE, NARROWED. The installerskill Set (rldro6 / kvfsak) shipped in 5af28bbb, so this item's central claim that install_all writes only body+shim members is FALSE of the run path: install_into_repo merges skill members at engine.py:5697-5704 via _build_skill_members:5595 -> generate_adapter_bundle:5616. Verified by RUNNING kvfsak's tests (tests/test_installer_skill_emission.py: 10 passed), which cover resolver, namespace, prune scan, fresh install, idempotency, both orphan cases and manifest uninstall. The 'across hosts' clause was resolved to one shared .agents/skills dir by kvfsak D2/OQ-03. ONE gap survives: aw install --diff never calls _build_skill_members (engine.py:5856-5862), so the preview under-reports 90 files (measured: 52 shim, 90 skill, 0 overlap). kvfsak E-05's own text scopes itself to prune_stale, never the diff renderer, which is why the gap is real. Graduated to plan at61gc for that gap plus a preview/apply parity test.
+- 2026-08-24 created (aw backlog): Wire skill-package emission into the installer run() path across hosts
 
 MOSTLY OBSOLETE 2026-09-08, NARROWED TO ONE SURVIVING GAP. Read this before acting on the text below:
 its central factual claim is no longer true.

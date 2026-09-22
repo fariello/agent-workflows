@@ -8,6 +8,8 @@
 
 ## Workflow history
 - 2026-09-21 set (aw backlog): closed by aw oc run: IPD 4y95tp executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260912-compargs-01-4y95tp-complete-a-command-s-own-arguments-instead-of-falling-throug.ipd.md); evidence .aw/records/plans/executed/20260912-compargs-01-4y95tp-complete-a-command-s-own-arguments-instead-of-falling-throug.ipd.md
+- 2026-09-12 graduated (aw set): Graduated to plan 4y95tp (Set compargs), which inherits Blocks-Release: next.
+- 2026-09-12 created (aw backlog): bash completion suggests the top-level command list as the argument to any command without subcommands (30 of 47), so 'aw completion <TAB>' offers 'index' and 'aw find <TAB>' offers 'commit'
 
 ## Reported by the maintainer 2026-09-12, from a live session
 

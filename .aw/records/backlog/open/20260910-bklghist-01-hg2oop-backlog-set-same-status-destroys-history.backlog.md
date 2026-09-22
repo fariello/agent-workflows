@@ -115,6 +115,7 @@ aw backlog set: 20260910-tst-01-zzzzz9-demo.backlog.md -> open
 === remaining history:
 ## Workflow history
 - 2026-09-10 set (aw backlog): MY NEW NOTE
+
 ```
 
 Both pre-existing lines (`- 2026-09-01 created ...`, `- 2026-09-02 note ...`) are gone. The new message

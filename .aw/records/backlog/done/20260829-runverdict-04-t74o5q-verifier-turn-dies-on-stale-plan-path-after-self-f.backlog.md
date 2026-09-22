@@ -8,6 +8,8 @@
 
 ## Workflow history
 - 2026-09-22 set (aw backlog): closed by aw oc run: IPD fzxfph executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260908-runverdict-06-fzxfph-distinguish-verification-that-never-ran-from-verification-th.ipd.md); evidence .aw/records/plans/executed/20260908-runverdict-06-fzxfph-distinguish-verification-that-never-ran-from-verification-th.ipd.md
+- 2026-09-08 graduated (aw set): PARTIALLY graduated to plan fzxfph (runverdict-06); see the PARTIAL OBSOLESCENCE section appended to this item. NOT graduated as ALREADY FIXED: fix (1) and tests (a), (c), (d), all delivered by commit 1549c018 (2026-08-28 02:42 UTC), two days BEFORE this item was filed, with its regression test shipping in the same commit and passing today. All 23 measured failures are in runs created before that fix and zero post-fix runs contain one. NOT graduated deliberately: fix (2) (reorder the turn), because 1549c018 solved the same problem by re-resolution. GRADUATED: fixes (3) and (4) and test (b), both re-verified live: unverified is written for three distinct facts at three sites per host, and the except DriverError fallback still silently substitutes a known-stale path. Inherits Blocks-Release: next.
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 ROOT CAUSE (in-tree, verified): the verifier turn is handed a plan path that a PRECEDING step in the
 same turn already invalidated. `aw ipd finalize` moves the plan `pending/` -> `executed/`, but the

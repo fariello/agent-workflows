@@ -7,6 +7,8 @@
 
 ## Workflow history
 - 2026-09-21 set (aw backlog): closed by aw oc run: IPD 2iye0e executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260908-wtisoptr-01-2iye0e-retire-the-stale-wtiso-ownership-claims-so-five-pointers-and.ipd.md); evidence .aw/records/plans/executed/20260908-wtisoptr-01-2iye0e-retire-the-stale-wtiso-ownership-claims-so-five-pointers-and.ipd.md
+- 2026-09-08 graduated (aw set): PARTLY OBSOLETE, SPLIT IN TWO. Seven of the twelve sites (all wtiso_gate.py) were already fixed by executed plan 604wra (1d9bbbd3) in exactly the style this item's suggested fix (b) prescribes. Debt 2 (the five surviving stale pointers plus the spec c4gd2h OQ-03 annotation) graduated to plan 2iye0e. Debt 1 (the out-of-repo relocation) is an open DECISION not a defined change, so it split out to backlog item e820ka rather than being graduated. Three corrections recorded in the body: this item MISLABELS the platform_lock site (that capability shipped under y6mfgo, so the no-successor note would be false there), its VERIFY-WITH grep misses two Phase 4 claims that carry no id6, and editing describe_lane's docstring breaks an AST fingerprint freeze it does not mention. graduated not done because Debt 1 survives in e820ka.
+- 2026-09-05 created (aw backlog): filed by plan eulhzt E-08: records the debt left by retiring wtiso Phases 4/5 unlanded, so aw attention can see it instead of it living only in plan prose
 
 GRADUATED 2026-09-08, PARTLY OBSOLETE, AND SPLIT IN TWO. Read this header before acting on anything
 below it: the site list and the prescribed fixes are no longer accurate.

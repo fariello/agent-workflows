@@ -8,6 +8,8 @@
 
 ## Workflow history
 - 2026-09-22 set (aw backlog): closed by aw oc run: IPD vhbvwz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260910-setterguard-02-vhbvwz-stop-losing-a-deliberate-history-message-write-it-on-a-same.ipd.md); evidence .aw/records/plans/executed/20260910-setterguard-02-vhbvwz-stop-losing-a-deliberate-history-message-write-it-on-a-same.ipd.md
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
+- 2026-09-08 created (aw backlog): aw set on a same-status artifact silently DISCARDS an explicit --message: apply_status_change returns early before the history write, so a deliberate provenance note exits 0 and is never recorded
 
 FOUND 2026-09-08 the hard way: I ran `aw backlog set graduated <already-graduated item> --message
 "<~2000 characters of measured evidence>"`, the command exited 0 and printed a normal-looking line, and

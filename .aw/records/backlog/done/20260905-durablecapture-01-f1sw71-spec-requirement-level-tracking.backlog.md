@@ -7,6 +7,8 @@
 
 ## Workflow history
 - 2026-09-20 set (aw backlog): closed by aw oc run: IPD si24ia executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260908-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.ipd.md); evidence .aw/records/plans/executed/20260908-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.ipd.md
+- 2026-09-08 graduated (aw set): FULLY LIVE, graduated to DECISION plan si24ia (not an implementation plan: this is an open question whose requester said 'definitely not sure', and building a requirement model would answer its five questions on the maintainer's behalf). All three gaps re-verified; two numbers corrected (specs.py is 1066 lines not 1006, hits at :1048/:1063; corpus is 28 specs with 6 approved, not 27/5). KEY NEW FINDING the item lacks: there is NO single parsable requirement convention. Measured across all 28 specs: six incompatible id forms, and THIRTEEN specs match none, stating requirements as bare prose MUST, including release-gating 25kzda. So a retrofit means inventing ids from prose for 13 specs, which reframes the item's own cost/benefit question. Also: three live specs carry no - Id: at all, so a <spec-id6>.<req-id> join key could not reference their requirements.
+- 2026-09-05 created (aw backlog): attention has no per-requirement spec tracking, so an approved spec can sit half-built with nothing asking which half: decide whether requirement-level tracking should exist
 
 GRADUATED 2026-09-08 TO A DECISION PLAN, NOT AN IMPLEMENTATION. Plan `si24ia`
 (`.aw/records/plans/pending/20260908-specreq-01-si24ia-...ipd.md`, carrying `- From-Backlog: f1sw71`)

@@ -8,6 +8,8 @@
 
 ## Workflow history
 - 2026-09-22 set (aw backlog): closed by aw oc run: IPD 4bc1nd executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260910-setterguard-01-4bc1nd-extend-the-shipped-confirmation-refusal-to-the-interactive-p.ipd.md); evidence .aw/records/plans/executed/20260910-setterguard-01-4bc1nd-extend-the-shipped-confirmation-refusal-to-the-interactive-p.ipd.md
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
+- 2026-09-10 created (aw backlog): aw ipd set writes by default with no confirmation, so a bare setid selector silently reverted 7 EXECUTED plans to approved/pending in one command
 
 ## What happened (measured, on this repository, 2026-09-10)
 
