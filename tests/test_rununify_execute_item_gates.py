@@ -212,11 +212,22 @@ class TheGateOrderingIsPinnedOnTheCallGraph(unittest.TestCase):
 
         THE TARGET IS THE DISPOSITION-ASSIGNING CALL, not merely the first `reconcile_disposition`
         in the body, and that distinction is load-bearing rather than pedantic. `execute_item`
-        calls `reconcile_disposition` THREE times on each host; two of them sit on the EARLY
-        recovery path (`oc_runipd.py:7344` and `:7372`), where they set a prior attempt's status
-        and legitimately precede this turn's collection. Comparing against the first call would
-        therefore assert a false ordering and fail on correct code. The existing pin resolves this
-        the same way: it locates the tuple assignment whose target is named `disposition`.
+        calls `reconcile_disposition` FOUR times on each host, and only TWO of those four are
+        tuple assignments to `disposition` that this pin can see:
+
+          * the SCORING call, the first such assignment;
+          * the two STOP HANDLERS, which assign `item["status"], _ = reconcile_disposition(...)`
+            with a hardcoded `exit_code=1`. Their first target element is a `Subscript` rather than a
+            `Name`, so the search below never sees them. They live in the two `except` handlers around
+            the verifier spawn inside `execute_item_core` (ANCHORED BY SYMBOL: the offsets this
+            docstring once cited, `oc_runipd.py:7344` and `:7372`, have DRIFTED and now land on
+            unrelated lines, which is why they are not carried forward);
+          * the RESCORE call added by reaskscore-01 (`skn8uk`), which adopts its result in a second
+            tuple assignment this pin DOES see and which therefore becomes `max(disposition_assign)`.
+
+        Comparing against the FIRST call would assert a false ordering and fail on correct code, which
+        is why this resolves the target by locating the tuple assignment whose target is named
+        `disposition` rather than by call order.
         """
         for host, module in HOSTS:
             func = _execute_item_ast(module)
@@ -302,6 +313,66 @@ class TheGateOrderingIsPinnedOnTheCallGraph(unittest.TestCase):
                 self._first_line(calls, "integration_is_earned", host),
                 self._first_line(calls, "integrate_lane_branch", host),
                 f"{host}: integration must be earned before the merge is attempted",
+            )
+
+    def test_the_post_reask_rescore_precedes_the_integration_GATE(self):
+        """reaskscore-01 (`skn8uk`) E-06: the rescore must land before the gate READS the score.
+
+        STRICTLY STRONGER THAN `test_the_disposition_is_reconciled_before_integration` on the property
+        this cares about, which is why it is a separate pin rather than an edit to that one. That pin
+        anchors on `integrate_lane_branch`, the MERGE; this one anchors on `integration_is_earned`, the
+        GATE, which is called EARLIER. A rescore sitting between the two would satisfy the older pin
+        while the defect stayed live, because `integration_gate_relevant` and the gate itself would
+        both have read the stale `partial` and the merge would never be reached at all.
+
+        THE MEASURED DEFECT IS EXACTLY THAT ORDERING. In `run-20260918T193638Z-2963696` the turn was
+        scored before its defect re-ask, the re-ask then re-collected an outcome saying `executed`, and
+        because nothing rescored it the gate read `partial`: no verifier ran, no suite check ran, the
+        lane never merged, and three siblings cascaded to `dependency-blocked`.
+
+        ASSERTED ON THE CALL GRAPH, per this file's stated convention, and against the LAST
+        disposition-assigning line rather than the first, since the rescore is by construction the last
+        one and a pin against `min` would pass however late the rescore sat.
+        """
+        for host, module in HOSTS:
+            func = _execute_item_ast(module)
+            calls = _called_names(func)
+            receipt_read = self._first_line(calls, "read_collection_receipt", host)
+            rescore_predicate = self._first_line(
+                calls, "rescore_is_an_improvement", host
+            )
+            disposition_assign = [
+                sub.lineno
+                for sub in ast.walk(func)
+                if isinstance(sub, ast.Assign)
+                and isinstance(sub.targets[0], ast.Tuple)
+                and any(
+                    isinstance(elt, ast.Name) and elt.id == "disposition"
+                    for elt in sub.targets[0].elts
+                )
+            ]
+            self.assertEqual(
+                2,
+                len(disposition_assign),
+                f"{host}: expected exactly TWO disposition-assigning tuple assignments (the score "
+                f"and the rescore); saw {disposition_assign}",
+            )
+            self.assertLess(
+                receipt_read,
+                rescore_predicate,
+                f"{host}: the collection receipt must be READ before the rescore is judged, or the "
+                "gate is decided without knowing whether anything was collected (spec 7ckptx R2.5)",
+            )
+            self.assertLess(
+                max(disposition_assign),
+                self._first_line(calls, "integration_is_earned", host),
+                f"{host}: the rescore must be adopted BEFORE `integration_is_earned` reads the "
+                "disposition; a rescore after it leaves the measured defect live",
+            )
+            self.assertLess(
+                self._first_line(calls, "validate_defect_report", host),
+                rescore_predicate,
+                f"{host}: the rescore must follow the defect re-ask it rescores from",
             )
 
 

@@ -30,12 +30,17 @@ same reason). Every record here is built in `tmp_path`.
 from __future__ import annotations
 
 import ast
+import contextlib
 import inspect
+import io
 import json
+import re
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, reporting_contract as RC
 from agent_workflows import runner_shared as R
@@ -426,21 +431,87 @@ class ValidatorTests(unittest.TestCase):
                 self.assertIn(v.state, R.DEFECT_REPORT_STATES)
 
     def test_no_bare_except_was_introduced_around_the_new_code(self) -> None:
-        """`except Exception: pass` is how the spec-edit announcement was silenced (`st5klo`)."""
+        """`except Exception: pass` is how the spec-edit announcement was silenced (`st5klo`).
+
+        THE SECTION IS BOUNDED AT BOTH ENDS, and it was not before (fixed while executing `skn8uk`,
+        disclosed rather than absorbed). The previous form took `section = src[start:]`, i.e. from the
+        defect-report banner to the END OF `runner_shared.py`, and asserted that no BARE `except`
+        existed anywhere at or after it. That is 7150 lines rather than the 709 the section actually
+        spans, so the guard claimed authority over unrelated code. It went red on 2026-09-22 for a
+        suppression added 5400 lines later by commit `894d7924` (the `attention.format_plan_detail_line`
+        banner in `execute_item_core`, `except Exception: pass`), which has nothing to do with the
+        defect report. Bounding the section at the next `# ---- ` banner keeps every assertion this
+        guard was written to make and removes only the authority it was never given: a bare `except`
+        inside the defect-report section still fails it, which the control below proves.
+        """
 
         src = Path(str(R.__file__)).read_text(encoding="utf-8")
         start = src.index("# ---- THE DEFECT REPORT")
-        section = src[start:]
+        rest = src[start:]
+        following = re.search(r"\n# ---- (?!THE DEFECT REPORT)", rest)
+        self.assertIsNotNone(
+            following,
+            "the defect-report section is no longer followed by a banner, so it can no longer be "
+            "bounded; re-base this guard deliberately rather than letting it run to end of file",
+        )
+        assert following is not None
+        end = start + following.start()
+        section = src[start:end]
         self.assertNotIn("except Exception:\n        pass", section)
         self.assertNotIn("except:  # noqa", section)
+        first_line = src[:start].count("\n") + 1
+        last_line = src[:end].count("\n") + 1
         tree = ast.parse(src)
         for node in ast.walk(tree):
             if isinstance(node, ast.ExceptHandler) and node.type is None:
-                self.assertLess(
-                    node.lineno,
-                    src[:start].count("\n") + 1,
-                    "a BARE except was added in the defect-report section",
+                self.assertFalse(
+                    first_line <= node.lineno <= last_line,
+                    f"a BARE except was added in the defect-report section (line {node.lineno})",
                 )
+
+    def test_that_guard_still_catches_a_bare_except_inside_the_section(self) -> None:
+        """The control that makes the bounding above a FIX rather than a quiet relaxation.
+
+        Asserted on the same bounding computation applied to a synthetic source, so the narrowed guard
+        is shown to still refuse the thing it exists to refuse.
+        """
+
+        synthetic = (
+            "x = 1\n"
+            "# ---- THE DEFECT REPORT (defreport 01, `b7xarm`) ----\n"
+            "def f():\n"
+            "    try:\n"
+            "        pass\n"
+            "    except:\n"
+            "        pass\n"
+            "# ---- something else ----\n"
+            "def g():\n"
+            "    try:\n"
+            "        pass\n"
+            "    except:\n"
+            "        pass\n"
+        )
+        start = synthetic.index("# ---- THE DEFECT REPORT")
+        following = re.search(r"\n# ---- (?!THE DEFECT REPORT)", synthetic[start:])
+        assert following is not None
+        end = start + following.start()
+        first_line = synthetic[:start].count("\n") + 1
+        last_line = synthetic[:end].count("\n") + 1
+        bare = [
+            node.lineno
+            for node in ast.walk(ast.parse(synthetic))
+            if isinstance(node, ast.ExceptHandler) and node.type is None
+        ]
+        self.assertEqual([6, 12], bare)
+        self.assertTrue(
+            any(first_line <= line <= last_line for line in bare),
+            "the bounded guard must still catch a bare except INSIDE the section",
+        )
+        self.assertFalse(
+            all(first_line <= line <= last_line for line in bare),
+            "and must no longer claim authority over code AFTER the section, which is the "
+            "over-reach that made it go red on unrelated code",
+        )
 
 
 # ---- E-05 / V-05: the bounded, same-session re-ask ------------------------------------------------
@@ -942,6 +1013,763 @@ class PersistedRecordTests(unittest.TestCase):
             "reask_verdict",
         ):
             self.assertIn(key, doc)
+
+
+# ==================================================================================================
+# reaskscore-01 (`skn8uk`): THE RESCORE AFTER A DEFECT RE-ASK THAT COMPLETED THE WORK
+#
+# THE DEFECT WAS MEASURED TWICE on 2026-09-18 (`zqs0px` in `run-20260918T193638Z-2963696`, `zz5yxq` in
+# `run-20260918T190723Z-2697256`): a first turn wrote no outcome, so it scored `partial`; the defect
+# re-ask then resumed the same session, did the ENTIRE job, and its `recollect` wrote a complete
+# outcome to exactly the path the scorer reads - and nothing rescored it. Each item landed `partial`
+# with `last_outcome: null` beside a complete outcome file, and each cascaded three siblings to
+# `dependency-blocked`.
+#
+# THOSE RUN DIRECTORIES ARE NOT AVAILABLE TO A TEST: `.aw/records/runs/` is GITIGNORED (the sibling
+# `FixtureHygieneTests` below pins that this file never reads it), so the measured SHAPE is rebuilt in
+# a `tmp_path` fixture instead. NO REAL MODEL TURN IS SPENT and NO REAL SUITE IS RUN: the launcher, the
+# lifecycle transitions and the suite check are all stubs, exactly as the re-ask cases above stub them.
+# ==================================================================================================
+
+
+class RescorePredicateTests(unittest.TestCase):
+    """E-01 / V-01. `rescore_is_an_improvement` is PURE, MONOTONIC and FAIL-CLOSED.
+
+    WHY A RANK AND NOT A MEMBERSHIP TEST: the question is comparative ("is `after` better than
+    `before`"), which no set test can answer. The three kinds of answer are each a case below, and the
+    refusal of a DOWNGRADE is the safety property that makes this whole change unable to harm a turn
+    that already succeeded.
+    """
+
+    def test_an_improvement_is_permitted(self) -> None:
+        for before, after in (
+            ("partial", "substantially-complete"),
+            ("partial", "executed"),
+            ("failed-safely", "substantially-complete"),
+            ("failed-safely", "executed"),
+            ("substantially-complete", "executed"),
+        ):
+            with self.subTest(before=before, after=after):
+                self.assertTrue(R.rescore_is_an_improvement(before, after))
+
+    def test_an_EQUAL_score_is_not_an_improvement(self) -> None:
+        """So a re-ask that changed nothing rewrites nothing and emits no event."""
+
+        for status in (
+            "partial",
+            "substantially-complete",
+            "executed",
+            "failed-safely",
+        ):
+            with self.subTest(status=status):
+                self.assertFalse(R.rescore_is_an_improvement(status, status))
+
+    def test_every_DOWNGRADE_is_refused(self) -> None:
+        for before, after in (
+            ("substantially-complete", "partial"),
+            ("executed", "partial"),
+            ("executed", "substantially-complete"),
+            ("executed", "failed-safely"),
+            ("partial", "failed-safely"),
+        ):
+            with self.subTest(before=before, after=after):
+                self.assertFalse(R.rescore_is_an_improvement(before, after))
+
+    def test_the_three_never_replaceable_statuses_refuse_in_BOTH_directions(
+        self,
+    ) -> None:
+        """`merge-retry` is the one that MATTERS; the two stop dispositions are defence in depth.
+
+        Stated as the docstring of the predicate states it, so the test does not overclaim: a re-ask
+        CAN fire on a deferred item (`merge-retry` is not in `DEFECT_REASK_SKIPPED_STATUSES`), while
+        `interrupted` and `unknown_outcome` both ARE in that set and so cannot be the `before` value
+        today. Their rows here guard a future widening of the skip set.
+        """
+        from agent_workflows import runner_stop
+
+        never = (
+            R.INTEGRATION_DEFERRED_STATUS,
+            runner_stop.STOPPED_DISPOSITION,
+            runner_stop.FORCED_DISPOSITION,
+        )
+        for status in never:
+            for other in (
+                "partial",
+                "substantially-complete",
+                "executed",
+                "failed-safely",
+            ):
+                with self.subTest(status=status, other=other):
+                    self.assertFalse(R.rescore_is_an_improvement(status, other))
+                    self.assertFalse(R.rescore_is_an_improvement(other, status))
+        # And the two that are already skipped are named as such, so the docstring's honesty claim is
+        # checkable rather than asserted.
+        self.assertIn(runner_stop.STOPPED_DISPOSITION, R.DEFECT_REASK_SKIPPED_STATUSES)
+        self.assertIn(runner_stop.FORCED_DISPOSITION, R.DEFECT_REASK_SKIPPED_STATUSES)
+        self.assertNotIn(
+            R.INTEGRATION_DEFERRED_STATUS,
+            R.DEFECT_REASK_SKIPPED_STATUSES,
+            "if `merge-retry` ever enters the skip set, the E-03 refusal becomes dead code and this "
+            "test should be re-based deliberately rather than deleted",
+        )
+
+    def test_an_UNRECOGNIZED_status_on_either_side_refuses(self) -> None:
+        """Fail closed: a disposition added elsewhere cannot silently acquire replace-ability."""
+
+        for before, after in (
+            ("partial", "a-status-nobody-ranked"),
+            ("a-status-nobody-ranked", "executed"),
+            (None, "executed"),
+            ("partial", None),
+            ("", ""),
+        ):
+            with self.subTest(before=before, after=after):
+                self.assertFalse(R.rescore_is_an_improvement(before, after))
+
+    def test_it_performs_no_IO_and_mutates_neither_argument(self) -> None:
+        """Purity, by AST over the body plus a mutation control on the ranking table.
+
+        The AST half is what a reader can trust: no file is opened, no event appended, no state saved.
+        The table half matters because the table is module-level MUTABLE state, so a predicate that
+        wrote to it would be impure in a way no argument check would notice.
+        """
+
+        func = next(
+            n
+            for n in ast.parse(Path(str(R.__file__)).read_text(encoding="utf-8")).body
+            if isinstance(n, ast.FunctionDef) and n.name == "rescore_is_an_improvement"
+        )
+        body = ast.unparse(func)
+        for forbidden in (
+            "open(",
+            "read_text",
+            "write_text",
+            "append_jsonl",
+            "save_state",
+            "unlink",
+            "mkdir",
+            "subprocess",
+            "[",  # no subscript assignment into the rank table, and no list literal at all
+        ):
+            self.assertNotIn(
+                forbidden,
+                body.split('"""')[-1],
+                f"`rescore_is_an_improvement` must stay pure (found {forbidden!r})",
+            )
+        before_table = dict(R.RESCORE_DISPOSITION_RANK)
+        args = ["partial", "executed"]
+        R.rescore_is_an_improvement(args[0], args[1])
+        self.assertEqual(args, ["partial", "executed"])
+        self.assertEqual(R.RESCORE_DISPOSITION_RANK, before_table)
+
+
+class RescoreAfterAReaskTests(unittest.TestCase):
+    """E-02..E-05 / V-02, V-04, V-05, and the OQ-02 consequence pinned for V-06.
+
+    ONE HARNESS, MANY CASES, driving the REAL `execute_item` on a REAL git repository with a REAL
+    isolated lane, so the receipt and the re-collected outcome are produced by the shipped collection
+    code rather than hand-written. Only the model turn, the two lifecycle transitions, the tool-identity
+    assertion, the suite check and the suite baseline are stubbed.
+    """
+
+    PLAN = (
+        "# IPD: rescore fixture\n\n"
+        "- Date: 2026-09-19\n"
+        "- Kind: child\n"
+        "- Id: prb001\n"
+        "- Set: reask\n"
+        "- Order: 1\n"
+        "- Status: approved\n\n"
+        "## Goal\n\nfixture\n"
+    )
+
+    #: A complete agent outcome: work done, report stated affirmatively. No re-ask is warranted for it.
+    GOOD = {
+        "schema_version": 1,
+        "disposition": "executed",
+        "summary": "did the whole job",
+        "defect_report": {"state": "none-found", "findings": []},
+        "pushed": False,
+    }
+    #: The RE-ASK's answer in the measured case: the resumed turn did the job and reported properly.
+    REASK_COMPLETE = GOOD
+    #: An outcome with NO defect report, which is what makes a re-ask warranted.
+    NO_REPORT_PARTIAL = {
+        "schema_version": 1,
+        "disposition": "partial",
+        "summary": "got part way",
+        "pushed": False,
+    }
+    #: The re-ask answering honestly that the turn is STILL partial: a rescore must not fire.
+    REASK_STILL_PARTIAL = {
+        "schema_version": 1,
+        "disposition": "partial",
+        "summary": "still only part way",
+        "defect_report": {"state": "none-found", "findings": []},
+        "pushed": False,
+    }
+
+    def _git(self, repo: Path, *args: str) -> str:
+        proc = subprocess.run(["git", *args], cwd=repo, text=True, capture_output=True)
+        if proc.returncode != 0:
+            raise AssertionError(f"git {' '.join(args)} in {repo}: {proc.stderr}")
+        return proc.stdout
+
+    def _fixture(self, root: Path):
+        repo = root / "repo"
+        (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+        self._git(root, "init", "-q", str(repo))
+        self._git(repo, "config", "user.email", "t@example.invalid")
+        self._git(repo, "config", "user.name", "t")
+        # The FIXTURE repository ignores exactly what the real one does, so the run directory built
+        # below behaves as the live tree does without this file ever reading the live tree. The path
+        # below is WRITTEN INTO the fixture, never read from this checkout; it names the same
+        # GITIGNORED directory, which is why it is called out on this line for the hygiene guard.
+        (repo / ".gitignore").write_text(
+            ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n",  # GITIGNORED, in the FIXTURE
+            encoding="utf-8",
+        )
+        plan = (
+            repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20260919-reask-01-prb001-rescore-fixture.ipd.md"
+        )
+        plan.write_text(self.PLAN, encoding="utf-8")
+        self._git(repo, "add", ".gitignore", str(plan.relative_to(repo)))
+        self._git(repo, "commit", "-qm", "init")
+        run_dir = repo / ".aw" / "records" / "runs" / "run-rescore"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        item = {
+            "position": 1,
+            "id6": "prb001",
+            "setid": "reask",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-rescore",
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "selectors": ["reask"],
+            "options": {
+                # stop-before-launch: a stubbed launcher is installed below, and this path would fail
+                # immediately if one ever were not.
+                "opencode": "/bin/false",
+                "agy_executable": "/bin/false",
+                "model": "probe",
+                "self_finalize": True,
+                "no_audit": True,
+                "isolate_worktree": True,
+                "allow_dirty_base": True,
+            },
+        }
+        return repo, run_dir, state, item
+
+    def _suite(self, passing: bool = True):
+        return oc_runipd.SuiteCheckResult(
+            passing=passing,
+            exit_code=0 if passing else 1,
+            summary=("7081 passed in 97.10s" if passing else "1 failed, 7080 passed"),
+            reason="stub",
+            cwd="/primary",
+            timeout_seconds=oc_runipd.SUITE_CHECK_TIMEOUT_SECONDS,
+            elapsed_seconds=98.49,
+            failures=(
+                () if passing else ("FAILED tests/test_x.py::test_y - assert 1 == 2",)
+            ),
+        )
+
+    def _drive(
+        self,
+        root: Path,
+        *,
+        first_outcome: dict[str, Any] | None,
+        reask_outcome: dict[str, Any] | None,
+        wrap_collect: Any = None,
+        reconcile: Any = None,
+    ):
+        """Drive one real turn; return `(run_dir, state, item, events, gate_kwargs, launches)`.
+
+        `first_outcome=None` reconstructs the measured trigger: the first turn writes NOTHING, so the
+        turn is scored from the empty-outcome fallback. `reask_outcome` is what the resumed turn writes
+        INTO ITS LANE, so the shipped `collect_lane_submissions` is what copies it and writes the
+        receipt.
+        """
+        from agent_workflows import lane_containment
+
+        repo, run_dir, state, item = self._fixture(root)
+        launches: list[dict[str, Any]] = []
+        gate_kwargs: dict[str, Any] = {}
+
+        def _lane_write(work_dir: Any, payload: dict[str, Any]) -> None:
+            lane_root = lane_containment.lane_submission_root(
+                Path(work_dir), state["run_id"], item, 1
+            )
+            target = lane_root / "outcomes" / f"{lane_containment.item_slug(item)}.json"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(payload), encoding="utf-8")
+
+        def _launch(*args: Any, **kwargs: Any):
+            launches.append(kwargs)
+            payload = first_outcome if len(launches) == 1 else reask_outcome
+            work_dir = kwargs.get("work_dir")
+            if payload is not None and work_dir:
+                _lane_write(work_dir, payload)
+            return 0, "ses-1", run_dir / "log.jsonl", ["probe"]
+
+        def _gate(**kwargs: Any):
+            """Record what the gate was handed, then REFUSE, so no merge is attempted.
+
+            REFUSING RATHER THAN RAISING is what lets the turn run to its end and persist its state,
+            which is how the durability half of V-04 is checked. Refusing rather than EARNING keeps a
+            scoring test out of the finalize-and-merge machinery, where a stubbed merge would prove
+            nothing. The refusal signal is deliberately `no-trust-signal` and not `suite-failed`,
+            because only the latter is askable (`gate_answer_is_warranted`) and this fixture must not
+            spend a follow-up turn it is not testing.
+            """
+            gate_kwargs.update(kwargs)
+            return oc_runipd.IntegrationVerdict(
+                False,
+                oc_runipd.INTEGRATION_REFUSED_NO_SIGNAL,
+                "refused by the fixture so no merge is attempted",
+            )
+
+        patches = [
+            mock.patch.object(oc_runipd, "run_opencode", _launch),
+            mock.patch.object(oc_runipd, "driver_begin", lambda *a, **k: (0, "ok")),
+            mock.patch.object(oc_runipd, "driver_finalize", lambda *a, **k: (0, "ok")),
+            mock.patch.object(
+                oc_runipd, "assert_child_tool_identity", lambda *a, **k: None
+            ),
+            # No pre-work suite baseline: the real one starts a detached checkout and runs pytest.
+            mock.patch.object(oc_runipd, "extract_suite_failures", None),
+            mock.patch.object(
+                oc_runipd, "run_suite_check", lambda *a, **k: self._suite(True)
+            ),
+            mock.patch.object(oc_runipd, "integration_is_earned", _gate),
+        ]
+        if wrap_collect is not None:
+            patches.append(
+                mock.patch.object(
+                    lane_containment,
+                    "collect_lane_submissions",
+                    wrap_collect(lane_containment.collect_lane_submissions),
+                )
+            )
+        if reconcile is not None:
+            patches.append(
+                mock.patch.object(oc_runipd, "reconcile_disposition", reconcile)
+            )
+
+        with contextlib.ExitStack() as stack:
+            for patch in patches:
+                stack.enter_context(patch)
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+        events_path = run_dir / "events.jsonl"
+        events = (
+            [
+                json.loads(line)
+                for line in events_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            if events_path.is_file()
+            else []
+        )
+        return run_dir, state, item, events, gate_kwargs, launches
+
+    @staticmethod
+    def _rescored(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [e for e in events if e.get("event") == "ipd-rescored"]
+
+    # ---- V-02: the measured case, and the three negative controls ---------------------------------
+
+    def test_the_MEASURED_case_is_rescued_instead_of_recorded_partial(self) -> None:
+        """V-02. First turn writes nothing; the re-ask does the job; the item must NOT stay `partial`.
+
+        `substantially-complete` and not `executed` is the CORRECT expectation: `reconcile_disposition`
+        deliberately downgrades a self-claimed `executed` while the plan is still in `pending/`, and
+        that value is inside `EXECUTION_SUCCESS_STATES`, which is what unblocks the siblings.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir, _state, item, events, gate_kwargs, launches = self._drive(
+                Path(temp), first_outcome=None, reask_outcome=self.REASK_COMPLETE
+            )
+            from agent_workflows import lane_containment
+
+            receipt = lane_containment.read_collection_receipt(run_dir, item, 1)
+            self.assertEqual(2, len(launches), "the re-ask turn must have been spent")
+            self.assertIsNotNone(receipt)
+            assert receipt is not None
+            self.assertIn(
+                "outcome",
+                receipt["collected"],
+                "the recollection must have collected the outcome for the rescore to be permitted",
+            )
+            self.assertEqual(2, receipt["collection_runs"])
+            self.assertEqual("substantially-complete", item["status"])
+            self.assertIn(item["status"], oc_runipd.EXECUTION_SUCCESS_STATES)
+            self.assertTrue(gate_kwargs, "the integration gate was never reached")
+            self.assertEqual(1, len(self._rescored(events)))
+
+    def _control(self, label: str, **kwargs: Any) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir, _state, item, events, _gate, launches = self._drive(
+                Path(temp), **kwargs
+            )
+            outcome_file = (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            )
+            self.assertEqual(
+                "partial",
+                item["status"],
+                f"{label}: the rescore must NOT have fired (outcome file present: "
+                f"{outcome_file.is_file()})",
+            )
+            self.assertEqual([], self._rescored(events), label)
+            self.assertEqual(
+                2, len(launches), f"{label}: the re-ask must still be spent"
+            )
+
+    def test_control_a_a_receipt_recording_the_outcome_FAILED_refuses(self) -> None:
+        """V-02(a). The outcome file EXISTS; the receipt says its collection failed. Fail closed."""
+
+        from agent_workflows import lane_containment
+
+        def wrap(real: Any) -> Any:
+            def wrapper(**kwargs: Any) -> Any:
+                receipt = real(**kwargs)
+                path = lane_containment.collection_receipt_path(
+                    kwargs["run_dir"], kwargs["item"], kwargs["attempt"]
+                )
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if "outcome" in (data.get("collected") or []):
+                    data["collected"] = [
+                        name for name in data["collected"] if name != "outcome"
+                    ]
+                    data["failed"] = sorted(set(data.get("failed", []) + ["outcome"]))
+                    path.write_text(
+                        json.dumps(data, indent=2, sort_keys=True), encoding="utf-8"
+                    )
+                    return data
+                return receipt
+
+            return wrapper
+
+        self._control(
+            "a receipt recording the outcome collection as failed",
+            first_outcome=None,
+            reask_outcome=self.REASK_COMPLETE,
+            wrap_collect=wrap,
+        )
+
+    def test_control_b_NO_receipt_at_all_refuses(self) -> None:
+        """V-02(b). Spec `7ckptx` R2.5: absence means NOT collected and may not be inferred."""
+
+        from agent_workflows import lane_containment
+
+        def wrap(real: Any) -> Any:
+            def wrapper(**kwargs: Any) -> Any:
+                receipt = real(**kwargs)
+                lane_containment.collection_receipt_path(
+                    kwargs["run_dir"], kwargs["item"], kwargs["attempt"]
+                ).unlink(missing_ok=True)
+                return receipt
+
+            return wrapper
+
+        self._control(
+            "no collection receipt at all",
+            first_outcome=None,
+            reask_outcome=self.REASK_COMPLETE,
+            wrap_collect=wrap,
+        )
+
+    def test_control_c_an_ABSENT_outcome_with_a_complete_receipt_refuses(self) -> None:
+        """V-02(c). THE LOAD-BEARING CONTROL: it is what proves the gate reads the right field.
+
+        A lane that submitted NOTHING yields `status: "complete"`, `collected: []`, `failed: []`,
+        because `collect_lane_submissions` sets `status` unconditionally and records a missing source
+        `absent` (in neither list). So a gate written against `status`, or against `failed` being
+        empty, PASSES this fixture: without this case a decorative gate would ship looking correct.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir, _state, item, events, _gate, launches = self._drive(
+                Path(temp), first_outcome=None, reask_outcome=None
+            )
+            from agent_workflows import lane_containment
+
+            receipt = lane_containment.read_collection_receipt(run_dir, item, 1)
+            assert receipt is not None
+            self.assertEqual(
+                (lane_containment.RECEIPT_COMPLETE, [], []),
+                (receipt["status"], receipt["collected"], receipt["failed"]),
+                "this control only means anything while the receipt really does report a complete "
+                "collection of nothing",
+            )
+            self.assertEqual(2, len(launches))
+            self.assertEqual("partial", item["status"])
+            self.assertEqual([], self._rescored(events))
+
+    # ---- V-03: the deferral passthrough ----------------------------------------------------------
+
+    def test_a_deferred_item_passes_through_the_rescore_unchanged(self) -> None:
+        """V-03 / E-03. `merge-retry` is a driver decision an agent's outcome may not overrule.
+
+        THE FAKE `reconcile_disposition` IS NECESSARY AND THE REASON IS ITSELF A MEASUREMENT.
+        `execute_item_core` sets `item["status"] = "running"` at dispatch, so the deferral passthrough
+        inside `reconcile_disposition` (which reads `item["status"]`) cannot fire on the FIRST score of
+        a live turn; a deferral can therefore only be the `before` value if the score arrives from
+        somewhere else. Scripting the two calls is what makes the refusal reachable at all, and it
+        reproduces precisely the hazard E-03 names: the second call runs with `item["status"]` already
+        overwritten by the first, so without the refusal a deferral would be relabelled. See the
+        comment above `reconcile_disposition`'s passthrough (`oc_runipd.py:6120-6132`) for why
+        relabelling it destroys it.
+        """
+        calls: list[int] = []
+
+        def scripted(repo, item, run_dir, exit_code, plan_repo=None):
+            calls.append(exit_code)
+            if len(calls) == 1:
+                return R.INTEGRATION_DEFERRED_STATUS, None
+            return "substantially-complete", dict(self.GOOD)
+
+        with tempfile.TemporaryDirectory() as temp:
+            _run_dir, _state, item, events, _gate, launches = self._drive(
+                Path(temp),
+                first_outcome=None,
+                reask_outcome=self.REASK_COMPLETE,
+                reconcile=scripted,
+            )
+            self.assertEqual(2, len(launches), "the re-ask must have been spent")
+            self.assertEqual(
+                2,
+                len(calls),
+                "the rescore must have reached its second `reconcile_disposition` call, or this test "
+                "proves nothing about the refusal",
+            )
+            self.assertEqual(
+                R.INTEGRATION_DEFERRED_STATUS,
+                item["status"],
+                "a deferred item must keep its non-terminal status: relabelling it destroys the "
+                "automatic re-attempt and resurrects the cascade it exists to prevent",
+            )
+            self.assertEqual([], self._rescored(events))
+
+    def test_the_deferral_refusal_is_what_holds_that_line(self) -> None:
+        """V-03's negative control: with the refusal removed, the test above FAILS.
+
+        Driven rather than described: `rescore_is_an_improvement` is replaced by a rank-only version
+        that has LOST the never-replaceable list, and the same fixture is asserted to rewrite the
+        deferral. The assertion that fires in the sibling test is its `item["status"]` equality.
+        """
+        calls: list[int] = []
+
+        def scripted(repo, item, run_dir, exit_code, plan_repo=None):
+            calls.append(exit_code)
+            if len(calls) == 1:
+                return R.INTEGRATION_DEFERRED_STATUS, None
+            return "substantially-complete", dict(self.GOOD)
+
+        def rank_only(before: str | None, after: str | None) -> bool:
+            """The predicate MINUS its refusal list, i.e. the bug this control proves is prevented."""
+
+            ranks = dict(R.RESCORE_DISPOSITION_RANK)
+            ranks[R.INTEGRATION_DEFERRED_STATUS] = 1
+            b, a = ranks.get(before or ""), ranks.get(after or "")
+            return b is not None and a is not None and a > b
+
+        with tempfile.TemporaryDirectory() as temp:
+            with mock.patch.object(R, "rescore_is_an_improvement", rank_only):
+                _run_dir, _state, item, events, _gate, _launches = self._drive(
+                    Path(temp),
+                    first_outcome=None,
+                    reask_outcome=self.REASK_COMPLETE,
+                    reconcile=scripted,
+                )
+            self.assertEqual(
+                "substantially-complete",
+                item["status"],
+                "the control itself is broken: without the refusal the deferral MUST be overwritten, "
+                "otherwise the sibling test is passing for some other reason",
+            )
+            self.assertEqual(1, len(self._rescored(events)))
+
+    # ---- V-04: every carrier moves together -------------------------------------------------------
+
+    def test_all_four_fate_deciding_carriers_agree_after_a_rescore(self) -> None:
+        """V-04 / E-04. `last_outcome: null` beside a collected outcome file IS the measured symptom."""
+
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir, state, item, _events, _gate, _launches = self._drive(
+                Path(temp), first_outcome=None, reask_outcome=self.REASK_COMPLETE
+            )
+            attempt = item["attempts"][-1]
+            collected = json.loads(
+                (
+                    run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual("substantially-complete", item["status"])
+            self.assertEqual("substantially-complete", attempt["disposition"])
+            self.assertIsNotNone(
+                item["last_outcome"],
+                "a `None` here beside a collected outcome file is the measured symptom",
+            )
+            self.assertEqual(collected, item["last_outcome"])
+            # And it is DURABLE, not merely in memory: the existing downstream `save_state` persisted it.
+            persisted = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+            entry = next(q for q in persisted["queue"] if q["id6"] == item["id6"])
+            self.assertEqual("substantially-complete", entry["status"])
+            self.assertEqual(collected, entry["last_outcome"])
+            self.assertIs(state["queue"][0], item)
+
+    # ---- V-05: the durable event ------------------------------------------------------------------
+
+    def test_an_accepted_rescore_emits_exactly_one_durable_event(self) -> None:
+        """V-05 / E-05. Read back FROM THE FILE: a silent status rewrite must be auditable afterwards.
+
+        NO CLAIM IS MADE ABOUT `aw runs`: `run_viewer.py` never parses `events.jsonl` and renders no
+        driver event at all (plan OQ-03), so the honest property is that the record is durable and
+        greppable in the run directory.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            _run_dir, _state, item, events, _gate, _launches = self._drive(
+                Path(temp), first_outcome=None, reask_outcome=self.REASK_COMPLETE
+            )
+            rescored = self._rescored(events)
+            self.assertEqual(1, len(rescored), events)
+            record = rescored[0]
+            self.assertEqual(item["id6"], record["id6"])
+            self.assertEqual(1, record["attempt"])
+            self.assertEqual("partial", record["before"])
+            self.assertEqual("substantially-complete", record["after"])
+            self.assertTrue(record["reason"].strip())
+            self.assertTrue(record["at"].strip())
+            # Emitted AFTER the defect record, so the two facts read in the order they happened.
+            names = [e["event"] for e in events]
+            self.assertLess(
+                names.index("defect-report-recorded"), names.index("ipd-rescored")
+            )
+
+    def test_no_event_is_emitted_when_NO_reask_was_performed(self) -> None:
+        """V-05's first non-acceptance path. A usable report is never re-asked, so nothing rescores."""
+
+        with tempfile.TemporaryDirectory() as temp:
+            _run_dir, _state, item, events, _gate, launches = self._drive(
+                Path(temp), first_outcome=self.GOOD, reask_outcome=self.GOOD
+            )
+            self.assertEqual(1, len(launches), "no re-ask turn may be spent here")
+            self.assertEqual("substantially-complete", item["status"])
+            self.assertEqual([], self._rescored(events))
+
+    def test_no_event_is_emitted_when_the_rescore_is_NOT_an_improvement(self) -> None:
+        """V-05's fourth non-acceptance path: the re-ask answered honestly that it is still partial."""
+
+        with tempfile.TemporaryDirectory() as temp:
+            _run_dir, _state, item, events, _gate, launches = self._drive(
+                Path(temp),
+                first_outcome=self.NO_REPORT_PARTIAL,
+                reask_outcome=self.REASK_STILL_PARTIAL,
+            )
+            self.assertEqual(2, len(launches), "the re-ask must have been spent")
+            self.assertEqual("partial", item["status"])
+            self.assertEqual([], self._rescored(events))
+
+    # ---- V-06's OQ-02 consequence ----------------------------------------------------------------
+
+    def test_a_rescued_item_reaches_the_gate_with_no_verifier_verdict_and_a_DRIVER_suite(
+        self,
+    ) -> None:
+        """OQ-02's stated consequence, pinned so it cannot regress into "integrated on no signal".
+
+        The rescore deliberately does NOT re-run the verifier (it sits earlier in the body), so a
+        rescued item arrives with `verify_disp is None`. `integration_is_earned` then falls to its
+        suite branch, and the suite result it is handed is one the DRIVER ran, never an agent claim.
+        With no signal at all it refuses fail-closed, which the two control assertions below pin
+        against the real predicate.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            _run_dir, _state, item, _events, gate_kwargs, _launches = self._drive(
+                Path(temp), first_outcome=None, reask_outcome=self.REASK_COMPLETE
+            )
+            self.assertEqual("substantially-complete", item["status"])
+            self.assertFalse(gate_kwargs["validate"])
+            self.assertIsNone(gate_kwargs["verify_disp"])
+            self.assertTrue(gate_kwargs["suite_result"].passing)
+            attempt = item["attempts"][-1]
+            self.assertTrue(
+                attempt["suite_check"]["passing"],
+                "the driver's own suite result must be recorded on the attempt",
+            )
+        earned = oc_runipd.integration_is_earned(
+            validate=False, verify_disp=None, suite_result=self._suite(True)
+        )
+        self.assertTrue(earned.earned)
+        self.assertEqual(oc_runipd.INTEGRATION_EARNED_BY_SUITE, earned.signal)
+        refused = oc_runipd.integration_is_earned(
+            validate=False, verify_disp=None, suite_result=None
+        )
+        self.assertFalse(refused.earned)
+        self.assertEqual(oc_runipd.INTEGRATION_REFUSED_NO_SIGNAL, refused.signal)
+
+
+class RescoreSharedSeamTests(unittest.TestCase):
+    """The defect was host-agnostic in the CODE, so the fix must be reached by BOTH hosts."""
+
+    def test_both_hosts_reach_the_rescore_through_the_ONE_shared_core(self) -> None:
+        for mod in DRIVERS:
+            src = _effective_source(mod)
+            self.assertIn("rescore_is_an_improvement(", src, mod.__name__)
+            self.assertIn('"event": "ipd-rescored"', src, mod.__name__)
+            self.assertIn("read_collection_receipt(", src, mod.__name__)
+
+    def test_the_rescore_reads_the_COLLECTED_list_and_not_the_receipt_status(
+        self,
+    ) -> None:
+        """The one detail that decides whether the gate works, pinned by AST over the rescore block.
+
+        Asserted on the `If` node's own test expression rather than by substring over the function, so
+        a mention of `status` in a neighbouring comment cannot satisfy it and a real gate on
+        `receipt["status"]` cannot hide behind one.
+        """
+        func = next(
+            n
+            for n in ast.parse(Path(str(R.__file__)).read_text(encoding="utf-8")).body
+            if isinstance(n, ast.FunctionDef) and n.name == "execute_item_core"
+        )
+        blocks = [
+            n
+            for n in ast.walk(func)
+            if isinstance(n, ast.If)
+            and "rescore_is_an_improvement" in ast.unparse(n)
+            and "read_collection_receipt" in ast.unparse(n)
+        ]
+        self.assertTrue(
+            blocks, "the rescore block was not found in `execute_item_core`"
+        )
+        gate = min(blocks, key=lambda n: len(ast.unparse(n)))
+        tests = [ast.unparse(n.test) for n in ast.walk(gate) if isinstance(n, ast.If)]
+        collected_gates = [
+            t for t in tests if "'outcome' in" in t or '"outcome" in' in t
+        ]
+        self.assertTrue(
+            collected_gates,
+            f"the rescore must gate on the receipt's `collected` list; saw {tests}",
+        )
+        for text in collected_gates:
+            self.assertIn("collected", text)
+            self.assertNotIn("'status'", text)
+            self.assertNotIn("failed", text)
 
 
 class FixtureHygieneTests(unittest.TestCase):

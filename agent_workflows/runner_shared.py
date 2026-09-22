@@ -16503,6 +16503,65 @@ def _record_forced_stop(
     return record
 
 
+#: reaskscore-01 (`skn8uk`) E-01: the RANK over dispositions the post-re-ask rescore compares on.
+#:
+#: A RANK RATHER THAN A MEMBERSHIP SET, because the question the rescore asks is COMPARATIVE ("is the
+#: newly computed score BETTER than the one already recorded?") and a set test cannot answer it. Only
+#: the four dispositions an agent's own outcome file can legitimately produce are ranked; every other
+#: status is unknown to this predicate and therefore refused (see :func:`rescore_is_an_improvement`).
+RESCORE_DISPOSITION_RANK: dict[str, int] = {
+    "failed-safely": 0,
+    "partial": 1,
+    "substantially-complete": 2,
+    "executed": 3,
+}
+
+
+def rescore_is_an_improvement(before: str | None, after: str | None) -> bool:
+    """May `after` replace the disposition `before`, after a defect re-ask re-collected an outcome?
+
+    PURE, MONOTONIC AND FAIL-CLOSED. Pure: two status strings in, a bool out, no I/O and no argument it
+    can mutate. Monotonic: it permits an IMPROVEMENT only, so a rescore can rescue a turn that was
+    scored before its outcome existed and can never harm one that already succeeded. Fail-closed: a
+    status this predicate does not rank refuses, so a disposition added elsewhere cannot silently
+    acquire replace-ability here.
+
+    THREE KINDS OF ANSWER, each of which the rescore's caller relies on:
+
+      * an IMPROVEMENT is permitted (`partial` -> `substantially-complete`, `partial` -> `executed`,
+        `failed-safely` -> `substantially-complete`), which is the whole point: the first score was
+        computed from the empty-outcome fallback and the re-ask has since re-collected the real answer;
+      * an EQUAL score is NOT an improvement, so a re-ask that changed nothing rewrites nothing and
+        emits no event; and
+      * a DOWNGRADE is REFUSED (`substantially-complete` -> `partial`, `executed` -> anything lower).
+
+    THREE STATUSES ARE NEVER REPLACEABLE IN EITHER DIRECTION, and the honest reason differs between
+    them. :data:`INTEGRATION_DEFERRED_STATUS` (`merge-retry`) is the one that MATTERS: it is NOT in
+    :data:`DEFECT_REASK_SKIPPED_STATUSES`, so a re-ask can fire on a deferred item and reach the
+    rescore, and relabelling a deferral destroys it (see the comment above
+    :func:`reconcile_disposition`'s deferral passthrough, `oc_runipd.py:6120-6132`, for why). By
+    contrast `runner_stop.STOPPED_DISPOSITION` (`interrupted`) and `runner_stop.FORCED_DISPOSITION`
+    (`unknown_outcome`) ARE both already in that skip set, so neither can be the `before` value at the
+    rescore point today; their entries here are DEFENCE IN DEPTH against a future widening of the skip
+    set, not a live path, and must not be described as the safety property that matters.
+    """
+
+    from agent_workflows import runner_stop
+
+    never_replaceable = (
+        INTEGRATION_DEFERRED_STATUS,
+        runner_stop.STOPPED_DISPOSITION,
+        runner_stop.FORCED_DISPOSITION,
+    )
+    if before in never_replaceable or after in never_replaceable:
+        return False
+    before_rank = RESCORE_DISPOSITION_RANK.get(before or "")
+    after_rank = RESCORE_DISPOSITION_RANK.get(after or "")
+    if before_rank is None or after_rank is None:
+        return False
+    return after_rank > before_rank
+
+
 def reconcile_disposition(
     repo: Path,
     item: dict[str, Any],
@@ -17632,6 +17691,98 @@ def execute_item_core(
                     "findings_count": len(record["findings"]),
                 },
             )
+
+        # ---- reaskscore-01 (`skn8uk`) E-02..E-05: RESCORE FROM THE RE-COLLECTED OUTCOME -----------
+        #
+        # THE DEFECT THIS CLOSES, measured twice on 2026-09-18 (`zqs0px` in
+        # `run-20260918T193638Z-2963696`, `zz5yxq` in `run-20260918T190723Z-2697256`). The turn above
+        # was scored ONCE, before the defect re-ask, and when the first turn wrote no outcome file that
+        # score is correctly the empty-outcome fallback `partial`. The re-ask then resumes the SAME
+        # session, the resumed turn does the ENTIRE job, and the injected `recollect` writes the agent's
+        # now-complete outcome to exactly the path the scorer reads. Nothing rescored it: the block above
+        # re-reads that file for the defect REPORT alone and mutates only the `defect_*` keys, so
+        # `disposition`, `attempt["disposition"]`, `item["status"]` and `item["last_outcome"]` all kept
+        # their pre-re-ask values. `integration_gate_relevant` below then read the stale local, so no
+        # verifier ran, no suite check ran, the lane was never integrated, `driver_finalize` was never
+        # called, and the item landed `partial` with `last_outcome: null` BESIDE a complete outcome file.
+        # Both times every sibling cascaded `dependency-blocked` and the run ended BLOCKED with 0 of 4
+        # executed. THE CASCADE WAS CORRECT; only its input was wrong.
+        #
+        # SITED HERE, after the defect record and its event and BEFORE `integration_gate_relevant`, which
+        # is the one position where it has effect and cannot race a gate. The existing top-level
+        # `save_state(run_dir, state)` after the `integration_gate_relevant` block persists these
+        # mutations, so no new `save_state` call site is added (see
+        # `tests/test_runner_shared.py::WrapperTests::test_no_call_site_was_rewritten`, which counts them).
+        #
+        # THE RECEIPT'S `collected` LIST IS THE GATE, NOT ITS `status`, and this is the detail that
+        # decides whether the gate works at all. `collect_lane_submissions` sets `status` to
+        # `complete` UNCONDITIONALLY once its three collects return, and classifies a MISSING source
+        # `absent`, which appears in NEITHER `collected` NOR `failed`. So a lane that submitted nothing
+        # yields `status: "complete"`, `collected: []`, `failed: []`, and a gate on either of those
+        # passes on it - a decorative safeguard that would re-derive the same `partial` from no new
+        # evidence. Only `"outcome" in receipt["collected"]` distinguishes collected from absent. The
+        # receipt is also the ONLY authoritative source by spec `7ckptx` R2.5: absence means NOT
+        # collected and must never be inferred from a file existing somewhere.
+        #
+        # THE ORIGINAL EXECUTOR `exit_code` IS PASSED, never the re-ask's `reask_rc`: the fallback branch
+        # keys on it, and the re-ask's exit code is a different fact already recorded separately as
+        # `attempt["defect_reask_exit_code"]`.
+        if not is_review and attempt.get("defect_reasked"):
+            rescore_receipt = lane_containment.read_collection_receipt(
+                run_dir, item, attempt_no
+            )
+            if rescore_receipt is not None and "outcome" in (
+                rescore_receipt.get("collected") or ()
+            ):
+                rescored, rescored_outcome = reconcile_disposition(
+                    repo,
+                    item,
+                    run_dir,
+                    exit_code,
+                    plan_repo=Path(work_dir) if work_dir else None,
+                )
+                if rescore_is_an_improvement(disposition, rescored):
+                    rescore_before = disposition
+                    # THE SECOND SCORE IS COMPUTED INTO TEMPORARIES AND ADOPTED ONLY HERE, deliberately
+                    # in two statements rather than one. A direct `disposition, outcome =
+                    # reconcile_disposition(...)` would have OVERWRITTEN the first score before the
+                    # improvement check could compare against it, which is the monotonicity this plan
+                    # exists to guarantee. The adoption is still the tuple assignment the AST ordering
+                    # pins in `tests/test_rununify_execute_item_gates.py` resolve, because they locate a
+                    # tuple target containing a `Name` called `disposition`.
+                    disposition, outcome = rescored, rescored_outcome
+                    attempt["disposition"] = disposition
+                    item["status"] = disposition
+                    item["last_outcome"] = outcome
+                    # `verification_status` is DELIBERATELY left alone (plan OQ-02): the verifier block
+                    # sits EARLIER in this body, so "re-running" it here would mean a backward jump or a
+                    # second paid verifier turn inside one attempt. The consequence is stated rather than
+                    # hidden: a rescued item reaches `integration_is_earned` with `verify_disp` still
+                    # `None`, so the DRIVER runs the suite itself for the trust signal and the item is
+                    # integrated on a driver-observed suite result or not at all, never on an unverified
+                    # agent claim.
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "ipd-rescored",
+                            "id6": item["id6"],
+                            "attempt": attempt_no,
+                            "before": rescore_before,
+                            "after": disposition,
+                            "reason": (
+                                "a defect re-ask re-collected this attempt's outcome and it reports "
+                                "more completion than the pre-re-ask score"
+                            ),
+                        },
+                    )
+                    print(
+                        pal(
+                            f"  \u21ba IPD {item['id6']} rescored {rescore_before} -> {disposition} "
+                            f"from the outcome its defect re-ask re-collected",
+                            "cyan",
+                        )
+                    )
 
         suite_result: Any = None
         integration_gate_relevant = (
