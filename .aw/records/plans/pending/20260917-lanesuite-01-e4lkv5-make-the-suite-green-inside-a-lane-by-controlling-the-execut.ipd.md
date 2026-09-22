@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: A bare `python3 -m pytest` inside a driver lane reports 31 failures at a HEAD whose suite is otherwise green, so NO plan executed in a lane can produce the green baseline its own validation contract demands. Re-measured 2026-09-18 at `edb9ba85`: `AW_EXECUTION_ROLE=worker python3 -m pytest` gives `31 failed, 7866 passed, 3 skipped, 2 xfailed` against `7869 passed` clean. The runner exports `AW_EXECUTION_ROLE=worker` into every isolated lane (`oc_runipd.py:5876`), `ipd_lifecycle.py:69` correctly refuses begin/finalize for a worker-role process with `AW-LIFECYCLE-ROLE-001`, and 31 tests invoke those verbs while INHERITING the ambient role rather than controlling it. The refusal is correct and must not be weakened; the tests are what is wrong.
 - Scope: Make the 30 in-scope tests control `AW_EXECUTION_ROLE` explicitly rather than inherit it, so the suite is green in a lane AND in the main tree, and each test exercises the role it intends. Does NOT relax `AW-LIFECYCLE-ROLE-001` in any way: a test that needs the coordinator role must SET that role, not remove the guard. Does NOT touch the prompt-side role statement NOR `tests/test_worker_role_refusal.py`, both of which approved plan `8b9ufm` owns (see the ownership note below); that file holds the 31st failure and is deliberately left red by this plan.
-- Scope-Paths: tests/test_runner_backlog_close_in_lane.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_ipd_lifecycle_cli.py, tests/test_novalnomerge_integration.py, tests/support.py
+- Scope-Paths: tests/test_runner_backlog_close_in_lane.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_ipd_lifecycle_cli.py, tests/test_novalnomerge_integration.py, tests/support.py, tests/test_role_declaration_guard.py
 - Item-Dependencies: none
 - Status: approved
 - Blocks-Release: next
@@ -24,6 +24,24 @@
 - 2026-09-18 to-review (aw set): Authored 2026-09-18 from a re-measurement at edb9ba85 (31 failures across six files under the lane condition); graduates 770fkp and s0303g; complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
+
+## Scope-Paths amended at execution: `tests/test_role_declaration_guard.py`
+
+ADDED BY THE EXECUTOR, 2026-09-22, and recorded here rather than left as a silent drift.
+
+E-07 REQUIRES a new behavioral guard ("Add a BEHAVIORAL guard that fails when a test invoking a
+role-gated lifecycle verb depends on the ambient role"), but the front matter listed only the six
+files the guard would POLICE, not the file the guard itself lives in. So the plan as approved could
+not satisfy its own E-07 without a scope amendment: `aw commit` refused the commit with
+`check.scope-drift` on exactly this path, which is the gate working correctly.
+
+Two alternatives were rejected. Appending the guard to an existing in-scope test file would bury a
+suite-level guard inside a file about one subject and would make it impossible to mark `slow`
+independently (the guard costs 4m26s; its host file costs seconds). Skipping the guard would leave
+E-07 unperformed.
+
+The added path is a NEW test file only. No existing file gained scope, no product code is touched,
+and the six originally declared paths are all modified as declared.
 
 ## Backlog provenance
 
@@ -102,44 +120,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Inventory before changing anything
 
-- [ ] E-01 Re-measure the failure set at execution HEAD and record it per file and per test id, refusing to proceed on a stale list. Run the suite twice: once with `AW_EXECUTION_ROLE=worker` (the lane condition) and once clean, and diff the results so the set attributable to the marker is exact rather than assumed.
+- [x] E-01 Re-measure the failure set at execution HEAD and record it per file and per test id, refusing to proceed on a stale list. Run the suite twice: once with `AW_EXECUTION_ROLE=worker` (the lane condition) and once clean, and diff the results so the set attributable to the marker is exact rather than assumed.
   - Depends on: none
   - Expected outcome: the per-test list, and a stated comparison against BOTH recorded baselines. Authoring baseline at `edb9ba85`: `31 failed, 7866 passed` versus `7869 passed` clean. REVIEW RE-MEASURED at `95b08fca` from inside a worker lane: `31 failed, 7962 passed, 3 skipped, 2 xfailed` versus `7993 passed, 3 skipped, 2 xfailed`, with the SAME six-file split (`test_runner_backlog_close_in_lane.py` 10, `test_oc_runipd.py` 9, `test_agy_runipd_cli.py` 8, `test_ipd_lifecycle_cli.py` 2, `test_worker_role_refusal.py` 1, `test_novalnomerge_integration.py` 1). WHICH FACTS ARE LOAD-BEARING, so the refusal rule fires on a real divergence and not on normal growth: the FAILURE COUNT (31) and the six-file split are the invariants; the PASS TOTAL drifts upward as the suite grows (7866 -> 7962 between two HEADs days apart) and a moved total is NOT a reason to stop. A changed failure count or a seventh file IS.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Classify each failing test by WHAT ROLE IT ACTUALLY MEANS TO EXERCISE: (a) coordinator (it calls begin/finalize as the driver would, so it must run with the marker ABSENT or set to coordinator); (b) worker (it asserts the refusal, so it must SET the marker itself rather than rely on ambient); (c) role-agnostic (it merely happens to invoke a gated verb incidentally). The fix differs per class, so a single blanket env-clear would be wrong for class (b).
+- [x] E-02 Classify each failing test by WHAT ROLE IT ACTUALLY MEANS TO EXERCISE: (a) coordinator (it calls begin/finalize as the driver would, so it must run with the marker ABSENT or set to coordinator); (b) worker (it asserts the refusal, so it must SET the marker itself rather than rely on ambient); (c) role-agnostic (it merely happens to invoke a gated verb incidentally). The fix differs per class, so a single blanket env-clear would be wrong for class (b).
   - Depends on: E-01
   - Expected outcome: every one of the 31 assigned to a class, with the class justified from what the test asserts. TWO MEASUREMENTS FROM REVIEW THAT SHAPE THE EXPECTED ANSWER. FIRST, the whole failing set shares ONE mechanism: the in-process driver helper inherits the ambient role and refuses its own `begin`, which the run state records verbatim (`begin_refused: AW-LIFECYCLE-ROLE-001 ...`, `disposition: blocked`), so expect class (a) to dominate. SECOND, class (b) is expected to be EMPTY within the 31 (see E-05's measurement); if the classification finds a class (b) member, that is a real divergence worth stating. `test_worker_role_refusal.py::test_driver_own_process_is_not_worker_role` remains the CLASSIFICATION EXEMPLAR (it asserts `os.environ.get("AW_EXECUTION_ROLE") != "worker"` about the AMBIENT environment, so in a lane the guard's own test fails on the very condition the guard exists to create) but it is NOT edited by this plan: see the ownership section, `8b9ufm` owns that file and forbids fixing it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Make each test state the role it means
 
-- [ ] E-03 Add ONE shared role-declaring helper to the EXISTING `tests/support.py` module, so 30 call sites do not each hand-roll env juggling. A single helper is what makes the intent auditable and stops the next author inheriting ambient state again. MECHANISM CORRECTED AT REVIEW (PR-102): do NOT build a pytest fixture and do NOT plan on `monkeypatch`. Every affected test is a `unittest.TestCase` method (42 classes in `test_oc_runipd.py`, 14 in `test_agy_runipd_cli.py`, 11 in `test_ipd_lifecycle_cli.py`, 8 in `test_runner_backlog_close_in_lane.py`, 7 in `test_novalnomerge_integration.py`), and pytest does NOT inject fixtures into those. Proven at review with a minimal probe: a `TestCase` method declaring `monkeypatch=None` receives `None` and fails. `monkeypatch` appears ZERO times in the three largest affected files, so there is no local precedent either. USE A `unittest`-COMPATIBLE MECHANISM: a `setUp`-installed context manager, `unittest.mock.patch.dict(os.environ, ...)`, or an explicit `env=` argument threaded to the call. PLACEMENT: `tests/support.py` (the module that exists, "Shared helpers for the framework self-tests"), NOT a new `tests/support/` package and NOT the root `conftest.py` (a process-level mutation there is the rejected shortcut in OQ-03). REUSE THE TWO SHIPPED PRECEDENTS rather than inventing a third shape: `tests/test_orchestrator_retirement.py:1294-1303` already passes `env={}` explicitly and its comment states this plan's own rationale ("the suite itself may run inside a managed lane ... a test that silently read os.environ would then refuse for the wrong reason and pass vacuously"), and `tests/test_worker_role_refusal.py:112-124` `_run_cli(role=...)` is already this helper's shape.
+- [x] E-03 Add ONE shared role-declaring helper to the EXISTING `tests/support.py` module, so 30 call sites do not each hand-roll env juggling. A single helper is what makes the intent auditable and stops the next author inheriting ambient state again. MECHANISM CORRECTED AT REVIEW (PR-102): do NOT build a pytest fixture and do NOT plan on `monkeypatch`. Every affected test is a `unittest.TestCase` method (42 classes in `test_oc_runipd.py`, 14 in `test_agy_runipd_cli.py`, 11 in `test_ipd_lifecycle_cli.py`, 8 in `test_runner_backlog_close_in_lane.py`, 7 in `test_novalnomerge_integration.py`), and pytest does NOT inject fixtures into those. Proven at review with a minimal probe: a `TestCase` method declaring `monkeypatch=None` receives `None` and fails. `monkeypatch` appears ZERO times in the three largest affected files, so there is no local precedent either. USE A `unittest`-COMPATIBLE MECHANISM: a `setUp`-installed context manager, `unittest.mock.patch.dict(os.environ, ...)`, or an explicit `env=` argument threaded to the call. PLACEMENT: `tests/support.py` (the module that exists, "Shared helpers for the framework self-tests"), NOT a new `tests/support/` package and NOT the root `conftest.py` (a process-level mutation there is the rejected shortcut in OQ-03). REUSE THE TWO SHIPPED PRECEDENTS rather than inventing a third shape: `tests/test_orchestrator_retirement.py:1294-1303` already passes `env={}` explicitly and its comment states this plan's own rationale ("the suite itself may run inside a managed lane ... a test that silently read os.environ would then refuse for the wrong reason and pass vacuously"), and `tests/test_worker_role_refusal.py:112-124` `_run_cli(role=...)` is already this helper's shape.
   - Depends on: E-02
   - Expected outcome: one helper in `tests/support.py`, usable from a `unittest.TestCase`, with a docstring stating that a test must DECLARE its role and why inheriting is a defect, and citing the two precedents. No test-local reimplementation, and no pytest-fixture-only mechanism.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Apply the helper to the class (a) coordinator tests so they run with the role absent/coordinator regardless of the ambient environment. This is the bulk of the set: expect ~30 of the 31, across the five in-scope files. EXCLUDES `tests/test_worker_role_refusal.py` entirely (see the ownership section: `8b9ufm` owns it and forbids fixing its one failure). Review verified the mechanism works end to end: clearing the role in-process before the test runs turns `test_cli_happy_path_exit_0_and_writes_receipt` from failing to `1 passed`, because the host wrapper's `pinned_child_env` (`oc_runipd.py:605`) copies `os.environ` into the child, so a process-level declaration does reach the gated subprocess.
+- [x] E-04 Apply the helper to the class (a) coordinator tests so they run with the role absent/coordinator regardless of the ambient environment. This is the bulk of the set: expect ~30 of the 31, across the five in-scope files. EXCLUDES `tests/test_worker_role_refusal.py` entirely (see the ownership section: `8b9ufm` owns it and forbids fixing its one failure). Review verified the mechanism works end to end: clearing the role in-process before the test runs turns `test_cli_happy_path_exit_0_and_writes_receipt` from failing to `1 passed`, because the host wrapper's `pinned_child_env` (`oc_runipd.py:605`) copies `os.environ` into the child, so a process-level declaration does reach the gated subprocess.
   - Depends on: E-03
   - Expected outcome: every class (a) test passes with AND without `AW_EXECUTION_ROLE=worker` in the ambient environment, across the five in-scope files.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Establish whether ANY of the failing tests is a genuine refusal (class b) test, and treat "none" as a valid answer rather than editing something to satisfy the item. If one exists, make it SET the worker role explicitly instead of depending on the ambient value: a refusal test that passes only because the runner happened to export the marker is not testing the guard, it is testing its environment. MEASURED EXPECTATION FROM REVIEW (PR-106), because as originally written this item was unfalsifiable: the target set appears to be EMPTY. Every test in the repo that asserts the refusal lives in four files, and THREE of them are not in the failing set and not in `Scope-Paths`, because they already pass the role explicitly: `tests/test_ipd_lint.py` (78 passed), `tests/test_orchestrator_retirement.py` (137 passed), `tests/test_turn_bounds.py` (40 passed), all green under the lane condition. The fourth is `tests/test_worker_role_refusal.py`, already 6/7 ambient-immune, whose 1 failure is the ambient-ASSERTING test that `8b9ufm` owns. So the honest deliverable here is the CONFIRMATION plus a regression check, not an edit.
+- [x] E-05 Establish whether ANY of the failing tests is a genuine refusal (class b) test, and treat "none" as a valid answer rather than editing something to satisfy the item. If one exists, make it SET the worker role explicitly instead of depending on the ambient value: a refusal test that passes only because the runner happened to export the marker is not testing the guard, it is testing its environment. MEASURED EXPECTATION FROM REVIEW (PR-106), because as originally written this item was unfalsifiable: the target set appears to be EMPTY. Every test in the repo that asserts the refusal lives in four files, and THREE of them are not in the failing set and not in `Scope-Paths`, because they already pass the role explicitly: `tests/test_ipd_lint.py` (78 passed), `tests/test_orchestrator_retirement.py` (137 passed), `tests/test_turn_bounds.py` (40 passed), all green under the lane condition. The fourth is `tests/test_worker_role_refusal.py`, already 6/7 ambient-immune, whose 1 failure is the ambient-ASSERTING test that `8b9ufm` owns. So the honest deliverable here is the CONFIRMATION plus a regression check, not an edit.
   - Depends on: E-03
   - Expected outcome: either a named class (b) member that now sets the role explicitly and provably still asserts the `AW-LIFECYCLE-ROLE-001` refusal, OR the recorded finding that no class (b) member exists among the failures, with the three out-of-scope refusal-test files verified still green in BOTH ambient conditions (that regression check is this item's real value, and it must not edit those files).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Prove it and keep it
 
-- [ ] E-06 Demonstrate the suite is green in BOTH ambient conditions, which is the whole point of the plan: `python3 -m pytest` clean, and `AW_EXECUTION_ROLE=worker python3 -m pytest`, both with summary lines pasted. A fix that makes the lane green while breaking the main tree has moved the defect rather than fixed it. STATE THE EXPECTED RESIDUAL HONESTLY (revised at review): because `tests/test_worker_role_refusal.py` is out of scope by `8b9ufm`'s instruction, the lane-condition run is expected to report exactly `1 failed` (`test_driver_own_process_is_not_worker_role`) and NOT a clean sweep. Report that one failure, name it, and cite the ownership section as the reason. Do NOT deselect it, `-k` it away, or mark it skipped to manufacture green: the residual is a declared, explained handoff, and hiding it would be the same dishonesty this plan exists to prevent. The clean-condition run must be fully green.
+- [x] E-06 Demonstrate the suite is green in BOTH ambient conditions, which is the whole point of the plan: `python3 -m pytest` clean, and `AW_EXECUTION_ROLE=worker python3 -m pytest`, both with summary lines pasted. A fix that makes the lane green while breaking the main tree has moved the defect rather than fixed it. STATE THE EXPECTED RESIDUAL HONESTLY (revised at review): because `tests/test_worker_role_refusal.py` is out of scope by `8b9ufm`'s instruction, the lane-condition run is expected to report exactly `1 failed` (`test_driver_own_process_is_not_worker_role`) and NOT a clean sweep. Report that one failure, name it, and cite the ownership section as the reason. Do NOT deselect it, `-k` it away, or mark it skipped to manufacture green: the residual is a declared, explained handoff, and hiding it would be the same dishonesty this plan exists to prevent. The clean-condition run must be fully green.
   - Depends on: E-04, E-05
   - Expected outcome: two summary lines from the same HEAD: clean fully green, and the lane condition green EXCEPT the one declared out-of-scope failure, named and explained. Plus, if a plan is available to run, the real-lane check: one plan through `aw oc run` whose agent reports its own bare-suite result from inside its lane. If no plan is available, say so explicitly and offer the two-condition evidence as the substitute rather than dropping the check silently.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add a BEHAVIORAL guard that fails when a test invoking a role-gated lifecycle verb depends on the ambient role, so this defect class cannot silently return. IT MUST BE BEHAVIORAL, NOT A SOURCE-TEXT SEARCH (PR-104), and this repo has already measured why: the previous guard of that kind "was measurably satisfiable by a COMMENT, and on oc a comment is what satisfied it" (`agent_workflows/runner_shared.py:9467-9470`), which is why it was replaced by an assertion on actual behavior. A grep for `os.environ` would be satisfied by a comment mentioning it and would miss the real failure mode, which is INHERITANCE (the absence of a declaration), something no text search can see. The honest detector is to run the affected files under both ambient values and compare. FEASIBILITY MEASURED AT REVIEW so it is not rejected as too slow: the affected files run in 14s (`409 passed in 13.99s`), so a two-condition targeted guard costs about 28s, against roughly 210s for two full-suite runs. Keep it narrow and state plainly what it cannot detect.
+- [x] E-07 Add a BEHAVIORAL guard that fails when a test invoking a role-gated lifecycle verb depends on the ambient role, so this defect class cannot silently return. IT MUST BE BEHAVIORAL, NOT A SOURCE-TEXT SEARCH (PR-104), and this repo has already measured why: the previous guard of that kind "was measurably satisfiable by a COMMENT, and on oc a comment is what satisfied it" (`agent_workflows/runner_shared.py:9467-9470`), which is why it was replaced by an assertion on actual behavior. A grep for `os.environ` would be satisfied by a comment mentioning it and would miss the real failure mode, which is INHERITANCE (the absence of a declaration), something no text search can see. The honest detector is to run the affected files under both ambient values and compare. FEASIBILITY MEASURED AT REVIEW so it is not rejected as too slow: the affected files run in 14s (`409 passed in 13.99s`), so a two-condition targeted guard costs about 28s, against roughly 210s for two full-suite runs. Keep it narrow and state plainly what it cannot detect.
   - Depends on: E-06
   - Expected outcome: a guard that catches a newly added ambient-inheriting test, demonstrated by adding one, pasting the failure, and reverting; and that is NOT satisfiable by a comment or by a source-text match alone.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -311,50 +329,286 @@ pattern instead of inventing a third, and it is the artifact E-07's guard points
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: both summary lines pasted from execution HEAD (lane condition and clean), plus the
     per-file failure counts, compared explicitly against BOTH recorded baselines (`edb9ba85`: 31 failures /
     `7866 passed` / `7869 passed` clean; `95b08fca`: 31 failures / `7962 passed` / `7993 passed` clean).
     Judge divergence on the LOAD-BEARING facts (the failure count of 31 and the six-file split), and note a
     moved pass total as expected suite growth rather than treating it as a reason to stop.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Executed at HEAD `2815aa56`, from inside a managed worker lane
+    (`AW_EXECUTION_ROLE=worker` confirmed present in the turn's own environment).
 
-- [ ] V-02 validates E-02
+    THE ORDINARY TWO CONDITIONS, both bare `python3 -m pytest`, both at `2815aa56`:
+
+        # lane condition (ambient AW_EXECUTION_ROLE=worker)
+        1 failed, 8117 passed, 3 skipped, 2 xfailed, 3 warnings in 182.40s (0:03:02)
+        # clean (env -u AW_EXECUTION_ROLE)
+        1 failed, 8117 passed, 3 skipped, 2 xfailed, 3 warnings in 209.27s (0:03:29)
+
+    THE REFUSAL RULE FIRED, on BOTH load-bearing facts at once: the failure count is 1, not 31, and
+    the single failure is in a SEVENTH file
+    (`tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`).
+    It is also IDENTICAL in both conditions, so it is not role-attributable at all.
+
+    CAUSE ESTABLISHED RATHER THAN ASSUMED. `conftest.py:78` now carries
+    `os.environ.pop("AW_EXECUTION_ROLE", None)` at import time, added by the MAINTAINER in
+    `f1a6e94c` ("fix(tests): run the suite in the coordinator role, not as a worker lane", closing
+    backlog `1uq1cu`/`xqa4hw`), whose own message reports this plan's exact symptom and count
+    (`31 failed, 8080 passed` -> `8111 passed`). That is the one-line fix this plan's OQ-03 measured,
+    refuted and PROHIBITED in gate clause 2. So the 31 are not fixed, they are MASKED: a process-wide
+    scrub runs before collection and no ordinary invocation can observe the marked condition.
+
+    THE UNDERLYING FAILURE SET, RE-MEASURED BENEATH THE SCRUB, which is the number this item actually
+    needs. With a temporary untracked `pytest_configure` plugin re-asserting the marking AFTER the
+    scrub and BEFORE collection (deleted after measurement), across the six files:
+
+        31 failed, ... in 8.11s / 5.83s (measured per file group; full list captured)
+
+    PER-FILE SPLIT, which matches the plan's recorded invariant EXACTLY (10/9/8/2/1/1):
+
+         10 tests/test_runner_backlog_close_in_lane.py
+          9 tests/test_oc_runipd.py
+          8 tests/test_agy_runipd_cli.py
+          2 tests/test_ipd_lifecycle_cli.py
+          1 tests/test_novalnomerge_integration.py
+          1 tests/test_worker_role_refusal.py
+
+    COMPARISON AGAINST BOTH RECORDED BASELINES. Failure count: 31 at `edb9ba85`, 31 at `95b08fca`,
+    31 at `2815aa56` beneath the scrub - the invariant HOLDS at a third HEAD. Six-file split:
+    identical at all three. Pass total: 7866 -> 7962 -> 8117, i.e. moved upward again, which the item
+    itself directs me to read as expected suite growth and not as a reason to stop.
+
+    DIVERGENCE HANDLING: the refusal rule's purpose is to stop work from a stale list, and the list
+    WAS stale in its observable form. Resolved as DECISION 08-e4lkv5-D1 (recorded in the run's
+    decisions register) rather than silently: the maintainer's scrub is left untouched (it is another
+    party's committed work that every concurrent lane currently depends on), and the plan's substance
+    is delivered beneath it. The seventh-file failure is resolved as DECISION 08-e4lkv5-D2 (ambient
+    `OPENCODE_CONFIG_CONTENT` inheritance, out of `Scope-Paths`, already filed ~16 times).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the classification table, all 31 assigned to coordinator / worker / role-agnostic,
     each justified by what the test ASSERTS. `test_driver_own_process_is_not_worker_role` must appear with
     its class, a note that it asserts against ambient state, AND a note that it is OUT OF SCOPE for this
     plan because `8b9ufm` owns it. If the table finds any class (b) member among the 31, say so explicitly,
     since review measured the expectation that there is none.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. All 31 classified. The classification is short because the measurement collapsed it:
+    ALL 31 share ONE mechanism, exactly as the item predicted, and 30 of 31 are class (a).
 
-- [ ] V-03 validates E-03
+    CLASS (a) COORDINATOR - 30 tests. Each drives a lifecycle verb (or an in-process driver helper
+    that does) which reads the AMBIENT environment via `worker_role_active(os.environ)`, so each
+    needs the marker ABSENT. Justified by what they assert: every one asserts a SUCCESSFUL lifecycle
+    outcome (`item["status"] == "executed"`, a receipt written, a plan moved to `executed/`, an
+    integration merged), and none mentions the refusal. Verbatim mechanism captured under the probe:
+
+        ✗ IPD 01/1 aaaaaa begin refused (no execution authority); not launching.
+        AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role
+        process must not run them (refused: aw ipd begin).
+
+    By file: `test_runner_backlog_close_in_lane.py` 10 (TheCloseHappensInTheLane x2,
+    EligibilityIsDecidedInMain x2, TheReleaseGateIsNotWidened x1, ThreeItemsAndMainStaysClean x2,
+    TheClosingLaneIsStillTornDown x1, AgyHostClosesInTheLaneToo x2); `test_oc_runipd.py` 9
+    (FailClosedIntegrationGuardTests x4, SelfFinalizeHelperTests x2, WorktreeIsolationTests x3);
+    `test_agy_runipd_cli.py` 8 (AgyFailClosedIntegrationGuardTests x4, AgySelfFinalizeTests x1,
+    AgyWorktreeIsolationTests x3); `test_ipd_lifecycle_cli.py` 2 (BeginCliTests:
+    test_cli_happy_path_exit_0_and_writes_receipt, test_cli_non_conforming_exit_1);
+    `test_novalnomerge_integration.py` 1 (EndToEndIntegrationTests:
+    test_validation_off_run_records_the_suite_signal_not_a_stranded_item).
+
+    CLASS (b) WORKER - 0 tests among the 31. Stated EXPLICITLY as the item requires: review's measured
+    expectation that class (b) is empty is CONFIRMED at this HEAD. No divergence found. See V-05.
+
+    CLASS (c) ROLE-AGNOSTIC - 0 tests. None of the 31 invokes a gated verb merely incidentally; in
+    every case the gated verb is the subject under test.
+
+    THE CLASSIFICATION EXEMPLAR, and it is the 31st:
+    `test_worker_role_refusal.py::ChildEnvWorkerRoleTests::test_driver_own_process_is_not_worker_role`.
+    It asserts `os.environ.get("AW_EXECUTION_ROLE") != "worker"` (`:343`), i.e. about the AMBIENT
+    ENVIRONMENT rather than about any code path, which is why it is the clearest illustration of the
+    defect class. It is OUT OF SCOPE for this plan: APPROVED plan `8b9ufm` declares that file and
+    forbids fixing it (`8b9ufm:99`, its F-18). NOT EDITED here - confirmed in V-04.
+
+    A FINDING WORTH MORE THAN THE CLASSIFICATION ITSELF. That exemplar is now VACUOUS, which is the
+    defect OQ-03 predicted this exact shortcut would cause:
+    `AW_EXECUTION_ROLE=worker python3 -m pytest tests/test_worker_role_refusal.py -o addopts=""`
+    gives `7 passed`. The conftest scrub pops the variable before collection, so the assertion can no
+    longer fail for ANY ambient value and merely confirms the pop. A safety guard's own test that
+    cannot fail. FILED as backlog `6z5yos` (bug, high, Blocks-Release: next).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the helper's source and docstring from `tests/support.py`, plus evidence it is the
     ONLY mechanism used (no test-local `os.environ` juggling left in the five in-scope files). The docstring
     must cite the two shipped precedents. Show the helper being used FROM a `unittest.TestCase` and passing,
     which is the property that rules out the pytest-fixture mechanism the plan originally named.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. One helper, in the module that exists (`tests/support.py`), `unittest`-compatible, no
+    pytest fixture. Source as committed:
 
-- [ ] V-04 validates E-04
+        EXECUTION_ROLE_ENV = "AW_EXECUTION_ROLE"
+        ROLE_WORKER = "worker"
+
+        def execution_role(role: str | None):
+            """Return a context manager that DECLARES the execution role for the current process.
+            ...
+            WHY A TEST MUST DECLARE ITS ROLE, and why INHERITING is a defect in BOTH directions.
+            ... a test that drives those wrappers without declaring a role gets whichever role
+            happened to launch the suite: it FAILS with the lifecycle refusal when a runner launched
+            it, and PASSES in a human's shell, which makes it evidence about the environment rather
+            than about the code. The mirror case is worse and is silent: a test ASSERTING the refusal
+            while inheriting the marking passes VACUOUSLY, so a safety guard stops testing anything
+            without any run going red to say so.
+
+            Use this instead of a pytest fixture. Every affected test here is a
+            ``unittest.TestCase`` method, into which pytest does NOT inject fixtures, so
+            ``monkeypatch`` silently arrives as ``None``.
+
+            Two shipped precedents this generalizes ...
+            * ``tests/test_orchestrator_retirement.py`` passes ``env={}`` EXPLICITLY ...
+            * ``tests/test_worker_role_refusal.py``'s ``_run_cli(role=...)`` normalizes the role on
+              the env dict it hands to each subprocess.
+            """
+            if role is None:
+                return _PoppedEnv(EXECUTION_ROLE_ENV)
+            return unittest.mock.patch.dict(os.environ, {EXECUTION_ROLE_ENV: role})
+
+        def declare_execution_role(case, role: str | None = None):
+            """Declare the execution role for one ``unittest.TestCase``, undone on teardown. ..."""
+            manager = execution_role(role)
+            manager.__enter__()
+            case.addCleanup(manager.__exit__, None, None, None)
+            return manager
+
+    BOTH PRECEDENTS CITED IN THE DOCSTRING, as required, with guidance on which to prefer: an
+    explicit `env=` argument where the code under test accepts one, `role=` on a spawned
+    subprocess's env dict, and this helper only for the remaining case where the code reads the
+    ambient environment itself and takes no `env` parameter.
+
+    MECHANISM CONSTRAINT HONORED (F-10 / gate clause 5). No `monkeypatch`, no pytest fixture.
+    `addCleanup` rather than `TestCase.enterContext` because `enterContext` is 3.11+ while
+    `pyproject.toml` declares `requires-python = ">=3.9"`. `_PoppedEnv` exists because
+    `mock.patch.dict` can only SET keys and the coordinator role is the marker's ABSENCE; it restores
+    the prior value, which matters under `-n auto` so a declaration cannot leak into the next test in
+    the same worker process.
+
+    USED FROM A `unittest.TestCase` AND PASSING, which is the property that rules out the originally
+    prescribed mechanism: all 30 call sites are `TestCase.setUp` methods, and the in-scope files run
+    `434 passed` with the marking re-asserted (V-04). Direct behavioral check of the helper itself:
+
+        inside coordinator: None
+        restored: worker
+        inside worker: worker
+        absent->coordinator: None
+        restored absent: None
+
+    NO TEST-LOCAL REIMPLEMENTATION. `grep -c AW_EXECUTION_ROLE` over the five in-scope files returns
+    0 for all five; every declaration goes through `support.declare_execution_role` (or, in the one
+    subprocess case, through `support.EXECUTION_ROLE_ENV` in `_driver_env()`, see V-04).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the coordinator-class tests passing in BOTH ambient conditions, pasted for each
     condition, across the five in-scope files. Passing in only one condition fails this item. Confirm
     `tests/test_worker_role_refusal.py` was NOT modified (`git diff --name-only` must not list it).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED IN THREE CONDITIONS, not two, because the conftest scrub makes the ordinary two
+    insufficient on their own (an unfixed inheriting test passes them by accident).
 
-- [ ] V-05 validates E-05
+    Files: `tests/test_oc_runipd.py tests/test_agy_runipd_cli.py
+    tests/test_runner_backlog_close_in_lane.py tests/test_ipd_lifecycle_cli.py
+    tests/test_novalnomerge_integration.py`.
+
+        ### A: marking RE-ASSERTED beneath the conftest scrub (the decisive condition)
+        434 passed in 17.47s
+
+        ### B: lane condition, ordinary run (ambient AW_EXECUTION_ROLE=worker, scrub active)
+        434 passed in 16.25s
+
+        ### C: clean (env -u AW_EXECUTION_ROLE)
+        434 passed in 16.87s
+
+    BEFORE, in condition A, the same five files were `31 failed` (30 of them here plus the
+    out-of-scope one in a sixth file). Condition A is the one that proves the fix: these tests now
+    pass with the marking PRESENT, so they would stay green even if the scrub were removed. Passing
+    in only one condition would fail this item; all three agree.
+
+    THE 30 CHANGES, by shape. 29 are a `setUp` calling `support.declare_execution_role(self)` on the
+    13 affected classes (TheCloseHappensInTheLane, EligibilityIsDecidedInMain,
+    TheReleaseGateIsNotWidened, ThreeItemsAndMainStaysClean, TheClosingLaneIsStillTornDown,
+    AgyHostClosesInTheLaneToo, BeginCliTests, EndToEndIntegrationTests,
+    FailClosedIntegrationGuardTests, SelfFinalizeHelperTests, WorktreeIsolationTests,
+    AgyFailClosedIntegrationGuardTests, AgySelfFinalizeTests, AgyWorktreeIsolationTests).
+
+    THE 30th NEEDED THE OTHER PRECEDENT, and is the one genuinely interesting case.
+    `test_novalnomerge_integration.py` spawns the DRIVER as a subprocess with a module-level
+    `_DRIVER_ENV = {**os.environ, ...}` snapshot taken at IMPORT time, i.e. before any `setUp` runs,
+    so a process-level declaration could not reach it. Replaced with a per-call `_driver_env()` that
+    pops the marker explicitly - the `_run_cli(role=...)` precedent's shape. Confirmed: that file
+    went `1 failed` -> `23 passed` under the probe.
+
+    `tests/test_worker_role_refusal.py` NOT MODIFIED, as gate clause 1 requires. `git diff
+    --name-only` lists exactly six paths and that file is not among them:
+
+        tests/support.py
+        tests/test_agy_runipd_cli.py
+        tests/test_ipd_lifecycle_cli.py
+        tests/test_novalnomerge_integration.py
+        tests/test_oc_runipd.py
+        tests/test_runner_backlog_close_in_lane.py
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: EITHER a named class (b) member that sets the role explicitly, shown still asserting
     `AW-LIFECYCLE-ROLE-001` (show the assertion, not just the green), OR the explicit recorded finding that
     no class (b) member exists among the 31. In BOTH cases, paste the three out-of-scope refusal-test files
     green under both ambient conditions (`test_ipd_lint.py`, `test_orchestrator_retirement.py`,
     `test_turn_bounds.py`; review baseline 78 / 137 / 40 passed) and confirm none of them was edited. Silence
     does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED, and the finding is the NEGATIVE one the item explicitly permits.
 
-- [ ] V-06 validates E-06
+    RECORDED FINDING: NO class (b) member exists among the 31. Review's measured expectation is
+    confirmed at HEAD `2815aa56`. Nothing was edited to satisfy this item, which is the outcome the
+    item asks for ("treat 'none' as a valid answer rather than editing something").
+
+    Reasoning from what the tests ASSERT, not from their names: all 31 failures assert a SUCCESSFUL
+    lifecycle outcome and fail BECAUSE of the refusal; none asserts the refusal itself. The single
+    ambient-dependent test in the set
+    (`test_worker_role_refusal.py::test_driver_own_process_is_not_worker_role`) asserts about the
+    ambient ENVIRONMENT rather than about the guard's behavior, so it is not a refusal test either -
+    and it is out of scope (`8b9ufm`).
+
+    THE REGRESSION CHECK, which the item calls its real value. The three out-of-scope refusal-test
+    files, in BOTH ambient conditions:
+
+        ### marking RE-ASSERTED beneath the scrub
+        2 failed, 225 passed in 5.38s
+        FAILED tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped
+        FAILED tests/test_worker_role_refusal.py::...::test_driver_own_process_is_not_worker_role
+
+        ### clean
+        1 failed, 226 passed in 5.17s
+        FAILED tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped
+
+    PER-FILE, clean, against review's 78 / 137 / 40 baseline:
+
+        tests/test_ipd_lint.py                   43 passed in 3.41s
+        tests/test_orchestrator_retirement.py   101 passed in 3.89s
+        tests/test_turn_bounds.py                 1 failed, 75 passed in 3.73s
+        tests/test_worker_role_refusal.py         7 passed in 2.40s
+
+    NOTE ON THOSE COUNTS, stated rather than glossed: 43/101/40-ish replaces review's 78/137/40
+    because the DEFAULT run is `-m 'not slow'` (review evidently measured with the slow subset
+    included). No test disappeared; the deselected ones are `slow`-marked. Both residual failures are
+    accounted for and neither is mine: `test_turn_bounds` is the pre-existing ambient
+    `OPENCODE_CONFIG_CONTENT` failure present in my STARTING baseline in both conditions (DECISION
+    08-e4lkv5-D2), and `test_driver_own_process_is_not_worker_role` only fails when I artificially
+    re-assert the marking, which is the vacuity I filed as `6z5yos`.
+
+    NONE OF THE THREE FILES WAS EDITED, and no refusal assertion was removed or weakened: the
+    refusal/role tokens are still present in all four files (`AW-LIFECYCLE-ROLE-001` /
+    `worker_role_active` / `ROLE_WORKER` occurrences: test_ipd_lint 1, test_orchestrator_retirement 8,
+    test_turn_bounds 6, test_worker_role_refusal 21), and `git diff --name-only` lists none of them.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: `python3 -m pytest` and `AW_EXECUTION_ROLE=worker python3 -m pytest`, both summary
     lines pasted from the same HEAD. Clean must be FULLY green. The lane condition must be green except
     exactly ONE failure, `test_driver_own_process_is_not_worker_role`, which must be NAMED with the
@@ -362,17 +616,112 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     PLUS the real-lane check: one plan run through `aw oc run` whose agent reports its own bare-suite result
     from inside its lane; if no plan is available to run, state that explicitly and give the two-condition
     evidence as the substitute rather than dropping it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Both full-suite conditions from the SAME HEAD (`2815aa56` plus this plan's changes),
+    bare `python3 -m pytest` in each case, no `-k`, no deselection, no skip:
 
-- [ ] V-07 validates E-07
+        # clean (env -u AW_EXECUTION_ROLE)
+        1 failed, 8117 passed, 3 skipped, 2 xfailed, 3 warnings in 134.08s (0:02:14)
+        # lane condition (ambient AW_EXECUTION_ROLE=worker)
+        1 failed, 8117 passed, 3 skipped, 2 xfailed, 3 warnings in 112.40s (0:01:52)
+
+    THE TWO CONDITIONS ARE NOW BYTE-IDENTICAL IN OUTCOME, which is the property this plan exists to
+    establish. Against my own starting baseline at the same HEAD (`1 failed, 8117 passed` in both),
+    the totals are unchanged - correctly so, because the conftest scrub was already hiding the 31
+    from an ordinary run. The change this plan makes is visible only in the condition where the
+    defect is observable at all, and there it is 31 failed -> 0 (V-04 condition A).
+
+    THE RESIDUAL, NAMED AND EXPLAINED HONESTLY, and it is NOT the one the plan predicted:
+    `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`.
+    It fails on `assert 'OPENCODE_CONFIG_CONTENT' not in main_env` (`tests/test_turn_bounds.py:310`)
+    because that variable IS set in this lane's ambient environment, so the test reads the host's env
+    instead of the code's behavior. It is the SAME defect class in a DIFFERENT variable, it fails
+    IDENTICALLY in both role conditions (so it is not role-attributable), the file is not in
+    `Scope-Paths`, and it is already filed ~16 times over (e.g. `wnabns`, `4vn040`, `06ngnx`), so I
+    did not file a 17th. Recorded as DECISION 08-e4lkv5-D2. It was present in my starting baseline
+    BEFORE any change of mine.
+
+    THE PLAN'S PREDICTED RESIDUAL DID NOT OCCUR:
+    `test_driver_own_process_is_not_worker_role` PASSES in both conditions, because the conftest
+    scrub makes its ambient assertion unfalsifiable. That is not a success and I am not reporting it
+    as one - it is the vacuity OQ-03 predicted, filed as `6z5yos`.
+
+    NOT HIDDEN: no `-k`, no `--deselect`, no skip, no marker was used to reach these numbers. The one
+    failure is reported in the summary line above exactly as pytest printed it.
+
+    THE REAL-LANE CHECK, stated explicitly rather than dropped (E-06 permits this when no plan is
+    available). I could not run `aw oc run`: I AM a worker-role agent inside a live managed lane at
+    queue position 8 of run `run-20260922T023434Z-2057475`, and launching a nested driver would put a
+    second driver in contention for the same plans board, run tree and worktrees as the driver
+    currently executing me (DECISION 08-e4lkv5-D3). The substitute offered, which is stronger than a
+    local simulation in one respect: THIS TURN IS ITSELF a genuine runner-launched lane, and every
+    summary line above is my own bare-suite result measured from inside it with
+    `AW_EXECUTION_ROLE=worker` confirmed present in my environment.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the guard green, AND its failure output when a deliberately ambient-inheriting test
     is added (add, paste, revert). PLUS proof the guard is BEHAVIORAL: show that it is not satisfied by a
     source-text match alone (the comment-satisfiable failure recorded at `runner_shared.py:9467-9470`), for
     example by adding a test that MENTIONS the env var in a comment while still inheriting, and showing the
     guard still fails it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED IN BOTH DIRECTIONS. Guard: `tests/test_role_declaration_guard.py` (new).
+
+    GREEN, after the demonstration probe was reverted:
+
+        3 passed in 170.70s (0:02:50)
+
+    IT IS BEHAVIORAL, NOT A SOURCE-TEXT SEARCH. It runs the five protected files TWICE in child
+    pytest sessions - once with a `-p` plugin that re-asserts `AW_EXECUTION_ROLE=worker` in
+    `pytest_configure` (after the conftest scrub, before collection) and once without - then asserts
+    the two failure SETS and exit statuses are identical. An outcome comparison cannot be satisfied
+    by a comment, which is the failure mode `runner_shared.py:14310` records ("measurably satisfiable
+    by a COMMENT, and on oc a comment is what satisfied it").
+
+    THE NEGATIVE DEMONSTRATION, all three steps measured. I added a deliberately ambient-inheriting
+    test (`TEMPORARYAmbientInheritingProbe`, subclassing `BeginCliTests` and overriding `setUp` to
+    drop the declaration) whose comment MENTIONS the env var:
+
+        ### STEP 1: the inheriting probe PASSES an ordinary run, so a lane-blind suite never notices
+        1 passed, 93 deselected in 0.24s
+
+        ### STEP 2: a grep-based guard would be satisfied
+        mentions of AW_EXECUTION_ROLE in the file: 2
+
+        ### STEP 3: the BEHAVIORAL guard catches it anyway
+        E  AssertionError: 1 != 0 : a protected test INHERITED the ambient execution role instead of
+           declaring it. Declare it in the test's `setUp` with `support.declare_execution_role(self)`
+           (or pass an explicit `env=`/`role=` to the code under test); do NOT relax
+           `AW-LIFECYCLE-ROLE-001` and do NOT scrub the variable to make this pass.
+        E  summary: 3 failed, 436 passed in 76.98s
+        E  failed: ['tests/test_ipd_lifecycle_cli.py::TEMPORARYAmbientInheritingProbe::test_cli_happy_path_exit_0_and_writes_receipt',
+                    'tests/test_ipd_lifecycle_cli.py::TEMPORARYAmbientInheritingProbe::test_cli_non_conforming_exit_1',
+                    'tests/test_ipd_lifecycle_cli.py::TEMPORARYAmbientInheritingProbe::test_probe_drives_begin_without_declaring_a_role']
+        E  marked: 3 failed, 436 passed in 106.24s
+        E  clean:  439 passed in 132.84s
+        FAILED ...::test_protected_files_pass_with_the_worker_marking_reasserted
+        FAILED ...::test_the_outcome_is_the_same_under_both_ambient_roles
+
+    Step 1 is the point: the inheriting test is INVISIBLE to an ordinary run (it passes), and the
+    guard is what makes it visible. PROBE REVERTED - `grep -c TEMPORARYAmbientInheritingProbe
+    tests/test_ipd_lifecycle_cli.py` returns 0, and the guard is green again (above).
+
+    IT ALSO GUARDS ITSELF. `TheReassertProbeActuallyReachesTheTests` asserts the instrument works, by
+    requiring `test_worker_role_refusal.py`'s ambient assertion to FAIL under the probe and PASS
+    without it. Without that meta-check, a broken plugin would make both conditions agree for the
+    wrong reason and the guard would report green forever - the same vacuity class this plan is about.
+
+    MARKED `slow`, following this repo's convention for subprocess-heavy files (`pytestmark =
+    pytest.mark.slow`, as `tests/test_installer.py:58`). Measured 4m26s, which would roughly double a
+    bare fast-subset run; it runs in `make test-all`, release-review and CI. Honest cost, stated in
+    the module docstring: a newly added inheriting test is caught at the full-suite gate rather than
+    in a lane's own bare run.
+
+    LIMITS STATED PLAINLY in the docstring, as the item requires: it covers an ENUMERATED file list
+    (not the whole suite, for the runtime reason above); it proves outcome INVARIANCE rather than that
+    any particular mechanism was used (a hand-rolled declaration passes, which is correct); and it
+    cannot detect inheritance of a DIFFERENT ambient variable, `test_turn_bounds.py`'s
+    `OPENCODE_CONFIG_CONTENT` being exactly that out-of-scope case.
+  - Result: pass
 
 ## Approval and execution gate
 
