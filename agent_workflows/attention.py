@@ -1002,6 +1002,50 @@ def _record_for(
     return None, []
 
 
+def item_for_path(path: Path, repo_root: Optional[Path] = None) -> Optional[Item]:
+    """Build an Item for a single artifact file path."""
+    if repo_root is None:
+        try:
+            from agent_workflows.project_context import resolve_verb_repo_root
+
+            repo_root = resolve_verb_repo_root(None)
+        except Exception:
+            repo_root = Path(".")
+    rel = _rel_posix(repo_root, path)
+    pol = _classify_tree(rel)
+    if pol is None or not pol.tracked:
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    rec, _ = _record_for(pol.name, rel, path, text)
+    if rec is not None:
+        deps = _extract_item_dependencies(text)
+        if deps is not None:
+            rec = rec._replace(item_dependencies=deps)
+    return rec
+
+
+def format_plan_detail_line(
+    plan_path: Path, term: Optional[T.Term] = None
+) -> Optional[str]:
+    """Format the detail line for a plan identically to `aw att -d`."""
+    try:
+        text = plan_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    d_kind, d_text = _extract_detail(text)
+    if not d_text:
+        return None
+    tag = d_kind or "summary"
+    if term is not None and getattr(term, "color", False):
+        tag_txt = term.color256(f"{tag}:", 244)
+        detail_txt = term.color256(d_text, 250)
+        return f"      {tag_txt} {detail_txt}"
+    return f"      {tag}: {d_text}"
+
+
 def _release_record(
     rel: str, path: Path, text: str
 ) -> Tuple[Optional[Item], List[core.Drift]]:

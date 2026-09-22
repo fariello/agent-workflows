@@ -7847,6 +7847,194 @@ def enforce_mixed_type_gate(
     return verdict
 
 
+def enforce_no_active_runner_conflict(
+    repo: Path,
+    queue_ids: Sequence[str],
+    selected_plan_paths: Sequence[Path],
+    *,
+    manifest: Optional[dict[str, Any]] = None,
+    stream: Any = None,
+) -> None:
+    """Refuse to run if any of the included artifacts are actively being handled by another live run."""
+    from agent_workflows import attention, term as T
+
+    run_map = attention.get_active_runs_map(repo)
+    if not run_map:
+        return
+
+    conflicting_ids: list[str] = []
+    conflicting_paths: list[Path] = []
+    seen_ids: set[str] = set()
+
+    id_to_path: dict[str, Path] = {}
+    for p in selected_plan_paths:
+        try:
+            text = p.read_text(encoding="utf-8")
+            m = re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
+            rec_id = m.group(1) if m else None
+            if rec_id:
+                id_to_path[rec_id] = p
+        except Exception:
+            pass
+
+    if manifest and "plans" in manifest:
+        for id6 in queue_ids:
+            if id6 not in id_to_path and id6 in manifest["plans"]:
+                try:
+                    f = manifest["plans"][id6].get("file", "")
+                    if f:
+                        id_to_path[id6] = resolve_plan_path(repo, f, id6)
+                except Exception:
+                    pass
+
+    for id6 in queue_ids:
+        path = id_to_path.get(id6)
+        path_name = path.name if path else ""
+        rel_path = ""
+        if path:
+            try:
+                rel_path = str(path.relative_to(repo))
+            except Exception:
+                rel_path = str(path)
+
+        st = (
+            run_map.get(id6)
+            or (run_map.get(rel_path) if rel_path else None)
+            or (run_map.get(path_name) if path_name else None)
+        )
+        if st and st != "-":
+            if id6 not in seen_ids:
+                seen_ids.add(id6)
+                conflicting_ids.append(id6)
+                if path and path not in conflicting_paths:
+                    conflicting_paths.append(path)
+
+    if not conflicting_ids:
+        return
+
+    items: list[attention.Item] = []
+    for p in conflicting_paths:
+        it = attention.item_for_path(p, repo_root=repo)
+        if it:
+            items.append(it)
+    found_ids = {it.id for it in items}
+    for id6 in conflicting_ids:
+        if id6 not in found_ids:
+            plan_info = (
+                manifest["plans"].get(id6, {})
+                if manifest and "plans" in manifest
+                else {}
+            )
+            cfg = plan_info.get("file", "")
+            st = plan_info.get("status", "to-review")
+            items.append(
+                attention.Item(
+                    id=id6,
+                    path=cfg,
+                    tree="plans",
+                    native_status=st,
+                    attention_class="ready",
+                    gate=None,
+                    last_history_at=None,
+                )
+            )
+
+    out = stream if stream is not None else sys.stderr
+    colored = should_color(out)
+    term = T.Term(color=colored)
+    table = attention.render_table(
+        items,
+        [],
+        show_all=True,
+        term=term,
+        runs_mode=True,
+        repo_root=repo,
+        run_map=run_map,
+    )
+
+    msg = (
+        f"Cannot run artifacts that are actively being processed by another runner.\n"
+        f"The following artifact(s) are currently handled by an active live run:\n\n"
+        f"{table.rstrip()}"
+    )
+    raise DriverError(msg)
+
+
+def format_slated_artifacts_table(
+    repo: Path,
+    queue: list[dict[str, Any]],
+    *,
+    term: Optional[Any] = None,
+) -> str:
+    """Format all artifacts slated to be processed in the queue as if run by `aw att --runs`."""
+    if not queue:
+        return ""
+
+    from agent_workflows import attention
+
+    items: list[attention.Item] = []
+    run_map: dict[str, str] = {}
+
+    for q_item in queue:
+        id6 = q_item.get("id6") or ""
+        cfg = q_item.get("configured_file") or ""
+        q_st = q_item.get("status") or "queued"
+
+        if q_st in ("executed", "reviewed", "done", "completed"):
+            mapped_run_st = "done"
+        elif q_st == "running":
+            mapped_run_st = "running"
+        elif q_st in ("failed", "failed-safely", "interrupted"):
+            mapped_run_st = "failed"
+        elif q_st in ("blocked", "dependency-blocked", "integration-blocked"):
+            mapped_run_st = "blocked"
+        else:
+            mapped_run_st = "queued"
+
+        if id6:
+            run_map[id6] = mapped_run_st
+        if cfg:
+            run_map[cfg] = mapped_run_st
+            run_map[Path(cfg).name] = mapped_run_st
+
+        it = None
+        if cfg:
+            plan_p = repo / cfg if not Path(cfg).is_absolute() else Path(cfg)
+            if plan_p.is_file():
+                it = attention.item_for_path(plan_p, repo_root=repo)
+        if it is None and id6:
+            try:
+                cand = resolve_plan_path(repo, cfg, id6)
+                if cand.is_file():
+                    it = attention.item_for_path(cand, repo_root=repo)
+            except Exception:
+                pass
+        if it is None:
+            it = attention.Item(
+                id=id6,
+                path=cfg,
+                tree="plans",
+                native_status=q_item.get("initial_status")
+                or q_item.get("status")
+                or "approved",
+                attention_class="ready",
+                gate=None,
+                last_history_at=None,
+                item_dependencies=tuple(q_item.get("dependencies") or ()),
+            )
+        items.append(it)
+
+    return attention.render_table(
+        items,
+        [],
+        show_all=True,
+        term=term,
+        runs_mode=True,
+        repo_root=repo,
+        run_map=run_map,
+    )
+
+
 #: The shipped lane prompt's timeout, reused so the two prompts in this package cannot disagree about
 #: how long a run may wait for a human. `_lane_reclaim_prompt` uses 10s in both runners.
 GATE_PROMPT_TIMEOUT: float = 10.0
@@ -15618,6 +15806,12 @@ def initialize_run_core(
         host=host,
         selector=" ".join(str(s) for s in args.selectors),
     )
+    enforce_no_active_runner_conflict(
+        repo,
+        queue_ids,
+        selected_plan_paths,
+        manifest=manifest,
+    )
 
     run_id = getattr(args, "run_id", None) or new_run_id()
     run_dir = state_root(repo) / run_id
@@ -16602,6 +16796,15 @@ def execute_item_core(
     )
     print(banner)
     print(pal(f"  plan: {plan_path}", "dim"))
+    try:
+        from agent_workflows import attention, term as T
+
+        term = T.Term(color=should_color(sys.stdout))
+        detail_line = attention.format_plan_detail_line(plan_path, term=term)
+        if detail_line:
+            print(detail_line)
+    except Exception:
+        pass
 
     self_finalize = state.get("options", {}).get("self_finalize", True)
     isolate = state.get("options", {}).get("isolate_worktree", True)

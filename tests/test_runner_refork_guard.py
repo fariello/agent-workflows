@@ -157,6 +157,8 @@ REFORK_TABLE: tuple[Owned, ...] = (
     Owned("resolve_plan_path", "runner_shared", BOTH),
     Owned("plan_bucket", "runner_shared", BOTH),
     Owned("describe_unresolved_plan_selector", "runner_shared", BOTH),
+    Owned("enforce_no_active_runner_conflict", "runner_shared", BOTH),
+    Owned("format_slated_artifacts_table", "runner_shared", BOTH),
     # --- runner_shared: the ACTION-AWARE SUCCESS BAR, added by `runnoop` Order 01 (`zz5yxq`) ------
     #
     # WHY THIS TABLE AND NOT `tests/test_runner_item_dependencies.py::_SHARED_NAMES`, stated because

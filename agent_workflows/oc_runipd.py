@@ -237,6 +237,13 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     NEEDS_INPUT_KEY as NEEDS_INPUT_KEY,
 )
+from agent_workflows.runner_shared import (
+    enforce_no_active_runner_conflict as enforce_no_active_runner_conflict,
+)
+from agent_workflows.runner_shared import (
+    format_slated_artifacts_table as format_slated_artifacts_table,
+)
+
 
 # integpath-02 (`6sb3yu`): a PURE move, so it is bound by re-export rather than wrapped (unlike its
 # two neighbours, which need this host's `run_checked`/`host_label`). The `as <same-name>` FORM is
@@ -4677,6 +4684,19 @@ def announce_run_order(
         # it from this single edit (`agy_runipd` imports and calls this very object).
         for line in format_spec_impact_failure(exc, pal=pal):
             print(line, file=out)
+    try:
+        from agent_workflows import term as T
+
+        _repo = Path(state["repo"])
+        _term = T.Term(color=should_color(out))
+        _slated_table = format_slated_artifacts_table(
+            _repo, state.get("queue", []), term=_term
+        )
+        if _slated_table:
+            print(file=out)
+            print(_slated_table, file=out, end="")
+    except Exception:
+        pass
     append_jsonl(
         run_dir / "events.jsonl",
         {
