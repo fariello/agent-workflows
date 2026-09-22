@@ -922,3 +922,139 @@ def test_commit_outcome_keeps_its_positional_contract(repo: Path, rec):
     legacy = H.CommitOutcome(H.STATUS_SKIPPED, None, (), "legacy 4-field caller")
     assert legacy.hook_fixed == () and legacy.hook_fixed_diverged == ()
     assert list(rest) == [(), ()]
+
+
+# --------------------------------------------------------------------------------------
+# A STAGED RENAME MUST COMMIT AS ONE MOVE, NOT AS A BARE ADDITION
+#
+# THE MEASURED BUG, 2026-09-22. `_staged_paths` used `git diff --name-only --cached`, which for a
+# staged rename prints ONLY THE DESTINATION even though its docstring claimed to be "rename-aware".
+# `offer_commit` intersects that set with the caller's paths (`our_staged`) and then commits
+# `git commit -- <our_staged>`, so a caller that correctly named BOTH sides of its own `git mv` had
+# the SOURCE silently filtered out and committed the addition WITHOUT the paired deletion.
+#
+# WHY IT MATTERED RATHER THAN BEING COSMETIC: every `aw oc run` backlog close routes here through
+# `oc_runipd.commit_backlog_close`, and `status_set` deliberately relocates with `git mv` so the move
+# would be ONE staged rename with (its own words) "no halves to pair up and no half to lose". This
+# function lost the half anyway, producing 36 backlog items whose id6 existed in TWO status
+# directories at once (e.g. `bplplj` in both `graduated/` and `done/`), each from a commit holding
+# `A done/...` and no `D graduated/...`. `aw attention` reported 36 `attention.duplicate-id`
+# violations and declared its whole board non-authoritative; the uncommitted deletions were still
+# sitting in their originating lane worktrees days later. Repairing it also had to MERGE 80 history
+# lines back, because each stale copy held provenance the lane's snapshot never had.
+# --------------------------------------------------------------------------------------
+
+
+def test_staged_paths_reports_both_sides_of_a_rename(repo: Path):
+    """The regression at its root: a staged rename must surface BOTH paths, not just the destination."""
+
+    src = _write(repo, "records/graduated/item-abc123.md", "body\n")
+    git(repo, "add", "--", src)
+    git(repo, "commit", "-q", "-m", "seed the item")
+    (repo / "records/done").mkdir(parents=True, exist_ok=True)
+    git(repo, "mv", src, "records/done/item-abc123.md")
+
+    staged = H._staged_paths(repo)
+
+    # Proves the defect directly: git's own --name-only view omits the source, so a test that only
+    # asserted the destination would have passed against the broken implementation.
+    assert "records/graduated/item-abc123.md" in staged, (
+        "a staged rename's SOURCE must be reported; omitting it is what committed a move as a bare "
+        "addition and duplicated 36 backlog ids"
+    )
+    assert "records/done/item-abc123.md" in staged
+
+
+def test_a_git_mv_relocation_commits_as_one_move_with_no_leftover(repo: Path, rec):
+    """END TO END, the property the 36 corrupted items violated: no half of a move is left behind."""
+
+    src = _write(repo, "records/graduated/item-abc123.md", "body\n")
+    git(repo, "add", "--", src)
+    git(repo, "commit", "-q", "-m", "seed the item")
+    (repo / "records/done").mkdir(parents=True, exist_ok=True)
+    dest = "records/done/item-abc123.md"
+    git(repo, "mv", src, dest)
+
+    out = H.offer_commit(
+        repo, [src, dest], message="close abc123", assume_yes=True, interactive=False
+    )
+    assert out.status == H.STATUS_COMMITTED
+
+    # THE COMMIT CARRIES BOTH SIDES. Asserted through git's own rename detection so the assertion
+    # cannot pass on a commit that merely happens to mention both names.
+    shown = git(
+        repo, "show", "--name-status", "--pretty=format:", "-M", out.commit or "HEAD"
+    ).stdout
+    assert shown.strip().startswith("R"), (
+        f"expected a rename record, got: {shown.strip()!r}. An 'A' alone is the measured bug: the "
+        "addition committed while the deletion stayed behind."
+    )
+
+    # AND NOTHING IS LEFT BEHIND. This is the assertion that actually failed in production: the
+    # leftover `D graduated/...` is what made the source file survive in HEAD beside its own
+    # destination, which is precisely a duplicate id.
+    assert git(repo, "status", "--porcelain").stdout.strip() == ""
+    # `git show --name-only` prints only the DESTINATION for a rename (the same view whose
+    # single-sidedness caused this bug), so assert membership rather than set equality here; the
+    # rename record asserted above is what proves both sides landed.
+    assert _committed_files(repo, out.commit) == {dest}
+    rec.assert_contract_clean()
+
+
+def test_the_source_of_a_move_does_not_survive_in_head(repo: Path):
+    """State the duplicate-id hazard as its own property, so a future refactor cannot reintroduce it."""
+
+    src = _write(repo, "records/graduated/item-abc123.md", "body\n")
+    git(repo, "add", "--", src)
+    git(repo, "commit", "-q", "-m", "seed the item")
+    (repo / "records/done").mkdir(parents=True, exist_ok=True)
+    dest = "records/done/item-abc123.md"
+    git(repo, "mv", src, dest)
+    H.offer_commit(
+        repo, [src, dest], message="close abc123", assume_yes=True, interactive=False
+    )
+
+    tracked = {
+        ln.strip()
+        for ln in git(repo, "ls-tree", "-r", "--name-only", "HEAD").stdout.splitlines()
+        if ln.strip()
+    }
+    assert dest in tracked
+    assert src not in tracked, (
+        "the item exists at BOTH paths in HEAD, which is the duplicate-id corruption: one artifact "
+        "id present in two lifecycle directories at once"
+    )
+
+
+def test_naming_only_the_destination_still_works(repo: Path):
+    """A caller that names ONE side must be unaffected: the fix widens a READ, it changes no contract."""
+
+    src = _write(repo, "records/graduated/item-abc123.md", "body\n")
+    git(repo, "add", "--", src)
+    git(repo, "commit", "-q", "-m", "seed the item")
+    (repo / "records/done").mkdir(parents=True, exist_ok=True)
+    dest = "records/done/item-abc123.md"
+    git(repo, "mv", src, dest)
+
+    out = H.offer_commit(
+        repo, [dest], message="close abc123", assume_yes=True, interactive=False
+    )
+    # Git commits the whole staged rename when either side is named, which is git's behavior and not
+    # this helper's choice; the point of the assertion is that the helper does not ERROR or refuse.
+    assert out.status == H.STATUS_COMMITTED
+
+
+def test_a_plain_deletion_is_still_committed(repo: Path):
+    """Guard the neighbouring case the rename-parsing rewrite could plausibly break."""
+
+    victim = _write(repo, "records/open/item-def456.md", "body\n")
+    git(repo, "add", "--", victim)
+    git(repo, "commit", "-q", "-m", "seed")
+    (repo / victim).unlink()
+
+    out = H.offer_commit(
+        repo, [victim], message="remove def456", assume_yes=True, interactive=False
+    )
+    assert out.status == H.STATUS_COMMITTED
+    tracked = git(repo, "ls-tree", "-r", "--name-only", "HEAD").stdout
+    assert victim not in tracked

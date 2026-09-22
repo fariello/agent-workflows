@@ -333,12 +333,64 @@ def _prompt(message: str, paths: Sequence[str]) -> bool:
 
 
 def _staged_paths(repo_root: Path) -> List[str]:
-    """Repo-relative paths currently in the index (staged), rename-aware."""
+    """Repo-relative paths currently in the index (staged), rename-aware: BOTH SIDES of a rename.
 
-    rc, out, _err = _git(repo_root, ["diff", "--name-only", "--cached"])
+    THE BUG THIS FIXES, measured 2026-09-22 across 36 corrupted backlog items. This function used
+    `git diff --name-only --cached`, which for a STAGED RENAME prints ONLY THE DESTINATION. The
+    docstring already claimed "rename-aware" and the implementation was not. Two things in
+    :func:`offer_commit` read this set, and for a rename the second one silently dropped half the
+    move:
+
+      * `our_staged = now_staged & set(rel_paths)` keeps only paths git reported, so a caller that
+        correctly named BOTH sides of its own `git mv` got the SOURCE filtered out; and
+      * the commit is then `git commit -- <our_staged>`, which commits the addition WITHOUT the
+        paired deletion, leaving the source file both present in HEAD and staged-for-deletion.
+
+    MEASURED CONSEQUENCE, which is why this is a data-integrity fix and not a tidiness one. Every
+    `aw oc run` backlog close routes here via `oc_runipd.commit_backlog_close`. `status_set` had
+    already been fixed (2026-09-13) to relocate with `git mv` precisely so the move would be ONE
+    staged rename with "no halves to pair up and no half to lose" - but this function then lost the
+    half anyway. Result: 36 items whose id6 exists in TWO status directories at once (e.g. `bplplj`
+    in both `graduated/` and `done/`), each created by a commit containing `A done/...` and no
+    `D graduated/...`, which `aw attention` correctly reports as `attention.duplicate-id` and which
+    made its whole board non-authoritative ("VIEW INVALID"). The uncommitted deletion was still
+    sitting in the originating lane worktree days later.
+
+    `--name-status -z` IS THE FIX rather than post-processing `--name-only`: a rename record carries
+    BOTH paths, and the NUL form is used because a rename record is itself NUL-separated
+    (`R<score>\\0<old>\\0<new>`) and a path may legitimately contain whitespace, so splitting on
+    whitespace would corrupt exactly the paths this repository's artifact names are full of.
+
+    Returning BOTH sides is correct for both readers. `pre_staged` (the unrelated-staged check)
+    becomes MORE accurate, because a rename's source genuinely IS staged content; and `our_staged`
+    now contains whatever the caller legitimately named, so a caller that names one side alone is
+    unaffected while a caller that names both gets an atomic move. A path this function reports is
+    never force-added and never staged by it: this is a READ.
+    """
+
+    rc, out, _err = _git(repo_root, ["diff", "--name-status", "--cached", "-z"])
     if rc != 0:
         return []
-    return [ln.strip() for ln in out.splitlines() if ln.strip()]
+    fields = [f for f in out.split("\0") if f != ""]
+    paths: List[str] = []
+    i = 0
+    while i < len(fields):
+        status = fields[i]
+        # A rename/copy status is `R<score>`/`C<score>` and consumes TWO path fields (old, new);
+        # every other status consumes one. Guard the index arithmetic so a truncated or unexpected
+        # record cannot raise mid-commit: this runs inside the stage+commit window.
+        if status[:1] in ("R", "C"):
+            for candidate in fields[i + 1 : i + 3]:
+                if candidate and candidate not in paths:
+                    paths.append(candidate)
+            i += 3
+            continue
+        if i + 1 < len(fields):
+            candidate = fields[i + 1]
+            if candidate and candidate not in paths:
+                paths.append(candidate)
+        i += 2
+    return paths
 
 
 def _in_index(repo_root: Path, rel_path: str) -> bool:
