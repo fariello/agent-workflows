@@ -6,7 +6,7 @@
 - Scope: Observe the agy host's own truncation lines on the child stdout the driver already reads line by line, classify them host-neutrally, and record a TRUNCATED turn durably on the attempt plus an event - so a turn the host cut is distinguishable from one that finished. Also correct the record in `q1z9gn` and `x7wfyx`, whose premise (the agent chose to background the suite) is measurably wrong for these runs. EXCLUDES changing what the driver DOES about a truncated turn: the retry decision is `dy9ymn`'s, which consumes this signal. EXCLUDES the rescoring fix (`skn8uk` owns it). EXCLUDES any change to `--print-timeout`, `MAX_TURN_TIMEOUT`, `PERMISSION_TIMEOUT` or the stall watchdog: none of them fired and none of them is implicated.
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/agy_runipd.py, tests/test_turn_bounds.py, .aw/records/backlog/open/20260918-x7wfyx-01-x7wfyx-zero-work-turn-retry-and-turn-budget.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: reaskscore
 - Order: 2
@@ -16,9 +16,9 @@
 - Blocks-Release: next
 - Work-Kind: bug
 - Id: ty7w6o
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: ty7w6o verified (set reaskscore, attempt 1).
 - 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-19 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /askme: OQ-04 RESOLVED BY THE MAINTAINER, clearing this plan's only blocking question and with it its `no-go`. They chose route (a), append the corrected cause to `x7wfyx`'s BODY PROSE as an ordinary tracked edit, on the ground that it asserts ONLY the correction; (b) `set graduated` was declined as a half-true handoff claim (item A, the turn budget, has no plan), and (c) a new `aw backlog note` verb as separate release-blocking work this correction must not wait behind. NO CHECKLIST EDIT WAS NEEDED: E-05 already named (a) as its preferred route and `V-05` already demanded a non-empty `git diff` plus a statement of which route was used, so the answer removed the choice and not the instruction. RE-MEASURED AT RESOLUTION rather than trusted, because the finding is precisely that the command lies about what it wrote: on a throwaway copy the same-status call printed `unchanged` with md5 `03436eff23acf67f690cb026931f0f30` before AND after, `grep -c PROBE` 0, history stuck at 2 lines; the declined (b) was also measured and DOES work (file moves to `graduated/`, history 2 -> 3, `Blocks-Release: next` preserved), so it was declined on what it asserts, not on whether it functions. PR-001 recorded FIXED. The underlying tooling defect stays filed as backlog `x6tk1u` and `hg2oop` (both `open`, high, release-blocking) and is not this plan's to fix. `aw ipd lint --phase review-finalize` now reports `conforming` where it previously reported the expected `IPD-Q501`; `review_findings.subject_gating_blocks` returns `()` where it returned one HIGH/open block, which also cleared sibling `svacmz`'s refused dependency edge. Readiness `no-go` -> `go-pending-approval`; HUMAN APPROVAL IS STILL REQUIRED and no agent may write it.
