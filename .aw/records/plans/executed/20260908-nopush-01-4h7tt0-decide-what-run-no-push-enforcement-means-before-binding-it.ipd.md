@@ -9,18 +9,18 @@
 - Scope: Implement the SPEC-LEVEL DECISION `RUN-NO-PUSH` needed, which the maintainer has now MADE: outcome (c), RETIRE the code from 4.2 with the reason recorded (OQ-01, commit `b23d447d`). Three outcomes were legitimate when this was authored (build a real boundary; narrow the guarantee; retire the code); two are now closed, so this plan executes retirement rather than deciding. RETIREMENT IS NARROWER THAN IT SOUNDS AND WIDER THAN ONE ROW: it withdraws the 4.2 reporting CODE and the promise of proved push denial, it necessarily amends the enforced code-count invariant and its tests (F-8), and it must reconcile the five other spec sites that still promise no-push (F-10) - while deliberately PRESERVING spec 5.2's `supports_deny_push` capability, whose action-class requirements keep failing closed (F-9). This plan writes NO fail-open binding.
 - Scope-Paths: .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/run_evidence.py, agent_workflows/host_sandbox_profile.py, tests/test_run_evidence_completion.py, tests/test_run_no_push_boundary.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: nopush
 - Order: 1
 - Highest E allocated: 05
 - Readiness: go-pending-approval
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4h7tt0
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: d07nz2
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 4h7tt0 verified (set nopush, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/host_sandbox_profile.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-02 was answered on 2026-09-10 and the finding it escalated (PR-002) is now closed in review round 2, with the removal carried by backlog `aagh7v`. Performed at HEAD `84111de2` at the maintainer's explicit instruction of 2026-09-10, who was shown that 10 of 15 `no-go` plans were held by stale bookkeeping and chose to have them hand-fixed with evidence recorded rather than re-reviewed. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
