@@ -294,7 +294,79 @@ def _target_names_a_path(target: str) -> bool:
     return target.endswith(".jsonl")
 
 
-def _ledger_not_found_message(target: str) -> str:
+#: The three-valued answer `_classify_absent_target` returns (`d91i3e` E-07). A BOOL would force the
+#: UNKNOWN case into one of the other two arms and produce a confidently wrong message, which is the
+#: failure mode this plan exists to remove: telling an operator to run `aw runs repair totalgibberish`
+#: is worse than telling them nothing, because `repair` then refuses and the suggestion has burned
+#: their trust in every other suggestion this surface makes.
+TARGET_LEDGER_RUN: str = "ledger-run"
+TARGET_DRIVER_RUN: str = "driver-run"
+TARGET_UNKNOWN: str = "unknown"
+
+
+def _classify_absent_target(target: str, repo_dir: Optional[str]) -> str:
+    """Classify a target that resolved to NO ledger: a driver run, or genuinely unknown (`d91i3e`).
+
+    THE QUESTION THIS ASKS IS NOT "does a driver-shaped directory exist somewhere". It is "would
+    `aw runs repair <target>` actually find this run", because the whole value of the improved
+    refusal is that the command it names WORKS. Those two questions have measurably different
+    answers, so this asks the VIEWER'S OWN RESOLVER (`resolve_target_runs_detailed`, which is what
+    the `repair` branch calls) rather than probing `resolve_ledger_path`'s candidate roots. Probing
+    the reader's own roots would suggest `repair` for a run under `.aw/state/runs/`, where
+    `discover_run_dirs` cannot see it and `repair` answers `no run matched target` at exit 2.
+
+    It additionally requires the `state.json` that `repair_run` itself requires, so a directory
+    `repair` would reject with `not a run directory` is never suggested to. Measured: an
+    `events.jsonl`-only directory IS resolved by `resolve_target_runs_detailed` (it matches on
+    directory NAME) but IS refused by `repair_run`, so the resolver alone is not a sufficient test
+    and this second condition is load-bearing rather than defensive.
+
+    THE IMPORT IS FUNCTION-LOCAL ON PURPOSE, the pattern `_projection_dir` above already uses.
+    `run_cli` -> `run_viewer` introduces no cycle (measured: importing `run_viewer` leaves
+    `agent_workflows.run_cli` absent from `sys.modules`), but the viewer's import graph costs about
+    168 ms, and the ledger readers must not pay that on every invocation to serve one refusal.
+
+    NEVER HANDS `events.jsonl` TO A LEDGER PARSER. This only CLASSIFIES; the `e6b9kt` guarantee that
+    `resolve_ledger_path` never resolves a run id to the drivers' event log is untouched.
+
+    Returns `TARGET_DRIVER_RUN` or `TARGET_UNKNOWN`. (`TARGET_LEDGER_RUN` is the caller's own answer:
+    it is what `resolve_ledger_path` returning a path MEANS, so this function is never asked.)
+    """
+    if not target:
+        return TARGET_UNKNOWN
+    try:
+        from agent_workflows.run_viewer import resolve_target_runs_detailed
+
+        repo_root = Path(repo_dir) if repo_dir else Path(".")
+        resolved, _unresolved = resolve_target_runs_detailed([target], repo_root)
+    except Exception:
+        # A classification failure must never turn a working refusal into a traceback: the operator
+        # still gets today's honest message, which is exactly the UNKNOWN arm.
+        return TARGET_UNKNOWN
+    for run_dir in resolved:
+        if (run_dir / "state.json").is_file():
+            return TARGET_DRIVER_RUN
+    return TARGET_UNKNOWN
+
+
+def _driver_run_suggestions(target: str) -> tuple[str, ...]:
+    """The commands to name when the target IS a driver run, in the order an operator wants them.
+
+    THE READ COMES FIRST, deliberately (OQ-01, resolved at review). An operator who has just been
+    refused usually wants to SEE the run, and `repair` MUTATES, so offering only the mutating verb
+    pushes them toward a write when a read would do. Two verbs is a signpost; a longer list would be
+    the menu OQ-01 worried about.
+
+    EVERY SUGGESTION CARRIES THE TARGET AS THE OPERATOR SPELLED IT, never the resolved directory
+    (D92). `_classify_absent_target` legitimately KNOWS an absolute path, and printing it is the
+    obvious way to make the suggestion unambiguous, which is exactly the trap: this is the
+    most-copied output on this surface and an absolute path here leaks a home directory into every
+    pasted transcript (`agent_schema._HOME_PATH_RE` flags precisely that).
+    """
+    return (f"aw runs {target}", f"aw runs repair {target}")
+
+
+def _ledger_not_found_message(target: str, classification: str = TARGET_UNKNOWN) -> str:
     """Word the absent-ledger refusal ONCE, truthfully, for every leaf that resolves a target.
 
     THE DEFECT THIS EXISTS TO FIX (`i1hlgx`, from backlog `zrzfkw`). The refusal used to read only
@@ -324,15 +396,92 @@ def _ledger_not_found_message(target: str) -> str:
 
     The EXIT CODE is unchanged at `EXIT_INVALID_INVOCATION` (2) everywhere, which executed plan
     `7wei1o` cites as the precedent its own refusals align with.
+
+    A FOURTH CLAUSE WHEN THE TARGET IS A DRIVER RUN (`d91i3e`, from backlog `sv8z1e`). The three
+    clauses above explain the WORLD correctly and still leave the operator with nothing to DO, which
+    is the surviving half of `sv8z1e`: `aw runs resume <driver-run-id>` is the first verb anyone
+    reaches for after a crash (its own `--help` promises exactly that situation) and it was the one
+    that could not help, mentioning `repair` zero times while the run sat plainly on disk. So when
+    the target IS a driver run this names the two verbs that DO work on it.
+
+    THE WORDING IS TRUE OF A WRITER AS WELL AS A READER (F-14), which is why it names the RUN MODEL
+    rather than the leaf's direction. Four of the ten leaves that print this (`aw run
+    start|record|cancel|finalize`) MUTATE a ledger, so a sentence beginning "these readers serve a
+    different run model" would be false about the leaf that just printed it, and a refusal an
+    operator cannot trust is worse than a vague one. "This command works on ... rather than on ..."
+    is true in both directions and needs no per-caller parameter.
+
+    IT STILL SAYS NOTHING IT CANNOT KNOW. It does not claim the driver run is healthy or broken, and
+    it does not promise `repair` will find something to do: `repair` on a healthy run answers
+    `nothing to repair` at exit 0, which is a fine outcome for a signpost to lead to.
     """
     bare = f"ledger file not found for target '{target}'"
     if _target_names_a_path(target):
         return bare
-    return (
+    body = (
         f"{bare}: this reads the hash-chained {store.LEDGER_FILENAME}, and no driver run writes one "
         "today, so there is nothing here to read rather than something missing from this run. The "
         "drivers' own events.jsonl is a different file in a different format and is not a ledger."
     )
+    if classification != TARGET_DRIVER_RUN:
+        return body
+    read_cmd, repair_cmd = _driver_run_suggestions(target)
+    return (
+        f"{body} That target IS a driver run (it has a state.json and an events.jsonl), and this "
+        f"command works on the ledger run model rather than on that one. To see it, run "
+        f"`{read_cmd}`; to reconcile a run a driver abandoned without a terminal status, run "
+        f"`{repair_cmd}`."
+    )
+
+
+def _emit_ledger_not_found(args: argparse.Namespace, target: str) -> int:
+    """Emit the absent-ledger refusal for EVERY leaf, in all three renderers (`d91i3e` E-01/E-04).
+
+    ONE DEFINITION OF ONE REFUSAL. Before this, `run_show`, `run_evidence` and `run_verify_ledger`
+    each built and emitted the refusal INLINE while the other seven leaves reached it through
+    `_resolve_or_error`. `i1hlgx` had already centralized the TEXT, and left a comment at each of the
+    three inline sites recording that the EMIT SHAPE was still split and that reconciling it was this
+    plan's declared work. This is that reconciliation: the emit shape now lives here too, so the fix
+    cannot be applied to one leaf and missed on nine.
+
+    THE `error: ` PREFIX CONVENTION IS RESOLVED IN FAVOUR OF THE HUMAN PATH OWNING IT (F-17). The
+    three inline copies baked `error: ` INTO the machine payload's `error` value while `_emit_error`
+    added it only when printing, so `runs show --agent` emitted `"error: ledger file not found..."`
+    and `runs resume --agent` emitted `"ledger file not found..."` for the identical condition. The
+    prefix is a HUMAN-STREAM presentation detail: a machine consumer already knows it is reading an
+    error because the key is named `error` and `ok` is `false`, so repeating it inside the value is
+    redundant, and the key it is stored under is the same key seven leaves already fill WITHOUT it.
+    Routing everything through `_emit_error` therefore keeps the majority convention, and the
+    minority three change. Any consumer that matched on the prefix was already broken on seven of
+    ten leaves.
+
+    Returns `EXIT_INVALID_INVOCATION` (2), unchanged on every leaf and in every renderer: this plan
+    changes guidance, not the invocation contract.
+    """
+    classification = _classify_absent_target(target, getattr(args, "dir", None))
+    message = _ledger_not_found_message(target, classification)
+    suggestions = (
+        _driver_run_suggestions(target) if classification == TARGET_DRIVER_RUN else ()
+    )
+    return _emit_error(
+        args,
+        message,
+        EXIT_INVALID_INVOCATION,
+        extra={"target_kind": classification, "suggested_commands": list(suggestions)}
+        if suggestions
+        else None,
+    )
+
+
+def _emit_no_target(args: argparse.Namespace) -> int:
+    """Emit the MISSING-target refusal for every leaf (`d91i3e` E-01).
+
+    Carried along in the same consolidation as its sibling above, and for the same reason: the string
+    `no run id or ledger path given` was duplicated at the SAME four sites, so leaving it split would
+    recreate the exact hazard this work exists to remove. It is deliberately NOT given a driver-run
+    suggestion: there is no target to suggest anything about.
+    """
+    return _emit_error(args, "no run id or ledger path given", EXIT_INVALID_INVOCATION)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -343,23 +492,17 @@ def _ledger_not_found_message(target: str) -> str:
 def _run_show(args: argparse.Namespace) -> int:
     target = getattr(args, "target", None)
     if not target:
-        print("error: no run id or ledger path given")
-        return 2
+        return _emit_no_target(args)
 
     repo_dir = getattr(args, "dir", None)
     ledger_file = resolve_ledger_path(target, repo_dir)
     machine = _machine(args)
 
     if not ledger_file:
-        # Text from the ONE builder (`i1hlgx`); the emit shape stays this leaf's own, because its
-        # machine payload bakes in the `error: ` prefix that `_emit_error` adds only on the human
-        # path, and reconciling that split is plan `d91i3e`'s declared work, not this plan's.
-        err_msg = f"error: {_ledger_not_found_message(target)}"
-        if machine:
-            _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
-        else:
-            print(err_msg)
-        return 2
+        # Text AND emit shape from the ONE refusal emitter (`i1hlgx` centralized the text; `d91i3e`
+        # E-01 finished the job by centralizing the emit, which is what reconciled the `error: `
+        # prefix split this site used to carry).
+        return _emit_ledger_not_found(args, target)
 
     ledger_store = store.RunLedgerStore(ledger_file)
     try:
@@ -452,23 +595,17 @@ def _run_show(args: argparse.Namespace) -> int:
 def _run_evidence(args: argparse.Namespace) -> int:
     target = getattr(args, "target", None)
     if not target:
-        print("error: no run id or ledger path given")
-        return 2
+        return _emit_no_target(args)
 
     repo_dir = getattr(args, "dir", None)
     ledger_file = resolve_ledger_path(target, repo_dir)
     machine = _machine(args)
 
     if not ledger_file:
-        # Text from the ONE builder (`i1hlgx`); the emit shape stays this leaf's own, because its
-        # machine payload bakes in the `error: ` prefix that `_emit_error` adds only on the human
-        # path, and reconciling that split is plan `d91i3e`'s declared work, not this plan's.
-        err_msg = f"error: {_ledger_not_found_message(target)}"
-        if machine:
-            _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
-        else:
-            print(err_msg)
-        return 2
+        # Text AND emit shape from the ONE refusal emitter (`i1hlgx` centralized the text; `d91i3e`
+        # E-01 finished the job by centralizing the emit, which is what reconciled the `error: `
+        # prefix split this site used to carry).
+        return _emit_ledger_not_found(args, target)
 
     ledger_store = store.RunLedgerStore(ledger_file)
     try:
@@ -578,23 +715,17 @@ def _run_evidence(args: argparse.Namespace) -> int:
 def _run_verify_ledger(args: argparse.Namespace) -> int:
     target = getattr(args, "target", None)
     if not target:
-        print("error: no run id or ledger path given")
-        return 2
+        return _emit_no_target(args)
 
     repo_dir = getattr(args, "dir", None)
     ledger_file = resolve_ledger_path(target, repo_dir)
     machine = _machine(args)
 
     if not ledger_file:
-        # Text from the ONE builder (`i1hlgx`); the emit shape stays this leaf's own, because its
-        # machine payload bakes in the `error: ` prefix that `_emit_error` adds only on the human
-        # path, and reconciling that split is plan `d91i3e`'s declared work, not this plan's.
-        err_msg = f"error: {_ledger_not_found_message(target)}"
-        if machine:
-            _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
-        else:
-            print(err_msg)
-        return 2
+        # Text AND emit shape from the ONE refusal emitter (`i1hlgx` centralized the text; `d91i3e`
+        # E-01 finished the job by centralizing the emit, which is what reconciled the `error: `
+        # prefix split this site used to carry).
+        return _emit_ledger_not_found(args, target)
 
     ledger_store = store.RunLedgerStore(ledger_file)
     try:
@@ -685,10 +816,37 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
 # ==================================================================================================
 
 
-def _emit_error(args: argparse.Namespace, message: str, exit_code: int) -> int:
-    """Emit an error in human or machine mode and return the exit code."""
+def _emit_error(
+    args: argparse.Namespace,
+    message: str,
+    exit_code: int,
+    extra: Optional[Dict[str, Any]] = None,
+) -> int:
+    """Emit an error in human or machine mode and return the exit code.
+
+    `extra` ADDS KEYS TO THE EXISTING PAYLOAD SHAPE; it does not replace it (`d91i3e` E-04). The
+    human stream is unaffected, because the prose already carries whatever `extra` states
+    structurally. It exists so a machine consumer reads a SUGGESTED COMMAND from a field rather than
+    having to parse it out of an English sentence, which is the half of this surface where a
+    human-only signpost does the most damage: an automated consumer cannot read prose at all.
+
+    DELIBERATELY NOT AN `aw.agent/v1` RECORD (F-16). This module's machine payloads are bare dicts
+    (`ok`/`error`/`exit_code`) and `agent_schema.validate_agent_record` reports three violations
+    against one; `run_cli` imports `agent_schema` zero times. Converting them is a real gap on a
+    different contract, across every `_emit_machine`/`_emit_error` site, and doing it here would
+    silently change what every existing `aw run`/`aw runs --agent` consumer parses. So `extra`
+    EXTENDS the shape that exists, and `tests/test_run_cli_ledger_message.py` still pins the
+    unknown-target payload's key set exactly, which is what keeps this from drifting into a rewrite.
+    """
     if _machine(args):
-        _emit_machine(args, {"ok": False, "error": message, "exit_code": exit_code})
+        payload: Dict[str, Any] = {
+            "ok": False,
+            "error": message,
+            "exit_code": exit_code,
+        }
+        if extra:
+            payload.update(extra)
+        _emit_machine(args, payload)
     else:
         print(f"error: {message}")
     return exit_code
@@ -698,19 +856,14 @@ def _resolve_or_error(args: argparse.Namespace) -> tuple[Optional[Path], int]:
     """Resolve the ledger path or return an invalid-invocation error tuple."""
     target = getattr(args, "target", None)
     if not target:
-        return None, _emit_error(
-            args, "no run id or ledger path given", EXIT_INVALID_INVOCATION
-        )
+        return None, _emit_no_target(args)
     ledger_file = resolve_ledger_path(target, getattr(args, "dir", None))
     if not ledger_file:
-        # The wording lives in `_ledger_not_found_message` so this helper's SEVEN callers and the
-        # three inline emitters cannot drift apart (`i1hlgx`). The message deliberately states no
-        # verb of its own, because six of this helper's callers are ACTION verbs.
-        return None, _emit_error(
-            args,
-            _ledger_not_found_message(target),
-            EXIT_INVALID_INVOCATION,
-        )
+        # Both the wording and the EMIT live in the shared emitters, so this helper's SEVEN callers
+        # and the three formerly-inline emitters cannot drift apart (`i1hlgx` + `d91i3e` E-01). The
+        # message deliberately states no verb of its own, because four of this helper's callers WRITE
+        # (`aw run start|record|cancel|finalize`) and a reader-specific sentence would be false there.
+        return None, _emit_ledger_not_found(args, target)
     return ledger_file, EXIT_OK
 
 

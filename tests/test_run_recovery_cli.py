@@ -1985,6 +1985,46 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
             + "\n",
             encoding="utf-8",
         )
+        # THE `state.json` IS REQUIRED FOR THIS TO BE A DRIVER RUN AT ALL (`d91i3e` E-06), and this
+        # fixture went without one until the driver-run signpost was added. The reason is not
+        # cosmetic: `run_viewer.repair_run` refuses a directory that has no `state.json` with
+        # `not a run directory` at exit 2, so the refusal's detector deliberately declines to suggest
+        # `aw runs repair` for one. Written against the events-only shape, the driver-run rows below
+        # would have demanded a suggestion the detector must NOT make, and the only ways to make them
+        # pass would have been to weaken the detector into suggesting a command that then fails.
+        # The events-only directory is kept as its own row instead (see `ABSENT_LEDGER_TARGETS`).
+        #
+        # The root is `.aw/records/runs/`, which BOTH resolvers search, so this fixture does not sit
+        # on the divergence axis between them. Do NOT "simplify" it to `.aw/state/runs/`: the ledger
+        # reader searches there and `discover_run_dirs` does not, so `repair` could not see it.
+        (self.run_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": self.run_id,
+                    "selectors": ["demo"],
+                    "queue": [{"position": 1, "id6": "item01", "status": "executed"}],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        # A driver run the VIEWER'S resolver cannot see: the ledger reader searches
+        # `.aw/state/runs/` but `discover_run_dirs` does not, so `aw runs repair` answers
+        # `no run matched target` here. Seeded once so the "declines to suggest" row can use it.
+        self.invisible_run_id = "run-20260824T140112Z-999999"
+        self.invisible_dir = self.tmp / ".aw" / "state" / "runs" / self.invisible_run_id
+        self.invisible_dir.mkdir(parents=True)
+        (self.invisible_dir / "state.json").write_text(
+            json.dumps({"run_id": self.invisible_run_id}) + "\n", encoding="utf-8"
+        )
+        (self.invisible_dir / "events.jsonl").write_text("{}\n", encoding="utf-8")
+        # A directory holding ONLY an event log: resolvable by NAME, but refused by `repair_run`.
+        self.stateless_run_id = "run-20260824T140112Z-888888"
+        self.stateless_dir = (
+            self.tmp / ".aw" / "records" / "runs" / self.stateless_run_id
+        )
+        self.stateless_dir.mkdir(parents=True)
+        (self.stateless_dir / "events.jsonl").write_text("{}\n", encoding="utf-8")
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -2313,6 +2353,384 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
             for rec in _complete_run_records():
                 store.append(rec)
         return [str(ledger)]
+
+    # ---- the SIGNPOST on the not-found refusal (`d91i3e`) --------------------------------------
+    #
+    # These extend the class rather than starting a module because they assert about the SAME
+    # refusal, on the SAME fixture, as the rows above: the not-found verdict (exit 2) that the
+    # `e6b9kt` rows already distinguish from the wrong-format verdict (exit 7). Keeping them here is
+    # what makes that fence visible, since the new text must NOT leak into the exit-7 class.
+
+    #: Every leaf that emits the absent-ledger refusal, with the NOUN it lives under and whether it
+    #: WRITES. Ten of them: three build the refusal at their own call site and seven reach it through
+    #: `_resolve_or_error`. The direction column is not decoration: four of the ten MUTATE a ledger,
+    #: so a message calling its own caller a reader would be false exactly there, which is the claim
+    #: `test_the_signpost_wording_is_true_of_a_writer_too` pins.
+    REFUSAL_LEAVES: "tuple[tuple[str, str, bool], ...]" = (
+        ("runs", "show", False),
+        ("runs", "status", False),
+        ("runs", "verify-ledger", False),
+        ("runs", "evidence", False),
+        ("runs", "next", False),
+        ("runs", "resume", False),
+        ("run", "start", True),
+        ("run", "record", True),
+        ("run", "cancel", True),
+        ("run", "finalize", True),
+    )
+
+    #: (case, the target attribute or literal, expect a repair suggestion, why this row exists)
+    #:
+    #: The whole claim is that the signpost appears EXACTLY when `aw runs repair <target>` would
+    #: actually work, so each row's `expect_suggestion` is really a prediction about `repair`, and
+    #: `test_the_signpost_agrees_with_what_repair_actually_does` checks it against `repair` itself
+    #: rather than against this table's opinion.
+    ABSENT_LEDGER_TARGETS: "tuple[tuple[str, str, bool, str], ...]" = (
+        (
+            "a driver run the viewer's resolver can see, holding state.json and events.jsonl",
+            "run_id",
+            True,
+            "THE CASE THE WORK EXISTS FOR (backlog `sv8z1e`): an operator whose driver run crashed "
+            "reaches for `aw runs resume <id>`, whose own --help promises exactly that situation, "
+            "and was told only that a file was absent while the run sat plainly on disk. This row "
+            "is what proves the dead end became a signpost",
+        ),
+        (
+            "a target that resolves to nothing at all",
+            "totalgibberish",
+            False,
+            "THE FAIL-CLOSED ROW: inventing a `repair` suggestion for a target that resolves to "
+            "nothing would send the operator to a command that then answers `no run matched "
+            "target`, which is worse than saying nothing, because it burns their trust in every "
+            "other suggestion this surface makes. Today's honest message is CORRECT here",
+        ),
+        (
+            "a driver run under .aw/state/runs/, where the viewer's resolver cannot see it",
+            "invisible_run_id",
+            False,
+            "RESOLVER-DIVERGENCE AXIS (a): the ledger reader searches `.aw/state/runs/` and "
+            "`discover_run_dirs` does not. A detector that probed the READER's own roots would "
+            "suggest `repair` here and `repair` would then refuse, which is the precise trap this "
+            "row exists to keep shut",
+        ),
+        (
+            "a run directory holding events.jsonl but no state.json",
+            "stateless_run_id",
+            False,
+            "RESOLVER-DIVERGENCE AXIS (b), and the reason resolving the target is not a sufficient "
+            "test: the viewer's resolver DOES match this directory (by name), but `repair_run` "
+            "refuses it with `not a run directory`. Only the extra state.json condition keeps the "
+            "suggestion honest, so this row is what fails if that condition is dropped",
+        ),
+    )
+
+    def _absent_target(self, spec: str) -> str:
+        """Resolve one `ABSENT_LEDGER_TARGETS` spec to the literal CLI argument."""
+        return getattr(self, spec, spec)
+
+    def test_the_signpost_appears_exactly_when_repair_would_work(self) -> None:
+        """One table: the driver-run signpost is offered for precisely the targets `repair` can act on.
+
+        Accumulates rather than asserting per row because the realistic failure is directional and
+        only legible across rows: a detector that is too EAGER fails the three negative rows
+        together (it is suggesting a command that will refuse), while one that is too STRICT fails
+        the single positive row alone (the dead end is back). Four independent red lines would not
+        show which of those happened.
+        """
+        wrong = []
+        for case, spec, expect_suggestion, why in self.ABSENT_LEDGER_TARGETS:
+            target = self._absent_target(spec)
+            rc, out = self._cli("runs", "resume", target, "--dir", str(self.tmp))
+            problems = []
+            if rc != run_cli.EXIT_INVALID_INVOCATION:
+                problems.append(
+                    f"exit {rc}, expected {run_cli.EXIT_INVALID_INVOCATION}; this plan changes "
+                    "GUIDANCE, never the invocation contract"
+                )
+            suggested = "aw runs repair" in out
+            if suggested != expect_suggestion:
+                problems.append(
+                    f"repair suggestion {'offered' if suggested else 'absent'}, expected "
+                    f"{'offered' if expect_suggestion else 'absent'}"
+                )
+            # The three honest clauses survive in EVERY row: the signpost is an addition, and a
+            # rewrite that dropped them would re-open `i1hlgx`.
+            for needle in ("ledger.jsonl", "no driver run writes one", "events.jsonl"):
+                if needle not in out:
+                    problems.append(
+                        f"lost the {needle!r} clause from the `i1hlgx` wording"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case}\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the driver-run signpost is wrong for {len(wrong)} of "
+            f"{len(self.ABSENT_LEDGER_TARGETS)} targets. READ THE GROUPING: if every NEGATIVE row "
+            "failed together the detector became too eager and is now naming `aw runs repair` for "
+            "targets repair itself refuses, which is the fail-open direction and the worse one. If "
+            "only the POSITIVE row failed, the signpost is gone and an operator pointing a ledger "
+            "reader at a crashed driver run is back to a message that names no action at all, which "
+            "is the defect backlog `sv8z1e` was filed for.\n" + "\n".join(wrong),
+        )
+
+    def test_the_signpost_agrees_with_what_repair_actually_does(self) -> None:
+        """The prediction above is checked against `aw runs repair` itself, not against our opinion.
+
+        Kept apart from the table because its claim is a CROSS-COMMAND agreement rather than a
+        per-target expectation, and because it is the only thing standing between this work and its
+        central risk: a suggestion that does not work. The two commands resolve targets through
+        DIFFERENT code (the readers' `resolve_ledger_path` versus the viewer's `discover_run_dirs`),
+        so agreement has to be measured. `repair` answering exit 0 means it acted or had nothing to
+        do, which is a fine place to send an operator; any nonzero answer is a refusal, and a
+        refusal is what we must never have suggested.
+        """
+        disagreements = []
+        for case, spec, expect_suggestion, _why in self.ABSENT_LEDGER_TARGETS:
+            target = self._absent_target(spec)
+            _rc, refusal = self._cli("runs", "resume", target, "--dir", str(self.tmp))
+            suggested = "aw runs repair" in refusal
+            repair_rc, repair_out = self._cli(
+                "runs", "repair", target, "--dir", str(self.tmp)
+            )
+            if suggested and repair_rc != 0:
+                disagreements.append(
+                    f"  {case}: we suggested `aw runs repair` but it exited {repair_rc}: "
+                    f"{repair_out.strip()[:200]!r}"
+                )
+            if not suggested and repair_rc == 0:
+                disagreements.append(
+                    f"  {case}: `aw runs repair` WORKS here (exit 0) but we did not offer it: "
+                    f"{repair_out.strip()[:200]!r}"
+                )
+            if suggested != expect_suggestion:
+                disagreements.append(
+                    f"  {case}: table predicts suggestion={expect_suggestion}, got {suggested}"
+                )
+        self.assertEqual(
+            disagreements,
+            [],
+            "the refusal's suggestion and `aw runs repair`'s real behaviour disagree. A suggestion "
+            "that REFUSES is the failure this whole change exists to avoid: the operator followed "
+            "our advice and got a second dead end. FIX: make the detector ask the viewer's own "
+            "resolver (`resolve_target_runs_detailed`) and additionally require the `state.json` "
+            "that `repair_run` requires; do NOT re-derive repair's resolution rules, which is what "
+            "produces exactly this divergence.\n" + "\n".join(disagreements),
+        )
+
+    def test_every_one_of_the_ten_leaves_carries_the_signpost(self) -> None:
+        """All ten leaves that refuse, in both nouns, name the action; nine cannot be left behind.
+
+        Apart from the target table because the axis is the LEAF rather than the target: the refusal
+        was emitted from four call sites and a per-leaf fix would have left copies of the dead end
+        behind. This is the row-per-leaf proof that the consolidation reached all of them.
+        """
+        problems = []
+        for noun, leaf, _writes in self.REFUSAL_LEAVES:
+            rc, out = self._cli(noun, leaf, self.run_id, "--dir", str(self.tmp))
+            if rc != run_cli.EXIT_INVALID_INVOCATION:
+                problems.append(
+                    f"aw {noun} {leaf}: exit {rc}, expected "
+                    f"{run_cli.EXIT_INVALID_INVOCATION} (returned value, no pipeline)"
+                )
+            if "aw runs repair" not in out:
+                problems.append(
+                    f"aw {noun} {leaf}: no repair suggestion in {out[:200]!r}"
+                )
+            if "aw runs " + self.run_id not in out:
+                problems.append(
+                    f"aw {noun} {leaf}: no READ suggestion; an operator who was just refused "
+                    "usually wants to SEE the run, and `repair` mutates"
+                )
+        self.assertEqual(
+            [],
+            problems,
+            "a leaf that refuses without naming the action is the dead end this change removes. "
+            "All ten route through one emitter, so ONE leaf failing alone means it stopped using "
+            "it.\n" + "\n".join(problems),
+        )
+
+    def test_the_signpost_wording_is_true_of_a_writer_too(self) -> None:
+        """The shared sentence must not call its caller a reader: four of the ten leaves WRITE.
+
+        Apart from the ten-leaf table because the claim is about TRUTHFULNESS rather than presence.
+        The obvious phrasing for this refusal ("these readers serve a different run model") is false
+        exactly where it is printed by `aw run start|record|cancel|finalize`, and a refusal an
+        operator catches in a lie is worse than the vague one it replaced. The fix is to name the RUN
+        MODEL rather than the leaf's direction, so this asserts the prohibition directly.
+        """
+        for noun, leaf, writes in self.REFUSAL_LEAVES:
+            if not writes:
+                continue
+            with self.subTest(leaf=f"aw {noun} {leaf}"):
+                _rc, out = self._cli(noun, leaf, self.run_id, "--dir", str(self.tmp))
+                lowered = out.lower()
+                for forbidden in ("these readers", "this reader", "read-only command"):
+                    self.assertNotIn(
+                        forbidden,
+                        lowered,
+                        f"aw {noun} {leaf} WRITES a ledger, so calling itself {forbidden!r} is "
+                        "false about the very leaf that printed it",
+                    )
+                self.assertIn(
+                    "ledger run model",
+                    lowered,
+                    "the sentence must name the RUN MODEL, which is true in both directions, "
+                    "rather than the leaf's direction, which is not",
+                )
+
+    def test_no_renderer_leaks_an_absolute_path_into_the_suggestion(self) -> None:
+        """The most-copied output on this surface must not carry a home directory (D92).
+
+        Apart from everything else because it is a LEAK check, not a behaviour check. The detector
+        legitimately knows an absolute run directory (it had to find one to classify the target),
+        and printing it is the obvious way to make the suggestion unambiguous - which is exactly the
+        trap, since this refusal is what an operator pastes into an issue. `agent_schema` looks for
+        precisely a `/home/` segment, so that is what is asserted.
+        """
+        for extra in ((), ("--agent",), ("--json",)):
+            with self.subTest(renderer=extra or ("human",)):
+                _rc, out = self._cli(
+                    "runs", "resume", self.run_id, "--dir", str(self.tmp), *extra
+                )
+                self.assertIn("aw runs repair", out, "precondition: signpost present")
+                self.assertNotIn(
+                    str(self.tmp),
+                    out,
+                    "the resolved run directory must never be printed; suggest the target as the "
+                    "operator spelled it",
+                )
+                self.assertNotIn(
+                    "/home/",
+                    out,
+                    "a home-directory segment in the most-pasted output on this surface is the "
+                    "leak `aw sanitize` exists to catch",
+                )
+
+    def test_both_machine_renderers_carry_the_suggestion_as_data(self) -> None:
+        """An agent consumer reads a FIELD, never an English sentence, and the keys EXTEND the shape.
+
+        Apart from the human assertions because the contract is structural. A human-only signpost
+        leaves the gap exactly where it does most damage: an automated consumer cannot parse prose at
+        all, so it would still see only a bare failure. The `exit_code` is checked against the
+        RETURNED code so the payload cannot claim one thing while the process does another.
+
+        DELIBERATELY NOT an `aw.agent/v1` conformance check: these payloads are bare dicts and are
+        not records of that schema, which is a real gap on a different contract and not this one. So
+        this asserts the EXISTING keys survive and the new ones are additions.
+        """
+        for extra in ("--agent", "--json"):
+            with self.subTest(renderer=extra):
+                rc, out = self._cli(
+                    "runs", "resume", self.run_id, "--dir", str(self.tmp), extra
+                )
+                payload = json.loads(
+                    out.strip().splitlines()[-1] if extra == "--agent" else out
+                )
+                self.assertEqual(run_cli.EXIT_INVALID_INVOCATION, rc)
+                self.assertEqual(
+                    rc,
+                    payload["exit_code"],
+                    "the payload's exit_code must equal the code the process actually returned",
+                )
+                self.assertIs(False, payload["ok"])
+                self.assertEqual("driver-run", payload["target_kind"])
+                self.assertEqual(
+                    [
+                        f"aw runs {self.run_id}",
+                        f"aw runs repair {self.run_id}",
+                    ],
+                    payload["suggested_commands"],
+                    "the READ comes first: an operator who was just refused usually wants to SEE "
+                    "the run, and `repair` mutates",
+                )
+                self.assertLessEqual(
+                    {"ok", "error", "exit_code"},
+                    set(payload),
+                    "the pre-existing payload shape is EXTENDED, never replaced: consumers key off "
+                    "these three today",
+                )
+                self.assertNotIn(
+                    "\x1b[", out, "machine streams are documented ANSI-free"
+                )
+
+    def test_an_unknown_target_keeps_the_bare_machine_shape(self) -> None:
+        """The negative half of the payload claim: no suggestion means no suggestion KEYS either.
+
+        Separate because it is what keeps the new fields from becoming unconditional noise. A
+        consumer testing `if "suggested_commands" in payload` must be able to trust the absence, so
+        the keys appear only when there is genuinely something to suggest.
+        """
+        rc, out = self._cli(
+            "runs", "resume", "totalgibberish", "--dir", str(self.tmp), "--agent"
+        )
+        payload = json.loads(out.strip().splitlines()[-1])
+        self.assertEqual(run_cli.EXIT_INVALID_INVOCATION, rc)
+        self.assertEqual(
+            {"ok", "error", "exit_code"},
+            set(payload),
+            "an unresolvable target's payload must stay exactly as it was: adding empty suggestion "
+            "keys would make their presence meaningless as a signal",
+        )
+        self.assertNotIn("aw runs repair", payload["error"])
+
+    def test_the_three_way_classification_names_all_three_answers(self) -> None:
+        """The detector returns one of three answers, not a bool, and a ledger run is one of them.
+
+        Apart from the CLI tables because it addresses the helper directly: a two-valued answer
+        would have to push the UNKNOWN case into one of the other arms, and the arm it would land in
+        (driver run) is the one that emits a command. That is how a boolean turns into a suggestion
+        for a target that does not exist.
+        """
+        self.assertEqual(
+            run_cli.TARGET_DRIVER_RUN,
+            run_cli._classify_absent_target(self.run_id, str(self.tmp)),
+        )
+        self.assertEqual(
+            run_cli.TARGET_UNKNOWN,
+            run_cli._classify_absent_target("totalgibberish", str(self.tmp)),
+        )
+        # A LEDGER run is the caller's OWN answer: `resolve_ledger_path` returning a path IS that
+        # verdict, so the third value exists as a named constant the message builder branches on
+        # rather than as a case this detector is ever asked.
+        ledger = self.run_dir / ledger_store.LEDGER_FILENAME
+        ledger_store.RunLedgerStore(ledger).append(_run_record())
+        self.assertIsNotNone(run_cli.resolve_ledger_path(self.run_id, self.tmp))
+        self.assertEqual(
+            3,
+            len(
+                {
+                    run_cli.TARGET_LEDGER_RUN,
+                    run_cli.TARGET_DRIVER_RUN,
+                    run_cli.TARGET_UNKNOWN,
+                }
+            ),
+            "three distinct answers, so no case has to be folded into another",
+        )
+
+    def test_classifying_a_target_never_hands_the_event_log_to_a_ledger_parser(
+        self,
+    ) -> None:
+        """The `e6b9kt` guarantee survives the detector: it may CLASSIFY, never parse (`d91i3e` E-05).
+
+        Apart from the resolution table because the claim is about what the NEW code may not do. The
+        detector reads a driver run directory on purpose, which is one short step from handing its
+        `events.jsonl` to the ledger reader and resurrecting the bug that reported a healthy driver
+        log as corrupt. So this pins both halves: the resolver still refuses the event log for a
+        bare id, and the refusal that follows still never says corrupt.
+        """
+        self.assertIsNone(
+            run_cli.resolve_ledger_path(self.run_id, self.tmp),
+            "a bare run id must STILL resolve to no ledger even though a driver run is there; "
+            "resolving to `events.jsonl` is e6b9kt returning",
+        )
+        rc, out = self._cli("runs", "show", self.run_id, "--dir", str(self.tmp))
+        self.assertEqual(run_cli.EXIT_INVALID_INVOCATION, rc)
+        self.assertNotIn("corrupt", out.lower())
 
 
 if __name__ == "__main__":
