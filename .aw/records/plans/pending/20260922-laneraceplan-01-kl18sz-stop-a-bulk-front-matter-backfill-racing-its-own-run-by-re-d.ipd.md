@@ -11,6 +11,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_records_only_lane_rederive.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: no-go
 - Set: laneraceplan
 - Order: 1
 - Highest E allocated: 05
