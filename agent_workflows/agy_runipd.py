@@ -366,6 +366,7 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     append_jsonl as append_jsonl,
+    backlog_item_paths_for_id as backlog_item_paths_for_id,
 )
 from agent_workflows.runner_shared import (
     atomic_write_json as atomic_write_json,

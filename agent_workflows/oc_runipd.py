@@ -401,6 +401,7 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     append_jsonl as append_jsonl,
+    backlog_item_paths_for_id as backlog_item_paths_for_id,
 )
 from agent_workflows.runner_shared import (
     atomic_write_json as atomic_write_json,
@@ -2180,6 +2181,47 @@ def process_backlog_close(
         run_id=state.get("run_id"),
         plan_id6=item.get("id6"),
     )
+    # SCOPED INTEGRITY SELF-CHECK, IMMEDIATELY AFTER OUR OWN WRITE (2026-09-22).
+    #
+    # WHY HERE AND NOT ONLY IN CI. A `_staged_paths` bug committed this very relocation as a bare
+    # ADDITION, so the pre-move copy survived in HEAD beside its destination and the item held two
+    # contradictory lifecycle states at once. 36 items were corrupted over two days. The CI gate that
+    # catches it is correct and fired, but it speaks only after a push, and 143 commits landed on
+    # `origin/main` while it was red. The runner KNOWS which id6 it just wrote, so checking that one
+    # id6 costs one tree walk and reports at the moment of creation rather than two days later.
+    #
+    # IT REPORTS AND NEVER RAISES. The close is already committed by this point, so refusing would
+    # leave the tree in exactly the same state while additionally killing the run; the useful act is to
+    # make the corruption impossible to MISS. The fact lands in three places a later reader actually
+    # consults: the item's own `backlog_close` record, the run's `events.jsonl`, and stderr.
+    with contextlib.suppress(Exception):  # never let a self-check break a run
+        claimants = backlog_item_paths_for_id(write_repo, item_id6)
+        if len(claimants) > 1:
+            record["integrity"] = {
+                "rule": "attention.duplicate-id",
+                "id6": item_id6,
+                "paths": claimants,
+                "detail": (
+                    f"backlog item {item_id6} now exists at {len(claimants)} paths, so its lifecycle "
+                    "state is contradictory; a relocation committed only half of its move"
+                ),
+            }
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "backlog-close-integrity-violation",
+                    "id6": item["id6"],
+                    "backlog_item": item_id6,
+                    "rule": "attention.duplicate-id",
+                    "paths": claimants,
+                },
+            )
+            sys.stderr.write(
+                f"warning: backlog item {item_id6} exists at {len(claimants)} paths after its close "
+                f"({', '.join(claimants)}); `aw attention` will report attention.duplicate-id and its "
+                "board is NOT authoritative until this is repaired\n"
+            )
     item["backlog_close"] = record
     append_jsonl(
         run_dir / "events.jsonl",

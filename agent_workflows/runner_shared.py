@@ -761,6 +761,51 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
             os.unlink(temp_name)
 
 
+def backlog_item_paths_for_id(repo: Path, item_id6: str) -> list[str]:
+    """EVERY backlog file claiming ``item_id6``, repo-relative and sorted. Normally exactly one.
+
+    THE SCOPED INTEGRITY QUESTION, added after a measured two-day corruption (2026-09-22). A backlog
+    id6 must exist in exactly ONE status directory: the directory IS the item's lifecycle state, so the
+    same id6 in two of them means the item has two contradictory states at once, and `aw attention`
+    reports it as `attention.duplicate-id` and declares its whole board non-authoritative.
+
+    WHY THE RUNNER ASKS THIS AT ALL, rather than leaving it to `aw check` and CI. A bug in
+    `git_commit_helper._staged_paths` (fixed 2026-09-22) committed a `git mv` relocation as a bare
+    ADDITION, leaving the pre-move copy in HEAD beside its own destination. That produced 36 duplicated
+    items across two days. The CI gate that catches this is correct and DID fire - but it speaks only
+    after the corrupt commit is pushed, and 143 further commits reached `origin/main` while it was red,
+    so detection-after-the-fact did not prevent accumulation. This function is the cheap half of the
+    remedy: the runner already knows WHICH id6 it just wrote, so it can verify that one id6 rather than
+    walking the whole tree, and can say so at the moment of creation instead of two days later.
+
+    DELIBERATELY A PLAIN QUERY, NOT A REFUSAL. It returns facts and raises nothing; the caller decides.
+    A close that has already been committed cannot be undone by refusing here, so the honest action is
+    to REPORT loudly, not to fail the run and leave the tree in the same state anyway.
+
+    `_iter_items` is reused (never a glob) for the same reason :func:`resolve_backlog_item` reuses it:
+    a filename whose slug disagrees with its `- Id:` must still be found, because that disagreement is
+    exactly one of the shapes this check exists to notice.
+    """
+    from agent_workflows import backlog as _backlog
+
+    hits: list[str] = []
+    root = Path(repo)
+    for path in _backlog._iter_items(root):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if _backlog.parse_item(text).id != item_id6:
+            continue
+        try:
+            hits.append(path.relative_to(root).as_posix())
+        except (
+            ValueError
+        ):  # pragma: no cover - a path outside the repo cannot be reported relatively
+            hits.append(path.name)
+    return sorted(hits)
+
+
 def append_jsonl(path: Path, event: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -20369,54 +20414,56 @@ def execute_item_core(
                     suite_result=suite_result,
                     changed_files=gate_changed_files,
                     ask=(
-                        lambda gate_prompt_text: resume_via_launcher(
-                            raw_launcher,
-                            (
-                                state,
-                                run_dir,
-                                item,
-                                plan_path,
-                                write_prompt(
+                        lambda gate_prompt_text: (
+                            resume_via_launcher(
+                                raw_launcher,
+                                (
+                                    state,
                                     run_dir,
                                     item,
-                                    gate_prompt_text,
+                                    plan_path,
+                                    write_prompt(
+                                        run_dir,
+                                        item,
+                                        gate_prompt_text,
+                                        attempt_no,
+                                        suffix="gate-answer",
+                                    ),
                                     attempt_no,
-                                    suffix="gate-answer",
                                 ),
-                                attempt_no,
-                            ),
-                            {
-                                "log_suffix": "gate-answer",
-                                "label_suffix": "gate-answer",
-                                "tracker": tracker,
-                                "work_dir": work_dir,
-                                "resume_session": gate_session,
-                            },
-                        )
-                        if host_labels == OC_HOST_LABELS
-                        else resume_via_launcher(
-                            raw_launcher,
-                            (
-                                state,
-                                run_dir,
-                                item,
-                                write_prompt(
+                                {
+                                    "log_suffix": "gate-answer",
+                                    "label_suffix": "gate-answer",
+                                    "tracker": tracker,
+                                    "work_dir": work_dir,
+                                    "resume_session": gate_session,
+                                },
+                            )
+                            if host_labels == OC_HOST_LABELS
+                            else resume_via_launcher(
+                                raw_launcher,
+                                (
+                                    state,
                                     run_dir,
                                     item,
-                                    gate_prompt_text,
+                                    write_prompt(
+                                        run_dir,
+                                        item,
+                                        gate_prompt_text,
+                                        attempt_no,
+                                        suffix="gate-answer",
+                                    ),
                                     attempt_no,
-                                    suffix="gate-answer",
                                 ),
-                                attempt_no,
-                            ),
-                            {
-                                "session_id": gate_session,
-                                "use_continue": False,
-                                "log_suffix": "gate-answer",
-                                "label_suffix": "gate-answer",
-                                "work_dir": work_dir,
-                                "tracker": tracker,
-                            },
+                                {
+                                    "session_id": gate_session,
+                                    "use_continue": False,
+                                    "log_suffix": "gate-answer",
+                                    "label_suffix": "gate-answer",
+                                    "work_dir": work_dir,
+                                    "tracker": tracker,
+                                },
+                            )
                         )
                     ),
                     outcome_path=item_outcome_path,

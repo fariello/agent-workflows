@@ -43,7 +43,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePath
 from unittest import mock
 
 from agent_workflows import (
@@ -1307,7 +1307,7 @@ class UnclosedReport(unittest.TestCase):
 
 _SIGNAL_SCRIPT = """
 import json, os, signal, sys, time
-from pathlib import Path
+from pathlib import Path, PurePath
 sys.path.insert(0, {repo!r})
 from agent_workflows import {driver} as d
 from agent_workflows.render_stream import install_exit_signal_handler
@@ -2120,6 +2120,127 @@ class SharedNotCopied(unittest.TestCase):
                     f"{name}: and the LEDGER must exist, so `aw runs run-early` can answer afterwards. "
                     "With the pre-loop publication deleted this file was measured ABSENT entirely",
                 )
+
+
+class BacklogCloseIntegritySelfCheck(unittest.TestCase):
+    """The runner must NOTICE when its own close leaves an item claiming two lifecycle states.
+
+    THE MEASURED CORRUPTION, 2026-09-22. `git_commit_helper._staged_paths` read
+    `git diff --name-only --cached`, which prints only the DESTINATION of a staged rename, so
+    `offer_commit` filtered out the SOURCE and committed this relocation as a bare ADDITION. The
+    pre-move copy therefore survived in HEAD beside its own destination: 36 backlog ids ended up in
+    TWO status directories at once. `aw attention` reported every one as `attention.duplicate-id` and
+    declared its whole board non-authoritative.
+
+    THE READ BUG IS FIXED ELSEWHERE (and `tests/test_git_commit_helper.py` pins it directly). What is
+    pinned HERE is the second line of defense: the runner knows which id6 it just wrote, so it must
+    verify THAT id6 and say so at the moment of creation. This exists because detection-after-the-fact
+    demonstrably did not prevent accumulation - the CI gate was correct, fired, and stayed red while
+    143 further commits reached `origin/main` over two days.
+    """
+
+    def _repo(self, tmp) -> Path:
+        root = Path(tmp)
+        (root / ".aw/records/backlog/graduated").mkdir(parents=True, exist_ok=True)
+        (root / ".aw/records/backlog/done").mkdir(parents=True, exist_ok=True)
+        return root
+
+    def _item(self, path: Path, id6: str, status: str) -> None:
+        path.write_text(
+            f"- Id: {id6}\n- Status: {status}\n- Summary: s\n\n## Workflow history\n",
+            encoding="utf-8",
+        )
+
+    def test_a_single_claimant_is_the_healthy_case(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            self._item(
+                root / ".aw/records/backlog/done/20260101-aa-01-abc123-x.backlog.md",
+                "abc123",
+                "done",
+            )
+            for name, mod in _DRIVERS:
+                found = mod.backlog_item_paths_for_id(root, "abc123")
+                self.assertEqual(
+                    len(found),
+                    1,
+                    f"{name}: one file claiming the id must read as exactly one",
+                )
+
+    def test_two_claimants_are_detected_which_is_the_36_item_corruption(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            # EXACTLY the measured shape: the pre-move copy left behind beside its destination.
+            self._item(
+                root
+                / ".aw/records/backlog/graduated/20260101-aa-01-abc123-x.backlog.md",
+                "abc123",
+                "graduated",
+            )
+            self._item(
+                root / ".aw/records/backlog/done/20260101-aa-01-abc123-x.backlog.md",
+                "abc123",
+                "done",
+            )
+            for name, mod in _DRIVERS:
+                found = mod.backlog_item_paths_for_id(root, "abc123")
+                self.assertEqual(
+                    len(found),
+                    2,
+                    f"{name}: the duplicate MUST be visible to the runner. Reporting one here is the "
+                    "blindness that let 36 items corrupt over two days",
+                )
+                self.assertTrue(
+                    any("graduated/" in p for p in found)
+                    and any("done/" in p for p in found),
+                    f"{name}: both lifecycle directories must be named, since naming only one tells "
+                    f"an operator nothing about what to repair; got {found}",
+                )
+
+    def test_an_absent_id_is_empty_not_an_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            for name, mod in _DRIVERS:
+                self.assertEqual(
+                    mod.backlog_item_paths_for_id(root, "zzzzzz"),
+                    [],
+                    f"{name}: an id nothing claims is empty, never an exception",
+                )
+
+    def test_paths_are_repository_relative_so_no_home_path_can_leak(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            self._item(
+                root / ".aw/records/backlog/done/20260101-aa-01-abc123-x.backlog.md",
+                "abc123",
+                "done",
+            )
+            for name, mod in _DRIVERS:
+                for rel in mod.backlog_item_paths_for_id(root, "abc123"):
+                    self.assertFalse(
+                        PurePath(rel).is_absolute(),
+                        f"{name}: {rel!r} is absolute; these strings reach stderr and the run ledger, "
+                        "which the leak sanitizer scans",
+                    )
+                    self.assertTrue(
+                        rel.startswith(".aw/"), f"{name}: unexpected shape {rel!r}"
+                    )
+
+    def test_both_drivers_share_ONE_implementation(self):
+        """A one-runner-only check would leave `aw agy run` able to corrupt the tree silently."""
+
+        drivers = dict(_DRIVERS)
+        if len(drivers) < 2:
+            self.skipTest("only one driver module available")
+        fns = {n: m.backlog_item_paths_for_id for n, m in drivers.items()}
+        first = next(iter(fns.values()))
+        for name, fn in fns.items():
+            self.assertIs(
+                fn,
+                first,
+                f"{name}: the integrity check has FORKED per host. Both drivers must resolve to one "
+                "object or a fix lands on one runner only",
+            )
 
 
 if __name__ == "__main__":
