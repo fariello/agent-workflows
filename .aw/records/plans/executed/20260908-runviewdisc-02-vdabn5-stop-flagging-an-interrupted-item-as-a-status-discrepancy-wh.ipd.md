@@ -10,7 +10,7 @@
 - Scope: Add `interrupted` to the EXISTING status-tolerance branch in `audit_step_artifact` so an interrupted item beside an UNMOVED plan is not a discrepancy, and prove the `Issue` column clears with it. EXCLUDES `substantially-complete`, whose location half is also flagged and whose normalization collides with `complete` (deferred with the measurement); excludes any new classification vocabulary or direction-aware classifier; excludes the `integration-blocked` + `executed` case, which is backlog `1f9m2j`, BLOCKED on `rnl3b7` because deciding it requires evidence this module does not read; and excludes the SEVEN OTHER catch-all statuses found at review (see the scope note below), which share the defect's SHAPE but not its argument.
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Set: runviewdisc
 - Order: 2
@@ -18,10 +18,10 @@
 - Readiness: go-pending-approval
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vdabn5
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 13ty0u
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: vdabn5 verified (set runviewdisc, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/artifact_audit.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/run_viewer.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-22 executed-pending-transition (opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-04 performed, V-01..V-04 verified with pasted evidence. THE FIX LANDED IN A DIFFERENT FILE THAN THE PLAN DECLARES, deliberately and with evidence: the status-tolerance arm MOVED from `run_viewer.audit_step_artifact` to `artifact_audit._status_disagrees` in commit `5f159173` (IPD `6ltz1y`'s extraction), after this plan was reviewed, so `agent_workflows/artifact_audit.py` is an out-of-scope changed path requiring a `--scope-reason`, and the DECLARED `agent_workflows/run_viewer.py` is deliberately unmodified and requires a `--scope-ack` (the fix reaches every one of its surfaces through the adapter). Rationale recorded as DECISION 22-vdabn5-D1 in the lane's decisions register. `r2i1b1` E-03 has ALSO landed, so the five `Issue` predicate copies are now ONE, which E-02 anticipated and told me to treat as fine. ONE VALUE ADDED, not the seven siblings; normalization and location computation byte-unchanged (proven at AST level); the refuted tautology is explicitly refuted rather than repeated in the new comment. Suite: bare `python3 -m pytest` `1 failed, 8232 passed, 3 skipped, 2 xfailed` against a baseline of `1 failed, 8227 passed` in this worktree, SAME single failing node id (`tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`), which is ENVIRONMENTAL: it asserts a non-isolated turn carries no `OPENCODE_CONFIG_CONTENT`, my own lane turn exports it, and the node passes with the variable unset. begin/finalize NOT run: `aw ipd begin` refused with AW-LIFECYCLE-ROLE-001 (the runner owns the transition for a managed lane), so this plan is left in `pending/` for the driver to transition.
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
