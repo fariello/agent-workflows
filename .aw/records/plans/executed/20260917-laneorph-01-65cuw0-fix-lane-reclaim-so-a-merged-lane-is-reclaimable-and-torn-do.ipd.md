@@ -6,7 +6,7 @@
 - Scope: Make the INTERRUPT-path reclaim reading honor merged-ness: add a merged-ness reading to `LaneState` REUSING the existing `runner_shared.lane_work_has_landed` predicate, and make `reclaimable` accept a merged, non-dirty lane so `reclaim_lanes_on_interrupt` can reclaim it. Does NOT change what `commits_ahead` MEANS: that figure is still the correct input to the lane-REUSE question (`LANE_EMPTY`/`LANE_STALE`/`LANE_FOREIGN` decide whether a lane can be adopted for a fresh execution), so this adds a separate predicate rather than redefining an existing one. EXPLICITLY NOT IN SCOPE, both removed at review as already-shipped or as another plan's: the end-of-run teardown call site (already wired; refuses on the R5.5 inventory, which is `5w8g8j`'s) and the `aw attention` merged-lane exclusion (already implemented).
 - Scope-Paths: agent_workflows/worktree_lease.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_worktree_lease_merged_reclaim.py
 - Item-Dependencies: executed:5w8g8j
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - From-Backlog: a58s04
@@ -15,9 +15,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 65cuw0
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 65cuw0 verified (set laneorph, attempt 1).
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-18 reviewed (aw set): plan-review round 3 complete: APPROVE WITH REVISIONS APPLIED. Maintainer resolved OQ-03, OQ-04, and OQ-05. PR-101 and PR-103 marked FIXED. Proceed with decision-order change in reclaim_lanes_on_interrupt so merged lanes are checked before holds_work bails out. Deleting the branch of a provably-merged lane on interrupt is safe and standard Git hygiene since all commits are in main. Readiness go-pending-approval.
