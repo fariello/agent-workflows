@@ -213,6 +213,20 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="shared_empty_result",
         exit_contract=(0, 1, 2),
     ),
+    # graduate Order 01 (`jxxec8`): the read-only pre-graduation view. A READ leaf and a selector-
+    # driven listing, so it declares `shared_empty_result` alongside `find`/`search`/`ipd board`: an
+    # EMPTY answer ("nothing links to this source yet") is the normal, reassuring outcome rather than
+    # an error, which is why the exit contract omits 1 - the view reports and never finds a defect.
+    CommandDeclaration(
+        command="graduation",
+        command_class="read",
+        human_recipe="list",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="shared_empty_result",
+        legacy_flags=("--kind", "--agent", "--json"),
+        exit_contract=(0, 2),
+    ),
     CommandDeclaration(
         command="doctor",
         command_class="check",

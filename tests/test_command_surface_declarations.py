@@ -145,6 +145,11 @@ class CommandSurfaceDeclarationsTests(unittest.TestCase):
                 # listing. It belongs with `find`/`search`/`index`/`ipd board`: a selector-driven
                 # listing whose empty result is a normal outcome rather than an error.
                 "runs list",
+                # graduate Order 01 (`jxxec8`): the pre-graduation view is a selector-driven READ
+                # listing in exactly the sense `find`/`search`/`ipd board` are, and its EMPTY answer
+                # ("nothing links to this source yet") is the common and reassuring outcome rather
+                # than an error, so it renders through the shared empty-result path.
+                "graduation",
             }:
                 self.assertEqual(
                     decl.empty_error_renderer,
