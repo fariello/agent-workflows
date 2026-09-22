@@ -12,6 +12,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/engine.py, AGENTS.md, tests/test_concurrent_driver_guard.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: runconcur
 - Order: 1
 - Highest E allocated: 08
