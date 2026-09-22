@@ -40,41 +40,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the grammar and its resolvers
 
-- [ ] E-01 DEFINE THE ROW GRAMMAR as spec `r07vma` R1a states it, matching `- [ ] E-NN CONFIRM <child-id6> REACHED <status>` on the item's FIRST line only, and treating every subsequent indented line as unparsed context. Site the pattern where `ipd_lint`'s other structural patterns live, as a module-level constant beside the `C_*` block, so one grep finds the rule. The grammar must be anchored (a row that merely CONTAINS the phrase is not conforming) and must tolerate a ticked box (`- [x]`), since a mid-execution orchestrator has ticked rows.
+- [x] E-01 DEFINE THE ROW GRAMMAR as spec `r07vma` R1a states it, matching `- [ ] E-NN CONFIRM <child-id6> REACHED <status>` on the item's FIRST line only, and treating every subsequent indented line as unparsed context. Site the pattern where `ipd_lint`'s other structural patterns live, as a module-level constant beside the `C_*` block, so one grep finds the rule. The grammar must be anchored (a row that merely CONTAINS the phrase is not conforming) and must tolerate a ticked box (`- [x]`), since a mid-execution orchestrator has ticked rows.
   DO NOT WIDEN THE GRAMMAR TO ACCOMMODATE AN EXISTING PLAN. Measured at HEAD `21eff5d8`, ZERO live orchestrator rows conform, and that is expected: the grammar is new, so nothing authored before it can satisfy it by accident. Spec Section 5 cost 3 states that a non-zero pre-migration count would mean the grammar had been quietly widened. The one exception is the parent `d1u4sy`, authored in this grammar deliberately.
   - Depends on: none
   - Expected outcome: a module-level anchored pattern; the parent `d1u4sy`'s five rows all match; a sample of pre-existing rows all fail.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 RESOLVE `<child-id6>` AGAINST THE ORCHESTRATOR'S OWN CHILD TABLE, so a row naming a plan that is not a child of THIS Set is refused. Handle the case where the table itself does not parse: that means conformance is UNKNOWN, not satisfied, so refuse and surface the reason rather than passing by default.
+- [x] E-02 RESOLVE `<child-id6>` AGAINST THE ORCHESTRATOR'S OWN CHILD TABLE, so a row naming a plan that is not a child of THIS Set is refused. Handle the case where the table itself does not parse: that means conformance is UNKNOWN, not satisfied, so refuse and surface the reason rather than passing by default.
   READ THIS BEFORE WRITING ANY CODE: `parse_child_table` ALONE CANNOT DO THIS, AND THE PLAN ORIGINALLY SAID IT COULD (corrected at review, PR-003). Measured in-process at review against this Set's own parent `d1u4sy`: `ipd_set_plan.parse_child_table(text)` returns `ChildTableResult(rows={'1': (), '2': (), '3': (), '4': (), '5': ()}, reason=None)`. Its `rows` is `{order: (dep_orders,)}` and its NamedTuple `_fields` is exactly `('rows','reason')`, so NO id6 APPEARS ANYWHERE IN ITS RETURN VALUE. Its `order_to_id` parameter is an INPUT the caller must already possess, not an output: passing `{'1':'dpdyed', ...}` only changes how the DEPENDS-ON cells resolve (it returns `{'1': (), '2': ('1',), '3': ('1',), '4': ('3',), '5': ('1','2','3','4')}`), and it still surfaces no id6. An implementer who follows the original instruction literally will find the mapping it needs does not exist and will then be tempted to write the fresh scan this item forbids.
   THE ID6 CELLS COME FROM `runner_shared.child_table_rows`, which returns every row as FULL CELL TUPLES in document order (verified at review: row 1 of `d1u4sy` is `('01', '`dpdyed`', ...)`), and which the probe cache and `parse_declared_child_orders` ALREADY SHARE for exactly the reason R3 states. So the correct composition is: `child_table_rows` for the Id cells, `parse_child_table` for the order graph and for its `reason` when the table is unusable. Strip surrounding backticks from a cell before comparing, since the live corpus writes `` `dpdyed` ``.
   AND SIX OF TWELVE LIVE ORCHESTRATORS HAVE NO `Id` COLUMN AT ALL, which is the case most likely to be missed. Measured at review across every pending `Kind: orchestrator` plan: `5e4sb6`, `ao1rb7`, `a5wdne`, `tb63qv`, `2xz59a` and `s0gnha` use `| Order | File | What it does | Depends on |` or `| Order | What it does | Depends on |`, and contain NO valid id6 in any cell. `parse_declared_child_orders`'s own docstring records the same hazard and is why it reads cell 0 positionally. So resolution MUST NOT assume an `Id` column exists: a table with none cannot resolve a child id6, and that is an explicit REFUSAL naming the missing column (which child 04 then fixes by adding the column during migration), never a silent pass and never a crash.
   - Depends on: E-01
   - Expected outcome: a row naming a child of the Set passes; a row naming a real plan that is NOT a child of the Set is refused; an unparseable child table refuses with `parse_child_table`'s own `reason` quoted; and an orchestrator whose child table has NO `Id` column is refused with a message naming that as the cause. The implementation reaches the Id cells through `child_table_rows` and writes no second table scanner.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 VALIDATE `<status>` AGAINST `ipd_schema.RECOGNIZED_STATUS` rather than a local list. Accept the full vocabulary for now, per the parent's OQ-01: narrowing to the subset a parent can meaningfully wait on is a one-line change once child 04's migration reveals which values are actually used, and accepting too much fails safe (a parent declaring a wait that never completes is reported `dependency-blocked`, not silently passed).
+- [x] E-03 VALIDATE `<status>` AGAINST `ipd_schema.RECOGNIZED_STATUS` rather than a local list. Accept the full vocabulary for now, per the parent's OQ-01: narrowing to the subset a parent can meaningfully wait on is a one-line change once child 04's migration reveals which values are actually used, and accepting too much fails safe (a parent declaring a wait that never completes is reported `dependency-blocked`, not silently passed).
   THIS ITEM REQUIRES NO EDIT TO `ipd_schema.py`, measured at review (PR-103). `RECOGNIZED_STATUS` is already a module-level `FrozenSet[str]` of nine values, and `ipd_lint` ALREADY imports `ipd_schema as S` at module level, so the vocabulary is reachable as `S.RECOGNIZED_STATUS` with no new import and nothing to export. Confirmed in-process: `ipd_lint.S.RECOGNIZED_STATUS` yields all nine values. So expect `agent_workflows/ipd_schema.py` to be reconciled UNCHANGED with a `--scope-ack` at finalize; if you find yourself editing it, say WHY, because the plan's own expectation is that you will not.
   - Depends on: E-01
   - Expected outcome: each of the nine recognized statuses parses; an unrecognized token is refused naming the vocabulary.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the one function, and the message
 
-- [ ] E-04 EXPOSE ONE FUNCTION THAT IS THE WHOLE RULE (R3), returning either the three parsed fields or a typed refusal carrying the rule code and the message. It takes the orchestrator's text and returns a result per ROW plus an overall verdict, because R8 requires a consumer to report EVERY finding rather than the first. Do not return a bare bool: children 02 and 03 both need the per-row detail to render their own output, and a bool would force them to re-derive it, which is the R3 violation this item exists to prevent.
+- [x] E-04 EXPOSE ONE FUNCTION THAT IS THE WHOLE RULE (R3), returning either the three parsed fields or a typed refusal carrying the rule code and the message. It takes the orchestrator's text and returns a result per ROW plus an overall verdict, because R8 requires a consumer to report EVERY finding rather than the first. Do not return a bare bool: children 02 and 03 both need the per-row detail to render their own output, and a bool would force them to re-derive it, which is the R3 violation this item exists to prevent.
   SITE IT IN `ipd_lint`, WHICH OQ-01 NOW RESOLVES FROM EVIDENCE RATHER THAN LEAVING TO YOU (PR-101). A separate shared module is NOT a neutral alternative: child 03 would import it from `runner_shared`, and `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared` asserts set EQUALITY of that module's module-level first-party imports against `{render_stream, runner_profiles}`, so the import child 03 needs would BREAK A SHIPPED TEST. `runner_shared` already reaches `ipd_lint` through function-local imports in four places, which is how child 03 must reach this function in any case.
   ALSO ADD THE STABLE RULE CODE to `ipd_lint`'s existing `C_*` block. THE FAMILY AND THE NEXT FREE NUMBER WERE MEASURED AT REVIEW so this is not a judgement call (PR-104): the 30 existing codes occupy `IPD-M101..M108`, `IPD-H201..H205`, `IPD-I301..I305`, `IPD-S401..S406`, `IPD-P001`, `IPD-Q501`, `IPD-Z601..Z602`, `IPD-N001` and the one non-`IPD-` code `check.ipd-draft-ready-to-review`. This rule is a CHECKLIST-SHAPE rule, so the `IPD-S4xx` state/shape family fits and `IPD-S407` is the next free number; `IPD-M109`, `IPD-I306` and `IPD-Z603` are also free and unused. Note three codes (`C_EXEC_ATTRIBUTION`=`IPD-S406`, `C_READINESS_UNATTESTED`=`IPD-M107`, `C_GATE_HAND_ROLLED_MOVE`=`IPD-M108`) are multi-line assignments a naive single-line grep MISSES, so confirm freedom by importing the module and comparing values, not by grepping the source. Codes are stable and are not recycled.
   AND WIRE A CHECK FUNCTION INTO `lint_text`, WITHOUT WHICH THE CODE NEVER FIRES (PR-102). A `C_*` constant is inert on its own: `lint_text` builds `diags` by calling an explicit list of `check_*` functions (`check_metadata`, `check_readiness_attestation`, `check_headings`, `check_ids_and_bijection`, `check_states`, `check_gate_contract`, `check_open_questions`, `check_size`, `check_checkpoint`, plus the scope and dependency pair), and a rule not in that list contributes nothing to the disposition. Add one `check_*` function, call it there, and GATE IT ON `doc.meta_fields.get("Kind") == "orchestrator"` so a `Kind: child` plan is untouched. Reading Kind from `doc.meta_fields` is what satisfies this Set's read-the-plan's-own-bullet rule for free, because `parse` bounds the metadata region rather than searching the file (verified at review: `meta_fields['Kind']` is `'orchestrator'` for the parent). Build the row view from `_structural_lines` so a grammar example quoted inside a fence is never flagged; this plan itself quotes the template twice, and a future plan may quote a full row.
   - Depends on: E-02, E-03
   - Expected outcome: one public function sited in `ipd_lint`; its result exposes per-row fields and refusals rather than a bare bool; a fresh `C_*` code exists, its freedom confirmed by comparing imported VALUES rather than by grep; and a `check_*` function is called from `lint_text`, gated on `Kind: orchestrator`, so the rule actually changes a lint disposition.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 WRITE THE REFUSAL MESSAGE TO SATISFY R7, which is a content requirement and not a wording preference. It must state WHAT is wrong and WHY (a parent is retired programmatically with the E/V checkpoint skipped, so work parked here is marked complete having never run), must EXPLICITLY forbid satisfying it by deleting the item, and must name BOTH remedies without prescribing either: move the step to a child whose `- Item-Dependencies:` put it in the right order, OR remove it because a child already covers it.
+- [x] E-05 WRITE THE REFUSAL MESSAGE TO SATISFY R7, which is a content requirement and not a wording preference. It must state WHAT is wrong and WHY (a parent is retired programmatically with the E/V checkpoint skipped, so work parked here is marked complete having never run), must EXPLICITLY forbid satisfying it by deleting the item, and must name BOTH remedies without prescribing either: move the step to a child whose `- Item-Dependencies:` put it in the right order, OR remove it because a child already covers it.
   THE REASON BOTH REMEDIES MUST APPEAR, measured rather than asserted: `rh5tt6` E-02 welds a redundant half (re-run the suite and leak sanitization, which every child already does and which the pre-commit hook enforces on every commit) to a genuinely uncovered half (an end-to-end install proof the plan itself calls "the part no child owns"). The correct repair is DELETE for the first and a CHILD for the second, so a message prescribing one remedy produces a pointless child plan for work already done.
   - Depends on: E-04
   - Expected outcome: the rendered message contains the invariant, the anti-deletion clause, and both remedies; a test asserts all three are present rather than asserting an exact string.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -167,35 +167,297 @@ N/A with reason: spec `r07vma` is `approved` and this child implements R1a and R
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the grammar as written and show it is ANCHORED (a row containing the phrase mid-line does not match, and neither does one with trailing prose after the status). Paste it applied to all five of `d1u4sy`'s rows, each conforming, and to at least five pre-existing rows drawn from different orchestrators, each failing. Paste a ticked-box row conforming. State the re-derived pre-migration conforming count over the live corpus and confirm it is ZERO apart from `d1u4sy`; a higher number means the grammar was widened and this item FAILS.
   ALSO SHOW THE RULE READS THE FENCE-AWARE STRUCTURAL VIEW (PR-102/F-13): paste a fixture in which a conforming-shaped row appears inside a fenced code block and show it is NOT flagged. This plan's own body quotes the grammar template twice, so a rule scanning raw lines would eventually flag a plan for describing the rule.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All evidence produced by running the shipped code in this lane at HEAD `c49c9027`.
 
-- [ ] V-02 validates E-02
+    THE GRAMMAR AS WRITTEN (`ipd_lint._ORCH_ROW_RE`, the ONLY definition in the tree):
+
+        ^- \[[ x]\] (E-[0-9]{2,}) CONFIRM ([0-9a-z]{6}) REACHED ([A-Za-z][A-Za-z-]*)$
+
+    ALL FIVE OF `d1u4sy`'s ROWS CONFORM, with their three fields parsed:
+
+        '- [ ] E-01 CONFIRM dpdyed REACHED executed' -> conforming=True fields=(dpdyed,executed,none)
+        '- [ ] E-02 CONFIRM r3xk1f REACHED executed' -> conforming=True fields=(r3xk1f,executed,E-01)
+        '- [ ] E-03 CONFIRM 0xmk4e REACHED executed' -> conforming=True fields=(0xmk4e,executed,E-01)
+        '- [ ] E-04 CONFIRM 68uhp0 REACHED executed' -> conforming=True fields=(68uhp0,executed,E-03)
+        '- [ ] E-05 CONFIRM h9cbn4 REACHED executed' -> conforming=True fields=(h9cbn4,executed,E-04)
+
+    IT IS ANCHORED AT BOTH ENDS (each of these must NOT match, and does not):
+
+        mid-line:       match=False  '- [ ] E-02 First CONFIRM r3xk1f REACHED executed'
+        trailing prose: match=False  '- [ ] E-02 CONFIRM r3xk1f REACHED executed and then re-run the suite'
+        over-indented:  match=False  '  - [ ] E-02 CONFIRM r3xk1f REACHED executed'
+
+    A TICKED BOX CONFORMS:
+
+        match=True  '- [x] E-02 CONFIRM r3xk1f REACHED executed'
+
+    FIVE PRE-EXISTING ROWS FROM FIVE DIFFERENT ORCHESTRATORS, each failing:
+
+        5e4sb6 E-01: conforming=False :: '- [x] E-01 Produce the function-by-function INVENTORY the backlog item names as its first requir'
+        yeh7gc E-01: conforming=False :: '- [ ] E-01 SEQUENCE THE THREE CHILDREN IN ORDER, confirming each is `executed` on disk before di'
+        ao1rb7 E-01: conforming=False :: '- [ ] E-01 Execute Order 01 (`kbqpkn`, wire the four unwired gates and install the `pre-push` st'
+        y9s4vm E-01: conforming=False :: '- [ ] E-01 CONFIRM CHILD 01 (`jxxec8`) IS EXECUTED before child 02 runs, and confirm it BY READI'
+        lyo1tz E-01: conforming=False :: '- [ ] E-01 CONFIRM CHILD 01 (`9kmbr0`) IS EXECUTED before child 02 runs. The classification must'
+
+    RE-DERIVED PRE-MIGRATION CENSUS (taken at execution, not quoted):
+
+        12 orchestrators, 38 E-rows, 5 conforming
+        CONFORMING ROWS OUTSIDE `d1u4sy`: 0
+
+    The 38/12 figure the plan's F-2 records is EXACT at this HEAD, and the load-bearing half (zero
+    conforming outside the parent) holds, so the grammar was NOT widened to fit an existing plan.
+
+    THE RULE READS THE FENCE-AWARE STRUCTURAL VIEW. A fixture placing a conforming-shaped row AND a
+    deliverable-shaped row inside a fenced block in the checklist section:
+
+        rows seen = ['E-01','E-02','E-03','E-04','E-05'], conforming=True
+
+    `E-98`/`E-99` are ABSENT: the rule consumes `ipd_lint.parse` (built on `_structural_lines`), so a
+    plan that QUOTES the grammar is never flagged for describing it. Pinned by
+    `tests/test_orchestrator_row_grammar.py::TheGrammarIsAnchored::
+    test_a_conforming_row_inside_a_FENCE_is_not_seen`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste FOUR cases with their rendered results: a row naming a genuine child of the Set (passes); a row naming a real plan that is NOT a child of that Set (refused); an orchestrator whose child table does not parse (refused, with `parse_child_table`'s own `reason` quoted rather than a generic message); and an orchestrator whose child table declares NO `Id` COLUMN (refused with a message naming the missing column, neither crashing nor passing). For that fourth case use one of the six real no-`Id` orchestrators measured at review (`5e4sb6`, `ao1rb7`, `a5wdne`, `tb63qv`, `2xz59a`, `s0gnha`) rather than a synthetic table, and re-derive that population rather than trusting this list. Paste the call sites showing the Id cells come from `runner_shared.child_table_rows` and the order graph plus refusal reason from `ipd_set_plan.parse_child_table`, and state explicitly that no second table scanner was written. A validation that cites `parse_child_table` as the SOURCE of the id6 FAILS this item, because that function returns no id6 (F-7).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Four cases, each with its rendered result.
 
-- [ ] V-03 validates E-03
+    CASE 1, a row naming a GENUINE child of the Set: conforming=True, reason=''.
+
+    CASE 2, a row naming a real plan that is NOT a child (`zyw4n3` is a live pending plan): REFUSED,
+    reason `child-id6-is-not-a-row-of-this-orchestrators-child-table`:
+
+        E-02 is not a typed child-tracking row (child-id6-is-not-a-row-of-this-orchestrators-child-
+        table): 'zyw4n3' is not a row of this orchestrator's own child table (it declares 0xmk4e,
+        68uhp0, dpdyed, h9cbn4, r3xk1f). ...
+
+    CASE 3, an orchestrator whose child table DOES NOT PARSE: REFUSED, reason
+    `child-table-cannot-resolve-a-child-id6`, and the message QUOTES `parse_child_table`'s own reason
+    rather than a generic one:
+
+        ... cannot resolve a child id6, so conformance is UNKNOWN rather than satisfied: child table
+        has no recognizable `Order` header row; section present but contains no parseable table row
+
+    `ipd_set_plan.parse_child_table(...).reason` for that same document is
+    `section present but contains no parseable table row`, i.e. the quoted text is that function's own.
+
+    CASE 4, a REAL no-`Id`-column orchestrator (`tb63qv`, not a synthetic table), with its E-01
+    rewritten into the typed form so the TABLE is what refuses it: REFUSED (neither crashing nor
+    passing), the message naming the missing column:
+
+        E-01 is not a typed child-tracking row (child-table-cannot-resolve-a-child-id6): the row names
+        child '65cuw0' but this orchestrator's own child table cannot resolve a child id6, so
+        conformance is UNKNOWN rather than satisfied: child table declares no `Id` column (header:
+        'Order | File | What it does | Depends on'), so no row can name a child id6; add the column
+        before a typed row can resolve
+
+    THE no-`Id` POPULATION RE-DERIVED rather than trusted: 6 of 12, `['2xz59a','5e4sb6','a5wdne',
+    'ao1rb7','s0gnha','tb63qv']`, which matches the plan's F-8 list exactly at this HEAD.
+
+    THE CALL SITES, showing the two resolvers are consumed for DIFFERENT things:
+
+        # in `_child_id6_index` (the Id CELLS):
+        from agent_workflows import runner_shared as _rs
+        rows = _rs.child_table_rows(text)
+        # in `orchestrator_row_conformance` (the ORDER GRAPH and the refusal REASON):
+        table = _isp.parse_child_table(text)
+        id6s, id_reason = _child_id6_index(text)
+        causes = [c for c in (id_reason, table.reason or "") if c]
+
+    `parse_child_table` is NOT cited as the source of the id6, because it has none:
+    `ChildTableResult._fields` is `('rows','reason')`, re-confirmed in-process. NO SECOND TABLE
+    SCANNER WAS WRITTEN: `ipd_lint` contains no independent pipe-split of the child table, and reaches
+    the rows only through the two `child_table_rows` references above. Pinned by
+    `TheChildId6ResolvesAgainstThisSetsOwnTable::test_the_id6_cells_come_from_the_ONE_shared_row_walk`,
+    which asserts the rule's id6 set EQUALS what the shared row-walk reports.
+
+    ONE CORRECTION THIS VALIDATION FORCED, recorded because it was a real defect and not a polish
+    pass. The first implementation extracted an id6 with `artifact_core.iter_id6_in_text` over the
+    whole cell, which resolves the English word `before` out of the LIVE cell
+    `UNAUTHORED, must be written before this Set runs` (`wfjsp4`'s shape). That is a FORGED reference:
+    the cell exists precisely to say the child is unauthored. Narrowed to the two shapes the corpus
+    actually writes (a backticked token, or the whole cell), with the reason recorded at the function.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste all nine `RECOGNIZED_STATUS` values parsing, and an unrecognized token refused with the vocabulary named. Paste the reference to `ipd_schema.RECOGNIZED_STATUS` proving no local list was introduced.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
 
-- [ ] V-04 validates E-04
+    ALL NINE `RECOGNIZED_STATUS` VALUES PARSE:
+
+        approved         conforming=True parsed_status='approved'
+        auto-approved    conforming=True parsed_status='auto-approved'
+        draft            conforming=True parsed_status='draft'
+        executed         conforming=True parsed_status='executed'
+        not-executed     conforming=True parsed_status='not-executed'
+        reusable         conforming=True parsed_status='reusable'
+        reviewed         conforming=True parsed_status='reviewed'
+        superseded       conforming=True parsed_status='superseded'
+        to-review        conforming=True parsed_status='to-review'
+
+    AN UNRECOGNIZED TOKEN IS REFUSED WITH THE VOCABULARY NAMED:
+
+        'finished' -> conforming=False reason=status-is-outside-the-plan-status-vocabulary
+        message: ... the vocabulary is approved, auto-approved, draft, executed, not-executed,
+        reusable, reviewed, superseded, to-review. ...
+
+    THE REFERENCE PROVING NO LOCAL LIST (from the rule's own source):
+
+        elif status not in S.RECOGNIZED_STATUS:
+        status, ", ".join(sorted(S.RECOGNIZED_STATUS))
+
+    reached through the module-level `from agent_workflows import ipd_schema as S` that `ipd_lint`
+    ALREADY carried; `L.S.RECOGNIZED_STATUS` yields 9 values. AS THE PLAN PREDICTED (PR-103),
+    `agent_workflows/ipd_schema.py` IS UNCHANGED: `git diff --stat` reports only
+    `agent_workflows/ipd_lint.py | 384 +`, so the declared path reconciles unchanged and needs a
+    `--scope-ack` rather than an invented edit. Pinned by
+    `TheStatusVocabularyIsTheSharedOne::test_no_second_status_list_was_introduced`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the public function's signature and its result type, showing per-row detail is exposed rather than a bare bool, and explain in one sentence why children 02 and 03 can render their own output from it without re-deriving the rule.
   PASTE THE NEW `C_*` CODE AND PROVE IT WAS FREE BY COMPARING IMPORTED VALUES, not by grep (PR-104/F-12): three existing constants are multi-line assignments a single-line grep misses, so a grep-only check can take a used code. Show the full set of 30 pre-existing values and that yours is absent from it.
   PASTE THE `lint_text` WIRING AND PROVE THE RULE ACTUALLY FIRES (PR-102/F-10), which is the item most likely to be silently skipped: show the `check_*` function, show the CALL inside `lint_text`, and paste `aw ipd lint` on a deliberately violating orchestrator reporting the new code at a NONZERO exit. Then paste the same lint on a `Kind: child` plan showing the rule does NOT fire. A validation that shows only the constant's existence FAILS this item, because an unwired constant can never change a disposition.
   PASTE THE SITING EVIDENCE (PR-101): show the function lives in `ipd_lint` and that no module-level first-party import was added to `runner_shared`, by running `python3 -m pytest tests/test_orchestrator_probe_cache.py -o addopts="" -k no_new_module_level` and pasting it passing. (That test is a method of `TheRowWalkIsSharedWithTheRetirementGate`; select it by name rather than guessing a class, which this review got wrong on its first attempt.)
   PLUS A MUTATION CHECK: break one field's validation, show a pin FAILS, restore, show it passes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
 
-- [ ] V-05 validates E-05
+    THE ONE PUBLIC FUNCTION AND ITS RESULT TYPE:
+
+        agent_workflows.ipd_lint.orchestrator_row_conformance(text: str, *, doc: Optional[ParsedDoc] = None) -> OrchestratorRowResult
+          OrchestratorRowResult fields: ('applies','conforming','rows','table_reason','declared_orders')
+          per-row OrchestratorRow fields: ('line','ident','row','child_id6','status','depends_on','conforming','reason','message')
+
+    WHY CHILDREN 02 AND 03 NEED NO RE-DERIVATION: each row comes back carrying its own line, its three
+    parsed fields, its machine `reason` and its rendered `message`, so a consumer renders or repairs a
+    specific finding from the result alone rather than re-parsing the row to discover which one failed
+    and why, which is exactly the second implementation R3 forbids.
+
+    THE NEW CODE IS `IPD-S407`, AND ITS FREEDOM WAS CONFIRMED BY COMPARING IMPORTED VALUES:
+
+        pre-existing count: 31
+        ['IPD-C801','IPD-H201','IPD-H202','IPD-H203','IPD-H204','IPD-H205','IPD-I301','IPD-I302',
+         'IPD-I303','IPD-I304','IPD-I305','IPD-M101','IPD-M102','IPD-M103','IPD-M104','IPD-M105',
+         'IPD-M106','IPD-M107','IPD-M108','IPD-N001','IPD-P001','IPD-Q501','IPD-S401','IPD-S402',
+         'IPD-S403','IPD-S404','IPD-S405','IPD-S406','IPD-Z601','IPD-Z602',
+         'check.ipd-draft-ready-to-review']
+        NEW: IPD-S407, absent from that set: True
+
+    THE PLAN SAID 30 AND THE MEASURED NUMBER IS 31, which is reported rather than smoothed over: the
+    extra code is `IPD-C801` (the citation-anchor advisory), which landed after this plan's review, so
+    the plan's inventory was simply taken earlier. `IPD-S407` is free either way, and the shape-family
+    siting is unaffected. Verified at HEAD by stashing this plan's diff and re-importing: 31 there too.
+
+    WHY IMPORTED VALUES AND NOT GREP (the plan's PR-104): a single-line regex over the source finds
+    only 28 of the 32 values, missing `['IPD-C801','IPD-M107','IPD-M108','IPD-S406']`, which are
+    multi-line assignments. A grep-only check could therefore have reported a TAKEN code as free.
+
+    THE WIRING, WITHOUT WHICH THE CODE COULD NEVER FIRE (PR-102). The call inside `lint_text`:
+
+        diags += check_orchestrator_rows(doc, text, checkpoint)
+
+    and the `check_*` function's own gates:
+
+        if checkpoint not in _ORCH_ROW_BLOCKING_CHECKPOINTS: return []
+        if doc.meta_fields.get("Kind") != S.KIND_ORCHESTRATOR: return []
+        result = orchestrator_row_conformance(text, doc=doc)
+
+    `aw ipd lint` ON A DELIBERATELY VIOLATING ORCHESTRATOR, AT A NONZERO EXIT (real CLI, temp repo):
+
+        $ python3 -m agent_workflows ipd lint --phase review-finalize <violating>.ipd.md --detail
+        - >  approved     plan  20260919-orchtyped-00-d1u4sy  [high]  [blocking]  error
+             ! IPD-S407 (line 46): E-02 is not a typed child-tracking row ...
+        EXIT=1
+
+    THE SAME LINT ON A `Kind: child` PLAN, WHERE THE RULE DOES NOT FIRE:
+
+        $ python3 -m agent_workflows ipd lint --phase review-finalize <child>.ipd.md --detail
+        IPD-S407 absent from the output (only the unrelated kind-specific IPD-H202 findings appear)
+
+    and on the CONFORMING parent: `conforming`, EXIT=0.
+
+    ONE DEVIATION FROM THE PLAN'S PHASE EXPECTATION, MEASURED AND REPORTED RATHER THAN QUIETLY TAKEN.
+    The plan's V-04 text assumes the gate at `pre-execution`. It was wired there FIRST and that broke
+    `tests/test_orchestrator_retirement.py::TheHumanFacingGateIsUNCHANGED::
+    test_the_ordinary_finalize_still_refuses_an_orchestrator`. THE TEST WAS RIGHT: `aw ipd begin` gates
+    on the `pre-execution` lint, and `ipd_authoring.build_skeleton(kind="orchestrator", ...)` itself
+    emits `- [ ] E-01 TODO one observable action.` plus a PROSE placeholder where the child table goes,
+    so the SHIPPED SCAFFOLD does not conform and gating `begin` would refuse every freshly scaffolded
+    orchestrator before its author could fill it in. The rule therefore blocks at `review-finalize`
+    (where R5's repair loop lives) and `pre-transition` (what `aw ipd finalize` runs), and NOT at
+    `author` (measured: `aw check plans` sweeps there, and 11 of 12 live orchestrators do not conform
+    pre-migration, so firing there would mass-refuse other agents' approved plans - the cascade
+    `25kzda` 2.5b says teaches agents to DELETE the checklist). `agent_workflows/ipd_authoring.py` is
+    NOT in this plan's `- Scope-Paths:`, so the scaffold gap is FILED as backlog `htce8t` rather than
+    fixed here, and `TheRuleActuallyFires::
+    test_the_SHIPPED_SCAFFOLD_is_not_conforming_which_is_why_begin_is_not_gated` fails loudly when it
+    is fixed, so the phase can be re-added on evidence.
+
+    THE SITING EVIDENCE (PR-101). `L.orchestrator_row_conformance.__module__` is
+    `agent_workflows.ipd_lint`, no new module was created, and `runner_shared` was NOT touched:
+
+        $ python3 -m pytest tests/test_orchestrator_probe_cache.py -o addopts="" -k no_new_module_level
+        collected 42 items / 41 deselected / 1 selected
+        tests/test_orchestrator_probe_cache.py .                                 [100%]
+        ======================= 1 passed, 41 deselected in 0.68s =======================
+
+    Every first-party import this rule needs is FUNCTION-LOCAL, which is required rather than
+    stylistic: `ipd_set_plan` imports `ipd_lint` at module level, so a module-level import back would
+    close a cycle. Pinned by `TheFunctionIsSitedInIpdLintAndRunnerSharedIsUnchanged`.
+
+    THE MUTATION CHECK. Breaking ONE field's validation (the status comparison replaced by
+    `elif False:`) makes four pins FAIL:
+
+        FAILED ...::TheStatusVocabularyIsTheSharedOne::test_the_refusal_names_the_vocabulary
+        FAILED ...::TheStatusVocabularyIsTheSharedOne::test_every_recognized_status_parses_and_an_unknown_one_is_refused
+        FAILED ...::TheRuleActuallyFires::test_MUTATION_breaking_one_field_makes_a_pin_fail
+        FAILED ...::TheRefusalSatisfiesR7::test_every_refusal_carries_the_invariant_the_prohibition_and_both_remedies
+        ========================= 4 failed, 24 passed in 1.31s =========================
+
+    Restored, and green again, with `git diff --stat` back to the single 384-line addition:
+
+        tests/test_orchestrator_row_grammar.py ............................      [100%]
+        ============================== 28 passed in 1.08s ==============================
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the rendered refusal message in full. Confirm it contains (a) the invariant and why it exists, (b) an explicit statement that deleting the item is NOT an acceptable fix, and (c) BOTH remedies with neither prescribed. Paste the test asserting all three contents are present, and confirm it does not assert an exact string (which would make every wording improvement a test failure).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The rendered refusal in FULL, for a row carrying a deliverable:
+
+        E-02 is not a typed child-tracking row (not-a-typed-child-tracking-row): the row does not
+        match the typed grammar exactly (it must carry no prose before or after the three fields; free
+        prose belongs on the continuation lines). Write it as `- [ ] E-NN CONFIRM <child-id6> REACHED
+        <status>`. WHY: an Order-0 orchestrator is retired PROGRAMMATICALLY, with the pre-transition
+        E-*/V-* checkpoint deliberately skipped, so a step parked on a parent is performed by NOBODY
+        and is marked complete having never run. DELETING the item is NOT an acceptable fix: the
+        checklist is what makes a Set execute completely and in order when it is run BY HAND, so
+        deleting it causes the lost work this rule prevents. FIX: two remedies are legitimate and this
+        rule does not prescribe either: MOVE the step into a child plan whose `- Item-Dependencies:`
+        put it in the right order, OR REMOVE it because a child already covers it (which is removal
+        for redundancy, not deletion to silence this rule). Row as written: '- [ ] E-02 ESTABLISH THE
+        BASELINE by running the full suite before any child runs'
+
+    R7's THREE CONTENTS, each checked against the rendered text:
+
+        (a) invariant + WHY       : True   ("retired PROGRAMMATICALLY", "performed by NOBODY")
+        (b) deletion is NOT a fix : True
+        (c) remedy 1 (move)       : True
+            remedy 2 (remove)     : True
+            neither prescribed    : True   ("does not prescribe either")
+
+    THE TEST ASSERTS CONTENTS, NOT AN EXACT STRING.
+    `TheRefusalSatisfiesR7::test_every_refusal_carries_the_invariant_the_prohibition_and_both_remedies`
+    runs the SAME six content checks across ALL FOUR refusal modes (untyped row, non-child id6,
+    unknown status, no-`Id`-column table), because R7's contents are required in every mode. A second
+    test (`test_the_test_does_not_pin_an_exact_string`) asserts the three requirements are module-level
+    DATA present in the rendered output, so rewording any of them keeps the suite green: the
+    requirement is what the author is TOLD, not how it is phrased. The reason both remedies must
+    appear is the measured `rh5tt6` E-02 case, where one half is genuinely redundant (DELETE) and the
+    other genuinely uncovered (A CHILD), so a message prescribing one produces a pointless child plan.
+  - Result: pass
 
 ## Approval and execution gate
 
