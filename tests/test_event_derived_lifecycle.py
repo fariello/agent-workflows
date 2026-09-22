@@ -476,6 +476,11 @@ class TestScopeDrift(unittest.TestCase):
     tighten, and no-receipt-means-no-scope is what stops the sweep attributing every uncommitted file
     in the checkout to whichever plan it found first. The single FLAGGING row is what keeps them from
     being satisfied by a rule that reports nothing.
+
+    EVERY ROW IS LANE-ISOLATED (rcptstale `wmnmei`). The rule measures the plan's ISOLATED LANE
+    WORKTREE and is SILENT for a plan that has none, so `_repo` allocates the lane and dirties the
+    path inside it. Without that, all three silent rows would pass against a rule that had stopped
+    working entirely, which is exactly the vacuity this docstring warns about.
     """
 
     RULE = "check.scope-drift"
@@ -516,7 +521,15 @@ class TestScopeDrift(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-        (root / dirty).write_text("y\n", encoding="utf-8")
+        # THE DIRT GOES IN THE LANE, because that is the tree the rule measures. Allocated with the
+        # production allocator (cut at the frozen base, which its ancestry check requires) so this
+        # fixture cannot drift from where `_plan_execution_tree` looks. Allocated even in the
+        # no-receipt row, so that row's silence is attributable to the missing RECEIPT alone.
+        from agent_workflows import worktree_lease as lease
+
+        lane = lease.allocate_worktree(root, "aaa111").path
+        (lane / dirty).parent.mkdir(parents=True, exist_ok=True)
+        (lane / dirty).write_text("y\n", encoding="utf-8")
         return root
 
     #: (case, declared Scope-Paths, path dirtied after the base commit, is a receipt written?,

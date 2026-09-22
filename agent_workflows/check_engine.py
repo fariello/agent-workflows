@@ -22,7 +22,7 @@ from __future__ import annotations
 import importlib.util
 import re as _re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -2103,6 +2103,20 @@ def _receipt_is_live(repo_root: Path, plan_path: Path, receipt: Dict) -> bool:
     silently disables this rule entirely rather than reporting that it could not run. That is
     acceptable ONLY because the authoritative boundary is CI (``.github/workflows/tests.yml`` runs
     ``aw check`` fail-closed) and NOT this local rule.
+
+    WHAT THESE TWO TESTS DO **NOT** COVER, stated because their absence was mistaken for exhaustive
+    and cost a graduation to discover (rcptstale ``wmnmei``, backlog ``v880xk``). LIVENESS IS NOT
+    DISTANCE, and distance is not staleness. A plan sitting in ``pending/`` whose ``base_head`` IS an
+    ancestor of HEAD passes BOTH tests here while being arbitrarily far behind: measured 2026-09-22
+    across six live receipts, 4 to 344 non-merge commits, five of the six holding a lane worktree that
+    was being actively worked. Nothing about such a base is stale in the sense of WRONG - it is
+    correctly frozen for an execution still in flight - so no third test was added here. The defect
+    those receipts produced was MISATTRIBUTION rather than spent authority: all 350 findings named
+    OTHER agents' commits, because the advisory compared the frozen base against whichever tree the
+    command happened to run in. That is fixed in :func:`check_scope_drift` by selecting the EXECUTION
+    TREE (see :func:`_plan_execution_tree`), not by widening liveness, and deliberately so: this
+    predicate answers "is this authority spent", which is a different question from "which tree does
+    this authority describe".
     """
     from agent_workflows import plans as _plans
 
@@ -2129,6 +2143,89 @@ def _receipt_is_live(repo_root: Path, plan_path: Path, receipt: Dict) -> bool:
     return True
 
 
+#: How many offending paths a collapsed `check.scope-drift` finding NAMES before it tails off into
+#: "and N more". Bounded rather than unlimited so one finding stays readable in a pre-commit hook's
+#: stderr, and never zero: a finding that reports only a number is unactionable, which is half the
+#: defect the collapse exists to fix (rcptstale `wmnmei` E-05).
+_SCOPE_DRIFT_PATHS_NAMED = 10
+
+
+def _summarize_paths(paths: Sequence[str]) -> str:
+    """Render offending paths for ONE collapsed finding: every path, or the first N and a count tail.
+
+    The tail says how many were withheld, so the reader always learns the true total rather than
+    silently seeing a truncated list. Total is recoverable from the finding either way, because the
+    detail states the count separately.
+    """
+    named = list(paths[:_SCOPE_DRIFT_PATHS_NAMED])
+    rendered = ", ".join(repr(p) for p in named)
+    remainder = len(paths) - len(named)
+    if remainder > 0:
+        rendered += f", and {remainder} more"
+    return rendered
+
+
+def _plan_execution_tree(
+    repo_root: Path, plan_id: str, base_head: str
+) -> Optional[Path]:
+    """The TREE whose changes this plan's frozen ``base_head`` can honestly be compared against.
+
+    Returns the plan's ISOLATED LANE WORKTREE when one exists and the frozen base is an ancestor of
+    that lane's HEAD, and ``None`` otherwise. ``None`` means "no tree this advisory may speak about",
+    and :func:`check_scope_drift` then reports NOTHING for the plan.
+
+    WHY A TREE AND NOT A BASELINE (rcptstale ``wmnmei`` OQ-01, maintainer ruling 2026-09-10). The
+    advisory's subject is a lane-isolated execution's OWN tree. Asked which of five candidate
+    BASELINES the rule should compare against (the frozen base as-is, the merge-base, the plan's own
+    commits, an age-gated skip, or commit-cohesion attribution), the maintainer rejected the axis:
+    "This was intended to work on things like IPDs worked on in isolated worktrees not in items worked
+    on in main ... I don't see a way to do this in main if more than one entity (human or agent) is
+    working on main." That is correct, and it is why cohesion attribution was WITHDRAWN rather than
+    deferred: measured 2026-09-22 it cut 350 findings to 164, but none of those 164 is verified to be
+    the author's own work, so it would have bought quiet by compressing a misdirected measurement.
+    Measuring the lane yields the answer on EVIDENCE: for the same six receipts the lane-measured
+    out-of-scope counts were 0, 1, 5, 9 and 0, with one plan having no lane at all.
+
+    ACCEPTED COST, stated because it is a REAL loss of coverage and nobody may later reintroduce a
+    main-checkout comparison by calling it an oversight. Work performed by hand DIRECTLY in a shared
+    main checkout now gets NO scope advisory at all. The maintainer accepted that explicitly, on the
+    ground that no honest attribution exists there when several parties share one tree, and declined
+    the offered variant that additionally printed a "scope not checked, not lane-isolated" line in
+    favor of the plain silent form.
+
+    THE ANCESTRY CHECK IS NOT REDUNDANT with :func:`_receipt_is_live`, which asks about THIS tree's
+    HEAD. A lane can be cut from a DIFFERENT commit than the receipt froze (``allocate_worktree``
+    attempt-scopes a STALE or HOLDS-WORK lane rather than adopting it, so lane and receipt legitimately
+    disagree), and measured 2026-09-22 one of six contributors (``lc4unl``) was exactly that shape. A
+    ``base..HEAD`` diff across such a fork would attribute main's own intervening commits to the plan,
+    which is the very defect this function exists to remove, so an unusable lane base reports NOTHING.
+
+    Single-tree checkouts and temp-repo fixtures are unaffected in the case that matters: a plan with
+    no lane is silent, which is the rule's new contract rather than a fallback.
+    """
+    from agent_workflows import worktree_lease as _lease
+
+    try:
+        state = _lease.inspect_lane(Path(repo_root), plan_id)
+        lane = state.worktree_path
+        if lane is None or not lane.is_dir():
+            return None
+        rc, _out, _err = _git_capture(
+            lane, ["merge-base", "--is-ancestor", base_head, "HEAD"]
+        )
+        if rc != 0:
+            return None  # lane cut from a different base: the diff would not be this execution's
+    except Exception:
+        # Lane resolution is best-effort DISCOVERY, not an authority boundary, and the whole body is
+        # guarded for the same reason `_receipt_is_live` fails safe: a rule that cannot establish its
+        # SUBJECT must not invent one. Guarding the whole body rather than only the inspection is
+        # deliberate - the ancestry probe shells out to git too, so an environment where git cannot
+        # run must reach the same silent answer by either route. See `_receipt_is_live` for the cost
+        # this direction accepts.
+        return None
+    return lane
+
+
 def check_scope_drift(
     repo_root: Path, include_untracked: bool = False
 ) -> List[_core.Drift]:
@@ -2151,6 +2248,29 @@ def check_scope_drift(
     rationale and its cost. Ignoring a terminal plan's receipt here is an ADVISORY decision only and
     is NOT a claim that the receipt is dead - it may still be required by an unfinished finalize
     transaction, and nothing here deletes one.
+
+    WHICH TREE IS MEASURED IS PART OF THE RULE (rcptstale ``wmnmei``, backlog ``v880xk``, maintainer
+    ruling 2026-09-10). The comparison runs against the plan's ISOLATED LANE WORKTREE, resolved by
+    :func:`_plan_execution_tree`, and a plan with no usable lane is reported on NOT AT ALL. Before
+    this, the rule diffed the frozen base against whichever tree the command happened to run in, which
+    in a shared checkout is every co-worker's commits: measured 2026-09-22 at HEAD ``132e8333``, 350
+    findings across six plans (216/94/21/11/6/2), of which 350 of 350 were COMMITTED intervening
+    history and 0 were working-tree changes, while the same six measured in their own lanes yielded
+    9/5/1/0 and two plans with no usable lane. The accepted cost is that hand work in a shared main
+    checkout gets no advisory at all; see :func:`_plan_execution_tree` for why, and do not
+    reintroduce a main-tree comparison on the argument that coverage was lost by accident.
+
+    ONE FINDING PER PLAN, NOT ONE PER PATH. The finding carries the COUNT and the offending paths in
+    its detail (bounded, with an explicit "and N more" tail) rather than multiplying into one Drift per
+    file. A single frozen base used to emit one finding per intervening file, which is how 350 findings
+    came from six causes and how a real signal became volume readers learn to skip. The collapse is
+    UNCONDITIONAL (no threshold): a threshold is exactly the kind of unprincipled cutoff ``v880xk``
+    rejected for receipt expiry, and the measured distribution shows no long tail of small honest
+    drifts a threshold would preserve. The paths are NEVER dropped, because a plan genuinely touching
+    three undeclared files must still say WHICH three; only their repetition as separate findings is.
+    ``(rule, location)`` is unchanged by construction - the location was already the plan file - which
+    is what ``tests/test_ci_check_parity.py`` compares, and ``recovery`` stays populated because the
+    opt-in pre-commit gate prints that field verbatim as its teaching message.
     """
     from agent_workflows import ipd_lifecycle as _life
 
@@ -2181,7 +2301,11 @@ def check_scope_drift(
             )
         except (ValueError, OSError):
             plan_rel = p.name
-        changed = _life._paths_changed_by_this_execution(repo_root, base_head)
+        # WHICH TREE: the plan's isolated lane, or nothing at all. See `_plan_execution_tree`.
+        exec_tree = _plan_execution_tree(repo_root, plan_id, base_head)
+        if exec_tree is None:
+            continue  # not lane-isolated (or the lane's base is unusable) -> no honest subject
+        changed = _life._paths_changed_by_this_execution(exec_tree, base_head)
         out_of_scope = [
             c
             for c in changed
@@ -2192,21 +2316,26 @@ def check_scope_drift(
             and not _life._is_implicitly_allowed(c, plan_rel)
             and not any(_life._scope_match(c, pat) for pat in scope_paths)
         ]
-        for c in sorted(set(out_of_scope)):
-            drift.append(
-                enrich_drift(
-                    _core.Drift(
-                        str(p),
-                        _SCOPE_DRIFT_RULE,
-                        f"changed path {c!r} is outside the plan's declared Scope-Paths",
-                    ),
-                    observed=f"changed: {c}",
-                    required="a change within the declared Scope-Paths: "
-                    + ", ".join(scope_paths),
-                    recovery="restrict the change to Scope-Paths, or declare the path in the plan's "
-                    "Scope-Paths (then re-`aw ipd begin`), or reconcile it at `aw ipd finalize`",
-                )
+        offenders = sorted(set(out_of_scope))
+        if not offenders:
+            continue
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(p),
+                    _SCOPE_DRIFT_RULE,
+                    f"{len(offenders)} changed path"
+                    + ("s are" if len(offenders) != 1 else " is")
+                    + " outside the plan's declared Scope-Paths: "
+                    + _summarize_paths(offenders),
+                ),
+                observed=f"changed ({len(offenders)}): " + _summarize_paths(offenders),
+                required="a change within the declared Scope-Paths: "
+                + ", ".join(scope_paths),
+                recovery="restrict the change to Scope-Paths, or declare the path in the plan's "
+                "Scope-Paths (then re-`aw ipd begin`), or reconcile it at `aw ipd finalize`",
             )
+        )
     return drift
 
 
@@ -2414,7 +2543,10 @@ def check_commit_invariants(repo_root: Path) -> List[_core.Drift]:
       rygds7): a receipt is IGNORED when its plan is in a TERMINAL lifecycle directory or when its
       frozen ``base_head`` is not an ancestor of HEAD, since neither can describe an in-flight
       execution. That liveness test fails SAFE (undeterminable -> skip), consistent with this being
-      best-effort local feedback; see ``_receipt_is_live``.
+      best-effort local feedback; see ``_receipt_is_live``. The comparison measures the plan's
+      ISOLATED LANE WORKTREE and is SILENT for a plan that has none (rcptstale ``wmnmei``), so hand
+      work in a shared main checkout is NOT gated here; and it emits ONE finding per plan carrying
+      the count and the offending paths, not one per path.
 
     Each rule is commit/receipt-scoped, so on an ordinary clean commit this is a fast no-op. The
     per-drift ``recovery`` field (from the versioned finding shape) is what the hook TEACHES. HONEST

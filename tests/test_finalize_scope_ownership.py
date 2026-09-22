@@ -934,8 +934,17 @@ class NothingElseMovedTests(_ScopeOwnershipBase):
         ownership-filtered. So a foreign committed path that finalize now DISREGARDS must still be
         reported as drift here. This is the compatibility constraint the union surface exists for; if
         a future change ownership-filters the union, this test is what catches it.
+
+        WHICH TREE THE DRIFT HALF MEASURES CHANGED, and the claim did not (rcptstale ``wmnmei``,
+        maintainer ruling 2026-09-10). ``check_scope_drift`` now measures the plan's ISOLATED LANE and
+        is silent for a plan with no lane, so the drift assertion below is made in a lane cut at the
+        frozen base. The property under test is unchanged and is still ownership: a path NOTHING
+        attributes to this execution must still reach the advisory, because the advisory is a time
+        window rather than an attribution. The finalize and union assertions are untouched and still
+        measure the main tree, which is the tree finalize itself consumes.
         """
         from agent_workflows import check_engine as CE
+        from agent_workflows import worktree_lease as lease
 
         plan = self._plan()
         self._begin(plan)
@@ -960,7 +969,19 @@ class NothingElseMovedTests(_ScopeOwnershipBase):
         sources = LC._changed_path_sources(self.root, str(receipt["base_head"]))
         self.assertEqual(union, sources.union())
 
-        # And the drift rule that reads it still flags the path.
+        # And the drift rule that reads it still flags the path, measured in the tree it now speaks
+        # about: an unowned path is NOT ownership-filtered out of the advisory. The path is COMMITTED
+        # in the lane rather than left dirty, because the committed half is what this claim is about
+        # and because `git status` collapses a wholly-untracked directory to `agent_workflows/`, which
+        # would name the directory instead of the file and prove nothing about the path.
+        lane = lease.allocate_worktree(
+            self.root, "abc123", base_commit=str(receipt["base_head"])
+        ).path
+        (lane / "agent_workflows").mkdir(parents=True, exist_ok=True)
+        (lane / "agent_workflows" / "theirs.py").write_text(
+            "theirs\n", encoding="utf-8"
+        )
+        _commit_paths(lane, "another actor, in the lane", ["agent_workflows/theirs.py"])
         drift = CE.check_scope_drift(self.root)
         self.assertTrue(
             any("agent_workflows/theirs.py" in str(d.detail) for d in drift),
