@@ -10,7 +10,7 @@
 - Scope: Add `interrupted` to the EXISTING status-tolerance branch in `audit_step_artifact` so an interrupted item beside an UNMOVED plan is not a discrepancy, and prove the `Issue` column clears with it. EXCLUDES `substantially-complete`, whose location half is also flagged and whose normalization collides with `complete` (deferred with the measurement); excludes any new classification vocabulary or direction-aware classifier; excludes the `integration-blocked` + `executed` case, which is backlog `1f9m2j`, BLOCKED on `rnl3b7` because deciding it requires evidence this module does not read; and excludes the SEVEN OTHER catch-all statuses found at review (see the scope note below), which share the defect's SHAPE but not its argument.
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Set: runviewdisc
 - Order: 2
@@ -18,10 +18,11 @@
 - Readiness: go-pending-approval
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vdabn5
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 13ty0u
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: vdabn5 verified (set runviewdisc, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/artifact_audit.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/run_viewer.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
+- 2026-09-22 executed-pending-transition (opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-04 performed, V-01..V-04 verified with pasted evidence. THE FIX LANDED IN A DIFFERENT FILE THAN THE PLAN DECLARES, deliberately and with evidence: the status-tolerance arm MOVED from `run_viewer.audit_step_artifact` to `artifact_audit._status_disagrees` in commit `5f159173` (IPD `6ltz1y`'s extraction), after this plan was reviewed, so `agent_workflows/artifact_audit.py` is an out-of-scope changed path requiring a `--scope-reason`, and the DECLARED `agent_workflows/run_viewer.py` is deliberately unmodified and requires a `--scope-ack` (the fix reaches every one of its surfaces through the adapter). Rationale recorded as DECISION 22-vdabn5-D1 in the lane's decisions register. `r2i1b1` E-03 has ALSO landed, so the five `Issue` predicate copies are now ONE, which E-02 anticipated and told me to treat as fine. ONE VALUE ADDED, not the seven siblings; normalization and location computation byte-unchanged (proven at AST level); the refuted tautology is explicitly refuted rather than repeated in the new comment. Suite: bare `python3 -m pytest` `1 failed, 8232 passed, 3 skipped, 2 xfailed` against a baseline of `1 failed, 8227 passed` in this worktree, SAME single failing node id (`tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`), which is ENVIRONMENTAL: it asserts a non-isolated turn carries no `OPENCODE_CONFIG_CONTENT`, my own lane turn exports it, and the node passes with the variable unset. begin/finalize NOT run: `aw ipd begin` refused with AW-LIFECYCLE-ROLE-001 (the runner owns the transition for a managed lane), so this plan is left in `pending/` for the driver to transition.
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED; review record written; Readiness go-pending-approval
@@ -43,7 +44,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: extend the existing tolerance, add nothing new
 
-- [ ] E-01 ADD `interrupted` TO THE EXISTING STATUS-TOLERANCE BRANCH in `audit_step_artifact`, and nothing else. Locate the branch by SYMBOL, not by line number: it is the `elif st in ("queued", "running", "dependency-blocked", "blocked"):` arm inside `audit_step_artifact` whose body admits `approved`/`to-review`/`draft`/`reviewed`/`queued`/`running`. At review HEAD `d6b7055c` it is `run_viewer.py:532-541` with the catch-all at `:543-544`; the plan previously cited `:525-534`/`:536-537` and the backlog item `:457`, so this anchor has now drifted TWICE.
+- [x] E-01 ADD `interrupted` TO THE EXISTING STATUS-TOLERANCE BRANCH in `audit_step_artifact`, and nothing else. Locate the branch by SYMBOL, not by line number: it is the `elif st in ("queued", "running", "dependency-blocked", "blocked"):` arm inside `audit_step_artifact` whose body admits `approved`/`to-review`/`draft`/`reviewed`/`queued`/`running`. At review HEAD `d6b7055c` it is `run_viewer.py:532-541` with the catch-all at `:543-544`; the plan previously cited `:525-534`/`:536-537` and the backlog item `:457`, so this anchor has now drifted TWICE.
   WRITE THE CODE COMMENT WITH THE CORRECT REASON, NOT THE TAUTOLOGY. Do NOT write that an interrupted item's plan cannot have moved: measured at review, `reconcile_interrupted`'s spec-R22 gate (`oc_runipd.py:7018-7053`) deliberately leaves an INDETERMINATE item at `interrupted` while its plan sits in `executed/`, so that state is reachable by design. The correct and sufficient reason is that this ARM admits only IN-FLIGHT file values, so tolerating `interrupted` here suppresses the row exactly when the plan has not moved and leaves the moved-plan case flagging on both axes. A comment asserting the impossible state becomes the next reader's evidence, which is how this premise survived from the backlog item into the plan unchallenged.
   PREFER EXTENDING THE EXISTING MECHANISM over introducing a classification vocabulary, and say so in the code. The ad-hoc tolerance list is admittedly not a general solution; a direction-aware classifier would be, and that is what `1f9m2j` wanted before it proved unsound without evidence the module does not read. Adding one value to a list that already encodes exactly this idea is the minimal honest change.
   DO NOT TOUCH THE NORMALIZATION (`st = "complete" if step.status == "substantially-complete" else step.status`, `:479` at review). It is what makes the deferred half hard, and changing it here would silently alter the `executed`/`complete` branch at `:481-482` and `:526-528`, which governs every completed item in every run. That is a separate change with a much larger blast radius.
@@ -51,35 +52,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ADD EXACTLY ONE VALUE, NOT THE SEVEN SIBLINGS. Measured at review, `failed`, `failed-safely`, `partial`, `not-attempted`, `merge-conflict`, `integration-blocked` and `cancelled` ALL fall through the same catch-all with the identical `location_mismatch=False status_mismatch=True` signature. They are deliberately excluded (see the scope note): each needs its own argument about which file statuses are legitimate for it, `integration-blocked` is `1f9m2j` and blocked, and admitting a terminal-failure status wholesale is the over-suppression E-04 exists to catch. Do not "while I am here" them in.
   - Depends on: none
   - Expected outcome: a run-side `interrupted` beside a file at `approved` in `pending/` yields `status_mismatch=False`; the same run status beside a file at `executed` in `executed/` STILL yields both mismatches; the normalization is byte-unchanged; exactly one value was added; no new status vocabulary is introduced.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PROVE THE `Issue` COLUMN CLEARS WITHOUT EDITING THE PREDICATE. `run_viewer` holds FIVE textual copies of the same three-term issue expression (`audit.missing_entirely or audit.location_mismatch or audit.status_mismatch`). Re-located at review HEAD `d6b7055c`: `:1485` in `format_artifact_audit_summary`, `:1634` in `render_steps_table`, and `:2855`/`:2899`/`:2930` in three `run_viewer_cli` branches. The plan previously cited `:1498` for the `render_steps_table` copy and the backlog item cited `:1418-1420`, so find all five by grepping `missing_entirely or` and confirm the count is still 5. Because all five consume `audit_step_artifact`'s OUTPUT, the E-01 fix should clear every one with no predicate change at all.
+- [x] E-02 PROVE THE `Issue` COLUMN CLEARS WITHOUT EDITING THE PREDICATE. `run_viewer` holds FIVE textual copies of the same three-term issue expression (`audit.missing_entirely or audit.location_mismatch or audit.status_mismatch`). Re-located at review HEAD `d6b7055c`: `:1485` in `format_artifact_audit_summary`, `:1634` in `render_steps_table`, and `:2855`/`:2899`/`:2930` in three `run_viewer_cli` branches. The plan previously cited `:1498` for the `render_steps_table` copy and the backlog item cited `:1418-1420`, so find all five by grepping `missing_entirely or` and confirm the count is still 5. Because all five consume `audit_step_artifact`'s OUTPUT, the E-01 fix should clear every one with no predicate change at all.
   VERIFY THAT, DO NOT ASSUME IT. The point of this item is to show the fix reaches the surface the operator actually reads, and a fix proven only on the dataclass is not that. Render the real table and read the column.
   COVER THE MACHINE SURFACES TOO, not only the two human ones. Three of the five copies serve `--json`, `--agent --issues` and human `--issues` inside `run_viewer_cli`; those are what another agent consumes, and `r2i1b1`'s own review found that surfaces disagreeing is the live failure mode here. Exercise each of the three, or state precisely why one is unreachable in a fixture and what you checked instead.
   DO NOT EXTRACT OR EDIT THE FIVE COPIES. Pending plan `r2i1b1` (`orchprobe` Order 01) owns extracting them into ONE predicate as its E-03, and extending one copy is precisely how the surfaces come to disagree (that plan's F-2 records the measurement). If E-02 finds a surface that does NOT clear, STOP and report rather than editing a copy to force it.
   `r2i1b1` IS `approved`, NOT `to-review`, so this is a LIVE RACE and not a future one. Verified at review: its `- Status:` is `approved`, it declares `agent_workflows/run_viewer.py` in its own `Scope-Paths`, and its E-03 rewrites all five copies. It can therefore be dispatched by `aw oc run` at any time. TWO CONSEQUENCES. FIRST, re-grep the copy count when you arrive: if it is 1 rather than 5, `r2i1b1` E-03 has landed, which is FINE and makes this item easier, so verify the single predicate instead and say so rather than hunting for four copies that no longer exist. SECOND, do not treat the difference as a conflict to resolve: the runner isolates each item in its own worktree and merges through the revalidate gate, so a file both plans name is not a hazard, and this plan touches a DIFFERENT function (`audit_step_artifact`) from the one `r2i1b1` E-03 edits.
   - Depends on: E-01
   - Expected outcome: the `Issue` column reads clear for an interrupted item beside an unmoved plan, demonstrated on rendered output, on the human table, the audit summary, and the three machine surfaces; no issue-predicate copy was edited or extracted; the copy count is reported as found.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the fix and guard against over-suppression
 
-- [ ] E-03 ADD FOUR TEST CASES, and treat (c) and (d) as the load-bearing ones. (a) run `interrupted` + file `approved` in `pending/` is NOT a discrepancy. (b) the same pair ALSO clears the `Issue` column in `render_steps_table`. (c) THE EXISTING TRUE POSITIVE MUST KEEP BEING FLAGGED. (d) NEW AT REVIEW: run `interrupted` + file `executed` in `executed/` MUST KEEP BEING FLAGGED, on BOTH axes.
+- [x] E-03 ADD FOUR TEST CASES, and treat (c) and (d) as the load-bearing ones. (a) run `interrupted` + file `approved` in `pending/` is NOT a discrepancy. (b) the same pair ALSO clears the `Issue` column in `render_steps_table`. (c) THE EXISTING TRUE POSITIVE MUST KEEP BEING FLAGGED. (d) NEW AT REVIEW: run `interrupted` + file `executed` in `executed/` MUST KEEP BEING FLAGGED, on BOTH axes.
   CASE (d) PINS THE CORRECTED PREMISE and is required because the plan's original justification was false. The R22 gate in `reconcile_interrupted` (`oc_runipd.py:7018-7053`) refuses to promote an INDETERMINATE item whose plan is already in `executed/`, leaving exactly `run=interrupted` beside `file=executed`. Measured at review, that pair gives `location_mismatch=True status_mismatch=True actual_dir=executed expected_dir=pending file_status=executed`, and it MUST stay flagged: it is the fabricated-success case spec R22 exists to surface. Assert both mismatches explicitly. Without this case, a later author who believes the tautology could widen the arm to admit `executed` and silently suppress the one row that most needs an operator's eyes.
   CASE (c) IS THE GUARD AGAINST OVER-SUPPRESSION and it already exists in the suite: `tests/test_run_viewer.py` builds a step with `status="complete"` against a plan at `- Status: approved` in `pending/` and asserts `location_mismatch` AND `status_mismatch` are both True, plus `actual_dir == "pending"`, `expected_dir == "executed"`, `file_status == "approved"` (verified at review around `:1345-1395`, and it already uses a temporary root). Extend that test's neighborhood rather than rewriting it, and state which assertions you left byte-identical.
   CASES (a) AND (c) LOOK SUPERFICIALLY IDENTICAL AND MUST DIVERGE, which is the whole reason both are required: both are a `pending/` plan at `approved`, and the only difference is the RUN-side status. If a single change makes both pass or both fail, the fix is wrong in one direction or the other. CASES (a) AND (d) ARE THE SAME TRAP ON THE OTHER AXIS: same run status, different plan location, opposite verdicts.
   BUILD THE FIXTURE IN A TEMPORARY REPO, NOT FROM THE LIVE TREE, and note the module ALREADY demands this of you: its header states that a new test must not read the live repository via `dir="."` because `.aw/records/runs/` is gitignored and absent in every fresh checkout and every isolated lane worktree. Follow the `_build_viewer_fixture` pattern already in the file. Measured at review the module is `75 passed` in the real checkout (the plan said 46 and the backlog item said 42 with 14 failing bare, both stale). Pending plan `utwr6y` (`testiso` Order 01, `to-review`) exists to make this module own its data; do NOT add a case that reads the live tree, or this plan makes that plan's job larger.
   - Depends on: E-02
   - Expected outcome: four cases added, (a) and (b) passing on the fix, (c) and (d) still flagging with (c)'s existing assertions intact; no new test reads `.aw/records/runs/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MUTATION-CHECK BOTH DIRECTIONS. A test that cannot fail is not evidence, and this fix's risk is symmetric: too little suppression leaves the defect, too much hides a real regression.
+- [x] E-04 MUTATION-CHECK BOTH DIRECTIONS. A test that cannot fail is not evidence, and this fix's risk is symmetric: too little suppression leaves the defect, too much hides a real regression.
   MUTATION 1, UNDER-SUPPRESSION: revert E-01 and show case (a) FAILS, then restore and show it passes.
   MUTATION 2 MUST BE REWRITTEN, BECAUSE THE PLAN'S VERSION CANNOT REACH THE CODE IT EDITS. The plan said to "also admit the `complete` run-status into the same tolerance branch" and expect case (c) to fail. Measured at review, that mutation is INERT: `complete` is intercepted by the EARLIER `if st in ("executed", "complete"):` arm, so control never reaches the arm E-01 edits and adding `complete` to it changes nothing. The mutation would have appeared to pass, been reported as evidence, and proven nothing, which is worse than omitting it. USE ONE OF THESE INSTEAD, both of which reach the edited arm: (i) admit the FILE status `executed` into the arm's accepted-file-values tuple and show case (d) FAILS, which is the exact over-reach case (d) was added to guard; or (ii) admit the run status `failed` into the arm and show that a genuine terminal-failure row stops being flagged, adding a temporary assertion for it. Option (i) is preferred because case (d) already exists and needs no throwaway test. Restore after each.
   STATE WHICH MUTATION YOU RAN AND WHY, and if you find a third that reaches the arm more directly, use it and say so. What is NOT acceptable is pasting a mutation whose diff does not change any observable behavior and calling it a passed check; if a mutation produces no failure anywhere, that is a finding about the mutation, not a clean result.
   - Depends on: E-03
   - Expected outcome: two mutations, each provably reaching the edited arm, each failing the case it should, each passing after revert, all four outputs pasted, with the rewritten mutation 2 named.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,33 +164,190 @@ ONE THING TO CHECK RATHER THAN ASSUME: if any spec, README, or help string DOCUM
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the changed branch as written, located by symbol, and state its line number at YOUR head (it will not be `:532-541`; that anchor has already drifted twice). Paste the PRE-FIX and POST-FIX output of `audit_step_artifact` for run `interrupted` + file `approved` in `pending/`, showing `status_mismatch` going True -> False and `location_mismatch` staying False. Paste a diff of `run_viewer.py` proving the normalization line and the location computation are BYTE-UNCHANGED.
     PASTE THE CODE COMMENT YOU WROTE and confirm it does NOT claim an interrupted item's plan cannot have moved. A comment restating the refuted tautology is a FAILED validation even if the code is correct, because the comment is what the next author will act on.
     PASTE THE MOVED-PLAN CASE POST-FIX: run `interrupted` + file `executed` in `executed/` must STILL show both mismatches. This is the proof the fix is narrow.
     CONFIRM EXACTLY ONE VALUE WAS ADDED. Paste the arm's tuple before and after; if any of the seven sibling statuses (F-10) appears, that is a FAILED validation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. One value added to the in-flight arm, now in `artifact_audit._status_disagrees` (the arm MOVED modules since review, commit `5f159173`; see DECISION 22-vdabn5-D1). `interrupted` + `approved` @ `pending/` goes `status_mismatch` True -> False with `location_mismatch` unchanged False; the R22 moved-plan case still flags BOTH axes; an AST-level comparison proves the sole code change is one tuple element, so the normalization and location computation are byte-unchanged; the comment states the arm-breadth reason and explicitly REFUTES the tautology. Detail below.
+    THE ARM MOVED MODULES SINCE REVIEW, so the change is in `agent_workflows/artifact_audit._status_disagrees` and NOT in `run_viewer.audit_step_artifact`. `run_viewer.py:456-466` now says outright "THE AUDIT PREDICATE AND ITS FILE LOOKUP LIVE IN `artifact_audit`, NOT HERE (IPD 6ltz1y E-02/E-03)", and `git log -S'"queued", "running", "dependency-blocked", "blocked"' -- agent_workflows/run_viewer.py` returns `5f159173 feat(audit): extract the artifact location/status audit into one shared module`. `audit_step_artifact` (`run_viewer.py:541-570`) is now a thin adapter delegating to `_audit.audit_artifact`. The plan's own gate says "RE-LOCATE BY SYMBOL, NEVER BY THE LINE NUMBERS IN THIS PLAN", which is what I did; the out-of-scope path is recorded as DECISION 22-vdabn5-D1 and declared with `--scope-reason` at finalize. This is the THIRD drift of this anchor.
 
-- [ ] V-02 validates E-02
+    THE CHANGED ARM AS WRITTEN, at `agent_workflows/artifact_audit.py` (`def _status_disagrees` at `:885`; the arm at `:930`):
+
+    ```python
+        dec = "complete" if declared == "substantially-complete" else declared
+        if rec in ("executed", "complete"):
+            return dec not in ("executed", "complete")
+        if rec == "reviewed":
+            return dec not in ("reviewed", "approved")
+        if rec in ("queued", "running", "dependency-blocked", "blocked", "interrupted"):
+            return dec not in (
+                "approved",
+                "to-review",
+                "draft",
+                "reviewed",
+                "queued",
+                "running",
+            )
+        return dec != rec
+    ```
+
+    EXACTLY ONE VALUE ADDED. Before: `if rec in ("queued", "running", "dependency-blocked", "blocked"):`. After: `if rec in ("queued", "running", "dependency-blocked", "blocked", "interrupted"):`. The accepted FILE-value tuple is byte-unchanged and does NOT admit `executed`. None of the seven siblings appears.
+
+    PRE-FIX vs POST-FIX, run `interrupted` + file `approved` in `pending/` (synthetic repo, real function):
+
+    ```text
+    PRE-FIX   interrupted  location_mismatch=False  status_mismatch=True   has_discrepancy=True   class=unknown
+    POST-FIX  interrupted  location_mismatch=False  status_mismatch=False  has_discrepancy=False  class=unchanged
+    ```
+
+    `status_mismatch` True -> False; `location_mismatch` stayed False. The five arms that already cleared (`queued`, `running`, `dependency-blocked`, `blocked`, `reviewed`) are unaffected.
+
+    THE MOVED-PLAN CASE POST-FIX (proof the fix is narrow), run `interrupted` + file `executed` in `executed/`:
+
+    ```text
+    location_mismatch=True  status_mismatch=True  actual_dir=executed  expected_dir=pending  file_status=executed
+    ```
+
+    Both still True. THE SEVEN SIBLINGS POST-FIX, each still flagged (`location_mismatch=False status_mismatch=True`): `failed`, `failed-safely`, `partial`, `not-attempted`, `merge-conflict`, `integration-blocked`, `merge-needs-human`, `cancelled`.
+
+    NORMALIZATION AND LOCATION COMPUTATION BYTE-UNCHANGED, proven at AST level rather than by grep (a naive grep matched my own docstring prose). Comparing `_status_disagrees`'s parsed body, docstring excluded, between HEAD and my tree:
+
+    ```text
+    AST-level differences in _status_disagrees's CODE (docstring excluded):
+        -     Constant(value='blocked')],
+        +     Constant(value='blocked'),
+        +     Constant(value='interrupted')],
+      total differing AST lines: 3
+      -> the ONLY code change is the string 'interrupted' added to one tuple.
+    ```
+
+    THE CODE COMMENT I WROTE does NOT claim an interrupted plan cannot have moved; it explicitly REFUTES that: "It is NOT that an interrupted item's plan cannot have moved: that claim is FALSE and was refuted by measurement (IPD `vdabn5` F-9)", then names the R22 gate as the counterexample and gives the arm-breadth reason: "the accepted ``declared`` values below are all PRE-TERMINAL and ``executed`` is not among them. So tolerating ``interrupted`` here suppresses the row EXACTLY when the plan has not moved". A search for any ASSERTING form of the tautology returns nothing. The docstring also records the one-value-not-seven fence and the `substantially-complete` exclusion with its reason.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the rendered `render_steps_table` output for an interrupted item beside an unmoved plan, with the `Issue` column visible and reading clear. Paste the same for the artifact-discrepancy summary (`format_artifact_audit_summary`). Paste the THREE MACHINE surfaces too (`--json`, `--agent --issues`, human `--issues`), or state precisely which was unreachable in a fixture and what you checked instead.
     PASTE `grep -c "missing_entirely or"` AND ITS ENCLOSING SYMBOLS, and report the count you found. If it is 1, `r2i1b1` E-03 has landed; say so and verify the single predicate rather than hunting for four copies that no longer exist. Either way paste a diff proving you edited NO copy. If any surface did NOT clear, report it rather than editing a copy.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. The `Issue` copy count is 1, not 5 (`r2i1b1` E-03 has landed), and I edited no predicate. All five surfaces exercised end-to-end through the real `aw runs` CLI on a temporary-repo fixture: the human table reads `no`, the difference summary is empty, `--json --issues` returns an empty list, `--agent --issues` publishes nothing, and human `--issues` says `no artifact or status discrepancies found`; all five still report cases (c) and (d). Detail below.
+    THE COPY COUNT IS 1, NOT 5: `r2i1b1` E-03 HAS LANDED, exactly as this item anticipated ("if it is 1 ... that is FINE and makes this item easier"). `grep -rn "missing_entirely or" agent_workflows/`:
 
-- [ ] V-03 validates E-03
+    ```text
+    agent_workflows/artifact_audit.py:472:            self.missing_entirely or self.location_mismatch or self.status_mismatch
+    agent_workflows/run_viewer.py:489:    three-term expression ``missing_entirely or location_mismatch or status_mismatch`` was copied at
+    ```
+
+    The `run_viewer.py:489` hit is PROSE inside `step_issue_reasons`'s docstring describing the extraction, not a copy. The one real predicate is `artifact_audit.ArtifactAudit.has_discrepancy` (`:463-473`); `run_viewer.step_issue_reasons`/`step_has_issue` (`:482`, `:516`) is the wider refusal-aware predicate over it, and `run_viewer.audit_row_is_issue` (`:1600`) is the narrow artifact-only one that delegates to `has_discrepancy`. I verified the single predicate instead of hunting for four copies. I EDITED NO PREDICATE: `git diff --numstat` shows only `agent_workflows/artifact_audit.py` and `tests/test_run_viewer.py`, and the AST proof under V-01 shows the sole code change in that module is one tuple element inside `_status_disagrees`, a different function from `has_discrepancy`.
+
+    ALL FIVE SURFACES EXERCISED END-TO-END through the real `aw runs` CLI on a temporary-repo fixture (harness and full transcript at `.aw/state/lane-submissions/run-20260922T023526Z-2065001/22-vdabn5/attempt-1/evidence/e02_surfaces.{py,txt}`). For run `interrupted` + file `approved` in `pending/`, the dataclass reads `location_mismatch=False status_mismatch=False has_discrepancy=False`, and `step_has_issue` returns False with `reasons=[]`.
+
+    SURFACE 1, human `render_steps_table`, `Issue` column reads `no`:
+
+    ```text
+    │ Status      │ Item                                   │ Action  │ ... │ Issue │
+    │ interrupted │ 20260908-setx-01-aaa111-synthetic-plan │ execute │ ... │ no    │
+    ```
+
+    SURFACE 2, `format_artifact_audit_summary`: empty (no differences to report at all for the row).
+
+    SURFACE 3, the machine JSON branch, `aw runs --json --issues` -> `{"artifact_discrepancies": []}`. NOTE A CORRECTION TO THIS ITEM'S WORDING: the issue-bearing JSON surface is `--json --issues` (which shares `_issue_records` with `--agent --issues`, `run_viewer.py:3213-3234`), not a bare `--json`, which dumps the whole run summary and carries no issue fields at all. A first pass here filtered a bare `--json` for issue keys, which would have proven nothing either way; the corrected surface is the one reported.
+
+    SURFACE 4, `aw runs --agent --issues` -> no stdout (the row is not published).
+
+    SURFACE 5, human `aw runs --issues` -> `no artifact or status discrepancies found`.
+
+    EVERY SURFACE ALSO STILL REPORTS THE TWO MUST-FLAG CASES, which is what makes the clear readings meaningful rather than a blanket suppression. For case (d) (`interrupted` + `executed` in `executed/`) the table reads `YES`, the difference table renders the row as class `unknown` with `Expected pending/ / Actual executed/`, and `--agent --issues` publishes it with `"location_mismatch":true,"status_mismatch":true,"issue_reasons":["artifact in unexpected directory","on-disk status disagrees with the run record"]`. Case (c) (`complete` + `approved` in `pending/`) likewise reads `YES` and publishes class `regressed`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste all FOUR tests and their actual runner output. For case (c), paste the assertions you left BYTE-IDENTICAL and confirm it still flags both `location_mismatch` and `status_mismatch`.
     PASTE THE THREE-WAY CONTRAST that makes the fix's narrowness visible: (a) and (c) differ ONLY in the run-side status and reach opposite verdicts; (a) and (d) share the run status `interrupted` and differ only in the plan's location and status, and also reach opposite verdicts. If (d) passes without asserting both mismatches, it is not doing its job.
     Paste proof no new case reads `.aw/records/runs/` (show the temporary-root construction), and paste `python3 -m pytest tests/test_run_viewer.py` with its count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Five tests added (the four required cases plus an F-10 scope fence), `5 passed, 91 deselected`; module goes 91 -> `96 passed`. Case (c) is byte-identical (the test diff has ZERO deletions, `173 0`) and still flags both axes. The three-way contrast holds: (a) vs (c) differ only in run status, (a) vs (d) only in plan location/status, each reaching opposite verdicts. No new case reads `.aw/records/runs/`. Detail below.
+    FIVE TESTS ADDED to `tests/test_run_viewer.py` (the four required cases plus a scope-fence test), all in case (c)'s neighborhood, sharing a `_interrupted_fixture` helper that builds its own temporary root:
 
-- [ ] V-04 validates E-04
+    * `test_case_a_interrupted_beside_an_unmoved_plan_is_not_a_discrepancy` - (a): asserts `location_mismatch`, `status_mismatch`, `has_discrepancy` all False, `actual_dir == expected_dir == "pending"`, `file_status == "approved"`, and `step_issue_reasons == []`.
+    * `test_case_a_tolerates_every_in_flight_file_status_including_a_review_turns` - (a) breadth, OQ-01's resolution pinned: all six accepted file values crossed with `action` in `("execute", "review")` (12 subtests), each asserting neither axis flags. This is what makes narrowing the new value to `approved` alone a test failure rather than a matter of taste.
+    * `test_case_b_the_issue_column_clears_for_an_interrupted_unmoved_plan` - (b): renders the real table, asserts `Issue` present, `interrupted` present, `YES` ABSENT, and the difference summary empty.
+    * `test_case_d_interrupted_beside_a_plan_in_executed_still_flags_both_axes` - (d): asserts BOTH `location_mismatch` and `status_mismatch` True (explicitly, as required), plus `actual_dir="executed"`, `expected_dir="pending"`, `file_status="executed"`, `step_has_issue` True, and `YES` in the rendered table.
+    * `test_the_seven_sibling_catch_all_statuses_are_deliberately_unchanged` - the F-10 scope fence: all eight sibling statuses must KEEP flagging, so a later change admitting one without its own argument fails here.
+
+    RUNNER OUTPUT for the five:
+
+    ```text
+    tests/test_run_viewer.py::RunViewerTests::test_the_seven_sibling_catch_all_statuses_are_deliberately_unchanged PASSED [ 20%]
+    tests/test_run_viewer.py::RunViewerTests::test_case_a_tolerates_every_in_flight_file_status_including_a_review_turns PASSED [ 40%]
+    tests/test_run_viewer.py::RunViewerTests::test_case_d_interrupted_beside_a_plan_in_executed_still_flags_both_axes PASSED [ 60%]
+    tests/test_run_viewer.py::RunViewerTests::test_case_a_interrupted_beside_an_unmoved_plan_is_not_a_discrepancy PASSED [ 80%]
+    tests/test_run_viewer.py::RunViewerTests::test_case_b_the_issue_column_clears_for_an_interrupted_unmoved_plan PASSED [100%]
+    ======================= 5 passed, 91 deselected in 1.35s =======================
+    ```
+
+    CASE (c) LEFT BYTE-IDENTICAL, and the strongest possible form of that claim: the test diff has ZERO deletions (`git diff --numstat tests/test_run_viewer.py` -> `173  0`), so no existing line was altered at all. Its assertions, `diff`-confirmed identical to HEAD, are:
+
+    ```python
+                a1 = run_viewer.audit_step_artifact(st1, repo_root=root)
+                self.assertTrue(a1.location_mismatch)
+                self.assertTrue(a1.status_mismatch)
+                self.assertFalse(a1.missing_entirely)
+                self.assertEqual(a1.actual_dir, "pending")
+                self.assertEqual(a1.expected_dir, "executed")
+                self.assertEqual(a1.file_status, "approved")
+    ```
+
+    It still flags both axes and passes in isolation (`1 passed, 95 deselected`).
+
+    THE THREE-WAY CONTRAST:
+
+    ```text
+    CASE                          RUN STATUS   PLAN (status @ dir)    VERDICT
+    (a) the defect being fixed    interrupted  approved @ pending/    CLEAR (no discrepancy)
+    (c) existing true positive    complete     approved @ pending/    FLAGGED (both axes)
+    (d) R22 moved plan            interrupted  executed @ executed/   FLAGGED (both axes)
+    ```
+
+    (a) vs (c): identical PLAN side, only the run status differs -> opposite verdicts. (a) vs (d): identical RUN status, only the plan's location and status differ -> opposite verdicts. Neither pair can be made to agree by the change under test.
+
+    NO NEW CASE READS `.aw/records/runs/`: every new test opens its own `tempfile.TemporaryDirectory()` (at `:1475`, `:1500`, `:1528`, `:1552`, `:1590`) and writes its plan under that root; a grep of the added block for `dir="."` or `records/runs` returns 0 matches.
+
+    MODULE COUNT: `python3 -m pytest tests/test_run_viewer.py` -> `96 passed in 8.61s`. Measured in THIS worktree, the module's baseline without my tests is `91 passed` (the plan said 46 and the review said 75; both are stale, and the honest number is the one measured where the work happened). `tests/test_artifact_audit.py` also stays green: the two modules together go 154 -> 159 passed.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste BOTH mutations in full, each with the diff that produced it. Mutation 1: revert E-01, paste case (a) FAILING, restore, paste it passing.
     MUTATION 2 IS THE LOAD-BEARING ONE AND MUST PROVABLY REACH THE EDITED ARM. Do NOT use the plan's original version (admitting the run status `complete`): measured at review it is INERT because an earlier arm intercepts `complete`, so it fails nothing and proves nothing. State which rewritten mutation you ran (admitting the FILE value `executed`, failing case (d); or admitting the run status `failed`), paste the case FAILING, restore, paste it passing.
     IF A MUTATION PRODUCES NO FAILURE ANYWHERE, report that as a finding about the mutation rather than as a clean result. A V-04 whose mutation 2 changed no observable behavior has not shown the over-suppression guard works and is a FAILED validation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED, both directions, each mutation provably reaching the edited arm. Mutation 1 (revert the added value) fails cases (a)/(b) `3 failed`, passes `3 passed` after restore. Mutation 2 is option (i) (admit the FILE value `executed`), which fails case (d) on `assertTrue(audit.status_mismatch)` and passes after restore. I also ran the plan's ORIGINAL mutation 2 as a control and it is INERT (`159 passed`, nothing fails), confirming F-11 by measurement; reported as a finding about the mutation, not as a clean check. Detail below.
+    MUTATION 1, UNDER-SUPPRESSION. Diff: revert E-01's added value, i.e. `-    if rec in ("queued", "running", "dependency-blocked", "blocked", "interrupted"):` / `+    if rec in ("queued", "running", "dependency-blocked", "blocked"):`. Cases (a) and (b) FAIL:
+
+    ```text
+    >                       self.assertFalse(audit.status_mismatch)
+    E                       AssertionError: True is not false
+    tests/test_run_viewer.py:1517: AssertionError
+    FAILED tests/test_run_viewer.py::RunViewerTests::test_case_a_interrupted_beside_an_unmoved_plan_is_not_a_discrepancy
+    FAILED tests/test_run_viewer.py::RunViewerTests::test_case_b_the_issue_column_clears_for_an_interrupted_unmoved_plan
+    FAILED tests/test_run_viewer.py::RunViewerTests::test_case_a_tolerates_every_in_flight_file_status_including_a_review_turns
+    3 failed, 93 deselected in 0.40s
+    ```
+
+    Restored, and the same selection passes: `3 passed, 93 deselected in 0.39s`.
+
+    MUTATION 2, OVER-SUPPRESSION, OPTION (i) as the plan prescribes: admit the FILE value `executed` into the arm's accepted-file-values tuple (diff adds a single `"executed",` line inside that tuple). This reaches the edited arm BY CONSTRUCTION, because it changes that arm's own tuple. Case (d) FAILS on exactly the axis it guards:
+
+    ```text
+                step, audit = self._interrupted_fixture(root, "executed", "executed")
+                self.assertFalse(audit.missing_entirely)
+                self.assertTrue(audit.location_mismatch)
+    >           self.assertTrue(audit.status_mismatch)
+    E           AssertionError: False is not true
+    tests/test_run_viewer.py:1557: AssertionError
+    FAILED tests/test_run_viewer.py::RunViewerTests::test_case_d_interrupted_beside_a_plan_in_executed_still_flags_both_axes
+    1 failed, 95 deselected in 0.28s
+    ```
+
+    Restored, and case (d) passes: `1 passed, 95 deselected in 0.22s`. The restored file was byte-compared against the post-fix state (`diff` -> IDENTICAL) so no mutation residue survives.
+
+    I ALSO RAN THE PLAN'S ORIGINAL MUTATION 2 AS A CONTROL, and it is INERT exactly as F-11 predicted, which is now measured rather than reasoned. Admitting the RUN status `complete` to the edited arm and running BOTH modules: `159 passed`. Nothing fails, because `if rec in ("executed", "complete")` intercepts `complete` in an earlier arm, so control never reaches the arm E-01 edits. Reported here as a FINDING ABOUT THE MUTATION, not as a passed over-suppression check: had I run only that version and reported it green, V-04 would have proven nothing while appearing to pass. This is why option (i) is the mutation of record.
+  - Result: pass
 
 ## Approval and execution gate
 

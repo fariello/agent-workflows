@@ -885,10 +885,41 @@ def read_declared_status(path: Path) -> Optional[str]:
 def _status_disagrees(recorded: str, declared: str) -> bool:
     """Does a record's own ``declared`` status disagree with the ``recorded`` one?
 
-    The tolerance bands are the extracted ones, unchanged: an executed/complete record must read
-    executed or complete; a ``reviewed`` record may read reviewed OR approved; a queued/running/
-    blocked/dependency-blocked record may read any pre-terminal value, because a plan that has not
-    finished legitimately still carries its authoring status; otherwise the two must be equal.
+    The tolerance bands are the extracted ones, plus ``interrupted`` (IPD `vdabn5`): an
+    executed/complete record must read executed or complete; a ``reviewed`` record may read reviewed
+    OR approved; a queued/running/blocked/dependency-blocked/interrupted record may read any
+    pre-terminal value, because a plan that has not finished legitimately still carries its authoring
+    status; otherwise the two must be equal.
+
+    WHY ``interrupted`` BELONGS IN THE IN-FLIGHT ARM, and read this reason rather than the shorter one
+    it replaced. It is NOT that an interrupted item's plan cannot have moved: that claim is FALSE and
+    was refuted by measurement (IPD `vdabn5` F-9). ``oc_runipd.reconcile_interrupted``'s spec-R22
+    fabricated-success gate DELIBERATELY leaves an item at ``interrupted`` while its plan sits in
+    ``executed/`` reading ``- Status: executed``, because for a force-cut turn the driver never
+    established that the work completed. That state is produced BY DESIGN and must keep being flagged.
+
+    The correct and sufficient reason is about THIS ARM's breadth: the accepted ``declared`` values
+    below are all PRE-TERMINAL and ``executed`` is not among them. So tolerating ``interrupted`` here
+    suppresses the row EXACTLY when the plan has not moved, and the R22 moved-plan case keeps flagging
+    on both axes (``status_mismatch`` here and ``location_mismatch`` independently, since
+    :func:`expected_dir_for_status` maps ``interrupted`` to ``pending``). Do not widen the accepted
+    values to admit ``executed``; that would suppress the one row that most needs an operator's eyes.
+
+    EXTENDING THIS LIST IS THE DELIBERATE CHOICE over introducing a classification vocabulary. The
+    list is admittedly not a general solution, and a direction-aware classifier would be, which is
+    what backlog `1f9m2j` wanted before it proved unsound without evidence this module cannot read
+    (it reads a parent directory name and a ``- Status:`` regex, nothing else). Adding one value to a
+    list that already encodes exactly this idea is the minimal honest change.
+
+    ONE VALUE WAS ADDED, NOT THE SEVEN SIBLINGS. ``failed``, ``failed-safely``, ``partial``,
+    ``not-attempted``, ``merge-conflict``, ``integration-blocked``/``merge-needs-human`` and
+    ``cancelled`` all fall through to the final equality with the identical
+    ``location_mismatch=False status_mismatch=True`` signature (IPD `vdabn5` F-10). They are excluded
+    on purpose: each is a TERMINAL failure state needing its own measured argument about which
+    declared values are legitimate for it, and ``integration-blocked`` is backlog `1f9m2j`, BLOCKED.
+    ``substantially-complete`` is excluded too, for a different reason: it is NORMALIZED to
+    ``complete`` two lines below, so the first arm intercepts it and a status-list entry could not
+    express the intent anyway (F-4).
     """
     rec = "complete" if recorded == "substantially-complete" else recorded
     dec = "complete" if declared == "substantially-complete" else declared
@@ -896,7 +927,7 @@ def _status_disagrees(recorded: str, declared: str) -> bool:
         return dec not in ("executed", "complete")
     if rec == "reviewed":
         return dec not in ("reviewed", "approved")
-    if rec in ("queued", "running", "dependency-blocked", "blocked"):
+    if rec in ("queued", "running", "dependency-blocked", "blocked", "interrupted"):
         return dec not in (
             "approved",
             "to-review",

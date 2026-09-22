@@ -1425,6 +1425,192 @@ class RunViewerTests(TestCase):
             tbl_live = run_viewer.render_steps_table([st1_live], term, repo_root=root)
             self.assertIn("YES (in flight)", tbl_live)
 
+    # ----------------------------------------------------------------------------------------------
+    # IPD `vdabn5`: an `interrupted` item beside an UNMOVED plan is not a discrepancy.
+    #
+    # FOUR CASES, AND TWO PAIRS OF THEM ARE DELIBERATE NEAR-TWINS, which is the whole reason all four
+    # are required. (a) and (c) are BOTH a `pending/` plan reading `approved` and differ ONLY in the
+    # run-side status, reaching OPPOSITE verdicts; (a) and (d) share the run status `interrupted` and
+    # differ only in the plan's location and status, and also reach opposite verdicts. If one change
+    # makes both members of a pair agree, the fix is wrong in one direction or the other.
+    #
+    # CASE (d) PINS A CORRECTED PREMISE, not just a behavior. The backlog item and the plan's first
+    # draft both justified this fix as a TAUTOLOGY ("an interrupted item's plan cannot have moved").
+    # That is FALSE: `oc_runipd.reconcile_interrupted`'s spec-R22 fabricated-success gate deliberately
+    # leaves an INDETERMINATE item at `interrupted` while its plan sits in `executed/` reading
+    # `- Status: executed`, because for a force-cut turn the driver never established that the work
+    # completed. Without case (d), a later author who believes the tautology could widen the tolerance
+    # arm to admit `executed` and silently suppress the one row that most needs an operator's eyes.
+    #
+    # FIXTURE-BASED, per this module's header hazard: every case builds its own temporary root and
+    # none reads the live gitignored `.aw/records/runs/`.
+    # ----------------------------------------------------------------------------------------------
+
+    def _interrupted_fixture(self, root, file_status, bucket, run_status="interrupted"):
+        """One synthetic plan at ``file_status`` in ``bucket``/, audited against ``run_status``."""
+        d = root / ".aw" / "records" / "plans" / bucket
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "20260908-intr-01-intr01-a-slug.ipd.md").write_text(
+            f"# IPD: a slug\n\n- Id: intr01\n- Status: {file_status}\n"
+        )
+        step = run_viewer.StepSummary(
+            position=1,
+            id6="intr01",
+            setid="intr",
+            action="execute",
+            status=run_status,
+            configured_file="",
+            stem="20260908-intr-01-intr01-a-slug",
+        )
+        return step, run_viewer.audit_step_artifact(step, repo_root=root)
+
+    def test_case_a_interrupted_beside_an_unmoved_plan_is_not_a_discrepancy(self):
+        """(a) run `interrupted` + file `approved` in `pending/` -> NO discrepancy.
+
+        THE DEFECT THIS FIXES. `interrupted` used to fall through the tolerance arms to the final
+        equality and report `status_mismatch=True`, asking an operator to investigate an item whose
+        plan is exactly where an unfinished turn leaves it. The LOCATION columns agreed even then, so
+        the row appeared purely on the status comparison.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            step, audit = self._interrupted_fixture(root, "approved", "pending")
+            self.assertFalse(audit.missing_entirely)
+            self.assertFalse(audit.location_mismatch)
+            self.assertFalse(audit.status_mismatch)
+            self.assertFalse(audit.has_discrepancy)
+            self.assertEqual(audit.actual_dir, "pending")
+            self.assertEqual(audit.expected_dir, "pending")
+            self.assertEqual(audit.file_status, "approved")
+            # The WIDER surface predicate agrees, so no surface reports the row.
+            self.assertEqual(run_viewer.step_issue_reasons(audit, step), [])
+            self.assertFalse(run_viewer.step_has_issue(audit, step))
+
+    def test_case_a_tolerates_every_in_flight_file_status_including_a_review_turns(
+        self,
+    ):
+        """(a), BREADTH: the arm is action-agnostic, which is OQ-01's resolution.
+
+        An interrupted REVIEW turn legitimately holds `to-review` or `draft`, so narrowing the new
+        value to `approved` alone would reintroduce this very defect in a different shape while
+        appearing more precise. The arm's six accepted values are all PRE-TERMINAL, which is exactly
+        why tolerating them costs nothing (see case (d) for the value it does NOT admit).
+        """
+        for file_status in (
+            "approved",
+            "to-review",
+            "draft",
+            "reviewed",
+            "queued",
+            "running",
+        ):
+            for action in ("execute", "review"):
+                with self.subTest(file_status=file_status, action=action):
+                    with tempfile.TemporaryDirectory() as td:
+                        root = Path(td)
+                        d = root / ".aw" / "records" / "plans" / "pending"
+                        d.mkdir(parents=True, exist_ok=True)
+                        (d / "20260908-intr-02-intr02-a-slug.ipd.md").write_text(
+                            f"# IPD: a slug\n\n- Id: intr02\n- Status: {file_status}\n"
+                        )
+                        step = run_viewer.StepSummary(
+                            position=1,
+                            id6="intr02",
+                            setid="intr",
+                            action=action,
+                            status="interrupted",
+                            configured_file="",
+                            stem="20260908-intr-02-intr02-a-slug",
+                        )
+                        audit = run_viewer.audit_step_artifact(step, repo_root=root)
+                        self.assertFalse(audit.status_mismatch)
+                        self.assertFalse(audit.location_mismatch)
+
+    def test_case_b_the_issue_column_clears_for_an_interrupted_unmoved_plan(self):
+        """(b) the same pair also reads clear in the RENDERED `Issue` column.
+
+        A fix proven only on the dataclass is not proven on the surface an operator actually reads.
+        `step_has_issue` is the one predicate all five surfaces call, so this covers them through the
+        human table; the machine surfaces (`--json --issues`, `--agent --issues`) share
+        `_issue_records` over the same predicate.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            step, audit = self._interrupted_fixture(root, "approved", "pending")
+            term = Term(color=False)
+            tbl = run_viewer.render_steps_table([step], term, repo_root=root)
+            self.assertIn("Issue", tbl)
+            self.assertIn("interrupted", tbl)
+            self.assertNotIn("YES", tbl)
+            # The difference table has nothing to report at all for this row.
+            self.assertEqual(
+                run_viewer.format_artifact_audit_summary(
+                    [audit], term, steps=[step]
+                ).strip(),
+                "",
+            )
+
+    def test_case_d_interrupted_beside_a_plan_in_executed_still_flags_both_axes(self):
+        """(d) run `interrupted` + file `executed` in `executed/` -> MUST KEEP FLAGGING, both axes.
+
+        THE R22 FABRICATED-SUCCESS CASE, which the runner produces BY DESIGN and which proves the fix
+        is narrow. `reconcile_interrupted` promotes an interrupted item whose plan reached `executed/`,
+        EXCEPT for one flagged INDETERMINATE, where the promotion refuses and the item stays
+        `interrupted` beside a plan that has already moved. That is the one interrupted shape an
+        operator must still see, and the tolerance arm excludes it for free because `executed` is not
+        among the arm's accepted (all pre-terminal) file values.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            step, audit = self._interrupted_fixture(root, "executed", "executed")
+            self.assertFalse(audit.missing_entirely)
+            self.assertTrue(audit.location_mismatch)
+            self.assertTrue(audit.status_mismatch)
+            self.assertTrue(audit.has_discrepancy)
+            self.assertEqual(audit.actual_dir, "executed")
+            self.assertEqual(audit.expected_dir, "pending")
+            self.assertEqual(audit.file_status, "executed")
+            self.assertTrue(run_viewer.step_has_issue(audit, step))
+            self.assertIn(
+                "YES",
+                run_viewer.render_steps_table(
+                    [step], Term(color=False), repo_root=root
+                ),
+            )
+
+    def test_the_seven_sibling_catch_all_statuses_are_deliberately_unchanged(self):
+        """SCOPE FENCE: exactly ONE value was added, not the seven siblings that share the signature.
+
+        `failed`, `failed-safely`, `partial`, `not-attempted`, `merge-conflict`,
+        `integration-blocked`/`merge-needs-human` and `cancelled` all fall through to the final
+        equality with the identical `location_mismatch=False status_mismatch=True` shape, so sweeping
+        them in is tempting and is refused: each is a TERMINAL failure state needing its own measured
+        argument about which declared values are legitimate for it, and `integration-blocked` is
+        backlog `1f9m2j`, BLOCKED. This test fails if a later change admits one without that argument.
+        """
+        siblings = (
+            "failed",
+            "failed-safely",
+            "partial",
+            "not-attempted",
+            "merge-conflict",
+            "integration-blocked",
+            "merge-needs-human",
+            "cancelled",
+        )
+        for run_status in siblings:
+            with self.subTest(run_status=run_status):
+                with tempfile.TemporaryDirectory() as td:
+                    root = Path(td)
+                    _step, audit = self._interrupted_fixture(
+                        root, "approved", "pending", run_status=run_status
+                    )
+                    self.assertFalse(audit.location_mismatch)
+                    self.assertTrue(
+                        audit.status_mismatch,
+                        f"{run_status} must keep flagging; admitting it needs its own argument",
+                    )
+
     def test_audit_step_artifact_pins_the_four_verdict_shapes(self):
         """CHARACTERIZATION (IPD 6ltz1y E-01): pin the audit's four verdict shapes before the
         extraction moves it, so the move is provably behavior-preserving for `aw runs`.
