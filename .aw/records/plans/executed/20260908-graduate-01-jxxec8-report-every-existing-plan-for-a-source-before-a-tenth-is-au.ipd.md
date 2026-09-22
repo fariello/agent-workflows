@@ -11,17 +11,17 @@
 - Scope: Add a READ-ONLY, ADVISORY pre-graduation view that reports every existing PLAN OR SPEC carrying a given source id6, with its type, status and Set, so whoever graduates sees the cluster before authoring. Specs are IN scope deliberately and not as an extension: a spec is an equally valid graduation carrier, five specs carry a source link today, and every named example cluster has one, so a plans-only view would be silent on exactly the already-addressed case (F-11). It SHOWS; it does not decide. It must state in its own output which of the three cases it can and cannot detect. EXCLUDES any `count > 1` uniqueness rule; excludes any refusal or gate; excludes the already-implemented verdict, which is not mechanically answerable and is tracked by backlog `f1sw71`; excludes wiring the view into the graduation path (child 02 `iuxtjy`); excludes changing either forward dangling check.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_graduation_view.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: graduate
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: jxxec8
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 6h7y2y
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: jxxec8 verified (set graduate, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/command_surface.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_command_surface_declarations.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-22 executed (opencode/its_direct/pt3-claude-opus-5-1m-us, via `aw oc run` lane `jxxec8`): E-01..E-05 performed, V-01..V-05 verified with pasted evidence. Commits `caa4c993` (the three declared `Scope-Paths`), `08139e1c` (the two out-of-scope registry entries) and `deeacb3c` (the defect filed as backlog `v45wb7`).
   WHAT SHIPPED: `aw graduation <source-id6>`, a READ-ONLY advisory view over `check_engine.build_graduation_reverse_index` / `graduation_cluster`, reporting every plan AND spec citing a source with its type, status and Set, and stating its own three-case limits plus its coverage boundary IN THE OUTPUT (human, `--json` and the compact `--agent` record alike).
   OQ-01 RESOLVED TO THE READ SURFACE, NOT A `check` RULE, and no rule was registered; so the `RuleSpec`/`info`-severity half of V-02's evidence requirement is inapplicable rather than skipped. Reason measured rather than argued: 33 of 131 live sources carry more than one artifact, most legitimately, and `aw check all` already reports 475 findings on this tree, so an `info` rule firing on correct work would be noise a reader is already filtering. OQ-02 resolved to an AFFIRMATIVE zero answer through the shared empty-result renderer.
