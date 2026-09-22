@@ -137,10 +137,23 @@ EXPECTED_CLOSURE = {
     # host-specific are shared: `runner_shared.plan_audit_target` (which plan is auditable, and what it
     # can be diffed against) and `runner_shared.build_verifier_prompt(..., audit=True)` (the prompt).
     "handle_audit_command": "still-defined-twice",
-    "handle_stop_command": "still-defined-twice",
+    # RECLASSIFIED 2026-09-22 by hostdedup Order 01 (`li44r9`) E-04/E-07: `handle_stop_command`,
+    # `install_stop_triggers` and `locked_run` were BYTE-IDENTICAL in both drivers and now have ONE
+    # definition each in `runner_shared`, with each host keeping a one-line wrapper. So all three move
+    # from `still-defined-twice` to `shared-host-wrapper`, exactly as `render_continuation_hint` and
+    # `write_report` did under `tx6q0h`, and the fork count falls by the same three: the histogram below
+    # still partitions the same population, which is what makes this a reclassification and not a
+    # deletion.
+    #
+    # THE FIRST TWO KEEP A WRAPPER RATHER THAN BECOMING ONE OBJECT because each binds its OWN
+    # `HostLabels`: both bodies previously called the host's `_detect_driver_command`, and the
+    # operator-facing driver command they record must name the host that actually ran. `locked_run` keeps
+    # one for the ordinary reason a wrapper exists here (the name stays resolvable in the module every
+    # source-inspection pin looks at).
+    "handle_stop_command": "shared-host-wrapper",
     "initialize_run": "still-defined-twice",
-    "install_stop_triggers": "still-defined-twice",
-    "locked_run": "still-defined-twice",
+    "install_stop_triggers": "shared-host-wrapper",
+    "locked_run": "shared-host-wrapper",
     # RECLASSIFIED 2026-09-17 by sibling `tx6q0h`: lifted behind the `HostLabels` descriptor, so
     # each host now keeps a one-line wrapper over the single `runner_shared` definition.
     "render_continuation_hint": "shared-host-wrapper",
@@ -159,7 +172,13 @@ EXPECTED_CLASS_COUNTS = {
     # RE-MEASURED 2026-09-17: 4, up from 2. `render_continuation_hint` and `write_report` moved from
     # `still-defined-twice` when sibling `tx6q0h` lifted them behind the `HostLabels` descriptor; the
     # fork count falls by the same two, so the histogram still partitions the same population.
-    "shared-host-wrapper": 4,
+    # RE-MEASURED 2026-09-22 by hostdedup Order 01 (`li44r9`): 7, up from 4. `handle_stop_command`,
+    # `install_stop_triggers` and `locked_run` moved here from `still-defined-twice` when that plan
+    # lifted them into `runner_shared`; the fork count below falls by the same three, so the histogram
+    # still partitions the same population. A RISE IN THIS CLASS CANNOT BE A RE-FORK by construction:
+    # the class MEANS "one shared definition behind a per-host wrapper", and the per-name assertions in
+    # this file prove each wrapper really delegates.
+    "shared-host-wrapper": 7,
     # RE-MEASURED 2026-09-21: 6, up from 5. stopdisc-01 (`wqq8ua`) made `main` reference the
     # `runner_stop` module when printing the graceful-stop hint on the interrupt path. A rise in THIS
     # class is not a re-fork by construction: the class MEANS "already one object", so a name can only
@@ -182,7 +201,11 @@ EXPECTED_CLASS_COUNTS = {
     # were ALREADY distinct objects at the pre-change HEAD (verified before the edit). The rise measures
     # what `main` now REFERENCES, not a new duplicate, which is the distinction that makes this a
     # legitimate table update rather than the drift this table exists to catch.
-    "still-defined-twice": 9,
+    # RE-MEASURED 2026-09-22 by hostdedup Order 01 (`li44r9`): 6, DOWN from 9, which is the direction
+    # this number is supposed to move. The three that left are named in the `shared-host-wrapper` note
+    # above. A FALL is only legitimate when the names went somewhere and are still asserted there, which
+    # is why the count of the receiving class rose by exactly three in the same change.
+    "still-defined-twice": 6,
     "oc-only": 3,
 }
 

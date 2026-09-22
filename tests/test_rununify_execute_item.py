@@ -49,31 +49,57 @@ HOSTS = ("oc_runipd", "agy_runipd")
 # the plan did not list are newly double-defined here (`integrate_review_lane_branch` became a
 # wrapper, while `build_verifier_prompt` and `_compute_scope_reconciliation` remain forks).
 # ---------------------------------------------------------------------------------------------
+# RE-BASED BY hostdedup Order 01 (`li44r9`) E-04, in the SAME change that lifted the symbols, per the
+# maintainer's 2026-09-16 "re-base deliberately, never weaken silently" rule. FOUR of the seven entries
+# MOVED to `THIN_WRAPPERS_OVER_RUNNER_SHARED` below rather than being deleted, which is the distinction
+# this file's own failure messages demand: a lifted symbol is still asserted, now as a wrapper that must
+# really delegate, so a re-fork of any of them fails just as loudly as before.
+#
+#   `_record_checkpoint_stop`         -> wrapper. Was a THREE-way fork (a body in each runner plus an
+#                                       unreferenced `runner_shared` copy). The shared copy was also
+#                                       BROKEN and never exercised: it called `git_status(repo)` without
+#                                       the required keyword-only `run_checked`, so every recorded
+#                                       `git_state` would have read `<unobserved: ...>`. Fixed by
+#                                       injecting the host's bound `git_status`.
+#   `driver_finalize`                 -> wrapper, with `HostLabels` carrying the host name that reaches
+#                                       a plan's PERMANENT finalize record.
+#   `evaluate_clean_base_for_launch`  -> wrapper. Also a THREE-way fork.
+#   `set_plan_approved`               -> wrapper, and the hardest case in the tranche: its two bodies
+#                                       were BYTE-IDENTICAL yet each read a module-level
+#                                       `FULL_AUTO_ACTOR` resolving to a DIFFERENT string, which
+#                                       reaches a plan's permanent `## Workflow history` as `--actor`.
+#                                       The value is now carried by `HostLabels.full_auto_actor` (no
+#                                       default), so a verbatim lift's durable-history misattribution
+#                                       cannot happen.
+#
+# The THREE that remain are genuinely still forked and are Order 02's work.
 STILL_DOUBLE_DEFINED = (
-    "_record_checkpoint_stop",
     "_record_forced_stop",
-    "driver_finalize",
-    "evaluate_clean_base_for_launch",
     "reconcile_disposition",
     "route_recovery_turn",
-    "set_plan_approved",
 )
 
 # The sanctioned form (maintainer's 2026-09-03 `818uru` OQ-02 ruling): `runner_shared` owns the
 # real function, each host keeps a one-line wrapper at the original name and signature. These
 # are NOT duplication and must not be counted as such.
 THIN_WRAPPERS_OVER_RUNNER_SHARED = (
+    # hostdedup Order 01 (`li44r9`) E-04: the four names MOVED here from `STILL_DOUBLE_DEFINED` in the
+    # same change that lifted them. See the note on that tuple for what each one needed.
     "_compute_scope_reconciliation",
+    "_record_checkpoint_stop",
     "build_lane_outcome",
     "build_prompt",
     "build_verifier_prompt",
     "driver_actor",
     "driver_begin",
+    "driver_finalize",
+    "evaluate_clean_base_for_launch",
     "git_head",
     "git_status",
     "integrate_lane_branch",
     "integrate_review_lane_branch",
     "save_state",
+    "set_plan_approved",
 )
 
 # Plan F-9: a NAIVE closure scan invents these two. Injecting either would be wrong, and moving
@@ -409,11 +435,33 @@ class TheClosureCountsAreRecorded(unittest.TestCase):
     grows: the point is to catch a STRUCTURAL change, not to fail on every unrelated edit.
     """
 
-    def test_the_double_defined_census_is_seven(self):
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 7)
+    def test_the_double_defined_census_is_three(self):
+        """RE-BASED DOWN by hostdedup Order 01 (`li44r9`) E-04, from seven.
 
-    def test_the_wrapper_census_is_eleven(self):
-        self.assertEqual(len(THIN_WRAPPERS_OVER_RUNNER_SHARED), 11)
+        FOUR symbols became wrappers and the wrapper census below rose by the same four, so the TOTAL
+        population is unchanged: this is a MOVE between the two tuples, not a shrinking of what is
+        guarded. Asserting both halves is what makes that checkable in one place -- an entry deleted
+        outright would lower this number without raising the other.
+        """
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 3)
+
+    def test_the_wrapper_census_is_fifteen(self):
+        """RE-BASED UP by hostdedup Order 01 (`li44r9`) E-04, from eleven, by the same four."""
+        self.assertEqual(len(THIN_WRAPPERS_OVER_RUNNER_SHARED), 15)
+
+    def test_the_total_pinned_population_did_not_shrink(self):
+        """Added by `li44r9` E-04: the property the two counts above exist to protect.
+
+        A re-base that MOVES a name between the tuples leaves this total untouched, while one that
+        DELETES a name to make the suite pass lowers it and fails here. Stated as a FLOOR, since a later
+        extraction may legitimately add names.
+        """
+        self.assertGreaterEqual(
+            len(STILL_DOUBLE_DEFINED) + len(THIN_WRAPPERS_OVER_RUNNER_SHARED),
+            18,
+            "the pinned population shrank: a symbol was DELETED from the guard rather than moved "
+            "between STILL_DOUBLE_DEFINED and THIN_WRAPPERS_OVER_RUNNER_SHARED",
+        )
 
     def test_execute_item_core_is_the_largest_symbol_in_runner_shared(self):
         """Plan F-1: execute_item_core in runner_shared is the unified core."""

@@ -46,7 +46,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from agent_workflows import agy_runipd, lane_containment, oc_runipd
+from agent_workflows import agy_runipd, lane_containment, oc_runipd, runner_shared
 
 #: The two host drivers and the guard entry point each exposes. Both must satisfy every assertion.
 DRIVERS = (
@@ -505,7 +505,16 @@ class SharedPredicateTests(unittest.TestCase):
                         "evaluate_clean_base",
                         wraps=lane_containment.evaluate_clean_base,
                     ) as rule,
-                    mock.patch.object(driver, "_run_git", wraps=driver._run_git) as git,
+                    # SPY ON THE SHARED `_run_git`, NOT THE DRIVER'S (hostdedup Order 01, `li44r9`,
+                    # E-07). `evaluate_clean_base_for_launch` was byte-identical in both drivers and now
+                    # has ONE definition in `runner_shared`, so that module's `_run_git` is the one that
+                    # fetches the porcelain. EVERY ASSERTION BELOW IS UNCHANGED -- the one-call count,
+                    # the `shared_tree` pass-through, the R5.4 `--untracked-files=no` scope read off the
+                    # real argv, and the sentinel identity check -- because this spy observes the SAME
+                    # single real call. It is `wraps=`, so git still really runs against the fixture.
+                    mock.patch.object(
+                        runner_shared, "_run_git", wraps=runner_shared._run_git
+                    ) as git,
                 ):
                     result = driver.evaluate_clean_base_for_launch(
                         self.repo, shared_tree=True

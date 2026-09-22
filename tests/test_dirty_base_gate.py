@@ -916,6 +916,14 @@ class SharedTreeGuardRuleTests(unittest.TestCase):
           * DELEGATION is proved by patching the shared rule to return a SENTINEL and asserting the
             host returns that very object (`assertIs`). A host that re-decided the verdict itself could
             not return the sentinel, so no second predicate can hide behind agreement-today.
+
+        THE GIT SPY IS INSTALLED ON `runner_shared` AS WELL AS ON THE DRIVER (hostdedup Order 01,
+        `li44r9`, E-07). `evaluate_clean_base_for_launch` was byte-identical in both drivers and now has
+        ONE definition in `runner_shared`, so the `_run_git` that performs the call is that module's.
+        Patching only the driver's left the real git running against `/nonexistent`. EVERY ASSERTION
+        BELOW IS UNCHANGED, including the one-call count and the argument check: the spy still observes
+        the single real call, just in the module that now makes it. The driver's own `_run_git` stays
+        patched too, so a host that re-grew its own git call would still be counted.
         """
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
@@ -935,6 +943,7 @@ class SharedTreeGuardRuleTests(unittest.TestCase):
 
                 with (
                     mock.patch.object(driver, "_run_git", spy_git),
+                    mock.patch.object(runner_shared, "_run_git", spy_git),
                     mock.patch.object(
                         lane_containment, "evaluate_clean_base", spy_rule
                     ),

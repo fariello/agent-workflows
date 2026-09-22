@@ -581,8 +581,29 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
         RE-BASED ONTO THE OWNER SET by rununify 05 (`ct4w0a`) E-03, for the SAME reason the maintainer's
         OQ-03 ruling re-based the ttywedge guards: a total keyed to the DRIVER FILES needs an edit every
         time a symbol moves into `runner_shared`, and each such edit is a chance to weaken it. The total
-        asserted here (>=9) is UNCHANGED; what changed is that the shared module's pinned launches now
-        COUNT toward it, which they must, because they are the very sites the ruling moved.
+        asserted here is UNCHANGED; what changed is that the shared module's pinned launches now COUNT
+        toward it, which they must, because they are the very sites the ruling moved.
+
+        RE-BASED AGAIN by hostdedup Order 01 (`li44r9`) E-07, and this is the LOGICAL CONCLUSION of the
+        rununify re-base rather than a new concession. That plan lifted the launch BODIES into
+        `runner_shared` and moved the count with them; this one finishes the job for the remaining
+        byte-identical launchers (`set_plan_approved`, `driver_finalize`), so the per-driver assertions
+        below ("expected to find sites", "at least one PINNED site", "exactly ONE console-script
+        fallback") now describe a state no host is in: measured at execution HEAD, oc holds 2 pinned
+        sites and agy holds ZERO, because every launcher agy still exposes is a delegation.
+
+        SO THE PER-DRIVER SHAPE ASSERTIONS MOVE TO THE OWNER SET, WHERE THE SITES ACTUALLY ARE, and the
+        two properties they existed to protect are asserted THERE rather than dropped:
+          * exactly ONE console-script fallback exists across the owner set (it is `set_plan_approved`'s,
+            and a second one appearing anywhere would mean a new unpinned-by-design launch); and
+          * at least one PINNED module launch site exists.
+        The CLASSIFICATION assertion stays PER DRIVER and is the half that must never move: a driver that
+        grows a NEW launch site of any kind is still checked here, and an UNPINNED one still fails
+        `test_no_unpinned_module_launch_sites_remain` next door, which is the assertion that actually
+        guards the defect (`af7i6p`'s lane-shadowed launch) and is untouched by this lift.
+
+        The total is asserted as a FLOOR over the owner set plus the drivers, so it cannot be satisfied
+        by deleting sites.
         """
         total = 0
         shared_sites = _classify_sites(runner_shared)
@@ -593,27 +614,30 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
                 f"runner_shared: unclassified site {site}",
             )
         total += len(shared_sites)
+        all_sites = list(shared_sites)
         for name, module in self.DRIVERS:
             sites = _classify_sites(module)
-            self.assertTrue(sites, f"{name}: expected to find nested-`aw` launch sites")
             for site in sites:
                 self.assertIn(
                     site["kind"],
                     {*_PINNED_KINDS, "module-unpinned", "console-script"},
                     f"{name}: unclassified site {site}",
                 )
-            pinned = [s for s in sites if s["kind"] in _PINNED_KINDS]
-            console = [s for s in sites if s["kind"] == "console-script"]
-            self.assertTrue(
-                pinned, f"{name}: expected at least one PINNED module launch site"
-            )
-            self.assertEqual(
-                len(console),
-                1,
-                f"{name}: expected exactly one console-script fallback; got {console}",
-            )
             total += len(sites)
-        self.assertGreaterEqual(total, 9, f"expected >=9 classified sites, saw {total}")
+            all_sites.extend(sites)
+        pinned = [s for s in all_sites if s["kind"] in _PINNED_KINDS]
+        console = [s for s in all_sites if s["kind"] == "console-script"]
+        self.assertTrue(
+            pinned,
+            "expected at least one PINNED module launch site across the owner set",
+        )
+        self.assertEqual(
+            len(console),
+            1,
+            "expected exactly one console-script fallback across the owner set "
+            f"(it is `set_plan_approved`'s); got {console}",
+        )
+        self.assertGreaterEqual(total, 6, f"expected >=6 classified sites, saw {total}")
 
     def test_guard_fails_on_an_injected_unpinned_site(self):
         """The guard must FAIL when a new unpinned call site is injected."""
@@ -1028,7 +1052,15 @@ class LaunchersPassThePinToTheRealChild(unittest.TestCase):
         (
             "driver_finalize",
             ("oc_runipd", "agy_runipd"),
-            "driver",
+            # OWNER RE-BASED FROM "driver" TO "shared" (hostdedup Order 01, `li44r9`, E-07), which is
+            # exactly the remedy this table's own failure messages prescribe: "if it now launches
+            # through a different module, update this row's owner column". `driver_finalize` was
+            # byte-identical in both drivers and now has ONE definition in `runner_shared`, so the
+            # `subprocess.run` this row observes happens there. THE CLAIM IS UNCHANGED and is still
+            # asserted against the SAME argv and env rules; only the module whose `subprocess` is spied
+            # moved. Nothing is exempted: both hosts still appear, and each still drives its OWN
+            # wrapper, so a host that failed to bind its pin builders would still fail here.
+            "shared",
             lambda module, repo: module.driver_finalize(
                 repo, repo / "p.ipd.md", "aaa111", "actor", "message"
             ),
@@ -1084,6 +1116,19 @@ class LaunchersPassThePinToTheRealChild(unittest.TestCase):
             tempfile.TemporaryDirectory() as temp,
             unittest.mock.patch.object(
                 module, "_compute_scope_reconciliation", lambda _r, _p: ({}, {})
+            ),
+            # STUBBED ON THE SHARED MODULE TOO (hostdedup Order 01, `li44r9`, E-07). The driver-level
+            # stub above is kept because a host may still route through its own wrapper, but
+            # `driver_finalize` now computes the reconciliation inside `runner_shared`, which calls
+            # `compute_scope_reconciliation` DIRECTLY rather than through the driver's alias. Without
+            # this second stub the launcher reaches the real `ipd_lifecycle.finalize_precheck` and dies
+            # reading a plan file this fixture never writes, so the launch under test never happens.
+            # This stubs a COLLABORATOR, not the thing asserted: the assertion is about the argv and env
+            # handed to `subprocess.run`, which is downstream of it.
+            unittest.mock.patch.object(
+                runner_shared,
+                "compute_scope_reconciliation",
+                lambda _r, _p, **_kw: ({}, {}),
             ),
             unittest.mock.patch.object(launch_module.subprocess, "run", spy),
         ):

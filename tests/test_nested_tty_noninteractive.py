@@ -539,37 +539,53 @@ class CallerDevnullTests(unittest.TestCase):
         (
             "agent_workflows/oc_runipd.py",
             DRIVER,
-            2,
             1,
             1,
-            "THE OPENCODE DRIVER. It still launches nested `aw` of its own after `818uru`/`ct4w0a` "
-            "moved two launchers into the shared module, and its single agent `Popen` is the exempt "
-            "host spawn. Its own stdin-covered count is one half of the PARITY claim asserted below",
+            0,
+            "THE OPENCODE DRIVER. Its counts were RE-BASED DOWN by hostdedup Order 01 (`li44r9`), "
+            "which lifted its last two nested-`aw` launchers (`driver_finalize`, `set_plan_approved`) "
+            "into the shared module after `818uru`/`ct4w0a` had already taken `run_checked` and "
+            "`driver_begin`. THE COUNTS MOVED TO THE `runner_shared` ROW, WHICH ROSE BY THE SAME "
+            "AMOUNT, which is the remedy this guard's own failure message prescribes for a launcher "
+            "that MOVED, and not one launcher lost its `stdin=`. What remains here is the exempt agent "
+            "`Popen`, still counted EXACTLY, so a second exemption cannot appear",
         ),
         (
             "agent_workflows/agy_runipd.py",
             DRIVER,
-            2,
             1,
             1,
+            0,
             "THE ANTIGRAVITY DRIVER, whose numbers must MATCH the row above. Both hosts run the same "
             "lifecycle, so a `stdin=` added to one and not the other is the drift the parity check "
             "exists to catch - and it is the realistic one, since a fix is written against whichever "
-            "host reproduced the bug",
+            "host reproduced the bug. Re-based with its twin by `li44r9`: PARITY IS PRESERVED AND IS "
+            "NOW STRUCTURAL, because the launchers the two hosts used to keep in step by hand are one "
+            "shared body they cannot diverge from",
         ),
         (
             "agent_workflows/runner_shared.py",
             SHARED,
-            2,
+            3,
             0,
-            2,
+            3,
             "THE SHARED MODULE, and the reason the guard was re-based off files onto an OWNER SET: it "
-            "now holds `run_checked` (`818uru`) and `driver_begin` (`ct4w0a`), so a guard that "
-            "inspected only the driver files would have STOPPED INSPECTING two launchers without any "
-            "count going down. It holds NO exempt `Popen`, because the host agent is spawned by the "
-            "drivers and not from here",
+            "holds `run_checked` (`818uru`), `driver_begin` (`ct4w0a`), and now `driver_finalize` and "
+            "`set_plan_approved` (`li44r9`), so a guard that inspected only the driver files would "
+            "have STOPPED INSPECTING four launchers without any count going down. ITS MINIMUM ROSE AS "
+            "THE DRIVERS' FELL, which is what makes the re-base a MOVE rather than a weakening: the "
+            "owner-set total is asserted below and did not drop. It holds NO exempt `Popen`, because "
+            "the host agent is spawned by the drivers and not from here",
         ),
     )
+
+    #: The MINIMUM nested-`aw` launchers that must exist ACROSS the whole owner set, and must all deny
+    #: stdin. Added by hostdedup Order 01 (`li44r9`) E-07 so the per-module re-base above cannot be
+    #: performed as a net LOWERING: a launcher moved between two rows leaves this unchanged, while a
+    #: launcher DELETED lowers it and fails. It is the number the per-module minima used to imply
+    #: collectively, now stated explicitly because the modules' shares legitimately shift every time a
+    #: symbol is lifted.
+    MIN_OWNER_SET_LAUNCHERS = 3
 
     def _nested_aw_calls(self, rel: str):
         return [
@@ -581,6 +597,7 @@ class CallerDevnullTests(unittest.TestCase):
     def test_every_nested_aw_launcher_in_the_owner_set_denies_stdin(self):
         wrong = []
         uncovered_total = 0
+        total_launchers = 0
         own_covered: dict[str, int] = {}
         for rel, role, min_sites, exact_popen, min_launchers, why in self.MODULES:
             problems = []
@@ -604,6 +621,7 @@ class CallerDevnullTests(unittest.TestCase):
                 f"{rel}:{ln} (arg0={a})" for ln, kw, a in launchers if "stdin" not in kw
             ]
             uncovered_total += len(uncovered)
+            total_launchers += len(launchers)
             own_covered[rel] = sum(1 for _ln, kw, _a in launchers if "stdin" in kw)
             # THE UNIVERSAL: no nested-`aw` launcher anywhere in the owner set may inherit a terminal.
             if uncovered:
@@ -634,6 +652,21 @@ class CallerDevnullTests(unittest.TestCase):
                     + "".join(f"    - {p}\n" for p in problems)
                     + f"    this row exists because: {why}"
                 )
+        # THE OWNER-SET FLOOR (hostdedup Order 01, `li44r9`, E-07). The per-module minima above are
+        # shares of one population, and a lift legitimately moves a launcher from one row to another. So
+        # the population itself is asserted here, across every row, which is what makes such a re-base
+        # provably a MOVE: shifting a launcher between rows leaves this untouched, while DELETING one
+        # lowers it and fails no matter how the per-module numbers were edited.
+        if total_launchers < self.MIN_OWNER_SET_LAUNCHERS:
+            wrong.append(
+                "  the owner set as a whole:\n"
+                f"    - only {total_launchers} non-exempt nested-`aw` launcher(s) across every row, "
+                f"expected at least {self.MIN_OWNER_SET_LAUNCHERS}\n"
+                "    this row exists because: the per-module minima are SHARES of one population, so a "
+                "lift that moves a launcher between modules is legitimate and must not fail, while a "
+                "launcher DELETED must fail however the per-module numbers were re-based. Only this "
+                "cross-row floor can tell those two apart"
+            )
         # THE PARITY PROPERTY, on MEASURED values: a fix landing in one host only must not pass. It is
         # a property of the PAIR, so it cannot live in any single row above.
         if len(own_covered) == len(self.MODULES):

@@ -60,9 +60,22 @@ MODULES = {"oc_runipd": oc_runipd, "agy_runipd": agy_runipd}
 # A REAL FORK: defined as an independent function in BOTH runner modules. Each one a shared core
 # would have to receive as an injected parameter, and injecting a symbol is the opposite of sharing
 # it, which is the whole reason this plan did not perform the split.
+# RE-BASED BY hostdedup Order 01 (`li44r9`) E-04, in the SAME change that lifted the symbols, per the
+# maintainer's 2026-09-16 "re-base deliberately, never weaken silently" rule. THREE entries MOVED to
+# `THIN_WRAPPERS_OVER_RUNNER_SHARED` below rather than being deleted, so each is still asserted, now as
+# a wrapper that must really delegate:
+#   `_observe_between_turn_stop`, `_record_deliberate_stop`, `requeue_interrupted`.
+#
+# `disable_lane_prompt` DELIBERATELY STAYS, and it is the one symbol of that plan's tranche that was NOT
+# lifted. `PERMANENTLY_UNMOVABLE` below states the reason and `tests/test_runner_shared.py
+# ::UnmovableSymbolTests` enforces it: it mutates `_LANE_PROMPT_DISABLED` through `global` while each
+# host's DIVERGED `_lane_reclaim_prompt` reads its own copy, so a shared definition would silently break
+# prompt suppression on a repeated interrupt in an unattended run. Re-measured at that plan's execution
+# HEAD, `_lane_reclaim_prompt` is still divergent, so the premise still holds.
+#
+# `_integrate_stranded_lanes` also stays: it became byte-identical after that plan was authored, so it
+# was never reviewed under it and is left for Order 02 rather than lifted unreviewed.
 STILL_DOUBLE_DEFINED = (
-    "_observe_between_turn_stop",
-    "_record_deliberate_stop",
     # ADDED 2026-09-18 by `runnoop` Order 01 (`zz5yxq`), and it is a TABLE REPAIR, not this plan's
     # doing. `run_queue` on BOTH hosts calls `_integrate_stranded_lanes` and each host defines its own
     # (measured: `oc._integrate_stranded_lanes is agy._integrate_stranded_lanes` -> False,
@@ -77,7 +90,6 @@ STILL_DOUBLE_DEFINED = (
     "execute_item",
     "reclaim_lanes_on_interrupt",
     "reconcile_interrupted",
-    "requeue_interrupted",
     "retry_deferred_integrations",
 )
 
@@ -136,8 +148,13 @@ ALREADY_ONE_OBJECT = (
 #: them as forks would OVERSTATE the remaining work, which is exactly what this table exists to
 #: prevent.
 THIN_WRAPPERS_OVER_RUNNER_SHARED = (
+    # hostdedup Order 01 (`li44r9`) E-04: the three names MOVED here from `STILL_DOUBLE_DEFINED` above
+    # in the same change that lifted them. See the note on that tuple.
+    "_observe_between_turn_stop",
+    "_record_deliberate_stop",
     "driver_actor",
     "render_continuation_hint",
+    "requeue_interrupted",
     "save_state",
     "write_report",
 )
@@ -464,7 +481,15 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         # tuple being trimmed to preserve the old figure, which would have hidden the fork. The
         # fork-vs-wrapper test in this class proves the classification for every name listed,
         # including this one.
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 9)
+        #
+        # 9 -> 6, RE-MEASURED by hostdedup Order 01 (`li44r9`) E-04, which lifted THREE of these
+        # (`_observe_between_turn_stop`, `_record_deliberate_stop`, `requeue_interrupted`) into
+        # `runner_shared`. They MOVED to `THIN_WRAPPERS_OVER_RUNNER_SHARED`, which rose by the same
+        # three, so `CLOSURE_TOTAL` below is UNCHANGED at 41 -- and that partition assertion, not this
+        # figure, is what proves the re-base was a reclassification rather than a deletion. This number
+        # is DERIVED from the tuple above and is re-measured here rather than the tuple being trimmed to
+        # preserve it.
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 6)
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED)
             + len(RESOLVES_IN_RUNNER_SHARED)

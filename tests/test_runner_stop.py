@@ -1886,7 +1886,7 @@ class PollWiringTests(unittest.TestCase):
         # The drivers must reach signals only THROUGH that shared installer. Asserted by IDENTITY
         # and by AST, not by `assertNotIn("signal.signal(", driver_source)`, which the drivers'
         # own explanatory comments about the registration would defeat.
-        from agent_workflows import agy_runipd, oc_runipd
+        from agent_workflows import agy_runipd, oc_runipd, runner_shared
 
         for module in (oc_runipd, agy_runipd):
             self.assertIs(
@@ -1894,7 +1894,18 @@ class PollWiringTests(unittest.TestCase):
                 runner_stop.install_stop_signal_handlers,
                 f"{module.__name__} must use THE shared installer",
             )
-            installers = [
+            # RE-BASED, NOT WEAKENED (hostdedup Order 01, `li44r9`, E-07). `install_stop_triggers` was
+            # byte-identical in both drivers and now has ONE definition in `runner_shared`, with each
+            # driver keeping a thin delegation. So a driver's OWN body legitimately no longer contains
+            # the installer call, and reading only that body would fail a correct implementation.
+            #
+            # THE PROPERTY IS UNCHANGED: the installer must be REACHED, and reached through the shared
+            # one. What changes is the number of hops, so the search follows the delegation exactly one
+            # level -- and it must still find the call, in the driver's body or in the shared body the
+            # driver delegates to. A driver that re-forked its own registration ladder would be caught
+            # in the driver's own body by the `signal.signal` assertion below, which is untouched.
+            bodies = [module.install_stop_triggers]
+            delegated = [
                 ast.unparse(call.func)
                 for call in calls_of(
                     ast.parse(
@@ -1902,10 +1913,20 @@ class PollWiringTests(unittest.TestCase):
                     )
                 )
             ]
+            if "runner_shared.install_stop_triggers" in delegated:
+                bodies.append(runner_shared.install_stop_triggers)
+            installers = [
+                ast.unparse(call.func)
+                for body in bodies
+                for call in calls_of(
+                    ast.parse(textwrap.dedent(inspect.getsource(body)))
+                )
+            ]
             self.assertIn(
                 "runner_stop.install_stop_signal_handlers",
                 installers,
-                f"{module.__name__}.install_stop_triggers must call the shared installer",
+                f"{module.__name__}.install_stop_triggers must reach the shared installer "
+                "(directly, or through its runner_shared delegation)",
             )
             driver_tree = ast.parse(inspect.getsource(module))
             # Matched on the CALLED ATTRIBUTE's own name rather than on the rendered text

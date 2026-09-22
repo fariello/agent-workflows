@@ -429,16 +429,42 @@ class TestDriverSymmetry(unittest.TestCase):
         # decision is to PRESERVE it - the terminal rung of the ladder re-raises `KeyboardInterrupt`,
         # so lane reclamation still runs on a third Ctrl-C exactly as it did on the first one before.
         # That is what is asserted here now.
+        # RE-BASED, NOT WEAKENED (hostdedup Order 01, `li44r9`, E-07). `install_stop_triggers` was
+        # byte-identical in both drivers and now has ONE definition in `runner_shared`, each driver
+        # keeping a thin delegation. So the registration CALL and the terminal rung's
+        # `raise KeyboardInterrupt(` legitimately moved out of the driver files, and searching a driver's
+        # source alone would fail a correct implementation.
+        #
+        # THE TWO PROPERTIES ARE UNCHANGED, and they are asserted over the OWNER SET (each driver plus
+        # the shared module) rather than per driver, which is the same shape the other guards in this
+        # repository adopted when symbols moved into `runner_shared`:
+        #   1. registration goes through THE shared installer, so no two plans race for the signal, and
+        #   2. something still RAISES `KeyboardInterrupt`, without which `reclaim_lanes_on_interrupt`
+        #      is never invoked and lane reclamation silently stops happening -- this plan's real stake.
+        #
+        # THE `signal.signal(` PROHIBITION STAYS PER DRIVER, deliberately and un-relaxed: a driver
+        # registering its own handler is exactly the race the assertion exists to forbid, and moving it
+        # to the owner set would let one driver do it while the shared module's absence excused it.
+        # `reclaim_lanes_on_interrupt(` also stays per driver, because it is called from each driver's
+        # OWN `except KeyboardInterrupt` path, which did not move.
+        from agent_workflows import runner_shared as _shared
+
+        owner_set_source = "".join(
+            Path(m.__file__).read_text(encoding="utf-8") for m in (OC, AGY, _shared)
+        )
+        self.assertIn(
+            "runner_stop.install_stop_signal_handlers(",
+            owner_set_source,
+            "registration must go through THE shared installer somewhere in the owner set",
+        )
+        self.assertIn(
+            "raise KeyboardInterrupt(",
+            owner_set_source,
+            "something must still RAISE KeyboardInterrupt, or lane reclamation is unreachable",
+        )
         for module in (OC, AGY):
             source = Path(module.__file__).read_text(encoding="utf-8")
-            # Registration goes through the shared installer, so no two plans can race for the signal.
-            self.assertIn(
-                "runner_stop.install_stop_signal_handlers(", source, module.__name__
-            )
             self.assertNotIn("signal.signal(", source, module.__name__)
-            # And the path this plan owns is still reachable: something must still RAISE
-            # `KeyboardInterrupt` for `reclaim_lanes_on_interrupt` to be invoked at all.
-            self.assertIn("raise KeyboardInterrupt(", source, module.__name__)
             self.assertIn("reclaim_lanes_on_interrupt(", source, module.__name__)
 
 

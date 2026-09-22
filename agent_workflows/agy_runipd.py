@@ -21,7 +21,6 @@ import select
 import shutil
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
@@ -37,7 +36,7 @@ from typing import Any, Callable, Iterable, Optional
 # `agy_runipd.Heartbeat`. The explicit alias keeps a linter from stripping it as unused without
 # introducing a partial `__all__` that would understate the rest of the public surface.
 from agent_workflows.render_stream import Heartbeat as Heartbeat
-from agent_workflows import platform_lock, runner_shutdown
+from agent_workflows import runner_shutdown
 
 # runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, imported from its OWNING
 # module and NOT from `oc_runipd`. This module already imports 48 names from that driver and zero flow
@@ -905,8 +904,18 @@ def render_agy_event(
 # `EmptyStatusSelection` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
-class StallWatchdog:
-    """Watchdog thread that terminates child process if stream is quiet for too long."""
+class StallWatchdog(runner_shared.StallWatchdog):
+    """Watchdog thread that terminates the child process if its stream is quiet for too long.
+
+    hostdedup Order 01 (`li44r9`) E-02: the LOGIC now has one definition, in `runner_shared`. This
+    subclass exists to bind THIS host's `terminate_process`, which forwards this module's tunable
+    `_SIGINT_GRACE_SECONDS` / `_SIGTERM_GRACE_SECONDS` at call time. A bare alias would have reaped with
+    the shared defaults and silently made those constants inert.
+
+    A SUBCLASS RATHER THAN A FACTORY FUNCTION, because the name is used as a TYPE as well as a
+    constructor (`__enter__` returns it, and call sites annotate against it), so a function returning an
+    instance would not be a drop-in replacement.
+    """
 
     def __init__(
         self,
@@ -914,61 +923,9 @@ class StallWatchdog:
         timeout: float | None = 600.0,
         check_interval: float = 1.0,
     ) -> None:
-        self.process = process
-        self.timeout = float(timeout) if timeout and timeout > 0 else 0.0
-        self.enabled = self.timeout > 0
-        self.check_interval = (
-            min(check_interval, max(0.05, self.timeout / 4.0)) if self.enabled else 1.0
+        super().__init__(
+            process, timeout, check_interval, reaper=lambda p: terminate_process(p)
         )
-        self._last_activity = time.monotonic()
-        self._stop = threading.Event()
-        self._stalled = threading.Event()
-        self._thread: threading.Thread | None = None
-
-    def touch(self) -> None:
-        self._last_activity = time.monotonic()
-
-    @property
-    def stalled(self) -> bool:
-        return self._stalled.is_set()
-
-    def idle_seconds(self) -> float:
-        """Seconds since the last observed progress, from the watchdog's OWN clock."""
-        return max(0.0, time.monotonic() - self._last_activity)
-
-    def remaining(self) -> float | None:
-        """Seconds until this watchdog would kill the child, or None if disabled.
-
-        Parity with the OpenCode driver (stallfp kaga7s): the live display reads the
-        countdown from HERE, the clock that actually kills, so the number shown cannot
-        disagree with reality.
-        """
-        if not self.enabled:
-            return None
-        return max(0.0, self.timeout - self.idle_seconds())
-
-    def _run(self) -> None:
-        while not self._stop.wait(self.check_interval):
-            if not self.enabled:
-                break
-            if self.process.poll() is not None:
-                break
-            idle = time.monotonic() - self._last_activity
-            if idle >= self.timeout:
-                self._stalled.set()
-                terminate_process(self.process)
-                break
-
-    def __enter__(self) -> StallWatchdog:
-        if self.enabled:
-            self._thread = threading.Thread(target=self._run, daemon=True)
-            self._thread.start()
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=1.0)
 
 
 def run_checked(
@@ -1004,9 +961,15 @@ def git_common_dir(repo: Path) -> Path:
     return runner_shared.git_common_dir(repo, run_checked=run_checked)
 
 
-# fullauto Order 01 (97df1z), OQ-02: the automated-actor provenance for a `--full-auto` clear (the
-# agy twin of the oc constants; see `oc_runipd.set_plan_approved` for the full rationale).
-FULL_AUTO_ACTOR = "aw agy run --full-auto"
+# fullauto Order 01 (97df1z), OQ-02: the automated-actor provenance for a `--full-auto` clear. See
+# `runner_shared.set_plan_approved` for the full rationale.
+#
+# hostdedup Order 01 (`li44r9`) E-08: READ FROM THE DESCRIPTOR rather than re-spelled as a literal, so
+# this name and `AGY_HOST_LABELS.full_auto_actor` CANNOT DISAGREE. The value is unchanged
+# (`"aw agy run --full-auto"`). THIS IS THE HOST THE DEFECT WOULD HAVE HIT: `set_plan_approved`'s two
+# bodies were byte-identical, so a verbatim lift would have had this host's auto-approvals recorded as
+# performed by `aw oc run` in permanent plan history.
+FULL_AUTO_ACTOR = runner_shared.AGY_HOST_LABELS.full_auto_actor
 FULL_AUTO_APPROVAL_MESSAGE = (
     "auto-approved by --full-auto: review readiness cleared (not human approval)"
 )
@@ -1017,61 +980,22 @@ def set_plan_approved(
 ) -> None:
     """Transition a reviewed plan to `auto-approved` via `aw set` - NOT to human `approved`.
 
-    fullauto Order 01 (97df1z), OQ-02, resolved by the maintainer: the machine must not assert the
-    `--by-human` attestation. `auto-approved` is the shipped automated-clear tier
-    (`ipd_schema.READY_TO_EXECUTE`), so no new vocabulary or flag was invented; the actor string
-    carries the automated provenance. Kept byte-for-byte equivalent to the oc twin (which holds the
-    full note) so the two drivers cannot diverge on the honesty of the audit trail.
+    hostdedup Order 01 (`li44r9`) E-02/E-08: now a thin wrapper over the ONE definition in
+    `runner_shared`, which holds the full rationale. THE ACTOR IS PASSED AS DATA, through
+    `AGY_HOST_LABELS.full_auto_actor`, and this host is precisely the one a naive lift would have
+    harmed: the two host bodies were byte-identical, so a verbatim move would have recorded every
+    Antigravity auto-approval as performed by `aw oc run` in permanent plan history. This module's
+    `FULL_AUTO_ACTOR` reads the same descriptor field and is still asserted by
+    `tests/test_agy_runipd_cli.py`.
     """
-    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling, not the cwd's copy.
-    cmd = pinned_module_argv(
-        [
-            "set",
-            "auto-approved",
-            id6,
-            "--actor",
-            FULL_AUTO_ACTOR,
-            "--yes",
-            "--no-commit",
-            "--dir",
-            str(repo),
-            "-m",
-            message,
-        ]
+    return runner_shared.set_plan_approved(
+        repo,
+        id6,
+        message,
+        labels=runner_shared.AGY_HOST_LABELS,
+        argv_builder=pinned_module_argv,
+        run_checked=run_checked,
     )
-    try:
-        run_checked(cmd, cwd=repo)
-        return
-    except (FileNotFoundError, OSError):
-        pass
-    # lanetruth Order 01 (af7i6p) E-06: CONSOLE-SCRIPT FALLBACK, deliberately NOT rewritten (see
-    # the fuller note at the matching oc_runipd site). A bare `aw` argv can carry no interpreter
-    # flag, but it does not need one: a console script puts its OWN directory, not the cwd, at the
-    # head of `sys.path`, so it is MEASURABLY IMMUNE to the lane-shadowing defect. It still routes
-    # through `run_checked` for the pinned env (defence in depth). Do not delete it believing it is
-    # the hijack vector -- the `-m` form was.
-    if shutil.which("aw"):
-        run_checked(
-            [
-                "aw",
-                "set",
-                "auto-approved",
-                id6,
-                "--actor",
-                FULL_AUTO_ACTOR,
-                "--yes",
-                "--no-commit",
-                "--dir",
-                str(repo),
-                "-m",
-                message,
-            ],
-            cwd=repo,
-        )
-    else:
-        raise DriverError(
-            f"Unable to run 'aw set auto-approved {id6}': aw command not available"
-        )
 
 
 # rununify 04 (`tx6q0h`): one-line wrapper over the shared definition. Measured before the lift, the
@@ -1126,47 +1050,21 @@ def driver_finalize(
 ) -> tuple[int, str]:
     """Run `aw ipd finalize <id6> --actor --message --apply` after a verified turn.
 
-    Computes the two-way scope reconciliation programmatically (`--scope-reason` for out-of-scope
-    changed paths, `--scope-ack` for declared-but-unmodified paths) from the plan's Scope-Paths vs
-    the actual changed paths, then invokes the SAME gated finalize surface (no forked path). Never
-    forces the transition: a refusal returns nonzero and the caller records the child NOT-executed.
-    Returns (exit_code, stderr)."""
-    reasons, acks = _compute_scope_reconciliation(repo, plan_path)
-    # lanetruth Order 01 (af7i6p): THE primary lane-shadowed site (mirrors oc_runipd). `repo` is the
-    # LANE worktree and `cwd=str(repo)` below keeps it that way DELIBERATELY, because finalize must
-    # resolve paths against the tree it finalizes. Only IMPORT resolution is pinned, so the lane's
-    # own unreviewed `agent_workflows` can no longer be the code performing its own gating.
-    cmd = pinned_module_argv(
-        [
-            "ipd",
-            "finalize",
-            id6,
-            "--actor",
-            actor,
-            "--message",
-            message,
-            "--apply",
-            "--dir",
-            str(repo),
-        ]
+    hostdedup Order 01 (`li44r9`) E-02/E-08: a thin wrapper over the ONE definition in `runner_shared`,
+    which holds the full rationale for computing the two-way scope reconciliation and for never forcing
+    the transition. The labels are this host's own because the auto-reconciliation reason and ack
+    strings name the driver inside a plan's PERMANENT finalize record.
+    """
+    return runner_shared.driver_finalize(
+        repo,
+        plan_path,
+        id6,
+        actor,
+        message,
+        labels=runner_shared.AGY_HOST_LABELS,
+        env_builder=pinned_child_env,
+        argv_builder=pinned_module_argv,
     )
-    for path, reason in reasons.items():
-        cmd.extend(["--scope-reason", f"{path}={reason}"])
-    for path, note in acks.items():
-        cmd.extend(["--scope-ack", f"{path}={note}"])
-    result = subprocess.run(
-        cmd,
-        cwd=str(repo),
-        env=pinned_child_env(),
-        text=True,
-        # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
-        # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
-        # while its prompt goes into the pipe below. Verified: a finalize wedged 1h49m this way.
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return result.returncode, (result.stderr or result.stdout or "").strip()
 
 
 # --- driverfin-02 (emus4n): per-run worktree isolation + integrate-back ---------------------------
@@ -1483,17 +1381,15 @@ def evaluate_clean_base_for_launch(
 ) -> lane_containment.CleanBaseResult:
     """lanectn Order 02 (`nna8yz`) E-05, spec R5.4: is `repo` a complete base for an unattended turn?
 
-    The MIRROR of the oc twin, and deliberately as thin as it: it supplies the git invocation and the
-    `--untracked-files=no` scope, while the RULE lives once in `lane_containment.evaluate_clean_base`.
-    Re-deciding here what counts as dirty would fork the rule (spec R6.1) and let the two hosts drift
-    on a containment guarantee (CID-3).
+    hostdedup Order 01 (`li44r9`): now a thin wrapper over the ONE definition in `runner_shared`. It
+    supplies the git invocation and the `--untracked-files=no` scope, while the RULE lives once in
+    `lane_containment.evaluate_clean_base`. Re-deciding here what counts as dirty would fork the rule
+    (spec R6.1) and let the hosts drift on a containment guarantee (CID-3).
 
-    `shared_tree` is PASSED THROUGH, never interpreted (dirtybase `3i0aaz` E-03), for the same reason
-    and in the same shape as the oc twin: it selects which true refusal sentence the shared rule
-    produces and changes nothing about what counts as dirty.
+    `shared_tree` is PASSED THROUGH, never interpreted (dirtybase `3i0aaz` E-03): it selects which true
+    refusal sentence the shared rule produces and changes nothing about what counts as dirty.
     """
-    _rc, out, _err = _run_git(repo, ["status", "--porcelain", "--untracked-files=no"])
-    return lane_containment.evaluate_clean_base(out, shared_tree=shared_tree)
+    return runner_shared.evaluate_clean_base_for_launch(repo, shared_tree=shared_tree)
 
 
 def integrate_lane_branch(
@@ -1710,43 +1606,15 @@ def _integrate_stranded_lanes(
     )
 
 
-@contextlib.contextmanager
 def run_lock(run_dir: Path):
     """Hold the run's ``driver.lock`` for this driver process.
 
-    Yields a :class:`runner_shutdown.RunLockHandle` so the clean-shutdown routine can release
-    the lock OBSERVABLY (spec `c4gd2h` R2: drop the ``flock`` AND remove the lock file). Kept
-    symmetric with ``oc_runipd.run_lock`` (orchestrator CID-3), including the ``platform_lock``
-    acquisition and the ``dup``ed-descriptor write of the ``pid=`` record (IPD `y6mfgo`).
+    hostdedup Order 01 (`li44r9`) E-02: a thin wrapper over the ONE definition in `runner_shared`, which
+    holds the full rationale for the `platform_lock` acquisition, the ``dup``ed-descriptor ``pid=`` write
+    and the observable release (spec `c4gd2h` R2, IPD `y6mfgo`). Symmetry with the other host is now BY
+    CONSTRUCTION rather than maintained by hand (CID-3).
     """
-
-    lock_path = run_dir / "driver.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        held = platform_lock.acquire(lock_path)
-    except platform_lock.LockBusy as exc:
-        raise DriverError(
-            f"Run is already controlled by another process: {run_dir.name}"
-        ) from exc
-    handle = held.dup_stream()
-    try:
-        if handle is not None:
-            handle.seek(0)
-            handle.truncate()
-            handle.write(f"pid={os.getpid()} started={utc_now()}\n")
-            handle.flush()
-    except BaseException:
-        with contextlib.suppress(Exception):
-            if handle is not None:
-                handle.close()
-        held.release()
-        raise
-    lock = runner_shutdown.RunLockHandle(path=lock_path, handle=handle)
-    try:
-        yield lock
-    finally:
-        lock.release()
-        held.release()
+    return runner_shared.run_lock(run_dir)
 
 
 def enforce_dependency_preflight(
@@ -2297,10 +2165,13 @@ def build_isolation_notice(lane_root: Path | None) -> str:
 
     lanectn `cqx5v7` E-05: this used to delegate to `oc_runipd.build_isolation_notice`, which made the
     OPENCODE driver the de-facto shared library for a host-neutral rule - exactly what spec `7ckptx`
-    R2.6 forbids. It now calls the host-neutral `lane_containment.isolation_notice`, the same function
-    the oc driver calls, so neither host owns the other's text.
+    R2.6 forbids. Neither host owns the other's text.
+
+    hostdedup Order 01 (`li44r9`): now a thin wrapper over `runner_shared`, which is where the one
+    definition lives; that definition in turn calls the host-neutral `lane_containment.isolation_notice`.
+    Both hosts therefore reach the same body through the same seam.
     """
-    return lane_containment.isolation_notice(lane_root)
+    return runner_shared.build_isolation_notice(lane_root)
 
 
 # resumedupe (`txc9l1`) E-04: recovery ROUTING has ONE definition, in `oc_runipd`, and these delegate
@@ -2390,16 +2261,18 @@ def build_verifier_prompt(
 
 
 def terminate_process(process: subprocess.Popen) -> None:
-    """Reap a child Antigravity process and its process group without leaving orphans.
+    """Reap this host's child agent process and its process group without leaving orphans.
 
-    Delegates to the SINGLE shared reaper in ``runner_shutdown``. This driver and
-    ``oc_runipd`` previously carried byte-identical copies of this escalation, which spec
-    `c4gd2h` R5 forbids (orchestrator CID-1: the check is repo-wide for exactly that reason).
-    The module-level grace constants are read at call time and passed through, so a test that
-    tunes them still takes effect.
+    hostdedup Order 01 (`li44r9`) E-03: now a thin wrapper over the ONE definition in
+    ``runner_shared``, which in turn delegates to the SINGLE shared reaper in ``runner_shutdown``
+    (spec `c4gd2h` R5 forbids a second implementation; orchestrator CID-1 makes the check repo-wide
+    for exactly that reason).
+
+    THE MODULE-LEVEL GRACE CONSTANTS ARE STILL READ HERE, AT CALL TIME, AND PASSED THROUGH, so a test
+    that tunes them on THIS module still takes effect.
     """
 
-    runner_shutdown.terminate_process(
+    runner_shared.terminate_process(
         process,
         sigint_grace=_SIGINT_GRACE_SECONDS,
         sigterm_grace=_SIGTERM_GRACE_SECONDS,
@@ -2417,29 +2290,13 @@ def _budget_breach_recorder(
 ) -> Callable[[], None]:
     """Build the callback `BudgetBreachWatch` invokes when the wind-down deadline passes.
 
-    runstop foi1b3 (E-04, spec R11); the exact counterpart of the `oc_runipd` helper. It RECORDS
-    the breach as an escalation-REQUIRED signal and returns, taking no escalation action: spec A7
-    places enforcement in Phase 5 (`71vjbn`), which consumes this one signal.
+    hostdedup Order 01 (`li44r9`) E-02: a thin wrapper over the ONE definition in `runner_shared`, which
+    holds the full rationale for why this RECORDS the breach and deliberately does not escalate
+    (runstop foi1b3 E-04, spec R11/A7).
     """
-
-    def _record() -> None:
-        event = runner_stop.budget_breach_event(
-            request,
-            at=utc_now(),
-            id6=item.get("id6", ""),
-            observed_events=checkpoint_observer.events_seen,
-            last_completed_index=checkpoint_observer.last_checkpoint_index,
-        )
-        with contextlib.suppress(Exception):
-            append_jsonl(run_dir / "events.jsonl", event)
-        print(
-            f"stop wind-down budget breached (level {request.level}, "
-            f"{request.budget_seconds}s, deadline {request.deadline}): no safe checkpoint "
-            f"observed; escalation REQUIRED (recorded, not performed here)",
-            file=sys.stderr,
-        )
-
-    return _record
+    return runner_shared._budget_breach_recorder(
+        run_dir, item, request, checkpoint_observer
+    )
 
 
 def _escalation_recorder(
@@ -2447,34 +2304,16 @@ def _escalation_recorder(
 ) -> Callable[[int, int, str], None]:
     """Build the callback `EscalationWatch` invokes when it PERFORMS an escalation (71vjbn E-06).
 
-    The exact counterpart of the `oc_runipd` helper (orchestrator CID-3: neither driver may have a
-    level or an enforcement the other lacks). `escalation_performed` is True here precisely where
-    Phase 3's breach event wrote False (spec R11/R23).
+    hostdedup Order 01 (`li44r9`) E-02/E-08: a thin wrapper over the ONE definition in `runner_shared`,
+    which holds the full rationale (spec R11 records the escalation, R23 forbids claiming work not
+    done). THE LABELS ARE PASSED AS DATA: the shared body reports the escalation to the operator with a
+    driver command, and that command must name THIS host. Before the lift each host body called its own
+    `_detect_driver_command`, which IS the labels binding, so a shared call would have named one host
+    for all of them.
     """
-
-    def _record(from_level: int, to_level: int, reason: str) -> None:
-        event = runner_stop.escalation_event(
-            from_level=from_level,
-            to_level=to_level,
-            at=utc_now(),
-            reason=reason,
-            id6=item.get("id6", ""),
-            requester=f"budget-escalation (from level {from_level})",
-        )
-        with contextlib.suppress(Exception):
-            append_jsonl(run_dir / "events.jsonl", event)
-        print(
-            f"stop ESCALATED from level {from_level} to level {to_level} "
-            f"({runner_stop.LEVEL_NAMES.get(to_level, 'unknown')}): {reason}",
-            file=sys.stderr,
-        )
-        runner_stop.report_request(
-            to_level,
-            requester=f"budget-escalation (from level {from_level})",
-            command=_detect_driver_command(),
-        )
-
-    return _record
+    return runner_shared._escalation_recorder(
+        run_dir, item, labels=runner_shared.AGY_HOST_LABELS
+    )
 
 
 def _record_checkpoint_stop(
@@ -2487,39 +2326,20 @@ def _record_checkpoint_stop(
 ) -> dict[str, Any]:
     """Record a level-3 stop on the item with KNOWN certainty (spec R18), returning the record.
 
-    runstop foi1b3 (E-03); the exact counterpart of the `oc_runipd` helper, sharing the SAME record
-    builder in `runner_stop` so the two drivers cannot describe the same stop differently.
+    hostdedup Order 01 (`li44r9`) E-02: a thin wrapper over the ONE definition in `runner_shared`, which
+    holds the full rationale. THIS HOST'S `git_status` IS BOUND HERE because the shared `git_status`
+    needs each host's own `run_checked`; see the shared definition for the defect that made this
+    explicit rather than implicit.
     """
 
-    effective_dir = (
-        work_dir
-        or item.get("worktree")
-        or (
-            item.get("attempts", [{}])[-1].get("worktree")
-            if item.get("attempts")
-            else None
-        )
+    return runner_shared._record_checkpoint_stop(
+        run_dir,
+        state,
+        item,
+        checkpoint_observer,
+        work_dir=work_dir,
+        git_status_fn=git_status,
     )
-    repo = Path(effective_dir) if effective_dir else Path(state["repo"])
-    try:
-        observed_git = git_status(repo)
-    except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
-        observed_git = f"<unobserved: {exc}>"
-    record = runner_stop.stopped_disposition(
-        level=checkpoint_observer.requested_level or runner_stop.LEVEL_NOW,
-        requester=checkpoint_observer.requester,
-        last_completed_index=checkpoint_observer.last_checkpoint_index,
-        last_completed_label=checkpoint_observer.last_checkpoint_label,
-        git_state=observed_git,
-        events_seen=checkpoint_observer.events_seen,
-        at=utc_now(),
-    )
-    item["stopped"] = record
-    append_jsonl(
-        run_dir / "events.jsonl",
-        runner_stop.stopped_stop_event(record, id6=item.get("id6", ""), at=utc_now()),
-    )
-    return record
 
 
 def _record_forced_stop(
@@ -3234,37 +3054,11 @@ def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
 def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
     """Re-queue items left `interrupted` so resume retries in recovery mode.
 
-    runstop m0z0ti (E-04, spec R19): EXCEPT an item flagged INDETERMINATE, which is SKIPPED and
-    REPORTED rather than silently re-run. The exact counterpart of the `oc_runipd` gate (orchestrator
-    CID-3/CID-4): the gate must live IN the requeue, because `run_queue` calls this unconditionally on
-    every start and resume, so a refusal added beside it would be bypassed by the call that already
-    ran. Do not "clean this up" as a redundant special case.
+    hostdedup Order 01 (`li44r9`) E-02: a thin wrapper over the ONE definition in `runner_shared`, which
+    holds the full rationale, including why the INDETERMINATE refusal must live in the requeue itself
+    rather than beside it (runstop m0z0ti E-04, spec R19, orchestrator CID-4).
     """
-
-    requeued: list[str] = []
-    for item in state["queue"]:
-        if item["status"] != "interrupted":
-            continue
-        if runner_stop.is_indeterminate(item):
-            item["requires_reconciliation"] = True
-            append_jsonl(
-                run_dir / "events.jsonl",
-                runner_stop.refused_resume_event(item, at=utc_now()),
-            )
-            print(runner_stop.resume_refusal_message(item), file=sys.stderr)
-            continue
-        item["status"] = "queued"
-        item["recovery_next"] = True
-        requeued.append(item["id6"])
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "interrupted-requeued",
-                "id6": item["id6"],
-            },
-        )
-    return requeued
+    return runner_shared.requeue_interrupted(run_dir, state)
 
 
 def _observe_between_turn_stop(
@@ -3275,48 +3069,25 @@ def _observe_between_turn_stop(
 ) -> runner_stop.WindDown | None:
     """Turn a polled stop LEVEL into a level-1/2 wind-down, capturing the set boundary ONCE.
 
-    runstop 1qxuke. The exact counterpart of ``oc_runipd._observe_between_turn_stop`` (orchestrator
-    CID-3: no level may exist in one driver only). The boundary decision itself lives in the shared
-    ``runner_stop`` module, so the two drivers cannot drift apart on WHICH items may still start.
+    hostdedup Order 01 (`li44r9`) E-02: a thin wrapper over the ONE definition in `runner_shared`, which
+    holds the full rationale for freezing the captured `setid` at first observation and for leaving
+    levels 3 and 4 to later phases (runstop 1qxuke).
     """
-
-    if level not in runner_stop.BETWEEN_TURN_LEVELS:
-        return existing
-    if existing is not None and existing.level >= level:
-        return existing
-    request = runner_stop.read_stop_request(run_dir)
-    requester = request.requester if request is not None else "unknown"
-    setid = existing.setid if existing is not None else current_setid
-    wind_down = runner_stop.WindDown(level=level, requester=requester, setid=setid)
-    print(
-        f"stop requested: level {wind_down.level} ({wind_down.level_name}); "
-        f"boundary = next "
-        f"{'item' if wind_down.level == runner_stop.LEVEL_AFTER_CALL else 'set'}"
-        + (f", finishing set {setid}" if wind_down.level == 2 and setid else ""),
-        file=sys.stderr,
+    return runner_shared._observe_between_turn_stop(
+        run_dir, level, current_setid, existing
     )
-    return wind_down
 
 
 def _record_deliberate_stop(
     run_dir: Path, state: dict[str, Any], wind_down: runner_stop.WindDown
 ) -> None:
-    """Append the DELIBERATE-stop ledger event (spec R21); un-run items stay `queued`.
+    """Append the DELIBERATE-stop ledger event (spec R21) and leave un-run items `queued`.
 
-    runstop 1qxuke. The counterpart of ``oc_runipd._record_deliberate_stop``, writing the same
-    event to the same established append-only ``events.jsonl`` channel.
+    hostdedup Order 01 (`li44r9`) E-02: a thin wrapper over the ONE definition in `runner_shared`, which
+    holds the full rationale for using the established `events.jsonl` channel and for inventing no
+    per-item status (runstop 1qxuke, spec R20/R21).
     """
-
-    remaining = [item["id6"] for item in state["queue"] if item["status"] == "queued"]
-    append_jsonl(
-        run_dir / "events.jsonl",
-        runner_stop.deliberate_stop_event(wind_down, at=utc_now(), remaining=remaining),
-    )
-    print(
-        f"deliberate stop (level {wind_down.level}, {wind_down.level_name}): "
-        f"{len(remaining)} item(s) left queued, not started: {', '.join(remaining) or 'none'}",
-        file=sys.stderr,
-    )
+    return runner_shared._record_deliberate_stop(run_dir, state, wind_down)
 
 
 def run_queue(
@@ -3777,29 +3548,15 @@ def run_queue(
     )
 
 
-@contextlib.contextmanager
 def locked_run(run_dir: Path):
     """Hold the run lock AND guarantee the shared clean shutdown when the scope ends.
 
-    The lock-holding layer is the only scope holding all four clean-shutdown invariants' inputs
-    at once: the ``driver.lock`` handle (spec `c4gd2h` R2), the run ledger (R3), and the
-    repository path (R4), plus the tracked child agent processes (R1). The per-turn
-    ``run_agy_turn`` handlers hold no lock and have no queue authority, so they only reap the
-    child. Kept symmetric with ``oc_runipd.locked_run`` (orchestrator CID-3).
+    hostdedup Order 01 (`li44r9`) E-02/E-03: a thin wrapper over the ONE definition in `runner_shared`,
+    which holds the full rationale for why this layer -- and not a per-turn launch handler -- is the
+    only scope that can satisfy all four clean-shutdown invariants (spec `c4gd2h` R1-R4, R6, R23).
+    Symmetry with the other host is now BY CONSTRUCTION rather than maintained by hand (CID-3).
     """
-
-    repo: Path | None = None
-    with contextlib.suppress(Exception):
-        repo = Path(load_state(run_dir)["repo"])
-    with run_lock(run_dir) as lock:
-        try:
-            yield lock
-        finally:
-            report = runner_shutdown.clean_shutdown(
-                lock=lock, run_dir=run_dir, repo=repo
-            )
-            if not report.all_satisfied or report.dirty_paths or report.reaped_pids:
-                print(report.render(), file=sys.stderr)
+    return runner_shared.locked_run(run_dir)
 
 
 # rununify 04 (`tx6q0h`): one-line wrappers over the shared definitions. This host's THREE argv
@@ -4220,69 +3977,29 @@ def handle_audit_command(args: argparse.Namespace) -> int:
 def handle_stop_command(args: argparse.Namespace) -> int:
     """Execute the `stop` verb: resolve the run, then apply the SHARED decision (spec R14/R17).
 
-    The exact counterpart of `oc_runipd.handle_stop_command`. Resolution stays here (each driver has
-    its own `resolve_run_dir`); the DECISION - liveness by lock acquirability, the monotonic no-op, and
-    the honest nonzero paths - lives once in `runner_stop.stop_command`, so the two drivers cannot
-    diverge on the error contract.
-
-    An unresolvable run exits NONZERO and mutates NOTHING (spec A5): `run_dir` is passed as None with
-    the resolver's own message rather than being constructed speculatively.
+    hostdedup Order 01 (`li44r9`) E-02/E-08: a thin wrapper over the ONE definition in `runner_shared`.
+    This host supplies its OWN `resolve_run_dir` and its OWN labels; the labels matter because the stop
+    record names the operator-facing driver command, and before the lift this body called
+    `_detect_driver_command`, which IS the labels binding.
     """
-
-    run_dir: Path | None
-    unknown_reason = ""
-    try:
-        run_dir = resolve_run_dir(args.repo, args.run_id)
-    except DriverError as exc:
-        run_dir = None
-        unknown_reason = f"{exc} (nothing was created or modified)"
-    level = runner_stop.LEVEL_FLAGS.get(getattr(args, "level_flag", None) or "")
-    result = runner_stop.stop_command(
-        run_dir,
-        level,
-        run_id=args.run_id,
-        requester=f"stop-command pid={os.getpid()}",
-        command=_detect_driver_command(),
-        unknown_reason=unknown_reason,
+    return runner_shared.handle_stop_command(
+        args,
+        labels=runner_shared.AGY_HOST_LABELS,
+        resolve_run_dir_fn=resolve_run_dir,
     )
-    print(result.message, file=sys.stdout if result.ok else sys.stderr)
-    return result.exit_code
 
 
 def install_stop_triggers(run_dir: Path) -> dict[str, str]:
     """Install the SIGINT ladder and the SIGTERM handler for THIS run (runstop 71vjbn, spec R12/R13).
 
-    The exact counterpart of `oc_runipd.install_stop_triggers`, including its decision about the
-    PRE-EXISTING `KeyboardInterrupt` behavior that registering a SIGINT handler suppresses:
-
-    * 1st Ctrl-C requests level 1 and RETURNS (the point of level 1 is to let the in-flight turn
-      finish rather than unwind through it);
-    * 2nd requests level 3 (stop at the next observed safe checkpoint);
-    * 3rd requests level 4 AND raises `KeyboardInterrupt`, which preserves `execute_item`'s
-      `except KeyboardInterrupt` (item marked `interrupted`, `ipd-interrupted` appended, lanes
-      reclaimed) and `main`'s exit-130 path that Phases 3-4 depend on;
-    * SIGTERM requests level 3 and returns, replacing today's kill-and-orphan behavior (spec R13).
-
-    The handler only RECORDS, through the handler-safe writer, and never reaps (spec R5/R7). A trigger
-    that cannot be installed is reported LOUDLY rather than silently skipped (spec A10).
+    hostdedup Order 01 (`li44r9`) E-02/E-08: a thin wrapper over the ONE definition in `runner_shared`,
+    which holds the full contract for the three-step Ctrl-C ladder, the SIGTERM replacement, and why
+    the handler only RECORDS and never reaps. The labels are this host's own because the stop request
+    names the operator-facing driver command.
     """
-
-    def _terminal(level: int, requester: str) -> None:
-        raise KeyboardInterrupt(
-            f"stop level {level} ({runner_stop.LEVEL_NAMES.get(level, 'unknown')}) requested by "
-            f"{requester or 'SIGINT'}"
-        )
-
-    status = runner_stop.install_stop_signal_handlers(
-        run_dir,
-        command=_detect_driver_command(),
-        requester=f"signal pid={os.getpid()}",
-        on_terminal=_terminal,
+    return runner_shared.install_stop_triggers(
+        run_dir, labels=runner_shared.AGY_HOST_LABELS
     )
-    unsupported = runner_stop.render_trigger_support(status)
-    if unsupported:
-        print(unsupported, file=sys.stderr)
-    return status
 
 
 def main(argv: list[str] | None = None) -> int:

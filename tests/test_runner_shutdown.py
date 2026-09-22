@@ -33,6 +33,7 @@ import pytest
 
 from agent_workflows import agy_runipd as agy
 from agent_workflows import oc_runipd as oc
+from agent_workflows import runner_shared
 from agent_workflows import runner_shutdown as rs
 
 # A child that ignores the polite signals, so only the SIGKILL escalation can reap it. This is
@@ -148,7 +149,23 @@ class SingleReaperTests(unittest.TestCase):
 
     #: The ONLY calls a driver's `terminate_process` may make. Anything else is either a second
     #: reaper or a second teardown path, both forbidden by spec R5 / orchestrator CID-1.
-    _DELEGATION_ALLOWLIST = frozenset({"runner_shutdown.terminate_process"})
+    #:
+    #: RE-BASED BY hostdedup Order 01 (`li44r9`) E-07, WITH THE SECOND HOP CHECKED RATHER THAN TRUSTED.
+    #: `terminate_process` was byte-identical in both drivers and now has ONE shared definition, so a
+    #: driver legitimately calls `runner_shared.terminate_process` and the escalation ladder is TWO hops
+    #: away instead of one. Widening the allowlist alone would have weakened the guard: it would then
+    #: permit a driver to call ANY shared function and stop proving the ladder is reached at all. So the
+    #: allowlist admits the new spelling AND `test_the_shared_hop_still_reaches_the_one_ladder` below
+    #: applies this same subset check to the shared body, which is where the single call to
+    #: `runner_shutdown.terminate_process` now lives. Both spellings are admitted because the two hosts
+    #: may legitimately be mid-migration; neither is admitted without the ladder being reached.
+    _DELEGATION_ALLOWLIST = frozenset(
+        {"runner_shutdown.terminate_process", "runner_shared.terminate_process"}
+    )
+
+    #: The ONLY calls the SHARED `terminate_process` may make -- the ladder itself, and nothing else.
+    #: This is the half that keeps the widened allowlist above from being a hole.
+    _SHARED_DELEGATION_ALLOWLIST = frozenset({"runner_shutdown.terminate_process"})
 
     def test_both_drivers_delegate_to_the_shared_reaper(self):
         """CID-1, repo-wide: neither driver may carry its own escalation loop.
@@ -273,6 +290,52 @@ class SingleReaperTests(unittest.TestCase):
                 f"{sorted(self._DELEGATION_ALLOWLIST)}. It must ONLY delegate; the escalation "
                 f"ladder lives once, in runner_shutdown.terminate_process (spec R5).",
             )
+
+    def test_the_shared_hop_still_reaches_the_one_ladder(self):
+        """The second half of the re-based allowlist (hostdedup Order 01, `li44r9`, E-07).
+
+        A driver may now delegate through `runner_shared.terminate_process`, which added a hop between
+        the driver and the escalation ladder. WITHOUT THIS TEST the widened allowlist above would be a
+        genuine weakening: it would permit a driver to call any shared function and no longer prove the
+        ladder is reached, so a shared body that grew its own `killpg` ladder would satisfy every
+        assertion in the test above.
+
+        SO THE SAME SUBSET CHECK IS APPLIED ONE HOP FURTHER IN. The shared `terminate_process` may call
+        the ONE ladder in `runner_shutdown` and nothing else, which is exactly the property each driver's
+        body used to carry. Arms 1 (identity) and 2 (behavior, driven against a real signal-ignoring
+        child) in the test above are unaffected by the hop and still hold: arm 2 stubs
+        `runner_shared.terminate_process`, so it still measures that the driver reaches the shared
+        function with this host's own grace constants and that the driver signals nothing itself.
+        """
+
+        import ast
+        import inspect
+        import textwrap
+
+        body = ast.parse(
+            textwrap.dedent(inspect.getsource(runner_shared.terminate_process))
+        ).body[0]
+        made = {
+            ast.unparse(node.func)
+            for node in ast.walk(body)
+            if isinstance(node, ast.Call)
+        }
+        extra = made - self._SHARED_DELEGATION_ALLOWLIST
+        self.assertEqual(
+            extra,
+            set(),
+            f"runner_shared.terminate_process calls {sorted(extra)}, which is outside the "
+            f"allowlist {sorted(self._SHARED_DELEGATION_ALLOWLIST)}. The drivers now delegate "
+            "THROUGH this function, so an escalation ladder here is exactly the second reaper spec "
+            "R5 forbids, and it would satisfy the drivers' own allowlist unnoticed.",
+        )
+        self.assertIn(
+            "runner_shutdown.terminate_process",
+            made,
+            "runner_shared.terminate_process no longer reaches the ONE ladder; the drivers' "
+            "delegation now terminates in nothing and the guard above proves only that they "
+            "delegate somewhere",
+        )
 
     def test_driver_grace_constants_are_honored_through_the_delegation(self):
         """A test tuning the driver's module constants must still affect the shared reaper."""
