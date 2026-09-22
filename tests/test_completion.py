@@ -13,6 +13,14 @@ disposition scan-scoping), E-02 (the `aw __complete --cword N -- <tokens>` wire 
 `complete_query` and always exits 0), and E-03 (the `# PYTHON_ARGCOMPLETE_OK` marker is a real
 comment inside the first 1024 bytes and the soft `argcomplete` import leaves the CLI working when
 argcomplete is absent).
+
+compinert Order 01 (92u0v9) covers the precondition the install never checked: E-01
+(`completion_framework_status` reports PRESENT / REACHABLE / RC-SOURCES-IT as separate facts, with
+UNKNOWN for a failed probe or an unmodelled shell), E-02 (the four message variants, and above all
+that the non-reachable case is NOT labelled `ok` and does NOT tell the user to start a new shell),
+E-03 (the guarded snippet, and the fenced `~/.bashrc` write that happens ONLY on explicit TTY
+consent, never under `--yes`, never non-interactively, never twice, and never by creating an absent
+file), and E-04 (all of it driven by INJECTION, never by the developer's own shell).
 """
 
 from __future__ import annotations
@@ -2483,6 +2491,798 @@ class ReadmeCompletionDocsTests(unittest.TestCase):
     #: Fixed bases so the comparison is about the LAYOUT, not about this machine's real HOME/XDG.
     HOME = Path("/tmp/aw-readme-home")
     SET_BASE = Path("/tmp/aw-readme-xdg")
+
+
+# ======================================================================================
+# compinert Order 01 (92u0v9): the install reports whether it can ACTUALLY take effect.
+# ======================================================================================
+
+
+class FrameworkStatusTests(unittest.TestCase):
+    """E-01/E-04: the three precondition facts, driven ENTIRELY by injection.
+
+    WHY INJECTION IS MANDATORY HERE AND NOT MERELY TIDY, and this is measured rather than argued.
+    The machine this feature was reported on answered `bash -ic 'echo ${BASH_COMPLETION_VERSINFO-}'`
+    with EMPTY at authoring time and with `2` two days later, because a human added the remediation
+    stanza to their `~/.bashrc` in between. No code changed. A test reading the ambient environment
+    would have reversed its verdict on its own, which is the worst possible behavior for a
+    regression test: it would have gone green on a broken predicate, or red on a correct one,
+    depending on whose machine ran it. So every row below injects the entry-script list, the probe,
+    and the rc path, and `test_no_test_here_reads_the_ambient_shell` asserts that property of the
+    file itself.
+
+    The four states are ONE table because they are four outcomes of ONE decision procedure, and the
+    realistic regression (a reordered check, or collapsing the facts into a boolean) moves several
+    rows at once. `rc_sources_it` and `rc_has_stanza` are columns rather than separate tests for the
+    same reason: they are additional FACTS of the same measurement, and the whole design claim of
+    E-01 is that these facts do not collapse into one another.
+    """
+
+    #: (case, entry-script candidates, probe verdict, rc text or None, expected present/reachable/
+    #:  rc_sources_it/rc_has_stanza, why this row exists)
+    STATES = (
+        (
+            "reachable: framework present and loaded interactively",
+            ["<PRESENT>"],
+            (completion.REACHABLE_YES, "BASH_COMPLETION_VERSINFO=2"),
+            "export FOO=1\n",
+            (True, completion.REACHABLE_YES, False, False),
+            "the working case, which must stay reported as working: this is the state the original "
+            "unconditional `ok` message was correct for",
+        ),
+        (
+            "present but NOT reachable: the reported defect",
+            ["<PRESENT>"],
+            (completion.REACHABLE_NO, "BASH_COMPLETION_VERSINFO is unset"),
+            "export FOO=1\n",
+            (True, completion.REACHABLE_NO, False, False),
+            "the whole reason this plan exists: the drop-in is installed and inert, and a one-line "
+            "rc fix repairs it. `present=True` with `reachable='no'` is the state that must be "
+            "distinguishable from the absent case, which a boolean cannot do",
+        ),
+        (
+            "absent: no entry script anywhere on this system",
+            ["/nonexistent/bash_completion"],
+            ("probe must not be consulted", ""),
+            "export FOO=1\n",
+            (False, completion.REACHABLE_NO, False, False),
+            "no rc line can help when there is nothing to source, so this needs DIFFERENT advice "
+            "(install a package). The probe result is deliberately garbage to prove it is not "
+            "consulted in this state",
+        ),
+        (
+            "unknown: the probe could not answer",
+            ["<PRESENT>"],
+            (completion.REACHABLE_UNKNOWN, "the `bash -ic` probe timed out after 5s"),
+            "export FOO=1\n",
+            (True, completion.REACHABLE_UNKNOWN, False, False),
+            "a failed probe must NOT become a confident negative; telling a user their working "
+            "setup is broken on the strength of a timeout is worse than saying we could not tell",
+        ),
+        (
+            "rc already sources the framework",
+            ["<PRESENT>"],
+            (completion.REACHABLE_YES, "BASH_COMPLETION_VERSINFO=2"),
+            "[ -r /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion\n",
+            (True, completion.REACHABLE_YES, True, False),
+            "fact (c) is INDEPENDENT of fact (b): an rc that mentions the framework does not prove "
+            "it loads, and this row is what keeps the two from being merged",
+        ),
+        (
+            "rc already carries OUR fenced stanza, hand-added",
+            ["<PRESENT>"],
+            (completion.REACHABLE_YES, "BASH_COMPLETION_VERSINFO=2"),
+            "before\n" + completion.remediation_snippet(fenced=True) + "\nafter\n",
+            (True, completion.REACHABLE_YES, True, True),
+            "the reporting machine's live `~/.bashrc` is exactly this: the stanza was added BY HAND "
+            "before this code existed. It must read as already-satisfied (so the offer is a no-op) "
+            "rather than being duplicated, which is the opposite of the drop-in FILE rule where a "
+            "foreign file is refused",
+        ),
+    )
+
+    def test_every_precondition_state_is_reported_as_separate_facts(self) -> None:
+        wrong = []
+        for case, candidates, probe_result, rc_text, expected, why in self.STATES:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                present = root / "bash_completion"
+                present.write_text("# fake framework\n", encoding="utf-8")
+                resolved = [str(present) if c == "<PRESENT>" else c for c in candidates]
+                rc = root / ".bashrc"
+                if rc_text is not None:
+                    rc.write_text(rc_text, encoding="utf-8")
+                status = completion.completion_framework_status(
+                    "bash",
+                    entry_script_candidates=resolved,
+                    probe=lambda: probe_result,
+                    rc_path=rc,
+                )
+            got = (
+                status.present,
+                status.reachable,
+                status.rc_sources_it,
+                status.rc_has_stanza,
+            )
+            if got != expected:
+                wrong.append(
+                    f"  {case}:\n"
+                    f"    - expected (present, reachable, rc_sources_it, rc_has_stanza) "
+                    f"{expected}, got {got}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"completion_framework_status misreported {len(wrong)} of {len(self.STATES)} "
+            "precondition states. This is ONE procedure over three facts, so several rows moving "
+            "together usually means a check was reordered or the facts were collapsed into a "
+            "boolean. FIX: the `absent` row returning `present=True` means the entry-script lookup "
+            "stopped honoring its injected candidates (and is reading the real filesystem, which "
+            "makes every row machine-dependent); an `unknown` row reported as `no` means a failed "
+            "probe is being treated as a measurement, which is the one error that makes this "
+            "feature tell a user their working setup is broken.\n" + "\n".join(wrong),
+        )
+
+    def test_derived_predicates_follow_the_facts(self) -> None:
+        """`effective` and `needs_remediation` are the two questions callers actually ask."""
+        cases = (
+            (True, completion.REACHABLE_YES, True, False),
+            (True, completion.REACHABLE_NO, False, True),
+            (False, completion.REACHABLE_NO, False, False),
+            (True, completion.REACHABLE_UNKNOWN, False, False),
+        )
+        for present, reachable, effective, needs in cases:
+            status = completion.FrameworkStatus(
+                shell="bash", present=present, reachable=reachable
+            )
+            self.assertEqual(
+                (status.effective, status.needs_remediation),
+                (effective, needs),
+                f"present={present} reachable={reachable!r}",
+            )
+
+    def test_a_shell_with_no_check_reports_unknown_not_a_negative(self) -> None:
+        # Zsh needs `compinit` to have run and fish auto-loads its completions dir, so bash's probe
+        # says nothing about either. A confident negative here would be a fabricated measurement.
+        for shell in ("zsh", "fish"):
+            status = completion.completion_framework_status(shell)
+            self.assertEqual(status.reachable, completion.REACHABLE_UNKNOWN, shell)
+            self.assertFalse(status.needs_remediation, shell)
+            self.assertIn(shell, status.detail)
+
+    def test_the_probe_command_is_the_interactive_non_login_discriminator(self) -> None:
+        """The two flags ARE the measurement, so they are pinned.
+
+        `-i` makes the shell interactive (so rc files are read) and the ABSENCE of `-l` makes it
+        non-login (so `/etc/profile.d/bash_completion.sh` does NOT run). That pair is exactly the
+        shell a new terminal tab gives you, and it is the case that fails in the field while
+        `bash -lic` looks healthy. A well-meaning "fix" adding `-l` would make the probe always
+        report success and silently restore the original defect.
+        """
+        seen = {}
+
+        def fake_run(argv, **kwargs):
+            seen["argv"] = argv
+            return subprocess.CompletedProcess(argv, 0, "2\n", "")
+
+        with mock.patch.object(completion.subprocess, "run", side_effect=fake_run):
+            verdict, detail = completion.probe_bash_completion_loaded()
+        self.assertEqual(verdict, completion.REACHABLE_YES)
+        self.assertEqual(
+            seen["argv"],
+            ["bash", "-ic", "echo ${BASH_COMPLETION_VERSINFO-}"],
+            "the probe must stay an INTERACTIVE NON-LOGIN bash; adding -l reports success "
+            "unconditionally and restores the defect this plan fixed",
+        )
+        self.assertIn("2", detail)
+
+    def test_every_probe_failure_mode_is_unknown_never_no(self) -> None:
+        failures = (
+            ("no bash on PATH", FileNotFoundError()),
+            ("timeout", subprocess.TimeoutExpired(cmd="bash", timeout=5)),
+            ("OSError", OSError("boom")),
+        )
+        for case, exc in failures:
+            with mock.patch.object(completion.subprocess, "run", side_effect=exc):
+                verdict, detail = completion.probe_bash_completion_loaded()
+            self.assertEqual(
+                verdict,
+                completion.REACHABLE_UNKNOWN,
+                f"{case} must be UNKNOWN, not a confident negative",
+            )
+            self.assertTrue(detail, f"{case} must explain itself")
+        # A nonzero exit is equally unmeasured.
+        with mock.patch.object(
+            completion.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(["bash"], 2, "", "err"),
+        ):
+            self.assertEqual(
+                completion.probe_bash_completion_loaded()[0],
+                completion.REACHABLE_UNKNOWN,
+            )
+        # An EMPTY value from a SUCCESSFUL probe is the one real negative.
+        with mock.patch.object(
+            completion.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(["bash"], 0, "\n", ""),
+        ):
+            self.assertEqual(
+                completion.probe_bash_completion_loaded()[0], completion.REACHABLE_NO
+            )
+        # Interactive bash prints its own noise; the LAST non-empty stdout line is the answer.
+        with mock.patch.object(
+            completion.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                ["bash"], 0, "bash: no job control in this shell\n2\n", ""
+            ),
+        ):
+            self.assertEqual(
+                completion.probe_bash_completion_loaded()[0], completion.REACHABLE_YES
+            )
+
+    def test_the_status_check_writes_nothing_anywhere(self) -> None:
+        """The predicate is a REPORT. A diagnostic that mutates the thing it diagnoses is a defect."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            entry = root / "bash_completion"
+            entry.write_text("# fake\n", encoding="utf-8")
+            rc = root / ".bashrc"
+            rc.write_text("export FOO=1\n", encoding="utf-8")
+            before = {p: p.read_bytes() for p in (entry, rc)}
+            before_names = sorted(p.name for p in root.iterdir())
+            completion.completion_framework_status(
+                "bash",
+                entry_script_candidates=[str(entry)],
+                probe=lambda: (completion.REACHABLE_NO, "unset"),
+                rc_path=rc,
+            )
+            self.assertEqual({p: p.read_bytes() for p in (entry, rc)}, before)
+            self.assertEqual(sorted(p.name for p in root.iterdir()), before_names)
+
+    def test_no_test_here_reads_the_ambient_shell(self) -> None:
+        """A FILE-LEVEL property, because one careless test re-introduces machine dependence.
+
+        Asserted as source text rather than behavior for the reason F-8 measured: a test that reads
+        the real `BASH_COMPLETION_VERSINFO`, or the developer's real `HOME`, passes or fails
+        according to whose box runs it, and would have silently flipped its verdict when a human
+        edited their rc file. The permitted uses are the two DOCUMENTED mentions (this docstring and
+        the injected probe results), never `os.environ` access.
+        """
+        source = Path(__file__).read_text(encoding="utf-8")
+        # The needles are ASSEMBLED rather than written as literals: a literal would appear in this
+        # file's own source and the assertion would fail on itself, which is the first thing this
+        # test did when it was written.
+        var = "BASH_COMPLETION" + "_VERSINFO"
+        for needle in (f'os.environ.get("{var}"', f'os.environ["{var}"]'):
+            self.assertNotIn(
+                needle,
+                source,
+                "read the ambient framework state and this test bed becomes machine-dependent",
+            )
+        # An INTERACTIVE bash reads the developer's rc files, so any test spawning one must pin HOME
+        # (env -i style) or stub the call. Scoped to interactive invocations deliberately: the
+        # pre-existing `["bash", "-n"]` syntax checks in this file read no rc at all and are exactly
+        # as reproducible on every machine, so demanding a pinned HOME from them would be cargo cult.
+        for match in re.finditer(r"\"bash\",\s*\"-[a-z]*i[a-z]*c?\"", source):
+            window = source[max(0, match.start() - 400) : match.start() + 400]
+            self.assertTrue(
+                "mock.patch" in window or "HOME" in window or "env -i" in window,
+                "a test spawning an INTERACTIVE bash must pin HOME or stub the call rather than "
+                f"inheriting the developer's shell state: {window[-200:]!r}",
+            )
+
+
+class RcStanzaTests(unittest.TestCase):
+    """E-03/E-04: the fenced rc stanza, the only thing in this feature that writes a dotfile.
+
+    EVERY ASSERTION RUNS AGAINST A FIXTURE HOME. The real `~/.bashrc` is never touched by these
+    tests, which matters concretely: the maintainer's live file already carries a hand-added stanza,
+    and a test that wrote there would be editing a co-worker's artifact.
+
+    The BYTE COMPARISON is the load-bearing assertion in the non-consenting rows. "No write" is not
+    provable by reading a status string; it is provable by the file being unchanged byte for byte.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self._tmp.name)
+        self.rc = self.home / ".bashrc"
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_the_snippet_always_carries_the_versinfo_guard(self) -> None:
+        """The guard is LOAD-BEARING: without it this re-sources the framework in a login shell."""
+        for fenced in (False, True):
+            snippet = completion.remediation_snippet(fenced=fenced)
+            self.assertIn("BASH_COMPLETION_VERSINFO", snippet, f"fenced={fenced}")
+            self.assertIn("shopt -oq posix", snippet, f"fenced={fenced}")
+            self.assertIn("/usr/share/bash-completion/bash_completion", snippet)
+        fenced = completion.remediation_snippet(fenced=True)
+        self.assertTrue(fenced.startswith(completion.RC_FENCE_OPEN))
+        self.assertTrue(fenced.rstrip("\n").endswith(completion.RC_FENCE_CLOSE))
+        # PAIRED fences, not one sentinel (F-7): uninstall deletes a RANGE, so it needs both.
+        self.assertNotEqual(completion.RC_FENCE_OPEN, completion.RC_FENCE_CLOSE)
+
+    def test_without_consent_the_file_is_byte_identical(self) -> None:
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        before = self.rc.read_bytes()
+        outcome = completion.install_rc_stanza(self.rc, consent=False)
+        self.assertEqual(outcome["action"], "declined")
+        self.assertEqual(
+            self.rc.read_bytes(),
+            before,
+            "THE SURVIVING PROMISE IS 'NO SILENT WRITE': without consent this file must not "
+            "change by one byte",
+        )
+
+    def test_consent_appends_inside_both_fences_and_preserves_the_file(self) -> None:
+        original = "export FOO=1\nalias ll='ls -l'\n"
+        self.rc.write_text(original, encoding="utf-8")
+        outcome = completion.install_rc_stanza(self.rc, consent=True)
+        self.assertEqual(outcome["action"], "written")
+        body = self.rc.read_text(encoding="utf-8")
+        self.assertTrue(
+            body.startswith(original), "the user's existing content must be intact"
+        )
+        self.assertIn(completion.RC_FENCE_OPEN, body)
+        self.assertIn(completion.RC_FENCE_CLOSE, body)
+        self.assertIn("BASH_COMPLETION_VERSINFO", body)
+
+    def test_a_second_consenting_run_is_a_reported_no_op(self) -> None:
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        completion.install_rc_stanza(self.rc, consent=True)
+        after_first = self.rc.read_bytes()
+        outcome = completion.install_rc_stanza(self.rc, consent=True)
+        self.assertEqual(
+            outcome["action"],
+            "already",
+            "appending is not idempotent by nature, so a second run must DETECT the stanza",
+        )
+        self.assertEqual(self.rc.read_bytes(), after_first, "no duplicate stanza")
+
+    def test_a_hand_added_stanza_counts_as_already_satisfied(self) -> None:
+        # The maintainer's live `~/.bashrc` is exactly this case: the fenced stanza was added BY
+        # HAND before this code existed. The no-duplicate check keys on the OPENING FENCE, not on
+        # authorship, so the user's own work is recognized instead of being duplicated.
+        self.rc.write_text(
+            "# mine\n" + completion.remediation_snippet(fenced=True) + "\n",
+            encoding="utf-8",
+        )
+        before = self.rc.read_bytes()
+        outcome = completion.install_rc_stanza(self.rc, consent=True)
+        self.assertEqual(outcome["action"], "already")
+        self.assertEqual(self.rc.read_bytes(), before)
+
+    def test_an_absent_rc_is_reported_never_created(self) -> None:
+        self.assertFalse(self.rc.exists())
+        outcome = completion.install_rc_stanza(self.rc, consent=True)
+        self.assertEqual(outcome["action"], "absent")
+        self.assertFalse(
+            self.rc.exists(),
+            "creating ~/.bashrc can change which startup files bash reads, so a convenience fix "
+            "must never create it",
+        )
+        self.assertIn("does not exist", outcome["detail"])
+
+    def test_install_then_remove_round_trips_byte_for_byte(self) -> None:
+        original = "export FOO=1\n"
+        self.rc.write_text(original, encoding="utf-8")
+        before = self.rc.read_bytes()
+        completion.install_rc_stanza(self.rc, consent=True)
+        self.assertNotEqual(self.rc.read_bytes(), before)
+        outcome = completion.remove_rc_stanza(self.rc)
+        self.assertEqual(outcome["action"], "removed")
+        self.assertEqual(
+            self.rc.read_bytes(),
+            before,
+            "the fenced RANGE is what makes removal exact; a single sentinel could not do this",
+        )
+        self.assertEqual(completion.remove_rc_stanza(self.rc)["action"], "none")
+
+    def test_removal_leaves_a_foreign_rc_alone(self) -> None:
+        self.rc.write_text(
+            "export FOO=1\n# >>> grok installer >>>\nx=1\n# <<< grok installer <<<\n",
+            encoding="utf-8",
+        )
+        before = self.rc.read_bytes()
+        self.assertEqual(completion.remove_rc_stanza(self.rc)["action"], "none")
+        self.assertEqual(
+            self.rc.read_bytes(),
+            before,
+            "another tool's fenced block is not ours to delete",
+        )
+
+    def test_an_unterminated_fence_is_never_truncated(self) -> None:
+        """Truncating the rest of a user's rc because our closing marker was lost is unacceptable.
+
+        Leaving a stanza behind is a cosmetic failure; deleting everything after an unterminated
+        opening fence costs the user their shell configuration. The asymmetry decides the behavior.
+        """
+        body = (
+            f"export FOO=1\n{completion.RC_FENCE_OPEN}\nhalf a stanza\nexport KEEP=2\n"
+        )
+        self.rc.write_text(body, encoding="utf-8")
+        outcome = completion.remove_rc_stanza(self.rc)
+        self.assertEqual(outcome["action"], "none")
+        self.assertEqual(self.rc.read_text(encoding="utf-8"), body)
+        self.assertIn("export KEEP=2", self.rc.read_text(encoding="utf-8"))
+
+    def test_a_file_without_a_trailing_newline_is_not_spliced_into(self) -> None:
+        self.rc.write_text("export FOO=1", encoding="utf-8")  # no trailing newline
+        completion.install_rc_stanza(self.rc, consent=True)
+        lines = self.rc.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(lines[0], "export FOO=1")
+        self.assertIn(completion.RC_FENCE_OPEN, lines)
+
+    def test_the_write_is_atomic_and_leaves_no_temp_file(self) -> None:
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        completion.install_rc_stanza(self.rc, consent=True)
+        leftovers = [p.name for p in self.home.iterdir() if p.name != ".bashrc"]
+        self.assertEqual(
+            leftovers,
+            [],
+            "a partial write in someone's HOME is the failure this shape prevents",
+        )
+
+    def test_a_failed_write_leaves_no_temp_file_behind(self) -> None:
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        before = self.rc.read_bytes()
+        with mock.patch.object(completion.os, "replace", side_effect=OSError("nope")):
+            with self.assertRaises(OSError):
+                completion.install_rc_stanza(self.rc, consent=True)
+        self.assertEqual(self.rc.read_bytes(), before)
+        self.assertEqual([p.name for p in self.home.iterdir()], [".bashrc"])
+
+    def test_dry_run_reports_without_writing(self) -> None:
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        before = self.rc.read_bytes()
+        outcome = completion.install_rc_stanza(self.rc, consent=True, dry_run=True)
+        self.assertEqual(outcome["action"], "written")
+        self.assertEqual(self.rc.read_bytes(), before)
+
+
+class CompletionEffectivenessMessageTests(_DropInFixture):
+    """E-02/E-04: WHAT THE USER IS TOLD, which is where the defect actually lived.
+
+    THE REGRESSION THAT MATTERS IS A STRING PAIR. The install was correct; what was broken was a
+    green `ok` line paired with "start a new shell to pick it up", printed unconditionally. A user
+    who trusts that output concludes the tool is broken, which is precisely what happened. So these
+    tests pin the OUTPUT, not the predicate: in the non-reachable state there must be no `OK` status
+    and no restart instruction.
+
+    BOTH MESSAGE SITES ARE COVERED SEPARATELY (the `aw completion install` verb and the
+    `aw setup`/`aw install` flow's `_configure_completion`), because the defect was reachable from
+    either and fixing one would leave the other lying.
+    """
+
+    #: (case, injected status kwargs, substrings that MUST appear, substrings that must NOT, why)
+    MESSAGE_CASES = (
+        (
+            "reachable",
+            dict(present=True, reachable=completion.REACHABLE_YES),
+            ("OK", "completion installed in", "start a new"),
+            ("will NOT take effect", "WARN"),
+            "the message that was always correct must be preserved verbatim in its own case; a fix "
+            "that warns at everyone is a new defect",
+        ),
+        (
+            "present but not reachable",
+            dict(
+                present=True,
+                reachable=completion.REACHABLE_NO,
+                entry_script="/usr/share/bash-completion/bash_completion",
+            ),
+            (
+                "WARN",
+                "will NOT take effect",
+                "BASH_COMPLETION_VERSINFO",
+                "NOT loaded in an interactive non-login shell",
+            ),
+            ("OK       bash completion installed", "start a new bash shell (or run"),
+            "THE WHOLE DEFECT: an install that cannot work must not be reported `ok`, and must not "
+            "tell the user to do the one thing that does not help",
+        ),
+        (
+            "absent",
+            dict(present=False, reachable=completion.REACHABLE_NO),
+            ("WARN", "not installed on this system", "bash-completion"),
+            ("OK       bash completion installed", "start a new bash shell (or run"),
+            "different cause, different advice: install a package. Printing an rc snippet here "
+            "would be advice that cannot possibly work",
+        ),
+        (
+            "unknown",
+            dict(
+                present=True,
+                reachable=completion.REACHABLE_UNKNOWN,
+                detail="the `bash -ic` probe timed out after 5s",
+            ),
+            ("OK", "completion installed in", "could not verify", "probe timed out"),
+            ("will NOT take effect",),
+            "an unmeasured state must claim NEITHER outcome; asserting failure from a timeout "
+            "would slander a working setup",
+        ),
+    )
+
+    def _render(self, **status_kwargs):
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        status = completion.FrameworkStatus(shell="bash", **status_kwargs)
+        cli._report_completion_effectiveness(
+            term,
+            "bash",
+            installed_in="/fixture/bash-completion/completions",
+            offer_rc_write=False,
+            status_obj=status,
+        )
+        return buf.getvalue()
+
+    def test_each_state_is_reported_honestly(self) -> None:
+        wrong = []
+        for case, kwargs, needles, forbidden, why in self.MESSAGE_CASES:
+            out = self._render(**kwargs)
+            problems = []
+            for needle in needles:
+                if needle not in out:
+                    problems.append(f"missing {needle!r}")
+            for bad in forbidden:
+                if bad in out:
+                    problems.append(f"must NOT contain {bad!r}")
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    output was:\n{out}\n"
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the install message was wrong for {len(wrong)} of {len(self.MESSAGE_CASES)} "
+            "precondition states. One reporter serves both message sites, so a row failing here "
+            "fails for the verb AND for `aw setup`. FIX: the non-reachable row is the defect this "
+            "plan exists to fix - if it prints an `OK` status or tells the user to start a new "
+            "shell, the original bug is back, and a user following that instruction will conclude "
+            f"the tool is broken.\n" + "\n".join(wrong),
+        )
+
+    def test_the_non_reachable_case_prints_the_pasteable_fix(self) -> None:
+        out = self._render(
+            present=True,
+            reachable=completion.REACHABLE_NO,
+            entry_script="/usr/share/bash-completion/bash_completion",
+        )
+        for line in completion.remediation_snippet().splitlines():
+            self.assertIn(
+                line.strip(), out, "the snippet must be printed so it can be pasted"
+            )
+
+    def test_an_already_stanza_d_rc_is_reported_as_nothing_to_add(self) -> None:
+        out = self._render(
+            present=True,
+            reachable=completion.REACHABLE_NO,
+            entry_script="/usr/share/bash-completion/bash_completion",
+            rc_path=self.home / ".bashrc",
+            rc_has_stanza=True,
+        )
+        self.assertIn("already carries", out)
+        self.assertNotIn(completion.RC_FENCE_OPEN, out)
+
+    def test_a_failing_status_check_never_fails_the_install(self) -> None:
+        """A diagnostic that raises must not break the thing it is diagnosing."""
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        with mock.patch.object(
+            completion, "completion_framework_status", side_effect=RuntimeError("boom")
+        ):
+            cli._report_completion_effectiveness(
+                term, "bash", installed_in="/fixture", offer_rc_write=False
+            )
+        out = buf.getvalue()
+        self.assertIn("installed in", out)
+        self.assertIn("could not check", out)
+
+    def test_the_verb_reports_the_non_reachable_state_and_writes_no_rc(self) -> None:
+        """END TO END through `aw completion install`, with the probe injected."""
+        self.rc = self.home / ".bashrc"
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        before = self.rc.read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = Path(tmp) / "bash_completion"
+            entry.write_text("# fake\n", encoding="utf-8")
+            with (
+                mock.patch.object(
+                    completion, "_BASH_COMPLETION_ENTRY_SCRIPTS", (str(entry),)
+                ),
+                mock.patch.object(
+                    completion,
+                    "probe_bash_completion_loaded",
+                    return_value=(completion.REACHABLE_NO, "unset"),
+                ),
+                mock.patch.object(cli.sys.stdin, "isatty", return_value=False),
+            ):
+                rc, out = _run(["completion", "install", "--shell", "bash"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("will NOT take effect", out)
+        self.assertNotIn("start a new bash shell (or run", out)
+        self.assertIn("BASH_COMPLETION_VERSINFO", out)
+        self.assertEqual(
+            self.rc.read_bytes(),
+            before,
+            "a non-interactive run must never write the rc file",
+        )
+
+    def test_the_setup_flow_reports_it_too_and_never_offers_a_write(self) -> None:
+        """The OTHER message site. Fixing only the verb would leave this one lying."""
+        self.rc = self.home / ".bashrc"
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        before = self.rc.read_bytes()
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = Path(tmp) / "bash_completion"
+            entry.write_text("# fake\n", encoding="utf-8")
+            with (
+                mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}),
+                mock.patch.object(
+                    completion, "_BASH_COMPLETION_ENTRY_SCRIPTS", (str(entry),)
+                ),
+                mock.patch.object(
+                    completion,
+                    "probe_bash_completion_loaded",
+                    return_value=(completion.REACHABLE_NO, "unset"),
+                ),
+                mock.patch.object(cli, "input", create=True) as m_input,
+            ):
+                cli._configure_completion(
+                    argparse.Namespace(completion="bash", yes=True), term
+                )
+        out = buf.getvalue()
+        self.assertIn("will NOT take effect", out)
+        self.assertNotIn("Start a new bash shell to pick it up", out)
+        m_input.assert_not_called()
+        self.assertEqual(self.rc.read_bytes(), before)
+
+
+class RcWriteOfferTests(_DropInFixture):
+    """E-03/E-04: the consent gate on the rc write, which is the whole safety story.
+
+    FOUR NON-CONSENTING PATHS EACH PROVE THE SAME THING BY BYTE COMPARISON: `--yes`, a non-TTY, a
+    declined prompt, and EOF/interrupt. They are separate tests rather than a table because each
+    exercises a different MECHANISM (a flag, `isatty`, a reply, an exception), and a table row
+    cannot express "and `input()` was never even called".
+
+    WHY `--yes` MUST NOT CONSENT, since it is the row most likely to be "simplified" later: the
+    precedent is explicit in this codebase (`_configure_completion` and `_configure_runner_profiles`
+    both return early under `--yes` because preauthorizing install mutations is not authorizing a
+    user-scoped choice), and an rc write is further from an install mutation than either of those.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.rc = self.home / ".bashrc"
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        self.before = self.rc.read_bytes()
+
+    def _offer(self, *, assume_yes: bool, isatty: bool, reply=None):
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        patch = (
+            mock.patch.object(cli, "input", create=True, return_value=reply)
+            if reply is not None
+            else mock.patch.object(cli, "input", create=True)
+        )
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=isatty),
+            patch as m_input,
+        ):
+            outcome = cli._offer_rc_stanza_write(
+                term, "bash", rc_path=self.rc, assume_yes=assume_yes
+            )
+        return outcome, buf.getvalue(), m_input
+
+    def test_yes_flag_does_not_consent_and_never_prompts(self) -> None:
+        outcome, out, m_input = self._offer(assume_yes=True, isatty=True)
+        self.assertEqual(outcome["action"], "declined")
+        m_input.assert_not_called()
+        self.assertIn("--yes does not consent", out)
+        self.assertEqual(self.rc.read_bytes(), self.before)
+
+    def test_a_non_tty_writes_nothing_and_never_prompts(self) -> None:
+        outcome, out, m_input = self._offer(assume_yes=False, isatty=False)
+        self.assertEqual(outcome["action"], "declined")
+        m_input.assert_not_called()
+        self.assertEqual(self.rc.read_bytes(), self.before)
+
+    def test_declining_at_the_prompt_writes_nothing(self) -> None:
+        outcome, out, m_input = self._offer(assume_yes=False, isatty=True, reply="n")
+        self.assertEqual(outcome["action"], "declined")
+        m_input.assert_called_once()
+        self.assertEqual(self.rc.read_bytes(), self.before)
+
+    def test_an_empty_answer_declines_because_the_default_is_no(self) -> None:
+        # The rendered default must be visibly `[y/N]`, deliberately the OPPOSITE of the first-run
+        # prompts flipped to yes the same day: those write inside the framework's OWN directories,
+        # this one writes a file the framework has repeatedly promised not to touch.
+        outcome, out, m_input = self._offer(assume_yes=False, isatty=True, reply="")
+        self.assertEqual(outcome["action"], "declined")
+        self.assertEqual(self.rc.read_bytes(), self.before)
+        prompt = m_input.call_args[0][0]
+        self.assertIn("[y/N]", prompt, f"the default must render as N: {prompt!r}")
+
+    def test_eof_declines_rather_than_writing(self) -> None:
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+            mock.patch.object(cli, "input", create=True, side_effect=EOFError),
+        ):
+            outcome = cli._offer_rc_stanza_write(
+                term, "bash", rc_path=self.rc, assume_yes=False
+            )
+        self.assertEqual(outcome["action"], "declined")
+        self.assertEqual(self.rc.read_bytes(), self.before)
+
+    def test_consenting_writes_the_fenced_stanza_once(self) -> None:
+        outcome, out, _ = self._offer(assume_yes=False, isatty=True, reply="y")
+        self.assertEqual(outcome["action"], "written")
+        body = self.rc.read_text(encoding="utf-8")
+        self.assertTrue(body.startswith("export FOO=1\n"))
+        self.assertIn(completion.RC_FENCE_OPEN, body)
+        self.assertIn(completion.RC_FENCE_CLOSE, body)
+        self.assertIn("exec bash", out)
+        # And a second consent is a reported no-op, not a duplicate.
+        outcome2, out2, _ = self._offer(assume_yes=False, isatty=True, reply="y")
+        self.assertEqual(outcome2["action"], "already")
+        self.assertEqual(body, self.rc.read_text(encoding="utf-8"))
+
+    def test_an_absent_rc_is_reported_not_created(self) -> None:
+        self.rc.unlink()
+        outcome, out, _ = self._offer(assume_yes=False, isatty=True, reply="y")
+        self.assertEqual(outcome["action"], "absent")
+        self.assertFalse(self.rc.exists())
+        self.assertIn("does not exist", out)
+
+    def test_uninstall_offers_to_remove_the_fenced_range(self) -> None:
+        """THE SYMMETRY: an install that writes with an uninstall that abandons the write is wrong."""
+        completion.install_rc_stanza(self.rc, consent=True)
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
+            with (
+                mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+                mock.patch.object(cli, "input", create=True, return_value="y"),
+            ):
+                rc, out = _run(["completion", "uninstall", "--shell", "bash"])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            self.rc.read_bytes(),
+            self.before,
+            "uninstall must restore the rc file to its pre-install bytes",
+        )
+        self.assertIn("removed the fenced", out)
+
+    def test_uninstall_under_yes_leaves_the_stanza_and_says_so(self) -> None:
+        completion.install_rc_stanza(self.rc, consent=True)
+        after_write = self.rc.read_bytes()
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
+            with mock.patch.object(cli.sys.stdin, "isatty", return_value=False):
+                rc, out = _run(["completion", "uninstall", "--shell", "bash"])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            self.rc.read_bytes(),
+            after_write,
+            "the rc file is the user's in BOTH directions: no consent, no edit",
+        )
+        self.assertIn("still carries", out)
+
+    def test_uninstall_is_silent_when_there_is_no_stanza(self) -> None:
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
+            with mock.patch.object(cli.sys.stdin, "isatty", return_value=True):
+                rc, out = _run(["completion", "uninstall", "--shell", "bash"])
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("bashrc", out, "mentioning a file we did not touch is noise")
+        self.assertEqual(self.rc.read_bytes(), self.before)
 
 
 if __name__ == "__main__":

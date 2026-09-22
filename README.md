@@ -73,7 +73,8 @@ aw completion uninstall        # remove it again
 ```
 
 This writes a single drop-in file into the directory your shell already auto-discovers, so it
-**never edits `~/.bashrc`, `~/.zshrc`, or `config.fish`**:
+**never silently edits `~/.bashrc`, `~/.zshrc`, or `config.fish`** (the one exception is described
+below, and it only ever happens if you answer yes to a prompt):
 
 | Shell | Drop-in file |
 |---|---|
@@ -84,6 +85,21 @@ This writes a single drop-in file into the directory your shell already auto-dis
 Start a new shell afterwards to pick it up. All three console aliases (`aw`, `agentwf`,
 `agent-workflows`) are completed. Installing is idempotent, and it refuses to overwrite an `aw`
 completion file it did not write; uninstall removes only its own files.
+
+**If nothing completes after you install it, the install is probably fine and your shell never
+loaded its completion framework.** On many systems `bash-completion` is sourced only for login
+shells, so a new terminal tab or tmux pane completes nothing at all, `git` and `ssh` included.
+`aw completion install` now checks this for you and says so instead of reporting plain success: it
+tells you whether the framework is missing from the system (install the `bash-completion` package)
+or merely not loaded for interactive shells, prints the exact four-line fix for `~/.bashrc`, and
+offers to append it. That offer is the only thing in this feature that can write an rc file. It
+defaults to no, it is skipped entirely under `--yes` or when output is not a terminal, and what it
+appends is wrapped in `# >>> agent-workflows (aw completion install) >>>` markers so
+`aw completion uninstall` can offer to take it back out. To verify by hand:
+
+```bash
+bash -ic 'echo ${BASH_COMPLETION_VERSINFO-}'   # empty means the framework is not loaded
+```
 
 You can also enable it during install or setup, or print the script and source it directly
 without installing anything:

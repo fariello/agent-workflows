@@ -43,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: detect the precondition, then report and offer
 
-- [ ] E-01 ADD A PURE PREDICATE THAT REPORTS WHETHER THE COMPLETION FRAMEWORK CAN LOAD, returning the individual facts rather than one boolean.
+- [x] E-01 ADD A PURE PREDICATE THAT REPORTS WHETHER THE COMPLETION FRAMEWORK CAN LOAD, returning the individual facts rather than one boolean.
   THE THREE FACTS THAT MATTER, each independently observable: (a) is a bash-completion entry script PRESENT on the box (`/usr/share/bash-completion/bash_completion`, plus the `/usr/local` and Homebrew variants); (b) is it REACHABLE FROM AN INTERACTIVE NON-LOGIN SHELL, which is the case that fails here; (c) does the user's `~/.bashrc` already source it. Returning a boolean collapses "not installed on this system" (the user must install a package) into "installed but not sourced from .bashrc" (a one-line fix), and those need different advice.
   DETECT (b) BY ASKING BASH, NOT BY GUESSING FROM FILES. The discriminator is `bash -ic 'echo ${BASH_COMPLETION_VERSINFO-}'`: it reports `2` when the framework is loaded and EMPTY when it is not. Parsing rc files to infer this is guesswork; running the shell is the ground truth. Keep it cheap and non-interactive (measured at review: 0.227s real on this box), and treat any failure or timeout as UNKNOWN rather than as a negative.
   THE AUTHORING MEASUREMENT IS STALE AND THE FIX MACHINE IS NOW THE FIXED MACHINE, which is the single most important correction on this item. The plan was authored against a box where `bash -ic` returned EMPTY. Re-measured at review, `bash -ic` returns `2` and so does `bash -lic`, because `~/.bashrc` (mtime 2026-09-12 16:46, AFTER authoring) now carries the very remediation stanza E-03 proposes, already inside the paired fences E-03 specifies. DO NOT "fix" the predicate when the live box reports reachable: that is the correct answer for this box today. Reproduce the FAILING state hermetically instead, which is also how E-04 must drive it: `env -i HOME=<empty-dir> TERM=dumb bash -ic 'echo "[${BASH_COMPLETION_VERSINFO-unset}]"'` reports `[unset]` while the same command with `-lic` reports `[2]`. Both were run at review.
@@ -52,18 +52,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ZSH AND FISH HAVE THE SAME QUESTION WITH DIFFERENT ANSWERS. Do not force one shape onto all three: report UNKNOWN for a shell whose equivalent check is not implemented, rather than reporting a confident negative that misleads.
   - Depends on: none
   - Expected outcome: a predicate returning the three facts separately, using `bash -ic 'echo ${BASH_COMPLETION_VERSINFO-}'` for reachability, reporting UNKNOWN on failure, and writing nothing anywhere.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 STOP PRINTING UNCONDITIONAL SUCCESS, AND MAKE THE NEXT-STEP LINE TRUE.
+- [x] E-02 STOP PRINTING UNCONDITIONAL SUCCESS, AND MAKE THE NEXT-STEP LINE TRUE.
   THE CURRENT MESSAGE IS THE DEFECT'S DELIVERY MECHANISM, AND THERE ARE TWO SITES, BOTH RE-VERIFIED AT REVIEW. The setup-flow site is `cli.py:5610-5613` ("`{shell}` completion installed in `{dir}` (no rc/dotfile modified). Start a new `{shell}` shell to pick it up"), and the VERB site is `cli.py:10501-10510` (a green `OK` line plus a separate `term.line` "Next  start a new `{shell}` shell (or run `exec {shell}`) to pick it up"). Both must change; fixing only one leaves the defect reachable by the other entry point. Measured at review, `aw completion install --shell bash --dry-run` emits FOUR consecutive `OK` lines and no caveat.
   When the framework is not loadable, both sentences are false in the way that matters: the files are installed, and starting a new shell will not help. The maintainer followed that instruction and reasonably concluded the tool was broken.
   SAY WHAT IS TRUE IN EACH CASE. Framework reachable: keep today's message. Framework present but NOT reachable interactively: report the files were written AND that completion will not take effect until bash-completion is sourced for interactive shells, then print the exact remediation. Framework absent: name the package to install rather than implying a shell restart suffices. UNKNOWN: say the install completed and that we could not verify it will take effect, without asserting either way.
   KEEP THE STATUS LABEL HONEST. An install that cannot take effect is not `ok`; it is `warn` at most, because the user's next action depends on knowing. Do not bury the condition in a trailing clause of a green line, which is how the current message hid it.
   - Depends on: E-01
   - Expected outcome: four distinct outcomes reported, the non-reachable case NOT labeled `ok`, and no message instructing a shell restart that would not help.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 OFFER THE ONE-LINE REMEDIATION, AND DO NOT APPLY IT WITHOUT CONSENT.
+- [x] E-03 OFFER THE ONE-LINE REMEDIATION, AND DO NOT APPLY IT WITHOUT CONSENT.
   THE REMEDIATION IS SMALL AND WORTH PRINTING VERBATIM so a user can paste it:
       if ! shopt -oq posix && [[ -z ${BASH_COMPLETION_VERSINFO-} ]]; then
         [[ -r /usr/share/bash-completion/bash_completion ]] && . /usr/share/bash-completion/bash_completion
@@ -82,16 +82,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DETECT A STANZA THIS TOOL DID NOT WRITE, because one already exists on the maintainer's box (verified at review, hand-added with these exact fences). Key the no-duplicate check on the OPENING FENCE TEXT, not on an `installed-by:` sentinel and not on authorship, so a hand-added stanza is recognized as already-satisfied and reported as a no-op instead of being duplicated. That is the opposite of the drop-in FILE rule, where a foreign file is refused; here a foreign-but-equivalent stanza means the user already did the work.
   - Depends on: E-02
   - Expected outcome: the guarded snippet printed verbatim in the non-reachable case, PLUS an opt-in `[y/N]` offer on a TTY that appends it atomically inside PAIRED FENCE MARKERS, refuses under `--yes` and on a non-TTY, is a reported no-op on a second run detected by its opening fence, reports rather than creates an absent `~/.bashrc`, and leaves uninstall either removing the fenced range or documenting that it does not.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 TEST THE FOUR STATES WITHOUT DEPENDING ON THE DEVELOPER'S OWN SHELL, which is the trap this test bed sets.
+- [x] E-04 TEST THE FOUR STATES WITHOUT DEPENDING ON THE DEVELOPER'S OWN SHELL, which is the trap this test bed sets.
   THE STATES: reachable, present-but-not-reachable, absent, and unknown. Drive them by INJECTION (a fake entry-script path, a stubbed probe result) rather than by mutating the real environment, because a test that reads the developer's actual `BASH_COMPLETION_VERSINFO` passes or fails according to whose machine it runs on.
   THE ENVIRONMENT-SENSITIVITY TRAP IS NOW PROVEN, NOT HYPOTHETICAL, AND THE AUTHORED WORDING OF IT IS WRONG. This plan originally said this box reports REACHABLE under `bash -l` and NOT-REACHABLE under plain `bash -i`. Re-measured at review, this box now reports REACHABLE under BOTH, because `~/.bashrc` gained the remediation stanza after authoring. That is exactly why injection is mandatory: the same test would have passed at authoring and failed today, or vice versa, with no code change. If any test does shell out, it MUST pin `HOME` to a fixture directory via `env -i` rather than inheriting the developer's, and the hermetic pair measured at review is `env -i HOME=<empty> bash -ic` -> unset versus the same with `-lic` -> 2.
   ASSERT THE MESSAGE, NOT ONLY THE PREDICATE. The defect was a false SUCCESS STRING, so the regression test must pin that the non-reachable case does not print an `ok` status and does not tell the user to start a new shell.
   ASSERT NO RC FILE IS TOUCHED in every non-consenting path, by byte-comparing a fixture `~/.bashrc` before and after. That is the contract most at risk from this change.
   - Depends on: E-03
   - Expected outcome: four injected states covered, the false-success string pinned as a regression, and a byte-identical rc fixture proving no unconsented write.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -192,26 +192,277 @@ ALSO UPDATE THAT DOCSTRING if E-01's rc READ lands anywhere it can be read as co
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the predicate and its three returned facts for this machine. DO NOT expect `bash -ic` to be empty: measured at review it returns `2`, because `~/.bashrc` was fixed by hand after this plan was authored (F-8), so the honest evidence is the HERMETIC pair, `env -i HOME=<empty-dir> TERM=dumb bash -ic 'echo "[${BASH_COMPLETION_VERSINFO-unset}]"'` -> `[unset]` beside the same command with `-lic` -> `[2]`, plus the live box's own `bash -ic` -> `2` stated as the reachable case. Confirm by grep that the predicate writes nothing and that any rc access is a READ. A predicate returning a single boolean is a FAILED validation, since it cannot distinguish "install a package" from "add one line". Reporting `-ic` -> empty on this box would be FABRICATED evidence; report what the command actually prints.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `completion.completion_framework_status` returns the three facts SEPARATELY as a frozen `FrameworkStatus` (present / reachable / rc_sources_it + rc_has_stanza), uses `bash -ic 'echo ${BASH_COMPLETION_VERSINFO-}'` as the discriminator, reports UNKNOWN on any probe failure, and writes nothing. Measured on this box: reachable=`yes` (NOT the stale authoring measurement), with the failing state reproduced hermetically under `env -i HOME=<empty>`. Full output below.
+    THE PREDICATE IS `completion.completion_framework_status` (`agent_workflows/completion.py`), returning the frozen dataclass `FrameworkStatus` with the three facts SEPARATE, not a boolean. Measured on this box:
 
-- [ ] V-02 validates E-02
+    ```
+    $ python3 -c "from agent_workflows import completion as c; ..."
+    live bash -ic probe: ('yes', 'BASH_COMPLETION_VERSINFO=2')
+    present= True
+    entry_script= /usr/share/bash-completion/bash_completion
+    reachable= yes
+    rc_sources_it= True
+    rc_has_stanza= True
+    detail= BASH_COMPLETION_VERSINFO=2
+    effective= True needs_remediation= False
+    ```
+
+    THE LIVE BOX REPORTS REACHABLE, WHICH IS THE CORRECT ANSWER FOR IT TODAY, exactly as F-8 warned. `bash -ic` returns `2` here, NOT empty, so the predicate was NOT "fixed" to report otherwise:
+
+    ```
+    $ bash -ic 'echo "live -ic [${BASH_COMPLETION_VERSINFO-unset}]"'
+    live -ic [2]
+    $ bash -lic 'echo "live -lic [${BASH_COMPLETION_VERSINFO-unset}]"'
+    live -lic [2]
+    ```
+
+    THE FAILING STATE REPRODUCES HERMETICALLY, which is the durable demonstration of the discriminator (run with an empty fixture HOME inside the lane, never against the real `~/.bashrc`):
+
+    ```
+    $ env -i HOME="$PWD/.aw/state/tmp-92u0v9/emptyhome" TERM=dumb bash -ic 'echo "hermetic -ic [${BASH_COMPLETION_VERSINFO-unset}]"'
+    hermetic -ic [unset]
+    $ env -i HOME="$PWD/.aw/state/tmp-92u0v9/emptyhome" TERM=dumb bash -lic 'echo "hermetic -lic [${BASH_COMPLETION_VERSINFO-unset}]"'
+    hermetic -lic [2]
+    ```
+
+    NOT A BOOLEAN, and the three facts are independently addressable: `present` distinguishes "install the `bash-completion` package" from `reachable="no"`'s "add one line", and `reachable` carries a THIRD value `unknown` (`REACHABLE_UNKNOWN`) for a probe that could not answer. `FrameworkStatus.effective` / `.needs_remediation` are derived properties over those facts, not replacements for them.
+
+    WRITES NOTHING. The predicate span (`completion.py` lines 1093-1332: `FrameworkStatus` through `remediation_snippet`) contains no write call; `grep -n "write_text\|os.replace\|mkdir" agent_workflows/completion.py` returns only `:928/:933/:944` (the pre-existing drop-in installer) and `:1408/:1409`, `:1459/:1460`, which are `install_rc_stanza`/`remove_rc_stanza`, the consented E-03 paths and NOT part of the predicate. The only rc access in the predicate is `_read_rc_text`, a `read_text` whose docstring states that reading is not writing and why the distinction is drawn. Proven behaviorally too by `FrameworkStatusTests::test_the_status_check_writes_nothing_anywhere`, which byte-compares the entry script and the rc fixture and asserts no new file appeared in the directory.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the ACTUAL output of `aw completion install` in the NON-REACHABLE state and show it does NOT print an `ok` status and does NOT instruct a shell restart. Paste the reachable-state output showing today's message is preserved. Paste the absent-state and unknown-state outputs. Quote the four message variants from the diff. COVER BOTH MESSAGE SITES SEPARATELY, since a fix to one leaves the defect reachable by the other: the setup flow (`cli.py:5610-5613`) and the verb (`cli.py:10501-10510`, whose `Next  start a new ... shell` line is a separate `term.line` call). For reference, the pre-change verb output measured at review was four consecutive `OK` lines with no caveat.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All four outcomes reported through ONE shared reporter (`cli._report_completion_effectiveness`) so the verb and the setup flow cannot diverge; the non-reachable case is labelled `WARN` (NOT `ok`) and the `start a new ... shell` instruction is absent from it. Both message sites captured separately below.
+    BOTH MESSAGE SITES NOW GO THROUGH ONE REPORTER, `cli._report_completion_effectiveness`, so they cannot diverge: the verb site (`_run_completion_install`) calls it with `offer_rc_write=True`, and the setup-flow site (`_configure_completion`) with `offer_rc_write=False`. Each is shown separately below.
 
-- [ ] V-03 validates E-03
+    THE FOUR VERB OUTCOMES, actual output of `aw completion install --shell bash` with the probe injected and a fixture HOME (completion-file `OK` lines elided only where repeated):
+
+    ```
+    ===== STATE: REACHABLE =====
+    OK       bash completion installed in <fixture>/dropin (no rc/dotfile modified).
+    Next  start a new bash shell (or run `exec bash`) to pick it up.
+    [exit=0] [~/.bashrc byte-identical: True]
+
+    ===== STATE: PRESENT BUT NOT REACHABLE (the reported defect) =====
+    WARN     bash completion installed in <fixture>/dropin, but it will NOT take effect yet (no rc/dotfile modified).
+    WARN     <fixture>/bash_completion exists but is NOT loaded in an interactive non-login shell (a new terminal tab or tmux pane), so NOTHING is completed there - `git` and `ssh` included, not just `aw`. Starting a new bash shell will not help; the framework has to be sourced.
+
+    Add this to FIXTURE-HOME/.bashrc to fix it for every interactive shell:
+
+        # Load bash-completion for INTERACTIVE NON-LOGIN shells. On many systems the framework
+        # is sourced only by /etc/profile.d/bash_completion.sh, which runs for LOGIN shells, so
+        # a new terminal tab or tmux pane gets no completion at all.
+        # The BASH_COMPLETION_VERSINFO guard makes this a no-op when it is already loaded.
+        if ! shopt -oq posix && [ -z "${BASH_COMPLETION_VERSINFO-}" ]; then
+            for _bc in /usr/share/bash-completion/bash_completion \
+                       /usr/local/share/bash-completion/bash_completion \
+                       /etc/bash_completion; do
+                [ -r "$_bc" ] && . "$_bc" && break
+            done
+            unset _bc
+        fi
+
+    SKIP     not a terminal, so nothing was written; paste the snippet above to fix it.
+    [exit=0] [~/.bashrc byte-identical: True]
+
+    ===== STATE: ABSENT =====
+    WARN     bash completion installed in <fixture>/dropin, but it will NOT take effect yet (no rc/dotfile modified).
+    WARN     the bash-completion framework is not installed on this system, so the drop-in file cannot be loaded. Install it first (Debian/Ubuntu: `sudo apt install bash-completion`; Fedora: `sudo dnf install bash-completion`; macOS/Homebrew: `brew install bash-completion@2`), then re-run `aw completion install`.
+    [exit=0] [~/.bashrc byte-identical: True]
+
+    ===== STATE: UNKNOWN =====
+    OK       bash completion installed in <fixture>/dropin (no rc/dotfile modified).
+    WARN     could not verify that bash completion will take effect (the `bash -ic` probe timed out after 5s). Check with: bash -ic 'complete -p aw'
+    [exit=0] [~/.bashrc byte-identical: True]
+    ```
+
+    THE DEFECT IS GONE IN THE CASE THAT MATTERS. In the non-reachable state the summary line is `WARN`, NOT `OK`, and the string `Next  start a new bash shell (or run ...)` is ABSENT. Compare the pre-change verb output measured before editing, which was four consecutive green lines with no caveat:
+
+    ```
+    OK       [dry-run] completion file: <dir>/aw
+    OK       [dry-run] completion file: <dir>/agentwf
+    OK       [dry-run] completion file: <dir>/agent-workflows
+    OK       [dry-run] bash completion would be installed in <dir> (no rc/dotfile modified).
+    ```
+
+    THE SETUP-FLOW SITE, SEPARATELY (`cli._configure_completion`, called with `--completion bash --yes`, same injected non-reachable probe):
+
+    ```
+    ===== SITE 2: the aw setup / aw install flow (_configure_completion), --yes =====
+    WARN     bash completion installed in <fixture>/setup-xdg/bash-completion/completions, but it will NOT take effect yet (no rc/dotfile modified).
+    WARN     <fixture>/bash_completion exists but is NOT loaded in an interactive non-login shell ... Starting a new bash shell will not help; the framework has to be sourced.
+    [input() called: False] [~/.bashrc byte-identical: True]
+    ```
+
+    The old `Start a new {shell} shell to pick it up.` clause is gone from this site too, and it never prompts (`input() called: False`) because this flow passes `offer_rc_write=False`.
+
+    THE FOUR VARIANTS AS BRANCHES IN THE DIFF (`cli._report_completion_effectiveness`): `REACHABLE_YES` -> today's `ok` + the restart line; `REACHABLE_UNKNOWN` -> `ok` for the files plus a `warn` that we could not verify; not-reachable with `present=False` -> `warn` naming the package; not-reachable with `present=True` -> `warn` + the entry-script explanation + the printed snippet. Pinned by `CompletionEffectivenessMessageTests::test_each_state_is_reported_honestly`, whose `forbidden` column asserts the absence of `OK       bash completion installed` and `start a new bash shell (or run` in both failing states.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the printed snippet verbatim and confirm the `BASH_COMPLETION_VERSINFO` guard is present. THE WRITE PATH IS NOW REQUIRED (OQ-01 answered), so paste ALL of: the rendered prompt showing a visible `[y/N]` default; a DECLINED run leaving a fixture `~/.bashrc` byte-identical; a non-TTY run and a `--yes` run each leaving it byte-identical; a CONSENTED run showing the appended stanza wrapped in BOTH fence markers with the file's prior content intact; a SECOND consenting run reported as a no-op with no duplicate stanza; the absent-`~/.bashrc` case REPORTING rather than creating; and the uninstall side, either removing exactly the fenced range (paste the rc file before and after, byte-identical to its pre-install state) or its docstring stating that the stanza is deliberately left with removal instructions. A stanza written with only an OPENING marker is a FAILED validation (F-7), because uninstall then cannot delete it without hardcoding its text. A missing write path is a FAILED validation, and a `--yes` run that writes is a FAILED validation regardless of anything else passing.
     ALSO REQUIRED, because this box is already in the post-fix state (F-8): show that a PRE-EXISTING stanza this tool did not write is detected as satisfied and reported as a no-op, NOT duplicated. The maintainer's live `~/.bashrc:20-33` is exactly that case and must be exercised against a COPY, never against the real file. Do NOT write to the real `~/.bashrc` during validation; every write assertion belongs in a fixture HOME.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The guarded snippet is printed verbatim (the `BASH_COMPLETION_VERSINFO` guard present in both printed and written forms, from ONE source), the write is opt-in behind a rendered `[y/N]`, every non-consenting path leaves a fixture `~/.bashrc` byte-identical, the stanza is wrapped in BOTH fence markers, a second run is a reported no-op, a hand-added stanza reads as satisfied, an absent rc file is reported rather than created, and uninstall removes exactly the fenced range byte-for-byte. The real `~/.bashrc` was never written. Full output below, including the one deviation from the plan's expectation (the verb does not accept `--yes` at all).
+    THE SNIPPET, PRINTED VERBATIM, CARRIES THE GUARD. `completion.remediation_snippet(fenced=True)`:
 
-- [ ] V-04 validates E-04
+    ```
+    # >>> agent-workflows (aw completion install) >>>
+    # Load bash-completion for INTERACTIVE NON-LOGIN shells. On many systems the framework
+    # is sourced only by /etc/profile.d/bash_completion.sh, which runs for LOGIN shells, so
+    # a new terminal tab or tmux pane gets no completion at all.
+    # The BASH_COMPLETION_VERSINFO guard makes this a no-op when it is already loaded.
+    if ! shopt -oq posix && [ -z "${BASH_COMPLETION_VERSINFO-}" ]; then
+        for _bc in /usr/share/bash-completion/bash_completion \
+                   /usr/local/share/bash-completion/bash_completion \
+                   /etc/bash_completion; do
+            [ -r "$_bc" ] && . "$_bc" && break
+        done
+        unset _bc
+    fi
+    # <<< agent-workflows (aw completion install) <<<
+    ```
+
+    BOTH FENCE MARKERS ARE PRESENT (F-7 satisfied): `RC_FENCE_OPEN` and a distinct `RC_FENCE_CLOSE`, so removal deletes a RANGE. ONE SOURCE serves the printed and the written form (`remediation_snippet`), so the two cannot drift.
+
+    THE RENDERED PROMPT SHOWS A VISIBLE `[y/N]` DEFAULT:
+
+    ```
+    RENDERED PROMPT: '  Append it to FIXTURE-TMPDIR/.bashrc now? [y/N] '
+    outcome: declined | file unchanged: True
+    ```
+
+    EVERY NON-CONSENTING PATH LEAVES THE FIXTURE `~/.bashrc` BYTE-IDENTICAL:
+
+    ```
+    ===== TTY, PROMPT DECLINED (empty answer -> default N) =====
+    SKIP     nothing written; paste the snippet above when you want it.
+    [exit=0] [~/.bashrc byte-identical: True]
+
+    ===== TTY, PROMPT DECLINED explicitly (n) =====
+    SKIP     nothing written; paste the snippet above when you want it.
+    [exit=0] [~/.bashrc byte-identical: True]
+
+    ===== NON-TTY =====
+    SKIP     not a terminal, so nothing was written; paste the snippet above to fix it.
+    [exit=0] [~/.bashrc byte-identical: True]
+
+    ===== `aw completion install --yes` =====
+    [argparse REJECTED --yes: SystemExit 2]
+    [.bashrc byte-identical: True]
+
+    ===== the assume_yes GUARD itself, called directly (the defensive path) =====
+    SKIP     --yes does not consent to editing your rc file; paste the snippet above, or run `aw completion install` on a terminal to be asked.
+    [outcome=declined] [input() called: False] [.bashrc byte-identical: True]
+    ```
+
+    A NOTE ON THE `--yes` ROW, because it differs from what the plan anticipated and the difference matters: `aw completion install` does NOT ACCEPT `--yes` at all (argparse rejects it with exit 2), so there is no flag path by which it could consent. `--yes` was NOT added to the verb, since adding a flag whose only purpose is to be refused would be worse than its absence. The guard is nonetheless implemented and tested (`_offer_rc_stanza_write(..., assume_yes=True)` returns `declined` without calling `input()`), so the setup flow, which DOES carry `--yes`, is covered and a future caller cannot acquire consent from that flag by accident.
+
+    THE CONSENTED RUN APPENDS INSIDE BOTH FENCES WITH PRIOR CONTENT INTACT:
+
+    ```
+    ===== TTY, CONSENTED (y) =====
+    OK       appended the fenced bash-completion stanza to FIXTURE-HOME/consent-home/.bashrc
+    Next  run `exec bash` (or open a new terminal); `aw <TAB>` should complete now.
+    ---- resulting fixture .bashrc ----
+    export FOO=1
+
+    # >>> agent-workflows (aw completion install) >>>
+    ... (stanza as above) ...
+    # <<< agent-workflows (aw completion install) <<<
+    ```
+
+    A SECOND CONSENTING RUN IS A REPORTED NO-OP, NOT A DUPLICATE:
+
+    ```
+    ===== SECOND CONSENTING RUN over the same file =====
+    OK       FIXTURE-HOME/consent-home/.bashrc already carries the agent-workflows bash-completion stanza; nothing to add there.
+    [~/.bashrc unchanged by the second run: True]
+    [fence count: 1]
+    ```
+
+    A PRE-EXISTING HAND-ADDED STANZA READS AS SATISFIED (exercised against a fixture COPY of the shape on the maintainer's live box, never the real file):
+
+    ```
+    ===== PRE-EXISTING hand-added stanza =====
+    OK       FIXTURE-HOME/pre-home/.bashrc already carries the agent-workflows bash-completion stanza; nothing to add there.
+    [.bashrc byte-identical: True] [fence count: 1]
+    ```
+
+    AN ABSENT `~/.bashrc` IS REPORTED, NEVER CREATED:
+
+    ```
+    ===== ABSENT ~/.bashrc =====
+    WARN     FIXTURE-HOME/abs-home/.bashrc does not exist; refusing to CREATE it (creating it can change which startup files bash reads). Create it yourself, then paste the snippet above.
+    [.bashrc created: False]
+    ```
+
+    UNINSTALL REMOVES EXACTLY THE FENCED RANGE, byte-for-byte back to the pre-install file:
+
+    ```
+    ===== UNINSTALL round trip =====
+    OK       appended the fenced bash-completion stanza to FIXTURE-HOME/rt-home/.bashrc
+    OK       removed the fenced bash-completion stanza from FIXTURE-HOME/rt-home/.bashrc
+    [wrote on consent: True] [restored byte-for-byte after uninstall: True]
+    [final content repr: "export FOO=1\nalias ll='ls -l'\n"]
+    ```
+
+    Uninstall is gated identically (`cli._offer_rc_stanza_removal`): `--yes`/non-TTY leaves the stanza and SAYS SO rather than silently abandoning it, and an unterminated opening fence is left alone rather than truncating the rest of the file (`RcStanzaTests::test_an_unterminated_fence_is_never_truncated`). THE REAL `~/.bashrc` WAS NEVER WRITTEN during any of this; every write assertion ran in a fixture HOME under the lane worktree, and the live file was only READ.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the passing tests for all four states and show each is driven by INJECTION, quoting the stub. Paste the assertion pinning that the non-reachable case prints no `ok` and no restart instruction. Paste the byte-comparison of the rc fixture. Confirm by grep that no test reads the ambient `BASH_COMPLETION_VERSINFO` or the developer's real `HOME`; any test that shells out must pin `HOME` via `env -i` (F-8: this box flipped from not-reachable to reachable between authoring and review with no code change, so an ambient-environment test would have silently reversed its verdict). THEN paste the BARE `python3 -m pytest` summary and the failure-SET delta (criterion: empty). FOR REFERENCE, review measured the pre-change baseline bare at HEAD `8e81ab9c`: `5971 passed, 3 skipped, 2 xfailed`; re-measure your own rather than quoting that.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Four injected states, the false-success pair pinned as a regression, rc fixtures byte-compared, and a file-level assertion (proven non-vacuous) that no test reads the ambient shell state. Bare suite: `1 failed, 8058 passed` against a pre-change baseline of `1 failed, 8022 passed`; FAILURE-SET DELTA EMPTY (same single pre-existing `test_turn_bounds` failure both runs). `aw sanitize --agent` clean. Full output below.
+    THE FOUR STATES ARE DRIVEN BY INJECTION, NOT BY THE AMBIENT ENVIRONMENT. `completion_framework_status` takes `entry_script_candidates`, `probe`, and `rc_path`, and `FrameworkStatusTests.STATES` supplies all three per row; the reachability stub is literally `probe=lambda: probe_result` over an injected `(verdict, detail)` tuple, and the "absent" row injects `["/nonexistent/bash_completion"]` with a deliberately garbage probe result to prove the probe is not consulted in that state. The CLI-level rows inject via `mock.patch.object(completion, "_BASH_COMPLETION_ENTRY_SCRIPTS", (str(entry),))` plus `mock.patch.object(completion, "probe_bash_completion_loaded", return_value=(...))`.
+
+    THE FALSE-SUCCESS PAIR IS PINNED AS A REGRESSION. `CompletionEffectivenessMessageTests.MESSAGE_CASES` gives the non-reachable and absent rows a `forbidden` column of `("OK       bash completion installed", "start a new bash shell (or run")`, and `test_the_verb_reports_the_non_reachable_state_and_writes_no_rc` asserts end to end through `aw completion install` that the output contains `will NOT take effect` and does NOT contain `start a new bash shell (or run`.
+
+    THE RC FIXTURE IS BYTE-COMPARED in every non-consenting path (`self.assertEqual(self.rc.read_bytes(), self.before)` in `RcWriteOfferTests` for `--yes`, non-TTY, declined, empty-answer and EOF; plus `RcStanzaTests::test_without_consent_the_file_is_byte_identical` and the install/remove round trip).
+
+    NO TEST READS THE AMBIENT SHELL STATE. `FrameworkStatusTests::test_no_test_here_reads_the_ambient_shell` asserts this as a FILE-LEVEL property of `tests/test_completion.py`: no `os.environ` access to the framework variable, and every INTERACTIVE-bash literal must sit near a `mock.patch`/pinned `HOME`. Confirmed non-vacuous rather than trusted: the scan matches exactly one interactive invocation in the file, `["bash", "-ic", "echo ${BASH_COMPLETION_V...`, which is inside a `mock.patch.object(completion.subprocess, "run", ...)` block. The scan is deliberately scoped to interactive shells; the pre-existing `["bash", "-n"]` syntax checks read no rc file and are equally reproducible everywhere.
+
+    THE PROBE COMMAND ITSELF IS PINNED, because a well-meaning `-l` would make it always report success and silently restore the defect:
+
+    ```
+    self.assertEqual(seen["argv"], ["bash", "-ic", "echo ${BASH_COMPLETION_VERSINFO-}"], ...)
+    ```
+
+    THE FILE'S OWN TESTS PASS, including the `slow`-marked ones (`-m ""`):
+
+    ```
+    $ python3 -m pytest tests/test_completion.py -o addopts="" -q
+    81 passed, 2 skipped in 9.63s
+
+    $ python3 -m pytest tests/test_completion.py -o addopts="" -q -m ""
+    81 passed, 2 skipped in 4.69s
+    ```
+
+    THE BARE SUITE, AND THE FAILURE-SET DELTA IS EMPTY. Baseline measured BEFORE any edit at HEAD `f763be8c`:
+
+    ```
+    $ python3 -m pytest
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 8022 passed, 3 skipped, 2 xfailed, 3 warnings in 124.24s (0:02:04)
+    ```
+
+    After this change:
+
+    ```
+    $ python3 -m pytest
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 8058 passed, 3 skipped, 2 xfailed, 3 warnings in 114.83s (0:01:54)
+    ```
+
+    FAILURE-SET DELTA: EMPTY. The same single pre-existing failure appears in both runs (`test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, which concerns runner permission policy and is untouched by this plan; it is reported as a finding rather than silently excused), and passing tests rose 8022 -> 8058 (+36 new). Judged on the failure SET, not the counts, as the execution contract requires.
+
+    `aw sanitize --agent` CLEAN:
+
+    ```
+    $ python3 -m agent_workflows check-local-leaks . --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
