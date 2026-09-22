@@ -1,5 +1,5 @@
 - Id: x7wfyx
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: x7wfyx
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Tell the agent its remaining turn budget, and retry a turn that provably attempted nothing instead of letting one partial block a whole Set
 
 ## Workflow history
+- 2026-09-22 done (aw set): Closed done on the HANDOFF rule: approved plan dy9ymn (reaskscore Order 03) carries '- From-Backlog: x7wfyx' AND the same '- Blocks-Release: next', so the release gate is provably preserved rather than dropped. Verified by reading the plan's front matter directly, not inferred. This was surfaced by aw attention's check.orphaned-live-blocker warning, whose own remedy is this exact call. The item stayed open only because nothing closed it when the plan was authored; no code change is implied.
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): Split from q1z9gn: the agent-side prompt fix landed, but the driver still does not tell the agent its remaining budget and still treats a zero-work turn as a terminal partial that blocked three siblings
 
