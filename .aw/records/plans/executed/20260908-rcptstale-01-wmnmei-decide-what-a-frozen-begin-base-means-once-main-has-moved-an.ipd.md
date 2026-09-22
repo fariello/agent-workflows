@@ -12,18 +12,18 @@
 - Scope: Answer, with evidence, what a frozen `base_head` should mean once HEAD has moved far past it, and implement only what that answer authorizes. The one change this plan will make under EVERY outcome is to stop a single frozen baseline from emitting one finding per intervening file, because that multiplication is what turns a real signal into noise and is independent of the base question. EXPLICITLY NOT receipt expiration: the item forbids it as the presumed answer and records four concrete reasons, all re-verified below and joined by a fifth.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_scope_drift.py, tests/test_receipt_stale_base.py, tests/test_check_engine_receipt_liveness.py, tests/test_event_derived_lifecycle.py, tests/test_phase4_hooks.py, tests/test_finalize_scope_ownership.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: rcptstale
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wmnmei
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: v880xk
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: wmnmei verified (set rcptstale, attempt 1). [Scope reconciliation - widened-scope tests/test_finalize_scope_ownership.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope tests/test_phase4_hooks.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run)]
 - 2026-09-22 implementation performed (opencode its_direct/pt3-claude-opus-5-1m-us): NOT a status transition; the terminal `executed` transition is `aw ipd finalize`'s alone and is deliberately not claimed here. Implemented OQ-01's maintainer ruling as a TREE-SELECTION fix plus E-05's unconditional per-plan collapse, at HEAD `132e8333` in lane `.aw/worktrees/wmnmei`. MEASURED MY OWN DISTRIBUTION, which had moved a FOURTH time: 380 findings from SIX plans (219/100/28/18/13/2), not the review's 174-from-three, this plan's 110-from-eight, or the item's 1013-from-16. After: 4 findings from four plans, 17 offending paths, all lane-local. TWO OF THIS PLAN'S OWN CLAIMS WERE CORRECTED BY MEASUREMENT rather than inherited: F-3b's ABSOLUTE 100-percent-committed split is now 90 percent (343 committed-only, 32 worktree-only, 5 both), because this shared checkout carries dirty files it did not at review; and the cohesion cut is 57 percent (380 -> 162), not 76/79. Both corrections are recorded in V-01/V-03 rather than smoothed over. E-02 answered the overload question EXPLICITLY: six of seven `base_head` consumers want the identical git revision and the frozen value was NOT changed; the advisory is the one outlier and its need is a different TREE, not a different baseline, which is why all five of this plan's candidates were the wrong axis. E-04 re-verified all four anti-expiry reasons as still-true, stated reason (5), and listed FIVE live receipts an expiry would revoke today (replacing review's single `hp9rot` instance, which has since left the tree). E-06 added NO rule code and recorded why. SCOPE WAS WIDENED ADDITIVELY by two existing test files (`tests/test_phase4_hooks.py`, `tests/test_finalize_scope_ownership.py`) whose main-tree arrangements would otherwise have passed VACUOUSLY under the new rule; reasoned as decision D1, both literal-file eligible, no assertion deleted. Suite: `1 failed, 8208 passed, 3 skipped, 2 xfailed` against a baseline of `1 failed, 8189 passed, 3 skipped, 2 xfailed`, the one failure being the pre-existing environmental `tests/test_turn_bounds.py` case caused by this lane's ambient `OPENCODE_CONFIG_CONTENT` (proven by re-running it with the variable unset: 1 passed). Repo-wide rule-code SET identical before and after; `aw check plans` exits 1 both before and after on three unrelated codes.
 - 2026-09-13 approved (aw set): status set to approved
 
