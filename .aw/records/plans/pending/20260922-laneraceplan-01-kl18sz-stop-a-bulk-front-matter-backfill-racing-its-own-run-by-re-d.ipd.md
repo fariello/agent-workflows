@@ -5,7 +5,7 @@
 - Concern: A plan whose job is to edit front matter across the whole `pending/` population is, by construction, contending with every execute item in its own run, so the more successful the run the more conflicts that plan causes and the more likely it is to be stranded. MEASURED on item `8u6770` in run `run-20260922T024054Z-2245533`, which ended `merge-refused` with a real git conflict in 13 files, ALL of them `.aw/records/plans/*.ipd.md` and NONE of them code.
   THE SHAPE IS A PURE LIFECYCLE RACE, NOT A DISAGREEMENT. `8u6770` reads plans in `.aw/records/plans/pending/` and adds two adjacent front-matter lines (`- Work-Kind:` and `- Priority:`) plus one history line to each, inheriting each value from a backlog item the plan itself names. While it ran, THE SAME RUN executed 13 of those very plans, and executing a plan moves the file `pending/` -> `executed/` AND rewrites its `- Status:` line from `approved` to `executed` AND appends its own history line. Git therefore sees both sides touching adjacent lines of a renamed file and conflicts. Measured at resolution time: of the 45 plans the lane edits, 15 had already moved to `executed/` on `main`.
   THE TWO EDITS ARE NOT IN OPPOSITION, which is what makes this losslessly resolvable and therefore worth automating. The lane's own appended history line says in as many words "status unchanged (no lifecycle transition)", so it never intended to touch `- Status:` at all. Resolution is mechanical: keep `main`'s `- Status:`, keep the lane's two new fields, keep both history lines. That is exactly what a human did on 2026-09-22 for all 13 files, verified green.
-  THERE IS A TRAP IN THE OBVIOUS RESOLUTION, and it is why this must not be left to ad-hoc judgement. The lane holds a ten-day-old snapshot in which those 13 plans still read `- Status: approved`. Taking the lane's side of the conflict, which is the natural thing to do for "the branch that owns this edit", would REVERT 13 real executions and assert that 13 plans sitting in `executed/` are merely approved. A clean, conflict-free-looking resolution can therefore silently undo a lifecycle transition.
+  THERE IS A TRAP IN THE OBVIOUS RESOLUTION, and it is a RESOLVER'S trap rather than a silent-merge one. The lane holds a ten-day-old snapshot in which those 13 plans still read `- Status: approved`. Taking the lane's side of the conflict, which is the natural thing to do for "the branch that owns this edit", asserts that 13 plans sitting in `executed/` are merely approved and undoes 13 real executions. PRECISION MATTERS HERE AND AN EARLIER VERSION OF THIS PARAGRAPH OVERSTATED IT: git does NOT do this on its own. Measured in throwaway repositories, a stale side that edits a plan `main` has moved produces `CONFLICT (modify/delete)`, or `CONFLICT (content)` once rename detection fires, and a stale side that does not touch the plan leaves the transition intact; there is no conflict-free path that un-executes a plan. So the hazard is entirely in what a HUMAN OR AGENT then types at the conflict prompt, where "keep the lane's version" is one keystroke and looks defensible. That is still worth engineering against, because the resolver is handed 13 files and no signal that one side's `- Status:` is a stale snapshot, but the claim is about resolver ergonomics and not about git losing data.
   THIS IS AN ARCHETYPE RATHER THAN AN INCIDENT. The same Set contains `lc4unl` (Order 03), which hit the same class and also ended unintegrated, and `lkexaw` (Order 01), which is the same kind of population-wide records edit. So the pattern recurs for every plan of this shape, and the cost scales with how well the run performs.
 - Scope: Make a population-wide records edit survive its own run, by RE-DERIVING the intended field values against the settled tree at integration time rather than merging a stale snapshot of them, and/or by ordering such a plan after the execute items it would contend with. EXCLUDES any change to what values are written or to the inheritance rule that picks them (that is `planprio`'s own subject matter), excludes editing any plan in a terminal directory, and excludes the post-merge revalidation defect (sibling plan `tgyfs2`).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_records_only_lane_rederive.py
@@ -23,12 +23,12 @@
 
 ## Workflow history
 
-- 2026-09-22 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `21fykf`, inheriting its `Blocks-Release: next` gate. The conflict shape was measured across all 13 files during a hand-resolution on 2026-09-22 and was IDENTICAL in every one (main's `- Status: executed` versus the lane's `- Status: approved` plus two new keys, and two competing history lines), which is what justifies a mechanical fix rather than case-by-case judgement. The plan deliberately offers detection-and-refusal as the minimum viable outcome (E-01/E-02) so that even if the maintainer rejects automatic re-derivation, the silent-revert trap is closed.
+- 2026-09-22 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `21fykf`, inheriting its `Blocks-Release: next` gate. The conflict shape was measured across all 13 files during a hand-resolution on 2026-09-22 and was IDENTICAL in every one (main's `- Status: executed` versus the lane's `- Status: approved` plus two new keys, and two competing history lines), which is what justifies a mechanical fix rather than case-by-case judgement. The plan deliberately offers detection-and-refusal as the minimum viable outcome (E-01/E-02) so that even if the maintainer rejects automatic re-derivation, the resolver-facing trap is closed. NOTE a correction made during authoring: an earlier draft called that trap a SILENT merge revert, and the maintainer challenged it correctly. Measurement showed git always conflicts loudly in this shape, so the trap is in what a resolver chooses at the prompt, not in git losing the transition.
 - 2026-09-22 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
-Stop a records-only backfill being punished for its own run's success, and make it impossible for resolving such a conflict to silently revert a lifecycle transition.
+Stop a records-only backfill being punished for its own run's success, and make it impossible for a resolver to un-execute a plan while resolving the conflict it causes.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -56,7 +56,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a conflict set mixing one records-only file and one code file refuses entirely, with nothing written.
   - Execution state: pending
 
-### Task group 3: prove it and prevent the silent revert
+### Task group 3: prove it and prevent the resolver revert
 
 - [ ] E-05 Add the regression file with an explicit ANTI-REVERT control: a test that FAILS if any code path can produce a result where a plan present in a terminal directory on `main` ends carrying a non-terminal `- Status:` from an incoming branch. Plus coverage of the classifier's UNKNOWN arm and E-04's all-or-nothing rule.
   - Depends on: E-01, E-02, E-03, E-04
@@ -77,14 +77,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-1 | The conflict is records-only, never code | 13 conflicting files, all `.aw/records/plans/*.ipd.md`; the lane changes 47 files and 0 outside `.aw/records/` |
 | F-2 | The two sides are orthogonal | lane adds `- Work-Kind:`/`- Priority:`; main rewrote `- Status:` and moved the file |
 | F-3 | The lane never intended to touch status | its own history line reads "status unchanged (no lifecycle transition)" |
-| F-4 | Taking the lane's side reverts real executions | the lane's snapshot still says `approved` for 15 plans now in `executed/` on main |
+| F-4 | Taking the lane's side un-executes real plans, but only by a RESOLVER's choice | the lane's snapshot says `approved` for 15 plans now in `executed/`; git itself always conflicts loudly here (measured), so the risk is the resolution step, not the merge |
 | F-5 | The shape was uniform across all 13 files | a single mechanical rule resolved every one, verified green |
 | F-6 | It is an archetype, not an incident | sibling `lc4unl` hit the same class in the same run; `lkexaw` is the same plan shape |
 
 ## Proposed changes (ordered, validatable)
 
 1. A three-valued classifier for the records-only front-matter conflict shape (E-01).
-2. A shape-specific refusal naming the stale-snapshot trap and the safe resolution (E-02).
+2. A shape-specific refusal naming the stale-snapshot trap and the safe resolution, so the resolver is told which side's `- Status:` is stale (E-02).
 3. Re-derivation of orthogonal keys onto the current tree, gated on OQ-01 (E-03).
 4. All-or-nothing fail-closed behavior for unclassified files (E-04).
 5. Regression coverage with an explicit anti-revert control (E-05).
@@ -119,7 +119,7 @@ No `.spec.md` amendment if the plan stops at E-02 (a better refusal message chan
 - Blocking: yes
 - Status: open
 - Owner: maintainer
-- Resolution or deferral rationale: NOT the executor's call, because it changes a stated division of responsibility: today conflict DETECTION is the gate's and RESOLUTION is a human's. Re-derivation is safe in the narrow proven shape and removes a recurring manual chore, but it means the runner rewrites records content during integration, and a bug there writes wrong metadata into permanent history. RECOMMENDATION: approve E-03 but ONLY behind E-01's positive classification and E-04's all-or-nothing rule, since the failure mode is then a refusal rather than a bad write. If the answer is no, this plan still lands E-01/E-02, which closes the silent-revert trap, and that is a genuine improvement on its own.
+- Resolution or deferral rationale: NOT the executor's call, because it changes a stated division of responsibility: today conflict DETECTION is the gate's and RESOLUTION is a human's. Re-derivation is safe in the narrow proven shape and removes a recurring manual chore, but it means the runner rewrites records content during integration, and a bug there writes wrong metadata into permanent history. RECOMMENDATION: approve E-03 but ONLY behind E-01's positive classification and E-04's all-or-nothing rule, since the failure mode is then a refusal rather than a bad write. If the answer is no, this plan still lands E-01/E-02, which tells the resolver which side's `- Status:` is a stale snapshot, and that is a genuine improvement on its own.
 
 ### OQ-02: Should a bulk-records plan instead be SEQUENCED after the execute items it contends with?
 
