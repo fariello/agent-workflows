@@ -11,18 +11,18 @@
 - Scope: Split `unverified` into distinguishable recorded facts so "verification never ran" is not reported as "verification was inconclusive", and make the stale-path fallback refuse loudly instead of proceeding with a path it knows may be wrong. EXCLUDES the verdict MAPPING for a verdict that WAS written (sibling `1bfppy`, this Set's Order 05, which owns the fail-closed table); excludes re-fixing the prompt path (already fixed at `1549c018`); excludes the model/rate-card record (`vlf75p`) and the unconsumed-evidence defect (`rbftpl`); excludes changing whether the verifier turn runs at all.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 6
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: fzxfph
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: t74o5q
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: fzxfph verified (set runverdict, attempt 1).
 - 2026-09-22 validated (aw oc run, opencode/its_direct/pt3-claude-opus-5-1m-us): ALL FIVE E-ITEMS PERFORMED, ALL FIVE V-ITEMS PASS with pasted evidence. `aw ipd lint --phase pre-transition` conforming. Suite bare in this lane: `1 failed, 8325 passed, 3 skipped, 2 xfailed`, against a BASELINE MEASURED IN THIS SAME LANE BEFORE ANY EDIT of `1 failed, 8309 passed, 3 skipped, 2 xfailed`; the one failure is the SAME NODE ID on both sides (`tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`) and is ENVIRONMENTAL, not this plan's: it asserts a non-isolated turn inherits no `OPENCODE_CONFIG_CONTENT`, and THIS RUNNER exports that variable into my own turn, so it fails for any agent executing under `aw oc run` and passes immediately with the variable unset (`env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py` -> `76 passed`). NOTE the plan's expected baseline failure (`test_reporting_contract` tripping over another party's untracked `opencode-recovery/*.md` files) did NOT occur; those files are absent from this lane.
   THE TREE HAD MOVED UNDER THE PLAN IN TWO WAYS THAT CHANGED THE WORK, both re-measured rather than assumed. FIRST, `1bfppy` HAS LANDED: it is `- Status: executed` in `executed/` (the plan was authored expecting `reviewed`), so its verdict table, its `except` unparseable arm and its refusal wording are all present, and this plan's E-01/E-02 correctly added only an annotation to that arm rather than a second name. SECOND, the SIX write sites are FOUR: commit `70a2059f` unified `execute_item` into `runner_shared.execute_item_core`, so the per-host duplication the plan counted no longer exists. Neither is a shortfall; both are recorded in V-01 with the evidence.
   THE HONEST RECONCILIATION OF `1bfppy`'s "FREE FIELD". That plan's in-tree note said it minted no name for the unparseable case so this executor would have "a free field to name and nothing to reconcile". It needed no new name: a verdict that WAS written belongs to the verdict table by construction, so fact 1's code is an ALIAS (`VERIFY_ABSENCE_VERDICT_UNREADABLE = VERDICT_REFUSAL_CODE_UNREADABLE`), asserted structurally so the two cannot drift. That keeps `VERIFY_ABSENCE_CODES` a CLOSED set over all four facts while spelling one fact once.
