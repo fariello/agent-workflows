@@ -130,12 +130,61 @@ def _resolve_repo_root(args: argparse.Namespace) -> Path:
     return resolve_verb_repo_root(getattr(args, "dir", None))
 
 
+def _recover_commit_flags(raw: List[str]) -> Tuple[Optional[str], bool, List[str]]:
+    """Split ``aw commit``'s REMAINDER tail into (plan selector, saw --no-plan, pre-`--` tokens).
+
+    WHY THIS EXISTS AT ALL. ``aw commit``'s paths arrive through ``argparse.REMAINDER``, and
+    REMAINDER does not begin capturing until every POSITIONAL is filled. A declared ``plan``
+    positional therefore consumes the FIRST PATH: measured, ``aw commit --no-plan -m msg --
+    a.py b.py`` parsed ``plan='a.py'`` with ``path_argv=['b.py']``, so the commit either failed on
+    a nonsense selector or silently committed only the remaining paths. The selector positional is
+    consequently NOT declared on the parser, and is recovered HERE from the tokens before the
+    ``--`` marker - the same recovery the verb already performs for ``-m``/``--message``/
+    ``--no-commit`` and that :func:`_split_remainder` performs for ``--dir``.
+
+    ``--no-plan`` is recovered in the same scan because argparse cannot see it either once it lands
+    after the selector: ``aw commit y9vpvv --no-plan -- a.py`` leaves the flag INSIDE the
+    remainder, so a parser-level ``store_true`` would read False and the flag would be IGNORED
+    rather than refused. Recovering it is what lets :func:`run_commit` refuse the contradiction.
+
+    The selector is the first pre-``--`` token that is not an option and is not an option's value.
+    """
+
+    pre = raw[: raw.index("--")] if "--" in raw else list(raw)
+    selector: Optional[str] = None
+    saw_no_plan = False
+    # Options that TAKE a value, so the token after them is never the selector.
+    valued = ("-m", "--message", "--dir")
+    i = 0
+    while i < len(pre):
+        tok = pre[i]
+        if tok == "--no-plan":
+            saw_no_plan = True
+            i += 1
+            continue
+        if tok in valued:
+            i += 2
+            continue
+        if tok.startswith("--message=") or tok.startswith("--dir="):
+            i += 1
+            continue
+        if tok.startswith("-"):
+            # Any other option (e.g. `--no-commit`, `--agent`) is handled by argparse or by
+            # run_commit's own scan; it is never the selector.
+            i += 1
+            continue
+        if selector is None:
+            selector = tok
+        i += 1
+    return selector, saw_no_plan, pre
+
+
 def _resolve_plan(
     repo_root: Path, selector: Optional[str]
 ) -> Tuple[Optional[Path], Optional[str]]:
     """Resolve a plan selector to exactly one plan path, or (None, message)."""
     if not selector:
-        return None, "a <plan> selector is required"
+        return None, "a <plan> selector is required (or pass --no-plan with -m)"
     res = _selectors.resolve(repo_root, "plans", selector)
     if not res.paths:
         return None, f"no plan matched selector {selector!r}"
@@ -388,15 +437,30 @@ def run_commit(args: argparse.Namespace) -> int:
     """`aw commit <ipd> -- <paths>`: scope-refuse out-of-scope staged, run the engine, commit in-scope
     paths via the SHARED git_commit_helper (no forked commit path, no add -A, no push).
 
+    PLAN-LESS MODE (``aw commit --no-plan -m <msg> -- <paths>``) exists so the contract's MUST is
+    COMPLIABLE. Not every legitimate commit is governed by a plan (a backlog item, a spec edit, a
+    typo fix), and a rule that fires on correct behavior trains agents to ignore it, so refusing
+    those commits would have made non-compliance the COMMON case. Plan-less mode skips EXACTLY the
+    two checks that are derived from a plan and are therefore meaningless without one - the
+    ``Scope-Paths`` refusal and the plan's own engine validation - and it NAMES them in its output,
+    because a reduction in safety must be visible rather than silent. Everything else is unchanged:
+    it still routes through the shared :func:`git_commit_helper.offer_commit`, whose
+    snapshot-then-intersect is the only mechanism that STRUCTURALLY prevents sweeping a concurrent
+    agent's staged edits into your commit, so no mode may bypass it.
+
     Optionally carries run-ownership trailers (``AW-Run``/``AW-Item``); see :func:`_trailers_from_args`.
     """
-    selector = getattr(args, "plan", None)
     raw = list(getattr(args, "path_argv", None) or [])
     dir_val, paths = _split_remainder(raw)
     if dir_val and not getattr(args, "dir", None):
         args.dir = dir_val
+    # Recover the SELECTOR and `--no-plan` from the pre-`--` segment. Neither can be read off the
+    # namespace reliably: no `plan` positional is declared (it would eat the first path, see
+    # `_recover_commit_flags`), and a `--no-plan` placed AFTER the selector lands inside the
+    # REMAINDER where argparse never sees it.
+    selector, saw_no_plan, pre = _recover_commit_flags(raw)
+    no_plan = bool(getattr(args, "no_plan", False) or saw_no_plan)
     # Recover -m/--message and --no-commit that argparse.REMAINDER swallowed from the pre-`--` part.
-    pre = raw[: raw.index("--")] if "--" in raw else []
     i = 0
     while i < len(pre):
         if pre[i] in ("-m", "--message") and i + 1 < len(pre):
@@ -413,30 +477,69 @@ def run_commit(args: argparse.Namespace) -> int:
             args.no_commit = True
         i += 1
     repo_root = _resolve_repo_root(args)
-    plan_path, err = _resolve_plan(repo_root, selector)
-    if err:
-        print(f"error: {err}")
+
+    # AMBIGUITY IS A USAGE ERROR, NOT A PRECEDENCE RULE. A selector says "this plan governs the
+    # commit" and `--no-plan` says "no plan governs it"; honoring either silently would make the
+    # result depend on an undocumented winner. argparse's own mutual exclusion cannot express this,
+    # because one side is a positional recovered from the remainder, so it is refused here.
+    if no_plan and selector:
+        print(
+            f"error: aw commit: --no-plan contradicts the plan selector {selector!r}; pass "
+            f"exactly one (a plan to commit under its Scope-Paths, or --no-plan for a commit no "
+            f"plan governs)"
+        )
         return 2
+    # `aw commit <plan>` derives its message from the plan; a plan-less commit has NO message
+    # source, so -m is required rather than filled with a placeholder.
+    if no_plan and not getattr(args, "message", None):
+        print(
+            "error: aw commit --no-plan requires -m/--message (there is no plan to derive the "
+            "commit message from)"
+        )
+        return 2
+
+    plan_path: Optional[Path] = None
+    if not no_plan:
+        plan_path, err = _resolve_plan(repo_root, selector)
+        if err:
+            print(f"error: {err}")
+            return 2
     if not paths:
         print(
             "error: aw commit requires paths after `--` (e.g. `aw commit <ipd> -- file.py`)"
         )
         return 2
-    try:
-        text = plan_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        print(f"error: cannot read plan: {exc}")
-        return 2
-    scope_paths, is_grandfathered = _plan_scope_paths(text)
-    try:
-        plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
-    except ValueError:
-        plan_rel = plan_path.name
+
+    scope_paths: List[str] = []
+    is_grandfathered = False
+    plan_rel = ""
+    if plan_path is not None:
+        try:
+            text = plan_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"error: cannot read plan: {exc}")
+            return 2
+        scope_paths, is_grandfathered = _plan_scope_paths(text)
+        try:
+            plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
+        except ValueError:
+            plan_rel = plan_path.name
 
     # Compute the plan's allowed scope and refuse if ANY currently-staged path is out of scope.
     # (A grandfathered/absent Scope-Paths carries no allowlist, so scope enforcement is skipped with
     # a clear notice - the deterministic refusal only applies to a plan that DECLARED its territory.)
-    if scope_paths and not is_grandfathered:
+    if no_plan:
+        # NAME THE SKIPPED PROTECTIONS. Deliberately phrased around the PROTECTIONS rather than
+        # around the raw command, both because that is what the operator needs to know and because
+        # `tests/test_work_primitives.py` proves this verb carries no forked commit path of its own.
+        print(
+            "aw commit: no plan governs this commit (--no-plan), so two plan-derived protections "
+            "are SKIPPED: Scope-Paths enforcement and plan validation. Every other protection is "
+            "unchanged: only the paths you named are staged, and the shared helper still snapshots "
+            "the index first and commits only the intersection, so a co-worker's staged change "
+            "cannot be swept in."
+        )
+    elif scope_paths and not is_grandfathered:
         staged = _staged_paths(repo_root)
         out_of_scope = [p for p in staged if not _in_scope(p, scope_paths, plan_rel)]
         # also refuse if a requested path is itself out of scope
@@ -457,15 +560,19 @@ def run_commit(args: argparse.Namespace) -> int:
             "paths without scope enforcement"
         )
 
-    # Run the phase-1 engine before mutating (validate-then-act). Blocking findings refuse the commit.
-    findings = _validate_plan_via_engine(repo_root, plan_path)
-    if findings:
-        print(f"aw commit: refusing - {len(findings)} finding(s) on {plan_path.name}:")
-        for d in findings:
-            print(f"  {d.rule}: {d.detail}")
-        return 1
+    # Run the phase-1 engine before mutating (validate-then-act). Blocking findings refuse the
+    # commit. SKIPPED under --no-plan: this validates the PLAN, so it has no subject without one.
+    if plan_path is not None:
+        findings = _validate_plan_via_engine(repo_root, plan_path)
+        if findings:
+            print(
+                f"aw commit: refusing - {len(findings)} finding(s) on {plan_path.name}:"
+            )
+            for d in findings:
+                print(f"  {d.rule}: {d.detail}")
+            return 1
 
-    # Commit ONLY the declared in-scope paths by REUSING the shared path-scoped helper.
+    # Commit ONLY the requested paths by REUSING the shared path-scoped helper.
     message = getattr(args, "message", None) or f"work: {plan_rel}"
     outcome = _gch.offer_commit(
         repo_root,

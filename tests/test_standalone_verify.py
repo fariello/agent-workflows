@@ -120,7 +120,13 @@ class TheAuditReusesTheOneVerifierComposer(unittest.TestCase):
             "3. **Run and Verify Test Suite**:",
             "- Paste the actual runner output with exit code.",
             "4. **In-Scope Fixes**:",
-            "fix them, re-run validation, and commit path-scoped (`git commit -m msg -- <paths>`). Never push.",
+            # commitguard `y9vpvv` E-09: the clause now names the TOOLED commit path in both its
+            # forms rather than raw `git commit`, per the 2026-09-10 OQ-03 ruling. The parity claim
+            # is unchanged: whatever the clause says, BOTH renderings must say it identically, and
+            # "Never push" must survive.
+            "fix them, re-run validation, and commit through `aw commit <plan> -- <paths>` "
+            "(or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change), "
+            "limited to the paths you name. Never push.",
             '"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",',
         ):
             with self.subTest(clause=shared_clause[:48]):
