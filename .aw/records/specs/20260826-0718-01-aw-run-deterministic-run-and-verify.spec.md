@@ -65,13 +65,14 @@ policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the r
 Constraints honored: pre-release (no backward-compatibility shims or legacy aliases) and
 design-against-roles (no dependence on current internal filenames).
 
-READ SECTION 4.2's FINDING CODES AS SPECIFICATION, NOT AS SHIPPED BEHAVIOR (re-measured 2026-09-20 at
+READ SECTION 4.2's FINDING CODES AS SPECIFICATION, NOT AS SHIPPED BEHAVIOR (re-measured 2026-09-22 at
+`2815aa56`; corrected then by plan `4h7tt0`, which retired `RUN-NO-PUSH`; re-measured 2026-09-20 at
 `007d05e1`; first measured 2026-09-05). Only the `RUN-*` family exists in the package:
-`run_evidence.RUN_FINDING_CODES` carries all 13, of which 10 are BOUND to predicates, one
-(`RUN-NO-PUSH`) is a name over deliberately unbuilt enforcement (`RUN-NO-PUSH`'s own
-`UNBOUND-UNBUILT` binding in `run_evidence.py`; backlog `d07nz2`), and the remaining two
-(`RUN-COMMIT-CONTENTS`, `RUN-COMMIT-GATEWAY`) are unbound-by-dependency. NO OTHER FAMILY IS BOUND TO
-ANY PREDICATE: of the 55 non-`RUN-` codes this spec names (11 `IPD-EXEC-*`, 5 `IPD-DEP-*`, 6
+`run_evidence.RUN_FINDING_CODES` carries all 12, of which 10 are BOUND to predicates and the remaining
+two (`RUN-COMMIT-CONTENTS`, `RUN-COMMIT-GATEWAY`) are unbound-by-dependency, so NO code is now
+UNBOUND-UNBUILT. `RUN-NO-PUSH` was the last such code and was RETIRED from 4.2 rather than bound,
+because no host push-denial enforcement exists and every cheap mechanism is evadable; see 4.2's own
+recorded reason. NO OTHER FAMILY IS BOUND TO ANY PREDICATE: of the 55 non-`RUN-` codes this spec names (11 `IPD-EXEC-*`, 5 `IPD-DEP-*`, 6
 `IPD-REVIEW-*`, 2 approval codes, 3 `IPD-REUSE-*`, 13 `SPEC-*`, 5 `BACKLOG-*`, 7 `PROMPT-*`, and 3
 `NONRUN-*`), exactly FOUR appear anywhere under `agent_workflows/` and all four only inside PROSE
 COMMENTS that cite this spec while keying on the shipped enforcer instead:
@@ -740,7 +741,34 @@ pre-commit hooks, which stays prohibited. See Section 2.1 and the two Section 1.
 NOTE ON TRANSCRIBING THIS TABLE. `run_evidence.RUN_FINDING_CODES` transcribes the `inspects` and
 `pass_criterion` cells VERBATIM, and `tests/test_run_evidence_completion.py` asserts byte equality, so
 editing a cell here is a code change. Keep cells terse and put commentary in prose around the table,
-not inside a cell.
+not inside a cell. THE TABLE'S CODE COUNT IS ITSELF PART OF THE CONTRACT: `validate_finding_table`
+hard-fails `len(RUN_FINDING_CODES) != 12` with `RC-COUNT`, so adding or removing a row here without
+amending that invariant makes the SHIPPED table report itself invalid at runtime.
+
+`RUN-NO-PUSH` WAS RETIRED FROM THIS TABLE ON 2026-09-08 (maintainer decision, commit `b23d447d`,
+executed by plan `4h7tt0`), which is why the table now carries TWELVE codes and not thirteen. It read
+"Capability preflight proved push denial; no push event or unexplained remote-state change exists" and
+promised to ABORT RUN on an attempted push. THE PROMISE IS WITHDRAWN, NOT THE PROTECTION, and the
+distinction decides whether this was an honesty fix or a weakening. Nothing in this repository ever
+enforced push denial: `host_sandbox_profile` declares `supports_deny_push` False and NEVER probes it,
+so the capability FAILED CLOSED and a run requiring it was REFUSED rather than proceeding unprotected.
+Removing the row therefore removes a guarantee the table could not deliver; it does not remove a check
+that was passing. Section 5.2's `supports_deny_push` capability is DELIBERATELY PRESERVED for that
+reason, so the fail-closed refusal outlives the reporting code.
+
+WHY IT WAS RETIRED RATHER THAN BUILT OR NARROWED, recorded so a future reader can reopen the question
+with the analysis rather than redo it. Every cheap mechanism has a known EVASION: a `pre-push` hook
+falls to `--no-verify`, a driver-side helper such as `git_commit_helper.offer_commit` falls to invoking
+`git` directly, and a config value falls to the agent rewriting it. A genuine boundary therefore means
+OS-LEVEL enforcement (the sandbox line of work, `x03wgn`), which is a separate project and IS WHERE A
+REAL BOUNDARY WOULD BELONG if one is ever built. Narrowing the row to "no push was attempted on the
+driver's own path" was declined because AN ATTESTATION IS NOT A BOUNDARY: it would keep the word
+guarantee attached to something an agent can simply step around, which is further from honest than the
+current refusal. AND THE ANTI-INFERENCE RULE SURVIVES THE RETIREMENT, indeed matters more after it:
+inferring push prevention from the mere PRESENCE of a helper, a hook file, or a config flag is
+forbidden (`host_sandbox_profile.py:88-95`) and would convert a safe fail-closed state into a fail-OPEN
+checker. Section 4.1's `Push attempt` abort class is left in place and is now named by no code, which is
+tolerated exactly as the already-unused `Unknown or non-idempotent external outcome` class is.
 
 | Check | What is inspected | Pass criterion | Exact failure message and recovery command | Action |
 | --- | --- | --- | --- | --- |
@@ -754,7 +782,6 @@ not inside a cell.
 | `RUN-SCOPE-DELTA` | `git diff` and untracked paths from the step baseline through the candidate terminal commit | Every action-owned changed path matches the frozen scope; pre-existing and other-run paths are excluded | `[RUN-SCOPE-DELTA] <item> changed out-of-scope paths: <paths>. The changes were quarantined and restored to baseline. Revise and re-review the scope, then start: aw <host> run <selector>` | FAIL ITEM after containment; cascade dependents; continue independent items |
 | `RUN-COMMIT-CONTENTS` | Run-owned commits identified by immutable run/item trailers, commit parents, trees, and action-owned delta | A required commit exists; its path union equals the action-owned delta; it contains no unrelated or pre-existing changes; commit parentage is reconciled | `[RUN-COMMIT-CONTENTS] Commit <sha> does not contain exactly the paths owned by <item>: <detail>. The item was quarantined. Correct its work in a new attempt with: aw <host> run <selector>` | FAIL ITEM after containment; ABORT RUN only if ownership/parentage is ambiguous |
 | `RUN-COMMIT-GATEWAY` | Captured commit-gateway event and argv | The engine, not the agent, invoked `git commit ... -- <explicit paths>` as an argv list; no `-a`, broad add, shell string, or `git commit --no-verify` occurred | `[RUN-COMMIT-GATEWAY] <item> lacks a valid path-scoped, hook-respecting commit receipt. The item was quarantined. Retry through a capable host with: aw <host> run <selector>` | FAIL ITEM after containment; ABORT RUN for a hook-bypass attempt |
-| `RUN-NO-PUSH` | Enforced tool policy, network policy receipt, all captured process events, starting/ending remote config and remote-tracking refs | Capability preflight proved push denial; no push event or unexplained remote-state change exists | `[RUN-NO-PUSH] Host <host> could not prove push prevention for <item>. No work may start without that capability. Choose a capable host and run: aw <host> run <selector>` | FAIL ITEM if refused at preflight; ABORT RUN if a push was attempted |
 | `RUN-CHECK-FRESHNESS` | Check command end times, final product-change time, checked HEAD/worktree digest, captured outputs | Every required check ran after the last relevant change against the exact candidate state; exit was 0 and required output was nonempty | `[RUN-CHECK-FRESHNESS] Check <recipe> is missing, stale, or failed for <item>. Run the registered check through the runner, then: aw <host> run resume <run-id>` | RETRY, then FAIL ITEM |
 | `RUN-CROSS-TREE` | Full deterministic repository checker | All reference, release-gate, dependency, status/location, naming, and index invariants pass | `[RUN-CROSS-TREE] Repository invariant <finding-code> failed after <item>: <detail>. Contain the item, repair it, run aw check all, then: aw <host> run resume <run-id>` | FAIL ITEM; ABORT RUN only for identity/type ambiguity or ownership conflict |
 
@@ -994,6 +1021,8 @@ and a `V-*` evidence block are made safe by being attributed rather than by mach
 #### Per-host capability descriptor
 
 OpenCode and Antigravity are not assumed to have the same session, interception, sandbox, permission, or isolation behavior. For the exact host executable version and run mode, the engine requires a current capability descriptor backed by positive and fail-closed probe evidence. Its storage format is an implementation detail; its semantics are mandatory.
+
+THE PUSH-DENIAL ENTRY BELOW IS A REQUIREMENT ON A HOST, AND IT SURVIVED THE RETIREMENT OF SECTION 4.2's `RUN-NO-PUSH` CODE DELIBERATELY. The two are different artifacts and the distinction decides whether a reader is looking at a live rule or a withdrawn one: 4.2 was a REPORTING vocabulary that claimed preflight had PROVED push denial, and it was retired on 2026-09-08 because nothing proves it; this list asks whether a host CAN enforce it, and the honest answer for every host today is NO. That answer FAILS CLOSED - `supports_deny_push` is declared False and never probed, so an action requiring it is REFUSED - which is why the requirement is kept rather than deleted. Withdrawing it here would convert a refusal into no check at all. Removing the now-unenforced flag and the verdicts nothing consumes is tracked separately as backlog `aagh7v`, and is not licensed by 4.2's retirement.
 
 At minimum the descriptor answers, independently, whether the host can:
 
@@ -1341,7 +1370,7 @@ Assume the repository contains these items. All id6 values are unique and every 
 | `spec09` | spec | `approved` | Not applicable in v1 | `gamma/01` |
 | `prmpt0` | prompt | no Run contract | Not applicable | `gamma/02` |
 
-The current `oc` capability descriptor positively proves standard isolated-worktree, commit-gateway, hook, fresh-session, and no-push enforcement. It does not prove the specialized `controlled_network_allowlist` capability required by `host06`.
+ASSUME FOR THIS EXAMPLE that the `oc` capability descriptor positively proves standard isolated-worktree, commit-gateway, hook, fresh-session, and no-push enforcement, and that it does not prove the specialized `controlled_network_allowlist` capability required by `host06`. THAT ASSUMPTION IS COUNTERFACTUAL TODAY AND IS STATED AS AN ASSUMPTION FOR THAT REASON (corrected 2026-09-22 by plan `4h7tt0`; previously this sentence read "The current `oc` capability descriptor positively proves ...", a present-tense claim about the shipped descriptor). MEASURED: `probe_runner_safety_capabilities()` returns `supports_deny_push` False and `supports_commit_gateway` False, both DECLARED AND NEVER PROBED, because neither enforcement exists in this package; only `supports_fresh_verifier_session` is True. So the real `oc` descriptor proves NEITHER no-push NOR commit-gateway enforcement, and a reader who took the old sentence at face value would have believed two protections were in force. The example still works: it needs SOME capability to be proven and one to be missing in order to show the capability-gating path, and nothing downstream of it depends on which. The COMMIT-GATEWAY half of the old claim was false independently of the no-push retirement.
 
 ### 7.1 Command exactly as requested
 

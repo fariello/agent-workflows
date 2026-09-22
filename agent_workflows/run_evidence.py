@@ -1142,7 +1142,7 @@ def is_complete(
 #
 # WHAT THIS IS, AND WHAT IT DELIBERATELY IS NOT.
 #
-# Spec `25kzda` 4.2 fixes 13 stable `RUN-*` finding codes as the deterministic checker's PUBLIC
+# Spec `25kzda` 4.2 fixes 12 stable `RUN-*` finding codes as the deterministic checker's PUBLIC
 # vocabulary: each row pins an exact operator-facing message (ending in a recovery command) and a
 # failure ACTION. This block is that vocabulary and NOTHING else. It is a NAMING layer over
 # predicates that already ship elsewhere in this package; it is NOT a second completion authority.
@@ -1150,7 +1150,7 @@ def is_complete(
 # `aw ipd finalize` remains the only terminal-transition authority (`verify_roles` reserves terminal
 # authority to the coordinator). Nothing here decides completion, and nothing here may claim to.
 #
-# WHY DATA RATHER THAN BRANCHING LOGIC. The whole policy - 13 codes, their verbatim text, their
+# WHY DATA RATHER THAN BRANCHING LOGIC. The whole policy - 12 codes, their verbatim text, their
 # recovery commands, their abort semantics, and how much of the checker actually decides anything -
 # has to be readable in ONE place and enumerable by a test. The parallel shipped `EV-*` taxonomy
 # (see `validate_evidence`'s docstring at the class list, plus the bare string literals inside its
@@ -1209,9 +1209,13 @@ class RunFindingCode(NamedTuple):
 # THE ACTION IS AS LOAD-BEARING AS THE MESSAGE. Spec 4.1 enumerates SIX abort classes and closes
 # with "No other finding may abort the whole queue". So transcribing a message while inventing its
 # action would silently license aborting a whole queue on an item-local fault - and item-local
-# failure is exactly what lets independent items keep running. Two of the 13 codes abort
-# UNCONDITIONALLY; eight abort ONLY under a named 4.1 class; three never abort. Collapsing that
-# distinction into a single boolean is the error this tri-state exists to prevent.
+# failure is exactly what lets independent items keep running. MEASURED 2026-09-22 over the table
+# below: two of the 12 codes abort UNCONDITIONALLY; five abort ONLY under a named 4.1 class; five
+# never abort. Collapsing that distinction into a single boolean is the error this tri-state exists to
+# prevent. The counts moved twice and BOTH moves are recorded rather than silently overwritten: this
+# comment read "eight ... three" while the table actually held 6 conditional and 5 never even BEFORE
+# `RUN-NO-PUSH` was retired (it was already wrong, presumably from an earlier edit), and retiring that
+# code then took conditional from 6 to 5. Prefer recomputing over trusting this sentence.
 
 ABORT_ALWAYS = "always"
 ABORT_CONDITIONAL = "conditional"
@@ -1246,7 +1250,7 @@ UNBOUND_UNBUILT = "UNBOUND-UNBUILT"
 BINDING_STATES: Tuple[str, ...] = (BOUND, UNBOUND_BY_DEPENDENCY, UNBOUND_UNBUILT)
 
 
-# ---- the 13 codes -------------------------------------------------------------------------------
+# ---- the 12 codes -------------------------------------------------------------------------------
 #
 # BINDINGS RE-MEASURED 2026-09-05 (E-02 requires re-verification, not trust). Three of `wlxkoz`
 # finding F3's bindings had changed since F3 was recorded at HEAD `738980ec`, because both plans it
@@ -1265,7 +1269,15 @@ BINDING_STATES: Tuple[str, ...] = (BOUND, UNBOUND_BY_DEPENDENCY, UNBOUND_UNBUILT
 #     Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so binding
 #     these two now would be exactly the fail-open error described above.
 #
-# Net: 10 BOUND, 2 UNBOUND-BY-DEPENDENCY, 1 UNBOUND-UNBUILT (F3 recorded 9 / 2 / 2).
+# Net as of 2026-09-05: 10 BOUND, 2 UNBOUND-BY-DEPENDENCY, 1 UNBOUND-UNBUILT (F3 recorded 9 / 2 / 2).
+#
+# RE-MEASURED 2026-09-22 AFTER `RUN-NO-PUSH` WAS RETIRED (plan `4h7tt0`, maintainer decision
+# `b23d447d`): 10 BOUND, 2 UNBOUND-BY-DEPENDENCY, 0 UNBOUND-UNBUILT over 12 codes. NO CODE IS
+# UNBOUND-UNBUILT ANY MORE, and that is a RETIREMENT rather than an implementation: the one code in
+# that state named host push-denial enforcement nobody built, so 4.2 stopped promising it instead of
+# binding it to something that does not enforce it. The two remaining unbound codes still WAIT on
+# machinery (a commit-gateway receipt and a trailer READER), so an empty unbuilt set must NOT be read
+# as "everything is now decided by a predicate".
 
 RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
     RunFindingCode(
@@ -1525,34 +1537,20 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
             "'remains wholly unbuilt'"
         ),
     ),
-    RunFindingCode(
-        code="RUN-NO-PUSH",
-        inspects=(
-            "Enforced tool policy, network policy receipt, all captured process events, "
-            "starting/ending remote config and remote-tracking refs"
-        ),
-        pass_criterion=(
-            "Capability preflight proved push denial; no push event or unexplained remote-state "
-            "change exists"
-        ),
-        message=(
-            "[RUN-NO-PUSH] Host <host> could not prove push prevention for <item>. No work may "
-            "start without that capability. Choose a capable host and run: aw <host> run "
-            "<selector>"
-        ),
-        action="FAIL ITEM if refused at preflight; ABORT RUN if a push was attempted",
-        abort=ABORT_CONDITIONAL,
-        abort_classes=("Push attempt",),
-        binding=UNBOUND_UNBUILT,
-        predicates=(),
-        waiting_on=(
-            "host push-denial ENFORCEMENT (backlog `d07nz2`). `host_sandbox_profile` declares "
-            "`supports_deny_push` False and NEVER probes it, because no such enforcement exists "
-            "in this package; `check_engine.check_push_authorization` is LOCAL, bypassable "
-            "pre-push FEEDBACK that explicitly disclaims being an authority boundary, so binding "
-            "this code to it would be a fail-open inference"
-        ),
-    ),
+    # `RUN-NO-PUSH` WAS HERE AND IS RETIRED, not lost. Removed 2026-09-08 by maintainer decision
+    # (commit `b23d447d`), executed by plan `4h7tt0`: spec `25kzda` 4.2 no longer carries the row, so
+    # the vocabulary must not either. Its `pass_criterion` promised "Capability preflight proved push
+    # denial" and it aborted the run on an attempted push, and NOTHING in this repository ever
+    # enforced either. What was withdrawn is the PROMISE, not a protection: `host_sandbox_profile`
+    # declares `supports_deny_push` False and never probes it, so the capability already FAILED CLOSED
+    # and a run needing it was REFUSED - which is why that capability is deliberately LEFT IN PLACE
+    # while this row goes. Building was declined on measured grounds rather than cost: a `pre-push`
+    # hook falls to `--no-verify`, a driver-side helper such as `git_commit_helper.offer_commit` falls
+    # to invoking `git` directly, and a config value falls to the agent rewriting it, so a genuine
+    # boundary means OS-level enforcement (the `x03wgn` sandbox line of work). DO NOT REINTRODUCE THE
+    # CODE BOUND TO A PRESENCE CHECK: inferring push prevention from a helper's, hook's, or flag's
+    # mere existence is forbidden (`host_sandbox_profile.py:88-95`) and converts today's safe
+    # fail-closed state into a fail-OPEN checker, which is strictly worse than having no code at all.
     RunFindingCode(
         code="RUN-CHECK-FRESHNESS",
         inspects=(
@@ -1614,7 +1612,7 @@ RUN_FINDING_CODES_BY_CODE: Dict[str, RunFindingCode] = {
 
 
 def run_finding_codes() -> Tuple[str, ...]:
-    """The 13 stable finding codes of spec `25kzda` 4.2, in spec order."""
+    """The 12 stable finding codes of spec `25kzda` 4.2, in spec order."""
     return tuple(row.code for row in RUN_FINDING_CODES)
 
 
@@ -1638,7 +1636,7 @@ def spec_message_for(code: str, **placeholders: Any) -> str:
 def may_abort_run(code: str) -> bool:
     """True when this finding may EVER abort the whole queue (always or conditionally).
 
-    Deliberately reports "may", not "does": spec 4.1 licenses eight of the 13 codes to abort only
+    Deliberately reports "may", not "does": spec 4.1 licenses five of the 12 codes to abort only
     under a named abort class, so a caller deciding to abort must also establish that class. Use
     :func:`abort_classes_for` for it. Reading a conditional row as an unconditional abort would let
     an item-local fault stop a whole queue, which spec 4.1's closing rule forbids.
@@ -1669,7 +1667,7 @@ def validate_finding_table() -> EvidenceValidationResult:
     """Self-check the table's internal invariants (not the spec text; a test asserts that).
 
     Enforced here so a later edit cannot quietly break a structural rule:
-      * exactly 13 codes, each unique, each named ``RUN-*``;
+      * exactly 12 codes, each unique, each named ``RUN-*``;
       * every ``binding`` is a known state, and BOUND rows carry at least one predicate while
         unbound rows carry none and name what they wait on;
       * every ``abort`` is a known tri-state, every ``abort_classes`` entry is one of spec 4.1's
@@ -1683,11 +1681,11 @@ def validate_finding_table() -> EvidenceValidationResult:
     def _fail(code: str, where: str, message: str, reason: str) -> None:
         findings.append(EvidenceFinding(code, where, message, reason))
 
-    if len(RUN_FINDING_CODES) != 13:
+    if len(RUN_FINDING_CODES) != 12:
         _fail(
             "RC-COUNT",
             "RUN_FINDING_CODES",
-            f"spec 25kzda 4.2 defines 13 codes, table has {len(RUN_FINDING_CODES)}",
+            f"spec 25kzda 4.2 defines 12 codes, table has {len(RUN_FINDING_CODES)}",
             "finding-code table size does not match the spec",
         )
     seen: Set[str] = set()

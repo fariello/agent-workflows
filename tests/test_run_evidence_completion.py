@@ -1070,7 +1070,7 @@ def _parse_spec_abort_classes() -> List[str]:
 
 
 class TestRunFindingCodeVocabulary(unittest.TestCase):
-    """E-01 / E-02 / V-01 / V-02: the 13 `RUN-*` codes, their verbatim text, and their bindings."""
+    """E-01 / E-02 / V-01 / V-02: the 12 `RUN-*` codes, their verbatim text, and their bindings."""
 
     def setUp(self) -> None:
         if not _SPEC_PATH.exists():  # pragma: no cover - installed-package layout
@@ -1079,16 +1079,29 @@ class TestRunFindingCodeVocabulary(unittest.TestCase):
 
     # ---- E-01: the codes exist as data, transcribed verbatim -------------------------------------
 
-    def test_spec_defines_exactly_thirteen_run_codes(self) -> None:
-        """Guard the guard: if the SPEC's own table stops having 13 rows, every other case is moot."""
+    def test_spec_defines_exactly_twelve_run_codes(self) -> None:
+        """Guard the guard: if the SPEC's own table stops having 12 rows, every other case is moot.
+
+        WAS THIRTEEN UNTIL 2026-09-08, when `RUN-NO-PUSH` was RETIRED from spec 4.2 by maintainer
+        decision (commit `b23d447d`, executed by plan `4h7tt0`). The count is amended DELIBERATELY
+        here rather than loosened to a range: the point of this case is that a row cannot appear or
+        vanish without a reviewed edit, so replacing `12` with `len(RUN_FINDING_CODES)` would delete
+        the very guard it is.
+        """
         self.assertEqual(
             len(self.spec_rows),
-            13,
-            f"spec 4.2 should define 13 RUN-* codes, parsed {sorted(self.spec_rows)}",
+            12,
+            f"spec 4.2 should define 12 RUN-* codes, parsed {sorted(self.spec_rows)}",
+        )
+        self.assertNotIn(
+            "RUN-NO-PUSH",
+            self.spec_rows,
+            "RUN-NO-PUSH was retired from spec 4.2 on 2026-09-08 (b23d447d); reintroducing the row "
+            "would re-promise push denial this repository does not enforce",
         )
 
-    def test_table_enumerates_exactly_the_specs_thirteen_codes(self) -> None:
-        self.assertEqual(len(evidence.RUN_FINDING_CODES), 13)
+    def test_table_enumerates_exactly_the_specs_twelve_codes(self) -> None:
+        self.assertEqual(len(evidence.RUN_FINDING_CODES), 12)
         self.assertEqual(
             sorted(evidence.run_finding_codes()),
             sorted(self.spec_rows),
@@ -1264,11 +1277,18 @@ class TestRunFindingCodeVocabulary(unittest.TestCase):
                 self.assertTrue(row.waiting_on.strip())
 
     def test_measured_binding_partition_is_recorded(self) -> None:
-        """The measured 2026-09-05 partition, pinned so a silent change is visible in review.
+        """The measured partition, pinned so a silent change is visible in review.
 
         Not a claim that these bindings are eternal: it is a claim that CHANGING one is a deliberate,
         reviewed act rather than a drive-by edit. `wlxkoz` finding F3 recorded 9/2/2 at an earlier
-        HEAD; re-measurement after `mjx7ne`, `m73aet`, and `m2wwns` executed gives 10/2/1.
+        HEAD; re-measurement after `mjx7ne`, `m73aet`, and `m2wwns` executed gave 10/2/1 on
+        2026-09-05; and retiring `RUN-NO-PUSH` on 2026-09-08 (`b23d447d`, plan `4h7tt0`) gives the
+        current 10/2/0 over 12 codes.
+
+        THE EMPTY UNBUILT SET IS A RETIREMENT, NOT AN IMPLEMENTATION, and asserting it empty is the
+        point rather than an accident of arithmetic. The only UNBOUND-UNBUILT code named host
+        push-denial enforcement that does not exist, so 4.2 stopped promising it; nothing was built.
+        A future code added in that state must fail this case and be argued for in review.
         """
         self.assertEqual(
             sorted(evidence.bound_run_finding_codes()),
@@ -1298,7 +1318,7 @@ class TestRunFindingCodeVocabulary(unittest.TestCase):
         self.assertEqual(
             sorted(by_dependency), ["RUN-COMMIT-CONTENTS", "RUN-COMMIT-GATEWAY"]
         )
-        self.assertEqual(unbuilt, ["RUN-NO-PUSH"])
+        self.assertEqual(unbuilt, [])
 
     def test_host_capability_binding_agrees_with_the_shipped_implementation(
         self,
