@@ -416,6 +416,54 @@ def is_project_dir(repo_root: str | Path) -> bool:
     )
 
 
+def read_project_identity(repo_root: str | Path) -> Dict[str, Optional[str]]:
+    """Return ``{"preset": ..., "records_backend": ...}`` as RECORDED IN THE REPOSITORY.
+
+    THE ONE READER for the two fields `aw doctor` and `aw status` report, so those two commands
+    cannot give different answers (IPD h90ij1 E-02/E-05). Both previously hand-rolled their own
+    read of ``.aw/config.json`` / ``.agents/config.json``, a file NEITHER layout ever creates, so
+    both reported ``None`` for every correctly installed repo.
+
+    PRECEDENCE, explicit rather than incidental, because ``records_backend`` legitimately appears
+    in more than one file and "whichever I find first" is how the two answers drift apart:
+
+      1. ``.aw/config/project.json``  - the canonical COMMITTED project policy. It is what
+         `install_wizard.resolve_existing_policy` treats as authoritative and what
+         `resolve_project_context` reads as Level 3 PROJECT_DURABLE_CONFIG, and it is the only
+         one of these files that carries BOTH keys. It therefore wins.
+      2. ``.aw/config/config.json``   - the LEGACY pre-split config, migrated forward by
+         `project_schema.migrate_legacy_config`. Consulted per KEY, so a legacy file can still
+         supply a field the canonical file omits, but it never overrides the canonical file.
+      3. ``.agents/config.json``      - the pre-`.aw` layout, retained for an un-migrated repo.
+
+    Deliberately NOT ``resolve_project_context``: that resolver LAYERS machine-local and global
+    state (``.aw/config/local.json``, the user config, a named profile) and FALLS BACK to a
+    built-in default, so it always yields a value and can never answer "is this repo configured,
+    and as what?". These two commands report the repo's own recorded state, so an unconfigured
+    repo must read back ``None`` and not a fabricated default.
+
+    Read-only, exception-free, and layout-agnostic: an unreadable or non-JSON file contributes
+    nothing rather than raising, exactly as the hand-rolled reads it replaces behaved.
+    """
+
+    root = Path(repo_root)
+    resolved: Dict[str, Optional[str]] = {"preset": None, "records_backend": None}
+    for candidate in (
+        root / ".aw" / "config" / "project.json",
+        root / ".aw" / "config" / "config.json",
+        root / ".agents" / "config.json",
+    ):
+        data = _read_json_file(str(candidate))
+        if not data:
+            continue
+        for key in ("preset", "records_backend"):
+            if resolved[key] is None:
+                value = data.get(key)
+                if isinstance(value, str) and value:
+                    resolved[key] = value
+    return resolved
+
+
 def _derive_project_id(target_repo: str) -> str:
     """Derive deterministic project ID from target_repo path."""
     repo_name = Path(target_repo).name or "project"

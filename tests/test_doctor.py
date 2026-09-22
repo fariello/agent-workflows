@@ -27,8 +27,18 @@ class DoctorTests(unittest.TestCase):
         _git(self.root, "config", "user.name", "T")
         (self.root / ".aw" / "records").mkdir(parents=True)
         # Seed an installed VERSION matching the packaged/source version so version-drift is clean.
+        # h90ij1: the marker goes at `.aw/system/VERSION`, the location `engine.read_installed_version`
+        # actually probes and every install writes. This fixture previously wrote `.aw/VERSION`, a path
+        # NO layout creates; it only read back as "installed" because doctor's probe was reading the
+        # same fictional path. With both sides corrected the fixture is genuinely installed, so the
+        # emitted layout document must be present too or `check.system-layout-missing` fires (which is
+        # correct behavior for an installed workspace, see check_engine.check_system_layout).
         packaged = versioning.resolve_version(engine.resolve_source_root(None))
-        (self.root / ".aw" / "VERSION").write_text(packaged + "\n", encoding="utf-8")
+        (self.root / ".aw" / "system").mkdir(parents=True)
+        (self.root / ".aw" / "system" / "VERSION").write_text(
+            packaged + "\n", encoding="utf-8"
+        )
+        engine.emit_layout_artifacts(self.root)
         _git(self.root, "add", "-A")
         _git(self.root, "commit", "-qm", "init")
 
@@ -173,6 +183,111 @@ class DoctorTests(unittest.TestCase):
                 types.SimpleNamespace(dir=str(self.root), as_agent=False), term=term
             )
         self.assertIn("Starting aw doctor repository health check...", out.getvalue())
+
+
+class DoctorEnvironmentProbeReadsCanonicalPathsTests(unittest.TestCase):
+    """h90ij1: doctor's environment probe must read the paths a real install actually writes.
+
+    Before the fix, `probe_environment` resolved the installed VERSION from `.aw/VERSION` and
+    `.agents/VERSION`, and the preset/backend from `.aw/config.json` / `.agents/config.json`.
+    NONE of those four paths is created by either supported layout, so a correctly installed
+    target read back as `not installed` with a blank preset and backend.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _install_marker(self, rel: str, value: str) -> None:
+        marker = self.root / rel
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(value + "\n", encoding="utf-8")
+
+    def test_probe_agrees_with_engine_on_aw_system_version(self) -> None:
+        """E-03/V-01: the probe must return what the single version authority returns.
+
+        Binds doctor's answer to `engine.read_installed_version` rather than to a literal path,
+        so a future change to the probe order cannot silently desynchronize the two again.
+        """
+        self._install_marker(".aw/system/VERSION", "1.2.1")
+
+        expected = engine.read_installed_version(self.root)
+        self.assertEqual(expected, "1.2.1")
+        self.assertEqual(
+            doctor.probe_environment(self.root).installed_version, expected
+        )
+
+    def test_probe_agrees_with_engine_on_legacy_workflows_version(self) -> None:
+        """V-01 (second half): the legacy `.agents/workflows/VERSION` location resolves too."""
+        self._install_marker(".agents/workflows/VERSION", "1.1.0")
+
+        expected = engine.read_installed_version(self.root)
+        self.assertEqual(expected, "1.1.0")
+        self.assertEqual(
+            doctor.probe_environment(self.root).installed_version, expected
+        )
+
+    def test_probe_reads_preset_and_backend_from_canonical_project_config(self) -> None:
+        """E-02/V-02: preset and backend come from `.aw/config/project.json`."""
+        cfg = self.root / ".aw" / "config"
+        cfg.mkdir(parents=True)
+        (cfg / "project.json").write_text(
+            '{"schema_version": 2, "preset": "private-target",'
+            ' "records_backend": "repository"}\n',
+            encoding="utf-8",
+        )
+
+        res = doctor.probe_environment(self.root)
+        self.assertEqual(res.preset, "private-target")
+        self.assertEqual(res.backend, "repository")
+
+    def test_healthy_installed_target_emits_no_version_not_installed_finding(
+        self,
+    ) -> None:
+        """E-04/V-04: the user-visible symptom - a healthy NON-SOURCE target must not be
+        reported as `not installed`.
+
+        Distinct surface from the read tests above: this asserts on the drift entry the read
+        DRIVES. It must be a non-source repo, because the finding is gated on
+        `not res.is_source_repo`, which is exactly why the framework's own checkout never
+        showed the bug.
+        """
+        packaged = versioning.resolve_version(engine.resolve_source_root(None))
+        self._install_marker(".aw/system/VERSION", packaged)
+        (self.root / ".aw" / "records").mkdir(parents=True, exist_ok=True)
+
+        res = doctor.probe_environment(self.root)
+        self.assertFalse(res.is_source_repo)
+        self.assertEqual(res.installed_version, packaged)
+        self.assertNotIn(
+            "doctor.version-not-installed",
+            [d.rule for d in res.drift],
+            [f"{d.rule}:{d.detail}" for d in res.drift],
+        )
+
+    def test_status_and_doctor_report_the_same_preset_and_backend(self) -> None:
+        """E-05/V-05: `aw status` and `aw doctor` share ONE reader, so they cannot diverge."""
+        from agent_workflows import cli
+
+        cfg = self.root / ".aw" / "config"
+        cfg.mkdir(parents=True)
+        (cfg / "project.json").write_text(
+            '{"schema_version": 2, "preset": "public-target-private-companion",'
+            ' "records_backend": "companion"}\n',
+            encoding="utf-8",
+        )
+        self._install_marker(".aw/system/VERSION", "1.2.1")
+
+        env = doctor.probe_environment(self.root)
+        status = cli._collect_repo_status_details(self.root, "1.3.0")
+
+        self.assertEqual(env.preset, "public-target-private-companion")
+        self.assertEqual(env.backend, "companion")
+        self.assertEqual(status["preset"], env.preset)
+        self.assertEqual(status["backend"], env.backend)
 
 
 if __name__ == "__main__":

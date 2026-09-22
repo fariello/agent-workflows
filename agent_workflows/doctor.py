@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as attention_mod
 from agent_workflows import check_engine, engine, leak_sanitizer, versioning
+from agent_workflows import project_context
 from agent_workflows import term as T
 from agent_workflows.renderers import get_renderer
 from agent_workflows.result_types import (
@@ -346,28 +347,19 @@ def probe_environment(
         else:
             res.layout = "unconfigured"
 
-        config_path = repo_root / ".aw" / "config.json"
-        if not config_path.is_file():
-            config_path = repo_root / ".agents" / "config.json"
-        if config_path.is_file():
-            try:
-                import json
+        # Preset / records backend, via the ONE shared reader `aw status` also uses, so the two
+        # commands cannot diverge (h90ij1 E-02). This probe formerly read `.aw/config.json`, a file
+        # no layout creates, and so blanked both fields on every correctly installed repo.
+        identity = project_context.read_project_identity(repo_root)
+        res.preset = identity["preset"]
+        res.backend = identity["records_backend"]
 
-                cfg = json.loads(config_path.read_text(encoding="utf-8"))
-                res.preset = cfg.get("preset")
-                res.backend = cfg.get("records_backend")
-            except Exception:
-                pass
-
-        # Versioning
-        vfile = repo_root / ".aw" / "VERSION"
-        if not vfile.is_file():
-            vfile = repo_root / ".agents" / "VERSION"
-        if vfile.is_file():
-            try:
-                res.installed_version = vfile.read_text(encoding="utf-8").strip()
-            except OSError:
-                pass
+        # Versioning: delegate to the SINGLE authority for "what version is installed here"
+        # (h90ij1 E-01). Hand-rolling the probe here read `.aw/VERSION` and `.agents/VERSION`,
+        # neither of which any layout writes, so a healthy install reported `not installed`.
+        # `read_installed_version` returns None when not installed, which is exactly the value
+        # this field already carried in that case, so the drift/report contract is unchanged.
+        res.installed_version = engine.read_installed_version(repo_root)
 
         try:
             res.packaged_version = versioning.resolve_version(
