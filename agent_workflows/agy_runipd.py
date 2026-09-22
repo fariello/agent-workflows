@@ -1154,7 +1154,13 @@ def driver_finalize(
     changed paths, `--scope-ack` for declared-but-unmodified paths) from the plan's Scope-Paths vs
     the actual changed paths, then invokes the SAME gated finalize surface (no forked path). Never
     forces the transition: a refusal returns nonzero and the caller records the child NOT-executed.
-    Returns (exit_code, stderr)."""
+    Returns (exit_code, stderr).
+
+    IDEMPOTENT (finidem `ld8lb3` E-05), through the SAME `runner_shared.finalize_outcome` the oc twin
+    uses: a plan whose terminal transition already succeeded is reported as success so the caller
+    integrates, instead of being refused for the receipt that success consumed. This is TWO changed
+    sites because `driver_finalize` is genuinely duplicated per host; the DECISION is shared, so the
+    two hosts cannot drift into two answers."""
     reasons, acks = _compute_scope_reconciliation(repo, plan_path)
     # lanetruth Order 01 (af7i6p): THE primary lane-shadowed site (mirrors oc_runipd). `repo` is the
     # LANE worktree and `cwd=str(repo)` below keeps it that way DELIBERATELY, because finalize must
@@ -1190,7 +1196,15 @@ def driver_finalize(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    return result.returncode, (result.stderr or result.stdout or "").strip()
+    # finidem `ld8lb3` E-05: identical to the oc twin's last step, and deliberately the SAME shared
+    # decision function rather than a second copy of the rule.
+    return runner_shared.finalize_outcome(
+        repo,
+        plan_path,
+        id6,
+        result.returncode,
+        (result.stderr or result.stdout or "").strip(),
+    )
 
 
 # --- driverfin-02 (emus4n): per-run worktree isolation + integrate-back ---------------------------

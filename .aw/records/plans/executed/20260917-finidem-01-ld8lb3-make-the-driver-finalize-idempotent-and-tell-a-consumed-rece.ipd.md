@@ -6,7 +6,7 @@
 - Scope: TWO changes, one per defect, in the two places that own them. (1) BEHAVIOR: make the driver's finalize step idempotent, so an already-finalized item proceeds to INTEGRATION instead of being refused. (2) DIAGNOSIS: make `finalize_precheck` distinguish a CONSUMED receipt (the transition already succeeded) from a NEVER-ISSUED one (genuinely no authority), with distinct findings a caller can branch on. THIRD ITEM AMENDED AT REVIEW: the transition owner is NOT undecided (the driver owns it whenever `self_finalize` is true, enforced since `cdef9c90` by the `AW_EXECUTION_ROLE=worker` guard, and APPROVED plan `8b9ufm` already states it at turn start), so E-06 no longer "decides and documents" an owner. It instead closes the measured DELEGATION HOLE in that guard: `worker_role_active` is checked only in the CLI wrappers, so `aw set executed` reaches `finalize()` from a worker lane unguarded.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_finidem_double_finalize.py, tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - From-Backlog: 02371s
@@ -15,9 +15,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: ld8lb3
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: ld8lb3 verified (set finidem, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_ipd_lifecycle_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-18 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED; OQ-01 resolved from evidence; corrected a fail-open predicate, a false finding, and an E-06 that duplicated approved plan 8b9ufm
@@ -74,52 +74,52 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reproduce before changing anything
 
-- [ ] E-01 Build a FAILING reproduction in `tests/test_finidem_double_finalize.py`: a scratch repo with a begin receipt, one successful finalize, then a SECOND finalize of the same plan. Assert the second refuses with the receipt message today. This is the falsifiable baseline every later item is measured against; write it first so the fix cannot be declared without it.
+- [x] E-01 Build a FAILING reproduction in `tests/test_finidem_double_finalize.py`: a scratch repo with a begin receipt, one successful finalize, then a SECOND finalize of the same plan. Assert the second refuses with the receipt message today. This is the falsifiable baseline every later item is measured against; write it first so the fix cannot be declared without it.
   - Depends on: none
   - Expected outcome: a test that FAILS to finalize on the second call and whose refusal text matches the message measured in run `run-20260917T210518Z-1714328` ("no begin receipt for ... no execution authority"). Paste the failure.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Tell the three causes apart (894vzu)
 
-- [ ] E-02 In `finalize_precheck`, replace the single `receipt is None` verdict with a classification, and return a DISTINCT finding id per cause: ALREADY-FINALIZED, NEVER-ISSUED (no receipt and the plan is still non-terminal), and keep today's STALE branch untouched.
+- [x] E-02 In `finalize_precheck`, replace the single `receipt is None` verdict with a classification, and return a DISTINCT finding id per cause: ALREADY-FINALIZED, NEVER-ISSUED (no receipt and the plan is still non-terminal), and keep today's STALE branch untouched.
   ALREADY-FINALIZED MUST BE RECOGNIZED BY A POSITIVE, PLAN-BOUND OBSERVATION, and specifically NOT by `run_selection_policy.is_in_terminal_directory`, which the authored plan named and which is WRONG here: it returns True for `/reusable/`, a disposition the runner re-dispatches (`_IPD_ACTIONS["reusable"] == ACTION_EXECUTE`), so it would read a never-issued receipt on a reusable plan as success. Use `runner_shared.plan_bucket(path) == "executed"`, and PREFER additionally requiring the plan-bound lifecycle commit `artifact_core.finalize_commit_subject(plan_id)` (already the pre-commit gate's proof of a genuine finalize). If you cannot get the commit signal cheaply, the `executed` bucket alone is acceptable; `is_in_terminal_directory` is NOT.
   - Depends on: E-01
   - Expected outcome: three distinguishable outcomes from `finalize_precheck`, each with its own finding id and message; the NEVER-ISSUED message keeps its current wording because it is correct for that case. Paste evidence that a `/reusable/` plan with no receipt classifies NEVER-ISSUED and still refuses.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the ALREADY-FINALIZED message state the true situation and NOT prescribe `aw ipd begin`. Running begin on an already-finalized plan would mint authority for work that is complete, which is the actively harmful remedy today's message recommends.
+- [x] E-03 Make the ALREADY-FINALIZED message state the true situation and NOT prescribe `aw ipd begin`. Running begin on an already-finalized plan would mint authority for work that is complete, which is the actively harmful remedy today's message recommends.
   - Depends on: E-02
   - Expected outcome: the ALREADY-FINALIZED text names the terminal directory and the finalize commit if resolvable, and recommends no begin. Quote the before and after wording.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Make the driver idempotent (02371s)
 
-- [ ] E-04 At the driver's finalize site (`oc_runipd.py:7683` and its refusal arm at `:7925-7945`), treat ALREADY-FINALIZED as success: proceed to integration and record the item `executed`, rather than leaving it `substantially-complete` with a preserved lane. Do NOT treat a bare missing receipt as success, which would weaken the fail-closed gate.
+- [x] E-04 At the driver's finalize site (`oc_runipd.py:7683` and its refusal arm at `:7925-7945`), treat ALREADY-FINALIZED as success: proceed to integration and record the item `executed`, rather than leaving it `substantially-complete` with a preserved lane. Do NOT treat a bare missing receipt as success, which would weaken the fail-closed gate.
   HOW THE DRIVER LEARNS THE CAUSE IS AN OPEN DESIGN CHOICE THIS ITEM MUST MAKE AND RECORD, because the authored instruction ("consume E-02's finding id") is not satisfiable through today's channel: `driver_finalize` returns only `(returncode, stderr_text)` and `aw ipd finalize` registers no `--agent`/`--json` on that path. Pick ONE and say which: (a) call the in-process classification predicate directly from the driver (no subprocess text parsing); or (b) add structured output to the finalize surface and DECLARE `agent_workflows/cli.py` in `Scope-Paths` first. Substring-matching the refusal prose is NOT acceptable.
   - Depends on: E-02
   - Expected outcome: an item whose agent self-finalized ends `executed` and INTEGRATED. A genuinely never-issued receipt still refuses exactly as it does today. State which of (a)/(b) was chosen and why.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Apply the same change to the agy host. The "or prove it already shares the site" branch is DEAD and was removed at review: `driver_finalize` is duplicated per host (`oc_runipd.py:1294`, `agy_runipd.py:1037`) and so is the whole result-handling block (`oc_runipd.py:7651-7945`, `agy_runipd.py:4266-4490`). Only `driver_begin` is shared (`runner_shared.py:8440`). So this is TWO changed sites, and if lifting the shared logic into `runner_shared` is preferable, note that `hostdedup` (`li44r9`, `nmlx47`) and the `rununify` Set are already moving these same symbols; coordinate rather than lift unilaterally.
+- [x] E-05 Apply the same change to the agy host. The "or prove it already shares the site" branch is DEAD and was removed at review: `driver_finalize` is duplicated per host (`oc_runipd.py:1294`, `agy_runipd.py:1037`) and so is the whole result-handling block (`oc_runipd.py:7651-7945`, `agy_runipd.py:4266-4490`). Only `driver_begin` is shared (`runner_shared.py:8440`). So this is TWO changed sites, and if lifting the shared logic into `runner_shared` is preferable, note that `hostdedup` (`li44r9`, `nmlx47`) and the `rununify` Set are already moving these same symbols; coordinate rather than lift unilaterally.
   - Depends on: E-04
   - Expected outcome: both hosts handle ALREADY-FINALIZED identically, evidenced by the two changed sites with matching behavior demonstrated per host.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Remove the root cause, not just its symptom
 
-- [ ] E-06 Close the ROLE-GUARD DELEGATION HOLE: move (or duplicate) the `worker_role_active` refusal from the CLI wrapper into `finalize()` itself, so `aw set executed` / `aw ipd set executed` cannot perform a terminal transaction from a worker lane.
+- [x] E-06 Close the ROLE-GUARD DELEGATION HOLE: move (or duplicate) the `worker_role_active` refusal from the CLI wrapper into `finalize()` itself, so `aw set executed` / `aw ipd set executed` cannot perform a terminal transaction from a worker lane.
   THIS ITEM WAS REWRITTEN AT REVIEW (PR-005/PR-006). It previously asked the executor to "decide and DOCUMENT one owner of the terminal transition", which is (i) ALREADY DECIDED - the driver owns it whenever `self_finalize` is true, enforced since commit `cdef9c90` by `AW_EXECUTION_ROLE=worker` (`oc_runipd.py:5843`, `agy_runipd.py:2750`) plus the `AW-LIFECYCLE-ROLE-001` refusal (`ipd_lifecycle.py:4285`); and (ii) ALREADY OWNED by APPROVED plan `8b9ufm` (roleadv-01), which states that role at turn start in all four prompt builders, correctly conditions it on the run's frozen `self_finalize`, and declares the same three source files this plan does. Doing it here would collide with an approved plan and re-decide a settled question.
   WHAT IS GENUINELY UNOWNED is the hole F-10b measures: the guard lives in `run_begin`/`run_finalize` and NOT in `finalize()`, and `status_set.py` never consults it, so the `aw set executed` delegation path (`status_set.py:1144`) is unguarded. Fix THAT. Follow the precedent already in the tree: `retire_orchestrator` had the identical gap and solved it by checking the predicate itself (`ipd_lifecycle.py:3177`), recorded in `ROLLUP_SHARED_GATES` as `"worker-role-refusal"` with the note "NOT inherited ... so this path had to check it itself".
   HONEST LIMIT TO STATE, NOT TO FIX HERE: the env marker is a SELECTOR, not a boundary (its own comment says so), and the measured incident defeated it with `env -u AW_EXECUTION_ROLE`. Closing THAT needs an OS sandbox or a separate principal and is explicitly out of scope; record it as a follow-on. Note also that the `env -u` habit is driven by a real defect (31 lifecycle tests fail in a lane, backlog `770fkp`/`s0303g`), so agents will keep reaching for it until that is fixed; say so rather than assuming instruction alone will hold.
   - Depends on: E-04
   - Expected outcome: `aw set executed <plan>` from a worker-role process refuses with `AW-LIFECYCLE-ROLE-001` and performs no status edit, no move, and no commit; the coordinator path is byte-identical. Paste both. Cite `8b9ufm` as the owner of the prompt-side statement and do NOT edit the prompt builders here.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Extend `tests/test_finidem_double_finalize.py` to pin the end state: the E-01 reproduction now reaches `executed` and INTEGRATED; a never-issued receipt still refuses; a STALE receipt still refuses. Assert the three finding ids are distinct, so a future change cannot silently collapse them back into one verdict.
+- [x] E-07 Extend `tests/test_finidem_double_finalize.py` to pin the end state: the E-01 reproduction now reaches `executed` and INTEGRATED; a never-issued receipt still refuses; a STALE receipt still refuses. Assert the three finding ids are distinct, so a future change cannot silently collapse them back into one verdict.
   ADDED AT REVIEW, and this case is the load-bearing one: include a REUSABLE-PLAN CONTROL. A plan in `.aw/records/plans/reusable/` with NO receipt must classify NEVER-ISSUED and REFUSE. Without this assertion the fail-open regression PR-001 identified can be reintroduced by one line (swapping the bucket test back to `is_in_terminal_directory`) with every other test in this file still green.
   - Depends on: E-03, E-05, E-06
   - Expected outcome: a guard covering all three causes, the reusable control, and the integration outcome, shown to fail if any two causes are merged AND shown to fail if the predicate is widened to `is_in_terminal_directory`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -217,11 +217,17 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - MAKING THE RECEIPT MULTI-USE is explicitly rejected, not deferred. Single-use consumption is what makes
   it a proof of a completed transaction; a reusable token would let two actors both believe they hold
   authority, which is the hazard `x03wgn` S7 already documents for the receipt-copy path.
+  - Carrier-Declined: REJECTED, not deferred, so there is nothing for a carrier to carry. Filing an item
+    for it would put a decision the repository has already made back on the backlog as open work.
 - REPAIRING THE MEASURED RUN'S STATE FILE is out of scope. `63425h` still reads `substantially-complete`
   in `run-20260917T210518Z-1714328`'s state, and rewriting a historical run record would falsify history;
   the plan is correctly in `executed/` in main, so the durable record is right.
+  - Carrier-Declined: The correct end state is that the historical record stays as measured, so this owes
+    no follow-on work. A carrier would assert a repair is wanted, and it is not: the durable artifact
+    (the plan in `executed/`) is already right, and only the run's own immutable log disagrees.
 - The pre-existing duplicate-status backlog items (`egqt32`, `nuanaw`, tracked as `5bmq5f`) are unrelated
   and are the 2 violations `aw backlog check` reports today; do not "fix" them here.
+  - Carrier: 5bmq5f
 
 ## Scope check
 
@@ -239,6 +245,12 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
   partly self-inflicted, because agents adopt `env -u` legitimately to get a trustworthy suite baseline
   (31 lifecycle tests fail in a lane: backlog `770fkp` high, `s0303g` medium). Fixing THOSE removes the
   incentive and is the higher-leverage change; it belongs to those items, not here.
+  - VERIFIED AT EXECUTION, and the picture has improved since authoring: backlog `c4yixg` already
+    carries the bypass itself, and the INCENTIVE half is now closed - `conftest.py` pops
+    `AW_EXECUTION_ROLE` at session import (backlog `1uq1cu`, in `done/`), so the 31 in-lane lifecycle
+    failures no longer occur. Measured in THIS lane: a bare `python3 -m pytest` needed no `env -u` and
+    reported `2 failed, 8063 passed`, with both failures proven pre-existing at HEAD. So the remaining
+    exposure is a deliberate bypass, not a defect-driven habit.
 - Sequencing note added at review: `oc_runipd.py` / `agy_runipd.py` / `ipd_lifecycle.py` are among the
   most contended files in the pending corpus (28 approved plans declare at least one of them, and
   `8b9ufm` declares three of the four this plan does). This is NOT a runtime hazard - the runner isolates
@@ -317,52 +329,290 @@ per the plan-may-amend-a-spec rule.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the reproduction's FAILURE output pasted, showing the second finalize refused with
     the "no begin receipt ... no execution authority" text. A reproduction that does not fail at HEAD is not
     a reproduction of this defect.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE REPRODUCTION FAILED AT HEAD, in both forms required. (a) The test file itself,
+    written first and run against unmodified source:
 
-- [ ] V-02 validates E-02
+    ```
+    $ python3 -m pytest tests/test_finidem_double_finalize.py -o addopts=""
+    ========================= 14 failed, 2 passed in 2.74s =========================
+    FAILED ...::TheSecondFinalizeOfTheSamePlan::test_the_second_finalize_reports_ALREADY_FINALIZED_not_missing_authority
+    FAILED ...::TheSecondFinalizeOfTheSamePlan::test_a_never_issued_receipt_STILL_refuses_with_the_unchanged_message
+    FAILED ...::ReusablePlanIsNotAlreadyFinalized::test_a_reusable_plan_with_NO_receipt_classifies_NEVER_ISSUED_and_refuses
+    FAILED ...::TheWorkerRoleCannotDelegateAroundTheGuard::test_aw_set_executed_from_a_worker_lane_refuses
+    (AttributeError: module 'agent_workflows.ipd_lifecycle' has no attribute 'plan_already_finalized')
+    ```
+
+    (b) The DEFECT itself measured directly at HEAD, which is the part that matters, because an
+    AttributeError proves only that the API is absent. The measured second finalize:
+
+    ```
+    begin exit: 0
+    FIRST finalize: 0 finalized abc123 -> executed at 5948ca40c16f (actor opencode/test).
+    plan now in executed/: True
+    receipt still present: False
+    SECOND finalize exit_code: 1
+    SECOND finalize message: no begin receipt for abc123: run `aw ipd begin` first (fail-closed: no
+      receipt = no execution authority).
+    SECOND finalize findings: ('missing begin receipt at .../.aw/state/ipd-lifecycle/abc123.receipt.json',)
+    ```
+
+    That is byte-for-byte the refusal measured in run `run-20260917T210518Z-1714328` for `63425h`, and it
+    is FALSE in this situation: begin ran, authority existed, and the transition already succeeded.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the three outcomes demonstrated with their DISTINCT finding ids: ALREADY-FINALIZED,
     NEVER-ISSUED, STALE. Show that the STALE branch's behavior is unchanged from HEAD. PLUS the
     FAIL-OPEN CONTROL added at review: a plan in `reusable/` with no receipt classifies NEVER-ISSUED and
     REFUSES, with the output pasted. State in one line which predicate ALREADY-FINALIZED keys on and
     confirm it is not `is_in_terminal_directory`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PREDICATE, in one line as demanded: ALREADY-FINALIZED keys on
+    `runner_shared.plan_bucket(path) == "executed"`, corroborated by the plan-bound
+    `artifact_core.finalize_commit_subject` commit when resolvable, and it is NOT
+    `is_in_terminal_directory`.
 
-- [ ] V-03 validates E-03
+    All four cases measured against the real `finalize_precheck`:
+
+    ```
+    ### CAUSE 2: NEVER-ISSUED (no begin, plan in pending/)
+    exit: 1
+    message: no begin receipt for abc123: run `aw ipd begin` first (fail-closed: no receipt = no
+      execution authority).
+    findings: ('receipt-never-issued', 'missing begin receipt at .../abc123.receipt.json')
+
+    ### CAUSE 1: ALREADY-FINALIZED (receipt CONSUMED by the success)
+    exit: 1
+    message: abc123 is ALREADY FINALIZED: its terminal transition already succeeded (see the lifecycle
+      commit 76ba80cfce73) and that success consumed the begin receipt. Nothing remains to transition;
+      treat this as done rather than re-authorizing it.
+    findings: ('receipt-consumed-already-finalized',)
+    evidence['already_finalized']: {'bucket': 'executed',
+      'lifecycle_commit': '76ba80cfce736c65cea22d89f7cd825c5cc253bd', 'note': '...'}
+    prescribes `aw ipd begin`?: False
+
+    ### CAUSE 3: STALE (behavior UNCHANGED from HEAD)
+    exit: 1
+    message: the begin receipt for stl999 is STALE: the plan content changed since begin; re-run
+      `aw ipd begin`.
+    findings: ('plan content digest no longer matches the receipt',)
+
+    ### THE FAIL-OPEN CONTROL: a /reusable/ plan with NO receipt
+    REJECTED predicate is_in_terminal_directory(reusable) = True
+    _IPD_ACTIONS['reusable'] = execute (the runner RE-DISPATCHES it)
+    ADMISSIBLE predicate plan_bucket(reusable)          = reusable
+    plan_already_finalized(...).already                 = False
+    exit: 1
+    message: no begin receipt for reu777: run `aw ipd begin` first (fail-closed: no receipt = no
+      execution authority).
+    findings: ('receipt-never-issued', 'missing begin receipt at .../reu777.receipt.json')
+
+    ### THE THREE FINDING IDS
+      FINDING_RECEIPT_ALREADY_FINALIZED = 'receipt-consumed-already-finalized'
+      FINDING_RECEIPT_NEVER_ISSUED = 'receipt-never-issued'
+      FINDING_RECEIPT_STALE = 'plan content digest no longer matches the receipt'
+    ```
+
+    THE STALE BRANCH IS UNCHANGED, and the mechanism by which that is true is worth stating because it
+    is not the obvious one: `FINDING_RECEIPT_STALE` is DEFINED AS the string that branch already
+    emitted, rather than a new token. So the constant gives a caller a third id to branch on while
+    changing zero emitted bytes, which is also why `tests/test_finalize_sendback.py`'s
+    `STALE_RECEIPT_REFUSAL` pin still passes untouched.
+
+    NEVER-ISSUED's MESSAGE is byte-identical to HEAD (compare against V-01's baseline paste); only its
+    `findings` tuple gained the leading id, which is additive and is what E-04 consumes.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the before and after ALREADY-FINALIZED message text, showing the new wording states
     the true situation and does NOT tell the operator to run `aw ipd begin`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BEFORE (measured at HEAD, the SAME situation - a plan whose finalize already
+    succeeded):
 
-- [ ] V-04 validates E-04
+    ```
+    no begin receipt for abc123: run `aw ipd begin` first (fail-closed: no receipt = no execution
+    authority).
+      findings: ('missing begin receipt at .../abc123.receipt.json',)
+    ```
+
+    AFTER:
+
+    ```
+    abc123 is ALREADY FINALIZED: its terminal transition already succeeded (see the lifecycle commit
+    76ba80cfce73) and that success consumed the begin receipt. Nothing remains to transition; treat
+    this as done rather than re-authorizing it.
+      findings: ('receipt-consumed-already-finalized',)
+    ```
+
+    THREE PROPERTIES OF THE NEW WORDING, each a direct repair of a specific falsehood in the old one:
+    (1) it does NOT contain `aw ipd begin` (measured: `prescribes 'aw ipd begin'?: False`), because
+    minting fresh authority for completed, committed work is the actively harmful remedy the old
+    message recommended; (2) it does NOT contain "no execution authority", which was simply false here;
+    (3) it CITES the plan-bound lifecycle commit when resolvable, falling back to naming the terminal
+    directory, so a human can verify the claim instead of taking it on trust.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the E-01 reproduction now reaching `executed` AND integrated; PLUS the fail-closed
     control, a never-issued receipt still refusing with unchanged text. Both pasted. The control is the
     load-bearing half: without it this item cannot be distinguished from weakening the gate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: DRIVEN THROUGH THE REAL `driver_finalize`, not the predicate. The measured
+    incident's shape reproduced (`driver_begin`, in-scope work committed, the AGENT's own finalize, then
+    the DRIVER's finalize) on the oc host:
 
-- [ ] V-05 validates E-05
+    ```
+    ### HOST: oc_runipd
+    driver_begin: (0, 'begin receipt written for idm001 at base ... (actor aw oc run model=test).')
+    AGENT finalize  -> 0 | finalized idm001 -> executed at ffb905ed2724 (actor aw oc run model=test).
+    plan in executed/: True | receipt present: False
+    DRIVER finalize -> 0 | finalize is a NO-OP for idm001: the terminal transition already succeeded
+      (the plan is in executed/ and the success consumed the begin receipt), so this run treats it as
+      finalized and proceeds to integration. The gate's own words were: refused: idm001 is ALREADY
+      FINALIZED: ... IPD-FINALIZE receipt-consumed-already-finalized
+    lifecycle finalize commits: 1
+    ```
+
+    THE `rc == 0` IS THE WHOLE POINT, because `execute_item_core`'s finalize arm branches on exactly
+    that value: zero integrates the lane and records the item `executed`, nonzero routes to
+    `handle_finalize_refusal`, which is what recorded `substantially-complete` and PRESERVED the lane in
+    the measured incident. `TheRunTreatsAnAlreadyFinalizedItemAsExecuted` asserts that the refusal arm
+    is NOT entered for this case, which is the assertion that ties the return code to the outcome a
+    human cares about.
+
+    IDEMPOTENT MEANS UNCHANGED, not "performed twice": `lifecycle finalize commits: 1` shows the no-op
+    created no second lifecycle commit, and the test asserts that count exactly.
+
+    THE FAIL-CLOSED CONTROL, same host, same harness, no begin ever run:
+
+    ```
+    --- FAIL-CLOSED CONTROL (no begin ever ran) ---
+    driver finalize -> 1 | refused: no begin receipt for idm002: run `aw ipd begin` first (fail-closed:
+      no receipt = no execution authority).
+      IPD-FINALIZE receipt-never-issued
+      IPD-FINALIZE missing begin receipt at .../idm002.receipt.json
+    plan unmoved: True | executed/ absent: True
+    ```
+
+    The refusal text is unchanged from HEAD and the plan did not move. Two further tests pin the
+    DIRECTION of the change rather than only its effect: `finalize_outcome` passes a refusal straight
+    through for a pending plan with no receipt, and it FAILS CLOSED (leaves the refusal) when the
+    observation raises, so no exception path can manufacture a success.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the TWO changed sites (`oc_runipd.py`, `agy_runipd.py`) with matching behavior
     demonstrated per host. The "one shared code path" alternative was removed at review as
     counterfactual: `driver_finalize` is defined twice (`oc_runipd.py:1294`, `agy_runipd.py:1037`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: TWO CHANGED SITES, confirmed still duplicated at execution HEAD (`grep -n "def
+    driver_finalize"` gives `oc_runipd.py:1388` and `agy_runipd.py:1124`; the line numbers moved since
+    authoring, the duplication did not). Both edited, and the agy host driven through the identical
+    harness:
 
-- [ ] V-06 validates E-06
+    ```
+    ### HOST: agy_runipd
+    driver_begin: (0, 'begin receipt written for idm001 at base b590be2f2471 (actor aw agy run model=test).')
+    AGENT finalize  -> 0 | finalized idm001 -> executed at a0894af58877 (actor aw agy run model=test).
+    plan in executed/: True | receipt present: False
+    DRIVER finalize -> 0 | finalize is a NO-OP for idm001: the terminal transition already succeeded
+      (the plan is in executed/ and the success consumed the begin receipt), so this run treats it as
+      finalized and proceeds to integration. ... IPD-FINALIZE receipt-consumed-already-finalized
+    lifecycle finalize commits: 1
+
+    --- FAIL-CLOSED CONTROL (no begin ever ran) ---
+    driver finalize -> 1 | refused: no begin receipt for idm002: run `aw ipd begin` first (fail-closed:
+      no receipt = no execution authority).
+      IPD-FINALIZE receipt-never-issued
+    plan unmoved: True | executed/ absent: True
+    ```
+
+    MATCHING BEHAVIOR, and not by coincidence: both bodies route their result through ONE shared
+    decision, `runner_shared.finalize_outcome`. The review's coordination warning was honored rather
+    than ignored - the two `driver_finalize` BODIES were NOT lifted into `runner_shared` (which would
+    collide with `hostdedup` `li44r9`/`nmlx47` and the `rununify` Set, and would break
+    `tests/test_rununify_execute_item.py`'s deliberate `STILL_DOUBLE_DEFINED` tripwire); only the new
+    RULE is shared. `test_both_hosts_share_the_one_decision` asserts each body calls it, so a future
+    host that forgets fails here rather than drifting silently.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: `aw set executed <plan>` run with `AW_EXECUTION_ROLE=worker` set, pasted, showing
     the `AW-LIFECYCLE-ROLE-001` refusal AND showing the plan unmoved with no new commit (paste
     `git status --porcelain` and `git log -1 --format=%s` after). PLUS the coordinator control: the same
     command without the variable behaves exactly as it does at HEAD. PLUS a one-line citation that
     `8b9ufm` owns the prompt-side statement and that no prompt builder was edited here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE HOLE, measured at HEAD before the fix, which is what makes this item real
+    rather than defensive:
 
-- [ ] V-07 validates E-07
+    ```
+    F-10b: worker_role_active in run_finalize  = True
+    F-10b: worker_role_active in finalize      = False
+    F-10b: worker_role_active in status_set    = False
+    ```
+
+    AFTER, the refused case (`aw set executed abc123 --actor ... --message m --yes` with
+    `AW_EXECUTION_ROLE=worker`):
+
+    ```
+    exit: 2
+    stdout: aw set -> ipd finalize: error: AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for
+      managed lanes; a worker-role process must not run them (refused: terminal finalize transaction).
+      The runner performs begin/finalize for this lane from the coordinator role; report your result
+      instead (write the outcome file the prompt names) and let the driver transition the plan.
+      worker-role
+    --- git status --porcelain ---
+    (clean)
+    --- git log -1 --format=%s ---
+    in-scope work
+    plan still in pending/: True
+    plan in executed/: False
+    ```
+
+    NO STATUS EDIT, NO MOVE, NO COMMIT: the worktree is clean, HEAD is still the pre-finalize `in-scope
+    work` commit, and the plan is untouched in `pending/`.
+
+    THE COORDINATOR CONTROL, the identical command with the variable absent:
+
+    ```
+    exit: 0
+    stdout: aw set -> ipd finalize: finalized abc123 -> executed at 9acdd955f366 (actor opencode/test).
+    --- git log -1 --format=%s ---
+    lifecycle(abc123): finalize abc123 -> executed
+    plan still in pending/: False
+    plan in executed/: True
+    ```
+
+    That is HEAD's behavior exactly: the guard does not touch the path it protects. (The two untracked
+    `INDEX.*` files in that run's porcelain are the gitignored generated manifests the transaction
+    refreshes; they are not committed by any `aw` verb.)
+
+    WHERE THE GUARD WAS PUT, and why that is better than the plan's literal instruction: at the
+    `finalize()` CHOKE POINT rather than in `status_set`. One site covers all THREE callers (the CLI
+    wrapper, `retire_orchestrator`'s delegation, and `aw set executed`'s
+    `_delegate_plan_executed_to_finalize`), so no future caller can reach the transaction around it. The
+    test asserts `worker_role_active` is still ABSENT from `status_set` source, proving the fix is
+    inheritance through the choke point and not a third copy of the predicate. It is also placed FIRST,
+    before the actor gate and the file-exists check, and a test drives that ordering with an
+    intentionally empty actor.
+
+    `8b9ufm` (roleadv-01) OWNS THE PROMPT-SIDE STATEMENT of this role, and NO prompt builder was edited
+    here: this plan's diff touches `ipd_lifecycle.py`, `oc_runipd.py`, `agy_runipd.py`,
+    `runner_shared.py` and its own test file only, and in the two runner modules it changes ONLY
+    `driver_finalize`'s return step.
+
+    THE HONEST LIMIT, restated because the fix must not be read as more than it is: the env marker is a
+    SELECTOR, not a boundary, and the measured incident DEFEATED it with `env -u AW_EXECUTION_ROLE`.
+    This item closes the DELEGATION hole, not the unset bypass. Closing that needs an OS sandbox or a
+    separate principal (out of scope, recorded as a follow-on). NOTE ONE THING THAT HAS CHANGED SINCE
+    AUTHORING and that weakens the incentive for the bypass: the suite-level scrub in `conftest.py`
+    (backlog `1uq1cu`) now pops `AW_EXECUTION_ROLE` at session import, so the 31 in-lane lifecycle test
+    failures that drove agents to `env -u` no longer occur - verified live in this lane, where a bare
+    `python3 -m pytest` needed no `env -u` at all.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: `python3 -m pytest tests/test_finidem_double_finalize.py` green; evidence it FAILS if
     two of the three causes are collapsed into one verdict (make the edit, paste the failure, revert);
     evidence it FAILS if the ALREADY-FINALIZED predicate is widened to `is_in_terminal_directory` (same
@@ -378,8 +628,81 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     classification and is then described as an end-to-end run.
   - IF NEITHER FORM IS REACHABLE in the execution environment, record that as a DEFERRED question with
     the evidence, do NOT mark this V-item pass, and do NOT finalize the plan on structural green alone.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (1) THE FILE, GREEN:
+
+    ```
+    $ python3 -m pytest tests/test_finidem_double_finalize.py -o addopts=""
+    collected 22 items
+    tests/test_finidem_double_finalize.py ......................            [100%]
+    ============================== 22 passed in 6.08s ==============================
+    ```
+
+    (2) IT FAILS IF TWO CAUSES ARE COLLAPSED. Edit made (`FINDING_RECEIPT_ALREADY_FINALIZED` set equal
+    to `"receipt-never-issued"`), run, reverted:
+
+    ```
+    ========================= 4 failed, 18 passed in 5.96s =========================
+    FAILED ...::TheSecondFinalizeOfTheSamePlan::test_the_second_finalize_reports_ALREADY_FINALIZED_not_missing_authority
+    FAILED ...::TheSecondFinalizeOfTheSamePlan::test_a_never_issued_receipt_STILL_refuses_with_the_unchanged_message
+    FAILED ...::TheSecondFinalizeOfTheSamePlan::test_the_three_finding_ids_are_DISTINCT
+    FAILED ...::ReusablePlanIsNotAlreadyFinalized::test_a_reusable_plan_with_NO_receipt_classifies_NEVER_ISSUED_and_refuses
+    ```
+
+    (3) IT FAILS IF THE PREDICATE IS WIDENED to `is_in_terminal_directory`. Edit made (the bucket test in
+    `plan_already_finalized` swapped for `run_selection_policy.is_in_terminal_directory`), run, reverted:
+
+    ```
+    ========================= 2 failed, 20 passed in 6.48s =========================
+    FAILED ...::ReusablePlanIsNotAlreadyFinalized::test_a_reusable_plan_with_NO_receipt_classifies_NEVER_ISSUED_and_refuses
+    FAILED ...::ReusablePlanIsNotAlreadyFinalized::test_is_in_terminal_directory_admits_reusable_so_it_is_NOT_the_predicate
+      (AssertionError: True is not False)
+    ```
+
+    This is the fail-open regression PR-001 identified, and it is now a ONE-LINE-detectable regression as
+    required. Both probe edits were reverted from a pristine copy and the file re-verified green (22
+    passed) afterwards.
+
+    (4) THE BARE SUITE:
+
+    ```
+    $ python3 -m pytest
+    2 failed, 8063 passed, 3 skipped, 2 xfailed, 3 warnings in 121.49s (0:02:01)
+    FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    ```
+
+    BOTH FAILURES ARE PRE-EXISTING AT HEAD AND ARE NOT REGRESSIONS, proven rather than asserted: with
+    this plan's four source changes stashed OUT (`git stash push -- <the four files>`), both still fail:
+
+    ```
+    $ python3 -m pytest tests/test_defect_report.py::...::test_no_bare_except_was_introduced_around_the_new_code \
+        tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped -o addopts=""
+    ============================== 2 failed in 0.59s ===============================
+    ```
+
+    Diagnosed and FILED rather than left as a number: the bare-except tripwire fires on
+    `runner_shared.py:16881`, an `except Exception: pass` introduced by `894d7924` inside the fenced
+    defect-report section (`git log -S`), filed as backlog `p9ag41` (bug, blocks next release); the
+    `turn_bounds` failure is this lane's own ambient `OPENCODE_CONFIG_CONTENT` leaking into the
+    non-isolated env the test asserts is clean, already filed many times over (`cfgj8s`, `wx72g3`,
+    `4vn040`, `8dp3zp`, `ph0wlt`, `06ngnx`, `zgndje`, `to77re`, `rfu7mk`, `hco0mk`), so no duplicate was
+    added. Neither is in this plan's scope: the authoring baseline `7855 passed` has since moved to
+    `8063 passed` through other landed work.
+
+    (5) THE END-TO-END DEMONSTRATION, in ACCEPTABLE FORM (2): a harness driving the real
+    `driver_finalize` on BOTH hosts in scratch git repos, pasted in full under V-04 and V-05. It
+    exercises the DRIVER code path (`driver_begin` -> agent finalize -> driver finalize ->
+    `finalize_outcome` -> the `fin_rc` branch `execute_item_core` keys on), not E-02's classification, and
+    `TheRunTreatsAnAlreadyFinalizedItemAsExecuted` additionally asserts the refusal arm that stranded the
+    lane is NOT entered. FORM (1) (a real `aw oc run` outside any lane) was NOT attempted and is NOT
+    claimed: this turn IS a managed lane, so a run launched from here is by definition not outside one,
+    and spawning a nested unattended run over the shared checkout would put a second driver into a
+    repository other agents are concurrently working in. Form (2) is the form the review ranked second
+    precisely so that this case has a legitimate evidence path, and the constraint the review recorded
+    (`AW_EXECUTION_ROLE=worker` refusing the needed verbs) was handled the way `conftest.py` prescribes -
+    by scrubbing the marking in the harness process, which is a COORDINATOR, never by `env -u` on a
+    lifecycle verb.
+  - Result: pass
 
 ## Approval and execution gate
 
