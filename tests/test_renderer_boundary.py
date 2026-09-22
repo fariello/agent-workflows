@@ -104,7 +104,17 @@ class DoctorRendererBoundaryTests(unittest.TestCase):
         _git(self.root, "config", "user.name", "T")
         (self.root / ".aw" / "records").mkdir(parents=True)
         packaged = versioning.resolve_version(engine.resolve_source_root(None))
-        (self.root / ".aw" / "VERSION").write_text(f"{packaged}\n", encoding="utf-8")
+        # h90ij1: the install marker lives at `.aw/system/VERSION` (the path
+        # `engine.read_installed_version` probes), not at `.aw/VERSION`, which no layout writes.
+        # This fixture only read back as "installed" while doctor's probe shared the same wrong
+        # path; with the probe corrected the marker must go where an install actually puts it,
+        # and the emitted layout document must accompany it or an installed workspace correctly
+        # reports `check.system-layout-missing`.
+        (self.root / ".aw" / "system").mkdir(parents=True)
+        (self.root / ".aw" / "system" / "VERSION").write_text(
+            f"{packaged}\n", encoding="utf-8"
+        )
+        engine.emit_layout_artifacts(self.root)
         _git(self.root, "add", "-A")
         _git(self.root, "commit", "-qm", "init")
 

@@ -7104,16 +7104,15 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
     preset = None
     backend = None
     if layout != "none":
-        cfg_file = repo / (".aw" if has_aw else ".agents") / "config.json"
-        if cfg_file.is_file():
-            try:
-                import json
+        # h90ij1 E-05: read through the ONE shared reader `aw doctor` also uses, so the two
+        # commands cannot diverge. This formerly read `.aw/config.json` / `.agents/config.json`,
+        # a file no layout creates, and so reported preset=None/backend=None for every
+        # correctly installed repo.
+        from agent_workflows.project_context import read_project_identity
 
-                c_json = json.loads(cfg_file.read_text(encoding="utf-8"))
-                preset = c_json.get("preset")
-                backend = c_json.get("records_backend")
-            except Exception:
-                pass
+        identity = read_project_identity(repo)
+        preset = identity["preset"]
+        backend = identity["records_backend"]
 
     # Inspect attention metrics
     attn_total = 0
