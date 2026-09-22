@@ -6530,6 +6530,295 @@ def _resolve_completion_choice(args: argparse.Namespace) -> Optional[str]:
     return _detect_shell() if choice == "auto" else choice
 
 
+def _report_completion_effectiveness(
+    term: Term,
+    shell: str,
+    *,
+    installed_in: Any,
+    dry_run: bool = False,
+    offer_rc_write: bool = False,
+    assume_yes: bool = False,
+    status_obj: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Report whether a just-written drop-in completion can ACTUALLY take effect (compinert E-02/E-03).
+
+    THE DEFECT THIS REPLACES. Both message sites printed an unconditional green `ok` plus "start a
+    new shell to pick it up". When the shell's completion framework is not loaded for interactive
+    non-login shells, BOTH halves of that are false in the way that matters: the files are there,
+    and restarting the shell changes nothing. The maintainer followed that instruction, got nothing,
+    and reasonably concluded the tool was broken (2026-09-12). So the message is a DELIVERABLE here,
+    not cosmetics: this is the whole user-visible contract of the verb.
+
+    ONE REPORTER FOR BOTH SITES, deliberately. The defect was reachable from the `aw completion
+    install` verb AND from the `aw setup`/`aw install` flow, and fixing one would have left the other
+    lying. A single function means the four cases cannot diverge between them.
+
+    THE FOUR CASES, each saying only what is true:
+      * REACHABLE            -> today's message, unchanged. It was correct in this case all along.
+      * PRESENT NOT REACHABLE -> `warn`, NOT `ok`: the files are written and completion will NOT work
+        until bash-completion is sourced for interactive shells. Prints the exact remediation, and
+        (E-03) OFFERS to append it on a TTY. No "start a new shell" line, because that is the advice
+        that wasted the reporter's time.
+      * ABSENT               -> `warn` naming the PACKAGE to install; an rc line cannot help when
+        there is no framework on the box to source.
+      * UNKNOWN              -> `ok` that the files were written, plus an explicit statement that we
+        could NOT verify it will take effect. Asserting either way from a failed probe would be a
+        measurement we did not make.
+
+    The status label is honest per case because the user's NEXT ACTION differs: burying "this cannot
+    work" in a trailing clause of a green line is exactly how the original message hid the failure.
+
+    Returns the rc-write outcome dict (or `{"action": "n/a"}`) so a caller/test can assert what was
+    written without re-deriving it from stdout.
+    """
+    from agent_workflows import completion as _completion
+
+    prefix = "[dry-run] " if dry_run else ""
+    status = status_obj
+    if status is None:
+        try:
+            status = _completion.completion_framework_status(shell)
+        except (
+            Exception
+        ) as exc:  # a diagnostic must never fail the install it is describing.
+            term.status(
+                "ok",
+                f"{prefix}{shell} completion "
+                f"{'would be installed' if dry_run else 'installed'} in {installed_in} "
+                "(no rc/dotfile modified).",
+            )
+            term.status(
+                "warn",
+                f"could not check whether {shell} completion will take effect: {exc}",
+            )
+            return {"action": "n/a"}
+
+    verdict = getattr(status, "reachable", _completion.REACHABLE_UNKNOWN)
+    verb_word = "would be installed" if dry_run else "installed"
+
+    if verdict == _completion.REACHABLE_YES:
+        term.status(
+            "ok",
+            f"{prefix}{shell} completion {verb_word} in {installed_in} "
+            "(no rc/dotfile modified).",
+        )
+        if not dry_run:
+            term.line(
+                f"Next  start a new {shell} shell (or run `exec {shell}`) to pick it up."
+            )
+        return {"action": "n/a"}
+
+    if verdict == _completion.REACHABLE_UNKNOWN:
+        term.status(
+            "ok",
+            f"{prefix}{shell} completion {verb_word} in {installed_in} "
+            "(no rc/dotfile modified).",
+        )
+        detail = getattr(status, "detail", "") or "the check could not run"
+        term.status(
+            "warn",
+            f"could not verify that {shell} completion will take effect ({detail}). "
+            f"Check with: {shell} -ic 'complete -p aw'",
+        )
+        return {"action": "n/a"}
+
+    # ---- Not reachable. The files are on disk and completion will NOT work yet. ----
+    term.status(
+        "warn",
+        f"{prefix}{shell} completion {verb_word} in {installed_in}, but it will NOT take "
+        "effect yet (no rc/dotfile modified).",
+    )
+    if not getattr(status, "present", False):
+        term.status(
+            "warn",
+            "the bash-completion framework is not installed on this system, so the drop-in "
+            "file cannot be loaded. Install it first (Debian/Ubuntu: "
+            "`sudo apt install bash-completion`; Fedora: `sudo dnf install bash-completion`; "
+            "macOS/Homebrew: `brew install bash-completion@2`), then re-run "
+            "`aw completion install`.",
+        )
+        return {"action": "n/a"}
+
+    entry = getattr(status, "entry_script", None) or "the bash-completion entry script"
+    term.status(
+        "warn",
+        f"{entry} exists but is NOT loaded in an interactive non-login shell (a new terminal "
+        f"tab or tmux pane), so NOTHING is completed there - `git` and `ssh` included, not just "
+        f"`aw`. Starting a new {shell} shell will not help; the framework has to be sourced.",
+    )
+
+    rc_path = getattr(status, "rc_path", None) or _completion.rc_path_for_shell(shell)
+    if getattr(status, "rc_has_stanza", False):
+        term.status(
+            "ok",
+            f"{rc_path} already carries the agent-workflows bash-completion stanza; "
+            "nothing to add there.",
+        )
+        return {"action": "already"}
+
+    term.line()
+    term.line(f"Add this to {rc_path} to fix it for every interactive shell:")
+    term.line()
+    for line in _completion.remediation_snippet().splitlines():
+        term.line(f"    {line}")
+    term.line()
+
+    if dry_run or not offer_rc_write:
+        return {"action": "n/a"}
+    return _offer_rc_stanza_write(term, shell, rc_path=rc_path, assume_yes=assume_yes)
+
+
+def _offer_rc_stanza_write(
+    term: Term,
+    shell: str,
+    *,
+    rc_path: Any,
+    assume_yes: bool,
+) -> Dict[str, Any]:
+    """Offer to append the fenced remediation stanza, OPT-IN on a TTY only (compinert E-03).
+
+    AUTHORIZED BY ONE MAINTAINER RULING AND NOTHING ELSE (OQ-01, 2026-09-12). This feature promises
+    nine times over that it does not touch a user rc/dotfile; the ruling narrowed that promise from
+    "no write" to "NO SILENT WRITE", weighing it against a user pasting four lines on every new
+    machine while completion stays dead. Everything below exists to keep the surviving half true.
+
+    THE PROMPT DEFAULTS TO NO, and this polarity is deliberately the OPPOSITE of the first-run
+    `Install shell completion?` and `Set up a runner profile now?` prompts flipped to YES the same
+    day. Those write inside the framework's OWN directories; this writes a file the framework does
+    not own and has repeatedly promised not to touch. Do not "harmonize" it without a fresh ruling.
+
+    `--yes` IS NOT CONSENT, and the precedent is already in this file: `_configure_completion` and
+    `_configure_runner_profiles` both return early under `--yes` because preauthorizing install
+    mutations is not authorizing a user-scoped choice. An rc write is further from an install
+    mutation than either of those, so reading `--yes` as consent here would be the largest silent-
+    write regression this feature could ship. A NON-TTY writes nothing, for the same reason.
+    """
+    from agent_workflows import completion as _completion
+
+    if assume_yes:
+        term.status(
+            "skip",
+            "--yes does not consent to editing your rc file; paste the snippet above, or run "
+            "`aw completion install` on a terminal to be asked.",
+        )
+        return {"action": "declined", "detail": "--yes is not consent for an rc write"}
+    if not sys.stdin.isatty():
+        term.status(
+            "skip",
+            "not a terminal, so nothing was written; paste the snippet above to fix it.",
+        )
+        return {"action": "declined", "detail": "non-interactive: no rc write"}
+    try:
+        answer = (
+            input(f"  Append it to {rc_path} now? {_yes_no(False, term)} ")
+            .strip()
+            .lower()
+        )
+    except (EOFError, KeyboardInterrupt):
+        term.line()
+        term.status("skip", "nothing written.")
+        return {"action": "declined", "detail": "no answer given"}
+    if answer not in ("y", "yes"):
+        term.status(
+            "skip", "nothing written; paste the snippet above when you want it."
+        )
+        return {"action": "declined", "detail": "declined at the prompt"}
+
+    try:
+        outcome = _completion.install_rc_stanza(Path(rc_path), consent=True)
+    except OSError as exc:
+        term.status("fail", f"could not write {rc_path}: {exc}")
+        return {"action": "failed", "detail": str(exc)}
+
+    action = outcome.get("action")
+    if action == "written":
+        term.status("ok", outcome["detail"])
+        term.line(
+            f"Next  run `exec {shell}` (or open a new terminal); `aw <TAB>` should complete now."
+        )
+    elif action == "already":
+        term.status("ok", outcome["detail"])
+    elif action == "absent":
+        term.status("warn", outcome["detail"])
+    return outcome
+
+
+def _offer_rc_stanza_removal(
+    term: Term,
+    shell: str,
+    *,
+    dry_run: bool,
+    assume_yes: bool,
+) -> Dict[str, Any]:
+    """Offer to remove the fenced rc stanza on uninstall, under the SAME consent rules (E-03).
+
+    THE ASYMMETRY THIS CLOSES. Once install can append to `~/.bashrc`, an uninstall that ignores it
+    leaves the user's login shell carrying a stanza from a tool they just removed, with no command
+    that takes it back. Because the stanza is FENCED (open + close markers), removal deletes a RANGE
+    and needs no knowledge of its wording, so a later release rewording the stanza cannot break it.
+
+    SAME GATE AS THE WRITE, for the same reason: `--yes` does not consent, a non-TTY writes nothing,
+    and the prompt defaults to NO. The rc file is the user's, in both directions. Silence when there
+    is no stanza: mentioning a file we did not touch would be noise on every uninstall.
+    """
+    from agent_workflows import completion as _completion
+
+    rc_path = _completion.rc_path_for_shell(shell)
+    if rc_path is None:
+        return {"action": "n/a"}
+    try:
+        if not _completion.rc_has_our_stanza(
+            rc_path.read_text(encoding="utf-8", errors="replace")
+        ):
+            return {"action": "none"}
+    except OSError:
+        return {"action": "absent"}
+
+    if dry_run:
+        term.status(
+            "ok",
+            f"[dry-run] {rc_path} carries the agent-workflows bash-completion stanza; "
+            "a real uninstall would offer to remove it.",
+        )
+        return {"action": "none", "dry_run": True}
+    if assume_yes or not sys.stdin.isatty():
+        term.status(
+            "skip",
+            f"{rc_path} still carries the agent-workflows bash-completion stanza (the fenced "
+            f"`{_completion.RC_FENCE_OPEN}` block). Left in place: editing your rc file needs an "
+            "answer on a terminal, and --yes does not consent. Delete that fenced block to "
+            "remove it.",
+        )
+        return {"action": "declined"}
+    try:
+        answer = (
+            input(
+                f"  Also remove the bash-completion stanza from {rc_path}? {_yes_no(False, term)} "
+            )
+            .strip()
+            .lower()
+        )
+    except (EOFError, KeyboardInterrupt):
+        term.line()
+        term.status("skip", f"{rc_path} left untouched.")
+        return {"action": "declined"}
+    if answer not in ("y", "yes"):
+        term.status(
+            "skip",
+            f"{rc_path} left untouched; delete the fenced "
+            f"`{_completion.RC_FENCE_OPEN}` block to remove it by hand.",
+        )
+        return {"action": "declined"}
+    try:
+        outcome = _completion.remove_rc_stanza(rc_path)
+    except OSError as exc:
+        term.status("fail", f"could not write {rc_path}: {exc}")
+        return {"action": "failed", "detail": str(exc)}
+    if outcome.get("action") == "removed":
+        term.status("ok", outcome["detail"])
+    return outcome
+
+
 def _configure_completion(args: argparse.Namespace, term: Term) -> None:
     """Install shell completion per `--completion`, else offer it interactively (jolfpj E-03/E-04).
 
@@ -6537,7 +6826,12 @@ def _configure_completion(args: argparse.Namespace, term: Term) -> None:
     `install_wizard.py` (the per-target-repo project-policy wizard), so it does not re-prompt on
     every repo install. Explicit `--completion <shell>|auto` installs without asking. With no flag,
     a single confirm is offered ONLY on an interactive TTY without `--yes`; non-interactive and
-    `--yes` runs install nothing (safe, non-destructive default). Never edits an rc/dotfile.
+    `--yes` runs install nothing (safe, non-destructive default).
+
+    EDITS NO RC/DOTFILE, EVER, FROM THIS FLOW. compinert 92u0v9 gave the `aw completion install`
+    VERB the ability to OFFER a fenced `~/.bashrc` stanza on explicit TTY consent; this setup step
+    deliberately does not make that offer (`offer_rc_write=False`), because it can be running under
+    `--yes` or in a pipe. It only REPORTS whether completion will take effect and PRINTS the fix.
     """
     from agent_workflows import completion as _completion
 
@@ -6557,7 +6851,8 @@ def _configure_completion(args: argparse.Namespace, term: Term) -> None:
         term.line(
             f"Enable tab-completion for aw in {shell}? This writes one file to "
             f"{_completion.resolve_completion_dir(shell)} "
-            "and does NOT modify your ~/.bashrc, ~/.zshrc, or config.fish."
+            "and does NOT modify your ~/.bashrc, ~/.zshrc, or config.fish (this step never "
+            "edits an rc file; it only tells you if one needs a line)."
         )
         try:
             # DEFAULT YES (maintainer request 2026-09-12): tab-completion is additive, writes ONE
@@ -6586,10 +6881,15 @@ def _configure_completion(args: argparse.Namespace, term: Term) -> None:
         # Never fail a setup/install over an optional convenience feature.
         term.status("warn", f"Shell completion not installed: {exc}")
         return
-    term.status(
-        "ok",
-        f"{shell} completion installed in {result['dir']} (no rc/dotfile modified). "
-        f"Start a new {shell} shell to pick it up.",
+    # compinert E-02: report whether it can actually TAKE EFFECT instead of an unconditional `ok`
+    # plus "start a new shell", which is false exactly when the framework is not loaded. The rc
+    # offer is NOT made here: this flow may be running under `--yes` or non-interactively, and the
+    # snippet is printed either way so the user always sees the fix.
+    _report_completion_effectiveness(
+        term,
+        shell,
+        installed_in=result["dir"],
+        offer_rc_write=False,
     )
 
 
@@ -12013,10 +12313,16 @@ def _run_completion_install(
 ) -> int:
     """`aw completion install|uninstall` -> manage the drop-in auto-discovery file (jolfpj E-02).
 
-    Writes/removes ONLY inside the shell's own auto-discovery directory (XDG-first). Never edits a
-    user rc/dotfile. Refuses to clobber or delete a completion file this tool did not create
+    Writes/removes the completion FILES only inside the shell's own auto-discovery directory
+    (XDG-first). Refuses to clobber or delete a completion file this tool did not create
     (sentinel-gated), reporting that as exit 1 rather than silently overwriting someone else's file.
-    Exit 0 ok, 1 refusal, 2 usage error."""
+    Exit 0 ok, 1 refusal, 2 usage error.
+
+    NEVER EDITS A USER RC/DOTFILE WITHOUT EXPLICIT CONSENT (compinert 92u0v9). A drop-in file is
+    inert unless the shell's completion framework is loaded, so this verb now REPORTS that
+    precondition and, when it fails, prints the one-line fix and OFFERS to append it to `~/.bashrc`
+    inside paired fence markers. The offer defaults to NO, `--yes` does not consent, and a
+    non-interactive run writes nothing; uninstall offers to remove the same fenced block."""
     from agent_workflows import completion as _completion
 
     term = term or Term(color=False if getattr(args, "no_color", False) else None)
@@ -12033,16 +12339,18 @@ def _run_completion_install(
             )
             for path in result["paths"]:
                 term.status("ok", f"{prefix}completion file: {path}")
-            term.status(
-                "ok",
-                f"{prefix}{shell} completion "
-                f"{'would be installed' if dry_run else 'installed'} in {result['dir']} "
-                "(no rc/dotfile modified).",
+            # compinert E-02/E-03: the four honest outcomes replace the unconditional `ok` + "start
+            # a new shell" pair. THIS site offers the rc write (E-03) because it is the verb a user
+            # runs interactively and by hand; the setup flow does not, since it can be running under
+            # `--yes` or in a pipe.
+            _report_completion_effectiveness(
+                term,
+                shell,
+                installed_in=result["dir"],
+                dry_run=dry_run,
+                offer_rc_write=True,
+                assume_yes=bool(getattr(args, "yes", False)),
             )
-            if not dry_run:
-                term.line(
-                    f"Next  start a new {shell} shell (or run `exec {shell}`) to pick it up."
-                )
         else:
             result = _completion.uninstall_shell_completion(
                 shell, target_dir=target_dir, dry_run=dry_run
@@ -12060,6 +12368,15 @@ def _run_completion_install(
                     f"{prefix}no agent-workflows {shell} completion file found in "
                     f"{result['dir']}; nothing to remove.",
                 )
+            # compinert E-03: install can now append a FENCED rc stanza on consent, so uninstall
+            # must be able to take it back. An install that writes with an uninstall that abandons
+            # the write leaves a user's login shell permanently altered by a tool they removed.
+            _offer_rc_stanza_removal(
+                term,
+                shell,
+                dry_run=dry_run,
+                assume_yes=bool(getattr(args, "yes", False)),
+            )
     except _completion.CompletionInstallError as exc:
         term.status("fail", str(exc))
         print("Next  aw completion --help", file=sys.stderr)

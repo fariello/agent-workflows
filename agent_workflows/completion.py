@@ -38,13 +38,32 @@ tabcomp Order 03 (jolfpj): DROP-IN installation. ``resolve_completion_dir`` /
 ``install_shell_completion`` / ``uninstall_shell_completion`` write the generated script into the
 shell's own auto-discovery directory (XDG-first, matching ``config.config_dir``'s precedence), bind
 the console-script aliases per SHELL-SPECIFIC rules (bash command-name files, one ``#compdef``-bound
-zsh ``_aw``, fish's in-file multi-``complete -c``), and never touch ``~/.bashrc``/``~/.zshrc``/
-``config.fish``. Every written file carries ``INSTALL_SENTINEL`` so install refuses to clobber a
+zsh ``_aw``, fish's in-file multi-``complete -c``), and never SILENTLY write ``~/.bashrc``/
+``~/.zshrc``/``config.fish`` - the ONLY rc write in this module is the fenced remediation stanza of
+compinert Order 01 below, applied only on explicit TTY consent, never under ``--yes`` and never
+non-interactively. Every written file carries ``INSTALL_SENTINEL`` so install refuses to clobber a
 foreign completion and uninstall removes only what this tool created.
 
-This module is stdlib-only (``argparse``/``os``/``shlex``/``pathlib``); it does NOT import
-third-party completion libraries, and the ``argcomplete`` ecosystem hook lives in ``cli`` behind a
-soft import (no new runtime dependency).
+compinert Order 01 (92u0v9): CAN THE INSTALL ACTUALLY TAKE EFFECT? A drop-in file is only completed
+if the shell's completion FRAMEWORK is loaded, and on many systems bash-completion is sourced only
+by ``/etc/profile.d/bash_completion.sh`` (LOGIN shells), so a new terminal tab gets no completion at
+all and the drop-in is inert. ``completion_framework_status`` reports that precondition as three
+SEPARATE facts (entry script present / reachable from an interactive non-login shell / the user's rc
+already sources it) so the caller can distinguish "install a package" from "add one line", and
+``remediation_snippet``/``install_rc_stanza``/``remove_rc_stanza`` print and (ONLY on explicit TTY
+consent) apply the one-line fix inside PAIRED FENCE MARKERS so it can be removed and upgraded.
+
+THE NO-SILENT-WRITE PROMISE, STATED PRECISELY (compinert 92u0v9, maintainer ruling 2026-09-12). The
+drop-in installer itself still writes NO user rc/dotfile at all. The ONLY code here that can touch
+``~/.bashrc`` is ``install_rc_stanza``/``remove_rc_stanza``, which write nothing unless their caller
+passes explicit human consent obtained on a TTY; ``--yes`` is deliberately NOT consent, and a
+non-interactive run never writes. Reading an rc file to report fact (c) is a READ, never a write.
+
+This module is stdlib-only (``argparse``/``os``/``shlex``/``pathlib``/``subprocess``); it does NOT
+import third-party completion libraries, and the ``argcomplete`` ecosystem hook lives in ``cli``
+behind a soft import (no new runtime dependency). ``subprocess`` is used for exactly one thing: the
+interactive-shell probe below, because asking bash what it loaded is ground truth where parsing rc
+files to guess it is not.
 """
 
 from __future__ import annotations
@@ -52,8 +71,10 @@ from __future__ import annotations
 import argparse
 import os
 import shlex
+import subprocess
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 # The three console-script entrypoints (pyproject.toml [project.scripts]). Completion binds all three.
 ENTRYPOINTS = ("aw", "agentwf", "agent-workflows")
@@ -810,8 +831,12 @@ def complete_query(
 # ======================================================================================
 # tabcomp Order 03 (jolfpj) E-01: DROP-IN auto-discovery installation.
 #
-# The core promise: we NEVER edit `~/.bashrc`, `~/.zshrc`, or `config.fish`. Instead we write the
-# generated script into the shell's own auto-discovery directory, which every modern bash-completion
+# The core promise, stated precisely since compinert 92u0v9: we NEVER SILENTLY edit `~/.bashrc`,
+# `~/.zshrc`, or `config.fish`. The drop-in install below writes NO rc/dotfile at all; the ONLY rc
+# write in this module is the fenced remediation stanza (`install_rc_stanza`), which requires
+# explicit consent from a human on a TTY, refuses under `--yes`, and never fires non-interactively.
+# Instead of editing an rc file, we write the generated
+# script into the shell's own auto-discovery directory, which every modern bash-completion
 # / zsh `fpath` / fish `completions` setup loads on demand:
 #
 #   bash  ${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/aw
@@ -947,7 +972,12 @@ def install_shell_completion(
     Creates the auto-discovery directory if needed, writes the generated script prefixed with
     ``INSTALL_SENTINEL``, and adds the bash command-name alias symlinks (zsh/fish bind their aliases
     from inside the single generated file). Idempotent: re-running rewrites OUR file and leaves the
-    result identical. NO user rc/dotfile is ever read or written.
+    result identical.
+
+    THIS FUNCTION READS AND WRITES NO USER RC/DOTFILE AT ALL. That is unchanged by compinert 92u0v9,
+    which added rc handling as SEPARATE functions (``completion_framework_status`` may READ an rc
+    file to report a fact; ``install_rc_stanza`` writes one only on explicit TTY consent). Neither is
+    called from here, so this remains a pure drop-in write.
 
     Raises ``CompletionInstallError`` when a FOREIGN (non-sentinel) file or an unexpected symlink
     already occupies a target path - we never clobber another tool's or the user's completion.
@@ -1016,8 +1046,12 @@ def uninstall_shell_completion(
     """Remove ONLY the drop-in files this tool created for ``shell`` (jolfpj E-01).
 
     Sentinel-gated: a file or symlink we did not create is left untouched and reported under
-    ``skipped``, never deleted. No rc/dotfile is read or written. Returns
-    ``{"shell", "dir", "removed", "skipped", "dry_run"}``.
+    ``skipped``, never deleted. Returns ``{"shell", "dir", "removed", "skipped", "dry_run"}``.
+
+    THIS FUNCTION READS AND WRITES NO USER RC/DOTFILE. Removing the fenced remediation stanza that
+    ``install_rc_stanza`` may have appended is ``remove_rc_stanza``'s job, offered by the CLI under
+    the same consent rules as the write (``cli._offer_rc_stanza_removal``), so the two directions are
+    symmetric without this function acquiring rc authority it does not need.
     """
     if shell not in _DROPIN_LAYOUT:
         raise CompletionInstallError(
@@ -1096,3 +1130,505 @@ def installed_completion_state(shell: str, target_dir: Optional[Path] = None) ->
     ):  # pragma: no cover - a generator failure is not evidence of staleness
         return "current"
     return "current" if body == expected else "stale"
+
+
+# ======================================================================================
+# compinert Order 01 (92u0v9) E-01..E-03: CAN THE INSTALLED COMPLETION ACTUALLY TAKE EFFECT?
+#
+# THE DEFECT THIS SECTION EXISTS TO FIX. `aw completion install` writes into a directory whose
+# whole purpose is AUTO-DISCOVERY BY THE SHELL'S COMPLETION FRAMEWORK, so that framework being
+# loaded is a PRECONDITION of the feature working. The installer checked it nowhere, printed an
+# unconditional success line, and told the user to "start a new shell" - which is precisely the
+# action that does NOT help when the framework is not sourced for interactive shells. Reported
+# 2026-09-12: three OK lines, `exec bash`, and `aw <TAB>` still completed nothing. The install was
+# correct; the promise it printed was not.
+#
+# WHY THREE FACTS AND NOT ONE BOOLEAN (E-01). "bash-completion is not installed on this box" needs
+# a package manager; "installed but not sourced from ~/.bashrc" needs one line. A boolean collapses
+# those into one word and can only give advice that is wrong for one of them. So the status object
+# reports them separately:
+#   (a) PRESENT      - an entry script exists on this system (and WHERE it is).
+#   (b) REACHABLE    - it is actually loaded in an INTERACTIVE NON-LOGIN shell, which is the case
+#                      that fails. Answered by ASKING BASH, never by parsing rc files.
+#   (c) RC SOURCES   - the user's own rc already sources it (a READ of the rc file, never a write).
+#
+# ASKING THE SHELL IS GROUND TRUTH. `bash -ic 'echo ${BASH_COMPLETION_VERSINFO-}'` prints `2` when
+# the framework is loaded and EMPTY when it is not. Inferring this from rc-file contents is
+# guesswork (sourcing is conditional, nested, and machine-specific); running the shell is the fact.
+# The probe is cheap (measured ~0.23s) and any failure/timeout yields UNKNOWN, never a confident
+# negative, because telling a user their setup is broken on the strength of a failed probe is worse
+# than saying we could not tell.
+#
+# ZSH AND FISH ASK THE SAME QUESTION WITH DIFFERENT ANSWERS (zsh needs `compinit` to have run; fish
+# auto-loads its completions directory), so they report UNKNOWN rather than being forced through
+# bash's shape. That is deliberately out of scope here (see the plan's deferred section).
+# ======================================================================================
+
+#: The bash-completion entry scripts we look for, in the order a system would prefer them. The
+#: `/usr/local` and Homebrew paths matter on macOS and on hand-built installs.
+_BASH_COMPLETION_ENTRY_SCRIPTS: Tuple[str, ...] = (
+    "/usr/share/bash-completion/bash_completion",
+    "/usr/local/share/bash-completion/bash_completion",
+    "/opt/homebrew/etc/profile.d/bash_completion.sh",
+    "/usr/local/etc/profile.d/bash_completion.sh",
+    "/etc/bash_completion",
+)
+
+#: How long the interactive-shell probe may take before we call the answer UNKNOWN. An rc file can
+#: do arbitrary work at startup, so this is a bound on someone else's code, not on ours.
+_PROBE_TIMEOUT_SECONDS = 5.0
+
+#: The three reachability verdicts. UNKNOWN is a first-class answer, not an error: it is what we
+#: report for a shell whose check is unimplemented and for a probe that failed or timed out.
+REACHABLE_YES = "yes"
+REACHABLE_NO = "no"
+REACHABLE_UNKNOWN = "unknown"
+
+#: Paired fence markers around the rc stanza (E-03 / F-7). A single sentinel line records where a
+#: block BEGINS and nothing about where it ENDS, so uninstall would have to hardcode a line count or
+#: re-derive the exact text, and both break the moment a release rewords the stanza. A fenced RANGE
+#: can be deleted with no knowledge of its contents and REPLACED in place by an upgrade, so a fix to
+#: the stanza can actually reach existing users. Same convention `grok`'s installer uses in the same
+#: file, so a user reading their rc sees one shape, not two.
+RC_FENCE_OPEN = "# >>> agent-workflows (aw completion install) >>>"
+RC_FENCE_CLOSE = "# <<< agent-workflows (aw completion install) <<<"
+
+#: The remediation itself. The `BASH_COMPLETION_VERSINFO` guard is LOAD-BEARING, not decoration:
+#: without it this re-sources the whole framework in a login shell that already loaded it. The
+#: `shopt -oq posix` guard is the same one Debian's own skeleton rc uses (completion must not load
+#: in POSIX mode). The loop covers the same entry-script locations the detector does, so the advice
+#: we print matches the fact we measured.
+_RC_STANZA_BODY = """\
+# Load bash-completion for INTERACTIVE NON-LOGIN shells. On many systems the framework
+# is sourced only by /etc/profile.d/bash_completion.sh, which runs for LOGIN shells, so
+# a new terminal tab or tmux pane gets no completion at all.
+# The BASH_COMPLETION_VERSINFO guard makes this a no-op when it is already loaded.
+if ! shopt -oq posix && [ -z "${BASH_COMPLETION_VERSINFO-}" ]; then
+    for _bc in /usr/share/bash-completion/bash_completion \\
+               /usr/local/share/bash-completion/bash_completion \\
+               /etc/bash_completion; do
+        [ -r "$_bc" ] && . "$_bc" && break
+    done
+    unset _bc
+fi"""
+
+
+@dataclass(frozen=True)
+class FrameworkStatus:
+    """Whether an installed drop-in completion can actually take effect, as SEPARATE facts (E-01).
+
+    THE WHOLE POINT IS THAT THESE DO NOT COLLAPSE. ``present=False`` means the user must install a
+    package; ``present=True, reachable="no"`` means one line in an rc file fixes it; ``reachable=
+    "unknown"`` means we could not tell and must not claim either way. One boolean cannot carry
+    three different pieces of advice, and the defect being fixed here was advice that was wrong for
+    the failing case.
+
+    Fields:
+      ``shell``         the shell this was measured for.
+      ``present``       an entry script exists on this system.
+      ``entry_script``  which one (``None`` when absent) - printed so a user can verify it.
+      ``reachable``     ``yes``/``no``/``unknown``: is the framework LOADED in an interactive
+                        NON-LOGIN shell (the case that silently fails).
+      ``rc_sources_it`` the user's rc file already sources it (a READ; see ``rc_path``).
+      ``rc_path``       the rc file consulted (``None`` when it does not exist).
+      ``rc_has_stanza`` OUR fenced stanza (or a hand-added one with the same fence) is already
+                        there, so an offer to add it must be a reported no-op, not a duplicate.
+      ``detail``        why a probe answered UNKNOWN, for the message and for debugging.
+    """
+
+    shell: str
+    present: bool
+    entry_script: Optional[str] = None
+    reachable: str = REACHABLE_UNKNOWN
+    rc_sources_it: bool = False
+    rc_path: Optional[Path] = None
+    rc_has_stanza: bool = False
+    detail: str = ""
+
+    @property
+    def effective(self) -> bool:
+        """True only when completion demonstrably WILL take effect in a new interactive shell."""
+        return self.reachable == REACHABLE_YES
+
+    @property
+    def needs_remediation(self) -> bool:
+        """True for the one state a one-line rc fix repairs: present on the box, not reachable."""
+        return self.present and self.reachable == REACHABLE_NO
+
+
+def find_bash_completion_entry_script(
+    candidates: Optional[Sequence[str]] = None,
+) -> Optional[str]:
+    """Fact (a): the bash-completion entry script present on this system, or ``None`` (E-01).
+
+    Pure lookup over ``_BASH_COMPLETION_ENTRY_SCRIPTS`` (overridable for tests, which is how E-04
+    drives the absent state without touching the real filesystem). Readability, not mere existence,
+    is the test: an unreadable script cannot be sourced, so it is not usable here.
+    """
+    for raw in candidates if candidates is not None else _BASH_COMPLETION_ENTRY_SCRIPTS:
+        path = Path(raw)
+        try:
+            if path.is_file() and os.access(path, os.R_OK):
+                return str(path)
+        except OSError:
+            continue
+    return None
+
+
+def probe_bash_completion_loaded(
+    timeout: float = _PROBE_TIMEOUT_SECONDS,
+) -> Tuple[str, str]:
+    """Fact (b): is bash-completion LOADED in an interactive NON-LOGIN shell? (E-01).
+
+    Returns ``(verdict, detail)`` where verdict is ``yes``/``no``/``unknown``.
+
+    THE DISCRIMINATOR IS `bash -ic 'echo ${BASH_COMPLETION_VERSINFO-}'`, and the two flags are the
+    whole measurement: ``-i`` makes it INTERACTIVE (so the rc files that decide this are read) and
+    the ABSENCE of ``-l`` makes it NON-LOGIN (so ``/etc/profile.d/bash_completion.sh``, which is
+    what loads the framework on many systems, does NOT run). That is exactly the shell a new
+    terminal tab or tmux pane gives you, which is why this is the case that fails in the field
+    while ``bash -lic`` looks fine.
+
+    ANY FAILURE IS UNKNOWN, NEVER "NO". No bash on the box, a timeout, a nonzero exit, an rc file
+    that kills the shell: each means we could not measure, and reporting a confident negative from
+    an unmeasured state would tell a user their working setup is broken. Writes nothing, and reads
+    no file itself - bash reads the user's rc, which is what makes the answer ground truth rather
+    than a guess at what those rc files do.
+    """
+    try:
+        proc = subprocess.run(
+            ["bash", "-ic", "echo ${BASH_COMPLETION_VERSINFO-}"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except FileNotFoundError:
+        return REACHABLE_UNKNOWN, "no `bash` on PATH to probe"
+    except subprocess.TimeoutExpired:
+        return REACHABLE_UNKNOWN, f"the `bash -ic` probe timed out after {timeout:g}s"
+    except OSError as exc:
+        return REACHABLE_UNKNOWN, f"the `bash -ic` probe could not run: {exc}"
+    if proc.returncode != 0:
+        return (
+            REACHABLE_UNKNOWN,
+            f"the `bash -ic` probe exited {proc.returncode}",
+        )
+    # An interactive bash prints its own noise (job-control warnings, MOTD fragments) on stderr and
+    # sometimes stdout, so take the LAST non-empty stdout line rather than the whole buffer.
+    lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    value = lines[-1] if lines else ""
+    if value:
+        return REACHABLE_YES, f"BASH_COMPLETION_VERSINFO={value}"
+    return (
+        REACHABLE_NO,
+        "BASH_COMPLETION_VERSINFO is unset in an interactive non-login shell",
+    )
+
+
+def rc_path_for_shell(shell: str) -> Optional[Path]:
+    """The rc file that decides fact (b) for ``shell``, or ``None`` when we model none.
+
+    Bash only: ``~/.bashrc`` is the file an interactive non-login bash reads, and it is therefore
+    the only file the remediation belongs in. Zsh and fish are deliberately unmodeled here (their
+    preconditions differ in kind), so they get ``None`` and, downstream, an UNKNOWN verdict.
+    """
+    if shell != "bash":
+        return None
+    return Path.home() / ".bashrc"
+
+
+def _read_rc_text(path: Optional[Path]) -> Optional[str]:
+    """Read an rc file's text, or ``None`` when it does not exist / cannot be read.
+
+    READING IS NOT WRITING, and the distinction is drawn deliberately because this feature promises
+    nine times over not to WRITE a user rc file. Reporting "your rc already handles this" requires
+    looking; it changes nothing, creates nothing, and never touches the file's mtime.
+    """
+    if path is None:
+        return None
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def rc_has_our_stanza(text: Optional[str]) -> bool:
+    """True when ``text`` already carries the fenced remediation stanza (E-03).
+
+    KEYED ON THE OPENING FENCE, NOT ON AUTHORSHIP, and that is the opposite of the drop-in FILE
+    rule on purpose. A foreign file in the completion directory is refused because it is someone
+    else's work we must not clobber; a hand-added stanza with this fence means THE USER ALREADY DID
+    THE WORK, so the right answer is "already satisfied, nothing to do" rather than appending a
+    second copy. Measured on the reporting machine 2026-09-12: exactly that stanza was there,
+    hand-added, before this code existed.
+    """
+    return bool(text) and RC_FENCE_OPEN in text
+
+
+def rc_sources_bash_completion(text: Optional[str]) -> bool:
+    """True when an rc file's text appears to source bash-completion at all (fact (c)).
+
+    ADVISORY AND DELIBERATELY NOT THE VERDICT. Fact (b) (the probe) decides whether completion
+    works; this only explains WHY, and distinguishes "your rc already handles this but something
+    else is wrong" from "your rc says nothing about it". A textual scan cannot know whether a
+    reference is reached at runtime, which is precisely why it does not get to overrule the probe.
+    """
+    if not text:
+        return False
+    return any(
+        needle in text
+        for needle in ("bash-completion", "bash_completion", "BASH_COMPLETION_VERSINFO")
+    )
+
+
+def completion_framework_status(
+    shell: str,
+    *,
+    entry_script_candidates: Optional[Sequence[str]] = None,
+    probe: Optional[Callable[[], Tuple[str, str]]] = None,
+    rc_path: Optional[Path] = None,
+) -> FrameworkStatus:
+    """Report whether ``shell``'s completion framework can load, as three separate facts (E-01).
+
+    PURE IN THE SENSE THAT MATTERS: it writes nothing, anywhere. It READS the rc file to report
+    fact (c) and it RUNS `bash -ic` to measure fact (b); neither mutates anything, and the rc read
+    is explicitly not a write (see ``_read_rc_text``).
+
+    Every input is INJECTABLE (``entry_script_candidates``, ``probe``, ``rc_path``) because the one
+    thing this must not do is answer according to whose machine the tests run on. Measured proof
+    that the trap is real: the reporting machine flipped from not-reachable to reachable between
+    this plan being authored and reviewed, with no code change, because a human edited their
+    ``~/.bashrc``. An ambient-environment test would have silently reversed its verdict.
+
+    NON-BASH SHELLS REPORT UNKNOWN rather than a confident negative. Zsh's precondition is that
+    ``compinit`` has run and fish auto-loads its completions directory, so bash's probe says nothing
+    about them; claiming otherwise would be a wrong answer dressed as a measurement.
+    """
+    if shell != "bash":
+        return FrameworkStatus(
+            shell=shell,
+            present=True,
+            reachable=REACHABLE_UNKNOWN,
+            detail=(
+                f"no {shell} completion-framework check is implemented; "
+                f"{shell} loads completions by its own rules"
+            ),
+        )
+
+    entry = find_bash_completion_entry_script(entry_script_candidates)
+    resolved_rc = rc_path if rc_path is not None else rc_path_for_shell(shell)
+    rc_text = _read_rc_text(resolved_rc)
+
+    if entry is None:
+        # Nothing to source: the framework is not on this box, so no rc line can help. Do NOT probe
+        # in this state - a "no" here would invite advice (add a line) that cannot possibly work.
+        return FrameworkStatus(
+            shell=shell,
+            present=False,
+            entry_script=None,
+            reachable=REACHABLE_NO,
+            rc_sources_it=rc_sources_bash_completion(rc_text),
+            rc_path=resolved_rc if rc_text is not None else None,
+            rc_has_stanza=rc_has_our_stanza(rc_text),
+            detail="no bash-completion entry script found on this system",
+        )
+
+    verdict, detail = (probe or probe_bash_completion_loaded)()
+    return FrameworkStatus(
+        shell=shell,
+        present=True,
+        entry_script=entry,
+        reachable=verdict,
+        rc_sources_it=rc_sources_bash_completion(rc_text),
+        rc_path=resolved_rc if rc_text is not None else None,
+        rc_has_stanza=rc_has_our_stanza(rc_text),
+        detail=detail,
+    )
+
+
+def remediation_snippet(*, fenced: bool = False) -> str:
+    """The one-line-ish fix a user can paste, optionally wrapped in the paired fences (E-03).
+
+    ONE SOURCE FOR THE PRINTED AND THE WRITTEN FORM, so the text a user is shown is byte-identical
+    to the text a consented write appends. Two copies would drift, and the guard is exactly the
+    kind of line that gets dropped from a copy.
+    """
+    if not fenced:
+        return _RC_STANZA_BODY
+    return f"{RC_FENCE_OPEN}\n{_RC_STANZA_BODY}\n{RC_FENCE_CLOSE}"
+
+
+def install_rc_stanza(
+    rc_path: Path,
+    *,
+    consent: bool,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Append the fenced remediation stanza to ``rc_path``, ONLY with explicit consent (E-03).
+
+    THE ONLY CODE IN THIS PACKAGE THAT WRITES A USER DOTFILE, authorized by one maintainer ruling
+    (OQ-01, 2026-09-12): OFFER the write, opt-in on a TTY. Every other path in this feature still
+    writes no rc file at all, which is why the caller - not this function - owns the prompt: this
+    function takes ``consent`` as a fact and REFUSES without it, so no future caller can acquire
+    consent by accident. ``--yes`` must never be passed as consent here (it preauthorizes install
+    mutations, not a user-scoped choice about their login shell).
+
+    Returns ``{"action", "rc_path", "detail"}`` with ``action`` one of:
+      ``written``        the stanza was appended (or WOULD be, under ``dry_run``);
+      ``already``        an equivalent fenced stanza is already present - a no-op, reported;
+      ``declined``       no consent was given, so nothing happened;
+      ``absent``         ``rc_path`` does not exist; we REPORT rather than create it.
+
+    WE DO NOT CREATE AN ABSENT ``~/.bashrc``. Creating it is a bigger act than appending to it: on
+    some systems its mere existence changes which startup files bash reads, so a convenience fix
+    could silently alter the user's shell startup. Reporting is the honest move.
+
+    THE WRITE IS ATOMIC AND NEVER TRUNCATES. This is the user's login shell configuration, so a
+    partial write costs them a working shell. Read-modify-write into a temp file in the same
+    directory, then ``os.replace`` (the shape ``install_wizard._persist_policy`` uses), preserving
+    the file's existing trailing-newline state instead of normalizing it.
+    """
+    rc_path = Path(rc_path)
+    if not consent:
+        return {
+            "action": "declined",
+            "rc_path": rc_path,
+            "detail": "no explicit consent, so nothing was written",
+        }
+    existing = _read_rc_text(rc_path)
+    if existing is None:
+        return {
+            "action": "absent",
+            "rc_path": rc_path,
+            "detail": (
+                f"{rc_path} does not exist; refusing to CREATE it (creating it can change which "
+                "startup files bash reads). Create it yourself, then paste the snippet above."
+            ),
+        }
+    if rc_has_our_stanza(existing):
+        return {
+            "action": "already",
+            "rc_path": rc_path,
+            "detail": f"{rc_path} already carries the fenced stanza; nothing to do",
+        }
+    block = remediation_snippet(fenced=True)
+    # Preserve the file's own trailing-newline state: a file that ended mid-line gets its line
+    # finished, one that ended cleanly is not given a spurious blank, and either way we never
+    # rewrite a byte of the user's existing content.
+    # A file ending cleanly gets one blank separator line; a file ending MID-LINE gets its line
+    # finished first (`\n`) and then that separator, so we never splice our stanza onto the tail of
+    # someone's unterminated command.
+    if not existing:
+        separator = ""
+    else:
+        separator = "\n" if existing.endswith("\n") else "\n\n"
+    new_text = f"{existing}{separator}{block}\n"
+    if dry_run:
+        return {
+            "action": "written",
+            "rc_path": rc_path,
+            "detail": f"[dry-run] would append the fenced stanza to {rc_path}",
+            "dry_run": True,
+        }
+    tmp = rc_path.parent / f".{rc_path.name}.aw-tmp"
+    try:
+        tmp.write_text(new_text, encoding="utf-8")
+        os.replace(tmp, rc_path)
+    except OSError:
+        # Never leave a half-written temp file behind in the user's home directory.
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+    return {
+        "action": "written",
+        "rc_path": rc_path,
+        "detail": f"appended the fenced bash-completion stanza to {rc_path}",
+    }
+
+
+def remove_rc_stanza(rc_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
+    """Remove the fenced remediation stanza from ``rc_path`` if we (or an equal fence) put it there.
+
+    THE SYMMETRY THAT MAKES THE WRITE ACCEPTABLE (E-03). An install that writes with an uninstall
+    that abandons the write leaves the user's rc permanently altered by a tool they just removed.
+    Because the stanza is FENCED, this deletes a RANGE with no knowledge of its contents, so a
+    later release rewording the stanza does not break removal.
+
+    Returns ``{"action", "rc_path", "detail"}`` with ``action`` one of ``removed``, ``absent``
+    (no such file) or ``none`` (no stanza to remove). Atomic, like the write.
+    """
+    rc_path = Path(rc_path)
+    existing = _read_rc_text(rc_path)
+    if existing is None:
+        return {
+            "action": "absent",
+            "rc_path": rc_path,
+            "detail": f"{rc_path} does not exist",
+        }
+    stripped, removed = _strip_fenced_block(existing)
+    if not removed:
+        return {
+            "action": "none",
+            "rc_path": rc_path,
+            "detail": f"{rc_path} carries no agent-workflows stanza; left untouched",
+        }
+    if dry_run:
+        return {
+            "action": "removed",
+            "rc_path": rc_path,
+            "detail": f"[dry-run] would remove the fenced stanza from {rc_path}",
+            "dry_run": True,
+        }
+    tmp = rc_path.parent / f".{rc_path.name}.aw-tmp"
+    try:
+        tmp.write_text(stripped, encoding="utf-8")
+        os.replace(tmp, rc_path)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+    return {
+        "action": "removed",
+        "rc_path": rc_path,
+        "detail": f"removed the fenced bash-completion stanza from {rc_path}",
+    }
+
+
+def _strip_fenced_block(text: str) -> Tuple[str, bool]:
+    """Delete every ``RC_FENCE_OPEN``..``RC_FENCE_CLOSE`` range from ``text``.
+
+    Returns ``(new_text, removed_anything)``. An UNTERMINATED opening fence is left ALONE rather
+    than deleting to end-of-file: truncating the rest of a user's rc because our closing marker was
+    lost would be a far worse failure than leaving a stanza behind. The blank line we inserted
+    before the block is absorbed with it, so an install/uninstall round trip restores the file
+    byte-for-byte.
+    """
+    lines = text.splitlines(keepends=True)
+    out: List[str] = []
+    removed = False
+    i = 0
+    while i < len(lines):
+        if lines[i].strip() == RC_FENCE_OPEN:
+            close = None
+            for j in range(i + 1, len(lines)):
+                if lines[j].strip() == RC_FENCE_CLOSE:
+                    close = j
+                    break
+            if close is None:
+                out.append(lines[i])  # unterminated: keep it, never truncate the file.
+                i += 1
+                continue
+            # Absorb the single blank separator line we added ahead of the block, so a round trip
+            # is byte-identical rather than leaving a growing run of blank lines.
+            if out and out[-1].strip() == "":
+                out.pop()
+            removed = True
+            i = close + 1
+            continue
+        out.append(lines[i])
+        i += 1
+    return "".join(out), removed
