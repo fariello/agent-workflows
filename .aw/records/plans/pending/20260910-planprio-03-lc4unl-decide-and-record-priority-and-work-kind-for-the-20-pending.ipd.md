@@ -16,6 +16,13 @@
 - Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-22 executed-substantially (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-06 all PERFORMED and V-01..V-06 all verified with pasted evidence at HEAD `c49c9027`. `aw ipd lint` reports exactly ONE error, at `--phase author` and `--phase pre-transition` alike, and it is CORRECT: `IPD-Q501`, the newly raised OQ-05 is an OPEN BLOCKING question. WRITTEN BY HAND rather than by `aw ipd set --message` because the setter REFUSED, correctly: "refusing to set approved for plan lc4unl: an unresolved BLOCKING open question remains (OQ-05)". It offers `--allow-open-questions`, which was NOT used: overriding a blocking question this very turn raised, on the executor's own authority, is the self-approval the plan forbids.
+  THE FINDING THAT DECIDED THIS EXECUTION: Ruling 2 (2026-09-12) decided 13 plans, and TWELVE of them reached `executed/` in the intervening ten days, where this plan may not write. The ruling's 13 and E-01's re-derived 17 overlap in EXACTLY ONE member. `m7gvuz` gained `Work-Kind: bug`, `Priority: medium` and `Blocks-Release: next` in ONE setter call by id6, so the ungated-bug state `qmgn12` exists to detect never existed in the tree; its `- Status:` is untouched and the history line carries the real reason rather than the setter's fabricated `status set to approved`.
+  E-01 FOUND AND FIXED A DERIVATION DEFECT BEFORE TRUSTING ITS OWN OUTPUT: a `- From-Backlog:` may be a COMMA LIST, which the shipped `check_engine._META_FROM_BACKLOG_RE` cannot parse at all, giving 18 plans under the shipped reading and 17 under the semantic one. Every count in this plan (20, 24, 28) is historical, and so is Ruling 2's population.
+  THE OTHER 16 PLANS HAVE NO MAINTAINER DECISION, so a 7-unit recommendation table with a basis and a coverage count per row is recorded as OQ-05 and DEFERRED rather than self-approved. FOUR of the 7 rows recommend `bug`, which under Ruling 3 would gate release `f33nrj` on three further plans, and widening a release gate is not an executor's call. E-05 CORRECTLY DERIVED NOTHING, measured: no Order-0 orchestrator of any of the 10 class (a)/(b) children carries both fields, and seeding one is the fabrication `xprio`'s `u5vyye` OQ-01 forbids.
+  EVIDENCE: terminal-directory `git status` EMPTY over all three trees, which matters because the throwaway-copy rehearsal PROVED a setid selector would have reverted `8tgg6g` and `r2i1b1` out of `executed`; `aw check plans` 390 -> 391 with a ZERO per-rule delta, the single new finding being this plan's own truthful open-blocking question; board non-null `priority` 30 -> 31 naming exactly `m7gvuz`, its gate rendering as `2.0.0`; bare suite failure SET identical before and after (`1 failed, 8129 passed, 3 skipped, 2 xfailed`), that one failure proved environmental by `env -u OPENCODE_CONFIG_CONTENT` passing it; `aw sanitize --agent` clean.
+  STAYS IN `pending/`, deliberately: the Goal is that NO pending plan is unprioritized, and 16 of 17 still are, so `executed/` would assert a backfill that did not happen.
+  THREE DEFECTS FILED: `k0v9hs` (a comma-list `From-Backlog` is invisible to the release-gate handoff machinery), `iguvci` (Ruling 2 decayed while this plan waited; `hp9rot` and `r2i1b1` shipped as ruled release-blocking bugs carrying neither work-kind nor gate), `1ixbnr` (the lane's containment env var reddens the suite for every lane executor).
 - 2026-09-13 approved (aw set): set Item-Dependencies to none
 - 2026-09-13 approved (aw set): status set to approved
 
@@ -37,25 +44,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: shrink the decision before asking for it
 
-- [ ] E-01 RE-DERIVE THE POPULATION AT EXECUTION TIME AND DO NOT TRUST ANY COUNT IN THIS PLAN. Compute the pending plans that carry no resolvable `- From-Backlog:` AND do not yet carry both fields (sibling 02 will have populated many). Measured at authoring: 24 carried no source, of which 4 are this Set's own plans. The number WILL differ: plans are authored continuously by several agents, and this Set's own four plans are in the population.
+- [x] E-01 RE-DERIVE THE POPULATION AT EXECUTION TIME AND DO NOT TRUST ANY COUNT IN THIS PLAN. Compute the pending plans that carry no resolvable `- From-Backlog:` AND do not yet carry both fields (sibling 02 will have populated many). Measured at authoring: 24 carried no source, of which 4 are this Set's own plans. The number WILL differ: plans are authored continuously by several agents, and this Set's own four plans are in the population.
   EXCLUDE WHAT SIBLING 02 ALREADY WROTE, by testing for the FIELDS rather than for the source reference. A plan that gained values from inheritance must not be re-decided here.
   RECORD THE ORDER AND KIND PER ROW, not only the Set, because E-02's route keys on them: a plan is a candidate for Set inheritance only if it is `- Kind: child` AND its Set has an Order-0 orchestrator that carries (or will carry) both fields. Without those two columns the table cannot be partitioned and E-02 becomes guesswork.
   RECORD THE STATUS PER ROW TOO, because it decides the setter risk. Measured at review, 13 of the 28 are `approved`, which is the population that trips the false-history-line problem (OQ-03 on sibling 02, and the same hazard here).
   REVIEW'S READING, for comparison only: 28 plans across 10 Sets (`runanalytics` 10, `planprio` 4, `nobugship` 4, `orchprobe` 3, `setidfix` 2, then `lanectn`, `defreport`, `integearn`, `runnerbugs`, `rdyrecheck` with one each), split 13 `approved` / 11 `reviewed` / 4 `to-review`. Derive your own and state the delta.
   - Depends on: none
   - Expected outcome: a printed list of plans still missing either field, each row carrying Set, Kind, Order, Status and `Blocks-Release`, the count stated as measured rather than quoted, and the delta against review's 28 recorded.
-  - Execution state: pending
+  - Execution note: 2026-09-22. Population re-derived by script (recorded in the run submission as `derive_population.py`): 17 live plans, against the title's 20, the authored 24 and review's 28. Predicate tested for the FIELDS. One derivation defect found and fixed before its output was trusted: a `- From-Backlog:` may be a COMMA LIST, which the shipped `check_engine._META_FROM_BACKLOG_RE` cannot parse at all (backlog `k0v9hs`); mirroring the shipped regex gives 18, reading the list gives 17. See DECISION 15-lc4unl-D1.
+  - Execution state: performed
 
-- [ ] E-02 PARTITION THE POPULATION INTO WHAT A SET ORCHESTRATOR CAN SETTLE AND WHAT NEEDS A HUMAN, WITHOUT WRITING ANYTHING YET. This item was RE-SCOPED at review from "apply the route" to "plan the route", because applying it here is what makes it resolve nothing (PR-001, blocking OQ-02).
+- [x] E-02 PARTITION THE POPULATION INTO WHAT A SET ORCHESTRATOR CAN SETTLE AND WHAT NEEDS A HUMAN, WITHOUT WRITING ANYTHING YET. This item was RE-SCOPED at review from "apply the route" to "plan the route", because applying it here is what makes it resolve nothing (PR-001, blocking OQ-02).
   THE ROUTE IS SOUND AND ITS PAYOFF IS REAL. A child inheriting its Set orchestrator's values is the same derivation sibling 02 performs from a backlog source, one level up, and it is legitimate because a Set is by definition one coherent piece of work. MEASURED at review, once the orchestrators are decided the route yields 13 human decisions covering 28 plans instead of 28.
   BUT AS SEQUENCED IT RESOLVES ZERO, WHICH IS WHY THIS ITEM NO LONGER WRITES. E-02 ran before E-03 and required the orchestrator to ALREADY carry both fields. MEASURED over the live population: NOT ONE of the orchestrators carries both fields today, so the condition holds for 0 of 28 plans and the entire population falls through to E-03, producing exactly the 28-question outcome this plan exists to avoid. The order must invert (decide orchestrators first, then derive children) and OQ-02 owns that.
   PARTITION INTO THREE CLASSES AND STATE THE COUNTS. (a) CHILD OF A SET WHOSE ORCHESTRATOR SIBLING 02 WILL FILL: measured at review, `orchprobe` (orchestrator `yeh7gc`, source `5ev6lh`) and `lanectn` (orchestrator `h0zljh`, source `vqv9im`), covering 4 children. These need NO human decision at all IF sibling 02 has run; that is PR-002 and blocking OQ-03. (b) CHILD OF A SET WHOSE ORCHESTRATOR NEEDS A HUMAN: `runanalytics` (9 children under `5lxvl3`), `planprio` (3 under `d0cbt3`), `nobugship` (3 under `qmgn12`), so 3 decisions cover 15 plans plus their 3 orchestrators. (c) NO IN-POPULATION ORCHESTRATOR TO INHERIT FROM: `setidfix` (2), `orchprobe`'s own remainder if (a) does not apply, `defreport`, `integearn`, `runnerbugs`, `rdyrecheck` (1 each), which are individual decisions.
   VERIFY THE ORCHESTRATOR EXISTS IN `pending/` BEFORE COUNTING ON IT. Measured, 5 Sets in the population have NO Order-0 plan in `pending/` at all (`setidfix`, `defreport`, `integearn`, `runnerbugs`, `rdyrecheck`), so their children have nothing to inherit from and belong in class (c). Do not assume a Set has an orchestrator because it has an Order.
   - Depends on: E-01
   - Expected outcome: the population partitioned into the three classes with counts, every orchestrator named with its own source-or-needs-a-decision state, the projected number of human decisions stated (review measured 13), and NO value written by this item.
-  - Execution state: pending
+  - Execution note: 2026-09-22. Three-class partition computed and NOTHING written (`git status --porcelain -- .aw/records/plans` EMPTY at its end): class (a) 4, class (b) 6, class (c) 7, yielding 7 human decisions covering 13 of the 17, with class (a)'s 4 needing no decision at all. Five Sets in the population have NO Order-0 plan in `pending/` (`promptid6`, `revladder`, `runresidue`, `setidlen`, and none beyond those), confirming F-8's hazard on a fresh population.
+  - Execution state: performed
 
-- [ ] E-03 PUT THE DECIDABLE UNITS TO THE MAINTAINER AS ONE LIST, NOT AS N QUESTIONS, AND ASK ABOUT ORCHESTRATORS RATHER THAN ABOUT EVERY CHILD. For each unit give its Concern in one line, its Set, whether it carries `- Blocks-Release:`, and a RECOMMENDED `Priority` and `Work-Kind` with a one-clause reason, so the maintainer confirms or corrects a table rather than answering a series of prompts. The maintainer explicitly asked for this shape ("as a single list rather than twenty questions").
+- [x] E-03 PUT THE DECIDABLE UNITS TO THE MAINTAINER AS ONE LIST, NOT AS N QUESTIONS, AND ASK ABOUT ORCHESTRATORS RATHER THAN ABOUT EVERY CHILD. For each unit give its Concern in one line, its Set, whether it carries `- Blocks-Release:`, and a RECOMMENDED `Priority` and `Work-Kind` with a one-clause reason, so the maintainer confirms or corrects a table rather than answering a series of prompts. The maintainer explicitly asked for this shape ("as a single list rather than twenty questions").
   THE LIST IS THE 13 UNITS FROM E-02's PARTITION, NOT THE 28 PLANS. Measured at review: 3 orchestrator decisions (`5lxvl3`, `d0cbt3`, `qmgn12`) settle 15 children between them, class (a)'s 4 children need nothing if sibling 02 has run, and the remaining rows are individual. State the coverage explicitly in the table ("this row settles N plans") so the maintainer can see that confirming 13 rows disposes of 28 plans; a table that hides the fan-out invites them to wonder what they are actually approving.
   IF THERE IS NO HUMAN TO ASK, RECORD AND DEFER RATHER THAN GUESSING OR STALLING. Under `aw oc run` / `aw agy run` the driver states the run is non-interactive and forbids invoking an interactive question tool, and the `askme` workflow's own contract is to record and defer in that case rather than block. So: compose the table, WRITE IT into this plan as the deferred artifact, leave every affected plan untouched, and report that E-04 is deferred pending a human. Do NOT fabricate a confirmation, and do NOT self-approve the table on the executor's authority; a derived recommendation is evidence, not a decision. This branch is what stops the plan stalling a whole unattended queue.
   DERIVE THE RECOMMENDATION, DO NOT GUESS IT. `Work-Kind` is usually readable from the plan's own Concern (a plan fixing a measured defect is `bug`; one adding a capability is `feature`; one moving or renaming records is `chore`; one closing a safety gap is `security`; one cleaning up after another plan is `followup`). For `Priority`, a plan carrying `- Blocks-Release:` is a candidate for `high` but this is NOT automatic: `p9o1oo` records that the urgent case is covered orthogonally by `Blocks-Release`, so the two must not be conflated. State each recommendation's basis.
@@ -63,9 +72,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   COMPOSE THE PROMPT PER P12 AND THE `askme` MEMORY KERNEL, not as a wall of evidence: enough context to decide from the prompt alone, no chronology, no filenames unless essential, and do NOT restate the options the interactive tool will render. A 28-row table pasted into a prompt is precisely what P12 exists to prevent; a 13-row table with a coverage column and a one-clause basis per row is the shape to aim for.
   - Depends on: E-02
   - Expected outcome: one table of the ~13 decidable units with a recommended pair, its basis and its coverage count, put to the maintainer if one is present, and their confirmations or corrections recorded verbatim; OR, in a non-interactive run, the same table written into this plan with E-04 explicitly deferred and nothing written to any other plan.
-  - Execution state: pending
+  - Execution note: 2026-09-22 via the NON-INTERACTIVE branch, which is the correct branch here: the driver states the run is non-interactive. Ruling 2 was treated as the ANSWER to E-03 rather than re-asked, and E-01 then found that 12 of its 13 plans had reached `executed/` where this plan may not write, leaving `m7gvuz` as the only one it still reaches (DECISION 15-lc4unl-D2). The 16 plans Ruling 2 no longer covers are OUTSIDE the recorded 13, so per E-03 they were RAISED and not inferred: a 7-row recommendation table with a basis and coverage count per row is recorded as OQ-05 above and deferred to the maintainer. Nothing was self-approved.
+  - Execution state: performed
 
-- [ ] E-04 WRITE THE CONFIRMED ORCHESTRATOR AND INDIVIDUAL VALUES THROUGH THE SHIPPED SETTER, using the EXACT form sibling 02's review verified: `aw ipd set <that-plan's-current-status> <id6> --priority <p> --work-kind <k> --message "<why>" --no-commit --yes`. Every element is load-bearing and four were added at review.
+- [x] E-04 WRITE THE CONFIRMED ORCHESTRATOR AND INDIVIDUAL VALUES THROUGH THE SHIPPED SETTER, using the EXACT form sibling 02's review verified: `aw ipd set <that-plan's-current-status> <id6> --priority <p> --work-kind <k> --message "<why>" --no-commit --yes`. Every element is load-bearing and four were added at review.
   USE THE id6, NEVER A SETID, AND THIS IS THE SHARPEST HAZARD IN THE ITEM. A setid resolves to EVERY plan carrying it, terminal ones included. MEASURED at review, 3 of the 10 setids in this population also name a terminal plan (`integearn`, `lanectn`, `runanalytics`), and `aw ipd set approved runanalytics --priority medium --work-kind feature --dry-run` reports `executed -> approved` on plan `xbwq8n` in `executed/`. Backlog `f5pttg` (`open`, high) records this exact command having silently reverted seven executed plans. The temptation is acute here precisely BECAUSE this plan thinks in Sets: the whole point of E-02 is that one decision covers a Set, and the wrong way to apply that is one setid command.
   DRY-RUN EVERY INVOCATION AND READ IT. A line reading anything but `unchanged` for exactly the one plan you named means the selector over-matched; STOP rather than proceeding. That is the unsafe-condition stop, not a scope stop.
   PASS `--message`, BECAUSE A SAME-STATUS WRITE OTHERWISE FABRICATES A HISTORY LINE. MEASURED at review on orchestrator `5lxvl3` (`approved`): without it the setter appends `- <date> approved (aw set): status set to approved`, asserting a transition that did not happen. 13 of the 28 plans here are `approved`, so this is the majority of the population rather than an edge case. Sibling 02's blocking OQ-02 owns the question of whether that is acceptable; whatever it answers applies here identically and this plan must not answer it independently.
@@ -76,17 +86,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT WIDEN THE GATE BEYOND THIS PLAN'S MEASURED POPULATION. Ruling 3 is scoped to the 13 plans this plan decides. Gating every `bug` artifact repo-wide is `qmgn12`'s deliverable; sweeping other plans here would be scope creep in a shared checkout and would touch artifacts this plan never measured.
   - Depends on: E-03
   - Expected outcome: every confirmed unit written WITH `--blocks-release next` on every `bug` in the same call; every invocation used an id6, a dry-run preflight, `--no-commit` and a truthful `--message`; no plan's `- Status:` changed; nothing written in a non-interactive run where E-03 deferred.
-  - Execution state: pending
+  - Execution note: 2026-09-22 for the ONE plan a recorded ruling still reaches, and deliberately not beyond it. `m7gvuz` gained `Work-Kind: bug`, `Priority: medium` and `Blocks-Release: next` in ONE `aw ipd set` call by id6, so the ungated-bug state `qmgn12` exists to detect never existed in the tree. Rehearsed on a throwaway copy first, dry-run preflight read, `--no-commit` and a truthful `--message` passed, no hand-edit. The other 16 plans were NOT written, because E-03 deferred (see V-04).
+  - Execution state: performed
 
-- [ ] E-05 DERIVE THE CHILDREN FROM THEIR NOW-DECIDED ORCHESTRATORS, which is the step that makes E-02's partition pay off and which the authored plan had no item for.
+- [x] E-05 DERIVE THE CHILDREN FROM THEIR NOW-DECIDED ORCHESTRATORS, which is the step that makes E-02's partition pay off and which the authored plan had no item for.
   ONLY NOW DOES THE INHERITANCE CONDITION HOLD. E-02 measured that no orchestrator carried both fields; E-04 has just given them values, so a child may now inherit. Apply the same setter form as E-04, one child at a time, by id6.
   RECORD WHICH CHILDREN WERE DERIVED AND FROM WHICH ORCHESTRATOR, so a later correction can target them: OQ-01's whole safety argument is that a child whose priority genuinely differs can be fixed individually afterwards, and that is only true if the derivation is auditable.
   DO NOT DERIVE ACROSS A SET BOUNDARY and do not derive from an orchestrator that is not Order-0 of that child's own Set. A shared setid is a topic label, not a containment claim (D153), so match on the `- Set:` value AND the Order-0 position, not on the filename.
   - Depends on: E-04
   - Expected outcome: every class (a) and class (b) child carrying its Set orchestrator's values, with a per-child record of the orchestrator it inherited from, and no cross-Set derivation.
-  - Execution state: pending
+  - Execution note: 2026-09-22 and CORRECTLY DERIVED NOTHING, which is the item's honest outcome rather than a skip. Measured per child: no Order-0 orchestrator of any class (a) or (b) child carries both fields (`s0gnha` carries `Work-Kind: bug` with no `Priority`, the closest any comes), so the inheritance precondition holds for 0 of 10 children. Seeding an orchestrator to make it hold is OQ-02 option (c), which this plan names as the one to avoid. See DECISION 15-lc4unl-D3.
+  - Execution state: performed
 
-- [ ] E-06 PROVE NOTHING ELSE MOVED AND THE RESULT IS OBSERVABLE, which the authored E-04 bundled with the write and partly could not demonstrate.
+- [x] E-06 PROVE NOTHING ELSE MOVED AND THE RESULT IS OBSERVABLE, which the authored E-04 bundled with the write and partly could not demonstrate.
   SHOW NO COLLATERAL METADATA CHANGE: no plan's `Status`, `Readiness`, `Set`, `Order` or `Id` differs, and only the two field lines plus one history line per plan changed.
   PROVE NO TERMINAL PLAN WAS TOUCHED: `git status --porcelain -- .aw/records/plans/executed .aw/records/plans/superseded .aw/records/plans/not-executed` must be EMPTY. Given the measured 3-setid collision this is the assertion that would catch the `f5pttg` failure mode before it commits.
   DO NOT REQUIRE `aw check plans` CLEAN. Measured bare at review (HEAD `5e0e9873`) it exits 1 with `errors 140  warnings 0` (124 `check.scope-drift`, 15 `check.lifecycle-transition-invalid`, 1 `check.review-decision-unescalated`), none caused by this plan. Capture that count BEFORE the first edit and compare per rule id. An executor told to make it clean would either stall or edit another agent's plans, which the shared-checkout rule forbids.
@@ -94,7 +106,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RE-VERIFY THE INDEX BEFORE EVERY COMMIT, and again after any failed hook: other agents commit concurrently and pre-commit's stash/restore can leave their paths staged.
   - Depends on: E-05
   - Expected outcome: no collateral metadata change, an empty terminal-directory status, `aw check plans` compared per rule against the pre-edit baseline, and the non-null `priority` count stated before and after with the delta matching the plans written.
-  - Execution state: pending
+  - Execution note: 2026-09-22. Terminal-directory `git status` EMPTY over all three trees; no collateral metadata change; `aw check plans` compared per rule id against a pre-edit baseline; board non-null `priority` 30 -> 31 naming exactly `m7gvuz`; bare suite failure SET identical before and after.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -267,40 +280,419 @@ N/A: sibling 01 amends the spec defining the metadata fields. This plan writes v
     DO NOT WIDEN IT BEYOND THIS SET'S POPULATION. Gating every `bug` artifact repo-wide is `qmgn12`'s job, not this backfill's; touching plans outside the measured 13 would be scope creep into a shared checkout.
   ANSWERED BY RULING 1, identically to sibling 02's OQ-03: the `executed:lkexaw` edge is INVERTED and must be removed. Order 01 depends on this plan, not the reverse.
 
+### OQ-05: Ruling 2 now reaches ONE live plan. What values do the other 16 carry? (raised at execution 2026-09-22)
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Scope of the block: the 16 plans this question names. It does NOT block `m7gvuz`, which Ruling 2 decides directly and which E-04 already wrote.
+- Resolution or deferral rationale: RULING 2 DECAYED WHILE THIS PLAN WAITED, MEASURED RATHER THAN SUSPECTED. The ruling of 2026-09-12 decided 13 plans; by execution on 2026-09-22 TWELVE of them had reached `executed/`, where this plan may not write (its own out-of-scope section: "TERMINAL PLANS. Immutable by policy"). Terminal and unwritable: `xdr83v`, `hp9rot`, `r2i1b1`, and all eleven `runanalytics` plans. Still live: `m7gvuz` alone, which E-04 wrote with `medium`/`bug` plus `- Blocks-Release: next` in ONE setter call per Ruling 3.
+  SO THE RULING IS HONORED IN FULL WHERE IT CAN BE, AND THE PLAN'S GOAL IS STILL UNMET, which is why this is raised rather than reported as success. E-01 re-derived the live population at execution time and found 17, of which 16 now have NO maintainer decision at all: the ruling's 13 and E-01's 17 overlap in exactly one member. Every count in this plan (the title's 20, the authored 24, review's 28) is historical, and so is Ruling 2's population; that decay is itself filed as backlog `iguvci`, together with the sharper fact that `hp9rot` and `r2i1b1` SHIPPED carrying neither `Work-Kind: bug` nor a gate, so a ruled release-blocking bug left no trace in the corpus.
+  THE RECOMMENDATION TABLE IS RECORDED HERE AS EVIDENCE, NOT AS A DECISION, because the plan forbids self-approval in as many words and V-03 calls a self-granted confirmation a FAILED validation. E-02's partition makes it 7 units covering 13 plans, with 4 more needing no decision at all:
+
+    | # | Unit | Set | Settles | Rec. Priority | Rec. Work-Kind | Gate today | Basis |
+    |---|---|---|---|---|---|---|---|
+    | 1 | `tb63qv` (orch) | `laneorph` | 2 (`tb63qv`, `k311gw`) | high | bug | - | Measured unbounded growth at 38 worktrees / 4.7G with a reclaim predicate that is False forever: a live defect consuming disk now. |
+    | 2 | `2xz59a` (orch) | `lifeglyph` | 3 (`2xz59a`, `qdd5jq`, `7p3tt8`) | medium | feature | next (all 3) | Unifying four disagreeing palettes into one presentation system is new capability; nothing breaks in its absence. |
+    | 3 | `d0cbt3` (orch) | `planprio` | 4 (`d0cbt3`, `lkexaw`, `8u6770`, `lc4unl`) | medium | feature | - | Makes two optional fields required and backfills the corpus: new enforcement, no pre-existing behavior wrong. THIS SET'S OWN WORK, recommended on the same basis as every other row and deliberately not flattered. |
+    | 4 | `ubac5n` | `promptid6` | 1 | medium | chore | - | Renames records onto the uniform grammar so a staged prompt can be cited; its own cited precedent (`ha55fi`) is a records migration. |
+    | 5 | `i4ak5n` | `revladder` | 1 | high | bug | next | A refusal message promises a retry that provably never happens on the review path, so an operator is told something false and the turn is stranded; already gated, and `high` is the value consistent with that gate. |
+    | 6 | `gqo6if` | `runresidue` | 1 | medium | followup | - | Closes residue the `rununify` Set left behind, which is the definition of `followup`; the directive was "substantially met", so nothing is broken. |
+    | 7 | `x75obw` | `setidlen` | 1 | low | chore | - | Filename legibility and terminal formatting: a convention tightening with no correctness or data consequence. |
+
+  THE PART MOST NEEDING AN EXPLICIT ANSWER IS THE GATE WIDENING, because Ruling 3 makes a `bug` recommendation a release decision rather than a label: confirming rows 1 and 5 would give `tb63qv`, `k311gw` and `i4ak5n` a `- Blocks-Release: next`, adding 3 blockers to release `f33nrj` (2.0.0). An executor must not widen a release gate on its own authority, which is precisely why the table is deferred rather than written.
+  CLASS (a) NEEDS NO DECISION AND MUST NOT BE PUT ON THE TABLE: `04vf1h`, `p9j6c0` and `40it5e` (and `m7gvuz`, now written) each sit under an Order-0 orchestrator carrying a RESOLVABLE `- From-Backlog:` (`a5wdne`->`dstnso`, `s0gnha`->`yxfw4k`, `5e4sb6`->`dhuape`, `yeh7gc`->`5ev6lh`), so sibling 02's mechanical route fills the orchestrator and they derive for free afterwards. This is OQ-03's free-inheritance observation surviving as a note, exactly as Ruling 2 instructed.
+  E-05 CORRECTLY DERIVED NOTHING, and that is a pass rather than a gap: measured at execution, NO Order-0 orchestrator of any class (a) or (b) child carries both fields (`s0gnha` carries `Work-Kind: bug` with no `Priority`, the closest any comes), so the inheritance precondition holds for 0 of 10 children. Seeding an orchestrator to make it hold is option (c) of OQ-02, which this plan names as "the one to avoid" and which `xprio`'s `u5vyye` OQ-01 forbids as fabrication.
+  DEPENDENCY EFFECT THE MAINTAINER SHOULD WEIGH: sibling `lkexaw` (Order 01) installs the requiredness gate and declares `- Item-Dependencies: executed:8u6770, executed:lc4unl`, so Ruling 1's ordering is respected in the corpus. But Ruling 1's PREMISE was that the corpus would be real-valued before the gate exists, and 16 of 17 live plans are still unvalued. Landing `lkexaw` before this question is answered would strand them, which is the same circularity OQ-04 records, now measured against a different population.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the re-derived population with the command that produced it and the count, each row carrying Set, Kind, Order, Status and `Blocks-Release`. State how it differs from review's 28 and the authored 24. Confirm the query tested for the FIELDS rather than for `From-Backlog` (paste the predicate). Paste the per-status split; review measured 13 `approved`, 11 `reviewed`, 4 `to-review`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED at HEAD `c49c9027`. THE PREDICATE IS THE FIELDS TEST, not the source reference, and this is the exact code that ran:
 
-- [ ] V-02 validates E-02
+        if (not rec['has_both']) and (not rec['fb_resolvable']):   # has_both = bool(priority and work_kind)
+
+    Command and output (script recorded in the run submission as `derive_population.py`):
+
+        $ LC4UNL_OUT=... python3 derive_population.py
+        TOTAL pending .ipd.md files: 71
+        PREDICATE: (NOT (has Priority AND has Work-Kind)) AND (NOT resolvable From-Backlog)
+        POPULATION: 17
+
+        id6     set           Ord  kind         status      prio    work-kind  blocks-release  from-backlog
+        ------------------------------------------------------------------------------------------------------
+        04vf1h  hostdedup     4    child        to-review   -       -          -               -
+        tb63qv  laneorph      0    orchestrator approved    -       -          -               -
+        k311gw  laneorph      3    child        to-review   -       -          -               -
+        2xz59a  lifeglyph     0    orchestrator approved    -       -          next            -
+        qdd5jq  lifeglyph     7    child        approved    -       -          next            -
+        7p3tt8  lifeglyph     8    child        approved    -       -          next            -
+        m7gvuz  orchprobe     3    child        approved    -       -          -               -
+        d0cbt3  planprio      0    orchestrator approved    -       -          -               -
+        lkexaw  planprio      1    child        approved    -       -          -               -
+        8u6770  planprio      2    child        approved    -       -          -               -
+        lc4unl  planprio      3    child        approved    -       -          -               -
+        ubac5n  promptid6     1    child        reviewed    -       -          -               -
+        p9j6c0  reaskscore    5    child        to-review   -       -          -               -
+        i4ak5n  revladder     1    child        approved    -       -          next            -
+        gqo6if  runresidue    1    child        to-review   -       -          -               -
+        40it5e  rununify      12   child        to-review   -       -          -               -
+        x75obw  setidlen      1    child        reviewed    -       -          -               -
+
+        BY SET: {'planprio': 4, 'lifeglyph': 3, 'laneorph': 2, 'hostdedup': 1, 'orchprobe': 1,
+                 'promptid6': 1, 'reaskscore': 1, 'revladder': 1, 'runresidue': 1, 'rununify': 1,
+                 'setidlen': 1}
+        BY STATUS: {'approved': 10, 'reviewed': 2, 'to-review': 5}
+        BY KIND: {'child': 14, 'orchestrator': 3}
+
+    THE DELTA AGAINST EVERY PRIOR COUNT, and it is a change of MEMBERSHIP and not merely of size:
+    the title's 20, the authored 24 and review's 28 are all historical, and this measurement is 17.
+    Review's 28 spanned 10 Sets of which SEVEN (`runanalytics`, `nobugship`, `setidfix`, `lanectn`,
+    `defreport`, `integearn`, `runnerbugs`, `rdyrecheck`) no longer contribute a single member,
+    because those plans executed in the interim. Seven Sets are NEW to the population since review
+    (`hostdedup`, `laneorph`, `lifeglyph`, `promptid6`, `reaskscore`, `revladder`, `runresidue`,
+    `rununify`, `setidlen`). `planprio`'s own four and `orchprobe`'s `m7gvuz` are the only carry-over.
+    The per-status split also moved, 10 `approved` / 2 `reviewed` / 5 `to-review` against review's
+    13 / 11 / 4. This is exactly F-1's moving target, and it is why the plan forbids re-quoting.
+    A DERIVATION DEFECT WAS FOUND AND FIXED BEFORE THE OUTPUT WAS TRUSTED. `- From-Backlog:` may
+    be a COMMA LIST (`nmlx47` carries `dstnso, 8hx3g3`, both resolving to real backlog items), while
+    the shipped `check_engine._META_FROM_BACKLOG_RE` matches a single `\S+` to end of line and so
+    matches NOTHING on that value (driven in-process: `findall(...) == []`). Mirroring the shipped
+    regex yields 18 and includes `nmlx47`; reading the list yields 17 and excludes it. The semantic
+    reading was chosen and recorded as DECISION 15-lc4unl-D1; the upstream parsing defect is filed
+    as backlog `k0v9hs` rather than patched here, since `check_engine.py` is outside `- Scope-Paths:`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the three-class partition with its counts and the projected number of human decisions (review measured 13 covering 28). For EVERY Set in the population, paste whether it has an Order-0 plan in `pending/` at all (review measured 5 that do not) and, where it does, whether that orchestrator already carries both fields, gets them from sibling 02, or needs a human. Confirm explicitly that this item WROTE NOTHING: `git status --porcelain -- .aw/records/plans` must be empty at its end.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Partition computed by the `partition.py` recorded in the run submission:
 
-- [ ] V-03 validates E-03
+        CLASS (a)  ORCHESTRATOR SIBLING 02 WILL FILL (free derivation): 4
+          04vf1h  hostdedup   orchestrator a5wdne carries resolvable From-Backlog dstnso
+          m7gvuz  orchprobe   orchestrator yeh7gc carries resolvable From-Backlog 5ev6lh
+          p9j6c0  reaskscore  orchestrator s0gnha carries resolvable From-Backlog yxfw4k
+          40it5e  rununify    orchestrator 5e4sb6 carries resolvable From-Backlog dhuape
+        CLASS (b)  ORCHESTRATOR NEEDS A HUMAN: 6
+          k311gw  laneorph    orchestrator tb63qv is itself in the population
+          qdd5jq  lifeglyph   orchestrator 2xz59a is itself in the population
+          7p3tt8  lifeglyph   orchestrator 2xz59a is itself in the population
+          lkexaw  planprio    orchestrator d0cbt3 is itself in the population
+          8u6770  planprio    orchestrator d0cbt3 is itself in the population
+          lc4unl  planprio    orchestrator d0cbt3 is itself in the population
+        CLASS (c)  NO IN-POPULATION ORCHESTRATOR TO INHERIT FROM: 7
+          tb63qv  laneorph    IS the Order-0 orchestrator itself; a decision unit
+          2xz59a  lifeglyph   IS the Order-0 orchestrator itself; a decision unit
+          d0cbt3  planprio    IS the Order-0 orchestrator itself; a decision unit
+          ubac5n  promptid6   Set has NO Order-0 plan in pending/
+          i4ak5n  revladder   Set has NO Order-0 plan in pending/
+          gqo6if  runresidue  Set has NO Order-0 plan in pending/
+          x75obw  setidlen    Set has NO Order-0 plan in pending/
+
+        DECISION UNITS
+          tb63qv  laneorph    orchestrator decision  settles 2 plan(s)
+          2xz59a  lifeglyph   orchestrator decision  settles 3 plan(s)
+          d0cbt3  planprio    orchestrator decision  settles 4 plan(s)
+          ubac5n  promptid6   individual decision    settles 1
+          i4ak5n  revladder   individual decision    settles 1
+          gqo6if  runresidue  individual decision    settles 1
+          x75obw  setidlen    individual decision    settles 1
+        HUMAN DECISIONS: 7, covering 13 of the 17 population plans
+        CLASS (a) needs NO human decision: 4 plan(s)
+
+    ORDER-0 PRESENCE FOR EVERY SET IN THE POPULATION, with each orchestrator's own field state:
+
+        hostdedup   orch=a5wdne  Priority=-  Work-Kind=-    From-Backlog=dstnso  resolvable=True
+        laneorph    orch=tb63qv  Priority=-  Work-Kind=-    From-Backlog=-       resolvable=False
+        lifeglyph   orch=2xz59a  Priority=-  Work-Kind=-    From-Backlog=-       resolvable=False
+        orchprobe   orch=yeh7gc  Priority=-  Work-Kind=-    From-Backlog=5ev6lh  resolvable=True
+        planprio    orch=d0cbt3  Priority=-  Work-Kind=-    From-Backlog=-       resolvable=False
+        promptid6   NO Order-0 plan in pending/
+        reaskscore  orch=s0gnha  Priority=-  Work-Kind=bug  From-Backlog=yxfw4k  resolvable=True
+        revladder   NO Order-0 plan in pending/
+        runresidue  NO Order-0 plan in pending/
+        rununify    orch=5e4sb6  Priority=-  Work-Kind=-    From-Backlog=dhuape  resolvable=True
+        setidlen    NO Order-0 plan in pending/
+
+    F-8's HAZARD REPRODUCED ON A FRESH POPULATION: FOUR Sets have no Order-0 plan in `pending/` at
+    all (`promptid6`, `revladder`, `runresidue`, `setidlen`), against review's five, so the hazard is
+    live but its membership changed entirely. NOT ONE orchestrator carries BOTH fields, confirming
+    F-2b on this population too; `s0gnha` is the single closest, carrying `Work-Kind: bug` alone.
+    THE REDUCTION IS REAL: 7 decisions cover 13 plans, against review's projection of 13 covering 28.
+    THIS ITEM WROTE NOTHING, proved at its end:
+
+        $ git status --porcelain -- .aw/records/plans
+        (no output)
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste OQ-02's and OQ-03's recorded answers FIRST, since they decide the table's shape and whether 4 rows are needed at all. Then paste the recommendation table as it was put to the maintainer, including each row's stated basis AND its coverage count, then their response verbatim and the resulting final assignments. Any correction they made must be visible as a correction, not silently folded in. IF THE RUN WAS NON-INTERACTIVE: paste the driver's own non-interactive notice, the table as written into this plan, and an explicit statement that E-04 through E-06 are deferred and no other plan was touched. A fabricated or self-granted confirmation is a FAILED validation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED, and the run WAS non-interactive, so the deferral branch is the one that applies.
+    OQ-02's RECORDED ANSWER, which decides the table's shape: "MAINTAINER RULINGS 2026-09-12 ...
+    RULING 1, ORDERING: RUN ORDERS 02 AND 03 BEFORE ORDER 01 ... RULING 2, THE 13 UNDECIDED PLANS,
+    accepted as a per-Set table rather than 13 individual answers: `lanectn`/`xdr83v` high/bug;
+    `runnerbugs`/`hp9rot` high/bug; `orchprobe`/`m7gvuz`,`r2i1b1` medium/bug; `runanalytics`/all 9
+    children medium/feature. RULING 3, GATING ... ALL BUGS MUST BLOCK THE NEXT RELEASE. ... SETTLED BY
+    RULING 2 ... The executor must still re-derive the population at execution time per E-01 and must
+    treat Ruling 2 as the ANSWER to E-03 rather than re-asking, but if E-01 finds a plan outside the
+    recorded 13, that plan needs a fresh decision and must be raised rather than inferred."
+    OQ-03's RECORDED ANSWER, which decides whether class (a) rows are needed: "MOOT UNDER RULING 2:
+    the per-Set table covers all 13 plans directly, including the four that could have inherited from
+    a sibling, so no inheritance route is needed to resolve them and this plan's independence claim
+    stands. Keep the free-inheritance observation as a note only; do not build a route this ruling
+    makes unnecessary." HONORED: class (a)'s 4 are recorded as a NOTE in OQ-05 and are NOT on the
+    table, and no inheritance route was built.
+    THE DRIVER'S OWN NON-INTERACTIVE NOTICE, quoted from the turn prompt: "All target IPDs are
+    already human-approved. Do not ask for approval. This run is non-interactive: do not invoke an
+    interactive question tool or wait for human input. ... If a reasonable recommended approach
+    exists, choose it, record it in the decisions/questions register ... If no reasonable approach
+    exists, record a DEFERRED question with the work completed, work blocked, dependency effect,
+    exact preserved state, and recommended human action."
+    WHAT RULING 2 STILL REACHES, measured rather than assumed, which is the finding that shaped this
+    execution: of its 13 plans, TWELVE are now in `executed/` where this plan may not write
+    (`xdr83v`, `hp9rot`, `r2i1b1`, and all eleven `runanalytics` plans `5lxvl3` `xbwq8n` `bzz5e6`
+    `lhccjf` `5f2h8i` `8hald1` `aflsz3` `6eq3oq` `mm5p3v` `ixis0c` `9xycbh`), and ONE is live:
+    `m7gvuz`, `pending/`, `- Status: approved`. Ruling 2 and E-01's 17 overlap in exactly one member.
+    So Ruling 2 was APPLIED, in full, to the only artifact it can still legitimately reach
+    (DECISION 15-lc4unl-D2, written in E-04), and the remaining 16 are plans "outside the recorded
+    13" which the ruling itself says "must be raised rather than inferred".
+    THE TABLE PUT TO THE MAINTAINER is recorded verbatim in OQ-05 above: 7 rows, each with a
+    recommended `Priority`/`Work-Kind`, a one-clause basis and a coverage count ("settles N"),
+    covering 13 plans, plus the class (a) note covering the other 4. NO RESPONSE EXISTS AND NONE IS
+    CLAIMED: there was no human in this turn, so there is no confirmation to paste, and none was
+    fabricated or self-granted. The table is EVIDENCE, not a decision.
+    WHAT IS DEFERRED, stated precisely rather than as a blanket: E-04 is deferred FOR THE 16
+    undecided plans and PERFORMED for `m7gvuz`; E-05 derived nothing (its precondition genuinely
+    fails, see V-05); E-06 was performed in full over what was written. No plan other than `m7gvuz`
+    and this plan itself was touched, proved by `git diff --name-only -- .aw/records/plans` naming
+    exactly those two files (pasted in V-06).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: for the FIRST plan written, paste the `--dry-run` output showing exactly ONE plan named and `unchanged`, then the real invocation and its `git diff` showing only the two fields plus one history line changed with `- Status:` unchanged. Paste the history line and confirm it carries the supplied `--message` rather than `status set to approved`. Paste the full command list proving every invocation used an id6 and `--no-commit`; a single setid invocation is a FAILED validation given the measured `executed -> approved` result on `runanalytics`. Confirm no hand-edit was used.
     - Required evidence (Ruling 3): paste `grep -h '^- \(Work-Kind\|Blocks-Release\):' <file>` for ALL FOUR bug plans (`xdr83v`, `hp9rot`, `m7gvuz`, `r2i1b1`) showing `bug` and `next` together on each. A plan carrying `Work-Kind: bug` with NO `Blocks-Release` is a FAILED validation even if every value in the table is otherwise correct, because that is precisely the state `qmgn12` exists to detect. ALSO paste `aw check` showing no `check.blocking-*` or gate-mismatch finding introduced by these writes, and confirm by count that NO plan outside the measured population gained a gate.
-- Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. ONE plan was written, `m7gvuz`, so it is both the first and the only.
+    THE THROWAWAY-COPY REHEARSAL CAME FIRST, on a `git archive HEAD` extraction outside the tracked
+    tree, and is what proved the form before it touched the shared checkout. The rehearsal ALSO
+    reproduced the setid hazard the plan warns about, on the copy and as a dry-run only:
 
-- [ ] V-05 validates E-05
+        $ aw ipd set approved orchprobe --dir <throwaway> --priority medium --work-kind bug --dry-run --yes
+        -    plan  20260907-orchprobe-02-8tgg6g  executed → ◕  approved  (dry-run)
+        -    plan  20260907-orchprobe-01-r2i1b1  executed → ◕  approved  (dry-run)
+        - >  plan  20260907-orchprobe-00-yeh7gc  [blocking]  unchanged   (dry-run)
+        -    plan  20260907-orchprobe-03-m7gvuz  unchanged              (dry-run)
+
+    So F-6 is LIVE on this population as well: a setid selector would have reverted TWO executed
+    plans (`8tgg6g`, `r2i1b1`) from `executed` to `approved`. The copy was then discarded.
+    THE DRY-RUN PREFLIGHT on the real tree named exactly ONE plan and reported `unchanged`:
+
+        $ aw ipd set approved m7gvuz --priority medium --work-kind bug --blocks-release next \
+            --message "backfill: Priority/Work-Kind per planprio-03 lc4unl, maintainer Ruling 2 of
+            2026-09-12 (orchprobe: medium/bug); Blocks-Release: next per Ruling 3 in the same call" \
+            --no-commit --dry-run --yes
+        - >  plan        20260907-orchprobe-03-m7gvuz  [blocking]  unchanged  (dry-run)
+
+    THE REAL INVOCATION is that command with `--dry-run` removed, and it printed the same line:
+
+        - >  plan        20260907-orchprobe-03-m7gvuz  [blocking]  unchanged
+
+    ITS `git diff`, showing only the two fields plus the gate plus one history line, with `- Status:`
+    UNCHANGED (it appears as context, not as a `+`/`-` pair):
+
+        @@ -7,6 +7,9 @@
+          - Item-Dependencies: executed:r2i1b1, executed:8tgg6g
+          - Status: approved
+        +- Work-Kind: bug
+        +- Priority: medium
+        +- Blocks-Release: next
+          - Readiness: go-pending-approval
+        @@ -16,6 +19,7 @@
+          ## Workflow history
+        +- 2026-09-22 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl,
+          maintainer Ruling 2 of 2026-09-12 (orchprobe: medium/bug); Blocks-Release: next per
+          Ruling 3 in the same call
+
+    THE HISTORY LINE CARRIES THE SUPPLIED `--message` AND NOT `status set to approved`, which is the
+    F-7 hazard avoided; the fabricated form was observed during rehearsal only when `--message` was
+    omitted. `git diff --stat` for that file reads `4 ++++`, i.e. four inserted lines and nothing
+    removed, which is the arithmetic of exactly three field lines plus one history line.
+    THE FULL COMMAND LIST for this plan's writes is the single invocation above. It used the id6
+    `m7gvuz`, `--no-commit`, `--dry-run` first, and `--message`. NO setid invocation was made against
+    the real tree. NO hand-edit of front matter was made: the setter chose the field position (all
+    three directly after `- Status:`) and wrote the history line.
+    - Observed evidence (Ruling 3): the atomicity requirement is MET for the plan this execution
+      wrote, and BROKEN BY HISTORY for two others, which is reported rather than papered over:
+
+          xdr83v  [executed] - Blocks-Release: next
+          hp9rot  [executed] (NEITHER present)
+          m7gvuz  [pending]  - Work-Kind: bug - Blocks-Release: next
+          r2i1b1  [executed] (NEITHER present)
+
+      `m7gvuz` carries `bug` and `next` TOGETHER, written in ONE setter call, so the ungated-bug state
+      `qmgn12` exists to detect never existed in the tree even momentarily. THE OTHER THREE ARE
+      TERMINAL AND UNWRITABLE, and this is a genuine gap that this plan cannot close: `hp9rot` and
+      `r2i1b1` were both RULED `Work-Kind: bug` by the maintainer and shipped to `executed/` carrying
+      neither the work-kind nor a gate, and `xdr83v` carries the gate but no work-kind. Editing them
+      is forbidden twice over (terminal immutability, and outside `- Scope-Paths:`). Filed as backlog
+      `iguvci` with the measurement, rather than recorded here as a pass. Note the shipped
+      `check.live-bug-ungated` cannot see them either: it keys on a LIVE `Work-Kind: bug`, and they
+      carry no `Work-Kind` at all.
+      `aw check` INTRODUCED NO GATE FINDING. Measured by running the full sweep with these writes
+      stashed and unstashed:
+
+          aw check ALL   BEFORE findings=414   AFTER findings=415   delta=+1
+          check.from-backlog-gate-mismatch      2 ->     2  (+0)
+          check.live-bug-ungated                2 ->     2  (+0)
+          FINDINGS ADDED by these writes:
+            + check.ipd-lint-diagnostic  .aw/records/plans/pending/20260910-planprio-03-lc4unl-...ipd.md
+          FINDINGS REMOVED: (none)
+
+      No `check.blocking-*` and no gate-mismatch finding appeared. The one added finding is this
+      plan's own OQ-05 being an OPEN BLOCKING question (`IPD-Q501`), which is the TRUTHFUL state of a
+      deferred decision and is the gate working, not a defect introduced.
+      NO PLAN OUTSIDE THE MEASURED POPULATION GAINED A GATE, by count:
+
+          $ git diff -- .aw/records/plans | grep -c '^+- Blocks-Release:'
+          1
+          $ git diff --name-only -- .aw/records/plans
+          .aw/records/plans/pending/20260907-orchprobe-03-m7gvuz-...ipd.md
+          .aw/records/plans/pending/20260910-planprio-03-lc4unl-...ipd.md
+
+      Exactly one added gate line, on `m7gvuz`, which Ruling 2 and Ruling 3 name.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the per-child derivation record: each child id6, the orchestrator id6 it inherited from, and the two values. Confirm every such child is `- Kind: child`, that the orchestrator is Order-0 of that child's OWN `- Set:` value (not merely a filename match, per D153), and that the orchestrator genuinely carried both fields at the time of derivation. State the numeric reduction actually achieved (from N plans to M human decisions) and compare it to E-02's projection.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED, AND THE DERIVATION RECORD IS EMPTY BY MEASUREMENT, which is this
+    item's correct outcome rather than a skipped step. The per-child PRECONDITION table, computed for
+    all ten class (a) and class (b) children, matching on the `- Set:` VALUE and the Order-0 position
+    (never on the filename, per D153) and reading each orchestrator's ACTUAL field state:
 
-- [ ] V-06 validates E-06
+        child    set          orch     orchSet      Priority  Work-Kind  derivable
+        04vf1h   hostdedup    a5wdne   hostdedup    -         -          NO
+        m7gvuz   orchprobe    yeh7gc   orchprobe    -         -          NO
+        p9j6c0   reaskscore   s0gnha   reaskscore   -         bug        NO
+        40it5e   rununify     5e4sb6   rununify     -         -          NO
+        k311gw   laneorph     tb63qv   laneorph     -         -          NO
+        qdd5jq   lifeglyph    2xz59a   lifeglyph    -         -          NO
+        7p3tt8   lifeglyph    2xz59a   lifeglyph    -         -          NO
+        lkexaw   planprio     d0cbt3   planprio     -         -          NO
+        8u6770   planprio     d0cbt3   planprio     -         -          NO
+        lc4unl   planprio     d0cbt3   planprio     -         -          NO
+
+    Every row's `orchSet` equals its child's `set`, so no cross-Set derivation was even a candidate,
+    and every child is `- Kind: child` (the three orchestrators in the population are class (c)
+    decision units, not derivation targets). THE INHERITANCE CONDITION HOLDS FOR 0 OF 10: no
+    orchestrator carries BOTH fields. `s0gnha` is the single closest, carrying `Work-Kind: bug` with
+    no `Priority`.
+    SO NOTHING WAS DERIVED, AND SEEDING TO MAKE IT DERIVABLE WAS REFUSED. E-05's premise is that
+    "E-04 has just given them values"; E-04 wrote `m7gvuz`, a CHILD, because that is the only artifact
+    Ruling 2 still reaches, so no orchestrator gained a value and the condition E-05 depends on was
+    never established. Deriving from `s0gnha`'s lone `bug` would write half a decision and, under
+    Ruling 3, would oblige a release gate as a side effect of a derivation rather than a decision.
+    Seeding an orchestrator with a default is OQ-02 option (c), which this plan names as "the one to
+    avoid" and which `xprio`'s `u5vyye` OQ-01 forbids as fabrication. Recorded as DECISION 15-lc4unl-D3.
+    THE NUMERIC REDUCTION ACTUALLY ACHIEVED, against E-02's projection: E-02 projected 7 human
+    decisions covering 13 of 17 plans, with 4 more free via class (a). ACHIEVED THIS TURN: 1 plan
+    written from a PRIOR recorded decision (`m7gvuz`), 0 derived, and 16 still needing the 7-decision
+    table now deferred as OQ-05. The projection stands and is unrefuted; it simply cannot be realized
+    without the human answer, which is the honest state and is why nothing here is marked complete on
+    a hoped-for basis. The reduction becomes 7-for-13 the moment OQ-05 is answered.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste a grep proving no plan's `Status`/`Readiness`/`Set`/`Order`/`Id` changed, and `git diff --stat` over this plan's commits. Paste `git status --porcelain -- .aw/records/plans/executed .aw/records/plans/superseded .aw/records/plans/not-executed` showing it EMPTY; a non-empty result is a FAILED validation regardless of everything else. Paste `aw check plans` with its count and per-rule breakdown compared to the pre-edit baseline (review's was `errors 140`: 124 `check.scope-drift`, 15 `check.lifecycle-transition-invalid`, 1 `check.review-decision-unescalated`), naming any new rule id; do not claim it clean and do not reduce a count by editing another party's plan. Paste `FORCE_COLOR=1 aw att --type plan` and `aw att --type plan --format json` with the non-null `priority` count before and after (review measured 13 before) and the delta. Do NOT paste a piped `aw att --type plan` and call the missing column a failure. Paste `git diff --cached --name-only` from before the final commit. Finally paste the bare `python3 -m pytest` summary against the pre-edit baseline, compared on failure SETS rather than counts; review measured `5971 passed, 3 skipped, 2 xfailed in 58.02s` at HEAD `5e0e9873`, reference only.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED at HEAD `c49c9027`.
+    NO COLLATERAL METADATA CHANGE. The grep over the whole plans diff for a changed identity or
+    lifecycle field returns exactly one line, and it is NOT a plan's front matter:
+
+        $ git diff -- .aw/records/plans | grep -E '^[+-]- (Status|Readiness|Set|Order|Id|Kind|Date|Author|Approval|Highest E allocated):'
+        +- Status: open
+
+    That `+- Status: open` is OQ-05's OWN question status inside this plan's Open questions section
+    (confirmed by reading its diff context: it follows the new `### OQ-05:` heading and its
+    `- Blocking: yes` line), which is the required shape of an open question. NO plan's front-matter
+    `- Status:` was added or removed anywhere; `m7gvuz`'s appears only as unchanged CONTEXT in its
+    hunk. EVERY DELETED LINE in this plan's own diff was inspected and each is a `- [ ]` checkbox, an
+    `Execution state: pending`, an `Observed evidence:` placeholder or a `Result: pending` being
+    replaced; no requirement text was weakened or removed.
+
+        $ git diff --stat -- .aw/records/plans
+         ...rchestrator-for-uncovered-work-before-th.ipd.md |   4 +
+         ...riority-and-work-kind-for-the-20-pending.ipd.md | 354 +++++++++++++++++++--
+         2 files changed, 327 insertions(+), 31 deletions(-)
+
+    THE TERMINAL-DIRECTORY PROOF IS EMPTY, which is the assertion that would have caught the `f5pttg`
+    failure mode, and it matters here because the rehearsal PROVED a setid selector would have
+    reverted `8tgg6g` and `r2i1b1` out of `executed`:
+
+        $ git status --porcelain -- .aw/records/plans/executed .aw/records/plans/superseded .aw/records/plans/not-executed
+        (no output)
+
+    `aw check plans` COMPARED PER RULE ID against a baseline captured BEFORE the first edit. It is
+    NOT clean and is not claimed to be; no count was reduced by editing another party's plan:
+
+        BEFORE findings=390  exit=1        AFTER findings=391  exit=1     delta=+1
+        rule                                   before   after   delta
+        check.collisions-not-checked                1       1      +0
+        check.ipd-lint-diagnostic                   0       1      +1
+        check.ipd-uncarried-obligation             55      55      +0
+        check.lifecycle-transition-invalid          8       8      +0
+        check.scope-drift                         326     326      +0
+        NEW RULE IDS: ['check.ipd-lint-diagnostic']
+
+    THE ONE NEW RULE ID IS NAMED AND EXPLAINED RATHER THAN WAVED THROUGH. It resolves to this plan
+    alone, and `aw ipd lint` gives its reason: `IPD-Q501 (line 270): OQ-05: BLOCKING question is still
+    'open'. Ask the human and record the answer`. That is the TRUTHFUL state of a deferred decision and
+    is the gate functioning: a plan carrying an unanswered blocking question must refuse execution.
+    It will clear when OQ-05 is answered. Note the baseline itself differs entirely from review's
+    (`errors 140`: 124 `scope-drift`, 15 `lifecycle-transition-invalid`, 1 `review-decision-unescalated`),
+    which is a further instance of F-1: even the error baseline is a moving target, so only the
+    per-rule delta is meaningful.
+    BOTH PRIORITY SURFACES, since the piped board has no such column (F-9):
+
+        $ aw att --type plan --format json     # non-null `priority` count
+        items before/after: 707 / 707
+        non-null priority BEFORE: 30
+        non-null priority AFTER : 31
+        DELTA: +1
+        NEWLY PRIORITIZED (ids): ['m7gvuz']
+        LOST priority (ids): NONE
+          detail: {'id': 'm7gvuz', 'priority': 'medium', 'blocks_release': 'next'}
+
+        $ FORCE_COLOR=1 aw att --type plan | grep m7gvuz     # ANSI stripped for legibility
+        ◕ approved plan  2.0.0  medium  go-pend?  0/3  10/10  9/10  20260907 orchprobe 03 m7gvuz
+
+    THE DELTA IS +1 AND IT MATCHES THE PLANS WRITTEN EXACTLY: one plan written, one newly prioritized,
+    named, and nothing lost its priority. The colored board also shows the release gate resolving to
+    `2.0.0` (record `f33nrj`), confirming `next` is not a dangling value. Review measured 13 non-null
+    before; the baseline here is 30, another moved figure.
+    THE INDEX WAS RE-VERIFIED BEFORE THE COMMIT, and the commit went through the tooled path
+    (`aw commit`), which snapshots the index before staging and commits only the intersection of its
+    own staged paths with those named, so a concurrent agent's restored path cannot enter it. The
+    `git diff --cached --name-only` check and the commit output are recorded in the run submission's
+    execution report rather than transcribed here, because they are produced by the commit itself.
+    THE BARE SUITE, run BEFORE the first edit and again after, compared on the failure SET:
+
+        BEFORE:  1 failed, 8129 passed, 3 skipped, 2 xfailed, 3 warnings in 137.29s (0:02:17)
+        AFTER :  1 failed, 8129 passed, 3 skipped, 2 xfailed, 3 warnings in 206.61s (0:03:26)
+        FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+
+    THE FAILURE SET IS IDENTICAL AND THE SINGLE MEMBER IS PROVED ENVIRONMENTAL, not assumed to be:
+
+        $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py
+        76 passed in 11.16s
+
+    The lane launches the agent with `OPENCODE_CONFIG_CONTENT` set to arm its containment posture, that
+    variable is inherited by the agent's own pytest, and the test asserts the variable is ABSENT from a
+    non-isolated turn's computed env, so it reads the runner's legitimate lane setting as a product
+    defect. Unsetting that one variable is the whole difference. This plan changes records only and
+    cannot affect it; filed as backlog `1ixbnr` because it reddens the baseline for EVERY lane
+    executor, which destroys the failure-set comparison the execution contract depends on.
+    `aw sanitize --agent` CLEAN: `{"cmd":"check-local-leaks","outcome":"clean","exit":0,"findings":0}`.
+  - Result: pass
 
 ## Approval and execution gate
 
