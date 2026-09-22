@@ -6,7 +6,7 @@
 - Scope: Make the 30 in-scope tests control `AW_EXECUTION_ROLE` explicitly rather than inherit it, so the suite is green in a lane AND in the main tree, and each test exercises the role it intends. Does NOT relax `AW-LIFECYCLE-ROLE-001` in any way: a test that needs the coordinator role must SET that role, not remove the guard. Does NOT touch the prompt-side role statement NOR `tests/test_worker_role_refusal.py`, both of which approved plan `8b9ufm` owns (see the ownership note below); that file holds the 31st failure and is deliberately left red by this plan.
 - Scope-Paths: tests/test_runner_backlog_close_in_lane.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_ipd_lifecycle_cli.py, tests/test_novalnomerge_integration.py, tests/support.py, tests/test_role_declaration_guard.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - From-Backlog: 770fkp
@@ -15,9 +15,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: e4lkv5
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: e4lkv5 verified (set lanesuite, attempt 1). [Scope reconciliation - widened-scope tests/test_role_declaration_guard.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run)]
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-18 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-101..PR-109, all FIXED, none deferred, none open. EVERY MEASUREMENT IN THE PLAN REPRODUCED EXACTLY, from a review running inside the worker-role condition itself: 31 failed / 7962 passed in a lane versus 7993 passed clean, the same 10/9/8/2/1/1 six-file split, F-3's `'worker' == 'worker'` verbatim, and both cited commits. No false claim found. The findings are gaps: PR-101 (BLOCKER) is a collision with APPROVED plan `8b9ufm`, which declares `tests/test_worker_role_refusal.py` and says "Do not 'fix' it" about the very test this plan's E-02 called the sharpest case, resolved by division of labor (that file leaves this plan's scope and its 1 failure is declared expected-red); PR-102 proves E-03's prescribed `monkeypatch` fixture CANNOT work because all 85 affected classes are `unittest.TestCase`; PR-103 records the measured one-line alternative (a single conftest-level pop makes all 7993 pass) and refutes it, because it also silently makes the guard's own test vacuous; PR-106 measured that E-05's class (b) target set is EMPTY within the 31. Scope narrowed 31 -> 30 tests, `Scope-Paths` corrected (`tests/support` does not exist; `tests/support.py` does).
