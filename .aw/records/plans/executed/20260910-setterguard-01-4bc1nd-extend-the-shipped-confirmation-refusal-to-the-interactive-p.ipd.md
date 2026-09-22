@@ -9,7 +9,7 @@
 - Scope: The two missing speed bumps on the status setters. IN: extending the EXISTING confirmation refusal to the FLAGLESS (neither `--agent` nor `--json`) path, which is every caller the guard misses; refusing a backwards transition out of a terminal disposition (`executed`, `superseded`, `not-executed`) unless explicitly overridden, and naming the offending artifacts; a survey of in-repo callers that would newly be refused, with `--yes` added where the call is deliberate, INCLUDING the two production callers measured at review to break (`work_cmd.run_finish` and `oc_runipd.finalize_orchestrator`); regression fixtures for both. OUT: making `--dry-run` the DEFAULT for the setters (a larger behavior change deserving its own decision, recorded as deferred); anything about what a bare setid MEANS, since within-type fan-out is deliberate (`laykok` E-07) and correct; the history-message and durability defects (Order 02 of this Set); FIXING `select_output`'s docstring/behavior mismatch (a separate defect this plan must not silently absorb; recorded as deferred with its own carrier).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/work_cmd.py, agent_workflows/oc_runipd.py, tests/test_status_set.py, tests/test_work_primitives.py, tests/test_work_kind.py, tests/test_ipd_priority.py, tests/test_backlog_work_kind_rename.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: setterguard
@@ -17,10 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 4bc1nd
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: f5pttg
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 4bc1nd verified (set setterguard, attempt 1). [Scope reconciliation - widened-scope agent_workflows/cli.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope tests/test_backlog_work_kind_rename.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); in-scope-unmodified tests/test_work_primitives.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-22 executing (opencode/its_direct/pt3-claude-opus-5-1m-us): SCOPE AMENDED AT EXECUTION, declared rather than edited silently. Added `agent_workflows/cli.py`, which E-02's own text REQUIRES touching ("DECLARE the new flag on EVERY surface that routes to `run_set_command`") but which the authored `- Scope-Paths:` omitted; the override flag is registered on the four LIVE surfaces (`aw set`, `aw ipd set`, `aw specs set`, `aw backlog set`). Added `tests/test_backlog_work_kind_rename.py`, an E-03 caller-survey MISS: the review measured four failing tests in three modules, and the corrected full-suite run found FIVE more in a fourth module (seven real-CLI `backlog set` invocations asserting a performed write, now passing `--yes`; the two argparse-refusal cases deliberately left flagless). Also measured: `aw prompts set` is NOT a live parser surface (`aw prompts` accepts only `new`), so the flag is declared on four surfaces rather than the five the plan predicted, and the prompts assertion in E-05 uses the untyped `aw set prompts` spelling.
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
