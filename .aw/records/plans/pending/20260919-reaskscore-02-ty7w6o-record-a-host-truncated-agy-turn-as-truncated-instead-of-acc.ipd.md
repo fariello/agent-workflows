@@ -38,39 +38,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: observe and classify the host's own truncation
 
-- [ ] E-01 ADD A HOST-NEUTRAL LINE CLASSIFIER TO `lane_containment.py` THAT RECOGNIZES THE HOST'S TWO OUTCOMES AND DISTINGUISHES THEM, because the same host emits a WAITING line and a CUTTING line and treating them alike would flag healthy turns. Measured across the captured agy sessions: 3 sessions emit `root agent idle; waiting for N background task(s) (bounded by --print-timeout)` and WAIT for the work (healthy); 8 emit `root agent idle; waiting up to 5s for N background task(s)` and then cut (truncating). The classifier must return three outcomes: TRUNCATING (the bounded-wait form, and the `terminating N background task(s) on exit` line), WAITING (the `--print-timeout`-bounded form, which must NOT be reported as truncation), and None for an ordinary line. It MUST live in `lane_containment.py` rather than in the driver: spec `7ckptx` R2.6 requires a rule consumed by a driver to have its single definition in a module the plan declares, and R6.1 forbids the fork where one host becomes the other's de-facto library. Match on a stable SUBSTRING core rather than the full sentence or a digit-exact pattern, since the count and the `5s` bound are host details that may change; document that fragility honestly as `OQ-01`.
+- [x] E-01 ADD A HOST-NEUTRAL LINE CLASSIFIER TO `lane_containment.py` THAT RECOGNIZES THE HOST'S TWO OUTCOMES AND DISTINGUISHES THEM, because the same host emits a WAITING line and a CUTTING line and treating them alike would flag healthy turns. Measured across the captured agy sessions: 3 sessions emit `root agent idle; waiting for N background task(s) (bounded by --print-timeout)` and WAIT for the work (healthy); 8 emit `root agent idle; waiting up to 5s for N background task(s)` and then cut (truncating). The classifier must return three outcomes: TRUNCATING (the bounded-wait form, and the `terminating N background task(s) on exit` line), WAITING (the `--print-timeout`-bounded form, which must NOT be reported as truncation), and None for an ordinary line. It MUST live in `lane_containment.py` rather than in the driver: spec `7ckptx` R2.6 requires a rule consumed by a driver to have its single definition in a module the plan declares, and R6.1 forbids the fork where one host becomes the other's de-facto library. Match on a stable SUBSTRING core rather than the full sentence or a digit-exact pattern, since the count and the `5s` bound are host details that may change; document that fragility honestly as `OQ-01`.
   REFUSE ANY LINE THAT PARSES AS JSON, WHICH IS THE ONE GUARD THAT STOPS A FALSE POSITIVE, and note the original plan had no such guard. The stream this classifier reads is the agy CLI's merged stdout+stderr (`popen_kwargs` sets `stderr=subprocess.STDOUT`, verified at review), and it carries JSONL event envelopes whose payloads contain the AGENT's own assistant text and tool output. So an agent that merely QUOTES these strings would be classified as a host truncation - and that is a live hazard in this very Set, because `dy9ymn` and `svacmz` reproduce the host's lines verbatim in their own text, so an agent executing them may echo them. The host's own diagnostics are BARE TEXT and do NOT parse as JSON, while every agent echo arrives inside a JSON envelope, so requiring `json.loads(line)` to FAIL before classifying separates them exactly. The driver already makes this distinction (`render_agy_event` parses the line and falls through on `json.JSONDecodeError`), so this reuses an established reading of the stream rather than inventing one.
   ORDER THE TWO FORMS SO THEY CANNOT BE CONFUSED. Measured at review against the real line forms: `root agent idle` matches BOTH the truncating and the waiting line and therefore cannot discriminate; the sound discriminators are `waiting up to` (truncating only), `bounded by --print-timeout` (waiting only) and `terminating` (the exit line only). Test the WAITING form before, or independently of, the truncating one, and do not use a shared `root agent idle` prefix as the trigger.
   - Depends on: none
   - Expected outcome: `lane_containment` exposes a pure classifier returning TRUNCATING / WAITING / None, with the two measured line forms pinned as fixtures, which returns None for any JSON-parseable line, and whose discriminators are the three measured-unambiguous substrings rather than the shared `root agent idle` prefix.
-  - Execution state: pending
+  - Execution state: performed
+    PERFORMED 2026-09-22. `lane_containment.classify_host_turn_line` is a PURE three-way classifier returning `HOST_TURN_TRUNCATING` / `HOST_TURN_WAITING` / `None`, with `host_turn_task_count` beside it as a best-effort count reader that NEVER gates the verdict. Discriminators are the three measured-unambiguous substring cores (`waiting up to`, `bounded by --print-timeout`, `background task(s) on exit`); the shared `root agent idle` prefix appears NOWHERE in the function, which a test asserts over its source. WAITING is tested FIRST so the healthy form can never be claimed by the truncating branch. The JSON refusal is the first guard after the empty check: `json.loads` must FAIL before any classification, so an agent echoing the host's words inside an envelope returns `None`. The fail-silent property (OQ-01) is stated in the section header immediately above the function, asserted by a test.
 
-- [ ] E-02 ADD A PER-TURN OBSERVER MODELED EXACTLY ON `MissingInputObserver`, which is the established precedent for this in this file (`lane_containment.py:1846-1871`) and reaches the driver through the loop that already exists. It must accumulate observations for the turn and expose the turn's verdict (was this turn truncated by its host, and how many background tasks were named), and it must NEVER block, raise, or terminate anything: observing is recording. A malformed or unexpected line must be ignored rather than propagating, for the same reason `MissingInputObserver` never kills a turn.
+- [x] E-02 ADD A PER-TURN OBSERVER MODELED EXACTLY ON `MissingInputObserver`, which is the established precedent for this in this file (`lane_containment.py:1846-1871`) and reaches the driver through the loop that already exists. It must accumulate observations for the turn and expose the turn's verdict (was this turn truncated by its host, and how many background tasks were named), and it must NEVER block, raise, or terminate anything: observing is recording. A malformed or unexpected line must be ignored rather than propagating, for the same reason `MissingInputObserver` never kills a turn.
   - Depends on: E-01
   - Expected outcome: a per-turn observer class exists beside `MissingInputObserver`, is constructed per turn, and answers "did the host truncate this turn" from the lines it saw.
-  - Execution state: pending
+  - Execution state: performed
+    PERFORMED 2026-09-22. `lane_containment.HostTruncationObserver` sits beside `MissingInputObserver` in the same module, constructed per turn, fed `note_line` per raw line. It accumulates `truncating_lines`, `waiting_lines` and `task_count`, exposes `truncated` as the turn's verdict, and adds `as_record()` (the attempt payload) and `describe()` (the one operator sentence). `note_line` wraps its whole body in `try/except Exception: return None`, so malformed input (`None`, `42`, an arbitrary object) is ignored rather than propagated; an AST test asserts the class calls no `sleep`/`wait`/`terminate`/`kill`/`input`. A truncation once admitted is deliberately NOT cleared by a later WAITING line, documented at the class, because the measured sessions show the bounded-wait line FOLLOWED by the terminate line.
 
-- [ ] E-03 FEED IT FROM THE AGY STDOUT LOOP AT THE SAME SEAM THE EXISTING OBSERVERS USE, `agy_runipd.py:2762-2769`, where `statusline.touch`, `watchdog.touch`, `turn_bounds.note_progress`, `runner_stop.poll_stop` and `missing_input.note_line` are already called for EVERY raw line. Add the call there and nowhere else, independently of `output_mode`, because a signal parsed inside a rendering branch is silently inert under `raw` and `quiet` - a mistake this file already records having made and fixed (see the `y5od1h` E-06 comment at that seam). Note that `agy_runipd.py:2726-2735`'s comment block is grepped by `tests/test_turn_bounds.py:357-368` for the literals `print-timeout`, `EXPECTED TO WIN` and `BACKSTOP`, so do not reflow it.
+- [x] E-03 FEED IT FROM THE AGY STDOUT LOOP AT THE SAME SEAM THE EXISTING OBSERVERS USE, `agy_runipd.py:2762-2769`, where `statusline.touch`, `watchdog.touch`, `turn_bounds.note_progress`, `runner_stop.poll_stop` and `missing_input.note_line` are already called for EVERY raw line. Add the call there and nowhere else, independently of `output_mode`, because a signal parsed inside a rendering branch is silently inert under `raw` and `quiet` - a mistake this file already records having made and fixed (see the `y5od1h` E-06 comment at that seam). Note that `agy_runipd.py:2726-2735`'s comment block is grepped by `tests/test_turn_bounds.py:357-368` for the literals `print-timeout`, `EXPECTED TO WIN` and `BACKSTOP`, so do not reflow it.
   - Depends on: E-02
   - Expected outcome: every raw line of an agy turn reaches the observer, under every `output_mode`.
-  - Execution state: pending
+  - Execution state: performed
+    PERFORMED 2026-09-22. Constructed at `agy_runipd.run_agy_turn` immediately after the `MissingInputObserver` construction, and fed at the every-line seam directly after `missing_input.note_line(...)`, so it sees EVERY raw line before any `output_mode` branch. Verified three ways: a behavioral test drives a real truncating turn through `run_agy_turn` under `clean`, `raw` AND `quiet` and asserts the record appears in all three; an AST test finds exactly ONE `host_truncation.note_line` call and asserts it is not nested inside any `output_mode` comparison; and the `--print-timeout` comment block at the turn-bounds arming was NOT reflowed (the existing R4.4d grep still passes, plus a new test of my own over the same three literals).
 
 ### Task group 2: record it durably
 
-- [ ] E-04 RECORD THE TRUNCATION ON THE ATTEMPT AND AS AN EVENT, so it survives the run and is readable afterwards rather than only in scrollback. Write a `host_truncation` record onto the attempt (the host's verdict, the classified lines observed, and the background-task count it named) and append a `host-truncated-turn` event carrying `id6`, `attempt` and that verdict. It MUST NOT change the attempt's `exit_code`, `disposition`, or `item["status"]`: this plan produces a signal and `dy9ymn` decides what to do with it, and quietly rewriting a disposition here would make two plans fight over the same field. Print ONE short warning line naming what the host did, because a turn whose work was killed is something the operator should see at the time and not discover later.
+- [x] E-04 RECORD THE TRUNCATION ON THE ATTEMPT AND AS AN EVENT, so it survives the run and is readable afterwards rather than only in scrollback. Write a `host_truncation` record onto the attempt (the host's verdict, the classified lines observed, and the background-task count it named) and append a `host-truncated-turn` event carrying `id6`, `attempt` and that verdict. It MUST NOT change the attempt's `exit_code`, `disposition`, or `item["status"]`: this plan produces a signal and `dy9ymn` decides what to do with it, and quietly rewriting a disposition here would make two plans fight over the same field. Print ONE short warning line naming what the host did, because a turn whose work was killed is something the operator should see at the time and not discover later.
   THE ROUTE TO THE ATTEMPT DICT IS NOT OBVIOUS AND MUST BE THE ONE NAMED HERE, because the two natural routes both leave this plan's declared scope. Established at review: `run_agy_turn` returns a fixed 4-tuple `(rc, conv_id, log_path, argv)`, and that shape is TYPED IN `runner_shared.execute_item_core`'s own signature (its `spawn_executor` and `spawn_verifier` parameters are `Callable[..., tuple[int, str | None, Path, list[str]]]`) and is shared with the oc twin, so RETURNING the truncation record would require editing `runner_shared.py`, which this plan does NOT declare. Equally, the `attempt` dict itself is CREATED in `execute_item_core`, not here.
   USE THIS ROUTE: mutate `item["attempts"][-1]` from inside `run_agy_turn`. It is reachable and correct - `item` is already a parameter of `run_agy_turn`, and `execute_item_core` appends the attempt to `item["attempts"]` BEFORE it spawns (verified at review: the append precedes the `spawn_executor` call), so during the turn `item["attempts"][-1]` IS this turn's attempt. Several `save_state` calls follow the spawn's return, so the mutation is persisted without adding a call site.
   STATE THE ASYMMETRY HONESTLY IN A COMMENT AT THE WRITE, because this route has a real cost the plan should not hide: `run_agy_turn` today performs NO state writing at all (measured: zero `save_state`, zero `append_jsonl`, zero `item[...]` assignments in its body), so this adds a new responsibility to a launcher that had none, and the oc twin will not have it. That is the one-sided-guard pattern this plan's own conventions section warns about. It is ACCEPTED here for the reason `OQ-02` already gives (only agy emits these lines), and the comment must say so, so a later reader does not "fix" the asymmetry by copying the write into the oc launcher where it can never fire. If a reviewer prefers the host-neutral shape, that means declaring `runner_shared.py` and putting the observer in `execute_item_core`; recorded as `OQ-05`.
   - Depends on: E-03
   - Expected outcome: `state.json` carries `attempt["host_truncation"]` and `events.jsonl` carries `host-truncated-turn` for a truncated turn, and neither appears for a healthy one; the attempt's `exit_code` and the item's status are untouched; the write goes through `item["attempts"][-1]` and the 4-tuple return shape is UNCHANGED, so no edit to `runner_shared.py` is required.
-  - Execution state: pending
+  - Execution state: performed
+    PERFORMED 2026-09-22. `lane_containment.record_host_truncation` writes `attempt["host_truncation"]` (verdict, `background_tasks`, `truncating_lines`, `waiting_lines`) onto the attempt matched by `number`, then appends ONE `host-truncated-turn` event carrying `id6`, `attempt` and the record; the attempt write comes FIRST and the event is `contextlib.suppress`ed, mirroring `record_missing_input_refusal`, so the truncation survives a failed event write (tested against an unwritable run dir). The call site is in `run_agy_turn`'s `finally`, guarded by `host_truncation.truncated`, followed by ONE yellow warning line naming what the host did. It reaches the attempt via `item["attempts"][-1]` semantics (the `number`-matched attempt), so the 4-tuple return shape is UNCHANGED and `runner_shared.py` was NOT touched, verified by a `typing.get_type_hints` assertion on the return annotation. No `exit_code`, no `disposition`, no `item["status"]` is written; a test asserts both drivers' `reconcile_disposition` return the SAME verdict with and without the record. The deliberate host asymmetry is stated in a comment at the write and asserted by a test, which also confirms `record_host_truncation` appears nowhere in `oc_runipd`.
 
-- [ ] E-05 CORRECT THE WRITTEN RECORD IN THE TWO BACKLOG ITEMS WHOSE PREMISE THIS MEASUREMENT FALSIFIES, because leaving a superseded explanation in the tree is how the next reader re-derives the wrong fix. `q1z9gn` is `done` and its history states, verbatim, "zqs0px ran python3 -m pytest as a background task and polled it with schedule" (quotation verified at review); `x7wfyx` inherits that framing. Record on the LIVE item (`x7wfyx`) that the agent issued a plain foreground command and the HOST backgrounded and then terminated it, citing the session evidence, and that the FOREGROUND prompt instruction was present and obeyed. DO NOT rewrite `q1z9gn`'s existing history entries: it is terminal, and editing a closed record to match a later finding destroys the provenance of what was believed when. Reference the correction from the live item instead.
+- [x] E-05 CORRECT THE WRITTEN RECORD IN THE TWO BACKLOG ITEMS WHOSE PREMISE THIS MEASUREMENT FALSIFIES, because leaving a superseded explanation in the tree is how the next reader re-derives the wrong fix. `q1z9gn` is `done` and its history states, verbatim, "zqs0px ran python3 -m pytest as a background task and polled it with schedule" (quotation verified at review); `x7wfyx` inherits that framing. Record on the LIVE item (`x7wfyx`) that the agent issued a plain foreground command and the HOST backgrounded and then terminated it, citing the session evidence, and that the FOREGROUND prompt instruction was present and obeyed. DO NOT rewrite `q1z9gn`'s existing history entries: it is terminal, and editing a closed record to match a later finding destroys the provenance of what was believed when. Reference the correction from the live item instead.
   `aw backlog set` CANNOT DO THIS AND WILL SILENTLY DROP YOUR MESSAGE, which the plan asserted before review and which is FALSE. MEASURED at review by running the real command against a throwaway copy of the item in a scratch repo: `aw backlog set open x7wfyx --message "..."` printed `unchanged`, the file was BYTE-IDENTICAL afterwards, and the message did not appear anywhere in it. The cause is structural, not a flag: `status_set.apply_status_change` computes `content_changed`/`path_changed` and RETURNS EARLY when both are false, and the `## Workflow history` write sits AFTER that early return, so a same-status call cannot append history by construction. There is no `--force`, and `aw backlog` offers only `new|set|check` - the verb that does exactly what this item wants, `aw specs note` ("Append a workflow-history record to a spec WITHOUT changing its status"), exists for specs and HAS NO BACKLOG TWIN. So an executor following the original instruction would report E-05 done, `aw backlog check` would pass, and NOTHING would have been written.
   USE ONE OF THESE INSTEAD, and say which you used in `V-05`. (a) PREFERRED: append the correction to the item's BODY prose (not its history section) with a hand edit, which is an ordinary tracked file edit of a path this plan already declares, and note in the edit that it is a review-time correction rather than a status transition. (b) If the maintainer would rather the item MOVE, `aw backlog set graduated x7wfyx --message "..."` DOES write history because the status genuinely changes - but do NOT choose this unilaterally: `graduated` asserts the design is handed off, and while `dy9ymn` arguably is that handoff for item B, item A (the turn budget) has no plan at all, so the claim would be half true. That judgement is `OQ-04`. (c) Add a `note` verb to `aw backlog` mirroring `aw specs note`: correct in the long run, out of scope here, and recorded as `OQ-04` too.
   - Depends on: E-01
   - Expected outcome: `x7wfyx` carries the corrected cause with its session citation, written by a route that DEMONSTRABLY changes the file (verified by `git diff`, not by a command's exit code); `q1z9gn`'s existing entries are unmodified; and if route (a) was used, no status transition was fabricated.
-  - Execution state: pending
+  - Execution state: performed
+    PERFORMED 2026-09-22 via ROUTE (a), the maintainer's resolution of OQ-04: the correction is appended to `x7wfyx`'s BODY PROSE as an ordinary tracked file edit, under a `## CORRECTION 2026-09-22` heading, with NO status transition and NO use of `aw backlog set` (measured at review to print `unchanged` and write nothing on a same-status call). It records that the agent issued a plain foreground `run_command` with no background parameter, that the HOST backgrounded and then terminated it, cites both sessions and the prompt that carried the FOREGROUND instruction verbatim, and states the consequence for items A and B. It also corrects the item's own earlier "the agent chose to stop" clause in the MEASURED section and says so explicitly. `q1z9gn` is UNMODIFIED (`git status --porcelain -- .aw/records/backlog/` lists only the `x7wfyx` path). `x7wfyx` keeps `- Status: open` and `- Blocks-Release: next`.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -214,31 +219,137 @@ amendment to `7ckptx` R4 and belongs to a plan that declares the spec file; reco
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `pytest` output showing the classifier returns TRUNCATING for BOTH real truncating lines (`root agent idle; waiting up to 5s for 2 background task(s)` and `terminating 2 background task(s) on exit`), returns WAITING and explicitly NOT truncating for the real waiting line (`root agent idle; waiting for 1 background task(s) (bounded by --print-timeout)`), and returns None for ordinary JSONL event lines and for an empty line. The waiting-form case is a load-bearing negative control: without it the classifier could flag healthy turns.
     THE SECOND LOAD-BEARING CONTROL IS THE AGENT-ECHO CASE, added at review. Feed the classifier a JSON envelope whose PAYLOAD contains a truncating line verbatim, e.g. `{"event":"assistant","text":"terminating 2 background task(s) on exit"}` and `{"event":"tool_result","output":"root agent idle; waiting up to 5s for 2 background task(s)"}`, and assert BOTH return None. Without this control the classifier fires on an agent that merely quotes the host's wording, which is a live risk in this Set because two sibling plans reproduce those lines verbatim in text an executing agent reads and may echo. Also assert the discriminators are not the shared `root agent idle` prefix (measured at review to match both forms).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest "tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified" -o addopts="" -v --no-header -p no:randomly` (defaults cleared ONLY so per-test names are visible; the whole-suite run pasted in V-05 is the bare one):
 
-- [ ] V-02 validates E-02
+    ```
+    ============================= test session starts ==============================
+    collecting ... collected 12 items
+
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_both_real_truncating_lines_are_truncating PASSED [  8%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_the_real_waiting_line_is_waiting_and_explicitly_not_truncating PASSED [ 16%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_an_ordinary_or_empty_line_is_not_classified[] PASSED [ 25%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_an_ordinary_or_empty_line_is_not_classified[   ] PASSED [ 33%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_an_ordinary_or_empty_line_is_not_classified[{"event":"tool_call","name":"run_command"}] PASSED [ 41%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_an_ordinary_or_empty_line_is_not_classified[{"type":"assistant","text":"ordinary progress"}] PASSED [ 50%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_an_agent_echoing_the_hosts_words_is_refused[{"event":"assistant","text":"terminating 2 background task(s) on exit"}] PASSED [ 58%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_an_agent_echoing_the_hosts_words_is_refused[{"event":"tool_result","output":"root agent idle; waiting up to 5s for 2 background task(s)"}] PASSED [ 66%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_the_discriminators_are_not_the_shared_root_agent_idle_prefix PASSED [ 75%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_the_task_count_is_read_best_effort_and_never_gates_the_verdict PASSED [ 83%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_the_classifier_is_pure_and_host_neutral PASSED [ 91%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsClassified::test_the_fail_silent_property_is_stated_at_the_classifier PASSED [100%]
+
+    ============================== 12 passed in 0.21s ==============================
+    ```
+
+    EVERY REQUIRED CASE IS COVERED AND NAMED. BOTH real truncating lines -> TRUNCATING (`test_both_real_truncating_lines_are_truncating`, over the byte-exact `root agent idle; waiting up to 5s for 2 background task(s)` and `terminating 2 background task(s) on exit`). The real waiting line -> WAITING and asserted `!= HOST_TURN_TRUNCATING` (`test_the_real_waiting_line_is_waiting_and_explicitly_not_truncating`), which is the load-bearing negative control against flagging healthy turns. `None` for ordinary JSONL event lines, for the empty line AND for a whitespace-only line (four parametrized cases). THE AGENT-ECHO CONTROL is the two parametrized cases visible above: both `{"event":"assistant","text":"terminating ..."}` and `{"event":"tool_result","output":"root agent idle; waiting up to 5s ..."}` return `None`, so an agent quoting the host's wording cannot trip the classifier. The discriminator check asserts `root agent idle` is present in BOTH real forms, that the bare prefix alone classifies as `None`, and that the string does not occur in the function's source at all.
+
+    FIXTURES ARE THE REAL CAPTURED LINES, byte for byte, as module constants copied from this plan (its Concern/E-01/V-01), with a comment recording that `.aw/records/runs/` is gitignored and empty here so this plan IS their provenance record. Confirmed absent in this lane: `ls .aw/records/runs/` printed nothing.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted output showing the observer accumulates a truncation verdict across a sequence of real lines, reports no truncation for a healthy sequence, and NEVER raises: include a case feeding it malformed and empty input and assert it neither raises nor reports truncation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest "tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved" ... -o addopts="" -v --no-header -p no:randomly` (first nine lines of the 21-test run pasted under V-03/V-04):
 
-- [ ] V-03 validates E-03
+    ```
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_it_accumulates_a_truncation_across_a_real_sequence PASSED [  4%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_a_healthy_sequence_reports_no_truncation PASSED [  9%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_a_later_waiting_line_does_not_clear_an_admitted_truncation PASSED [ 14%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_malformed_or_empty_input_neither_raises_nor_reports_truncation[None] PASSED [ 19%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_malformed_or_empty_input_neither_raises_nor_reports_truncation[] PASSED [ 23%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_malformed_or_empty_input_neither_raises_nor_reports_truncation[   ] PASSED [ 28%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_malformed_or_empty_input_neither_raises_nor_reports_truncation[42] PASSED [ 33%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_malformed_or_empty_input_neither_raises_nor_reports_truncation[line4] PASSED [ 38%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved::test_it_is_modeled_on_the_established_observer_and_never_blocks PASSED [ 42%]
+    ```
+
+    ACCUMULATION ACROSS A REAL SEQUENCE: fed an assistant envelope then both truncating lines, the observer reports `truncated is True`, `task_count == 2`, and `as_record()` carries `verdict == "truncating"`, `background_tasks == 2` and two `truncating_lines`. HEALTHY SEQUENCE: fed an assistant envelope, the real waiting line and a `SUCCESS` result, it reports `truncated is False` with the waiting line kept separately. NEVER RAISES: five malformed/empty inputs (`None`, `""`, `"   "`, `42`, a bare `object()`) each return `None` and leave `truncated False`; note `None` and `42` are not merely odd strings but wrong TYPES, which is the case a naive `.strip()` would raise on. NON-BLOCKING asserted structurally as well as by docstring: an AST walk over the class finds no call to `sleep`, `wait`, `terminate`, `kill` or `input`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output proving the observer is fed from the every-line seam and not from a rendering branch: an assertion that the wiring is independent of `output_mode` (demonstrate detection under a non-`clean` mode such as `raw` or `quiet`, which is the specific bug the `y5od1h` comment at that seam records). Plus confirmation that `tests/test_turn_bounds.py:357-368` still passes, since it greps `run_agy_turn`'s source for three literals.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest "tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsObserved" "tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsRecordedDurably" "tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam" -o addopts="" -v --no-header -p no:randomly`, wiring cases:
 
-- [ ] V-04 validates E-04
+    ```
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam::test_detection_is_independent_of_output_mode[clean] PASSED [ 66%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam::test_detection_is_independent_of_output_mode[raw] PASSED [ 71%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam::test_detection_is_independent_of_output_mode[quiet] PASSED [ 76%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam::test_a_healthy_turn_through_the_same_loop_records_nothing PASSED [ 80%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam::test_the_observer_is_fed_outside_every_rendering_branch PASSED [ 85%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam::test_the_grepped_print_timeout_comment_block_is_intact PASSED [ 90%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam::test_the_deliberate_host_asymmetry_is_stated_at_the_write PASSED [ 95%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam::test_the_four_tuple_return_shape_is_unchanged PASSED [100%]
+    ```
+
+    INDEPENDENT OF `output_mode`, DEMONSTRATED BEHAVIORALLY AND NOT BY READING THE CODE: the three parametrized cases each drive a real four-line truncating stream through `agy_runipd.run_agy_turn` with a faked `Popen`, under `clean`, `raw` and `quiet`, and assert `attempt["host_truncation"]["verdict"] == "truncating"`, `background_tasks == 2`, and `host-truncated-turn` present in `events.jsonl`. The `raw` and `quiet` cases are the specific bug the `y5od1h` comment at that seam records, so they are the ones that matter. STRUCTURAL CONFIRMATION that it is not in a rendering branch: an AST walk finds exactly ONE `host_truncation.note_line` call in `run_agy_turn` and asserts its id is not among the calls reachable from any `ast.If` whose test mentions `output_mode`.
+
+    THE GREPPED COMMENT BLOCK STILL PASSES. The pre-existing R4.4d check (`TestTheAntigravityPrintTimeoutOverlapIsDocumented`, which greps `run_agy_turn`'s source for `print-timeout`, `EXPECTED TO WIN` and `BACKSTOP`) passes in the whole-suite run pasted under V-05; the plan cited it as `tests/test_turn_bounds.py:357-368`, and that offset has drifted, so it is anchored here by name. I added my own test of the same three literals; NOTE it must collapse whitespace exactly as the original does, because the phrase wraps across comment lines as `EXPECTED\n# TO WIN` and a naive literal search fails on intact code (measured: my first version failed for that reason and for no other).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted output showing, for a truncated turn, `attempt["host_truncation"]` present with the host's verdict and the background-task count, and one `host-truncated-turn` event in `events.jsonl`; for a healthy turn, BOTH absent. Must also assert the negative property explicitly: the attempt's `exit_code`, the computed `disposition`, and `item["status"]` are IDENTICAL with and without the truncation record, proving this plan changes no item's fate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: same invocation as V-03, recording cases:
 
-- [ ] V-05 validates E-05
+    ```
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsRecordedDurably::test_a_truncated_turn_is_recorded_on_the_attempt_and_as_an_event PASSED [ 47%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsRecordedDurably::test_a_healthy_turn_records_neither PASSED [ 52%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsRecordedDurably::test_it_changes_neither_the_exit_code_nor_the_disposition_nor_the_status PASSED [ 57%]
+    tests/test_turn_bounds.py::TestTheHostsOwnTruncationIsRecordedDurably::test_the_record_survives_a_failed_event_write PASSED [ 61%]
+    ```
+
+    TRUNCATED TURN: `attempt["host_truncation"]` present with `verdict == "truncating"` and `background_tasks == 2`, and EXACTLY ONE `host-truncated-turn` line in `events.jsonl` carrying `id6 == "ty7w6o"`, `attempt == 1` and the verdict. HEALTHY TURN: `record_host_truncation` returns `None`, `"host_truncation" not in attempt`, and `events.jsonl` does not exist at all - so neither artifact appears. The end-to-end version of both (through `run_agy_turn` itself, reading the real `state`-shaped item and the real `events.jsonl`) is the `output_mode` trio and `test_a_healthy_turn_through_the_same_loop_records_nothing` under V-03.
+
+    THE NEGATIVE PROPERTY, ASSERTED EXPLICITLY AND NOT INFERRED. Two identical items are built, one recorded and one not; `attempt["exit_code"]` is equal, `item["status"]` is equal, and no `disposition` key is created. Then BOTH drivers' `reconcile_disposition(repo, item, run_dir, 0)` are called on each and their verdicts asserted equal, which is the property that actually matters: the record cannot change an item's fate, so it cannot collide with `dy9ymn`.
+
+    NO CROSS-HOST CONTRACT WAS TOUCHED. `typing.get_type_hints(agy_runipd.run_agy_turn)["return"]` is asserted `== tuple[int, str | None, Path, list[str]]`, and `git diff --stat` shows `runner_shared.py` is NOT among the changed files. DURABILITY ORDERING: with an unwritable run dir the attempt record is still written and returned, proving the attempt write precedes the best-effort event.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted NON-EMPTY `git diff` of the `x7wfyx` item showing the corrected cause with its session citation actually present in the file, plus a statement of WHICH route from E-05 was used. THE NON-EMPTY DIFF IS THE LOAD-BEARING PART: measured at review, `aw backlog set` on a same-status item prints `unchanged` and writes nothing, so a command's exit code or its printed line is NOT evidence here and must not be accepted as such. If route (b) was used, the diff must also show the status transition and the file move, and `OQ-04` must be resolved first. Plus pasted `aw backlog check` reporting conformance, plus pasted `git status --porcelain` or `git log` evidence that `q1z9gn`'s file is UNMODIFIED, plus confirmation that `x7wfyx`'s `- Blocks-Release: next` is still present. Also paste the full bare `python3 -m pytest` summary line for the whole plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ROUTE (a) WAS USED, the maintainer's OQ-04 resolution: the correction is an ordinary tracked BODY-PROSE edit of the item, with NO status transition and NO `aw backlog set` call. `git diff -- .aw/records/backlog/open/20260918-x7wfyx-01-x7wfyx-zero-work-turn-retry-and-turn-budget.backlog.md` is NON-EMPTY (`1 file changed, 34 insertions(+), 2 deletions(-)`) and adds:
+
+    ```
+    +## CORRECTION 2026-09-22: the cause above is wrong, and the agent was not at fault
+    +
+    +Written by plan `ty7w6o` E-05 as a REVIEW-TIME CORRECTION of the record, not a status transition. This
+    +item inherited its framing from `q1z9gn`, whose history states verbatim that "zqs0px ran python3 -m
+    +pytest as a background task and polled it with schedule", and that explanation is FALSIFIED by the
+    +session evidence. `q1z9gn`'s own entries are deliberately left unmodified: it is a terminal record, and
+    +editing it to match a later finding would destroy the provenance of what was believed when.
+    +
+    +WHAT ACTUALLY HAPPENED. The agent issued a plain FOREGROUND command with no background parameter
+    +(`run_command {"CommandLine":"python3 -m pytest"}`, session
+    +`run-20260918T193638Z-2963696/sessions/02-zqs0px-attempt-1.jsonl` step 6). THE HOST converted it to a
+    +background task, announced `root agent idle; waiting up to 5s for 2 background task(s)`, then
+    +`terminating 2 background task(s) on exit`, and closed the turn `{"status":"SUCCESS","duration_seconds":
+    +47.46}` with process exit 0. [...]
+    ```
+
+    The diff also shows the item's own falsified clause being removed from its MEASURED section (`-the host reported ... : the agent chose to stop.` -> `+the host reported ... . No bound fired and none could have.`), with the correction stating that it did so.
+
+    `q1z9gn` IS UNMODIFIED: `git status --porcelain -- .aw/records/backlog/` lists exactly one path, ` M .aw/records/backlog/open/20260918-x7wfyx-...backlog.md`, and nothing under `done/`. `x7wfyx` RETAINS ITS GATE: `- Status: open` and `- Blocks-Release: next` both still present (`grep -n` confirms lines 2 and 3 unchanged).
+
+    `aw backlog check` reports `20 violation(s)`, ALL PRE-EXISTING AND NONE ABOUT `x7wfyx`: every one is a `backlog.id-duplicate` self-report (the known defect already filed as `5bmq5f`), and the count is IDENTICAL with my changes stashed (measured: `git stash push` -> `aw backlog check` -> `20 violation(s)` -> `git stash pop`). No violation names this item.
+
+    WHOLE-PLAN SUITE, BARE, as the contract requires (`python3 -m pytest`, no added flags):
+
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 8117 passed, 3 skipped, 2 xfailed, 3 warnings in 124.26s (0:02:04)
+    ```
+
+    THAT ONE FAILURE IS PRE-EXISTING, ALREADY FILED, AND NOT MINE, and I am not claiming a green suite I did not get. It is backlog `wnabns` (`open`, release-blocking, filed 2026-09-22 while executing sibling `skn8uk`): the test builds a child env from `os.environ`, so an agent turn launched by `aw oc run` - which exports `OPENCODE_CONFIG_CONTENT` itself - fails it, while a clean shell and CI pass. PROVEN TWO WAYS rather than asserted. (1) It fails with my changes STASHED: `git stash push` -> `python3 -m pytest tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn` -> `1 failed, 4 passed` -> `git stash pop`. (2) Neutralizing only that ambient variable turns the WHOLE suite green with my changes in place, which is the remedy `wnabns` itself documents:
+
+    ```
+    $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest
+    8118 passed, 3 skipped, 2 xfailed, 3 warnings in 123.32s (0:02:03)
+    ```
+
+    8118 = 8117 + the 1 formerly-failing test, and 33 of those passing tests are this plan's new cases. `aw ipd lint --phase author` on this plan reports `conforming`.
+  - Result: pass
 
 ## Approval and execution gate
 
