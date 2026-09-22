@@ -1190,14 +1190,22 @@ class TestTheAgentIsToldNotToOutliveItsOwnCommands:
     own work is still running. Both are about the turn's lifetime, and neither is enforceable by the
     host.
 
-    MEASURED, run `run-20260918T045802Z-2547360` item `zqs0px` (backlog `q1z9gn`): the agent started
-    `python3 -m pytest` as a BACKGROUND task, polled it once with a scheduled wake-up, and then ENDED
-    ITS TURN with the suite at 32%. The host terminated the task (`terminating 2 background task(s) on
+    MEASURED, run `run-20260918T045802Z-2547360` item `zqs0px` (backlog `q1z9gn`): a turn ended with
+    `python3 -m pytest` still running, the host terminated it (`terminating 2 background task(s) on
     exit`), reported `status: SUCCESS` for a turn whose final words were "Waiting for test suite
-    baseline run to finish", and the driver correctly recorded `partial` because no outcome file was
-    written. That one `partial` then blocked three siblings and took the run to `BLOCKED` with 1 of 5
-    items executed. The turn used 36s of a 600s stall budget and exited 0, so NO bound fired and none
-    could have: the agent chose to stop.
+    baseline run to finish", and the driver recorded `partial` because no outcome file was written.
+    That one `partial` then blocked three siblings and took the run to `BLOCKED` with 1 of 5 items
+    executed. The turn used 36s of a 600s stall budget and exited 0, so NO bound fired.
+
+    CORRECTED BY `ty7w6o` (2026-09-22), because this docstring previously stated the cause twice and
+    both statements are FALSIFIED by the session logs. It said the agent "started `python3 -m pytest`
+    as a BACKGROUND task" and that "the agent chose to stop". What the logs show is a plain FOREGROUND
+    `run_command {"CommandLine":"python3 -m pytest"}` with no background parameter, which THE HOST
+    converted to a background task and then terminated on exit. So the instruction asserted below is
+    still worth pinning - it is cheap, correct guidance and a real failure mode in its own right - but
+    it CANNOT prevent the measured incident, and a reader must not conclude from a passing test here
+    that the incident family is closed. The host-side half is recorded by
+    `TestTheHostsOwnTruncationIsRecorded` below.
 
     WHAT IS ASSERTED is the PROPERTY (both agents are told to run result-bearing commands in the
     foreground and not to end a turn while one is outstanding), not the exact wording, so a later
@@ -1261,3 +1269,467 @@ class TestTheAgentIsToldNotToOutliveItsOwnCommands:
             assert (
                 sentence in text.lower()
             ), f"{name} is missing the foreground instruction"
+
+
+# ---- `ty7w6o`: the HOST's own truncation admission, recorded instead of accepted ------------------
+
+
+# THE REAL CAPTURED LINES, byte for byte. A hand-paraphrased fixture would pass while the shipped
+# classifier missed the real output, which is the specific way a string-matching guard fails.
+#
+# WHERE THESE COME FROM, since the obvious source is gone: `.aw/records/runs/` is gitignored and is
+# EMPTY in a lane worktree and a fresh clone, so the cited run directories do not exist and cannot be
+# re-read. The line forms survive in the tracked plan `ty7w6o` (its Concern, E-01 and V-01), which is
+# their provenance record, and they are copied from it here. They contain no machine-identifying data:
+# no paths, no usernames, no session ids.
+_HOST_TRUNCATING_BOUNDED_WAIT = (
+    "root agent idle; waiting up to 5s for 2 background task(s)"
+)
+_HOST_TRUNCATING_TERMINATE = "terminating 2 background task(s) on exit"
+_HOST_WAITING = (
+    "root agent idle; waiting for 1 background task(s) (bounded by --print-timeout)"
+)
+
+
+class TestTheHostsOwnTruncationIsClassified:
+    """E-01/V-01: the classifier separates the host CUTTING the work from the host WAITING for it.
+
+    MEASURED, twice on 2026-09-18: the agent issued a plain FOREGROUND `run_command
+    {"CommandLine":"python3 -m pytest"}`, the HOST converted it to a background task, said `waiting up
+    to 5s`, then `terminating 2 background task(s) on exit`, and closed the turn
+    `{"status":"SUCCESS","duration_seconds":47.46}` with exit 0. No driver bound fired and none could
+    have (turn 47s against a 600s stall budget and a 14100s driver bound), so the host's own lines are
+    the ONLY evidence the turn was cut.
+
+    WHY THE WAITING FORM IS A LOAD-BEARING NEGATIVE CONTROL: the same host emits both, and across the
+    captured sessions 3 emitted the waiting form and WAITED (healthy) against 8 that cut. Treating them
+    alike would flag healthy turns. That ratio is a recorded historical measurement, not reproducible
+    from this tree.
+    """
+
+    def test_both_real_truncating_lines_are_truncating(self):
+        for line in (_HOST_TRUNCATING_BOUNDED_WAIT, _HOST_TRUNCATING_TERMINATE):
+            assert (
+                lane_containment.classify_host_turn_line(line)
+                == lane_containment.HOST_TURN_TRUNCATING
+            ), line
+
+    def test_the_real_waiting_line_is_waiting_and_explicitly_not_truncating(self):
+        verdict = lane_containment.classify_host_turn_line(_HOST_WAITING)
+        assert verdict == lane_containment.HOST_TURN_WAITING
+        assert verdict != lane_containment.HOST_TURN_TRUNCATING
+
+    @pytest.mark.parametrize(
+        "line",
+        (
+            "",
+            "   ",
+            '{"event":"tool_call","name":"run_command"}',
+            '{"type":"assistant","text":"ordinary progress"}',
+        ),
+    )
+    def test_an_ordinary_or_empty_line_is_not_classified(self, line):
+        assert lane_containment.classify_host_turn_line(line) is None
+
+    @pytest.mark.parametrize(
+        "line",
+        (
+            '{"event":"assistant","text":"terminating 2 background task(s) on exit"}',
+            '{"event":"tool_result","output":"root agent idle; waiting up to 5s for 2 background task(s)"}',
+        ),
+    )
+    def test_an_agent_echoing_the_hosts_words_is_refused(self, line):
+        """THE OTHER LOAD-BEARING CONTROL, and the only guard against a false positive.
+
+        The stream carries BOTH file descriptors and BOTH speakers: `popen_kwargs` merges stderr into
+        stdout, so the loop sees the host's bare-text diagnostics AND every JSONL envelope, whose
+        payloads contain the agent's own assistant text and tool output. Without this control the
+        classifier fires on an agent that merely QUOTES the host, which is a LIVE risk in this Set
+        because sibling plans reproduce these exact lines in text an executing agent reads.
+        """
+
+        assert lane_containment.classify_host_turn_line(line) is None
+
+    def test_the_discriminators_are_not_the_shared_root_agent_idle_prefix(self):
+        """`root agent idle` matches BOTH forms, so it cannot discriminate and must not be the trigger."""
+
+        assert "root agent idle" in _HOST_TRUNCATING_BOUNDED_WAIT
+        assert "root agent idle" in _HOST_WAITING
+        # The bare prefix alone, with neither discriminator, is NOT classified either way.
+        assert lane_containment.classify_host_turn_line("root agent idle") is None
+        source = inspect.getsource(lane_containment.classify_host_turn_line)
+        assert (
+            "root agent idle" not in source
+        ), "the shared prefix must not be a matching trigger"
+
+    def test_the_task_count_is_read_best_effort_and_never_gates_the_verdict(self):
+        assert lane_containment.host_turn_task_count(_HOST_TRUNCATING_TERMINATE) == 2
+        assert (
+            lane_containment.host_turn_task_count("terminating tasks on exit") is None
+        )
+        # No count, still truncating: the verdict must not depend on parsing a number.
+        assert (
+            lane_containment.classify_host_turn_line(
+                "terminating some background task(s) on exit"
+            )
+            == lane_containment.HOST_TURN_TRUNCATING
+        )
+
+    def test_the_classifier_is_pure_and_host_neutral(self):
+        """Spec `7ckptx` R2.6: the single definition lives in the shared module, not in a driver."""
+
+        assert lane_containment.classify_host_turn_line.__module__.endswith(
+            "lane_containment"
+        )
+        agy_source = inspect.getsource(agy_runipd)
+        # The driver may CALL it and NAME it in a comment, but must not carry a second copy of the
+        # discriminators.
+        assert (
+            "bounded by --print-timeout"
+            not in agy_source.replace("`--print-timeout`", "")
+            or "classify_host_turn_line" in agy_source
+        )
+
+    def test_the_fail_silent_property_is_stated_at_the_classifier(self):
+        """OQ-01: a silent stop is possible if the host rewords a line, and that must be documented."""
+
+        source = inspect.getsource(lane_containment)
+        head = source[: source.index("def classify_host_turn_line")]
+        assert "FAIL-SILENT" in head
+
+
+class TestTheHostsOwnTruncationIsObserved:
+    """E-02/V-02: the per-turn observer accumulates the verdict and NEVER costs a turn."""
+
+    def test_it_accumulates_a_truncation_across_a_real_sequence(self):
+        observer = lane_containment.HostTruncationObserver()
+        for line in (
+            '{"type":"assistant","text":"running the suite"}',
+            _HOST_TRUNCATING_BOUNDED_WAIT,
+            _HOST_TRUNCATING_TERMINATE,
+        ):
+            observer.note_line(line)
+        assert observer.truncated is True
+        assert observer.task_count == 2
+        record = observer.as_record()
+        assert record["verdict"] == lane_containment.HOST_TURN_TRUNCATING
+        assert record["background_tasks"] == 2
+        assert len(record["truncating_lines"]) == 2
+
+    def test_a_healthy_sequence_reports_no_truncation(self):
+        observer = lane_containment.HostTruncationObserver()
+        for line in (
+            '{"type":"assistant","text":"running the suite"}',
+            _HOST_WAITING,
+            '{"type":"result","status":"SUCCESS"}',
+        ):
+            observer.note_line(line)
+        assert observer.truncated is False
+        assert observer.waiting_lines == [_HOST_WAITING]
+
+    def test_a_later_waiting_line_does_not_clear_an_admitted_truncation(self):
+        """The two are not alternatives in one turn: the host may wait for one task and cut another."""
+
+        observer = lane_containment.HostTruncationObserver()
+        observer.note_line(_HOST_TRUNCATING_TERMINATE)
+        observer.note_line(_HOST_WAITING)
+        assert observer.truncated is True
+
+    @pytest.mark.parametrize("line", (None, "", "   ", 42, object()))
+    def test_malformed_or_empty_input_neither_raises_nor_reports_truncation(self, line):
+        observer = lane_containment.HostTruncationObserver()
+        assert observer.note_line(line) is None
+        assert observer.truncated is False
+
+    def test_it_is_modeled_on_the_established_observer_and_never_blocks(self):
+        source = inspect.getsource(lane_containment.HostTruncationObserver)
+        assert "DOES NOT BLOCK" in source.upper()
+        # No waiting, no prompting, no terminating: observing is recording.
+        tree = ast.parse(inspect.getsource(lane_containment.HostTruncationObserver))
+        called = {
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        } | {
+            node.func.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        for forbidden in ("sleep", "wait", "terminate", "kill", "input"):
+            assert forbidden not in called
+
+
+class TestTheHostsOwnTruncationIsRecordedDurably:
+    """E-04/V-04: it reaches `state.json` and `events.jsonl`, and it changes NO item's fate.
+
+    THE NEGATIVE PROPERTY IS THE POINT. `ty7w6o` produces the signal; `dy9ymn` decides what to do with
+    it. If this plan also moved a disposition the two would fight over one field, so the exit code, the
+    computed disposition and `item["status"]` must be IDENTICAL with and without the record.
+    """
+
+    @staticmethod
+    def _truncated_observer():
+        observer = lane_containment.HostTruncationObserver()
+        observer.note_line(_HOST_TRUNCATING_BOUNDED_WAIT)
+        observer.note_line(_HOST_TRUNCATING_TERMINATE)
+        return observer
+
+    def test_a_truncated_turn_is_recorded_on_the_attempt_and_as_an_event(
+        self, tmp_path
+    ):
+        item = {"id6": "ty7w6o", "attempts": [{"number": 1, "exit_code": 0}]}
+        record = lane_containment.record_host_truncation(
+            tmp_path, item, 1, self._truncated_observer()
+        )
+        assert record is not None
+        attempt = item["attempts"][-1]
+        assert attempt["host_truncation"]["verdict"] == (
+            lane_containment.HOST_TURN_TRUNCATING
+        )
+        assert attempt["host_truncation"]["background_tasks"] == 2
+        events = [
+            json.loads(line)
+            for line in (tmp_path / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        truncations = [e for e in events if e["event"] == "host-truncated-turn"]
+        assert len(truncations) == 1
+        assert truncations[0]["id6"] == "ty7w6o"
+        assert truncations[0]["attempt"] == 1
+        assert truncations[0]["verdict"] == lane_containment.HOST_TURN_TRUNCATING
+
+    def test_a_healthy_turn_records_neither(self, tmp_path):
+        observer = lane_containment.HostTruncationObserver()
+        observer.note_line(_HOST_WAITING)
+        item = {"id6": "ty7w6o", "attempts": [{"number": 1, "exit_code": 0}]}
+        assert (
+            lane_containment.record_host_truncation(tmp_path, item, 1, observer) is None
+        )
+        assert "host_truncation" not in item["attempts"][-1]
+        assert not (tmp_path / "events.jsonl").exists()
+
+    def test_it_changes_neither_the_exit_code_nor_the_disposition_nor_the_status(
+        self, tmp_path
+    ):
+        def _item():
+            return {
+                "id6": "ty7w6o",
+                "setid": "reaskscore",
+                "position": 2,
+                "configured_file": "missing.ipd.md",
+                "action": "execute",
+                "status": "running",
+                "attempts": [{"number": 1, "exit_code": 0}],
+            }
+
+        untouched, recorded = _item(), _item()
+        lane_containment.record_host_truncation(
+            tmp_path, recorded, 1, self._truncated_observer()
+        )
+
+        assert (
+            recorded["attempts"][-1]["exit_code"]
+            == (untouched["attempts"][-1]["exit_code"])
+        )
+        assert recorded["status"] == untouched["status"]
+        assert "disposition" not in recorded["attempts"][-1]
+
+        # And the SCORER returns the same verdict for both, which is the property that matters.
+        repo = tmp_path / "repo"
+        (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+        run_dir = tmp_path / "rd"
+        (run_dir / "outcomes").mkdir(parents=True)
+        for driver in (oc_runipd, agy_runipd):
+            before = driver.reconcile_disposition(repo, untouched, run_dir, 0)
+            after = driver.reconcile_disposition(repo, recorded, run_dir, 0)
+            assert before[0] == after[0], driver.__name__
+
+    def test_the_record_survives_a_failed_event_write(self, tmp_path):
+        """The ATTEMPT record is written FIRST, so a logging failure cannot lose the truncation."""
+
+        item = {"id6": "ty7w6o", "attempts": [{"number": 1}]}
+        unwritable = tmp_path / "does" / "not" / "exist" / "\0bad"
+        record = lane_containment.record_host_truncation(
+            unwritable, item, 1, self._truncated_observer()
+        )
+        assert record is not None
+        assert item["attempts"][-1]["host_truncation"]["background_tasks"] == 2
+
+
+class TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam:
+    """E-03/V-03: fed for EVERY raw line, under EVERY `output_mode`, not from a rendering branch.
+
+    A signal parsed inside a rendering branch is silently INERT under `raw` and `quiet` - a mistake
+    this loop already records having made and fixed (`y5od1h` E-06, `foi1b3`).
+    """
+
+    @staticmethod
+    def _run_a_truncating_turn(tmp_path, output_mode):
+        from agent_workflows import runner_shared
+
+        repo = tmp_path / f"repo-{output_mode}"
+        repo.mkdir(parents=True)
+        run_dir = tmp_path / f"run-{output_mode}"
+        (run_dir / "sessions").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        prompt = run_dir / "prompts" / "01-prompt.md"
+        prompt.write_text("prompt", encoding="utf-8")
+        state = {
+            "run_id": "run-1",
+            "repo": str(repo),
+            "options": {
+                "output_mode": output_mode,
+                "agy_executable": "agy",
+            },
+        }
+        item = {
+            "id6": "ty7w6o",
+            "setid": "reaskscore",
+            "position": 2,
+            "action": "execute",
+            "attempts": [{"number": 1}],
+        }
+        stdout_lines = [
+            '{"type":"assistant","text":"running the suite"}\n',
+            _HOST_TRUNCATING_BOUNDED_WAIT + "\n",
+            _HOST_TRUNCATING_TERMINATE + "\n",
+            '{"type":"result","status":"SUCCESS","duration_seconds":47.46}\n',
+        ]
+
+        class FakeProc:
+            def __init__(self, cmd, *args, **kwargs):
+                self.pid = 4242
+                self.stdout = iter(stdout_lines)
+                self.returncode = 0
+
+            def poll(self):
+                return 0
+
+            def wait(self, timeout=None):
+                return 0
+
+        with mock.patch("subprocess.Popen", side_effect=FakeProc):
+            rc, _sess, _log, _argv = agy_runipd.run_agy_turn(
+                state, run_dir, item, prompt, 1, session_id=None, use_continue=False
+            )
+        assert rc == 0
+        assert runner_shared is not None
+        return item, run_dir
+
+    @pytest.mark.parametrize("output_mode", ("clean", "raw", "quiet"))
+    def test_detection_is_independent_of_output_mode(self, tmp_path, output_mode):
+        item, run_dir = self._run_a_truncating_turn(tmp_path, output_mode)
+        attempt = item["attempts"][-1]
+        assert attempt["host_truncation"]["verdict"] == (
+            lane_containment.HOST_TURN_TRUNCATING
+        ), f"the signal is inert under output_mode={output_mode}"
+        assert attempt["host_truncation"]["background_tasks"] == 2
+        events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+        assert "host-truncated-turn" in events
+
+    def test_a_healthy_turn_through_the_same_loop_records_nothing(self, tmp_path):
+        repo = tmp_path / "repo-healthy"
+        repo.mkdir(parents=True)
+        run_dir = tmp_path / "run-healthy"
+        (run_dir / "sessions").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        prompt = run_dir / "prompts" / "01-prompt.md"
+        prompt.write_text("prompt", encoding="utf-8")
+        item = {
+            "id6": "ty7w6o",
+            "setid": "reaskscore",
+            "position": 2,
+            "action": "execute",
+            "attempts": [{"number": 1}],
+        }
+        stdout_lines = [
+            _HOST_WAITING + "\n",
+            '{"type":"result","status":"SUCCESS"}\n',
+        ]
+
+        class FakeProc:
+            def __init__(self, cmd, *args, **kwargs):
+                self.pid = 4243
+                self.stdout = iter(stdout_lines)
+                self.returncode = 0
+
+            def poll(self):
+                return 0
+
+            def wait(self, timeout=None):
+                return 0
+
+        with mock.patch("subprocess.Popen", side_effect=FakeProc):
+            agy_runipd.run_agy_turn(
+                {
+                    "run_id": "run-1",
+                    "repo": str(repo),
+                    "options": {"output_mode": "quiet", "agy_executable": "agy"},
+                },
+                run_dir,
+                item,
+                prompt,
+                1,
+                session_id=None,
+                use_continue=False,
+            )
+
+        assert "host_truncation" not in item["attempts"][-1]
+        events_path = run_dir / "events.jsonl"
+        if events_path.exists():
+            assert "host-truncated-turn" not in events_path.read_text(encoding="utf-8")
+
+    def test_the_observer_is_fed_outside_every_rendering_branch(self):
+        """Asserted structurally: the feed must NOT sit inside an `output_mode` comparison."""
+
+        tree = ast.parse(inspect.getsource(agy_runipd.run_agy_turn).lstrip())
+        feeds = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "note_line"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "host_truncation"
+        ]
+        assert len(feeds) == 1, "exactly one feed, at the every-line seam"
+        guarded = {
+            id(call)
+            for branch in ast.walk(tree)
+            if isinstance(branch, ast.If) and "output_mode" in ast.dump(branch.test)
+            for call in ast.walk(branch)
+            if isinstance(call, ast.Call)
+        }
+        assert id(feeds[0]) not in guarded
+
+    def test_the_grepped_print_timeout_comment_block_is_intact(self):
+        """R4.4d's own check above greps this source for three literals; this edit must not reflow it.
+
+        Collapsed the SAME way that check collapses it, because the phrase wraps across comment lines
+        ("EXPECTED\n# TO WIN"), so a literal search on the raw source would fail on intact code.
+        """
+
+        collapsed = " ".join(
+            inspect.getsource(agy_runipd.run_agy_turn).split()
+        ).replace("# ", "")
+        for literal in ("print-timeout", "EXPECTED TO WIN", "BACKSTOP"):
+            assert literal in collapsed, literal
+
+    def test_the_deliberate_host_asymmetry_is_stated_at_the_write(self):
+        """OQ-02/OQ-05: so nobody 'fixes' it by copying the write into the oc launcher."""
+
+        source = inspect.getsource(agy_runipd.run_agy_turn)
+        assert "ASYMMETRY" in source.upper()
+        assert "oc launcher" in source
+        # And the oc twin genuinely does NOT carry the write.
+        assert "record_host_truncation" not in inspect.getsource(oc_runipd)
+
+    def test_the_four_tuple_return_shape_is_unchanged(self):
+        """Widening it would edit `runner_shared.execute_item_core`, which `ty7w6o` does not declare."""
+
+        import typing
+
+        hints = typing.get_type_hints(agy_runipd.run_agy_turn)
+        assert hints["return"] == tuple[int, str | None, Path, list[str]]

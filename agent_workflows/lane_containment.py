@@ -1996,6 +1996,234 @@ def lane_preserved_for_missing_input(item: dict[str, Any]) -> bool:
     return False
 
 
+# ---- THE HOST'S OWN TRUNCATION ADMISSION (`ty7w6o`) ------------------------------------------------
+#
+# WHAT THIS IS FOR. The agy host converts a FOREGROUND command into a background task, waits a few
+# seconds for it, TERMINATES it, and then closes the turn `{"status":"SUCCESS"}` with process exit 0.
+# Measured twice on 2026-09-18: the agent issued a plain `run_command {"CommandLine":"python3 -m
+# pytest"}` with no background parameter, the host backgrounded it anyway, and the driver accepted a
+# 47-second turn whose work had been killed as a normal, complete exit. No driver bound fired and none
+# could have (`--print-timeout` 240m, driver bound 14100s, stall budget 600s, turn 47s), so the ONLY
+# evidence that the turn was cut is the host's own diagnostic lines on the stream the driver already
+# reads. THE AGENT WAS NOT AT FAULT: the shared execute prompt's FOREGROUND instruction (`q1z9gn`) was
+# present verbatim and was obeyed.
+#
+# THIS PRODUCES A SIGNAL AND NOTHING ELSE. Recording the truncation is `ty7w6o`'s whole scope; DECIDING
+# what to do about it (a retry) is `dy9ymn`'s, which consumes `attempt["host_truncation"]`. Nothing
+# here changes an exit code, a disposition, or an item's status.
+#
+# FAIL-SILENT, STATED RATHER THAN HIDDEN (`ty7w6o` OQ-01). Detection is SUBSTRING matching on host log
+# lines, because the host communicates this on stdout and NOWHERE else: there is no exit code, no
+# structured event, and its own `result.status` says `SUCCESS`. If the host rewords a line, detection
+# STOPS and behavior reverts to exactly today's - a degradation to the status quo, NOT a false
+# positive, which would be the dangerous direction. Hence a stable substring CORE rather than the whole
+# sentence or a digit-exact pattern (the task count and the `5s` bound are host details that may
+# change). The alternative detector (infer truncation from a short duration plus a missing outcome) was
+# REJECTED: it cannot distinguish a host truncation from a legitimately brief turn and would fire on
+# healthy work.
+
+# The host's verdicts, named so a caller never compares against a bare string.
+HOST_TURN_TRUNCATING = "truncating"
+HOST_TURN_WAITING = "waiting"
+
+# THE THREE DISCRIMINATORS, measured against the real captured line forms. `root agent idle` matches
+# BOTH the truncating and the waiting line and therefore CANNOT discriminate; these three can.
+#
+#   truncating: `root agent idle; waiting up to 5s for 2 background task(s)`
+#   truncating: `terminating 2 background task(s) on exit`
+#   waiting:    `root agent idle; waiting for 1 background task(s) (bounded by --print-timeout)`
+#
+# Measured across the captured agy sessions: 3 sessions emit the WAITING form and wait for the work
+# (healthy); 8 emit the bounded-wait form and then cut. That ratio is a RECORDED HISTORICAL
+# MEASUREMENT: `.aw/records/runs/` is gitignored and absent from a lane worktree and a fresh clone, so
+# it is not reproducible, and the WAITING branch must NOT be weakened on the grounds that no example
+# can be found today.
+_HOST_WAITING_CORE = "bounded by --print-timeout"
+_HOST_TRUNCATING_BOUNDED_WAIT_CORE = "waiting up to"
+_HOST_TRUNCATING_TERMINATE_CORE = "background task(s) on exit"
+
+# `terminating 2 background task(s) on exit` -> 2, and the bounded-wait form's count too. Best effort:
+# the verdict NEVER depends on parsing a number.
+_HOST_TASK_COUNT_RE = re.compile(r"(\d+)\s+background task\(s\)")
+
+
+def classify_host_turn_line(line: str) -> str | None:
+    """Classify ONE raw line of agy child output as the host's truncation or wait admission.
+
+    Returns `HOST_TURN_TRUNCATING` (the host cut the turn's work), `HOST_TURN_WAITING` (the host is
+    waiting for it, which is HEALTHY and must NOT be reported as truncation), or `None` for an
+    ordinary line. PURE: no I/O, no state, no side effect.
+
+    HOST-NEUTRAL AND HERE RATHER THAN IN THE DRIVER because spec `7ckptx` R2.6 requires the single
+    definition of a driver-consumed containment rule to live in a declared shared module, and R6.1
+    forbids the fork where one host becomes the other's de-facto library. Only the agy stdout loop
+    FEEDS it today (opencode emits nothing resembling these lines), and that asymmetry is deliberate.
+
+    A JSON-PARSEABLE LINE IS REFUSED, AND THAT GUARD IS THE ONE THING STOPPING A FALSE POSITIVE. The
+    stream this reads is the agy CLI's MERGED stdout+stderr (`popen_kwargs` sets
+    `stderr=subprocess.STDOUT`), so it carries the host's bare-text diagnostics AND every JSONL event
+    envelope - whose payloads contain the AGENT's own assistant text and tool output. An agent that
+    merely QUOTES these strings would otherwise be classified as a host truncation, and that is a LIVE
+    hazard rather than a theoretical one: sibling plans in this very Set reproduce the host's lines
+    verbatim in text an executing agent reads and may echo. The host's own diagnostics are BARE TEXT
+    and do not parse as JSON, while every agent echo arrives inside an envelope, so requiring
+    `json.loads` to FAIL separates them exactly. The driver already reads the stream this way
+    (`render_agy_event` parses and falls through on `JSONDecodeError`).
+    """
+
+    text = (line or "").strip()
+    if not text:
+        return None
+
+    # Refuse anything the host did not say in bare text. `json.loads` accepts bare scalars too
+    # (`"1"`, `"null"`), which is fine: those are not host diagnostics either.
+    try:
+        json.loads(text)
+    except Exception:
+        pass
+    else:
+        return None
+
+    lowered = text.lower()
+    # WAITING IS TESTED FIRST, deliberately: it is the healthy form, and `waiting up to` must never
+    # be allowed to claim a line the `--print-timeout` bound already explains.
+    if _HOST_WAITING_CORE in lowered:
+        return HOST_TURN_WAITING
+    if _HOST_TRUNCATING_BOUNDED_WAIT_CORE in lowered and "background task" in lowered:
+        return HOST_TURN_TRUNCATING
+    if _HOST_TRUNCATING_TERMINATE_CORE in lowered and "terminating" in lowered:
+        return HOST_TURN_TRUNCATING
+    return None
+
+
+def host_turn_task_count(line: str) -> int | None:
+    """The background-task count the host NAMED on `line`, or `None`. Best effort by construction."""
+
+    match = _HOST_TASK_COUNT_RE.search(line or "")
+    if match is None:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:  # pragma: no cover - the regex already guarantees digits
+        return None
+
+
+class HostTruncationObserver:
+    """The per-turn observer that answers "did this turn's HOST cut its work?" (`ty7w6o`).
+
+    ONE PER TURN, constructed by the driver adapter and fed EVERY raw line, exactly as
+    `MissingInputObserver` already is and at the same seam. Modeled on it deliberately rather than
+    invented: that class is the established precedent for a host-neutral per-turn line observer here.
+
+    IT DOES NOT BLOCK, RAISE, OR TERMINATE ANYTHING. Observing is RECORDING. A malformed or unexpected
+    line is IGNORED rather than propagated, for the same reason `MissingInputObserver` never kills a
+    turn: a bookkeeping failure must not end work that is otherwise fine. `note_line` therefore
+    swallows every exception and returns `None`.
+
+    `truncated` is the turn's verdict, and it is DELIBERATELY NOT cleared by a later WAITING line. The
+    two are not alternatives in a single turn: a host that waits for one task may still cut another,
+    and the measured sessions show the bounded-wait line FOLLOWED by the terminate line. So a truncation
+    once admitted stands, and `waiting_lines` is kept separately for the reader.
+    """
+
+    def __init__(self) -> None:
+        self.truncating_lines: list[str] = []
+        self.waiting_lines: list[str] = []
+        self.task_count: int | None = None
+
+    @property
+    def truncated(self) -> bool:
+        """True when the host admitted, on at least one line, that it cut this turn's work."""
+
+        return bool(self.truncating_lines)
+
+    def note_line(self, line: str) -> str | None:
+        """Observe one raw line; record and return its verdict, or `None` for an ordinary line."""
+
+        try:
+            verdict = classify_host_turn_line(line)
+            if verdict is None:
+                return None
+            text = (line or "").strip()
+            if verdict == HOST_TURN_WAITING:
+                self.waiting_lines.append(text)
+                return verdict
+            self.truncating_lines.append(text)
+            count = host_turn_task_count(text)
+            if count is not None and self.task_count is None:
+                self.task_count = count
+            return verdict
+        except Exception:
+            # Observing must never cost a turn. See the class docstring.
+            return None
+
+    def as_record(self) -> dict[str, Any]:
+        """The attempt-level summary: the verdict, the lines that produced it, and the task count."""
+
+        return {
+            "verdict": HOST_TURN_TRUNCATING,
+            "background_tasks": self.task_count,
+            "truncating_lines": list(self.truncating_lines),
+            "waiting_lines": list(self.waiting_lines),
+        }
+
+    def describe(self) -> str:
+        """One short operator-facing sentence naming what the host did."""
+
+        count = self.task_count
+        tasks = (
+            f"{count} background task(s)" if count is not None else "background task(s)"
+        )
+        return (
+            f"the host ended this turn early and terminated {tasks} it had detached "
+            f"from the agent's foreground command"
+        )
+
+
+def record_host_truncation(
+    run_dir: Path,
+    item: dict[str, Any],
+    attempt_no: int,
+    observer: HostTruncationObserver,
+) -> dict[str, Any] | None:
+    """Write the host's truncation onto the attempt AND to the event log; return the record.
+
+    HOST-NEUTRAL for the same reason `record_missing_input_refusal` is (spec R2.6): the record SHAPE
+    is defined once, so an artifact reader is never misled by a per-host layout, even though only the
+    agy driver can currently reach this.
+
+    IT CHANGES NO FATE, AND THAT IS LOAD-BEARING. It writes `attempt["host_truncation"]` and appends a
+    `host-truncated-turn` event, and it does NOT touch `exit_code`, `disposition`, or `item["status"]`.
+    `ty7w6o` produces the signal; `dy9ymn` decides what to do with it. Rewriting a disposition here
+    would put two plans in a fight over one field.
+
+    The ATTEMPT record is written FIRST and the event is best-effort, exactly as
+    `record_missing_input_refusal` orders them, so the truncation survives a failed event write.
+    """
+
+    if not observer.truncated:
+        return None
+    record = observer.as_record()
+    for attempt in item.get("attempts") or []:
+        if attempt.get("number") == attempt_no:
+            attempt["host_truncation"] = record
+            break
+    else:
+        item["host_truncation"] = record
+    with contextlib.suppress(Exception):
+        runner_shared.append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": runner_shared.utc_now(),
+                "event": "host-truncated-turn",
+                "id6": item.get("id6", ""),
+                "attempt": attempt_no,
+                **record,
+            },
+        )
+    return record
+
+
 # ---- R5.1 / R5.1a / R5.2: lane input materialization -----------------------------------------------
 #
 # WHY A MATERIALIZER EXISTS AT ALL, since a lane is already a `git worktree` at a commit and therefore

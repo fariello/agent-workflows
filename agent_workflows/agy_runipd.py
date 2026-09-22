@@ -2842,6 +2842,17 @@ def run_agy_turn(
         # reports a missing input exactly as it does on the other, so the cycle is genuinely uniform.
         missing_input = lane_containment.MissingInputObserver(state["repo"])
 
+        # reaskscore Order 02 (`ty7w6o`) E-02/E-03: the per-turn observer for THE HOST'S OWN
+        # TRUNCATION ADMISSION, constructed here beside `MissingInputObserver` for the same reason and
+        # fed at the same every-line seam below.
+        #
+        # THE ASYMMETRY IS DELIBERATE AND MUST NOT BE "FIXED" BY COPYING IT TO THE OC LAUNCHER. Only
+        # the agy CLI emits these lines; opencode emits nothing resembling them, so an oc-side copy
+        # could never fire. The CLASSIFIER is host-neutral and shared (spec R2.6,
+        # `lane_containment.classify_host_turn_line`); only this construction and the feed are per-host.
+        # See `ty7w6o` OQ-02/OQ-05, which record that judgement so a reviewer can challenge it.
+        host_truncation = lane_containment.HostTruncationObserver()
+
         try:
             # `escalation_watch` (runstop 71vjbn) joins the turn's scope for the same reason
             # `force_watch` does: it must be armed for exactly the turn's lifetime, no longer.
@@ -2864,6 +2875,13 @@ def run_agy_turn(
                     # relative point (immediately after the poll) and independent of `output_mode`, so
                     # the two hosts cannot drift on WHEN a report is noticed (CID-3).
                     missing_input.note_line(raw_line, run_dir, item, attempt_no)
+                    # reaskscore ty7w6o E-03: the host's truncation admission, observed HERE for
+                    # EVERY raw line and independently of `output_mode`. NOT inside the rendering
+                    # branches below: a signal parsed inside one is silently inert under `raw` and
+                    # `quiet`, which is a mistake this very loop already records having made and
+                    # fixed (see the `y5od1h` note above and the `foi1b3` note below). Observing
+                    # only: `note_line` never raises, blocks, or terminates.
+                    host_truncation.note_line(raw_line)
                     # runstop m0z0ti (level 4, spec R7/A2): checked FIRST and BEFORE the line is
                     # classified, because level 4 must NOT wait for a checkpoint. The counterpart of
                     # the `oc_runipd` site (orchestrator CID-3: identical semantics on both hosts).
@@ -2970,6 +2988,48 @@ def run_agy_turn(
         finally:
             if breach_watch is not None:
                 breach_watch.__exit__(None, None, None)
+            # reaskscore ty7w6o E-04: RECORD the host's truncation durably, so a turn the host cut is
+            # distinguishable afterwards from one that finished rather than only in scrollback.
+            #
+            # IN THE `finally` ON PURPOSE: the loop above leaves by five paths (normal exhaustion,
+            # `StopNowForce`, `StopAtCheckpoint`, `StallTimeout`, `KeyboardInterrupt`), and a host that
+            # truncated the work did so whichever one was taken.
+            #
+            # IT CHANGES NO FATE. `record_host_truncation` writes `attempt["host_truncation"]` and one
+            # `host-truncated-turn` event and touches NEITHER `exit_code`, `disposition`, nor
+            # `item["status"]`: this plan produces the SIGNAL and `dy9ymn` decides what to do with it.
+            #
+            # WHY IT WRITES THROUGH `item["attempts"][-1]` RATHER THAN RETURNING THE RECORD. This
+            # launcher's return is a FIXED 4-tuple whose shape is TYPED in
+            # `runner_shared.execute_item_core`'s `spawn_executor`/`spawn_verifier` parameters and
+            # SHARED with the oc twin, so widening it would edit a cross-host contract. `item` is
+            # already a parameter here, and `execute_item_core` appends this turn's attempt to
+            # `item["attempts"]` BEFORE it spawns, so `[-1]` IS this attempt; the `save_state` calls
+            # that follow the spawn's return persist the mutation with no new call site.
+            #
+            # THE ASYMMETRY IS REAL AND IS STATED RATHER THAN HIDDEN. `run_agy_turn` did NO state
+            # writing at all before this (zero `save_state`, zero `append_jsonl`, zero `item[...]`
+            # assignments), so this adds a responsibility to a launcher that had none, and the oc twin
+            # will NOT have it. That is accepted because only the agy CLI emits these lines and an
+            # oc-side copy could never fire - so do NOT "fix" the asymmetry by copying this write into
+            # the oc launcher. The host-neutral alternative is to own the observer in
+            # `execute_item_core`, which `ty7w6o` OQ-05 records for a plan that declares that file.
+            if host_truncation.truncated:
+                with contextlib.suppress(Exception):
+                    lane_containment.record_host_truncation(
+                        run_dir, item, attempt_no, host_truncation
+                    )
+                # ONE short warning, at the time, because a turn whose work was killed is something
+                # the operator should see now rather than discover in a post-mortem.
+                with contextlib.suppress(Exception):
+                    print(
+                        pal(
+                            f"  ! IPD {item.get('id6', '')} turn TRUNCATED BY ITS HOST: "
+                            f"{host_truncation.describe()}",
+                            "yellow",
+                        ),
+                        file=sys.stderr,
+                    )
 
         if watchdog.stalled:
             log.flush()

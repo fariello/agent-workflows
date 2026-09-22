@@ -24,7 +24,40 @@ MEASURED, run `run-20260918T045802Z-2547360`, item `zqs0px` (`nobugship-01`):
     05 rgaasb nobugship execute     dependency-blocked    -
 
 Run outcome `BLOCKED`, 1 of 5 items executed. The turn used 36s of a 600s stall budget, exited 0, and
-the host reported `status: SUCCESS`. No bound fired and none could have: the agent chose to stop.
+the host reported `status: SUCCESS`. No bound fired and none could have.
+
+## CORRECTION 2026-09-22: the cause above is wrong, and the agent was not at fault
+
+Written by plan `ty7w6o` E-05 as a REVIEW-TIME CORRECTION of the record, not a status transition. This
+item inherited its framing from `q1z9gn`, whose history states verbatim that "zqs0px ran python3 -m
+pytest as a background task and polled it with schedule", and that explanation is FALSIFIED by the
+session evidence. `q1z9gn`'s own entries are deliberately left unmodified: it is a terminal record, and
+editing it to match a later finding would destroy the provenance of what was believed when.
+
+WHAT ACTUALLY HAPPENED. The agent issued a plain FOREGROUND command with no background parameter
+(`run_command {"CommandLine":"python3 -m pytest"}`, session
+`run-20260918T193638Z-2963696/sessions/02-zqs0px-attempt-1.jsonl` step 6). THE HOST converted it to a
+background task, announced `root agent idle; waiting up to 5s for 2 background task(s)`, then
+`terminating 2 background task(s) on exit`, and closed the turn `{"status":"SUCCESS","duration_seconds":
+47.46}` with process exit 0. Reproduced on a second Set in a second run
+(`run-20260918T190723Z-2697256/sessions/02-zz5yxq-attempt-1.jsonl`, turn 28.2s, same two lines), so it
+is systematic rather than a one-off. The agent's later `schedule`/`manage_task` polling is a SYMPTOM,
+not the cause: those polls all FOLLOW the host's own idle line, which precedes them.
+
+THE FOREGROUND PROMPT INSTRUCTION WAS PRESENT AND WAS OBEYED. `q1z9gn`'s shared-prompt fix ("Run every
+command you need the RESULT of in the FOREGROUND and wait for it to finish") was verbatim in this
+turn's prompt (`prompts/02-zqs0px-exec-attempt-1.md`). The MEASURED section above ended "the agent
+chose to stop" until this correction removed that clause, because it is not what the evidence shows,
+and no prompt wording can fix this: the host detached a command the agent had asked to run in the
+foreground.
+
+CONSEQUENCE FOR THIS ITEM. Item B (retry a turn that provably attempted nothing) is unaffected in
+substance and remains correct, but its trigger is a HOST truncation rather than an agent choice, so the
+signal is now recorded durably by `ty7w6o` as `attempt["host_truncation"]` plus a `host-truncated-turn`
+event, and `dy9ymn` consumes it to decide the retry. Item A (tell the agent its remaining turn budget)
+is still worth doing but would NOT have prevented the measured incident. Note the cited run directories
+are gitignored and absent from a fresh clone; plan `ty7w6o` is the in-tree provenance record for these
+line forms.
 
 ## What is still missing
 
