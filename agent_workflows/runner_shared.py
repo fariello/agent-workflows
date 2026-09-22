@@ -950,6 +950,144 @@ def print_lane_interrupt_report(lanes: list[dict[str, Any]]) -> None:
         print("No lane needed reclamation.", file=sys.stderr)
 
 
+# ---- INTERRUPT-PATH RECLAIM: the merged-lane decision and its teardown gate -----------------------
+#
+# laneorph Order 01 (`65cuw0`) E-03. The definitions below exist so that BOTH hosts' identical
+# `reclaim_lanes_on_interrupt` loops reach ONE rule (spec `7ckptx` R6.1, orchestrator CID-3): a
+# containment rule implemented per host is a forked rule even while the copies agree.
+#
+# WHAT WAS WRONG, MEASURED. The loop tests `if lane["holds_work"]:` and `continue`s BEFORE it ever
+# reads `reclaimable`, and a MERGED lane is still `holds_work`, because `commits_ahead` is measured
+# against the lane's OWN creation base and so never returns to zero after a merge. So an already-merged
+# lane took the preserve branch on every interrupt and was kept forever, and widening `reclaimable`
+# alone changed nothing observable. THE DECISION ORDER is therefore the load-bearing half.
+
+
+def describe_lane_with_recovery(repo: Path, lane: dict[str, Any]) -> dict[str, Any]:
+    """`describe_lane`'s reading PLUS the E-01 recovery field, for the interrupt reclaimer.
+
+    COMPOSES `describe_lane` RATHER THAN EDITING IT, for the reason `lane_records_including_sweep`
+    records about `_lane_records_from_state`: that function's body is pinned BYTE-FOR-BYTE against a
+    pre-move fingerprint fixture (`tests/fixtures/runner_shared_premove_fingerprints.json`, captured at
+    HEAD `1ecc5891`) which proves it was a PURE MOVE out of the two runners. Editing it to add a key
+    would break that proof for a reason unrelated to what the proof is about. So the reading stays
+    exactly as it was and the recovery field is added here.
+
+    ADDS NO SECOND GIT PROBE OF ITS OWN BEYOND THE ONE LANDING QUESTION, and that question is answered
+    by `worktree_lease.lane_merged_into_target`, which delegates to `lane_work_has_landed` - the
+    repository's single `merge-base --is-ancestor` landing predicate (R6.1). `LaneState` already carries
+    the same value; it is re-read here only because `describe_lane`'s pinned body cannot forward it.
+    """
+    from agent_workflows import worktree_lease
+
+    described = describe_lane(repo, lane)
+    branch = str(described.get("branch") or lane.get("branch") or "")
+    described["merged_into_target"] = worktree_lease.lane_merged_into_target(
+        repo, branch
+    )
+    return described
+
+
+def lane_is_recovered_and_reclaimable(lane: dict[str, Any]) -> bool:
+    """Should the interrupt path try to reclaim this lane DESPITE `holds_work`? (`65cuw0` E-03.)
+
+    THE ONE PLACE THE DECISION ORDER IS EXPRESSED. Both hosts consult this BEFORE their `holds_work`
+    bail-out, which is what makes the merged case reachable at all.
+
+    True only for a lane that (1) HOLDS WORK, (2) whose work is PROVABLY RECOVERED
+    (`merged_into_target`, i.e. reachable from the integration target through the repository's one
+    landing predicate), and (3) whose tree is CLEAN. `reclaimable` is required too rather than
+    re-deriving its rule here, so this cannot drift from the reading in `worktree_lease.LaneState`.
+
+    `holds_work` IS REQUIRED, AND OMITTING IT IS A MEASURED REGRESSION, not a stylistic nicety. A lane
+    with no commits at all, cut from the current HEAD, is TRIVIALLY an ancestor of the integration
+    target, so `merged_into_target` is True for it:
+
+        empty lane at HEAD -> state=EMPTY commits_ahead=0 dirty=False merged_into_target=True
+
+    Without this clause every such lane would be diverted out of today's reclaim branch and into the
+    R5.5 inventory gate, which then REFUSES it for an uncollected submission (an interrupted lane has no
+    completed collection receipt by definition) and PRESERVES it. That is the opposite of the leak fix:
+    measured, it turns `action = "reclaimed"` into `"preserved"` for the provably-empty case and for the
+    review sweep lane. So this predicate covers EXACTLY the case that was broken - a lane holding
+    commits that have already landed - and leaves both pre-existing dispositions untouched.
+
+    IT IS NOT AN AUTHORIZATION TO DESTROY ANYTHING. It only selects which BRANCH of the loop a lane
+    takes; whether the lane may actually be removed is decided afterwards by the spec R5.5 inventory
+    gate in `reclaim_lane_through_gate`. Keeping those two separate is deliberate: this reading is
+    blind to ignored files, and the gate is not.
+
+    A lane holding UNMERGED work, or a merged lane with a dirty tree, answers False and keeps today's
+    snapshot-and-preserve path exactly as it was.
+    """
+    if not lane.get("holds_work"):
+        return False
+    if not lane.get("merged_into_target"):
+        return False
+    if lane.get("dirty"):
+        return False
+    return bool(lane.get("reclaimable"))
+
+
+def reclaim_lane_through_gate(
+    repo: Path,
+    handle: Any,
+    *,
+    run_dir: Path | None = None,
+    item: dict[str, Any] | None = None,
+) -> Any:
+    """Reclaim ONE interrupt-path lane through the spec R5.5 teardown gate (`65cuw0` E-03).
+
+    THE ONLY WAY THE INTERRUPT PATH MAY REMOVE A LANE, and it replaces a direct
+    `worktree_lease.teardown_worktree(..., force=True)` call that both hosts previously made. That call
+    force-removes the worktree AND deletes the branch, and the guard in front of it (`dirty`) comes
+    from a plain `git status --porcelain` which is BLIND TO IGNORED FILES. Measured at review, git
+    2.43.0, a worktree whose only unexplained content was ONE ignored file: plain porcelain printed
+    nothing, `--ignored=traditional` named the file, and `git worktree remove` WITHOUT `--force`
+    exited 0 and DELETED it. So git's own refusal is not the backstop, and
+    `lane_containment.teardown_lane_if_classified` - which enumerates with `--ignored=traditional`, sees
+    an uncollected submission, and FAILS TOWARD PRESERVATION - is.
+
+    `run_dir` AND `item` ARE PASSED THROUGH BECAUSE THE INVENTORY NEEDS THEM. Measured: with either
+    missing, `submission_retention` answers "no run directory or item was supplied, so no collection
+    receipt can be read" and the gate refuses EVERY lane. The interrupt reclaimer holds both, which is
+    exactly why this gate belongs at the call site and not inside the run-context-free `LaneState`.
+
+    Returns the `LaneTeardownDecision`, so the caller can RECORD a refusal with its reason codes
+    (spec R5.6) instead of inferring it from a surviving directory.
+    """
+    from agent_workflows import lane_containment
+
+    return lane_containment.teardown_lane_if_classified(
+        repo=repo, handle=handle, run_dir=run_dir, item=item
+    )
+
+
+def interrupt_lane_item_record(
+    state: dict[str, Any], lane: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The queue item that OWNS `lane`, so the R5.5 inventory can read its collection receipt.
+
+    WHY A LOOKUP RATHER THAN A PARAMETER: the reclaimer iterates over LANE records
+    (`lane_records_including_sweep`), which carry the owning item's `id6` but not the item itself, while
+    `submission_retention` is keyed on the ITEM (its `position`, `id6` and attempt ledger name the
+    receipt file). Reconstructing a stub item here instead would key the receipt lookup on a fabricated
+    position and silently answer "uncollected" for a lane that was in fact collected.
+
+    Returns `None` when no queue item owns the lane, which is the correct answer for the REVIEW SWEEP
+    lane (it belongs to no item; `lane_records_including_sweep` carries the lane id in the `id6` slot
+    precisely because there is no item). The gate then refuses on the submission question, which is the
+    honest fail-toward-preservation answer for a caller that cannot say who used the lane.
+    """
+    lane_id6 = lane.get("id6")
+    if not lane_id6:
+        return None
+    for item in state.get("queue", []) or []:
+        if item.get("id6") == lane_id6:
+            return item
+    return None
+
+
 def build_recovery_lane_notice(
     item: dict[str, Any], state: dict[str, Any], recovery: bool
 ) -> str:
