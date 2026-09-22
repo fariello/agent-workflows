@@ -2134,7 +2134,7 @@ def run_lint(args: argparse.Namespace) -> int:
         #
         # THE COST IS REAL AND THE GLYPH IS WHAT PAYS IT. `quarantined` renders 214 (orange) today,
         # and the spec's `parked` stage is gray 244 - which is ALSO where `legacy/not evaluated`
-        # already lands (it has no `STATUS_COLOR_256` entry and falls back to 244). So adopting the
+        # already lands (it has no `ROLE_COLOR_256` entry and falls back to 244). So adopting the
         # spec color alone would make a quarantined plan nearly indistinguishable from an unevaluated
         # one, cutting against Section 7.2's own stated reason for listing it ("the lint view must
         # show it without calling it a pass"). The `◇` glyph is therefore LOAD-BEARING here, not

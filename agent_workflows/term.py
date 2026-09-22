@@ -793,65 +793,65 @@ def color_16_for_stage(stage: str) -> int:
     return STAGE_COLOR_16[stage]
 
 
-STATUS_COLOR_256 = {
-    # Lifecycle & status states
-    "active": 39,
-    "todo": 44,  # teal (research hot state; rstodo p3o9je, renamed from `intake`)
-    "intake": 44,  # teal - legacy alias kept so a raw pre-migration `intake` label keeps its color
-    "open": 40,
-    "ready": 40,
-    "pending": 40,
-    "approved": 46,  # bright green
-    "reviewed": 226,  # yellow
-    "to-review": 214,  # orange
-    "draft": 245,  # gray
-    "implementing": 51,  # cyan
-    "implemented": 46,
-    "executed": 46,
-    "reusable": 39,
-    "planned": 40,
-    "shipped": 46,
-    "reference": 244,
-    "archived": 240,
-    "blocked": 203,
-    "deferred": 208,  # orange-red
-    "done": 244,
-    "parked": 244,
-    "superseded": 240,
-    "not-executed": 240,
-    # Extended roles (awcliux Order 02 E-01)
+# ======================================================================================
+# The GENERIC command-outcome and formatting role palette (NOT lifecycle)
+# ======================================================================================
+#
+# SPLIT OUT OF THE OLD `STATUS_COLOR_256` (plan `qdd5jq` E-04, spec `uonrjg` R10.3, criterion A17).
+# That table mixed TWO vocabularies under one name: 32 keys were artifact/runner LIFECYCLE statuses,
+# and 24 were generic command outcomes and formatting roles. Only the lifecycle half is this spec's,
+# and it now resolves through `lifecycle_style` (R10.1). The generic half STAYS, under a name that
+# says what it is, because R10.3 keeps it explicitly: "Generic `Term` outcomes such as command-level
+# OK, WARN, and FAIL remain valid and are outside this spec. Do not mechanically replace every
+# checkmark in the repository."
+#
+# WHY A SPLIT AND NOT A DELETION, which is what the plan originally said and what the parent
+# orchestrator corrected. Of this table's four readers in this module, exactly ONE was lifecycle
+# (`status_256`); the other three are generic and would have broken outright:
+#
+#     format_outcome  -> the command-level OK/WARN/FAIL banner every `aw` command prints
+#     badge           -> every bracketed `[RULE]` badge, caller-supplied role
+#     format_path     -> all path styling, via the `paths` role (33)
+#
+# So deleting the symbol would have removed three working, in-spec features while reporting A17
+# satisfied. A17 is satisfied when no second LIFECYCLE table remains, not when a STRING is absent.
+#
+# TWO KEYS WERE JUDGEMENT CALLS and are recorded so the split is reproducible rather than re-argued.
+# `ready` is a spec STAGE NAME and is no tree's native status (verified: no `CLASS_MAPS` entry
+# matches it), so as a KEY here it is a generic role word. `quarantined` is a Section 8 CONDITION
+# input carried by a `- Quarantine:` FIELD rather than a `- Status:` value (spec D15), and
+# `ipd_lint` already routes that value through the shared resolver while keeping the other four
+# words in its disposition column generic; the key stays here to serve those.
+ROLE_COLOR_256 = {
+    # Success / conformance outcomes
     "success": 46,
     "conforms": 46,
     "conforming": 46,
-    "quarantined": 214,
-    "legacy": 244,
     "ok": 46,
     "up to date": 46,
     "wrote": 46,
     "updated": 46,
     "current": 46,
-    "unchanged": 245,
+    # Informational / neutral
     "info": 39,
+    "legacy": 244,
+    "unchanged": 245,
+    "secondary": 245,
+    "ready": 40,
+    # Advisory / attention
     "warning": 226,
     "warn": 226,
     "advisory": 214,
     "action": 214,
     "preview": 214,
-    "running": 51,
-    "queued": 245,
-    "substantially-complete": 46,
-    "complete": 46,
-    "partial": 214,
-    "interrupted": 214,
-    "dependency-blocked": 208,
-    "failed-safely": 196,
+    "quarantined": 214,
+    # Failure
     "failure": 196,
     "fail": 196,
-    "failed": 196,
     "error": 196,
+    # Formatting roles
     "paths": 33,
     "path": 33,
-    "secondary": 245,
 }
 
 # Unicode glyphs and their deterministic ASCII fallbacks (AC-15)
@@ -1030,8 +1030,29 @@ class Term:
         return f"\033[{prefix}38;5;{n}m{text}{_RESET}"
 
     def status_256(self, status: str, *, width: int = 0) -> str:
-        """Format a status word with its 256-color palette index, padded to width."""
-        code = STATUS_COLOR_256.get(status.lower(), 244)
+        """Format a GENERIC command-outcome word with its 256-color role index, padded to width.
+
+        NO LONGER A LIFECYCLE PATH (plan `qdd5jq` E-04, spec `uonrjg` R10.3, criterion A17). It read
+        the old combined `STATUS_COLOR_256`, which is how a LIFECYCLE status reached a second color
+        table; it now reads the generic :data:`ROLE_COLOR_256` only. Lifecycle styling goes through
+        :meth:`style_lifecycle_text` and :meth:`format_lifecycle_marker`, which resolve from
+        `lifecycle_style` and additionally supply the glyph and the ASCII fallback this method never
+        had.
+
+        VERIFIED AT THE SPLIT that every live caller passes a GENERIC word, so none silently lost its
+        color: `up to date`, `wrote`, `updated` (the plans and research index writers), `unchanged`
+        (the status setter's no-op outcome), and `conforming`/`advisory`/`legacy not evaluated`/
+        `error` (`ipd_lint`'s disposition column, whose one lifecycle value `quarantined` already
+        routes through the shared resolver). An unmapped word still falls back to neutral 244 exactly
+        as before, so a caller passing something new degrades rather than raising.
+
+        PADDING IS STILL `len()`-BASED HERE, deliberately and safely: every remaining caller passes
+        an ASCII role word, so codepoints and columns coincide. The VS-bearing case that made `len()`
+        wrong was the LIFECYCLE glyph, and that path is `format_lifecycle_marker`, which pads by
+        :func:`visible_width`. Do not reintroduce a lifecycle value here to avoid that measurement.
+        """
+
+        code = ROLE_COLOR_256.get(status.lower(), 244)
         styled = self.color256(status, code, bold=True)
         if width > len(status):
             return styled + (" " * (width - len(status)))
@@ -1326,7 +1347,7 @@ class Term:
         s_norm = status.lower()
         glyph_str = self.glyph(s_norm)
         status_word = status.upper()
-        code = STATUS_COLOR_256.get(s_norm, 244)
+        code = ROLE_COLOR_256.get(s_norm, 244)
         badge_str = f"{glyph_str} {status_word}"
         styled_badge = self.color256(badge_str, code, bold=True)
         msg_part = f"  {message}" if message else ""
@@ -1401,7 +1422,7 @@ class Term:
         if isinstance(role_or_code, int):
             code = role_or_code
         else:
-            code = STATUS_COLOR_256.get(str(role_or_code).lower(), 244)
+            code = ROLE_COLOR_256.get(str(role_or_code).lower(), 244)
         if self.color:
             inner = self.color256(label, code, bold=bold)
             return f"[{inner}]"
@@ -1409,7 +1430,7 @@ class Term:
 
     def format_path(self, path_str: str) -> str:
         """Format a file or directory path using the 'paths' palette role (33)."""
-        code = STATUS_COLOR_256.get("paths", 33)
+        code = ROLE_COLOR_256.get("paths", 33)
         return self.color256(path_str, code)
 
     def path(self, path_str: str) -> str:

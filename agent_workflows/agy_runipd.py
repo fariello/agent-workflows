@@ -102,7 +102,8 @@ from agent_workflows.render_stream import (
     _ANSI_RESET as _ANSI_RESET,
     _ANSI_CODES as _ANSI_CODES,
     _ANSI_STRIP_RE as _ANSI_STRIP_RE,
-    _STATUS_COLOR as _STATUS_COLOR,
+    activity_for_item as activity_for_item,
+    resolve_item_lifecycle as resolve_item_lifecycle,
     # streamfmt (mm6wuz) E-06: the SHARED aligned prefix grammar and status glyphs, so the two hosts
     # put their payloads in the same column and a prefix added to the shared table reaches both.
     # Imported, never re-declared, for the same reason `Palette` is (see the note above).
@@ -2743,6 +2744,11 @@ def run_agy_turn(
             run_start_mono=run_start_mono,
             action=statusline_action_for_item(item),
             artifact_kind=item.get("kind", item.get("type", "ipd")),
+            # lifeglyph (`qdd5jq`) E-03, spec Section 7.1: the live activity, derived from the
+            # field that CARRIES it (`verification_status`, `integration_signal`, the retry state)
+            # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
+            # entry signals nothing, which renders no activity cell rather than a guessed one.
+            activity=activity_for_item(item),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         # stallfp kaga7s (display parity only): show the countdown from the clock that kills.

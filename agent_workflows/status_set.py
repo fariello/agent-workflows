@@ -458,7 +458,7 @@ def _format_status_transition_line(
         # `- Status:` can hold. Sent through `resolve_lifecycle` it would land on criterion A20's
         # unknown path and print `?` for a SUCCESSFUL no-op. Convert by VALUE, not by call site: the
         # two calls below render `rec.status` and `norm_stat`, which ARE lifecycle, and this one does
-        # not. Its current gray (245 via `term.STATUS_COLOR_256`) is deliberately kept.
+        # not. Its current gray (245 via `term.ROLE_COLOR_256`) is deliberately kept.
         status_part = (
             term.status_256("unchanged")
             if getattr(term, "color", False)

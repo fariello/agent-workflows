@@ -531,29 +531,50 @@ class PaletteUnitTests(unittest.TestCase):
             "multiple styles are SEMICOLON-JOINED inside ONE escape (31;1), not emitted as two "
             "nested escapes, and the order follows the arguments",
         ),
+        # THE THREE `status` ROWS BELOW WERE RE-POINTED, NOT RELAXED (plan `qdd5jq` E-05, spec
+        # `uonrjg` R10.3). They pinned the 16-color SGR codes of the LOCAL `_STATUS_COLOR` table this
+        # module used to own; that table is gone and `Palette.status` now resolves through
+        # `lifecycle_style`, so the expected bytes are the SPEC's xterm-256 indices. Each row keeps
+        # the property it was written to protect, which is why re-pointing is correct and deleting
+        # would have been a loss.
         (
             "a known status, color on",
             True,
             ("status", "executed"),
-            "\033[32mexecuted\033[0m",
-            "`executed` maps to green via _STATUS_COLOR; the terminal status word IS the text",
+            "\033[1;38;5;46mexecuted\033[0m",
+            "`executed` is the spec's `done` stage: 46 bold (spec Section 5). The terminal status "
+            "word IS the text, unchanged",
+        ),
+        (
+            "a READY status is NOT the same color as a COMPLETED one",
+            True,
+            ("status", "approved"),
+            "\033[1;38;5;45mapproved\033[0m",
+            "THE ROW THIS WHOLE CONVERSION EXISTS FOR (finding F-01). The retired table mapped "
+            "`approved`, `reviewed`, `executed` AND `substantially-complete` all to ONE green, so a "
+            "plan that had not started looked identical to one that was finished and verified. Spec "
+            "Section 5 reserves green for completion and makes ready work cyan 45; this row fails if "
+            "anything ever collapses them again",
         ),
         (
             "a failure status, color on",
             True,
             ("status", "failed-safely"),
-            "\033[31mfailed-safely\033[0m",
-            "a FAILURE maps to red (31), not to the same green a success gets. This row exists "
+            "\033[1;38;5;196mfailed-safely\033[0m",
+            "a FAILURE maps to red 196, not to the same color a success gets. This row exists "
             "because a status-color table that collapsed to one color would still satisfy the "
             "`executed` row",
         ),
         (
-            "an unknown status, color on",
+            "an unknown status still returns its WORD",
             True,
             ("status", "no-such-status"),
-            "no-such-status",
-            "an unmapped status passes through UNCOLORED rather than raising or picking a default, "
-            "so a new status word degrades to plain text instead of crashing a run",
+            "\033[38;5;244mno-such-status\033[0m",
+            "AN UNMAPPED STATUS DEGRADES RATHER THAN CRASHING, which is the property this row has "
+            "always protected and which still holds: the word is returned intact. What changed is "
+            "that it now carries the shared resolver's neutral `unknown` gray (244, not bold) "
+            "instead of no escape at all, because spec criterion A20 requires an unresolvable "
+            "status to render as `unknown` rather than to masquerade as unstyled ordinary text",
         ),
         (
             "a known status, color off",
@@ -2465,7 +2486,15 @@ class SingleDefinitionTests(unittest.TestCase):
         self.assertIs(driver.Statusline, render_stream.Statusline)
         self.assertIs(driver.render_event, render_stream.render_event)
         self.assertIs(driver.Heartbeat, render_stream.Heartbeat)
-        self.assertIs(driver._STATUS_COLOR, render_stream._STATUS_COLOR)
+        # `_STATUS_COLOR` IS DELIBERATELY ABSENT FROM THIS LIST (plan `qdd5jq` E-02, criterion A17).
+        # It was the local lifecycle palette this module re-exported into both drivers; the re-export
+        # chain is dismantled and the table is gone, so there is no object left to assert identity
+        # over. `test_no_module_re_exports_a_lifecycle_palette` below is what replaced it, and it
+        # asserts the stronger property: that no driver carries such a table at all.
+        # The LIFECYCLE SEAM that took its place is re-exported and IS asserted, so the two drivers
+        # still cannot fork their lifecycle resolution.
+        self.assertIs(driver.activity_for_item, render_stream.activity_for_item)
+        self.assertIs(agy_driver.activity_for_item, render_stream.activity_for_item)
         self.assertIs(driver._ANSI_CODES, render_stream._ANSI_CODES)
         self.assertIs(driver._ANSI_RESET, render_stream._ANSI_RESET)
         self.assertIs(driver._strip_ansi, render_stream._strip_ansi)

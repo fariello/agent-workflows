@@ -908,29 +908,20 @@ def test_the_landing_question_reads_NO_filesystem() -> None:
             )
 
 
-def test_render_stream_still_imports_no_first_party_module() -> None:
-    """No import cycle was introduced: this module stays a stdlib-only LEAF.
-
-    Both runners and `runner_shared` import FROM it, so a first-party import here would invert
-    the dependency. That is why the EARNED constants are mirrored rather than imported.
-    """
-    import ast
-    from pathlib import Path as _Path
-
-    from agent_workflows import render_stream
-
-    tree = ast.parse(_Path(render_stream.__file__).read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            assert node.level == 0, f"relative import added: {ast.dump(node)}"
-            assert not (node.module or "").startswith(
-                "agent_workflows"
-            ), f"first-party import added: {node.module}"
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                assert not alias.name.startswith(
-                    "agent_workflows"
-                ), f"first-party import added: {alias.name}"
+# `test_render_stream_still_imports_no_first_party_module` WAS DELETED HERE, DELIBERATELY, BY THE
+# MERGE OF lifeglyph `qdd5jq`. It asserted that `render_stream` imports NO first-party module at all,
+# which spec `uonrjg` R10.3 makes impossible: the lifecycle rendering must consume the shared
+# resolver, which lives in `lifecycle_style` with its rendering boundary in `term`.
+#
+# THE GUARD WAS NOT DROPPED, IT MOVED AND GOT STRONGER:
+# `tests/test_refusal_surfacing.py::test_render_stream_imports_no_first_party_module_that_could_cycle`
+# now allows exactly `{lifecycle_style, term}` and walks the TRANSITIVE CLOSURE of every import in
+# those modules (including function-local ones) to prove the closure reaches neither `render_stream`
+# nor `runner_shared` nor either driver. A THIRD first-party import still fails.
+#
+# RECORDED RATHER THAN SILENTLY REMOVED because the lane deleted this function while main still had
+# it, so the merge RESURRECTED a test whose premise its own change had retired; a future reader
+# seeing the absence needs to know the protection survived.
 
 
 def test_the_recovered_run_fixture_STILL_reports_stranded() -> None:

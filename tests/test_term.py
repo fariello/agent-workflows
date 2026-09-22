@@ -638,14 +638,44 @@ class StylingTests(unittest.TestCase):
         self.assertIn("38;5;0m", t.color256("x", -5))
 
     def test_status_256_styling_and_padding(self):
+        """`status_256` styles a GENERIC role word, padded to width.
+
+        RE-POINTED FROM `open` TO `updated` (plan `qdd5jq` E-04, spec `uonrjg` R10.3, criterion A17).
+        This asserted `open` -> 40, but `open` is a BACKLOG LIFECYCLE status (spec Section 6.3, stage
+        `ready`), and the whole point of E-04's split is that a lifecycle status no longer resolves
+        through this second table. Lifecycle words now go through `style_lifecycle_text`, which the
+        `LifecycleRendering` tests below cover; `status_256` retains only the generic command-outcome
+        and formatting roles R10.3 keeps valid. So the method's REAL contract (a role color, bold, and
+        padding to a visible width) is asserted with a word that is genuinely one of those roles.
+        """
+
         t_color = T.Term(stream=io.StringIO(), color=True)
-        out = t_color.status_256("open", width=12)
-        self.assertIn("\033[1;38;5;40mopen\033[0m", out)
+        out = t_color.status_256("updated", width=12)
+        self.assertIn("\033[1;38;5;46mupdated\033[0m", out)
         self.assertEqual(len(_ANSI.sub("", out)), 12)
 
         t_plain = T.Term(stream=io.StringIO(), color=False)
-        out_plain = t_plain.status_256("open", width=12)
-        self.assertEqual(out_plain, "open        ")
+        out_plain = t_plain.status_256("updated", width=12)
+        self.assertEqual(out_plain, "updated     ")
+
+        # THE NEGATIVE HALF, which is what makes the split falsifiable rather than merely described:
+        # a LIFECYCLE status must NOT resolve a lifecycle color here any more. It falls back to the
+        # neutral 244 every unmapped word gets, because this table no longer knows lifecycle at all.
+        for lifecycle_status in (
+            "open",
+            "approved",
+            "executed",
+            "draft",
+            "implementing",
+        ):
+            with self.subTest(status=lifecycle_status):
+                self.assertNotIn(lifecycle_status, T.ROLE_COLOR_256)
+                self.assertIn(
+                    "\033[1;38;5;244m",
+                    t_color.status_256(lifecycle_status),
+                    f"{lifecycle_status!r} still resolves a color from the generic role table; "
+                    "spec criterion A17 requires lifecycle color to come only from lifecycle_style",
+                )
 
     def test_attention_holds_no_lifecycle_palette_of_its_own(self):
         """`attention.py` owns NO lifecycle color table; it consumes the shared resolver.

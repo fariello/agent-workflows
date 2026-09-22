@@ -454,28 +454,107 @@ class TestOneDefinitionAcrossHosts:
         assert run_viewer.refusal_of_item is render_stream.refusal_of_item
         assert run_viewer.REFUSAL_KEY is render_stream.REFUSAL_KEY
 
-    def test_render_stream_still_imports_no_first_party_module(self):
+    def test_render_stream_imports_no_first_party_module_that_could_cycle(self):
         """E-01's siting argument (F-7) is load-bearing and must keep holding.
 
-        `runner_shared` already imports `render_stream`, so a first-party import here would create
-        the cycle that forced this record into this module in the first place.
+        `runner_shared` already imports `render_stream`, so a first-party import here risks the cycle
+        that forced the `Refusal` record into this module in the first place.
+
+        RE-POINTED FROM "NO FIRST-PARTY IMPORT AT ALL" TO AN ALLOWLIST OF PROVEN LEAF MODULES (plan
+        `qdd5jq` E-01, spec `uonrjg` R10.3). The spec requires `render_stream`'s LIFECYCLE rendering to
+        consume the shared resolver, and the resolver lives in `lifecycle_style` with its rendering
+        boundary in `term`, so the conversion is impossible under a blanket ban. The ban is therefore
+        narrowed to what it was actually protecting, and the protection is unchanged in substance.
+
+        WHY THESE TWO CANNOT CYCLE, measured rather than asserted: the test below walks the transitive
+        closure of EVERY import in the allowed modules, including function-local ones, and proves that
+        closure reaches neither `render_stream` nor `runner_shared` nor either driver. `lifecycle_style`
+        imports nothing first-party at all (it is stdlib-only by R10.1), and `term` reaches only
+        `lifecycle_style` plus a lazy `config`. A THIRD first-party import still fails this test.
         """
         tree = ast.parse(
             Path(inspect.getfile(render_stream)).read_text(encoding="utf-8")
         )
+        allowed = {"lifecycle_style", "term"}
         offenders: list[str] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 offenders += [
-                    a.name for a in node.names if a.name.startswith("agent_workflows")
+                    a.name
+                    for a in node.names
+                    if a.name.startswith("agent_workflows")
+                    and a.name.split(".")[-1] not in allowed
                 ]
             elif isinstance(node, ast.ImportFrom):
-                if node.level or (node.module or "").startswith("agent_workflows"):
-                    offenders.append(node.module or f"(relative level {node.level})")
+                module = node.module or ""
+                if node.level:
+                    offenders.append(module or f"(relative level {node.level})")
+                elif module == "agent_workflows":
+                    offenders += [a.name for a in node.names if a.name not in allowed]
+                elif module.startswith("agent_workflows"):
+                    if module.split(".")[-1] not in allowed:
+                        offenders.append(module)
         assert not offenders, (
             f"render_stream now imports first-party module(s) {offenders}; "
-            f"`runner_shared` imports render_stream, so this risks a cycle"
+            f"`runner_shared` imports render_stream, so this risks a cycle. Only "
+            f"{sorted(allowed)} are allowed, because they are proven leaves (see the companion "
+            f"test); anything else must be reached lazily inside a function or not at all"
         )
+
+    def test_the_allowed_leaf_modules_really_cannot_reach_back(self):
+        """GUARD THE GUARD for the allowlist above: prove the two exemptions are genuinely leaves.
+
+        The allowlist is only safe if `lifecycle_style` and `term` cannot, through ANY import path
+        including lazy function-local ones, reach `render_stream`, `runner_shared` or a driver. That is
+        a property of the tree rather than a promise, so it is measured here. If someone adds an import
+        to `term` that pulls in a runner, THIS test fails and names it, rather than a confusing
+        circular-import error at runtime.
+        """
+
+        pkg = Path(inspect.getfile(render_stream)).parent
+
+        def first_party_imports(module_name: str) -> set[str]:
+            path = pkg / f"{module_name}.py"
+            if not path.exists():
+                return set()
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            found: set[str] = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith("agent_workflows"):
+                            parts = alias.name.split(".")
+                            if len(parts) > 1:
+                                found.add(parts[1])
+                elif isinstance(node, ast.ImportFrom):
+                    mod = node.module or ""
+                    if node.level:
+                        if mod:
+                            found.add(mod.split(".")[0])
+                        else:
+                            found.update(a.name for a in node.names)
+                    elif mod == "agent_workflows":
+                        found.update(a.name for a in node.names)
+                    elif mod.startswith("agent_workflows."):
+                        found.add(mod.split(".")[1])
+            return found
+
+        forbidden = {"render_stream", "runner_shared", "oc_runipd", "agy_runipd"}
+        for start in ("lifecycle_style", "term"):
+            seen: set[str] = set()
+            frontier = {start}
+            while frontier:
+                current = frontier.pop()
+                if current in seen:
+                    continue
+                seen.add(current)
+                frontier |= first_party_imports(current) - seen
+            reached = sorted(seen & forbidden)
+            assert not reached, (
+                f"`{start}` can reach {reached} through its import closure {sorted(seen)}, so "
+                f"allowing `render_stream` to import it WOULD create the cycle this guard exists "
+                f"to prevent. Either remove that import or drop `{start}` from the allowlist."
+            )
 
     def test_no_new_symbol_deepens_the_oc_to_agy_coupling(self):
         """The refusal symbols must be imported from `render_stream`, NEVER from the other host.

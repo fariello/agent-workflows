@@ -86,7 +86,14 @@ REFORK_TABLE: tuple[Owned, ...] = (
     Owned("_ANSI_RESET", "render_stream", BOTH),
     Owned("_ANSI_CODES", "render_stream", BOTH),
     Owned("_ANSI_STRIP_RE", "render_stream", BOTH),
-    Owned("_STATUS_COLOR", "render_stream", BOTH),
+    # `_STATUS_COLOR` WAS REMOVED FROM THIS TABLE, NOT DEMOTED (plan `qdd5jq` E-02, spec `uonrjg`
+    # R10.3, criterion A17). It was a LIFECYCLE palette local to `render_stream` and re-exported into
+    # both runners, and the spec requires exactly that to stop existing: lifecycle color now resolves
+    # through `lifecycle_style` via `term`. A row here asserts a shared symbol IS re-exported, so
+    # keeping one for a deleted symbol would fail at `getattr`. The anti-fork guarantee it provided is
+    # preserved by the rows below, which cover the seam that replaced it.
+    Owned("resolve_item_lifecycle", "render_stream", BOTH),
+    Owned("activity_for_item", "render_stream", BOTH),
     # Render classes and helpers.
     Owned("Palette", "render_stream", BOTH),
     Owned("StreamTracker", "render_stream", ("oc_runipd",)),

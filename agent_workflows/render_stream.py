@@ -5,8 +5,13 @@ This module holds the normalized progress/streaming render layer extracted from
 ``oc_runipd`` so any consumer (the OpenCode driver, the Antigravity driver, or a
 future host adapter) can share a single definition instead of duplicating it:
 
-- :data:`_ANSI_RESET`/:data:`_ANSI_CODES`/:data:`_ANSI_STRIP_RE`/:data:`_STATUS_COLOR`
-  and the helpers :func:`_strip_ansi`/:func:`_one_line` are the coupled primitives.
+- :data:`_ANSI_RESET`/:data:`_ANSI_CODES`/:data:`_ANSI_STRIP_RE` and the helpers
+  :func:`_strip_ansi`/:func:`_one_line` are the coupled primitives.
+- LIFECYCLE color and glyphs are NOT owned here. They resolve through the shared
+  :mod:`agent_workflows.lifecycle_style` vocabulary via :func:`lifecycle_marker_and_color`
+  (spec `uonrjg` R10.3). The module's own EVENT glyphs and severity colors
+  (:data:`STATUS_GLYPHS`, :func:`_status_glyph_char`, :data:`EVENT_PREFIXES`) are a
+  DIFFERENT axis that R10.3 explicitly permits this module to keep; do not fold them in.
 - :class:`Palette` is a tiny colorizer that no-ops when color is disabled. The color
   decision (whether a TTY should be colored) is supplied BY THE CALLER, so this module
   does not own the duplicated ``should_color`` TTY logic (see runnernorm child dg28i9
@@ -32,8 +37,12 @@ import threading
 import time
 from typing import Any, Callable, TextIO
 
+from agent_workflows import lifecycle_style as _LS
+from agent_workflows import term as _T
 
-# ANSI SGR codes. Kept local so a standalone driver has no heavier package dependency.
+
+# ANSI SGR codes. Kept local because they are the EVENT/severity palette (see the module
+# docstring), a different axis from lifecycle styling, which resolves through `_LS`/`_T`.
 _ANSI_RESET = "\033[0m"
 _ANSI_CODES = {
     "bold": "1",
@@ -48,39 +57,155 @@ _ANSI_CODES = {
 }
 _ANSI_STRIP_RE = re.compile(r"\033\[[0-9;]*m")
 
-# Terminal status word -> color, mirroring the toolkit's convention.
-_STATUS_COLOR = {
-    "executed": "green",
-    "reviewed": "green",
-    "approved": "green",
-    "substantially-complete": "green",
-    "partial": "yellow",
-    "blocked": "yellow",
-    "dependency-blocked": "yellow",
-    "failed-safely": "red",
-    "not-attempted": "gray",
-    "interrupted": "yellow",
-    "running": "cyan",
-    "queued": "gray",
-    # driverfin-03 (7kbtkw): fail-closed integration outcomes (dirty-base refusal / merge conflict);
-    # rendered red because they leave the child NOT integrated and its set NOT finished.
-    "integration-blocked": "red",
-    "merge-conflict": "red",
-    # `l2mzxn` renamed these; BOTH spellings are listed so a pre-rename run directory renders
-    # identically to a post-rename one.
-    "merge-needs-human": "red",
-    "merge-refused": "red",
-    # The deferrable pair is YELLOW, not red: nothing is lost and the runner retries by itself.
-    "merge-retry": "yellow",
-    "merge-unchecked": "yellow",
-}
+
+# ==================================================================================================
+# The LIFECYCLE seam (spec `uonrjg` R10.3, Sections 7.1 / 7.2, criterion A17)
+# ==================================================================================================
+#
+# THE TABLE THAT USED TO LIVE HERE WAS THE SPEC'S WORKED EXAMPLE OF THE DEFECT. `_STATUS_COLOR`
+# mapped `executed`, `reviewed`, `approved` AND `substantially-complete` ALL to one `green`, so the
+# runner views painted READY work (`approved`, an unstarted plan) the same color as COMPLETED work
+# (`executed`). That is precisely the collapse spec Section 5 exists to forbid ("Green is reserved
+# for successful completion. Ready work is cyan, not green"), and because the table was re-exported
+# into BOTH drivers and consumed by `runner_shared`, the one wrong palette reached every runner view.
+# It is now resolved through `lifecycle_style`, where `approved` is `ready` (45 cyan) and `executed`
+# is `done` (46 green).
+#
+# WHY THIS MODULE MAY IMPORT `term` AND `lifecycle_style` WHEN IT IMPORTS NOTHING ELSE FIRST-PARTY.
+# The standing rule (guarded by `tests/test_refusal_surfacing.py`) exists because `runner_shared`
+# imports THIS module, so an import reaching back would cycle. These two do NOT reach back:
+# measured over the transitive closure of ALL imports including function-local ones, `term` reaches
+# only `lifecycle_style` and (lazily) `config`, and `lifecycle_style` reaches nothing first-party at
+# all. Neither reaches `render_stream`, `runner_shared` or either driver, so the cycle the rule
+# guards against is unreachable through them. The guard is RE-POINTED to an allowlist of exactly
+# these two rather than deleted, so a THIRD first-party import still fails it.
+#
+# WHAT IS DELIBERATELY *NOT* LIFECYCLE IN THIS MODULE, because two of its keys look like lifecycle
+# words and a grep-driven edit would fold them in: `STATUS_GLYPHS`/`STATUS_GLYPHS_ASCII` are keyed
+# `completed`/`error`/`running`/`other` and are TOOL-EVENT outcomes; `EVENT_PREFIXES` is a tool
+# CLASS table; and the severity colors in `render_event` are a severity axis. R10.3 permits all of
+# them explicitly and criterion A18 requires proving they were not remapped. Leave them alone.
+
+
+#: Runner-item statuses that mean "work is in flight", i.e. the only ones for which spec Section
+#: 7.2 asks for an ACTION-AWARE activity overlay rather than the native mapping.
+_IN_FLIGHT_ITEM_STATUSES = frozenset(("running", "in-flight", "in_flight"))
+
+
+def resolve_item_lifecycle(
+    status: str | None,
+    *,
+    action: str | None = None,
+    activity: str | None = None,
+) -> _LS.Resolved:
+    """Resolve a RUNNER ITEM status (spec Section 7.2) through the shared resolver.
+
+    ``activity`` is an ALREADY-DECIDED activity word (`verifying`, `integrating`, `recovering`, ...)
+    for a caller that holds a signal `action` cannot express; see :func:`activity_for_item`.
+    ``action`` is the queue item's action and supplies the `reviewing`/`executing` pair.
+
+    AN ACTIVITY IS APPLIED ONLY TO AN IN-FLIGHT ITEM, and that guard is what criterion A8 is about:
+    the activity overlay OUTRANKS the native mapping in Section 8's precedence, so passing one
+    unconditionally would paint a FINISHED row as though its work were still running. A settled
+    item resolves from its native status alone.
+
+    AN UNRECOGNIZED ACTIVITY IS DROPPED RATHER THAN PASSED. `runner_shared.ACTION_CHOICES` includes
+    `plan`, which `lifecycle_style.ACTIVITY_FROM_ACTION` deliberately does not map; handing it over
+    resolves `unknown` and prints `?` for an item whose own `running` status already earns generic
+    `active`. Section 7.2's wording is "action-aware activity from 7.1, OTHERWISE active", so
+    falling back is what the spec asks for. This widens no vocabulary and hides no gap.
+    """
+
+    token = (status or "").strip().lower()
+    chosen: str | None = None
+    if token in _IN_FLIGHT_ITEM_STATUSES:
+        for candidate in (activity, action):
+            if not candidate:
+                continue
+            cand = str(candidate).strip().lower()
+            if cand in _LS.ACTIVITY_FROM_ACTION or cand in _LS.ACTIVITY_STAGES:
+                chosen = cand
+                break
+    return _T.resolve_lifecycle(_LS.FAMILY_RUNNER_ITEM, status, activity=chosen)
+
+
+def resolve_reached_success_lifecycle(native_status: str | None) -> _LS.Resolved:
+    """Resolve the `done` stage while PRINTING ``native_status`` as the word (Section 7.2).
+
+    For the one caller that has already judged success by a rule the status alone cannot express:
+    an EXECUTE item that ended `reviewed` did no work, so `runner_shared.item_reached_success`
+    decides, and this renders that verdict as spec Section 5's `done` (`✓`, green 46) while keeping
+    the item's own disposition as the printed word. Living HERE rather than at the call site is what
+    keeps `runner_shared` to its single module-level first-party import.
+    """
+
+    return _LS.Resolved(
+        stage=_LS.DONE,
+        style=_LS.style_for(_LS.DONE),
+        family=_LS.FAMILY_RUNNER_ITEM,
+        native_status=native_status,
+    )
+
+
+def activity_for_item(item: dict[str, Any]) -> str | None:
+    """The Section 7.1 activity a QUEUE ENTRY can actually signal, or ``None``.
+
+    ACTION CARRIES ONLY TWO OF THE FIVE ACTIVITIES, measured rather than assumed:
+    `runner_shared.INTEGRATION_ACTION_KINDS` is exactly `('execute', 'review')`. The other three
+    live on DIFFERENT fields, so each is derived from the field that actually carries it:
+
+        reviewing    `action == "review"`
+        executing    `action == "execute"`
+        verifying    `item["verification_status"]` is present and still running
+        integrating  `item["integration_signal"]` is present
+        recovering   the retry / correction state (`correction_required`, a recovery attempt)
+
+    PRECEDENCE IS MOST-SPECIFIC-FIRST and follows the run's own causal order: a lane being merged
+    is `integrating` even though its action is `execute`, and an item being re-attempted is
+    `recovering` even though it is also executing, because the narrower word is the one that tells
+    an operator what the run is doing right now.
+
+    Returns ``None`` when no signal is present, which lets the caller fall back to the item's native
+    status (generic `active` for a `running` item). Deliberately NOT a guess: inventing an activity
+    from an absent signal is what criterion A3's evidence rule forbids.
+    """
+
+    def _present(value: Any) -> bool:
+        return bool(value) and str(value).strip().lower() not in ("none", "unknown")
+
+    if _present(item.get("correction_required")) or _present(item.get("recovery")):
+        return _LS.RECOVERING
+    attempts = item.get("attempts") or ()
+    if isinstance(attempts, (list, tuple)) and any(
+        isinstance(a, dict) and a.get("recovery") for a in attempts
+    ):
+        return _LS.RECOVERING
+    if _present(item.get("integration_signal")):
+        return _LS.INTEGRATING
+    verify = item.get("verification_status")
+    if _present(verify) and str(verify).strip().lower() in ("verifying", "running"):
+        return _LS.VERIFYING
+    action = item.get("action")
+    if action:
+        token = str(action).strip().lower()
+        if token in _LS.ACTIVITY_FROM_ACTION:
+            return _LS.ACTIVITY_FROM_ACTION[token]
+    return None
 
 
 class Palette:
-    """Tiny colorizer: no-ops cleanly when color is disabled."""
+    """Tiny colorizer: no-ops cleanly when color is disabled.
 
-    def __init__(self, enabled: bool) -> None:
+    TWO AXES, ONE FLAG. ``__call__`` emits this module's own EVENT/severity colors from
+    :data:`_ANSI_CODES`; :meth:`status` and :meth:`lifecycle` emit LIFECYCLE styling resolved
+    through the shared module. Both honor the single ``enabled`` decision the caller supplied, so
+    `NO_COLOR`, a pipe and `TERM=dumb` stay escape-free on both axes (criterion A11).
+    """
+
+    def __init__(self, enabled: bool, *, use_unicode: bool = True) -> None:
         self.enabled = enabled
+        self.use_unicode = use_unicode
+        self._term: _T.Term | None = None
 
     def __call__(self, text: str, *styles: str) -> str:
         if not self.enabled or not styles:
@@ -90,12 +215,56 @@ class Palette:
             return text
         return f"\033[{codes}m{text}{_ANSI_RESET}"
 
-    def status(self, status: str) -> str:
-        return (
-            self(status, self_color)
-            if (self_color := _STATUS_COLOR.get(status))
-            else status
+    def lifecycle_term(self) -> _T.Term:
+        """The `Term` this palette renders lifecycle elements through, resolved ONCE.
+
+        THE DEPTH RUNGS ARE SPLIT EXACTLY AS R9.3a.2 SPLITS THEM, and the reason matters. Rung 1
+        ("is color on at all?") was ALREADY ANSWERED by the caller and is what ``enabled`` holds, so
+        it is not re-derived here. Rungs 2 to 4 (a user's pinned depth, detected capability, then
+        the 256 default) still have to be consulted, which is why ``override=True`` is passed: it
+        tells :func:`term.resolve_color_depth` not to re-litigate rung 1 against a stream this
+        object does not own. Constructing a `Term` WITHOUT a depth would instead re-run rung 1
+        against `sys.stdout` and silently return `none` on a pipe, discarding the caller's decision.
+        """
+
+        if self._term is None:
+            if self.enabled:
+                self._term = _T.Term(
+                    color=True,
+                    unicode=self.use_unicode,
+                    depth=_T.resolve_color_depth(override=True),
+                )
+            else:
+                self._term = _T.Term(
+                    color=False, unicode=self.use_unicode, depth=_T.DEPTH_NONE
+                )
+        return self._term
+
+    def lifecycle(self, resolved: _LS.Resolved, text: str | None = None) -> str:
+        """Style ``text`` (default: the native word) with ``resolved``'s lifecycle color and weight."""
+
+        term = self.lifecycle_term()
+        return term.style_lifecycle_text(
+            _T.lifecycle_word(resolved) if text is None else text, resolved
         )
+
+    def lifecycle_glyph(self, resolved: _LS.Resolved, *, width: int = 0) -> str:
+        """The Section 5 lifecycle GLYPH for ``resolved``, styled and padded by VISIBLE columns."""
+
+        return self.lifecycle_term().format_lifecycle_marker(resolved, width=width)
+
+    def status(self, status: str, *, action: str | None = None) -> str:
+        """Style one RUNNER ITEM status word through the shared resolver (Section 7.2).
+
+        KEPT AS A PUBLIC METHOD rather than removed, because it is re-exported into both drivers via
+        `Palette` and instantiated there; deleting it would break a public surface at call time.
+        Its BODY changed: it no longer reads a local color table.
+
+        An unmapped status resolves `unknown` and still returns the word, which preserves the old
+        contract that a new status word degrades to plain text rather than crashing a run.
+        """
+
+        return self.lifecycle(resolve_item_lifecycle(status, action=action), status)
 
 
 def _strip_ansi(text: str) -> str:
@@ -229,11 +398,22 @@ def format_event_prefix(
 
 
 def _one_line(text: str, limit: int = 200) -> str:
-    """Collapse whitespace/newlines to a single line and clip to ``limit`` chars."""
+    """Collapse whitespace/newlines to a single line and clip to ``limit`` VISIBLE columns.
+
+    THE CLIP WAS SEVERING VARIATION SELECTORS (spec Section 9.4 bullet 1, criterion A15). It was
+    `collapsed[: limit - 1]`, a raw CODEPOINT slice, so a boundary falling between a base character
+    and its following U+FE0E dropped the selector and emitted the EMOJI presentation form of the
+    glyph, which criterion A5 forbids outright. `⚠︎` (U+26A0 U+FE0E) and `↩︎` (U+21A9 U+FE0E) are
+    both reachable here, since a streamed payload can carry any text.
+
+    IT CONSUMES THE SHARED PRIMITIVE RATHER THAN A SECOND LOCAL GUESS, which is what Section 9.4
+    requires ("MUST NOT create per-renderer width guesses"): `term.truncate_visible` never separates
+    a zero-width code point from its base, measures in visible columns, and appends the ellipsis
+    itself. The rendered result is unchanged for the ASCII-only payloads that are the common case.
+    """
+
     collapsed = " ".join(text.split())
-    if len(collapsed) > limit:
-        return collapsed[: limit - 1] + "\u2026"
-    return collapsed
+    return _T.truncate_visible(collapsed, limit, ellipsis="\u2026")
 
 
 def format_tokens(n: int | float) -> str:
@@ -858,6 +1038,22 @@ ARTIFACT_DISPLAY_MAP: dict[str, str] = {
 }
 
 
+#: The compact statusline label for each Section 7.1 ACTIVITY. Seven characters or fewer, matching
+#: :data:`ACTION_DISPLAY_MAP`'s existing truncation convention (`Graduat`, `Orchest`), because this
+#: shares that column. The spec's activity WORDS are `reviewing`/`executing`/`verifying`/
+#: `integrating`/`recovering`; these are their cell forms, and the full word is still what the
+#: summary table and the finish line print.
+ACTIVITY_DISPLAY_MAP: dict[str, str] = {
+    _LS.REVIEWING: "Reviewng",
+    _LS.EXECUTING: "Executng",
+    _LS.VERIFYING: "Verifyng",
+    _LS.INTEGRATING: "Integrtg",
+    _LS.RECOVERING: "Recovrng",
+    _LS.ACTIVE: "Active",
+    _LS.WAITING_INPUT: "Waiting",
+}
+
+
 def format_action_label(action: str | None) -> str:
     """Format the workflow action into a compact statusline column label (max 7 chars).
 
@@ -867,6 +1063,44 @@ def format_action_label(action: str | None) -> str:
         return "Review"
     key = action.strip().lower()
     return ACTION_DISPLAY_MAP.get(key, action.strip()[:7].capitalize())
+
+
+def format_activity_cell(
+    activity: str | None,
+    pal: Palette | None = None,
+) -> tuple[str, int]:
+    """The statusline ACTIVITY cell as ``(rendered, visible_width)``, or ``("", 0)`` for none.
+
+    THE WIDTH IS RETURNED RATHER THAN MEASURED BY THE CALLER, and that is the whole point of this
+    helper rather than an f-string at the call site. Spec Section 9.4 forbids `len(styled_text)` as a
+    column measurement, and this cell is exactly where that breaks: the `recovering` glyph `↩︎` is
+    U+21A9 PLUS U+FE0E, so `len()` reports 2 for a 1-column grapheme AND counts every ANSI byte when
+    color is on. Both errors are silent and both shift the box by a column. The visible width comes
+    from `term.visible_width`, the one shared measurement, so the cell aligns whether or not the
+    glyph carries a variation selector and whether or not it is styled.
+
+    RETURNS `("", 0)` WHEN THERE IS NO ACTIVITY, which keeps a statusline with no live signal
+    BYTE-IDENTICAL to the pre-conversion output. That is deliberate: the box layout is pinned
+    byte-for-byte by `tests/test_render_stream.py`, and an unconditional glyph would have changed
+    every statusline in the suite while proving nothing about the activity path.
+    """
+
+    if not activity:
+        return "", 0
+    token = str(activity).strip().lower()
+    if token not in _LS.ALL_STAGES:
+        return "", 0
+    resolved = _LS.Resolved(
+        stage=token, style=_LS.style_for(token), family=_LS.FAMILY_RUNNER_ITEM
+    )
+    use_unicode = pal.use_unicode if pal is not None else True
+    glyph = _LS.glyph_for(token, unicode=use_unicode)
+    label = ACTIVITY_DISPLAY_MAP.get(token, token[:8].capitalize())
+    plain = f"{glyph} {label}"
+    if pal is None or not pal.enabled:
+        return plain, _T.visible_width(plain)
+    styled = pal.lifecycle(resolved, glyph) + " " + pal.lifecycle(resolved, label)
+    return styled, _T.visible_width(plain)
 
 
 def format_artifact_kind_label(artifact_kind: str | None) -> str:
@@ -917,6 +1151,7 @@ def format_statusline_lines(
     action: str | None = None,
     artifact_kind: str | None = None,
     use_unicode: bool = True,
+    activity: str | None = None,
 ) -> tuple[str, str, str, str]:
     """Format the 4-line boxed runner statusline (top border, header line, value line, bottom border):
 
@@ -971,11 +1206,27 @@ def format_statusline_lines(
         h3 = " -".ljust(col3_w)
     v3 = f"{val3:<{col3_w}s}"
 
-    # 3. Action / Artifact Kind (Col 4)
+    # 3. Action / Artifact Kind (Col 4), plus the live ACTIVITY when the runner can signal one
+    # (lifeglyph `qdd5jq` E-03, spec Section 7.1).
+    #
+    # THE ACTIVITY REPLACES THE ACTION *LABEL* AND NOT THE ARTIFACT ROW, because the action is what
+    # the activity is a more specific statement OF: a `reviewing` activity on an `execute` action
+    # cannot happen, so showing both would spend a scarce column on a restatement. When no activity
+    # is signalled the cell is EMPTY and this whole column is byte-identical to before, which is what
+    # keeps the pinned box layout intact for every existing caller.
+    #
+    # WIDTHS ARE VISIBLE COLUMNS, NEVER `len()`, for the activity cell: `↩︎` is two code points and
+    # one column, and a styled cell carries ANSI bytes `len()` would count. `format_activity_cell`
+    # returns the measurement alongside the text so the two cannot disagree.
     act_str = format_action_label(action)
     art_str = format_artifact_kind_label(artifact_kind)
-    col4_w = max(9, len(act_str) + 2, len(art_str) + 2)
-    h4 = f"{act_str:>{col4_w - 1}s} "
+    activity_cell, activity_w = format_activity_cell(activity, pal)
+    if activity_cell:
+        col4_w = max(9, activity_w + 2, len(art_str) + 2)
+        h4 = (" " * max(0, col4_w - 1 - activity_w)) + activity_cell + " "
+    else:
+        col4_w = max(9, len(act_str) + 2, len(art_str) + 2)
+        h4 = f"{act_str:>{col4_w - 1}s} "
     v4 = f"{art_str:>{col4_w - 1}s} "
 
     # 4. Spend (Col 5)
@@ -1139,6 +1390,7 @@ def format_statusline(
     action: str | None = None,
     artifact_kind: str | None = None,
     use_unicode: bool = True,
+    activity: str | None = None,
 ) -> str:
     """Format the 4-line unified runner statusline box as a newline-delimited string."""
     item_ts = start_ts if item_start_ts is None else item_start_ts
@@ -1158,6 +1410,7 @@ def format_statusline(
         action=action,
         artifact_kind=artifact_kind,
         use_unicode=use_unicode,
+        activity=activity,
     )
     return "\n".join(lines)
 
@@ -1179,6 +1432,7 @@ class Statusline:
         watchdog: object | None = None,
         action: str | None = None,
         artifact_kind: str | None = None,
+        activity: str | None = None,
     ) -> None:
         self.pal = pal
         self.stream = stream
@@ -1190,6 +1444,9 @@ class Statusline:
         self.id6 = id6
         self.action = action
         self.artifact_kind = artifact_kind
+        # The live Section 7.1 ACTIVITY, when the runner can signal one. `None` means "no signal",
+        # which renders no activity cell at all rather than a guessed one.
+        self.activity = activity
         # The stall watchdog is the SINGLE authority for the countdown. It is duck-typed
         # (anything exposing `remaining()`) so this display module keeps no dependency on a
         # driver module, and stays None-safe for callers that pass no watchdog.
@@ -1239,6 +1496,7 @@ class Statusline:
         id6: str = "",
         action: str | None = None,
         artifact_kind: str | None = None,
+        activity: str | None = None,
     ) -> None:
         with self._lock:
             self.current_idx = current_idx
@@ -1252,6 +1510,8 @@ class Statusline:
                 self.action = action
             if artifact_kind is not None:
                 self.artifact_kind = artifact_kind
+            if activity is not None:
+                self.activity = activity
 
     def _render_lines_unlocked(self) -> tuple[str, str, str, str]:
         now_wall = time.time()
@@ -1274,6 +1534,7 @@ class Statusline:
             progress_source=self.progress_source,
             action=self.action,
             artifact_kind=self.artifact_kind,
+            activity=self.activity,
         )
 
     def render_line(self) -> str:
@@ -2558,6 +2819,10 @@ def render_run_summary_table(
                 "setid": setid,
                 "action": action,
                 "status": status,
+                # lifeglyph (`qdd5jq`) E-03: the Section 7.1 activity this entry can actually
+                # SIGNAL, derived from the field that carries it rather than from `action` alone.
+                # `None` when nothing is in flight, which is the honest answer for a settled row.
+                "activity": activity_for_item(item),
                 "verify": verify,
                 "dur_str": dur_str,
                 "cost_str": cost_str,
@@ -2747,7 +3012,18 @@ def render_run_summary_table(
     styled_rows = []
     for it in items_data:
         st_val = it["status"]
-        st_styled = pal.status(st_val) if color else st_val
+        # THE STATUS CELL RESOLVES THROUGH THE SHARED MODULE (E-03, spec Section 7.2), and it is
+        # ACTION-AWARE for an in-flight row: a running `review` turn styles `reviewing` and a running
+        # `execute` turn styles `executing`, while a SETTLED row keeps its native mapping so a stale
+        # runtime field cannot paint a finished item as active (criterion A8).
+        #
+        # THE PRINTED WORD IS STILL THE ITEM'S OWN STATUS, unchanged, because Section 0 makes the
+        # native word authoritative and this column's contract is the status. The activity changes the
+        # GLYPH and COLOR only; the `Action` column beside it already names the action.
+        st_resolved = resolve_item_lifecycle(
+            st_val, action=it["action"], activity=it["activity"]
+        )
+        st_styled = pal.lifecycle(st_resolved, st_val) if color else st_val
         v_val = it["verify"]
         if v_val == "pass":
             v_styled = f"{c_green}pass{c_reset}" if color else "pass"
