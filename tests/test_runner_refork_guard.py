@@ -179,6 +179,25 @@ REFORK_TABLE: tuple[Owned, ...] = (
     Owned("item_reached_success", "runner_shared", BOTH),
     Owned("item_needs_approval", "runner_shared", BOTH),
     Owned("exit_code_statuses", "runner_shared", BOTH),
+    # --- runner_shared: the TURN-FAILURE CORRECTION layer, added by `retrywire` (`xipfy1`) E-07 ----
+    #
+    # THIS TABLE AND NOT `_SHARED_NAMES`, by the same owner-follows-the-home rule stated above: every
+    # symbol below is DEFINED in `runner_shared`, so both halves of this table's contract apply. (The
+    # plan that authorized this work named `AntiDivergenceGuardTests` as the guard to extend; that
+    # class polices dependency REGEXES and makes no cross-host identity assertion, so the row went
+    # here instead. Recorded so the next reader does not re-derive it.)
+    #
+    # WHY THE CLASSIFICATION TABLE IS REGISTERED AND NOT ONLY THE FUNCTIONS. A host carrying its own
+    # copy of `TURN_RETRY_CLASSIFICATION` would agree about the MECHANISM and disagree about WHICH
+    # failures are retryable, and that is the more expensive divergence: this layer decides what a run
+    # spends paid model turns on, so a drifted allowlist could retry a class spec `25kzda` 5.5 forbids
+    # retrying (an operator's deliberate stop being the one that costs real money to get wrong).
+    Owned("TURN_RETRYABLE_DISPOSITIONS", "runner_shared", BOTH),
+    Owned("TURN_RETRY_CLASSIFICATION", "runner_shared", BOTH),
+    Owned("turn_failure_is_retryable", "runner_shared", BOTH),
+    Owned("turn_retry_decision", "runner_shared", BOTH),
+    Owned("turn_retry_budget_remaining", "runner_shared", BOTH),
+    Owned("handle_turn_failure_retry", "runner_shared", BOTH),
     # --- run_selection_policy: the PER-ARTIFACT DISPOSITION LINE, added by `runnoop` Order 02 (`m85gxh`) ---
     #
     # THE FIRST ROW THIS TABLE CARRIES FOR `run_selection_policy` (measured before adding it: zero

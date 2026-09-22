@@ -3212,6 +3212,714 @@ def finalize_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) ->
 
 
 # ==================================================================================================
+# retrywire (`xipfy1`): SPEND THE FROZEN CORRECTION BUDGET ON A RETRYABLE TURN FAILURE
+# ==================================================================================================
+#
+# WHAT WAS DORMANT, AND WHAT WAS NOT. `zzcrlo` already spends the frozen budget on ONE failure class,
+# a refused `aw ipd finalize` (see `finalize_retry_decision` above), and nothing here touches that
+# path. What had NO consumer at all is the class spec `25kzda` 5.5 names FIRST: a turn whose HOST
+# attempt failed - a nonzero exit that produced no outcome and no terminal transition. Such an item
+# reached `partial`/`failed-safely` on its first failure and was never re-dispatched, no matter what
+# budget the operator froze. So an operator passing `--retry-budget 5` bought corrections for a
+# refused finalize and zero corrections for a failed turn.
+#
+# THE SUBSTRATE IS THE DRIVERS' OWN `state.json`/`events.jsonl`, AND THAT IS A MAINTAINER DECISION
+# RATHER THAN A CONVENIENCE (plan `xipfy1` OQ-03, resolved 2026-09-10, option (b)). STATE IT PLAINLY,
+# because this is a SECOND implementation of retry semantics and this repository normally refuses one:
+#
+#   * `run_recovery.plan_retry` / `retry_budget_remaining` REMAIN THE INTENDED LONG-TERM HOME. They
+#     implement exactly these semantics, are tested, and are NOT reimplemented for fun.
+#   * They are UNREACHABLE from a driver run. Both take a `run_engine.RunEngine` first positional
+#     argument and immediately call `engine.reconstruct_state()`; `RunEngine` requires a
+#     `RunLedgerStore` over a hash-chained `ledger.jsonl`; and NO driver run writes one (neither
+#     driver imports `run_engine` at all). Spec `25kzda`'s own preamble concedes it: "the ledger is
+#     built but UNWIRED".
+#   * The state VOCABULARIES are disjoint too: `plan_retry` raises `NoRetryableStateError` for any
+#     step not in `run_state.STATE_FAILED`/`STATE_BLOCKED`, and a driver queue item never holds
+#     either value (it holds `failed-safely`/`partial`/`interrupted` and friends).
+#   * WHETHER A DRIVER RUN SHOULD WRITE A LEDGER IS STILL OPEN and is NOT decided here. Plan `i1hlgx`
+#     and executed `7wei1o` both name it explicitly as an out-of-scope design question. Nobody may
+#     cite this section as a decision to abandon the ledger design.
+#
+# WHAT IS PRESERVED FROM THE HELPERS' SEMANTICS, since only the substrate changes (OQ-03's explicit
+# list, each mapped to the code that honors it):
+#
+#   1. THE FAILED ATTEMPT IS PRESERVED, never overwritten -> the driver APPENDS one record per attempt
+#      to `item["attempts"]` and this path adds nothing that deletes one. `plan_retry`'s own contract.
+#   2. AN IDEMPOTENCY KEY BOUNDS A DOUBLE SPEND -> :func:`turn_retry_idempotency_key`, recorded in
+#      `item[TURN_RETRY_KEYS_KEY]`; a key already present spends NOTHING (`plan_retry` likewise does
+#      not append a second retry for a repeated key).
+#   3. EXHAUSTION ESCALATES rather than looping -> the `exhausted` arm writes an EXISTING terminal
+#      status, mirroring `RetryLimitExceededError`'s "escalate rather than loop".
+#   4. STALE EVIDENCE IS INVALIDATED -> :func:`invalidate_turn_evidence`. This is the half OQ-03
+#      called "the dangerous half" to drop, because a correction that inherits the failed attempt's
+#      green verification would be blessed by the very evidence that was wrong.
+
+#: The driver dispositions a turn failure may be retried from: spec `25kzda` 5.5's "host spawn
+#: failure" and "host nonzero exit that did not create an ambiguous side effect".
+#:
+#: AN ALLOWLIST, NEVER A DENYLIST, and the reason is a measured conflation rather than style.
+#: `failed-safely` is written BOTH for a genuine driver error AND, per the comment at
+#: `reconcile_disposition`'s deliberate-stop branch, for cases the classifier could not otherwise tell
+#: from a DELIBERATE OPERATOR STOP. Retrying an operator's stop would spend paid model turns fighting
+#: the operator. A denylist of never-retryable classes would retry every class nobody remembered to
+#: list, which is the opposite of spec 5.5's construction ("may spend budget ONLY on failures
+#: classified as retryable").
+#:
+#: WHY EACH MEMBER IS IN, AND WHY EVERY OTHER DISPOSITION IS OUT, is the table in
+#: :data:`TURN_RETRY_CLASSIFICATION` below; it is data rather than prose so a test can assert on it.
+#:
+#: WHY `partial` IS **NOT** HERE, decided during execution and recorded because the obvious reading of
+#: spec 5.5 would include it. `partial` means the turn RAN and fell short, which is a different fact
+#: from the host failing, and re-dispatching every such item is ALREADY OWNED by approved sibling plan
+#: `dy9ymn` ("Retry a turn that provably attempted nothing instead of blocking its Set with a terminal
+#: partial"), whose scope says in terms: "EXCLUDES retrying any item that produced ANY evidence of
+#: work". A blanket `partial` retry is therefore strictly broader than the predicate that plan exists
+#: to build, and it MEASURABLY breaks five shipped tests that pin `partial` as terminal
+#: (`tests/test_defect_report.py::RescoreAfterAReaskTests` x4, whose whole subject is an item that
+#: answered honestly that it is still partial, and `tests/test_oc_runipd.py::test_verifier_gate`,
+#: where a verifier DOWNGRADE writes `partial`). Retrying a turn whose VERIFIER rejected it would also
+#: spend correction budget on a class `1bfppy` is separately wiring. So this layer takes the
+#: unambiguous host-failure class only, and the narrow "attempted nothing" verdict stays `dy9ymn`'s.
+TURN_RETRYABLE_DISPOSITIONS: frozenset[str] = frozenset({"failed-safely"})
+
+#: Every disposition a driver can persist, with its retryable verdict and the REASON. One row per
+#: value, so "is this retryable?" is answered from a table a reader can audit rather than from a
+#: conditional. `tests/test_retry_consumption.py` asserts this table covers both drivers'
+#: `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES`, so a status added elsewhere without a
+#: verdict here FAILS A TEST instead of silently defaulting to retryable.
+TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
+    # --- retryable: spec 5.5's host-failure classes -----------------------------------------------
+    (
+        "failed-safely",
+        True,
+        "spec 5.5 'host spawn failure' / 'host nonzero exit': the turn failed and the driver "
+        "contained it, so a bounded correction is safe. GUARDED, not blanket: a DELIBERATE OPERATOR "
+        "STOP also lands here in some shapes, so `turn_failure_is_retryable` additionally requires "
+        "that no `stopped` record is present",
+    ),
+    # --- never retryable: spec 5.5's never-retry list, its state gates, and other owners ----------
+    (
+        "partial",
+        False,
+        "the turn RAN and fell short, which spec 5.5 does not put in the host-failure class, and "
+        "re-dispatching it is ALREADY OWNED by approved plan `dy9ymn` behind a NARROW 'provably "
+        "attempted nothing' predicate that explicitly 'EXCLUDES retrying any item that produced ANY "
+        "evidence of work'. `partial` is also what a VERIFIER DOWNGRADE writes, so retrying it here "
+        "would spend correction budget on a rejected verdict `1bfppy` is separately wiring",
+    ),
+    (
+        "executed",
+        False,
+        "success; there is nothing to correct",
+    ),
+    (
+        "substantially-complete",
+        False,
+        "the work landed but a gate refused. Its ONE retryable sub-class (a refused pre-transition "
+        "checkpoint) is ALREADY spent by `finalize_retry_decision`, which classifies the refusal "
+        "TEXT. Retrying here as well would double-spend the same budget on the same failure",
+    ),
+    ("reviewed", False, "a review outcome, not a failed execution"),
+    ("approved", False, "a review outcome, not a failed execution"),
+    (
+        "blocked",
+        False,
+        "spec 5.5: 'a human gate and dependency-not-met outcome are state gates, not retryable "
+        "failures'",
+    ),
+    (
+        "dependency-blocked",
+        False,
+        "spec 5.5's state gate: the unmet edge is the cause, and repetition cannot satisfy it",
+    ),
+    (
+        "not-attempted",
+        False,
+        "nothing ran, so there is no failure to correct",
+    ),
+    (
+        "integration-blocked",
+        False,
+        "owned by the INTEGRATION DEFERRAL LADDER, which has its own budget and its own re-attempt "
+        "rungs on purpose (an integration re-attempt costs a `git status`, not a paid model turn). "
+        "Spending the correction budget here too would double-count",
+    ),
+    (
+        "merge-conflict",
+        False,
+        "as `integration-blocked`: the integration ladder owns it",
+    ),
+    (
+        "merge-needs-human",
+        False,
+        "as `integration-blocked`: the integration ladder owns it",
+    ),
+    (
+        "merge-refused",
+        False,
+        "as `integration-blocked`: the integration ladder owns it",
+    ),
+    (
+        "integration-deferred",
+        False,
+        "NON-TERMINAL and already awaiting the integration ladder's own re-attempt; re-queueing it "
+        "here would race that ladder",
+    ),
+    ("merge-retry", False, "as `integration-deferred`: the integration ladder owns it"),
+    (
+        "merge-unchecked",
+        False,
+        "as `integration-deferred`: the integration ladder owns it",
+    ),
+    (
+        "interrupted",
+        False,
+        "an INTERRUPT is not a failure of the work. `requeue_interrupted` already owns its recovery "
+        "route and applies the spec R19 certainty gate; a second route would bypass that gate",
+    ),
+    (
+        "unknown_outcome",
+        False,
+        "spec 5.5's 'unknown commit or transaction outcome' and 'any non-idempotent external action "
+        "whose outcome is unknown', both explicitly NEVER retryable: a level-4 forced stop cut the "
+        "turn at an unknown point",
+    ),
+    ("queued", False, "not a finished turn; it has not run yet"),
+    ("running", False, "not a finished turn; it is still in flight"),
+)
+
+#: The per-item key counting turn corrections spent. SEPARATE from
+#: :data:`FINALIZE_RETRY_COUNT_KEY` on purpose: that one counts refused-finalize send-backs, and spec
+#: 5.5 says the budget "counts correction attempts after the initial attempt, separately for each
+#: action". Sharing one counter would make a refused finalize silently consume a failed turn's budget.
+TURN_RETRY_COUNT_KEY: str = "turn_retry_attempts"
+
+#: The idempotency keys already spent for this item, so a repeated key cannot double-spend. This is
+#: `plan_retry`'s `idempotency_key` semantics on the driver substrate (semantic 2 in the header).
+TURN_RETRY_KEYS_KEY: str = "turn_retry_keys"
+
+#: The evidence-invalidation records for this item: one per superseded attempt, each naming the
+#: attempt whose evidence must NOT satisfy the retry. Deliberately the SAME IDIOM as the engine-side
+#: seam inside `plan_retry` (which appends a `correction` record carrying `invalidates_seq`) and as
+#: `set_lifecycle.make_invalidation_records`, so a reader meets one shape in three places rather than
+#: three shapes. ONE producer per substrate: `invalidate_turn_evidence` and nothing else.
+TURN_RETRY_INVALIDATIONS_KEY: str = "turn_retry_invalidations"
+
+#: The terminal status an item reaches when its TURN correction budget is exhausted. `failed-safely`
+#: is REUSED rather than a new status invented, and that is a hard constraint rather than a
+#: preference: both drivers' `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES` are CLOSED
+#: vocabularies, and `runner_shutdown.observe_ledger` declares a run INCOHERENT when any queue item
+#: holds a value outside the second one. A new status for budget exhaustion would therefore make
+#: every subsequent shutdown observation report the run as broken.
+TURN_RETRY_EXHAUSTED_STATUS: str = "failed-safely"
+
+#: The stable refusal CODE recorded on an item whose turn budget was spent or exhausted, carried
+#: through `r2i1b1`'s ONE `Refusal` writer so the run summary's diagnostics block renders it.
+TURN_RETRY_REFUSAL_CODE: str = "turn-retry"
+
+
+def turn_failure_is_retryable(
+    item: Mapping[str, Any], disposition: str
+) -> tuple[bool, str]:
+    """Is this FINISHED turn in the retryable class? Returns `(retryable, why)`.
+
+    A POSITIVE ALLOWLIST over :data:`TURN_RETRYABLE_DISPOSITIONS`, plus two REFUSALS that the
+    disposition alone cannot express:
+
+      1. A DELIBERATE OPERATOR STOP. `reconcile_disposition` returns `interrupted` for a recorded
+         stop, which is already outside the allowlist - but its own comment records that WITHOUT that
+         branch a stop reconciles as `failed-safely`, which IS inside it. So the `stopped` record is
+         checked directly rather than trusted to have been mapped away. Retrying an operator's stop
+         would spend paid turns fighting the operator, and this is the single most important refusal
+         in this function.
+      2. A REFUSED FINALIZE. `finalize_retry_decision` already owns that class and already spends
+         budget on it. An item carrying a `finalize_refusal` is therefore NOT retried here, or the
+         same failure would be charged to two counters.
+
+    The reason string is returned rather than logged so the caller can record WHY an item was not
+    retried; "we did not retry and nobody can tell why" is the state this repository keeps refusing.
+    """
+
+    stopped = item.get("stopped")
+    if isinstance(stopped, Mapping) and stopped.get("stopped_deliberately"):
+        return (
+            False,
+            "the turn ended in a DELIBERATE OPERATOR STOP, which is an intent and not a failure; "
+            "retrying it would spend paid model turns fighting the operator",
+        )
+    if item.get("finalize_refusal"):
+        return (
+            False,
+            "the turn's failure is a REFUSED FINALIZE, which the finalize send-back already "
+            "classifies and already spends correction budget on (see `finalize_retry_decision`)",
+        )
+    status = (disposition or "").strip()
+    if status not in TURN_RETRYABLE_DISPOSITIONS:
+        for name, retryable, why in TURN_RETRY_CLASSIFICATION:
+            if name == status:
+                return False, f"disposition {status!r} is not retryable: {why}"
+        return (
+            False,
+            f"disposition {status!r} has no entry in `TURN_RETRY_CLASSIFICATION`, so it is refused "
+            "FAIL-CLOSED rather than retried on an unclassified verdict",
+        )
+    return True, f"disposition {status!r} is in spec 5.5's retryable host-failure class"
+
+
+def turn_retry_attempts(item: Mapping[str, Any]) -> int:
+    """How many TURN corrections this item has already consumed. Never negative."""
+
+    raw = item.get(TURN_RETRY_COUNT_KEY)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return max(0, raw)
+
+
+def turn_retry_budget_remaining(
+    item: Mapping[str, Any], state: Mapping[str, Any]
+) -> int:
+    """Corrections still available for this item. The driver-substrate twin of
+    `run_recovery.retry_budget_remaining`, whose job is exactly this: REPORT what is left rather than
+    let each caller recompute it (that recomputation is where an off-by-one lives).
+
+    Reads the FROZEN budget through :func:`frozen_retry_budget`, never `args`.
+    """
+
+    return max(0, frozen_retry_budget(state) - turn_retry_attempts(item))
+
+
+def turn_retry_idempotency_key(item: Mapping[str, Any], attempt_no: int) -> str:
+    """The key identifying ONE correction, so a repeated decision cannot double-spend.
+
+    `plan_retry` refuses to append a second retry record for a repeated `idempotency_key`; this is
+    that property on the driver substrate. Keyed on `(id6, attempt number)` because the attempt number
+    is what a re-entered decision would repeat: a crash between the decision and the next dispatch, a
+    `--retry-incomplete` requeue landing on an item already returned to `queued`, or a second call in
+    the same turn all present the SAME attempt again.
+    """
+
+    return f"{item.get('id6') or '?'}:attempt-{int(attempt_no)}"
+
+
+def turn_retry_key_already_spent(item: Mapping[str, Any], key: str) -> bool:
+    """Has this exact correction already been recorded? (`plan_retry`'s idempotency contract.)"""
+
+    recorded = item.get(TURN_RETRY_KEYS_KEY)
+    return isinstance(recorded, list) and key in recorded
+
+
+def invalidate_turn_evidence(
+    item: MutableMapping[str, Any], attempt_no: int, reason: str
+) -> dict[str, Any]:
+    """Mark the FAILED attempt's evidence stale so a correction cannot inherit it.
+
+    THE DANGEROUS HALF TO OMIT (OQ-03's words): a correction re-dispatched with the failed attempt's
+    `verification_status` still reading `verified` would be blessed by the very evidence that was
+    wrong, and the budget arithmetic would look perfectly correct while doing it.
+
+    THE SAME IDIOM AS THE ENGINE SEAM, deliberately. `plan_retry` appends a `correction` record
+    carrying `invalidates_seq` for every live evidence seq bound to the step, and
+    `set_lifecycle.make_invalidation_records` reuses that shape; this appends the same kind of record
+    naming the superseded ATTEMPT instead of a ledger seq, because an attempt number is what this
+    substrate has. ONE producer per substrate: this function. A second invalidation path would fork
+    the idiom, which is exactly what the plan's E-04 forbids.
+
+    WHAT IT ACTUALLY CLEARS, and it clears rather than merely annotates, because a stale-but-present
+    field is read by the run viewer (`run_viewer.py` tests `verification_status == "verified"`) and by
+    `integration_is_earned`. Annotating alone would leave those readers satisfied by dead evidence.
+    """
+
+    record = {
+        "at": utc_now(),
+        "kind": "correction",
+        "invalidates_attempt": int(attempt_no),
+        "invalidated": sorted(
+            key
+            for key in ("verification_status", "last_outcome")
+            if item.get(key) is not None
+        ),
+        "reason": reason,
+    }
+    item.setdefault(TURN_RETRY_INVALIDATIONS_KEY, []).append(record)
+    # The retried attempt must RE-COLLECT these rather than inherit them.
+    item.pop("verification_status", None)
+    item.pop("last_outcome", None)
+    return record
+
+
+class TurnRetryDecision(NamedTuple):
+    """What to do about ONE failed turn. DECIDES ONLY: no state write, no print, no dispatch.
+
+    Separated from the performer for the same reason `FinalizeRetryDecision` is: a pure decision can
+    be exhaustively tested over a matrix (E-06's six cases), while a function that also writes state
+    and prints can only be tested through a harness.
+
+    retry:     re-dispatch this item in recovery mode (budget remains and the class is retryable).
+    exhausted: the class was retryable but the budget is gone, so the item must be FAILED.
+    reason:    the human sentence, recorded as the `Refusal.reason` and rendered by the summary.
+    attempts:  turn corrections consumed BEFORE this decision.
+    budget:    the run's frozen budget, for the message and for tests.
+    key:       the idempotency key this decision would spend.
+    """
+
+    retry: bool
+    exhausted: bool
+    reason: str
+    attempts: int
+    budget: int
+    key: str
+
+
+def turn_retry_decision(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    disposition: str,
+    attempt_no: int,
+) -> TurnRetryDecision:
+    """Decide RETRY / FAIL-ITEM / LEAVE-ALONE for one failed turn (spec `25kzda` 4.6, 5.5).
+
+    THREE OUTCOMES, the third being today's behavior kept deliberately:
+
+      * RETRY      - the class is retryable AND budget remains. The caller returns the item to
+                     `queued` with `recovery_next`, spending one budget unit.
+      * EXHAUSTED  - the class is retryable but the budget is spent, so the caller writes a terminal
+                     FAILED status naming the attempts it bought. A budget of 0 lands here on the
+                     FIRST failure, which is exactly what spec 5.5 specifies ("`0` means the first
+                     failed deterministic check or retryable host attempt immediately fails the item;
+                     no correction packet is issued"). An off-by-one here converts an operator's
+                     deliberate opt-out into a silent retry, which is why E-06 pins the 0 case.
+      * neither    - not a retryable class. Unchanged behavior, and the FAIL-CLOSED direction: every
+                     entry on spec 5.5's never-retry list arrives here.
+
+    WHY THIS IS BOUNDED BY CONSTRUCTION. Nothing else bounds it: `max_items_per_session` rotates the
+    SESSION rather than capping dispatch, and the selection loop re-picks any `queued` item whose
+    dependencies are satisfied, so an item returned to `queued` without a decrement would be
+    dispatched forever (the in-tree precedent is a measured 201-dispatch orchestrator spin). The
+    counter is incremented by the performer on every send-back and compared against the frozen budget
+    here, so total dispatches for one item can never exceed `budget + 1`.
+
+    AND BOUNDED A SECOND WAY, BY THE IDEMPOTENCY KEY, which is not redundant with the counter: the
+    counter stops a LOOP, the key stops a DOUBLE SPEND of one decision re-entered after a crash or a
+    requeue. `plan_retry` carries both for the same reason.
+    """
+
+    used = turn_retry_attempts(item)
+    budget = frozen_retry_budget(state)
+    key = turn_retry_idempotency_key(item, attempt_no)
+    retryable, why = turn_failure_is_retryable(item, disposition)
+    if not retryable:
+        return TurnRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=why,
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if turn_retry_key_already_spent(item, key):
+        return TurnRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=(
+                f"correction {key} was ALREADY recorded for this item, so this decision spends "
+                f"nothing (idempotency, as `plan_retry` guarantees for a repeated key)"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if used >= budget:
+        return TurnRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=(
+                f"the turn failed ({disposition}) in a retryable class and the run's correction "
+                f"budget is exhausted ({used} of {budget} correction attempt"
+                f"{'' if budget == 1 else 's'} spent), so the item is FAILED rather than re-dispatched"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    return TurnRetryDecision(
+        retry=True,
+        exhausted=False,
+        reason=(
+            f"the turn failed ({disposition}) in a retryable class, so the item is being handed back "
+            f"to a correction turn carrying only the predicates that failed; correction attempt "
+            f"{used + 1} of {budget}"
+        ),
+        attempts=used,
+        budget=budget,
+        key=key,
+    )
+
+
+def turn_correction_packet(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    disposition: str,
+    decision: "TurnRetryDecision",
+) -> dict[str, Any]:
+    """The CORRECTION packet: only what FAILED, never a re-send of the whole task.
+
+    WHY NOT A FULL RE-RUN, which is the obvious and wrong shape: re-sending the whole task costs more
+    AND invites the model to redo work that already passed, so a correction could undo a green
+    requirement while fixing a red one. Spec `25kzda` 4.1 defines RETRY as "issue a bounded correction
+    packet", and 5.5 requires each correction to carry "a new attempt number and idempotency key" and
+    to invalidate stale evidence.
+
+    WHICH CONSTRUCTION PATH CARRIES IT, stated because the plan's E-04 demands the path be NAMED
+    rather than described. It is the EXISTING recovery-prompt channel and NO new packet format:
+    `build_prompt` interpolates `Prior attempt: {json.dumps(prior)}` from
+    `lane_containment.prior_attempt_summary`, which projects an allowlisted subset of the last
+    attempt. This dict is recorded on the ATTEMPT under the allowlisted `turn_correction` key, so it
+    reaches the next turn's prompt through that one channel. `run_packet.build_step_packet` is
+    deliberately NOT used: it builds from a WORKFLOW mapping and a `step_id`, neither of which a
+    driver queue item has.
+
+    WHAT IS OMITTED, and the omission is the point: no plan body, no E/V checklist, no passing
+    predicate, no prior log. Only the failed predicates, the attempt bookkeeping, and the budget.
+    """
+
+    failed: list[str] = []
+    if disposition:
+        failed.append(
+            f"the previous turn ended {disposition!r} without a terminal transition"
+        )
+    if item.get("verification_status") in ("unverified", "failed", "blocked"):
+        failed.append(
+            f"verification did not pass (recorded {item['verification_status']!r})"
+        )
+    outcome = item.get("last_outcome")
+    if isinstance(outcome, Mapping):
+        for req in outcome.get("incomplete_requirements") or ():
+            failed.append(f"incomplete requirement reported by the turn itself: {req}")
+    if not failed:
+        # NEVER an empty packet: an empty list would read to the next turn as "nothing failed", which
+        # is the one message a correction must not carry.
+        failed.append(
+            "the previous turn did not reach a terminal transition and recorded no reason; "
+            "establish the current state before editing"
+        )
+    return {
+        "kind": "correction",
+        "attempt": decision.attempts + 1,
+        "of": decision.budget,
+        "idempotency_key": decision.key,
+        "failed_predicates": failed,
+        "evidence_invalidated": True,
+        "instruction": (
+            "This is a BOUNDED CORRECTION, not a fresh execution. Address ONLY the failed predicates "
+            "listed here; work that already passed must not be redone. Evidence captured by the "
+            "failed attempt has been INVALIDATED and may not be reused - re-collect it."
+        ),
+    }
+
+
+def build_correction_notice(item: Mapping[str, Any], recovery: bool) -> str:
+    """Render the pending CORRECTION packet into the next turn's prompt, or "" when there is none.
+
+    THE DELIVERY CHANNEL, and it is its own notice for a measured reason rather than a stylistic one.
+    The obvious channel is the existing `Prior attempt:` line, which already carries
+    `finalize_refused` to a recovery turn - but that line is built by
+    `lane_containment.prior_attempt_summary`, which projects an ALLOWLIST for an ISOLATED turn, and
+    isolation is the DEFAULT. A packet left only on the attempt record is therefore STRIPPED before it
+    reaches the prompt on exactly the path a real run takes, so the wiring would be present and inert.
+    `finalize_refused` survives only because it is IN that allowlist, and widening the allowlist
+    belongs to `lane_containment` rather than to this layer.
+
+    A FIRST ATTEMPT GETS NOTHING, so an ordinary prompt is byte-identical to before. Only a recovery
+    turn whose LAST attempt recorded a correction packet gets this block.
+
+    THE TEXT STATES THE BOUND, because the cost model matters to the reader: a correction is a paid
+    turn, and `run_recovery`'s own note records that "a retry cannot turn failure into success by mere
+    repetition". Telling the agent which attempt of how many it is on is what lets it decide to fix
+    the cause rather than re-run the same thing.
+    """
+
+    if not recovery:
+        return ""
+    attempts = item.get("attempts") or []
+    packet = None
+    for attempt in reversed(list(attempts)):
+        if isinstance(attempt, Mapping) and attempt.get("turn_correction"):
+            packet = attempt["turn_correction"]
+            break
+    if not isinstance(packet, Mapping):
+        return ""
+    predicates = [str(p) for p in (packet.get("failed_predicates") or ())]
+    lines = [
+        "",
+        "",
+        "## This is a BOUNDED CORRECTION attempt "
+        f"({packet.get('attempt')} of {packet.get('of')})",
+        "",
+        "The previous attempt FAILED and the run is spending one unit of its correction budget on",
+        "this turn. Address ONLY the failed predicates below. Work that already passed must NOT be",
+        "redone: this is a correction, not a fresh execution, and redoing passing work risks undoing",
+        "it.",
+        "",
+        "Failed predicates:",
+    ]
+    lines.extend(f"  - {p}" for p in predicates)
+    lines.extend(
+        [
+            "",
+            "Evidence captured by the FAILED attempt has been INVALIDATED and may not be reused: any",
+            "verification result or outcome record from it is gone deliberately, so re-collect what",
+            "you need rather than assuming a previous green result still holds.",
+            "",
+            "This budget is bounded. If this correction does not succeed the item is FAILED rather",
+            "than retried forever, so fix the CAUSE rather than repeating the same attempt.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def turn_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) -> str:
+    """What a reader should DO about a spent or exhausted turn correction.
+
+    Two wordings for the same reason `finalize_retry_remedy` has two: a PENDING correction needs the
+    reader to wait (telling them to re-run would invite a duplicate paid turn), while an EXHAUSTED one
+    needs a human to look at why two corrections did not fix it - which `run_recovery`'s own cost note
+    says is usually a PLAN DEFECT rather than a transient fault.
+    """
+
+    # `labels.command` ALREADY CARRIES THE VERB (`aw oc run` / `aw agy run`), so suffixing `run`
+    # renders `aw oc run run <id6>`. MEASURED while collecting this plan's V-05 rendered evidence,
+    # where the remedy printed exactly that; the fallback carries the verb for the same reason. This
+    # is why V-05 demands RENDERED output rather than a state dict: the defect was invisible in state.
+    command = getattr(labels, "command", None) or "aw oc run"
+    if retry:
+        return (
+            "no action needed yet: the run is handing this item back for a bounded correction turn "
+            "in this same run, carrying only the predicates that failed. Its work is preserved on "
+            "its lane and nothing was forced"
+        )
+    return (
+        f"read the failed attempts before re-running: a correction budget spent without success "
+        f"usually means a PLAN DEFECT rather than a transient fault, so repetition will not fix it. "
+        f"Inspect them with `aw runs show <run-id>`, correct the plan or the environment, then "
+        f"re-run with `{command} {id6}` (or `{command} resume <run-id> --retry-incomplete`). "
+        f"Do NOT discard the lane: the partial work is preserved there"
+    )
+
+
+def handle_turn_failure_retry(
+    *,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    attempt: MutableMapping[str, Any],
+    attempt_no: int,
+    disposition: str,
+    host_labels: "HostLabels | None",
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> str:
+    """PERFORM the outcome of one failed turn. Returns the item's disposition.
+
+    ONE implementation for BOTH hosts, reached through the already-shared `execute_item_core`, so the
+    twins stay twins by CONSTRUCTION rather than by a pinned-equality test.
+
+    PLACED AT THE POINT THE RUN LEARNS THE TURN FAILED, which is mandatory rather than tidy:
+    `requeue_interrupted`'s docstring states the rule that a gate placed anywhere other than the site
+    that already ran "would simply be BYPASSED by the call that already ran". A later sweep would also
+    have lost the ATTEMPT NUMBER the idempotency key is built from.
+
+    Returns `disposition` UNCHANGED for a non-retryable class, so every never-retryable path keeps
+    today's exact behavior.
+    """
+
+    decision = turn_retry_decision(item, state, disposition, attempt_no)
+    if not (decision.retry or decision.exhausted):
+        # Not a retryable class (or already-spent key). Record WHY, once, on the attempt, so a reader
+        # can tell "not retryable" from "nobody looked"; change nothing else.
+        attempt["turn_retry_skipped"] = decision.reason
+        return disposition
+
+    pal = Palette(should_color(sys.stdout))
+    if decision.retry:
+        # SPEND ONE UNIT AND HAND IT BACK. The counter and the key are written BEFORE the state is
+        # saved, so a crash between here and the next dispatch cannot yield a free retry.
+        item[TURN_RETRY_COUNT_KEY] = decision.attempts + 1
+        item.setdefault(TURN_RETRY_KEYS_KEY, []).append(decision.key)
+        packet = turn_correction_packet(item, state, disposition, decision)
+        # INVALIDATE BEFORE RE-QUEUEING, and in this order: the packet is built from the failed
+        # attempt's facts, so invalidation must follow its construction and precede the dispatch.
+        invalidation = invalidate_turn_evidence(item, attempt_no, decision.reason)
+        attempt["turn_correction"] = packet
+        attempt["turn_evidence_invalidated"] = invalidation
+        # `queued` + `recovery_next` is the ESTABLISHED re-dispatch pattern (`requeue_interrupted`),
+        # consumed by both hosts' `run_queue`. `recovery=True` is what makes the next prompt
+        # interpolate `Prior attempt:`, which is how the correction packet reaches the agent.
+        item["status"] = "queued"
+        item["recovery_next"] = True
+        item["requeue_from_status"] = disposition
+        outcome_disposition = "queued"
+    else:
+        # FAIL ITEM (spec 4.6's `RETRY, then FAIL ITEM`). An EXISTING terminal status, never a new
+        # one: `runner_shutdown.observe_ledger` declares a run incoherent on any status outside its
+        # closed set, so inventing one would break every later shutdown observation.
+        item["status"] = TURN_RETRY_EXHAUSTED_STATUS
+        item.pop("recovery_next", None)
+        item[TURN_RETRY_COUNT_KEY] = decision.attempts
+        outcome_disposition = TURN_RETRY_EXHAUSTED_STATUS
+
+    # THE READ SURFACE. Written through `r2i1b1`'s ONE `Refusal` writer rather than a new per-item
+    # key, because the diagnostics block renders a `Refusal` for ANY status while its legacy arm reads
+    # the specific key `driver_error` for exactly three statuses - so a reason under a new key would
+    # sit in state and render NOWHERE.
+    record_refusal(
+        item,
+        code=TURN_RETRY_REFUSAL_CODE,
+        reason=decision.reason,
+        remedy=turn_retry_remedy(
+            host_labels, str(item.get("id6") or "?"), retry=decision.retry
+        ),
+    )
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "ipd-turn-retry",
+            "id6": item["id6"],
+            "from_status": disposition,
+            "retry_scheduled": decision.retry,
+            "exhausted": decision.exhausted,
+            "retry_attempts_used": (
+                decision.attempts + 1 if decision.retry else decision.attempts
+            ),
+            "retry_budget": decision.budget,
+            "idempotency_key": decision.key,
+        },
+    )
+    if decision.retry:
+        print(
+            pal(
+                f"  -> IPD {item['id6']} failed ({disposition}); handing it back for a bounded "
+                f"correction carrying only the failed predicates "
+                f"(attempt {decision.attempts + 1} of {decision.budget})",
+                "cyan",
+            ),
+            file=sys.stderr,
+        )
+    else:
+        print(
+            pal(
+                f"  ! IPD {item['id6']} FAILED: correction budget exhausted "
+                f"({decision.attempts} of {decision.budget} spent); the plan did NOT land",
+                "red",
+            ),
+            file=sys.stderr,
+        )
+    return outcome_disposition
+
+
+# ==================================================================================================
 # integpath-03 (`51vw4y`): THE INTEGRATION DEFERRAL LADDER
 # ==================================================================================================
 #
@@ -15835,9 +16543,19 @@ def build_prompt(
         else ""
     )
     isolation_notice = build_isolation_notice(lane_root)
+    # retrywire (`xipfy1`) E-04: the CORRECTION packet, reaching the agent through the prompt.
+    #
+    # WHY THIS IS RENDERED HERE RATHER THAN CARRIED BY `Prior attempt:`, which was the first shape
+    # tried and is MEASURABLY INERT. `prior_attempt_summary` projects an ALLOWLIST
+    # (`lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`) for an isolated turn, and isolation is the DEFAULT,
+    # so a packet left on the attempt record is stripped before it reaches the prompt on exactly the
+    # path a real run takes. `finalize_refused` works that way only because it is IN that allowlist,
+    # and widening the allowlist is `lane_containment`'s scope rather than this plan's. Rendering the
+    # packet as its own notice needs no allowlist entry and cannot be silently projected away.
+    correction_notice = build_correction_notice(item, recovery)
     return f"""# {labels.product} IPD Driver Turn
 
-Mode: {mode}{lane_notice}{verify_notice}{isolation_notice}
+Mode: {mode}{lane_notice}{verify_notice}{correction_notice}{isolation_notice}
 Run ID: {state["run_id"]}
 Queue position: {item["position"]}
 Assigned IPD: {item["id6"]}
@@ -18837,6 +19555,38 @@ def execute_item_core(
                     "dim",
                 ),
                 file=sys.stderr,
+            )
+
+        # retrywire (`xipfy1`): SPEND THE FROZEN CORRECTION BUDGET ON A RETRYABLE TURN FAILURE.
+        #
+        # PLACED HERE, and both halves of the placement are load-bearing.
+        #
+        # AFTER the lane-preservation block above, because a correction turn must FIND the failed
+        # attempt's work: preservation reads `item["status"]`, which still holds the failed
+        # disposition at that point, so moving this earlier would flip the item to `queued` and the
+        # lane would not be recorded as preserved. The correction would then start from nothing, which
+        # is the opposite of a bounded correction.
+        #
+        # BEFORE the unconditional `item["status"] = disposition` below, which is why the performer
+        # RETURNS the disposition rather than relying on the status it writes. The review-integration
+        # ladder learned this the expensive way (see its comment: `record_integration_refusal` wrote
+        # `item["status"]` and this same line overwrote it, leaving the wiring "present and inert").
+        #
+        # EXECUTE TURNS ONLY. A review turn's dispositions mean something different (`reviewed` is
+        # written even for a turn that changed little) and its refused-integration recovery is owned by
+        # the integration deferral ladder, which has its own budget and its own rungs. Widening this to
+        # reviews would spend the correction budget on a class another mechanism already re-attempts.
+        if not is_review:
+            disposition = handle_turn_failure_retry(
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                attempt=attempt,
+                attempt_no=attempt_no,
+                disposition=disposition,
+                host_labels=host_labels,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
             )
 
         item["status"] = disposition
