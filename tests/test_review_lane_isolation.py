@@ -1236,6 +1236,927 @@ class TheSweepLaneRefreshPolicy(unittest.TestCase):
                 self.assertNotIn("review-sweep", fx.worktrees())
 
 
+# ======================================================================================
+# `i4ak5n` V-03..V-08: A REFUSED REVIEW INTEGRATION ENTERS THE SHARED DEFERRAL LADDER
+# ======================================================================================
+#
+# THE DEFECT THESE PIN, measured on run `run-20260917T193010Z-1207513`. A review turn whose integration
+# was refused by the TRANSIENT condition (main holding an un-owned dirty path, which a shared checkout
+# produces routinely) was stranded PERMANENTLY, while the IDENTICAL refusal on an execute turn was
+# retried for free by the deferral ladder. The refusal message even PROMISED the re-attempt
+# ("it is re-attempted once the base is clean", `format_local_changes_refusal_reason`) and nothing
+# re-attempted it: a completed $13.27 / 32m46s review of plan `63425h` sat unmerged on the sweep lane
+# while the run reported `Outcome: COMPLETED` with no blocked items, until a human noticed.
+#
+# WHAT MUST HOLD, and each is a separate failure mode rather than a restatement:
+#   * V-03 the refusal enters the ladder through the SHARED WRITE SITE, and all four of that decision's
+#     TERMINAL arms still apply to a review with nothing carved out.
+#   * V-04 the re-attempt is ACTION-CORRECT: it merges as `review` and NEVER consults a validation
+#     runner (proved with a runner that RAISES if called, not with a passing verdict), and its success
+#     path claims no `executed`, closes no backlog item and resolves no plan path.
+#   * V-05 TWO deferred reviews in ONE run both recover, and the SHARED sweep lane survives the first
+#     success - one review cannot expose that collision at all.
+#   * V-06 both hosts, through the shared wiring.
+#   * V-07 the operator-facing report names the deferral, the lane, a verb that PARSES, and the
+#     precondition.
+#   * V-08 a stranded review is visible in the end-of-run summary, WITHOUT changing the verdict.
+
+
+def _deferred_review_item(id6: str = "rev001", **extra) -> dict:
+    """A queue item shaped exactly as `execute_item_core` leaves a DEFERRED review."""
+    item = {
+        "position": 1,
+        "id6": id6,
+        "setid": "demo",
+        "action": "review",
+        "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
+        "configured_file": f".aw/records/plans/pending/20260913-demo-01-{id6}-demo.ipd.md",
+        "review_integrated": False,
+        "review_integration_refusal": "main has uncommitted local changes",
+        "attempts": [{"review_disposition": "reviewed", "disposition": "reviewed"}],
+    }
+    item.update(extra)
+    return item
+
+
+def _sweep_state(repo: Path, handle, items: list[dict]) -> dict:
+    """Run state whose sweep lane is recorded at RUN level, which is where the real runner puts it."""
+    return {
+        "run_id": "run-test",
+        "repo": str(repo),
+        "queue": items,
+        "options": {},
+        runner_shared.REVIEW_SWEEP_LANE_KEY: {
+            "lane_id": handle.lane_id,
+            "branch": handle.branch,
+            "worktree": str(handle.path),
+            "base_commit": handle.base_commit,
+        },
+    }
+
+
+class ARefusedReviewIntegrationEntersTheLadder(unittest.TestCase):
+    """V-03: the SHARED write site, with every terminal arm intact."""
+
+    def _refuse(self, kind: str, *, policy: str = "defer", attempts_used: int = 0):
+        item = _deferred_review_item(status="queued")
+        item["integration_attempts"] = attempts_used
+        state = {"options": {"on_integration_blocked": policy}, "queue": [item]}
+        with tempfile.TemporaryDirectory() as d:
+            decision = runner_shared.record_integration_refusal(
+                run_dir=Path(d),
+                state=state,
+                item=item,
+                attempt=item["attempts"][-1],
+                integ_kind=kind,
+                integ_reason="main has uncommitted local changes",
+                branch="aw/lane/review-sweep-run-test",
+                save_state=lambda *_a, **_k: None,
+                append_jsonl=lambda *_a, **_k: None,
+            )
+        return decision, item
+
+    def test_a_TRANSIENT_review_refusal_DEFERS_with_the_shared_reason_and_a_ladder_record(
+        self,
+    ):
+        decision, item = self._refuse(runner_shared.INTEGRATION_REFUSAL_TRANSIENT)
+        self.assertTrue(decision.deferred, decision.reason)
+        self.assertEqual(item["status"], runner_shared.INTEGRATION_DEFERRED_STATUS)
+        self.assertEqual(
+            item["integration_ladder"]["kind"],
+            runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+        )
+        self.assertTrue(item["integration_ladder"]["deferrable"])
+        self.assertIn("integration DEFERRED", decision.reason)
+        # DURABLY COUNTED on the ITEM, not the attempt: a resume must not restart the budget.
+        self.assertEqual(item["integration_attempts"], 1)
+
+    def test_the_UNMEASURED_kind_is_ALSO_deferrable_on_the_review_path(self):
+        """`l2mzxn` added a third kind AFTER this plan was authored; a review must inherit it too."""
+        decision, item = self._refuse(runner_shared.INTEGRATION_REFUSAL_UNMEASURED)
+        self.assertTrue(decision.deferred)
+        self.assertEqual(item["status"], runner_shared.INTEGRATION_DEFERRED_STATUS)
+
+    def test_a_CONFLICT_refusal_stays_TERMINAL_for_a_review_too(self):
+        """Terminal arm 1. Repetition cannot resolve a real conflict, whoever produced it."""
+        decision, item = self._refuse(runner_shared.INTEGRATION_REFUSAL_CONFLICT)
+        self.assertFalse(decision.deferred)
+        self.assertEqual(item["status"], runner_shared.INTEGRATION_REFUSAL_CONFLICT)
+
+    def test_on_integration_blocked_BLOCK_makes_the_FIRST_review_refusal_terminal(self):
+        """Terminal arm 2: the operator pinned the pre-ladder behavior and that must still win."""
+        decision, item = self._refuse(
+            runner_shared.INTEGRATION_REFUSAL_TRANSIENT, policy="block"
+        )
+        self.assertFalse(decision.deferred)
+        self.assertEqual(item["status"], runner_shared.INTEGRATION_BLOCKED_STATUS)
+        self.assertIn("--on-integration-blocked=block", decision.reason)
+
+    def test_an_EXHAUSTED_budget_stops_re_attempting_a_review(self):
+        """Terminal arm 3: a permanently dirty path must not spin the loop forever."""
+        decision, item = self._refuse(
+            runner_shared.INTEGRATION_REFUSAL_TRANSIENT, attempts_used=10
+        )
+        self.assertFalse(decision.deferred)
+        self.assertEqual(item["status"], runner_shared.INTEGRATION_BLOCKED_STATUS)
+        self.assertIn("budget exhausted", decision.reason)
+
+    def test_a_ZERO_budget_is_block_spelled_as_a_count(self):
+        """Terminal arm 4, asserted directly rather than assumed to follow from arm 3."""
+        item = _deferred_review_item(status="queued")
+        state = {"options": {"integration_retry_limit": 0}, "queue": [item]}
+        with tempfile.TemporaryDirectory() as d:
+            decision = runner_shared.record_integration_refusal(
+                run_dir=Path(d),
+                state=state,
+                item=item,
+                attempt={},
+                integ_kind=runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+                integ_reason="dirty overlap",
+                branch="aw/lane/review-sweep-run-test",
+                save_state=lambda *_a, **_k: None,
+                append_jsonl=lambda *_a, **_k: None,
+            )
+        self.assertFalse(decision.deferred)
+        self.assertEqual(item["status"], runner_shared.INTEGRATION_BLOCKED_STATUS)
+
+    def test_a_REAL_TURN_leaves_the_item_SELECTABLE_by_the_ladder_END_TO_END(self):
+        """THE WIRING MUST NOT BE PRESENT AND INERT, which is the failure this caught in development.
+
+        MEASURED while executing `i4ak5n`: with the refusal routed to the shared write site but nothing
+        else changed, `record_integration_refusal` wrote `merge-retry` and then `execute_item_core`'s own
+        unconditional `item["status"] = disposition` OVERWROTE it back to `reviewed`. Every unit
+        assertion about the write site passed, and `deferred_integration_items` selected NOTHING, so the
+        review was stranded exactly as before. A structural pin on the CALL cannot see that; only driving
+        a whole turn and then asking the ladder's own FILTER can.
+
+        The fixture is the measured condition itself: main holds an un-owned uncommitted edit on the very
+        path the review's merge would write, so git REFUSES TO START the merge (not a content conflict).
+        """
+        for name, driver in _DRIVERS:
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                fx = _Fixture(Path(tmp) / "repo", plans=1)
+                run_dir = _mk_run_dir(fx.root)
+                state = _state(fx.root, fx.plans)
+                item = state["queue"][0]
+                launcher = "run_opencode" if driver is oc_runipd else "run_agy_turn"
+                agent = _reviewing_agent(run_dir, observe={})
+
+                def agy_shim(state_, rd, it, prompt_path, attempt_no, **kwargs):
+                    return agent(
+                        state_, rd, it, None, prompt_path, attempt_no, **kwargs
+                    )
+
+                plan_on_main = next(
+                    (fx.root / ".aw/records/plans/pending").glob("*-rev001-*.ipd.md")
+                )
+                plan_on_main.write_text(
+                    plan_on_main.read_text(encoding="utf-8") + "\nan un-owned edit\n",
+                    encoding="utf-8",
+                )
+
+                with mock.patch.object(
+                    driver,
+                    launcher,
+                    side_effect=(agy_shim if driver is agy_runipd else agent),
+                ):
+                    driver.execute_item(run_dir, state, item, False)
+
+                self.assertEqual(
+                    item["status"],
+                    runner_shared.INTEGRATION_DEFERRED_STATUS,
+                    f"{name}: the turn ended at {item['status']!r}, so the ladder's status was "
+                    "overwritten and the deferral is INERT",
+                )
+                self.assertEqual(
+                    [
+                        it["id6"]
+                        for it in runner_shared.deferred_integration_items(state)
+                    ],
+                    ["rev001"],
+                    f"{name}: the ladder's own FILTER does not select the deferred review",
+                )
+                self.assertTrue(item["integration_ladder"]["deferred"])
+                # The turn's EARNED verdict survives on the attempt, so a success can restore it.
+                self.assertEqual(
+                    item["attempts"][-1]["review_disposition"],
+                    "reviewed",
+                    f"{name}: the turn's own lane-derived verdict was lost, so a successful "
+                    "re-attempt would have to invent one",
+                )
+
+    def test_the_review_call_site_REACHES_the_shared_write_site_on_both_hosts(self):
+        """The wiring itself, by AST on the unified core, which is what both hosts run.
+
+        DRIVEN BY STRUCTURE, not by a source grep for the name: the assertion is that the
+        `if not review_integrated:` block CONTAINS a call to `record_integration_refusal`, so a
+        comment naming the function cannot satisfy it and neither can the pre-existing EXECUTE call
+        further down the same function.
+        """
+        core = ast.parse(inspect.getsource(runner_shared.execute_item_core))
+        blocks = [
+            n
+            for n in ast.walk(core)
+            if isinstance(n, ast.If)
+            and isinstance(n.test, ast.UnaryOp)
+            and isinstance(n.test.op, ast.Not)
+            and ast.unparse(n.test.operand) == "review_integrated"
+        ]
+        self.assertTrue(
+            blocks, "the review refusal block was not found in the shared core"
+        )
+        called = {
+            sub.func.id if isinstance(sub.func, ast.Name) else sub.func.attr
+            for block in blocks
+            for sub in ast.walk(block)
+            if isinstance(sub, ast.Call)
+            and isinstance(sub.func, (ast.Name, ast.Attribute))
+        }
+        self.assertIn(
+            "record_integration_refusal",
+            called,
+            "a refused review integration must enter the ladder through the SHARED write site; "
+            f"the block calls {sorted(called)}",
+        )
+        # And BOTH hosts really run this body rather than a local copy.
+        for name, driver in _DRIVERS:
+            self.assertIn(
+                "execute_item_core",
+                inspect.getsource(driver.execute_item),
+                f"{name} does not delegate to the shared core, so the wiring above would not reach it",
+            )
+
+
+class TheReviewReAttemptIsActionCorrect(unittest.TestCase):
+    """V-04: the load-bearing item, because the ladder is action-blind by default."""
+
+    def test_the_shared_selector_routes_a_review_to_review_and_everything_else_to_execute(
+        self,
+    ):
+        self.assertEqual(
+            runner_shared.integration_action_for_item({"action": "review"}),
+            runner_shared.INTEGRATION_ACTION_REVIEW,
+        )
+        for action in ("execute", "orchestrate", None, ""):
+            self.assertEqual(
+                runner_shared.integration_action_for_item({"action": action}),
+                runner_shared.INTEGRATION_ACTION_EXECUTE,
+                f"action {action!r} must read as execute (the conservative direction)",
+            )
+        # A MISSING key reads as execute too, which can only cause MORE revalidation, never less.
+        self.assertEqual(
+            runner_shared.integration_action_for_item({}),
+            runner_shared.INTEGRATION_ACTION_EXECUTE,
+        )
+
+    def test_a_deferred_REVIEW_is_re_attempted_through_the_REVIEW_wrapper_and_NEVER_validates(
+        self,
+    ):
+        """(a) The action-correctness proof, with a runner that RAISES if consulted.
+
+        A PASSING verdict would NOT satisfy this: an implementation that reused the execute wrapper
+        would produce a passing verdict and look fine while violating `ajxr5d` OQ-01's requirement that
+        a review's revalidation be skipped "by NOT RUNNING rather than by any fabricated verdict".
+        """
+        for name, driver in _DRIVERS:
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                fx = _Fixture(Path(tmp) / "repo", plans=1)
+                run_dir = _mk_run_dir(fx.root)
+                handle = runner_shared.allocate_review_sweep_worktree(
+                    fx.root, "run-test"
+                )
+                lane = Path(handle.path)
+                plan = next(
+                    (lane / ".aw/records/plans/pending").glob("*-rev001-*.ipd.md")
+                )
+                plan.write_text(
+                    plan.read_text(encoding="utf-8").replace(
+                        "- Status: to-review", "- Status: reviewed"
+                    ),
+                    encoding="utf-8",
+                )
+                _git(lane, "add", "--", str(plan.relative_to(lane)))
+                _git(lane, "commit", "-qm", "review(rev001): record")
+
+                item = _deferred_review_item()
+                state = _sweep_state(fx.root, handle, [item])
+                seen: dict = {}
+
+                def _explode(*_a, **_k):
+                    raise AssertionError(
+                        "a REVIEW re-attempt consulted a validation runner; the skip must happen by "
+                        "NOT RUNNING (`ajxr5d` OQ-01)"
+                    )
+
+                real_shared = runner_shared.integrate_lane_branch
+
+                def _spy_shared(*args, **kwargs):
+                    seen["action_kind"] = kwargs.get("action_kind")
+                    seen["validation_runner"] = args[3] if len(args) > 3 else "(absent)"
+                    return real_shared(*args, **kwargs)
+
+                with (
+                    mock.patch.object(
+                        driver,
+                        "make_integration_validation_runner",
+                        lambda *a, **k: _explode,
+                    ),
+                    mock.patch.object(
+                        runner_shared, "integrate_lane_branch", _spy_shared
+                    ),
+                    mock.patch.object(driver, "process_backlog_close", _explode),
+                    mock.patch.object(driver, "resolve_plan_path", _explode),
+                ):
+                    records = driver.retry_deferred_integrations(run_dir, state)
+
+                self.assertEqual(
+                    [r["outcome"] for r in records],
+                    ["integrated"],
+                    f"{name}: the deferred review was not integrated; got {records!r}",
+                )
+                self.assertEqual(records[0]["action"], "review")
+                # THE MERGE RAN AS A REVIEW, and with NO validation runner to consult.
+                self.assertEqual(
+                    seen["action_kind"],
+                    runner_shared.INTEGRATION_ACTION_REVIEW,
+                    f"{name}: the re-attempt merged with action_kind={seen['action_kind']!r}; the "
+                    "execute kind is exactly what triggers the revalidation gate",
+                )
+                self.assertIsNone(
+                    seen["validation_runner"],
+                    f"{name}: a validation runner reached the shared merge for a REVIEW",
+                )
+
+    def test_the_review_success_path_claims_NO_executed_and_closes_NO_backlog_item(
+        self,
+    ):
+        """(b) The item dict after success. `executed` for a review is a claim about work never done."""
+        for name, driver in _DRIVERS:
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                fx = _Fixture(Path(tmp) / "repo", plans=1)
+                run_dir = _mk_run_dir(fx.root)
+                handle = runner_shared.allocate_review_sweep_worktree(
+                    fx.root, "run-test"
+                )
+                lane = Path(handle.path)
+                record = (
+                    lane / ".aw/records/reviews/20260913-rev001-01-rev001-x.review.md"
+                )
+                record.write_text("# Review\n", encoding="utf-8")
+                _git(lane, "add", "--", str(record.relative_to(lane)))
+                _git(lane, "commit", "-qm", "review(rev001): record")
+
+                item = _deferred_review_item()
+                state = _sweep_state(fx.root, handle, [item])
+
+                def _explode(*_a, **_k):
+                    raise AssertionError("a REVIEW success path must not reach this")
+
+                with (
+                    mock.patch.object(driver, "process_backlog_close", _explode),
+                    mock.patch.object(driver, "resolve_plan_path", _explode),
+                ):
+                    driver.retry_deferred_integrations(run_dir, state)
+
+                self.assertNotEqual(
+                    item["status"],
+                    "executed",
+                    f"{name}: a review was marked `executed`, which claims it ran a plan it did not",
+                )
+                self.assertEqual(
+                    item["status"],
+                    "reviewed",
+                    f"{name}: the turn's own lane-derived disposition must be RESTORED, not invented",
+                )
+                self.assertTrue(item["review_integrated"])
+                self.assertNotIn(
+                    "review_integration_refusal",
+                    item,
+                    f"{name}: a landed review must not still carry a refusal (the summary reads it)",
+                )
+                self.assertNotIn("backlog_close", item)
+                self.assertNotIn("last_plan_path", item)
+
+    def test_the_EXECUTE_path_re_attempt_is_UNCHANGED_by_the_split(self):
+        """(c) The per-action split must not have altered the adapter's ORIGINAL caller."""
+        for name, driver in _DRIVERS:
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                fx = _Fixture(Path(tmp) / "repo", plans=1)
+                run_dir = _mk_run_dir(fx.root)
+                handle = runner_shared.allocate_review_sweep_worktree(
+                    fx.root, "run-exec"
+                )
+                lane = Path(handle.path)
+                (lane / "src").mkdir(parents=True, exist_ok=True)
+                (lane / "src" / "x.txt").write_text("x\n", encoding="utf-8")
+                _git(lane, "add", "src/x.txt")
+                _git(lane, "commit", "-qm", "work")
+
+                item = {
+                    "position": 1,
+                    "id6": "exe001",
+                    "setid": "demo",
+                    "action": "execute",
+                    "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
+                    "configured_file": "",
+                    "preserved_branch": handle.branch,
+                    "preserved_worktree": str(handle.path),
+                    "preserved_lane_id": handle.lane_id,
+                    "preserved_base": handle.base_commit,
+                    "attempts": [{}],
+                }
+                state = {
+                    "run_id": "run-exec",
+                    "repo": str(fx.root),
+                    "queue": [item],
+                    "options": {},
+                }
+                validated: list = []
+                real_shared = runner_shared.integrate_lane_branch
+                seen: dict = {}
+
+                def _spy_shared(*args, **kwargs):
+                    seen["action_kind"] = kwargs.get("action_kind")
+                    return real_shared(*args, **kwargs)
+
+                def _runner(*a, **k):
+                    validated.append((a, k))
+                    return True, "validated"
+
+                with (
+                    mock.patch.object(
+                        driver,
+                        "make_integration_validation_runner",
+                        lambda *a, **k: _runner,
+                    ),
+                    mock.patch.object(
+                        runner_shared, "integrate_lane_branch", _spy_shared
+                    ),
+                    mock.patch.object(
+                        driver, "process_backlog_close", lambda *a, **k: None
+                    ),
+                ):
+                    records = driver.retry_deferred_integrations(run_dir, state)
+
+                self.assertEqual([r["outcome"] for r in records], ["integrated"])
+                self.assertEqual(records[0]["action"], "execute")
+                self.assertEqual(
+                    seen["action_kind"],
+                    runner_shared.INTEGRATION_ACTION_EXECUTE,
+                    f"{name}: an EXECUTE re-attempt must still merge as `execute`",
+                )
+                self.assertTrue(
+                    validated,
+                    f"{name}: an EXECUTE re-attempt must STILL revalidate; the split weakened it",
+                )
+                self.assertEqual(
+                    item["status"],
+                    "executed",
+                    f"{name}: an EXECUTE re-attempt must still record `executed`",
+                )
+
+    def test_a_deferred_REVIEW_is_left_DEFERRED_when_no_review_adapter_was_supplied(
+        self,
+    ):
+        """FAIL TOWARD `NOT YET`, never toward the wrong adapter.
+
+        A caller that supplies only the execute pair must NOT have its review item handed to it: that
+        would revalidate the review and mark it `executed`. Leaving it deferred is safe because
+        `resolve_exhausted_deferrals` still ends the run terminal with the lane preserved.
+        """
+        item = _deferred_review_item()
+        state = {"run_id": "run-test", "repo": ".", "queue": [item], "options": {}}
+        with tempfile.TemporaryDirectory() as tmp:
+            records = runner_shared.reattempt_deferred_integrations(
+                repo=Path(tmp),
+                run_dir=Path(tmp),
+                state=state,
+                integrate=lambda *_a: (_ for _ in ()).throw(
+                    AssertionError(
+                        "the EXECUTE adapter must not be given a review item"
+                    )
+                ),
+                finish_integrated=lambda *_a: None,
+                save_state=lambda *_a, **_k: None,
+                append_jsonl=lambda *_a, **_k: None,
+                handle_for=lambda _item: SimpleNamespace(branch="b", path=Path(tmp)),
+                validation_runner_for=lambda _item: None,
+            )
+        self.assertEqual([r["outcome"] for r in records], ["no-review-adapter"])
+        self.assertEqual(
+            item["status"],
+            runner_shared.INTEGRATION_DEFERRED_STATUS,
+            "the item must be left DEFERRED with its lane intact, not handed to the wrong adapter",
+        )
+
+
+class TwoDeferredReviewsShareOneLaneAndBothRecover(unittest.TestCase):
+    """V-05: one deferred review CANNOT expose the collision, so this case is mandatory."""
+
+    def test_both_resolve_to_the_SAME_sweep_branch_and_neither_loses_its_lane(self):
+        for name, driver in _DRIVERS:
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                fx = _Fixture(Path(tmp) / "repo", plans=2)
+                run_dir = _mk_run_dir(fx.root)
+                handle = runner_shared.allocate_review_sweep_worktree(
+                    fx.root, "run-test"
+                )
+                lane = Path(handle.path)
+                # BOTH reviews' work is committed on the ONE shared lane, which is the real shape.
+                for id6 in ("rev001", "rev002"):
+                    rec = (
+                        lane
+                        / ".aw/records/reviews"
+                        / f"20260913-{id6}-01-{id6}-x.review.md"
+                    )
+                    rec.write_text(f"# Review of {id6}\n", encoding="utf-8")
+                    _git(lane, "add", "--", str(rec.relative_to(lane)))
+                    _git(lane, "commit", "-qm", f"review({id6}): record")
+
+                first = _deferred_review_item("rev001")
+                second = _deferred_review_item("rev002")
+                second["position"] = 2
+                state = _sweep_state(fx.root, handle, [first, second])
+
+                # BOTH are selected by the ladder's filter.
+                self.assertEqual(
+                    [
+                        it["id6"]
+                        for it in runner_shared.deferred_integration_items(state)
+                    ],
+                    ["rev001", "rev002"],
+                )
+                # AND BOTH RESOLVE TO THE SAME BRANCH, which is the collision itself.
+                h1 = runner_shared.deferred_review_lane_handle(state, first)
+                h2 = runner_shared.deferred_review_lane_handle(state, second)
+                self.assertEqual(h1.branch, h2.branch)
+                self.assertEqual(h1.branch, handle.branch)
+
+                with (
+                    mock.patch.object(
+                        driver, "process_backlog_close", lambda *a, **k: None
+                    ),
+                ):
+                    records = driver.retry_deferred_integrations(run_dir, state)
+
+                self.assertEqual(
+                    [r["outcome"] for r in records],
+                    ["integrated", "integrated"],
+                    f"{name}: BOTH deferred reviews must recover; got {records!r}",
+                )
+                # THE FIRST SUCCESS DID NOT RETIRE THE LANE THE SECOND NEEDED (OQ-02 option (a)).
+                self.assertTrue(
+                    lane.is_dir(),
+                    f"{name}: the shared sweep lane's worktree was destroyed per item",
+                )
+                self.assertIn(
+                    handle.branch,
+                    fx.lane_branches(),
+                    f"{name}: the shared sweep lane's BRANCH was deleted per item",
+                )
+                self.assertFalse(
+                    (state[runner_shared.REVIEW_SWEEP_LANE_KEY] or {}).get("retired"),
+                    f"{name}: the run-level sweep record was marked retired by an ITEM",
+                )
+                # NEITHER REVIEW'S WORK WAS LOST: both records are on main.
+                for id6 in ("rev001", "rev002"):
+                    self.assertTrue(
+                        list(
+                            (fx.root / ".aw/records/reviews").glob(
+                                f"*-{id6}-*.review.md"
+                            )
+                        ),
+                        f"{name}: review {id6}'s record never reached main",
+                    )
+
+    def test_the_SECOND_review_still_has_its_lane_while_the_first_has_landed(self):
+        """The interleaved case: the first re-attempt succeeds and the second is still pending."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = _Fixture(Path(tmp) / "repo", plans=2)
+            run_dir = _mk_run_dir(fx.root)
+            handle = runner_shared.allocate_review_sweep_worktree(fx.root, "run-test")
+            lane = Path(handle.path)
+            rec = lane / ".aw/records/reviews/20260913-rev001-01-rev001-x.review.md"
+            rec.write_text("# Review of rev001\n", encoding="utf-8")
+            _git(lane, "add", "--", str(rec.relative_to(lane)))
+            _git(lane, "commit", "-qm", "review(rev001): record")
+
+            first = _deferred_review_item("rev001")
+            second = _deferred_review_item("rev002")
+            second["position"] = 2
+            state = _sweep_state(fx.root, handle, [first, second])
+
+            # Only the FIRST is deferred in this pass; the second has not reached the merge yet.
+            second["status"] = "queued"
+            with mock.patch.object(
+                oc_runipd, "process_backlog_close", lambda *a, **k: None
+            ):
+                records = oc_runipd.retry_deferred_integrations(run_dir, state)
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+
+            # THE LANE THE SECOND REVIEW STILL NEEDS IS INTACT, and resolvable.
+            self.assertTrue(lane.is_dir())
+            self.assertIn(handle.branch, fx.lane_branches())
+            still = runner_shared.deferred_review_lane_handle(state, second)
+            self.assertIsNotNone(still)
+            self.assertEqual(still.branch, handle.branch)
+
+    def test_RETIREMENT_IS_THE_COORDINATORS_and_the_ITEM_path_never_tears_down(self):
+        """DRIVEN: the shared review finish performer must not reach ANY teardown.
+
+        Asserted by exploding every teardown route rather than by reading the source, because the
+        hazard is a CALL and a source pin is satisfied by a comment.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+            (run_dir).mkdir(parents=True)
+            item = _deferred_review_item()
+            handle = SimpleNamespace(
+                path=Path(tmp) / "lane",
+                branch="aw/lane/review-sweep-run-test",
+                lane_id="review-sweep-run-test",
+                base_commit="0" * 40,
+            )
+
+            def _explode(*_a, **_k):
+                raise AssertionError(
+                    "a per-item review success path tore down the SHARED sweep lane; retirement is "
+                    "coordinator-owned and once per run (OQ-02 option (a))"
+                )
+
+            with (
+                mock.patch.object(
+                    lane_containment, "teardown_lane_if_classified", _explode
+                ),
+                mock.patch.object(
+                    lane_containment, "teardown_review_sweep_lane", _explode
+                ),
+                mock.patch.object(
+                    runner_shared, "teardown_isolation_worktree", _explode
+                ),
+            ):
+                runner_shared.finish_integrated_review_item(
+                    run_dir=run_dir,
+                    state={"queue": [item]},
+                    item=item,
+                    handle=handle,
+                    reason="fast-forward integrated to main",
+                    save_state=lambda *_a, **_k: None,
+                    append_jsonl=lambda *_a, **_k: None,
+                )
+            # AND THE PRESERVED KEYS ARE LEFT ALONE: they are not what resolved this handle.
+            self.assertTrue(item["review_integrated"])
+            self.assertEqual(item["status"], "reviewed")
+
+    def test_a_RETIRED_sweep_lane_resolves_to_None_rather_than_a_fabricated_handle(
+        self,
+    ):
+        state = {
+            "run_id": "run-test",
+            runner_shared.REVIEW_SWEEP_LANE_KEY: {
+                "lane_id": "review-sweep-run-test",
+                "branch": "aw/lane/review-sweep-run-test",
+                "worktree": "/nowhere",
+                "base_commit": "0" * 40,
+                "retired": True,
+            },
+        }
+        self.assertIsNone(
+            runner_shared.deferred_review_lane_handle(state, _deferred_review_item())
+        )
+        # And a run that never allocated one answers None too.
+        self.assertIsNone(
+            runner_shared.deferred_review_lane_handle({}, _deferred_review_item())
+        )
+
+
+class TheReviewRefusalReportNamesTheRemedy(unittest.TestCase):
+    """V-07: the message must be TRUE, and must name a verb that PARSES."""
+
+    def _lines(self, *, deferred: bool):
+        decision = runner_shared.decide_integration_deferral(
+            integ_kind=runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+            attempts_used=1 if deferred else 11,
+            limit=10,
+        )
+        self.assertEqual(decision.deferred, deferred)
+        return runner_shared.format_review_integration_refusal_report(
+            id6="63425h",
+            branch="aw/lane/review-sweep-run-20260917T193010Z-1207513",
+            kind=runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+            reason=(
+                "integration refused by git: main has uncommitted local changes to file(s) this "
+                "merge would overwrite"
+            ),
+            decision=decision,
+        )
+
+    def test_a_DEFERRED_refusal_says_a_re_attempt_is_pending_and_what_clears_it(self):
+        text = "\n".join(self._lines(deferred=True))
+        self.assertIn("DEFERRED", text)
+        self.assertIn("no action is needed from you", text)
+        self.assertIn("attempt 1 of 11", text)
+        self.assertIn("aw/lane/review-sweep-run-20260917T193010Z-1207513", text)
+        # It must NOT tell the operator to recover by hand: that races the run's own re-attempt.
+        self.assertNotIn("recover it with", text)
+
+    def test_a_TERMINAL_refusal_names_the_lane_the_VERB_and_the_PRECONDITION(self):
+        text = "\n".join(self._lines(deferred=False))
+        self.assertIn("TERMINAL", text)
+        self.assertIn("a HUMAN owns it now", text)
+        self.assertIn("aw/lane/review-sweep-run-20260917T193010Z-1207513", text)
+        self.assertIn("aw <host> integrate 63425h", text)
+        self.assertIn("aw <host> runipd integrate 63425h", text)
+        self.assertIn("CLEAN base", text)
+
+    def test_the_printed_VERB_ACTUALLY_PARSES_on_both_hosts(self):
+        """The authored spelling `aw <host> run integrate <id6>` was checked against the real parser.
+
+        `attention.lane_remedy_hint` already encodes the rule this enforces ("Do not print a verb that
+        does not exist"), and a verb that fails for an operator mid-incident is worse than none.
+        """
+        from agent_workflows import cli
+
+        for host in ("oc", "agy"):
+            for spelling in (
+                [host, "integrate", "--help"],
+                [host, "runipd", "integrate", "--help"],
+            ):
+                with self.subTest(spelling=" ".join(["aw", *spelling])):
+                    with self.assertRaises(SystemExit) as caught:
+                        cli.main(spelling)
+                    self.assertEqual(
+                        caught.exception.code,
+                        0,
+                        f"`aw {' '.join(spelling)}` does not parse",
+                    )
+
+    def test_the_pre_commit_STASH_ATTRIBUTION_is_stated_where_it_will_be_read(self):
+        """F-5: `fatal: stash failed` is NOT ours, and an unattributed line sends an operator into
+        our code for a message we never emitted."""
+        for deferred in (True, False):
+            text = "\n".join(self._lines(deferred=deferred))
+            self.assertIn("fatal: stash failed", text)
+            self.assertIn("pre-commit", text)
+            self.assertIn("NOT this runner's output", text)
+
+    def test_NO_runner_module_emits_that_string_which_is_why_it_is_attributed(self):
+        """The supporting evidence for the attribution, measured rather than asserted.
+
+        THE ONLY occurrence in the package is the ATTRIBUTION ITSELF, which quotes the string in order
+        to disclaim it. Anything else would mean some module really does emit it, and the attribution
+        would then be a false statement rather than a helpful one - so the exemption is named
+        explicitly here rather than the check being loosened to a substring nobody counts.
+        """
+        package = Path(runner_shared.__file__).parent
+        attribution_owner = Path(runner_shared.__file__)
+        offenders = [
+            str(p.relative_to(package))
+            for p in package.rglob("*.py")
+            if "stash failed" in p.read_text(encoding="utf-8", errors="replace")
+            and p != attribution_owner
+        ]
+        self.assertEqual(
+            offenders,
+            [],
+            f"a module DOES emit `stash failed` ({offenders}); the attribution is now a FALSE "
+            "statement and must be removed or corrected rather than kept",
+        )
+        # And in the one file that mentions it, EVERY mention is the disclaiming constant or its own
+        # explanatory comment: no mention is inside a string this package would ever PRINT as its own
+        # diagnosis. Asserted per LINE rather than as a count, because a count pins how the comment
+        # happens to be worded today and would red on an unrelated edit to that prose.
+        mentions = [
+            line.strip()
+            for line in attribution_owner.read_text(encoding="utf-8").splitlines()
+            if "stash failed" in line
+        ]
+        self.assertTrue(mentions, "the attribution itself is gone")
+        for line in mentions:
+            self.assertTrue(
+                line.startswith("#") or "pre-commit" in line,
+                f"a mention of `stash failed` that is neither the attribution nor its comment: {line!r}",
+            )
+        self.assertIn("stash failed", runner_shared.PRE_COMMIT_STASH_ATTRIBUTION)
+
+
+class AStrandedReviewIsVisibleInTheRunSummary(unittest.TestCase):
+    """V-08: the measured cost of this defect was INVISIBILITY, not the refusal itself."""
+
+    def _summary(self, item: dict) -> str:
+        from agent_workflows.render_stream import (
+            Palette as _Pal,
+            render_run_summary_table,
+        )
+
+        return render_run_summary_table(
+            {"run_id": "run-20260917T193010Z-1207513", "queue": [item]},
+            pal=_Pal(False),
+        )
+
+    def _measured_item(self, **extra) -> dict:
+        item = {
+            "position": 1,
+            "id6": "63425h",
+            "setid": "rcptwiden",
+            "action": "review",
+            # THE MEASURED SHAPE: the status stayed inside the success tuple, which is exactly why
+            # nothing in the summary said the work had not landed.
+            "status": "reviewed",
+            "review_integrated": False,
+            "review_integration_refusal": (
+                "integration refused by git: main has uncommitted local changes"
+            ),
+            "attempts": [
+                {
+                    "worktree_branch": "aw/lane/review-sweep-run-20260917T193010Z-1207513",
+                    "disposition": "reviewed",
+                }
+            ],
+        }
+        item.update(extra)
+        return item
+
+    def test_a_refused_review_is_REPORTED_with_its_lane_named(self):
+        text = self._summary(self._measured_item())
+        self.assertIn("STRANDED WORK", text)
+        self.assertIn("63425h: REVIEW NOT INTEGRATED", text)
+        self.assertIn("aw/lane/review-sweep-run-20260917T193010Z-1207513", text)
+        self.assertIn("main has uncommitted local changes", text)
+
+    def test_the_OVERALL_OUTCOME_VERDICT_IS_NOT_CHANGED_by_this_item(self):
+        """E-08's explicit fence: whether an unintegrated review makes a run non-COMPLETED is a
+        separate judgement, and approved plan `ys1dor` already owns it."""
+        verdict = next(
+            line
+            for line in self._summary(self._measured_item()).splitlines()
+            if "Outcome:" in line
+        )
+        self.assertIn("COMPLETED", verdict)
+        self.assertNotIn("STRANDED", verdict)
+
+    def test_a_DEFERRED_review_tells_the_operator_to_do_NOTHING(self):
+        """An alarm that invites a human into a race with the run's own re-attempt is worse than none."""
+        text = self._summary(
+            self._measured_item(
+                status=runner_shared.INTEGRATION_DEFERRED_STATUS,
+                integration_ladder={"deferred": True, "status": "merge-retry"},
+            )
+        )
+        self.assertIn("REVIEW NOT INTEGRATED", text)
+        self.assertIn("NOTHING from you", text)
+        self.assertNotIn("recover it with", text)
+
+    def test_a_LANDED_review_and_an_EXECUTE_item_are_NOT_reported_as_stranded(self):
+        """ABSENT IS NOT REFUSING: reading absence as a refusal would report every run as stranded."""
+        landed = self._measured_item(review_integrated=True)
+        landed.pop("review_integration_refusal")
+        self.assertNotIn("STRANDED WORK", self._summary(landed))
+        # An EXECUTE item carries no `review_integrated` key at all.
+        execute = {
+            "position": 1,
+            "id6": "exe001",
+            "setid": "demo",
+            "action": "execute",
+            "status": "executed",
+            "attempts": [{}],
+        }
+        self.assertNotIn("STRANDED WORK", self._summary(execute))
+
+    def test_the_REVIEW_LANE_BRANCH_is_printed_but_the_WORKTREE_PATH_is_NOT(self):
+        """The leak rule: a branch is a git ref and relative by construction; a worktree is an
+        absolute path under a home directory and has no safe rendering here.
+
+        THE FIXTURE PATH IS COMPOSED AT RUNTIME rather than written as a literal, because a literal
+        home-shaped path in a TRACKED file is itself what `aw sanitize` refuses (measured: this test
+        failed `test_local_leaks.py` when the path was spelled inline). The composition keeps the
+        property under test identical while keeping the source clean.
+        """
+        home_shaped = "/" + "/".join(
+            ["home", "someone", "VC", "proj", ".aw", "worktrees", "xyz"]
+        )
+        item = self._measured_item(preserved_worktree=home_shaped)
+        text = self._summary(item)
+        self.assertIn("aw/lane/review-sweep-run-20260917T193010Z-1207513", text)
+        self.assertNotIn(home_shaped, text)
+        self.assertNotIn("someone", text)
+
+    def test_an_item_is_never_listed_TWICE_by_the_two_predicates(self):
+        """The two questions read different fields; an item carrying both must get ONE row."""
+        item = self._measured_item(
+            integration_signal="suite-failed",
+            preserved_branch="aw/lane/63425h",
+        )
+        rows = [
+            line
+            for line in self._summary(item).splitlines()
+            if "NOT INTEGRATED" in line
+        ]
+        self.assertEqual(
+            len(rows), 1, f"the item was listed {len(rows)} times: {rows!r}"
+        )
+
+
 class TheSharedDefinitionsAreShared(unittest.TestCase):
     def test_the_review_lane_helpers_have_exactly_one_definition(self):
         """Spec `7ckptx` R2.6/R6.1: a containment rule implemented per host is a forked rule."""
@@ -1246,6 +2167,13 @@ class TheSharedDefinitionsAreShared(unittest.TestCase):
             "classify_review_writes",
             "commit_review_lane_output",
             "turn_runs_in_review_sweep_lane",
+            # `i4ak5n` E-06: the review-deferral wiring is shared too, for the same reason. A host
+            # that redefined any of these could defer a review differently from its peer.
+            "integration_action_for_item",
+            "item_is_deferred_review",
+            "deferred_review_lane_handle",
+            "finish_integrated_review_item",
+            "format_review_integration_refusal_report",
         ):
             with self.subTest(symbol=symbol):
                 self.assertTrue(hasattr(runner_shared, symbol))

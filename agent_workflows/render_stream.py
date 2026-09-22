@@ -2123,6 +2123,49 @@ def integration_was_refused(item: dict[str, Any]) -> bool:
     return True
 
 
+def review_integration_was_refused(item: dict[str, Any]) -> bool:
+    """Did a REVIEW item's integration fail to land? (`i4ak5n` E-08)
+
+    THE MISSING QUESTION FOR THE REVIEW PATH, and the reason a stranded review was invisible.
+    `integration_was_refused` above asks about `integration_signal`, which only the EXECUTE path writes
+    (it records what earned integration, and a review earns nothing because it validates nothing). So a
+    run whose review was refused carried NO refusing signal, its status sat in the success tuple, and
+    the summary printed `COMPLETED` with no blocked items. MEASURED on
+    `run-20260917T193010Z-1207513`: a $13.27 / 32m46s review of plan `63425h` reported
+    `Outcome: COMPLETED` / `1 reviewed` while its work sat unmerged on the sweep lane until a human
+    noticed. An unmerged review is also invisible to `aw att`, so nothing anywhere said the work had not
+    landed.
+
+    ASKS THE FIELD THE REVIEW PATH ACTUALLY WRITES, which is `review_integrated` (a bool written by
+    `runner_shared.execute_item_core` on every review turn that reached the merge). ABSENT IS NOT
+    REFUSING, exactly as in `integration_was_refused`: an execute item, a queued item, or a review whose
+    turn never reached the merge carries no such key, and reading absence as a refusal would report every
+    execute run as stranded. This is the F-4 discipline restated - the renderer reads the name the
+    producer writes, and `test_refusal_surfacing.py`'s field-mismatch guard is what keeps that true.
+    """
+    if not isinstance(item, dict):
+        return False
+    if "review_integrated" not in item:
+        return False
+    return item.get("review_integrated") is False
+
+
+def review_integration_refusal_detail(item: dict[str, Any]) -> str | None:
+    """Why a review's integration was refused, path-redacted, or None.
+
+    Read from `review_integration_refusal` (the item field the review path writes) and redacted through
+    the same `_redact_absolute_paths` the execute detail uses, for the same reason: the run summary is
+    the most-copied output in the product and `AGENTS.md`'s leak rule forbids machine-identifying strings
+    in it.
+    """
+    if not isinstance(item, dict):
+        return None
+    detail = item.get("review_integration_refusal")
+    if not detail:
+        return None
+    return _redact_absolute_paths(str(detail))
+
+
 def integration_refusal_detail(item: dict[str, Any]) -> str | None:
     """The human-readable reason integration was refused, made REPOSITORY-RELATIVE, or None.
 
@@ -2214,6 +2257,42 @@ def format_stranded_work_section(
     """
     out: list[str] = []
     for item in queue or ():
+        # `i4ak5n` E-08: A STRANDED REVIEW IS REPORTED HERE TOO, and it needs its own question because
+        # the execute question cannot see it (see `review_integration_was_refused` for the measurement).
+        # Asked FIRST and with `continue`, so an item can never produce two rows: the two predicates read
+        # different fields written by different paths, and an item that somehow carried both would
+        # otherwise be listed twice with contradictory advice.
+        if review_integration_was_refused(item):
+            id6 = item.get("id6") or "(unknown)"
+            branch = _review_lane_branch(item)
+            where = (
+                f"branch {branch}" if branch else "its review lane (no branch recorded)"
+            )
+            out.append(f"  • {id6}: REVIEW NOT INTEGRATED; its work is on {where}")
+            detail = review_integration_refusal_detail(item)
+            if detail:
+                out.append(f"    → why: {detail}")
+            ladder = item.get("integration_ladder") or {}
+            if ladder.get("deferred"):
+                # The ladder OWNS it, so the operator must not act: saying "merge it by hand" here would
+                # invite a human into a race with the run's own next re-attempt.
+                out.append(
+                    "    → next: NOTHING from you - the run's deferral ladder re-attempts this "
+                    "integration itself through the full merge-and-revalidate gate"
+                )
+            elif branch:
+                out.append(
+                    f"    → next: the review's work is PRESERVED on {branch} and was never merged. "
+                    f"Inspect it with `git log HEAD..{branch}`, then recover it with "
+                    f"`aw <host> integrate {id6}` (it needs a CLEAN base). Do NOT delete the branch: "
+                    f"that is the one irreversible move here"
+                )
+            else:
+                out.append(
+                    "    → next: the review's work was never merged and no branch was recorded; find "
+                    "the lane with `aw attention` (or `git worktree list`) before acting"
+                )
+            continue
         if not integration_was_refused(item):
             continue
         id6 = item.get("id6") or "(unknown)"
@@ -2238,6 +2317,29 @@ def format_stranded_work_section(
     if not out:
         return []
     return ["", f"{bold}{red}STRANDED WORK - NOT IN YOUR PROJECT:{reset}"] + out
+
+
+def _review_lane_branch(item: dict[str, Any]) -> str | None:
+    """The review sweep lane's BRANCH for this item, from the attempt that ran the merge.
+
+    A BRANCH ONLY, never `preserved_worktree`: a git ref is relative by construction and safe to print,
+    while the worktree is an absolute path under the maintainer's home and has no safe rendering in the
+    product's most-copied output (the same rule `format_stranded_work_section`'s docstring states).
+
+    READ FROM THE ATTEMPT, because the sweep lane belongs to no ITEM (it is recorded at run level), so an
+    item carries the branch only through the attempt that used it (`worktree_branch`, written immediately
+    after the sweep lane is acquired). `preserved_branch` is consulted as a fallback for a record shaped
+    by an older driver, and the newest attempt wins so a retried item names the lane it used THIS time.
+    """
+    if not isinstance(item, dict):
+        return None
+    attempts = item.get("attempts")
+    if isinstance(attempts, list):
+        for attempt in reversed(attempts):
+            if isinstance(attempt, dict) and attempt.get("worktree_branch"):
+                return str(attempt["worktree_branch"])
+    branch = item.get("preserved_branch")
+    return str(branch) if branch else None
 
 
 def record_refusal(

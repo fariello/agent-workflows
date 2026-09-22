@@ -2061,6 +2061,119 @@ def retire_review_sweep_lane(
     return record
 
 
+def deferred_review_lane_handle(state: dict[str, Any], item: Mapping[str, Any]) -> Any:
+    """The lane handle a DEFERRED REVIEW item's re-attempt must merge, or None (`i4ak5n` E-05).
+
+    THE COLLISION THIS EXISTS TO RESOLVE, and it is not a style matter. The deferral ladder rebuilds a
+    PER-ITEM handle from `item["preserved_branch"]`/`preserved_lane_id`/`preserved_base`. For a review
+    there is no per-item lane at all: there is exactly ONE sweep lane per run
+    (:func:`review_sweep_lane_id`), its record lives at RUN level under
+    :data:`REVIEW_SWEEP_LANE_KEY`, and :func:`lane_records_including_sweep` states in terms that settle
+    the question that "the lane belongs to no ITEM". So two deferred reviews resolve to the SAME branch,
+    and anything that retires that branch per item destroys the lane the NEXT review still needs -
+    exactly the hazard `lane_containment.teardown_review_sweep_lane` already names for the per-item path.
+
+    SO THE HANDLE IS READ FROM THE RUN-LEVEL RECORD, never rebuilt from the item, which makes the
+    sharing explicit instead of accidental: every deferred review of a run gets the SAME handle object
+    shape pointing at the SAME branch, and the per-item `preserved_*` fields are not consulted even if
+    something else wrote them.
+
+    RETURNS None WHEN THE LANE IS GONE (retired, or a resume in a checkout that never had it), which the
+    ladder already handles by failing toward the terminal state with whatever branch exists untouched.
+    That is the correct answer rather than a fabricated handle: merging a lane this checkout cannot see
+    is not something to guess at.
+    """
+
+    record = review_sweep_lane_record(state)
+    if record is None or record.get("retired"):
+        return None
+    return review_sweep_lane_handle(state)
+
+
+def finish_integrated_review_item(
+    *,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: MutableMapping[str, Any],
+    handle: Any,
+    reason: str,
+    save_state: Callable[..., Any],
+    append_jsonl: Callable[..., Any],
+    report: Callable[[str], None] | None = None,
+) -> None:
+    """The success path for a REVIEW whose integration landed on a RE-attempt (`i4ak5n` E-04/E-05).
+
+    IT MIRRORS THE FIRST-ATTEMPT REVIEW PATH, not the execute one, and every difference from the
+    execute adapter is a correctness requirement rather than a preference:
+
+      * IT DOES NOT WRITE `status = "executed"`. A review executes no plan. Its disposition was already
+        computed from the lane by `reconcile_disposition` during the turn and recorded on the item
+        (`reviewed`/`approved`), so the status is RESTORED to that recorded disposition rather than
+        invented here. The deferral overwrote it with `merge-retry`; landing the merge means the turn's
+        own verdict stands again.
+      * IT CLOSES NO BACKLOG ITEM and RESOLVES NO PLAN PATH. A review carries no backlog carrier, and
+        `process_backlog_close` exists for the moment a run knows the last carrier LANDED - which a
+        review never is.
+      * IT NEVER TEARS THE LANE DOWN. This is OQ-02's maintainer ruling (option (a), 2026-09-18): the
+        sweep lane is shared by every review in the run, so retirement stays COORDINATOR-owned and
+        once-per-run in :func:`retire_review_sweep_lane`. A per-item teardown here would retire the lane
+        a second deferred review still needs, converting a recoverable stranding into a lost one. The
+        `preserved_*` keys are likewise left alone, because they are not what resolved this handle.
+
+    It writes the SAME two facts the first-attempt path writes (`review_integrated`, and the refusal key
+    cleared) so a reader cannot tell a first-attempt success from a re-attempt success by inspecting the
+    item's shape, only by the event stream - which is where that distinction belongs.
+    """
+
+    item["review_integrated"] = True
+    item["review_integration_reason"] = reason
+    # The refusal is no longer true, so it must not persist: `render_stream.format_stranded_work_section`
+    # and the run summary both read refusal state, and leaving it would report landed work as stranded.
+    item.pop("review_integration_refusal", None)
+    # RESTORED, not invented: the turn's own lane-derived disposition. `merge-retry` overwrote it when
+    # the refusal was recorded, and the recorded disposition is the only honest value to put back.
+    restored = None
+    for attempt in reversed(item.get("attempts") or []):
+        candidate = attempt.get("review_disposition") or attempt.get("disposition")
+        if candidate in SUCCESS_STATES:
+            restored = candidate
+            break
+    item["status"] = restored or "reviewed"
+    item["integrated"] = reason
+    attempts = item.get("attempts") or []
+    if attempts:
+        attempts[-1]["review_integrated"] = True
+        attempts[-1]["review_integration_reason"] = reason
+        attempts[-1]["disposition"] = item["status"]
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "review-integrated-after-deferral",
+            "id6": item.get("id6"),
+            "setid": item.get("setid"),
+            "integration": reason,
+            "attempts_used": item.get("integration_attempts"),
+            "branch": getattr(handle, "branch", None),
+            "status": item["status"],
+            # STATED IN THE RECORD, because the absence of a teardown is the load-bearing property
+            # OQ-02 chose and a reader must be able to see it was chosen rather than forgotten.
+            "sweep_lane_retained": True,
+        },
+    )
+    if report is not None:
+        report(
+            "  \u2713 review {0} integrated to main on a deferred re-attempt ({1}); the shared sweep "
+            "lane {2} is RETAINED for any other review (retirement is the coordinator's, once per "
+            "run)".format(
+                item.get("id6"),
+                reason,
+                getattr(handle, "branch", "(no branch recorded)"),
+            )
+        )
+
+
 def commit_review_lane_output(
     repo: Path, handle: Any, id6: str, *, host_label: str
 ) -> tuple[str | None, tuple[str, ...]]:
@@ -3492,6 +3605,38 @@ def deferred_integration_items(state: Mapping[str, Any]) -> list[dict[str, Any]]
     ]
 
 
+def integration_action_for_item(item: Mapping[str, Any]) -> str:
+    """Which integration ACTION this queue item's lane must be merged as (`i4ak5n` E-04).
+
+    THE LADDER WAS ACTION-BLIND, AND THAT IS WHY THIS EXISTS. `deferred_integration_items` selects on
+    STATUS alone and is correct to: a deferral is a deferral whoever produced it. But the re-attempt
+    that follows is NOT action-neutral, because `integrate_lane_branch` takes an `action_kind` that
+    decides whether the merge-and-revalidate gate runs at all. An execute lane MUST be revalidated
+    (its whole content is code); a review lane must NOT be, and `ajxr5d` OQ-01 requires that skip to
+    happen "by NOT RUNNING rather than by any fabricated verdict". So the FIRST attempt on a review
+    path deliberately calls `integrate_review_lane_branch`, and a re-attempt that reached for the
+    execute wrapper instead would revalidate a turn whose whole output is two record files - keeping
+    the promise the refusal message makes, but keeping it WRONGLY.
+
+    READ FROM `item["action"]`, which is the same field `execute_item_core` reads to decide
+    `is_review`, so the retry cannot disagree with the turn about what it was. A MISSING action reads
+    as `execute`, which is the conservative direction for the same reason `item_reached_success` treats
+    it that way: it can only ever cause MORE revalidation, never less.
+    """
+
+    return (
+        INTEGRATION_ACTION_REVIEW
+        if str(item.get("action") or "") == "review"
+        else INTEGRATION_ACTION_EXECUTE
+    )
+
+
+def item_is_deferred_review(item: Mapping[str, Any]) -> bool:
+    """Is this a REVIEW item whose integration was deferred? The one predicate both hosts read."""
+
+    return integration_action_for_item(item) == INTEGRATION_ACTION_REVIEW
+
+
 def main_last_activity_age(repo: Path, *, now: float | None = None) -> float | None:
     """How long ago ANYTHING last moved in main, in seconds, or `None` when unmeasurable.
 
@@ -3749,6 +3894,84 @@ def record_integration_refusal(
     return decision
 
 
+#: The recovery verb for a review lane a run could not land, SPELLED AS THE PARSER ACCEPTS IT.
+#:
+#: VERIFIED AGAINST THE PARSER rather than remembered (`i4ak5n` E-07): `aw oc integrate <id6>` is a thin
+#: alias registered directly under the host group, and `aw oc runipd integrate <id6>` is the driver
+#: subcommand it forwards to. Both parse today (measured by running each with `--help`), and the
+#: `attention.lane_remedy_hint` rule is the reason it is measured at all: "Do not print a verb that does
+#: not exist". A verb that fails for an operator mid-incident is worse than no verb, because it spends
+#: their attention proving the tool wrong.
+REVIEW_INTEGRATION_RECOVERY_VERB = "aw <host> integrate <id6>"
+
+#: Whose message `fatal: stash failed` is, stated because an operator hunting OUR code for it is wasting
+#: time. It is `pre-commit`'s own stash handling reacting to the same dirty tree that refused the merge;
+#: no module in this package emits that string (verified by scanning `agent_workflows/` and `hooks/`).
+PRE_COMMIT_STASH_ATTRIBUTION = (
+    "note: a `fatal: stash failed` line accompanying this refusal is `pre-commit`'s own stash "
+    "handling reacting to the same dirty tree, NOT this runner's output; no runner module emits it"
+)
+
+
+def format_review_integration_refusal_report(
+    *,
+    id6: str,
+    branch: str,
+    kind: str,
+    reason: str,
+    decision: IntegrationDeferralDecision,
+) -> list[str]:
+    """The operator-facing lines for a review integration this run could not land (`i4ak5n` E-07).
+
+    TWO SHAPES, because the two situations need different actions from the reader and conflating them is
+    what made the old single line misleading:
+
+    * DEFERRED - the run will re-attempt this ITSELF, so the operator does NOTHING. The line says which
+      attempt of the budget this was and what clears the condition, so "wait" is an informed decision
+      rather than a hope. This is the shape whose promise used to be FALSE on the review path.
+    * TERMINAL - a human owns it now, so the line names the three things a recovery needs: the preserved
+      lane BRANCH (a git ref, relative by construction and safe to print), the VERB that integrates it,
+      and the PRECONDITION that verb needs (a clean base). An alarm with no route trains its own
+      dismissal, which is the rule `attention.lane_remedy_hint` already encodes.
+
+    THE VERB IS A CONSTANT VERIFIED AGAINST THE PARSER (see
+    :data:`REVIEW_INTEGRATION_RECOVERY_VERB`), never composed at the call site, so a rename cannot leave
+    one host printing a command that exits 2.
+
+    Returns lines WITHOUT color or a stream choice, so the caller owns presentation and this function
+    stays testable as data. A line whose stripped form starts with `->` is a continuation of the one
+    above it, which is how the caller colors them differently.
+    """
+
+    lines = [
+        "  ! review {0} was NOT integrated to main ({1}): {2}".format(
+            id6, kind, reason
+        ),
+        "    -> its work is preserved on {0}; main is untouched".format(branch),
+    ]
+    if decision.deferred:
+        lines.append(
+            "    -> DEFERRED, so no action is needed from you: this is attempt {0} of {1} and the "
+            "run re-attempts the integration itself through the full merge-and-revalidate gate as "
+            "soon as other work advances. {2}".format(
+                decision.attempts_used, decision.limit + 1, decision.reason
+            )
+        )
+    else:
+        lines.append(
+            "    -> TERMINAL, so a HUMAN owns it now: {0}".format(decision.reason)
+        )
+        lines.append(
+            "    -> recover it with `{0}` (spelled out: `aw <host> runipd integrate {1}`), which "
+            "costs no agent turn; it needs a CLEAN base, so commit or stash the un-owned changes in "
+            "main first".format(
+                REVIEW_INTEGRATION_RECOVERY_VERB.replace("<id6>", id6), id6
+            )
+        )
+    lines.append("    -> {0}".format(PRE_COMMIT_STASH_ATTRIBUTION))
+    return lines
+
+
 def reattempt_deferred_integrations(
     *,
     repo: Path,
@@ -3760,6 +3983,8 @@ def reattempt_deferred_integrations(
     append_jsonl: Callable[..., Any],
     handle_for: Callable[[Mapping[str, Any]], Any],
     validation_runner_for: Callable[[Mapping[str, Any]], Any],
+    integrate_review: Callable[..., tuple[bool, str, str]] | None = None,
+    finish_integrated_review: Callable[..., None] | None = None,
     poll: bool = False,
     interactive: bool = False,
     ask: bool = False,
@@ -3779,12 +4004,71 @@ def reattempt_deferred_integrations(
     `runnable is None`), which is rung 2's trigger. That condition covers both the last-item case and
     the case where five items remain and ALL are deferred - a last-item test would miss the second.
 
+    ``integrate_review``/``finish_integrated_review`` ARE THE ACTION-CORRECT PAIR (`i4ak5n` E-04), and
+    the rungs themselves are UNCHANGED by their arrival: the three triggers, the budget, the policy
+    flag and `classify_integration_refusal` all behave exactly as before. What changes is only WHICH
+    adapter a given item's re-attempt is dispatched to, decided by
+    :func:`integration_action_for_item`.
+
+    WHY THE SPLIT IS REQUIRED RATHER THAN TIDY. The execute pair pins `action_kind=execute` (which is
+    precisely what triggers the revalidation gate) and its success path writes `status = "executed"`,
+    closes a backlog item, and resolves a plan path. Every one of those is wrong for a review, which
+    executes no plan, carries no backlog carrier, and produces nothing to revalidate. Handing a review
+    item to the execute pair would therefore VIOLATE `ajxr5d` OQ-01 on the retry while the first
+    attempt honored it, and would mark a review `executed`.
+
+    BOTH DEFAULT TO None, and that default is load-bearing for the EXECUTE path: a caller that supplies
+    only the execute pair behaves byte-identically to before, and a deferred REVIEW item it cannot
+    integrate correctly is left DEFERRED with its lane intact rather than being handed to the wrong
+    adapter. Failing toward "not yet" is right here, because `resolve_exhausted_deferrals` still ends
+    the run terminal with the lane preserved, which is today's honest outcome.
+
     Returns the per-item records for the report.
     """
 
     records: list[dict[str, Any]] = []
     for item in deferred_integration_items(state):
-        handle = handle_for(item)
+        is_review_item = item_is_deferred_review(item)
+        if is_review_item and (
+            integrate_review is None or finish_integrated_review is None
+        ):
+            # NO ADAPTER FOR THIS ACTION, so do NOT substitute the other one. See the docstring: the
+            # execute adapter would revalidate a review and then mark it `executed`. Left deferred and
+            # recorded, so the report can name it and `resolve_exhausted_deferrals` can end it
+            # honestly at `merge-needs-human` with the lane preserved.
+            records.append(
+                {
+                    "id6": item.get("id6"),
+                    "outcome": "no-review-adapter",
+                    "detail": (
+                        "a REVIEW item's integration was deferred but this caller supplied no "
+                        "review-action adapter, and the execute adapter must not be substituted "
+                        "(it would revalidate a review and mark it executed); left deferred with "
+                        "its lane intact"
+                    ),
+                }
+            )
+            continue
+        do_integrate = (
+            integrate_review
+            if (is_review_item and integrate_review is not None)
+            else integrate
+        )
+        do_finish = (
+            finish_integrated_review
+            if (is_review_item and finish_integrated_review is not None)
+            else finish_integrated
+        )
+        # E-05: A REVIEW'S LANE IS RESOLVED FROM THE RUN-LEVEL SWEEP RECORD, NOT FROM `preserved_*`.
+        # Resolved HERE rather than inside each host's `handle_for` deliberately: the sweep lane record
+        # is host-neutral, so putting this decision in the two adapters would be the same
+        # write-it-twice-fix-it-once drift `record_integration_refusal` was collapsed to prevent, and a
+        # host that forgot it would rebuild a per-item handle for a lane that belongs to no item.
+        handle = (
+            deferred_review_lane_handle(state, item)
+            if is_review_item
+            else handle_for(item)
+        )
         if handle is None:
             # The lane is gone (torn down out of band, or a resume in a checkout that never had it).
             # Fail toward the terminal state rather than looping on something unreachable.
@@ -3833,11 +4117,16 @@ def reattempt_deferred_integrations(
                 },
             )
 
-        integrated, reason, kind = integrate(item, handle)
+        integrated, reason, kind = do_integrate(item, handle)
         if integrated:
-            finish_integrated(item, handle, reason)
+            do_finish(item, handle, reason)
             records.append(
-                {"id6": item.get("id6"), "outcome": "integrated", "detail": reason}
+                {
+                    "id6": item.get("id6"),
+                    "outcome": "integrated",
+                    "detail": reason,
+                    "action": integration_action_for_item(item),
+                }
             )
             continue
 
@@ -3865,16 +4154,18 @@ def reattempt_deferred_integrations(
                 "detail": answer.detail,
             }
             if answer.retry:
-                # One more attempt, still through the full gate. It does NOT reopen the budget: on
-                # refusal the decision below re-derives from the same exhausted count and goes terminal.
-                integrated, reason, kind = integrate(item, handle)
+                # One more attempt, still through the full gate and still through the ACTION-CORRECT
+                # adapter. It does NOT reopen the budget: on refusal the decision below re-derives from
+                # the same exhausted count and goes terminal.
+                integrated, reason, kind = do_integrate(item, handle)
                 if integrated:
-                    finish_integrated(item, handle, reason)
+                    do_finish(item, handle, reason)
                     records.append(
                         {
                             "id6": item.get("id6"),
                             "outcome": "integrated-after-ask",
                             "detail": reason,
+                            "action": integration_action_for_item(item),
                         }
                     )
                     continue
@@ -3882,6 +4173,7 @@ def reattempt_deferred_integrations(
         records.append(
             {
                 "id6": item.get("id6"),
+                "action": integration_action_for_item(item),
                 "outcome": "deferred" if decision.deferred else "terminal",
                 "detail": decision.reason,
             }
@@ -18194,15 +18486,66 @@ def execute_item_core(
             )
             if not review_integrated:
                 item["review_integration_refusal"] = review_reason
-                save_state(run_dir, state)
-                print(
-                    pal(
-                        f"  ! review {item['id6']} was NOT integrated to main ({review_kind}): "
-                        f"{review_reason}. Its work is preserved on {wt_handle.branch}.",
-                        "yellow",
-                    ),
-                    file=sys.stderr,
+                # `i4ak5n` E-03: ROUTE THE REFUSAL THROUGH THE SHARED LADDER WRITE SITE, which is what
+                # the execute path already does. Before this, the review path recorded the refusal,
+                # printed it, and moved on - so a TRANSIENT refusal (main holding an un-owned dirty
+                # path, which a shared checkout produces routinely) stranded a completed review turn
+                # permanently, while the IDENTICAL refusal on an execute turn was retried for free. The
+                # message the operator read even promised the re-attempt ("it is re-attempted once the
+                # base is clean", `format_local_changes_refusal_reason`), and nothing re-attempted it.
+                #
+                # `record_integration_refusal`, NOT `decide_integration_deferral`: the latter is PURE
+                # and is called only from inside the former. The write site is what counts the attempt
+                # DURABLY (so a resume cannot restart the budget), asks for the verdict, writes the
+                # status, and emits the rung-naming event. Wiring to the pure function would
+                # reimplement the counting and the event.
+                #
+                # NO TERMINAL ARM IS CARVED OUT FOR REVIEWS. All four of the shared decision's terminal
+                # reasons apply unchanged: a non-deferrable kind, `--on-integration-blocked=block`, an
+                # exhausted budget, and a zero budget. A review that defers is re-attempted by the SAME
+                # rungs an execute item uses, and one that does not stays exactly as terminal as today.
+                review_decision = record_integration_refusal(
+                    run_dir=run_dir,
+                    state=state,
+                    item=item,
+                    attempt=attempt,
+                    integ_kind=review_kind,
+                    integ_reason=review_reason,
+                    branch=wt_handle.branch,
+                    save_state=save_state,
+                    append_jsonl=append_jsonl,
                 )
+                # THE DISPOSITION THE TURN EARNED IS PRESERVED BESIDE THE LADDER STATUS, and then the
+                # ladder's status BECOMES this turn's disposition. Both halves are required and the
+                # second was measured: `record_integration_refusal` writes `item["status"]`, but
+                # `execute_item_core` later does an unconditional `item["status"] = disposition`, so
+                # without this the ladder's `merge-retry` was overwritten back to `reviewed` and
+                # `deferred_integration_items` selected NOTHING - the wiring would have been present
+                # and inert. This mirrors exactly what the EXECUTE arm below already does
+                # (`disposition = fail_status`), so the two paths agree about which value wins.
+                #
+                # The earned verdict is kept on the ATTEMPT, where every other per-turn fact lives, so a
+                # successful re-attempt can RESTORE it rather than invent one (see
+                # `finish_integrated_review_item`).
+                attempt["review_disposition"] = disposition
+                disposition = review_decision.status
+                save_state(run_dir, state)
+                # E-07: REPORT THE DEFERRAL AND THE REMEDY, not merely the refusal. A message that
+                # states a condition with no route is one an operator learns to skim, and a message that
+                # promises a re-attempt which never happens is worse than one that promises nothing.
+                for line in format_review_integration_refusal_report(
+                    id6=str(item["id6"]),
+                    branch=wt_handle.branch,
+                    kind=review_kind,
+                    reason=review_reason,
+                    decision=review_decision,
+                ):
+                    print(
+                        pal(
+                            line, "cyan" if line.lstrip().startswith("->") else "yellow"
+                        ),
+                        file=sys.stderr,
+                    )
             else:
                 print(
                     pal(
