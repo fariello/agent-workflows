@@ -412,9 +412,23 @@ def _trailers_from_args(args: argparse.Namespace) -> List[str]:
     """Resolve optional run-ownership trailers from ``args``, defaulting to NONE.
 
     Threading only (IPD m73aet E-03): NO new CLI flag is added, because the values come from a live
-    run and the runner wiring is deliberately deferred - a public flag whose only consumer does not
-    exist yet is a contract taken on for nothing. A programmatic caller (the eventual runner)
-    supplies them on the namespace instead:
+    run and never from a human - a public flag for a value no human can correctly supply is a contract
+    taken on for nothing. That reasoning is unchanged and still holds.
+
+    THE RUNNER WIRING IS NOW PARTLY LANDED, AND THE HALVES MATTER (runtrailwire-01 ``wao266``). WHAT
+    IS WIRED: the runner's own DRIVER-SIDE commit, `oc_runipd.commit_backlog_close`, which both hosts
+    reach and which now passes `run_item_trailers(run_id, plan_id6)`. WHAT REMAINS DEFERRED, and it is
+    the half that would matter to attribution: the AGENT's own code commits, which is the range
+    `ipd_lifecycle` actually reads (`base_head..HEAD`). Those are made by the agent running raw
+    `git commit -m msg -- <path>` per the runbook directive, pass through no `offer_commit` call, and
+    so cannot be reached by wiring one; trailering them means changing what the runner INSTRUCTS the
+    agent to do, or routing agent commits through `aw commit` (whose namespace already accepts the
+    ids below). Read the sentence "the runner wires trailers" as covering ONLY the first half: a
+    reader who takes it as covering both will not understand why finalize still cannot attribute a
+    committed path.
+
+    A programmatic caller (a runner, or the agent-commit route if it is ever built) supplies them on
+    the namespace instead:
 
       * ``trailers`` - preformatted ``"Key: value"`` strings, used as-is; or
       * ``run_id`` / ``item_id6`` - the raw ids, formatted into the canonical ``AW-Run``/``AW-Item``

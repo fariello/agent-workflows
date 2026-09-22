@@ -228,6 +228,17 @@ def run_item_trailers(run_id: Optional[str], item_id6: Optional[str]) -> List[st
 
     A convenience so callers do not hand-format the keys (and drift). Returns ``[]`` when both are
     absent, which composes to an unchanged message.
+
+    WHERE THE VALUES MUST COME FROM (runtrailwire-01 ``wao266``, now that a real runner consumer
+    exists): a LIVE RUN'S OWN STATE. ``oc_runipd.process_backlog_close`` threads ``state["run_id"]``
+    and the queue item's ``id6``; ``aw commit`` takes them off a programmatic caller's namespace and
+    exposes NO public flag for them, deliberately. They must never come from a human, a timestamp, or
+    any other synthesized source. The reason is the whole point of the mechanism: these trailers are
+    IMMUTABLE once committed, so their value is exactly that a later reader can TRUST them, and a
+    fabricated one makes a false ownership claim permanent. An absent value therefore means UNKNOWN
+    ownership and must stay absent - which is what the skipping above is for, and why the tempting
+    future change (accepting the ids from a convenience argument so a caller need not thread state)
+    would be a regression rather than an improvement.
     """
 
     out: List[str] = []
