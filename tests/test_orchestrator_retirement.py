@@ -1528,23 +1528,36 @@ class RealRepositorySets(unittest.TestCase):
             "rununify",
             False,
             rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            {"40it5e": "to-review"},
+            {"40it5e": "reviewed"},
             (),
             12,
-            {"executed", "to-review"},
+            {"executed", "reviewed"},
             "THE THREE-COLUMN, NO-`Id` LAYOUT, and the Set that motivated the unauthored-rows rule. "
             "Its placeholder rows `03+` and `last` stood unauthored by deliberate design and the "
             "runner correctly refused the parent on every run for two weeks; on the maintainer's "
             "2026-09-14 ruling they were replaced with nine named children, all now executed. "
             "RE-MEASURED 2026-09-22 AND RE-POINTED PER THIS CLASS'S OWN RULE (re-measure, never "
             "loosen): the row asserted ELIGIBLE with 11 children, and a TWELFTH child `40it5e` was "
-            "authored `to-review` on 2026-09-22, so the parent is correctly refused again. That is "
+            "authored on 2026-09-22, so the parent is correctly refused again. That is "
             "this class's documented 'a NEW child being AUTHORED flips eligible back to refused' "
             "case, arriving for the same reason as `h0zljh` above: the orchestrator coverage gate "
             "found this parent carrying E-02 and E-03 that no child covered, and retirement SKIPS "
             "the pre-transition E/V checkpoint, so those two items would have been marked complete "
             "having never been performed. The Set therefore now exercises BOTH halves of the "
-            "eligible/refused transition over its history rather than only the eligible end",
+            "eligible/refused transition over its history rather than only the eligible end. "
+            "RE-POINTED A SECOND TIME 2026-09-22 (`40it5e` `to-review` -> `reviewed`), and this "
+            "second move is worth distinguishing from the first because it is a DIFFERENT event "
+            "class than the two this row's prose already names. The first re-point recorded a child "
+            "APPEARING; this one records a child ADVANCING WITHOUT COMPLETING, when `/plan-review` "
+            "set `40it5e` to `reviewed`. The predicate is unaffected and that is the POINT: "
+            "`SET_RETIREMENT_DONE_STATUS` is an allowlist of exactly `executed`, so every "
+            "non-executed status is equally unfinished and the refusal REASON does not move. Only "
+            "the observed status strings move, which is why re-pointing them is a re-measurement "
+            "and not a loosening. A THIRD move is expected and is not a defect: when `40it5e` "
+            "reaches `approved` this row reads `approved`, and when it reaches `executed` the Set "
+            "flips back to ELIGIBLE with all twelve children executed. Re-measure then; do not "
+            "widen the status set to admit several values at once, which would stop this row "
+            "detecting anything",
         ),
         (
             "runprofile",
