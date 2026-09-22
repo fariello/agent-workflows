@@ -6,18 +6,18 @@
 - Scope: Make the refusal ACTIONABLE rather than building a second resume engine. When a target resolves to a real DRIVER run directory (one `aw runs repair` can actually act on), say so and name `aw runs repair <id>`, on every leaf that shares the refusal (measured at review: TEN, six readers plus four writers, not five) and in all three renderers. Explicitly NOT undoing the `e6b9kt` fix that stopped `events.jsonl` being parsed as a ledger, NOT unifying the two run models, and NOT converting `run_cli`'s machine payloads to the `aw.agent/v1` record shape (they are not conformant today and that is a separate contract change, F-16).
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_recovery_cli.py, tests/test_run_noun_split.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runrecon
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: d91i3e
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: sv8z1e
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: d91i3e verified (set runrecon, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_run_noun_split.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-08 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED in place; review record written; aw ipd lint --phase review-finalize conforms.
 - 2026-09-08 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-609. Reviewed at HEAD `ef1e1fbe`. Record: `.aw/records/reviews/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.review.md`. `aw ipd lint --phase author` conformed with three IPD-Z602 density advisories (E-02/E-05/E-06), each examined and one acted on. THE PREMISE HOLDS, re-measured live rather than accepted: on driver run `run-20260908T213552Z-3724920` (holding `events.jsonl`, `state.json`, `outcomes/`, `manifest.json`, no `ledger.jsonl`) every ledger reader prints `error: ledger file not found for target '<id>'` and exits 2 unpiped, and `aw runs repair <id>` on that same run succeeds. What review changed: the leaf count is TEN not five (the four `aw run` WRITERS share `_resolve_or_error` and were entirely unlisted, PR-601); the plan's "these readers serve a different run model" wording is FALSE for four of the ten, since `aw run start/record/cancel/finalize` are writers (PR-602); the suggestion must be VERIFIED against `repair`'s own resolver rather than asserted, because the two resolvers disagree on THREE measured axes and the plan would otherwise emit a suggestion that fails (PR-603); the machine payloads are NOT `aw.agent/v1` records at all (measured: three schema violations), so E-04's "same `NextAction`-style `next` field the rest of the CLI uses" was unbuildable as written and its schema-compliance claim was checking a schema that does not apply (PR-604); the suggested command must carry no absolute path, since one resolver axis tempts exactly that (PR-605); and the baseline was stale in both halves (PR-606). E-07 was ADDED for the writer leaves and the detector's cross-module dependency direction was pinned (PR-607). OQ-01 RESOLVED from code, and one new OQ-02 raised NON-BLOCKING for the maintainer on the `--dir`-less subdirectory case.
