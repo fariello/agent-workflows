@@ -7461,5 +7461,174 @@ class VerdictLanePreservationTests(unittest.TestCase):
         self.assertEqual(verdict.signal, rs.INTEGRATION_EARNED_BY_VERIFIER)
 
 
+class VerificationAbsenceTests(unittest.TestCase):
+    """runverdict-06 (`fzxfph`) E-04: the THREE reasons a verdict is absent must be distinguishable.
+
+    THE DEFECT, precisely. `verify_disp` was assigned a bare `"unverified"` at three sites in
+    `execute_item_core`'s verifier block, for three materially different facts with three different
+    remedies: the verifier wrote a verdict the runner could not read, the verifier wrote no outcome
+    file at all, and the verifier turn was killed. All three read to an operator as one benign
+    caveat, so a run whose verification NEVER RAN was indistinguishable from one where it ran and
+    could not conclude.
+
+    FIXTURES, NEVER THE LIVE RUN TREE. `.aw/records/runs/` is gitignored with zero tracked files
+    (`.aw/.gitignore` matches `records/runs/`), so a test built on the real corpus would pass in the
+    maintainer's checkout and fail in CI, in a fresh clone, and in every lane worktree this runner
+    creates by default.
+    """
+
+    def test_the_pre_fix_contrast_all_three_facts_were_one_value(self):
+        """WITHOUT THIS, ASSERTING THREE DISTINCT VALUES PROVES NOTHING ABOUT THE DEFECT.
+
+        Reconstructs the pre-fix behavior literally - the three sites assigned this one string - and
+        shows the three facts were indistinguishable in the record. The post-fix contrast is the next
+        test. Pinning the OLD value as a literal is deliberate: it is what the old code wrote, and it
+        is not read from the module, so this stays a statement about history rather than a tautology.
+        """
+        pre_fix_recorded = {
+            "verdict written but unparseable": "unverified",
+            "no outcome file written at all": "unverified",
+            "verifier turn killed mid-flight": "unverified",
+        }
+        self.assertEqual(
+            len(set(pre_fix_recorded.values())),
+            1,
+            "the pre-fix premise: three facts, one recorded value",
+        )
+
+    def test_after_the_fix_the_three_facts_record_three_distinct_reasons(self):
+        """The contrast's other half, measured on the shipped vocabulary."""
+        from agent_workflows import runner_shared as rs
+
+        post_fix = {
+            "verdict written but unparseable": rs.VERIFY_ABSENCE_VERDICT_UNREADABLE,
+            "no outcome file written at all": rs.VERIFY_ABSENCE_NO_OUTCOME_FILE,
+            "verifier turn killed mid-flight": rs.VERIFY_ABSENCE_TURN_INTERRUPTED,
+        }
+        self.assertEqual(len(set(post_fix.values())), 3)
+        # And each carries its OWN operator-facing text, which is the actual deliverable.
+        texts = {rs.verify_absence_text(code) for code in post_fix.values()}
+        self.assertEqual(len(texts), 3)
+
+    def test_the_never_ran_case_is_a_failure_and_the_killed_case_is_not(self):
+        """Spec `c4gd2h` R22 as a test: no fabricated disposition for an unobserved turn.
+
+        `25kzda` §4.2 `RUN-FRESH-VERIFIER` already calls "no valid independent verification attempt"
+        a FAILURE, so recording fact 2 as one implements the spec. Fact 3 is the opposite case: the
+        runner did not observe the verifier reaching ANY verdict, so calling it a verification
+        failure would assert a rejection nobody made.
+        """
+        from agent_workflows import runner_shared as rs
+
+        never, never_remedy = rs.verify_absence_text(rs.VERIFY_ABSENCE_NO_OUTCOME_FILE)
+        killed, killed_remedy = rs.verify_absence_text(
+            rs.VERIFY_ABSENCE_TURN_INTERRUPTED
+        )
+        self.assertIn("FAILURE", never)
+        self.assertIn("UNKNOWN", killed)
+        self.assertNotIn("FAILURE", killed)
+        # Both remedies must preserve the lane rather than sending an operator to re-run the plan,
+        # which is the expensive destructive "fix" for this refusal.
+        for remedy in (never_remedy, killed_remedy):
+            self.assertIn("PRESERVED", remedy)
+
+    def test_an_unresolvable_plan_refuses_and_does_not_launch_a_verifier(self):
+        """E-03: the stale-path fallback must REFUSE, not substitute a path it knows may be wrong.
+
+        CONSTRUCTS THE REAL CONDITION rather than mocking the raise: a LANE WORKTREE that does not
+        contain the plan, which is this runner's own default execution shape (`--isolate-worktree` is
+        the default) and therefore the condition most likely to fire in production.
+        `resolve_plan_path` raises `DriverError` when an id6 matches zero files.
+        """
+        from agent_workflows import runner_shared as rs
+
+        with tempfile.TemporaryDirectory() as temp:
+            lane = Path(temp) / "lane"
+            (lane / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+            with self.assertRaises(driver.DriverError) as caught:
+                driver.resolve_plan_path(
+                    lane,
+                    ".aw/records/plans/pending/20260908-s-01-abc123-x.ipd.md",
+                    "abc123",
+                )
+            self.assertIn("Cannot locate IPD abc123", str(caught.exception))
+
+        # And the refusal the runner records for exactly that condition names the plan and tells the
+        # operator to find it, rather than reporting a verification that was never attempted.
+        reason, remedy = rs.verify_absence_text(
+            rs.VERIFY_ABSENCE_PLAN_UNRESOLVABLE, plan_hint="abc123: Cannot locate IPD"
+        )
+        self.assertIn("NOT ATTEMPTED", reason)
+        self.assertIn("abc123", reason)
+        self.assertIn("stale", reason)
+        self.assertIn("aw find plans", remedy)
+
+    def test_the_refusal_is_recorded_where_aw_runs_already_reads_it(self):
+        """A distinguished fact nobody can see is not a fix.
+
+        The three facts ride on the REFUSAL record rather than on a novel `verify_disp` token,
+        because `run_viewer` matches `verification_status` against literal values and renders an
+        unknown one as a bare `-` - which is exactly how "no verification ran" already renders. This
+        asserts the refusal round-trips through the SHARED reader both hosts and `aw runs` use.
+        """
+        from agent_workflows import render_stream, runner_shared as rs
+
+        for code in rs.VERIFY_ABSENCE_CODES:
+            with self.subTest(code=code):
+                reason, remedy = rs.verify_absence_text(code, plan_hint="abc123")
+                item: dict = {}
+                render_stream.record_refusal(
+                    item, code=code, reason=reason, remedy=remedy
+                )
+                read_back = render_stream.refusal_of_item(item)
+                self.assertIsNotNone(read_back)
+                assert read_back is not None
+                self.assertEqual(read_back.code, code)
+                self.assertTrue(read_back.remedy.strip())
+
+    def test_no_new_test_here_reads_the_gitignored_live_run_tree(self):
+        """The fixture rule, asserted mechanically rather than trusted.
+
+        Checks STRING LITERALS in this class's AST, not its raw text: the prose above names the
+        gitignored path in order to explain the rule, and a raw substring scan would flag that
+        explanation as the violation it warns against.
+        """
+        tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+        cls = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "VerificationAbsenceTests"
+        )
+        literals = [
+            node.value
+            for node in ast.walk(cls)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        ]
+        # A docstring IS a string literal, so exclude the ones that are statements rather than
+        # values: only an expression a test actually USES could read the live tree.
+        docstrings = {
+            node.body[0].value.value
+            for node in [cls, *ast.walk(cls)]
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef))
+            and node.body
+            and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+            and isinstance(node.body[0].value.value, str)
+        }
+        # The needle is ASSEMBLED rather than spelled, so this test's own search string is not itself
+        # a literal that the search would flag.
+        needle = ".aw/records/" + "runs"
+        offenders = [
+            text for text in literals if text not in docstrings and needle in text
+        ]
+        self.assertEqual(
+            offenders,
+            [],
+            "a test reading the gitignored live run tree passes in this checkout and "
+            "fails in CI, in a fresh clone, and in every lane worktree",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

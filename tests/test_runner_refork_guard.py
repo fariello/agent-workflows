@@ -249,6 +249,32 @@ REFORK_TABLE: tuple[Owned, ...] = (
     Owned("normalize_verdict", "runner_shared", BOTH),
     Owned("verdict_refusal_text", "runner_shared", BOTH),
     Owned("VerdictMapping", "runner_shared", BOTH),
+    # --- runner_shared: WHY THERE WAS NO VERDICT, added by `runverdict` Order 06 (`fzxfph`) --------
+    #
+    # The sibling rows above answer "what did the verifier SAY". These answer "why did it say
+    # NOTHING", which the runner used to collapse into one `unverified` token at three sites, with
+    # three different remedies reading as one benign caveat.
+    #
+    # WHY A ROW IS REQUIRED RATHER THAN IMPLIED, and this is the premise the plan itself got wrong
+    # and the note above already warns about: `test_the_table_covers_both_runners` asserts only that
+    # the table's AGGREGATE `runners` set equals `BOTH`, which it did long before these rows, so it
+    # will NOT verify that any given row lists both runners. What makes THESE rows bite is
+    # `test_every_runner_attribute_is_the_owning_modules_object` (the per-row identity half) plus
+    # `test_no_runner_redefines_an_already_extracted_symbol` (the AST half), both mutation-checked in
+    # this plan's V-05. Do not cite the coverage test as evidence for a symmetric row.
+    #
+    # WHAT A ROW BUYS THAT GREP WOULD NOT: these are the operator-facing REASON and REMEDY strings a
+    # human reads at 3am about a turn whose lane still holds the work, and the four codes are ALSO
+    # the keys a refusal record is written under. A textually identical copy in one host would let a
+    # later correction reach only one driver - which is exactly how `render_stream`'s ANSI constants
+    # came to be re-forked and how agy carried a broken `dependency_status_detailed` for months.
+    # `assertIs` distinguishes a shared object from a copy; reading the source cannot.
+    Owned("verify_absence_text", "runner_shared", BOTH),
+    Owned("VERIFY_ABSENCE_CODES", "runner_shared", BOTH),
+    Owned("VERIFY_ABSENCE_NO_OUTCOME_FILE", "runner_shared", BOTH),
+    Owned("VERIFY_ABSENCE_TURN_INTERRUPTED", "runner_shared", BOTH),
+    Owned("VERIFY_ABSENCE_PLAN_UNRESOLVABLE", "runner_shared", BOTH),
+    Owned("VERIFY_ABSENCE_VERDICT_UNREADABLE", "runner_shared", BOTH),
 )
 
 _MODULES = {
@@ -522,6 +548,112 @@ class VerdictMappingGuardTests(unittest.TestCase):
         """
         source = module_source(runner_shared)
         self.assertIn("v_map = map_verdict(", source)
+
+
+class VerifyAbsenceSharingTests(unittest.TestCase):
+    """The four ABSENT-VERDICT reason codes are ONE shared vocabulary (runverdict-06 `fzxfph` E-05).
+
+    WHY THIS CLASS EXISTS BESIDE THE TABLE ROWS, which is the same argument
+    `VerdictMappingGuardTests` makes one level up: a row proves each host's attribute IS
+    `runner_shared`'s object, and that is necessary but not sufficient. It cannot prove the set is
+    CLOSED (a fifth reason added to the module but omitted from `VERIFY_ABSENCE_CODES` would satisfy
+    every row), and it cannot prove anything CALLS the vocabulary. Both are asserted here.
+    """
+
+    #: The four facts, named so a failure message says WHICH one drifted rather than printing a set
+    #: difference. Spelled as literals on purpose: binding them from `runner_shared` would make this
+    #: test agree with the module by construction, which is exactly the tautology that lets a rename
+    #: pass silently. A deliberate rename must edit BOTH, and that is the point.
+    _EXPECTED_CODES = (
+        "verifier-verdict-unreadable",
+        "verification-never-recorded",
+        "verification-interrupted",
+        "verification-not-attempted",
+    )
+
+    def test_every_code_is_the_shared_modules_object_in_both_runners(self):
+        """The identity half, asserted per symbol across all THREE modules.
+
+        Duplicates what the table's per-row assertion does, deliberately: this names the symbols in
+        one place so a reader of this class can see the whole vocabulary, and it also covers
+        `runner_shared` itself as the owner rather than only the two consumers.
+        """
+        for name in (
+            "verify_absence_text",
+            "VERIFY_ABSENCE_CODES",
+            "VERIFY_ABSENCE_NO_OUTCOME_FILE",
+            "VERIFY_ABSENCE_TURN_INTERRUPTED",
+            "VERIFY_ABSENCE_PLAN_UNRESOLVABLE",
+            "VERIFY_ABSENCE_VERDICT_UNREADABLE",
+        ):
+            owner = getattr(runner_shared, name)
+            for runner in BOTH:
+                with self.subTest(symbol=name, runner=runner):
+                    self.assertIs(
+                        getattr(_MODULES[runner], name),
+                        owner,
+                        f"{runner}.{name} is not `runner_shared`'s object. A textually "
+                        f"identical copy would let a later correction to this "
+                        f"operator-facing text reach only one driver.",
+                    )
+
+    def test_the_set_of_reasons_is_closed(self):
+        """A fifth reason must be ADDED to the closed set, not reported as one of the four."""
+        self.assertEqual(
+            tuple(runner_shared.VERIFY_ABSENCE_CODES), self._EXPECTED_CODES
+        )
+        for code in runner_shared.VERIFY_ABSENCE_CODES:
+            with self.subTest(code=code):
+                reason, remedy = runner_shared.verify_absence_text(code)
+                self.assertTrue(reason.strip())
+                self.assertTrue(
+                    remedy.strip(),
+                    "a refusal that cannot say what to do next gets complied with by "
+                    "DELETION; `Refusal` enforces this and so does this test",
+                )
+        with self.assertRaises(ValueError):
+            runner_shared.verify_absence_text("not-a-real-reason")
+
+    def test_the_unreadable_code_is_an_alias_and_not_a_second_spelling(self):
+        """Fact 1's code IS the verdict table's, structurally, so the two cannot drift apart."""
+        self.assertIs(
+            runner_shared.VERIFY_ABSENCE_VERDICT_UNREADABLE,
+            runner_shared.VERDICT_REFUSAL_CODE_UNREADABLE,
+        )
+
+    def test_the_three_facts_are_distinguishable(self):
+        """THE WHOLE POINT: the three reasons a verdict is absent must not read alike.
+
+        Asserted on the TEXT rather than only on the codes, because the codes being distinct is
+        trivially true while the operator-facing prose saying three different things is the actual
+        deliverable. The never-ran case must read as a FAILURE and the interrupted case must NOT,
+        which is spec `c4gd2h` R22 (no fabricated disposition) expressed as a test.
+        """
+        never, _ = runner_shared.verify_absence_text(
+            runner_shared.VERIFY_ABSENCE_NO_OUTCOME_FILE
+        )
+        killed, _ = runner_shared.verify_absence_text(
+            runner_shared.VERIFY_ABSENCE_TURN_INTERRUPTED
+        )
+        unresolvable, _ = runner_shared.verify_absence_text(
+            runner_shared.VERIFY_ABSENCE_PLAN_UNRESOLVABLE
+        )
+        self.assertEqual(len({never, killed, unresolvable}), 3)
+        self.assertIn("FAILURE", never)
+        self.assertIn("UNKNOWN", killed)
+        self.assertNotIn("FAILURE", killed)
+        self.assertIn("NOT ATTEMPTED", unresolvable)
+
+    def test_the_vocabulary_is_reached_from_the_shared_execute_path(self):
+        """The wiring half: a shared, correct, and bypassed vocabulary would pass everything above."""
+        source = module_source(runner_shared)
+        for name in (
+            "VERIFY_ABSENCE_NO_OUTCOME_FILE",
+            "VERIFY_ABSENCE_TURN_INTERRUPTED",
+            "VERIFY_ABSENCE_PLAN_UNRESOLVABLE",
+        ):
+            with self.subTest(symbol=name):
+                self.assertIn(f'attempt["verify_absence"] = {name}', source)
 
 
 if __name__ == "__main__":

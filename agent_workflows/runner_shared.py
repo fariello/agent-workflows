@@ -13026,6 +13026,188 @@ def verdict_refusal_text(raw: Any, mapping: VerdictMapping) -> tuple[str, str, s
 
 
 # ==================================================================================================
+# WHY THERE WAS NO VERDICT TO MAP (runverdict-06, `fzxfph`)
+#
+# THE TABLE ABOVE ANSWERS "WHAT DID THE VERIFIER SAY". THIS ANSWERS "WHY DID IT SAY NOTHING", which is
+# a different question with different remedies, and the runner used to collapse every answer to it
+# into the single token `unverified`.
+#
+# THE THREE FACTS, measured at execution inside `execute_item_core`'s `v_outcome_file` block, all three
+# still live on this tree (previously duplicated per host at `oc_runipd.py:6645/6647/6649` and
+# `agy_runipd.py:3696/3698/3700`, unified into `runner_shared.execute_item_core` by commit `70a2059f`):
+#
+#   1. THE VERDICT WAS WRITTEN BUT COULD NOT BE READ (unparseable outcome JSON). NOT NAMED HERE: it is
+#      sibling `1bfppy`'s, which routes it through `map_verdict`'s fail-closed arm and records
+#      `VERDICT_REFUSAL_CODE_UNREADABLE`. That plan's in-tree note says in as many words that it minted
+#      no name for the case so this plan's executor "has a free field to name and nothing to
+#      reconcile"; the honest reconciliation is that it needed no new name, because a verdict that WAS
+#      written belongs to the verdict table by construction. Left alone deliberately.
+#   2. NO OUTCOME FILE EXISTS AT ALL. The verifier turn ran and wrote no verdict anywhere. THIS ONE IS
+#      THIS PLAN'S, and spec `25kzda` §4.2's `RUN-FRESH-VERIFIER` row already calls it a FAILURE
+#      ("<item> has no valid independent verification attempt"), so recording it as one implements the
+#      spec rather than amending it.
+#   3. THE VERIFIER TURN WAS KILLED (`KeyboardInterrupt`/`StallTimeout`). ALSO THIS PLAN'S, and it is
+#      deliberately NOT a failure. Spec `c4gd2h` R22 forbids fabricating a disposition, and a turn cut
+#      mid-flight was not observed reaching any verdict, so the honest fact is UNKNOWN OUTCOME.
+#   4. THE PLAN COULD NOT BE RE-RESOLVED, so verification could not be ATTEMPTED at all (E-03). A
+#      fourth fact rather than a variant of 2: 2 means the verifier ran and produced nothing, this
+#      means it never launched.
+#
+# WHY THE `run_state` VOCABULARY IS NOT REUSED, stated because consuming an existing vocabulary is this
+# repository's standing preference and `1bfppy` did exactly that one function above. MEASURED at
+# execution by enumerating `run_state.ALL_STATES`: `pending, runnable, running, performed, blocked,
+# failed, verifying, verified, correction_required, cancelled, complete`. There is no token for "never
+# ran", none for "unparseable", none for "interrupted". Its tokens name WHERE AN ITEM IS in its
+# lifecycle; these name WHY A VERDICT IS ABSENT, which is a property of one turn rather than a state an
+# item sits in. Binding, say, `failed` here would assert the ITEM failed when only its verification
+# did. So four reason codes are minted, and NOT a fourth parallel state enum: nothing dispatches on
+# these, `verify_disp` keeps its existing three-value contract (see below), and each one exists to be
+# READ by a human in `aw runs` and the run report.
+#
+# THE TOKEN WRITTEN TO `verify_disp` IS DELIBERATELY UNCHANGED, AND THAT IS THE LOAD-BEARING DECISION
+# HERE. Measured at execution: `run_viewer.py:1476-1483` badges only `verified`/`failed`, and
+# `run_viewer.py:1926-1939` maps `verified` -> `yes`, `(unverified, verify-failed, failed)` -> `no`,
+# and EVERYTHING ELSE -> a bare `-`. So a novel `verify_disp` value would render in `aw runs` exactly
+# as "no verification ran" already renders, which INVERTS this change's purpose; and `run_viewer.py` is
+# not in this plan's declared scope. The distinction therefore rides on the REFUSAL record
+# (`render_stream.record_refusal`), which `r2i1b1` already plumbed into the run summary's diagnostics
+# block and `aw runs`' `Issue` column, so the three facts become visible with no new render surface and
+# no token that degrades to `-`.
+#
+# WHAT IS DELIBERATELY NOT CHANGED: the continue/refuse behavior. `integration_is_earned` ALREADY
+# refuses integration for any non-`verified` token when validation is ON, and this adds no second
+# refusal on top of it. Its validation-OFF branch never reads `verify_disp` at all, so no guarantee is
+# claimed there (oc defaults `validate` FALSE; agy defaults its verifier ON).
+
+#: Reason code: the verifier turn ran and wrote NO outcome file at all, so no verdict exists to map.
+#: A RECORDED HARD FAILURE, per spec `25kzda` §4.2 `RUN-FRESH-VERIFIER` ("no valid independent
+#: verification attempt", action `RETRY, then FAIL ITEM`). The spec's RETRY half is NOT implemented
+#: here and that is stated rather than hidden: §4.1 defines RETRY as entering `correction_required`
+#: and re-running the checker within a frozen budget, and no such loop exists in either driver
+#: (`resolve_retry_budget` freezes `options["retry_budget"]` and nothing ever reads it back). So this
+#: is an honest partial implementation of that row - the failure is RECORDED where it was previously
+#: a caveat - and building the retry loop is a separate plan.
+VERIFY_ABSENCE_NO_OUTCOME_FILE: str = "verification-never-recorded"
+
+#: Reason code: the verifier turn was KILLED (`KeyboardInterrupt` or `StallTimeout`) before it could
+#: write anything. NOT A FAILURE, and the distinction is a spec requirement rather than a nicety:
+#: `c4gd2h` R22 forbids recording a disposition the runner did not observe, and a turn cut mid-flight
+#: was not observed reaching any verdict. The work may well be fine; nobody looked.
+#:
+#: THIS SITE IS *NOT* COVERED BY THE INDETERMINATE MACHINERY, measured at execution rather than
+#: assumed, because the opposite would have made this code redundant. `runner_stop.is_indeterminate`
+#: reads `item["stopped"]["certainty"]`, and that record is written only by `_record_forced_stop` /
+#: `_record_deliberate_stop` on the EXECUTE turn's stop paths. The verify handler catches
+#: `StallTimeout` and writes no `stopped` record, so the predicate returns False for a killed verify
+#: turn and every level-4 gate passes over it. Hence an explicit code here.
+VERIFY_ABSENCE_TURN_INTERRUPTED: str = "verification-interrupted"
+
+#: Reason code: the verifier turn could not be LAUNCHED, because the plan file could not be
+#: re-resolved (E-03). Distinct from :data:`VERIFY_ABSENCE_NO_OUTCOME_FILE` on a fact an operator acts
+#: on differently: there, a verifier ran and produced nothing (re-run it); here, no verifier ran at all
+#: because the runner could not say WHICH plan to verify (find the plan first).
+VERIFY_ABSENCE_PLAN_UNRESOLVABLE: str = "verification-not-attempted"
+
+#: Reason code for fact 1, the unparseable verdict. DEFINED AS AN ALIAS, NOT AS A SECOND SPELLING,
+#: for the reason `VERDICT_REFUSAL_CODE_DECLINED` records one function above: two literals describing
+#: one fact are exactly the producer/reader drift this module has already paid for. Sibling `1bfppy`
+#: OWNS that arm and already records this code there; this name exists only so
+#: :data:`VERIFY_ABSENCE_CODES` can be a CLOSED set over all four facts rather than a partial one, and
+#: nothing in this plan writes it.
+VERIFY_ABSENCE_VERDICT_UNREADABLE: str = VERDICT_REFUSAL_CODE_UNREADABLE
+
+#: THE CLOSED SET. Every reason a verdict can be absent, so a reader can enumerate them and a test can
+#: assert no fifth arm grew silently. Ordered as the facts are numbered in the block comment above.
+VERIFY_ABSENCE_CODES: tuple[str, ...] = (
+    VERIFY_ABSENCE_VERDICT_UNREADABLE,
+    VERIFY_ABSENCE_NO_OUTCOME_FILE,
+    VERIFY_ABSENCE_TURN_INTERRUPTED,
+    VERIFY_ABSENCE_PLAN_UNRESOLVABLE,
+)
+
+
+def verify_absence_text(code: str, *, plan_hint: str = "") -> tuple[str, str]:
+    """The human REASON and REMEDY for an absent verdict, keyed by one of the codes above.
+
+    Returns ``(reason, remedy)`` for :func:`render_stream.record_refusal`, which requires a non-empty
+    remedy by construction: `AGENTS.md` records the measured failure mode that a gate stating only a
+    prohibition gets complied with by DELETION, and the destructive "fix" for every case here is the
+    same expensive one (re-running a plan whose lane already holds the work), so each branch names the
+    lane explicitly.
+
+    ``plan_hint`` is the plan path or selector, included verbatim where the operator's first question
+    is "which plan?" (the unresolvable case), and ignored otherwise.
+
+    RAISES on an unknown code rather than returning a bland default, because a silent default is how a
+    fifth fact would come to be reported as one of these four.
+    """
+    if code == VERIFY_ABSENCE_NO_OUTCOME_FILE:
+        return (
+            (
+                "the verifier turn produced NO outcome file, so there is no verdict at all: this "
+                "turn is recorded a verification FAILURE, not an inconclusive one. Nothing was "
+                "merged. This is distinct from a verifier that rejected the work (it said nothing) "
+                "and from one that was interrupted (it ran to completion and wrote nothing)"
+            ),
+            (
+                "read the verifier's session log in the run's `sessions/` directory: a turn that "
+                "wrote no outcome usually failed early, and the log says why (a missing plan file, a "
+                "model/host error, an exhausted budget). Fix that, then re-run the VERIFICATION for "
+                "this item. The lane is PRESERVED and nothing was merged, so do NOT re-run the plan "
+                "from scratch - that would discard work already done"
+            ),
+        )
+    if code == VERIFY_ABSENCE_TURN_INTERRUPTED:
+        return (
+            (
+                "the verifier turn was INTERRUPTED before it wrote a verdict, so the outcome of "
+                "verification is UNKNOWN. This is deliberately NOT recorded as a verification "
+                "failure: nobody observed this work being rejected, only that nobody finished "
+                "looking at it. Nothing was merged"
+            ),
+            (
+                "re-run the VERIFICATION for this item; the work itself was not interrupted and its "
+                "lane is PRESERVED, so re-running the plan from scratch would discard completed work "
+                "for no reason. If the interruption was a stall, check the verifier's session log in "
+                "the run's `sessions/` directory before re-running, since a turn that stalled once "
+                "will usually stall again"
+            ),
+        )
+    if code == VERIFY_ABSENCE_PLAN_UNRESOLVABLE:
+        where = f" ({plan_hint})" if plan_hint else ""
+        return (
+            (
+                f"verification was NOT ATTEMPTED because this item's plan file could not be "
+                f"re-resolved{where}, so the runner could not say which plan to verify. It "
+                f"deliberately did NOT fall back to the path it captured earlier in the turn: that "
+                f"path is known to go stale (a self-finalizing plan MOVES out of `pending/` mid-turn) "
+                f"and verifying against a stale path is how a verifier turn comes to report on a file "
+                f"that no longer exists"
+            ),
+            (
+                "locate the plan by its id6 with `aw find plans <id6>` and check it exists exactly "
+                "once: this refusal means the id6 matched ZERO files or MORE THAN ONE. A single "
+                "match that the runner could not see usually means the lane worktree does not "
+                "contain the plan. Resolve that, then re-run the VERIFICATION for this item; the "
+                "lane is PRESERVED and nothing was merged"
+            ),
+        )
+    if code == VERIFY_ABSENCE_VERDICT_UNREADABLE:
+        # Sibling `1bfppy` owns this arm and already records it through `verdict_refusal_text`. Kept
+        # reachable so the closed set has no hole, but deliberately delegating rather than writing a
+        # second wording for one fact.
+        _, reason, remedy = verdict_refusal_text(
+            "(unreadable)", map_verdict("(unreadable)")
+        )
+        return (reason, remedy)
+    raise ValueError(
+        f"unknown verify-absence code {code!r}; the closed set is {VERIFY_ABSENCE_CODES}. A new "
+        f"reason a verdict can be absent must be ADDED to that set rather than reported as one of "
+        f"the existing four"
+    )
+
+
+# ==================================================================================================
 # THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)
 #
 # WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
@@ -18298,123 +18480,269 @@ def execute_item_core(
             and validate
         ):
             plan_repo = Path(work_dir) if work_dir else repo
+            # runverdict-06 (`fzxfph`) E-03: REFUSE A PLAN PATH THE RUNNER KNOWS MAY BE STALE.
+            #
+            # This `except` arm used to read `current_plan_path = plan_path`, silently substituting the
+            # path captured EARLIER IN THIS TURN. That is the last surviving half of the path defect
+            # commit `1549c018` fixed: that commit repaired the HAPPY path by re-resolving here (a
+            # self-finalizing plan MOVES out of `pending/` mid-turn, so the captured value goes stale),
+            # and left the ERROR path substituting a value it knows may be wrong. The measured cost of
+            # the stale path was 23 verifier turns across three runs that launched, found no file, and
+            # wrote nothing - each recorded as a bland `unverified`.
+            #
+            # A REFUSAL, NOT A CRASH, AND NOT A SILENT SKIP. `resolve_plan_path` raises `DriverError`
+            # only when the id6 matches ZERO files or MORE THAN ONE (it tries the id6 selector, then
+            # the configured path, then an `rglob` over three roots). Real conditions that produce it:
+            # a plan deleted or moved mid-turn, an id6 collision across two files, and - the one E-04
+            # constructs in a test - a LANE WORKTREE that does not contain the plan at all, which is
+            # this runner's own default execution shape. In every one of those, verification cannot be
+            # PERFORMED, so the honest act is to record that fact and report it rather than launch a
+            # child against a path that may not exist.
+            #
+            # THE TWIN FALLBACK AT THE FINALIZE SITE IS DELIBERATELY LEFT ALONE. An identical
+            # `except DriverError: current_plan_for_finalize = plan_path` guards the FINALIZE
+            # re-resolution further down this same function (search `current_plan_for_finalize`). It is
+            # byte-identical in shape, and it is NOT fixed here: it feeds `aw ipd finalize` rather than
+            # a verifier launch, so it has a different consumer and a different failure model (the
+            # finalize path has its own receipt and scope-reconciliation gates). Identified, reported,
+            # and out of this plan's fence on purpose; fixing it is a follow-up, not a silent widening.
+            current_plan_path = None
             try:
                 current_plan_path = resolve_plan_path(
                     plan_repo, item.get("configured_file", ""), item["id6"]
                 )
-            except DriverError:
-                current_plan_path = plan_path
-            v_prompt = build_verifier_prompt(
-                item, state, run_dir, current_plan_path, labels=host_labels
-            )
-            v_prompt_file = write_prompt(
-                run_dir, item, v_prompt, attempt_no, suffix="verify"
-            )
-            print(
-                pal(
-                    f"  \u25b6 Verifying {item['id6']} ({current_plan_path})...",
-                    "cyan",
-                ),
-                flush=True,
-            )
-            try:
-                v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
-                    v_prompt_file,
-                    current_plan_path,
-                    work_dir,
-                    tracker,
-                    attempt_no,
+            except DriverError as exc:
+                v_reason, v_remedy = verify_absence_text(
+                    VERIFY_ABSENCE_PLAN_UNRESOLVABLE,
+                    plan_hint=f"{item['id6']}: {exc}",
                 )
-                if _v_log:
-                    attempt["verify_log"] = str(_v_log)
-                    v_cost, v_toks = extract_log_metrics(_v_log)
-                    if v_cost is not None:
-                        attempt["verify_cost"] = v_cost
-                    if v_toks:
-                        attempt["verify_tokens"] = v_toks
-                v_outcome_file = (
-                    run_dir
-                    / "outcomes"
-                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                record_refusal(
+                    item,
+                    code=VERIFY_ABSENCE_PLAN_UNRESOLVABLE,
+                    reason=v_reason,
+                    remedy=v_remedy,
                 )
-                if v_outcome_file.is_file():
-                    # runverdict (`1bfppy`) E-02: the verdict is mapped by the ONE shared
-                    # fail-closed table (`map_verdict`), never by a substring test written here.
-                    # Both hosts reach this through `execute_item_core`, so there is one mapping
-                    # and `tests/test_runner_refork_guard.py` fails if a driver grows a copy.
-                    #
-                    # THE UNPARSEABLE ARM ROUTES THROUGH THE SAME TABLE, deliberately: a verdict
-                    # the runner could not read is an UNREADABLE verdict, and `map_verdict`'s
-                    # fail-closed arm is exactly that answer. Sibling plan `fzxfph` (read on disk
-                    # at execution: `- Status: approved`, still in `pending/`, so NOT landed) owns
-                    # NAMING the three facts currently collapsed into `unverified`, including this
-                    # one. This change therefore mints NO name for the unparseable case: it keeps
-                    # the existing `unverified` token and adds only the refusal REASON, so that
-                    # plan's executor has a free field to name and nothing to reconcile.
-                    try:
-                        v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
-                        v_raw_verdict = v_data.get("verdict", "")
-                    except Exception:
-                        v_raw_verdict = None
-                        v_unreadable = True
-                    else:
-                        v_unreadable = False
-                    v_map = map_verdict(v_raw_verdict)
-                    verify_disp = v_map.verify_disp
-                    if v_map.downgrade:
-                        disposition = "partial"
-                    attempt["verify_verdict_raw"] = (
-                        None if v_unreadable else str(v_raw_verdict)
+                attempt["verify_absence"] = VERIFY_ABSENCE_PLAN_UNRESOLVABLE
+                item["verify_absence"] = VERIFY_ABSENCE_PLAN_UNRESOLVABLE
+                verify_disp = VERIFY_DISP_UNVERIFIED
+                disposition = "partial"
+                print(
+                    pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                    file=sys.stderr,
+                )
+                print(pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr)
+            if current_plan_path is not None:
+                v_prompt = build_verifier_prompt(
+                    item, state, run_dir, current_plan_path, labels=host_labels
+                )
+                v_prompt_file = write_prompt(
+                    run_dir, item, v_prompt, attempt_no, suffix="verify"
+                )
+                print(
+                    pal(
+                        f"  \u25b6 Verifying {item['id6']} ({current_plan_path})...",
+                        "cyan",
+                    ),
+                    flush=True,
+                )
+                try:
+                    v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
+                        v_prompt_file,
+                        current_plan_path,
+                        work_dir,
+                        tracker,
+                        attempt_no,
                     )
-                    attempt["verify_verdict_state"] = v_map.state
-                    attempt["verify_verdict_recognized"] = v_map.recognized
-                    if verify_disp != VERIFY_DISP_VERIFIED:
-                        # E-05: SAY WHAT TO DO. A gate that only refuses gets worked around, and
-                        # this refusal's destructive "fix" is expensive (re-running a plan whose
-                        # lane already holds the work). Recorded through `r2i1b1`'s ONE refusal
-                        # writer, so the run summary's diagnostics block and `aw runs`' `Issue`
-                        # column both already render it with no new surface.
-                        v_code, v_reason, v_remedy = verdict_refusal_text(
-                            "(unreadable)" if v_unreadable else v_raw_verdict, v_map
+                    if _v_log:
+                        attempt["verify_log"] = str(_v_log)
+                        v_cost, v_toks = extract_log_metrics(_v_log)
+                        if v_cost is not None:
+                            attempt["verify_cost"] = v_cost
+                        if v_toks:
+                            attempt["verify_tokens"] = v_toks
+                    v_outcome_file = (
+                        run_dir
+                        / "outcomes"
+                        / f"{item['position']:02d}-{item['id6']}-verification.json"
+                    )
+                    if v_outcome_file.is_file():
+                        # runverdict (`1bfppy`) E-02: the verdict is mapped by the ONE shared
+                        # fail-closed table (`map_verdict`), never by a substring test written here.
+                        # Both hosts reach this through `execute_item_core`, so there is one mapping
+                        # and `tests/test_runner_refork_guard.py` fails if a driver grows a copy.
+                        #
+                        # THE UNPARSEABLE ARM ROUTES THROUGH THE SAME TABLE, deliberately: a verdict
+                        # the runner could not read is an UNREADABLE verdict, and `map_verdict`'s
+                        # fail-closed arm is exactly that answer. Sibling plan `fzxfph` (read on disk
+                        # at execution: `- Status: approved`, still in `pending/`, so NOT landed) owns
+                        # NAMING the three facts currently collapsed into `unverified`, including this
+                        # one. This change therefore mints NO name for the unparseable case: it keeps
+                        # the existing `unverified` token and adds only the refusal REASON, so that
+                        # plan's executor has a free field to name and nothing to reconcile.
+                        #
+                        # runverdict-06 (`fzxfph`) E-01/E-02, WRITING INTO EXACTLY THAT FREE FIELD:
+                        # this is FACT 1 of the four in the `VERIFY_ABSENCE_CODES` block, and it needed
+                        # no new NAME because a verdict that WAS written belongs to the verdict table
+                        # by construction - so its code is an ALIAS of the one `verdict_refusal_text`
+                        # already records here, not a second spelling. The only thing added below is
+                        # the `verify_absence` annotation, so a reader of `state.json` can tell this
+                        # fact from "no outcome file at all" and from "the turn was killed". The
+                        # verdict MAPPING, the disposition and the refusal wording are untouched:
+                        # they are that sibling's, already landed and `executed` on disk.
+                        try:
+                            v_data = json.loads(
+                                v_outcome_file.read_text(encoding="utf-8")
+                            )
+                            v_raw_verdict = v_data.get("verdict", "")
+                        except Exception:
+                            v_raw_verdict = None
+                            v_unreadable = True
+                        else:
+                            v_unreadable = False
+                        v_map = map_verdict(v_raw_verdict)
+                        verify_disp = v_map.verify_disp
+                        if v_map.downgrade:
+                            disposition = "partial"
+                        attempt["verify_verdict_raw"] = (
+                            None if v_unreadable else str(v_raw_verdict)
+                        )
+                        attempt["verify_verdict_state"] = v_map.state
+                        attempt["verify_verdict_recognized"] = v_map.recognized
+                        if verify_disp != VERIFY_DISP_VERIFIED:
+                            # E-05: SAY WHAT TO DO. A gate that only refuses gets worked around, and
+                            # this refusal's destructive "fix" is expensive (re-running a plan whose
+                            # lane already holds the work). Recorded through `r2i1b1`'s ONE refusal
+                            # writer, so the run summary's diagnostics block and `aw runs`' `Issue`
+                            # column both already render it with no new surface.
+                            v_code, v_reason, v_remedy = verdict_refusal_text(
+                                "(unreadable)" if v_unreadable else v_raw_verdict, v_map
+                            )
+                            record_refusal(
+                                item, code=v_code, reason=v_reason, remedy=v_remedy
+                            )
+                            print(
+                                pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                                file=sys.stderr,
+                            )
+                            print(pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr)
+                        if v_unreadable:
+                            attempt["verify_absence"] = (
+                                VERIFY_ABSENCE_VERDICT_UNREADABLE
+                            )
+                            item["verify_absence"] = VERIFY_ABSENCE_VERDICT_UNREADABLE
+                    else:
+                        # runverdict-06 (`fzxfph`) E-02: FACT 2, AND IT IS A RECORDED HARD FAILURE.
+                        #
+                        # THE VERIFIER RAN AND WROTE NOTHING. This arm previously recorded the same
+                        # bare `unverified` as an unreadable verdict and as a killed turn, so three
+                        # facts with three different remedies read as one benign caveat. Spec `25kzda`
+                        # §4.2's `RUN-FRESH-VERIFIER` row already calls this case a FAILURE ("<item>
+                        # has no valid independent verification attempt"), so recording it as one
+                        # implements the spec rather than amending it.
+                        #
+                        # "HARD FAILURE" MEANS RECORDED AND REPORTED AS SUCH, NOT A NEW REFUSAL, and
+                        # that boundary is what keeps this change small. `integration_is_earned`
+                        # ALREADY refuses integration for any non-`verified` token when validation is
+                        # ON, and `self_finalize` is gated on that earned verdict, so this turn
+                        # already does not auto-merge and its lane is already preserved. Adding a
+                        # second refusal on top would be redundant and could strand work the existing
+                        # gate handles. KNOW THE LIMIT OF THAT GUARANTEE rather than overclaiming it:
+                        # the validation-OFF branch of that predicate never reads `verify_disp` at all,
+                        # so with a passing driver-run suite an item still integrates on the
+                        # `driver-run-suite` signal; oc defaults `--validate` OFF while agy defaults
+                        # its verifier ON, so the guarantee holds on agy's default and on oc only
+                        # under `--validate`.
+                        #
+                        # `verify_disp` KEEPS ITS EXISTING TOKEN DELIBERATELY. A novel value would
+                        # render as a bare `-` in `aw runs` (`run_viewer` matches `verified` ->`yes`,
+                        # `(unverified, verify-failed, failed)` -> `no`, everything else -> `-`),
+                        # which is precisely how "no verification ran" already renders and is the
+                        # opposite of this change's purpose; `run_viewer.py` is not in this plan's
+                        # scope. So the DISTINCTION rides on the refusal record and the
+                        # `verify_absence` field, both of which already render.
+                        v_reason, v_remedy = verify_absence_text(
+                            VERIFY_ABSENCE_NO_OUTCOME_FILE
                         )
                         record_refusal(
-                            item, code=v_code, reason=v_reason, remedy=v_remedy
+                            item,
+                            code=VERIFY_ABSENCE_NO_OUTCOME_FILE,
+                            reason=v_reason,
+                            remedy=v_remedy,
                         )
+                        attempt["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
+                        item["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
+                        verify_disp = VERIFY_DISP_UNVERIFIED
+                        disposition = "partial"
                         print(
                             pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
                             file=sys.stderr,
                         )
                         print(pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr)
-                else:
-                    verify_disp = "unverified"
+                except runner_stop.StopNowForce as stop:
+                    now = utc_now()
+                    attempt["interrupted_at"] = now
+                    attempt["ended_at"] = now
+                    attempt["interrupt_reason"] = "deliberate-stop-now-force"
+                    record = _record_forced_stop(
+                        run_dir, state, item, stop, work_dir=work_dir
+                    )
+                    attempt["stopped"] = record
+                    attempt["disposition"] = runner_stop.FORCED_DISPOSITION
+                    item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+                    raise
+                except runner_stop.StopAtCheckpoint as stop:
+                    now = utc_now()
+                    attempt["interrupted_at"] = now
+                    attempt["ended_at"] = now
+                    attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+                    record = _record_checkpoint_stop(
+                        run_dir, state, item, stop.observer, work_dir=work_dir
+                    )
+                    attempt["stopped"] = record
+                    attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+                    item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+                    raise
+                except StallTimeout:
+                    # runverdict-06 (`fzxfph`) E-02: FACT 3, AND IT IS DELIBERATELY *NOT* A FAILURE.
+                    #
+                    # THE VERIFIER TURN WAS KILLED. Nobody observed this work being rejected; only
+                    # that nobody finished looking at it. Spec `c4gd2h` R22 forbids recording a
+                    # disposition the runner did not observe, so the honest fact is UNKNOWN OUTCOME
+                    # and labelling this a verification failure would be exactly the fabrication R22
+                    # prohibits. The remedy differs from fact 2's for the same reason: re-run the
+                    # VERIFICATION, and check the session log first if it stalled.
+                    #
+                    # THIS SITE IS NOT COVERED BY THE INDETERMINATE MACHINERY, MEASURED rather than
+                    # assumed, and the measurement inverts the comfortable answer.
+                    # `runner_stop.is_indeterminate` - the ONE predicate every level-4 gate branches
+                    # on - reads `item["stopped"]["certainty"]`, and that record is written only by
+                    # `_record_forced_stop` / `_record_deliberate_stop` on the EXECUTE turn's stop
+                    # paths. This handler SWALLOWS the exception and writes no `stopped` record, so
+                    # the predicate returns False here and every level-4 gate passes over a killed
+                    # verify turn. The site is therefore UNPROTECTED, which is why it needs an
+                    # explicit code - and R22 still decides WHICH code: unknown-outcome, never
+                    # failure. No `stopped` record is written here either, on purpose: that record is
+                    # the EXECUTE turn's contract with the resume/reconcile gates, and minting one
+                    # from a verify-turn stall would tell those gates the ITEM was cut mid-flight
+                    # when only its verification was, which is a different (and wrong) claim.
+                    v_reason, v_remedy = verify_absence_text(
+                        VERIFY_ABSENCE_TURN_INTERRUPTED
+                    )
+                    record_refusal(
+                        item,
+                        code=VERIFY_ABSENCE_TURN_INTERRUPTED,
+                        reason=v_reason,
+                        remedy=v_remedy,
+                    )
+                    attempt["verify_absence"] = VERIFY_ABSENCE_TURN_INTERRUPTED
+                    item["verify_absence"] = VERIFY_ABSENCE_TURN_INTERRUPTED
+                    verify_disp = VERIFY_DISP_UNVERIFIED
                     disposition = "partial"
-            except runner_stop.StopNowForce as stop:
-                now = utc_now()
-                attempt["interrupted_at"] = now
-                attempt["ended_at"] = now
-                attempt["interrupt_reason"] = "deliberate-stop-now-force"
-                record = _record_forced_stop(
-                    run_dir, state, item, stop, work_dir=work_dir
-                )
-                attempt["stopped"] = record
-                attempt["disposition"] = runner_stop.FORCED_DISPOSITION
-                item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
-                raise
-            except runner_stop.StopAtCheckpoint as stop:
-                now = utc_now()
-                attempt["interrupted_at"] = now
-                attempt["ended_at"] = now
-                attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
-                record = _record_checkpoint_stop(
-                    run_dir, state, item, stop.observer, work_dir=work_dir
-                )
-                attempt["stopped"] = record
-                attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
-                item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
-                raise
-            except StallTimeout:
-                verify_disp = "unverified"
-                disposition = "partial"
+                    print(
+                        pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                        file=sys.stderr,
+                    )
+                    print(pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr)
 
         attempt["disposition"] = disposition
         attempt["verification"] = verify_disp
