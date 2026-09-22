@@ -14,18 +14,18 @@
   THE KNOWN SET IS FOUR VALUES, NOT THREE, AND THE FOURTH IS DECIDED HERE. `CONFORMING` is in live use by twelve existing tests and is not in the prompt. Mapping it is IN SCOPE and is not a prompt change; changing the PROMPT to advertise it is OUT of scope and belongs to whoever owns the schema. If the decision is that `CONFORMING` must NOT pass, then updating those twelve call sites is in scope and must be done in the same change rather than left as a red suite.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 5
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1bfppy
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: wyw936
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 1bfppy verified (set runverdict, attempt 1).
 - 2026-09-22 execution-performed (opencode/its_direct/pt3-claude-opus-5-1m-us): NOT A STATUS TRANSITION. This entry records WORK DONE, not a lifecycle step: the terminal `approved -> executed` transition is the RUNNER's through `aw ipd finalize`, and `ipd_lifecycle.validate_transition` refuses it for any other actor ("only `aw ipd finalize` may perform it"). An earlier draft of this line began with the word `executed` and `aw check` correctly flagged it as `check.lifecycle-transition-invalid`, because `_plan_status_events` parses the leading token as a status event; that was an accidental forged attestation and is corrected here rather than left standing. `aw ipd begin` was likewise attempted and correctly REFUSED with `AW-LIFECYCLE-ROLE-001` (the runner owns begin/finalize for a managed lane), so this lane holds no receipt and this plan stays in `pending/` for the driver to transition.
   All six E-items performed and all six V-items verified with pasted evidence. Suite: `1 failed, 8281 passed, 3 skipped, 2 xfailed` versus a pre-work baseline of `1 failed, 8253 passed, 3 skipped, 2 xfailed` measured in this same lane worktree; SAME single failing node id both times (`tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`), which is ENVIRONMENTAL and not mine: it asserts a non-isolated turn gets no denial policy, and it trips because the OpenCode process executing this plan exports `OPENCODE_CONFIG_CONTENT` into the test env. Proven by re-running it with that one variable unset: `76 passed`.
   THE HEADLINE FINDING IS THAT THIS PLAN'S CENTRAL DEFECT WAS ALREADY FIXED BEFORE EXECUTION, and the change was reshaped rather than abandoned. The plan (authored 2026-09-08, reviewed 09-09) targets a gate whose `else` recorded `CORRECTION_REQUIRED`, typos, empty strings and unparseable JSON as `verified`. Commit `61137509` (2026-09-18) added an `elif verify_verdict == "VERIFIED"` arm and flipped that `else` to `unverified`/`partial`, closing the leak. MEASURED at HEAD `d51be185`, the pre-existing branch was ALREADY fail-closed on every input the plan predicted would move, so the plan's "six of ten currently return verified" is no longer true and I did not claim it. THREE PROPERTIES WERE STILL GENUINELY MISSING, and they are what this change delivers: (1) the SUBSTRING SHAPE survived the fix, and measurably misclassified - `NOT BLOCKED` mapped to `blocked` because `"BLOCKED" in "NOT BLOCKED"`; (2) the KNOWN SET was inherited rather than decided, since `CONFORMING` had reached the success path for months only by falling through the `else`; (3) the branch was INLINE, hence untestable over its input alphabet and unguardable against a re-fork. All three are now closed by one exact-match table in `runner_shared`, consumed by both hosts, with 28 new tests and a mutation-checked anti-re-fork guard.
