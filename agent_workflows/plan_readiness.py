@@ -77,6 +77,9 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 from agent_workflows import ipd_schema as _schema
 from agent_workflows.attention import _history_section_lines
 from agent_workflows.attention_contract import HISTORY_RECORD_RE
+from agent_workflows.attention_contract import (
+    newest_history_record as _newest_history_record,
+)
 
 __all__ = [
     "POSITIVE",
@@ -243,9 +246,15 @@ def extract_newest_history_entry(text: str) -> Optional[str]:
     """The NEWEST ``## Workflow history`` record of ``text``, or None when there is none.
 
     The FIRST record is the newest: ``aw set`` prepends each new record directly under the heading
-    (``status_set.py:799``, ``new_lines.insert(i + 1, hist_entry)``), so the section is newest-first
-    despite the word "append" that used to appear in its comment and in the plans README. Do NOT
-    "fix" this to return the last record; that is the bug this function replaced.
+    (``status_set.apply_status_change``, ``new_lines.insert(i + 1, hist_entry)``), so the section is
+    newest-first despite the word "append" that used to appear in its comment and in the plans README.
+    Do NOT "fix" this to return the last record; that is the bug this function replaced.
+
+    THE RULE ITSELF NOW LIVES IN ONE PLACE (plan ``vhbvwz`` E-02): this function delegates to
+    ``attention_contract.newest_history_record``, which ``attention_contract.last_history_at`` also
+    consumes. Those two used to implement OPPOSITE rules (first record here, last record there), and
+    the disagreement was a live bug on 534 artifacts; see that function for the measurement and for
+    why the rule is deliberately POSITIONAL rather than greatest-by-date.
 
     The section is BOUNDED at the next ``## `` heading (via the existing
     ``attention._history_section_lines``), so a bullet in a later section can never be returned, and
@@ -254,11 +263,9 @@ def extract_newest_history_entry(text: str) -> Optional[str]:
 
     Pure. Returns the record with surrounding whitespace stripped.
     """
-    for line in _history_section_lines(text):
-        candidate = line.strip()
-        if HISTORY_RECORD_RE.match(candidate):
-            return candidate
-    return None
+    return _newest_history_record(
+        [line.strip() for line in _history_section_lines(text)]
+    )
 
 
 def history_verdict_approves(entry: Optional[str]) -> bool:

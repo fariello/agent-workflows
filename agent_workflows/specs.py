@@ -137,24 +137,27 @@ def _repo_root_of(spec_path: Path) -> Path:
 
 def _sidecar_append(repo_root, text: str, message: str) -> None:
     """awhistory Order 02: append a transition to the global history sidecar IF the spec carries an
-    id6. Specs are named YYYYMMDD-HHMM-NN (no id6 handle today), so they slim inline but only join the
-    sidecar once they gain an id6; guarded so today it is a no-op for specs and future-safe."""
+    id6. A spec joins the sidecar only once it has an id6 handle, so this is a no-op for a legacy
+    `YYYYMMDD-HHMM-NN` spec and is future-safe for the id6-named ones.
+
+    plan `vhbvwz` E-04: a failed sidecar write is REPORTED, not swallowed by a bare
+    `except Exception: pass`. The inline `## Workflow history` record is the durable one (OQ-01) and is
+    written by the caller regardless of what happens here, so this never gates provenance; see
+    `record_history.append_advisory`.
+    """
     m = _SPEC_ID_RE.search(text)
     if not m:
         return
-    try:
-        from agent_workflows import record_history as _rh
+    from agent_workflows import record_history as _rh
 
-        _rh.append(
-            repo_root,
-            id6=m.group(1),
-            tree="specs",
-            workflow="aw specs",
-            actor="aw specs",
-            message=message.strip(),
-        )
-    except Exception:
-        pass
+    _rh.append_advisory(
+        repo_root,
+        id6=m.group(1),
+        tree="specs",
+        workflow="aw specs",
+        actor="aw specs",
+        message=message.strip(),
+    )
 
 
 def _read_blocks_release(lines: List[str]) -> Optional[str]:
@@ -384,9 +387,27 @@ def _today() -> str:
 
 
 def _append_history(lines: List[str], record: str) -> List[str]:
-    # awhistory Order 02: the inline `## Workflow history` section keeps only the LATEST record; the
-    # full chronological log lives in the global .aw/records/history.jsonl sidecar (attention
-    # last_history_at reads the retained latest line). Replace the section's records with just `record`.
+    """PREPEND ``record`` to the inline ``## Workflow history`` section, PRESERVING prior records.
+
+    NEWEST-FIRST, and prior records are KEPT. Plan ``vhbvwz`` E-08 reversed the slimming this
+    function used to do (awhistory Order 02, spec ``20260818-1525-02`` OQ-2, which replaced the whole
+    section with the one new record) because the premise it rested on does not hold: the "full
+    chronological log" it deferred to is ``.aw/records/history.jsonl``, which
+    ``.aw/.gitignore`` IGNORES, so every slimmed record was destroyed for anyone who clones the
+    repository. Measured: three ``aw specs note`` records from the 2026-09-10 setid cleanup existed
+    ONLY in that gitignored sidecar. The maintainer ruled on 2026-09-10 (plan ``vhbvwz`` OQ-01) that
+    inline history is the DURABLE home for specs and backlog items, matching what plans already do;
+    the spec is amended accordingly.
+
+    THE SIDECAR IS STILL WRITTEN and is still useful: it is a machine-local, cross-tree activity log
+    (``aw record-history <id6>``). It is simply no longer load-bearing for provenance, so a failure to
+    write it can never cost a record (see ``record_history.append_advisory``).
+
+    ORDER IS LOAD-BEARING: prepending matches ``status_set.apply_status_change``'s plan writer and is
+    what ``attention_contract.newest_history_record`` reads. Appending instead would make every
+    multi-record spec report its OLDEST date as ``last_history_at``, which is precisely the bug
+    E-02 had to fix in the reader BEFORE this item was safe to land.
+    """
     out = list(lines)
     for i, line in enumerate(out):
         if line.strip() == "## Workflow history":
@@ -397,9 +418,13 @@ def _append_history(lines: List[str], record: str) -> List[str]:
                     end = j
                     break
                 j += 1
-            # rebuild the section body as a single blank + the new record (drop prior inline records).
-            new_section = ["", record]
-            out[i + 1 : end] = new_section
+            prior = out[i + 1 : end]
+            # Drop the leading blank line the section conventionally carries, re-emit it once, then
+            # the NEW record, then everything that was already there. Prior records (and any prose
+            # inside the section) survive verbatim; nothing is rewritten or reordered.
+            while prior and not prior[0].strip():
+                prior = prior[1:]
+            out[i + 1 : end] = ["", record] + prior
             return out
     # no history section: create one at EOF
     if out and out[-1].strip() != "":

@@ -30,9 +30,11 @@ Mapping purity (Section 6): ``class_of(tree, native_status)`` depends ONLY on ``
 It NEVER infers activity or gate state from prose, dates, mtime, lock files, or agent context. Every
 native enum value of every tracked tree maps to exactly one class; an unknown value is a violation,
 never a default. ``last_history_at`` derivation (Section 8.5): parse the ``## Workflow history`` records
-(``HISTORY_RECORD_RE``); ``last_history_at`` is the date of the LAST record in file order; empty history
-yields ``None`` (not a violation here; the scanner decides whether absence is a per-tree violation);
-NEVER file mtime.
+(``HISTORY_RECORD_RE``); ``last_history_at`` is the date of the NEWEST record, and the section is
+NEWEST-FIRST, so that is the FIRST record in file order (see :func:`newest_history_record`; corrected
+by plan ``vhbvwz`` E-02, which measured 534 artifacts reporting a date that was not their newest);
+empty history yields ``None`` (not a violation here; the scanner decides whether absence is a per-tree
+violation); NEVER file mtime.
 """
 
 from __future__ import annotations
@@ -603,20 +605,67 @@ def validate_gate_ref(kind: str, ref: str) -> bool:
 # --------------------------------------------------------------------------------------
 
 # One dated record per touch: ``- YYYY-MM-DD <free single line>``. The DATE is the machine field;
-# ``last_history_at`` is the date of the LAST record in file order (empty history -> None; never mtime).
+# ``last_history_at`` is the date of the NEWEST record, which is the FIRST one in file order because
+# every writer PREPENDS (see :func:`newest_history_record` for the measured reason this is not "last").
 HISTORY_RECORD_RE = re.compile(r"^- (?P<date>\d{4}-\d{2}-\d{2}) .+$")
 
 
-def last_history_at(history_lines: List[str]) -> Optional[str]:
-    """Derive ``last_history_at`` from parsed ``## Workflow history`` lines: the date of the LAST matching
-    record in file order, or ``None`` when there is no record. Never uses file mtime (Section 8.5)."""
+def newest_history_record(history_lines: List[str]) -> Optional[str]:
+    """THE ONE RULE for "which of these ``## Workflow history`` lines is the newest": the FIRST one
+    matching :data:`HISTORY_RECORD_RE`, or ``None`` when there is no record.
 
-    last: Optional[str] = None
+    NEWEST-FIRST IS THE WRITER'S CONTRACT, not an assumption. Every history writer PREPENDS its new
+    record directly under the heading: ``status_set.apply_status_change`` does it with
+    ``new_lines.insert(i + 1, hist_entry)`` and documents it at length, and
+    ``ipd_lifecycle._plan_status_events`` REVERSES a plan's inline records to get oldest-first on
+    exactly that premise. So the first record in file order is the most recent one.
+
+    WHY THIS FUNCTION EXISTS AT ALL, since the answer is a measured bug and not a tidy-up. There used
+    to be TWO readers of this one question and they DISAGREED: ``plan_readiness
+    .extract_newest_history_entry`` took the FIRST record (and carries an explicit warning that
+    taking the last one "is the bug this function replaced"), while ``last_history_at`` right below
+    took the LAST. Measured over this repository at ``2362b102`` with the production parser, the
+    last-in-file-order rule reported a date that was NOT the artifact's newest record for 373 of 679
+    multi-record plans, 153 of 200 backlog items and 8 of 21 specs. The defect was invisible for
+    specs and backlog only because their inline history had been slimmed to a single line, where the
+    first and last record coincide - which is why plan ``vhbvwz`` had to fix this reader BEFORE
+    E-08 let those two trees keep a second line again.
+
+    DELIBERATELY POSITIONAL, NOT MAX-BY-DATE, and this is a safety property rather than a style
+    choice. A "newest = greatest date" scan was measured and REJECTED: it changes which record
+    ``extract_newest_history_entry`` returns for 67 plans, and for 20 of those it flips
+    ``plan_readiness.history_verdict_approves`` from False to True, because a plan's final dated
+    ``approved``/``executed`` line would start being read as its newest REVIEW verdict. That function
+    gates UNATTENDED promotion to an executable tier, so a date-max rule would silently widen a live
+    approval gate. A record out of date order on disk is a data problem to report, never a licence
+    for the reader to reorder history it cannot see the intent of.
+
+    Pure and total; ``history_lines`` is an already-bounded section (see
+    ``attention._history_section_lines``), never whole file text.
+    """
+
     for line in history_lines:
-        m = HISTORY_RECORD_RE.match(line)
-        if m:
-            last = m.group("date")
-    return last
+        if HISTORY_RECORD_RE.match(line):
+            return line
+    return None
+
+
+def last_history_at(history_lines: List[str]) -> Optional[str]:
+    """Derive ``last_history_at`` from parsed ``## Workflow history`` lines: the date of the NEWEST
+    record, or ``None`` when there is no record. Never uses file mtime (Section 8.5).
+
+    The NAME is historical and is kept because it is the published field name in
+    ``aw attention --format json`` and in the spec's Section 8.5; it means "the date this artifact was
+    last touched", never "the date on the last line". :func:`newest_history_record` is the single
+    shared rule that decides which record that is, so no two readers in this toolkit can disagree
+    about the answer.
+    """
+
+    newest = newest_history_record(history_lines)
+    if newest is None:
+        return None
+    m = HISTORY_RECORD_RE.match(newest)
+    return m.group("date") if m else None
 
 
 # The ONE definition of "is this actor writable into a history line" (plan fn2l1u E-01).

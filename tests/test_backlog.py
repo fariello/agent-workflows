@@ -131,12 +131,17 @@ class BacklogVerbTests(unittest.TestCase):
         self.assertTrue(moved.exists())
         text = moved.read_text(encoding="utf-8")
         self.assertIn("- Status: done", text)
-        # awhistory Order 02: inline history is SLIMMED to the latest record (the transition); the full
-        # log (incl. the created record) now lives in the global .aw/records/history.jsonl sidecar.
+        # plan `vhbvwz` E-08: inline history is PRESERVED, newest-first. This assertion used to demand
+        # exactly ONE record (awhistory Order 02's slimming), on the premise that the full log lived in
+        # `.aw/records/history.jsonl`; that sidecar is gitignored, so the dropped records did not
+        # survive a clone. The transition record now LEADS and the `created` record it used to destroy
+        # is still beneath it.
         self.assertIn("finished", text)
         after = text.split("## Workflow history", 1)[1]
         inline = [ln for ln in after.split("\n") if ln.startswith("- ")]
-        self.assertEqual(len(inline), 1)
+        self.assertEqual(len(inline), 2, inline)
+        self.assertIn("finished", inline[0])
+        self.assertIn("created", inline[1])
 
     def test_set_to_blocked_requires_gate(self):
         _new(self.repo)
@@ -494,6 +499,100 @@ class BacklogAttentionTests(unittest.TestCase):
         # restored: items reappear
         items2, _ = att_mod.scan(self.repo)
         self.assertTrue(any(i.tree == "backlog" for i in items2))
+
+
+class BacklogNoteVerbTests(unittest.TestCase):
+    """`aw backlog note` (plan `vhbvwz` E-05): annotate WITHOUT transitioning.
+
+    WHY THE VERB EXISTS, since that is what these assertions are really protecting. The backlog verb
+    set was `new`, `set`, `check` only, so recording a reason on an item REQUIRED a status-setting
+    call - and a same-status `aw backlog set` both discarded the message (`x6tk1u`) and slimmed the
+    item's history while doing it. Those two defects were hit through exactly that route. `aw specs
+    note` already existed; this is its backlog twin, and it removes the incentive to reach for the
+    transition verb when annotation is the intent.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name)
+        d = self.repo / ".aw" / "records" / "backlog" / "open"
+        d.mkdir(parents=True)
+        self.item = d / "20260101-demo-01-nt0001-x.backlog.md"
+        self.item.write_text(
+            "- Id: nt0001\n- Status: open\n- Priority: medium\n- Work-Kind: chore\n"
+            "- Set: demo\n- Summary: a summary\n\n"
+            "## Workflow history\n- 2026-01-01 created (aw backlog): a summary\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _records(self, path: Path):
+        return [
+            ln.strip()
+            for ln in path.read_text(encoding="utf-8")
+            .split("## Workflow history", 1)[1]
+            .split("\n")
+            if A.HISTORY_RECORD_RE.match(ln.strip())
+        ]
+
+    def _note(self, message, **kw):
+        base = dict(
+            dir=str(self.repo), path="nt0001", message=message, date="2026-02-02"
+        )
+        base.update(kw)
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            rc = B.run_note(_args(**base))
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_note_records_history_without_changing_status_or_moving_the_file(self):
+        rc, _out, _err = self._note("the reason this matters")
+        self.assertEqual(rc, 0)
+        self.assertTrue(self.item.exists(), "note must NOT move the item's file")
+        text = self.item.read_text(encoding="utf-8")
+        self.assertIn("- Status: open", text)
+        recs = self._records(self.item)
+        self.assertEqual(len(recs), 2, recs)
+        self.assertEqual(
+            recs[0], "- 2026-02-02 note (aw backlog): the reason this matters"
+        )
+        self.assertEqual(recs[1], "- 2026-01-01 created (aw backlog): a summary")
+
+    def test_a_second_note_preserves_the_first(self):
+        self._note("first reason")
+        self._note("second reason")
+        recs = self._records(self.item)
+        self.assertEqual(len(recs), 3, recs)
+        self.assertIn("second reason", recs[0])
+        self.assertIn("first reason", recs[1])
+        self.assertIn("created", recs[2])
+
+    def test_note_refuses_an_empty_message_and_an_unknown_item(self):
+        rc, _out, err = self._note("")
+        self.assertEqual(rc, 2)
+        self.assertIn("--message is required", err)
+        rc, _out, err = self._note("x", path="zzzz99")
+        self.assertEqual(rc, 2)
+        self.assertIn("no such item", err)
+
+    def test_the_cli_registers_the_verb(self):
+        from agent_workflows import cli
+
+        rc = cli.main(
+            [
+                "backlog",
+                "note",
+                "nt0001",
+                "--message",
+                "recorded through the CLI",
+                "--dir",
+                str(self.repo),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("recorded through the CLI", self.item.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

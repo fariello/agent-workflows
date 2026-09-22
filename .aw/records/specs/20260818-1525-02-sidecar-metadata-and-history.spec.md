@@ -9,6 +9,7 @@
 
 ## Workflow history
 
+- 2026-09-22 note (aw specs): AMENDED by plan vhbvwz (setterguard Order 02) per the maintainer's 2026-09-10 ruling: OQ-2's latest-one inline slimming is SUPERSEDED, and inline history is now the DURABLE home for specs and backlog items, matching plans. Six passages amended: OQ-2 (original reasoning preserved as superseded, not deleted), R2, R6, AC1, AC4, and the Section 2.2 citation, which both miscited the last_history_at derivation's location as attention_contract.py:434 and stated its LAST-record behavior as a property to protect - that behavior was itself the defect, since every writer PREPENDS, and it misreported 373 of 679 multi-record plans, 153 of 200 backlog items and 8 of 21 specs. The sidecar is retained as a machine-local activity log (Section 3, R1, R3, AC2 untouched); a failed sidecar write is now reported rather than swallowed. Status deliberately UNCHANGED at implemented: the only legal transitions from there are deferred/superseded, and this is a text amendment, not a lifecycle move.
 - 2026-08-19 implemented (aw specs): Implemented by the awhistory Set (global history.jsonl sidecar + writer routing + inline slimming + migration excluding plans + aw record-history verb); suite 1079 passed 1 skipped.
 ## 0. The tension (why a middle path)
 
@@ -46,7 +47,8 @@ Key flow: state stays inline (cheap, always-needed); the growing narrative lives
 
 ## 2.2 Constraints and dependencies
 
-- The front-matter PARSERS (plans_index, specs, backlog, research_contract) and the attention `last_history_at` derivation (attention_contract.py:434, which reads the LAST inline record's date) MUST keep working unchanged - this is why the latest-one inline line is retained (R6/AC4).
+- The front-matter PARSERS (plans_index, specs, backlog, research_contract) and the attention `last_history_at` derivation MUST keep working unchanged.
+  **AMENDED 2026-09-22 (plan `vhbvwz` E-02/E-07), AND THE ORIGINAL TEXT HERE WAS WRONG IN BOTH HALVES.** As authored this line said the derivation lives at `attention_contract.py:434` and "reads the LAST inline record's date". The LOCATION was wrong (`:434` is inside the `TRANSITION_AUTHORITY` table; the derivation was at `:610`), and the BEHAVIOR it described as a thing to protect was itself the defect: every writer PREPENDS, so the section is NEWEST-FIRST and the last record in file order is the OLDEST one. Measured over this repository at `2362b102`, the last-record rule reported a date that was not the artifact's newest record for 373 of 679 multi-record plans, 153 of 200 backlog items and 8 of 21 specs. The rule is now single-sourced in `attention_contract.newest_history_record` (the FIRST matching record of the bounded section), which `last_history_at` and `plan_readiness.extract_newest_history_entry` both consume, so the two readers that used to implement opposite rules can no longer disagree. The derivation is therefore NOT the reason to retain a single inline line, and R2/R6/AC1/AC4 are amended accordingly.
 - PLANS/IPD `## Workflow history` is a HARD CONSTRAINT EXCLUSION: `ipd_lint` IPD-S405 (ipd_lint.py:666) requires an inline `executed` history entry at post-transition, so plan/IPD history MUST NOT be slimmed or moved by this work. The sidecar covers non-plan record types; the IPD lifecycle owns plan history. (IPD/research writer routing is a deliberate follow-up, not this spec's initial scope.)
 - Depends on the id6 handle (spec 20260808 plans-adopter) as the sidecar join key, and is sequenced after the naming grammar (spec 20260817-2147-01). The store is a LOCAL repo file (`.aw/records/history.jsonl`), no network.
 - Append-only JSONL is chosen so concurrent-append git merges rarely conflict (a single global file otherwise risks a write hotspot).
@@ -56,18 +58,22 @@ Key flow: state stays inline (cheap, always-needed); the growing narrative lives
 (MUST = required; SHOULD = strongly preferred.)
 
 - R1 (MUST). Define the sidecar schema + location (Section 3: `.aw/records/history.jsonl`, line `{id6,date,tree,workflow,actor,message}`) and an append/read module `record_history.py`.
-- R2 (MUST). Route the specs + backlog status-transition writers (`specs set`, `specs note`, `backlog set`) to ALSO append one sidecar history record, and SLIM the inline `## Workflow history` to the LATEST ONE record line (OQ-2 resolved: latest-one, not N). The IPD lifecycle transition + research status writers are a DOCUMENTED FOLLOW-UP, NOT this spec's initial scope, and plans/IPD history is never slimmed (Section 2.2 constraint).
+- R2 (MUST). Route the specs + backlog status-transition writers (`specs set`, `specs note`, `backlog set`, `backlog note`) to ALSO append one sidecar history record, and PRESERVE the full inline `## Workflow history`, newest-first.
+  **AMENDED 2026-09-22 (maintainer ruling 2026-09-10, plan `vhbvwz` OQ-01 / E-08).** As authored this requirement said to SLIM the inline history "to the LATEST ONE record line". That is REVERSED: the inline block keeps every record, newest-first, exactly as plans already do. The premise the slimming rested on does not hold - `.aw/.gitignore` ignores `.aw/records/history.jsonl`, so the sidecar is PER-MACHINE and the slimmed records did not survive a clone; measured, three `aw specs note` records from the 2026-09-10 setid cleanup existed ONLY there. The IPD lifecycle transition + research status writers remain a DOCUMENTED FOLLOW-UP, and plans/IPD history was never slimmed (Section 2.2 constraint), so all three types now share ONE durability model.
 - R3 (MUST). A history read verb (`aw record-history <id6>`; NOTE `aw history` collides with the existing action-lifecycle verb) reads the sidecar for a given id6, chronologically.
 - R4 (MUST). An idempotent migration folds existing inline `## Workflow history` blocks into the sidecar (preserving dates/actors) then slims to latest-one - EXCLUDING the `plans` tree (IPD-S405 constraint).
 - R5 (SHOULD). Add the `- Managed-by: aw ...` front-matter directive to the record templates + a generator so new files carry it (mitigates tool-skipping).
-- R6 (MUST). The manifest/index/attention/validators keep reading inline Status/Set/Id/Order + the latest-one history line (unchanged behavior); only the FULL history log moves.
+- R6 (MUST). The manifest/index/attention/validators keep reading inline Status/Set/Id/Order + the inline history.
+  **AMENDED 2026-09-22 (plan `vhbvwz` E-07).** As authored this said they keep reading "the latest-one history line" and that "only the FULL history log moves". Neither holds now: the full log STAYS inline (R2 as amended), and the readers take the NEWEST record of the section rather than a single retained line. `last_history_at`'s behavior did change, deliberately and in the corrective direction: it now reports the newest record's date instead of the last line's (Section 2.2 as amended).
 
 ## 5. Testable acceptance criteria
 
-- AC1. Transitioning a specs/backlog record appends exactly one sidecar history line AND slims its inline `## Workflow history` to a single (latest) record line.
+- AC1. Transitioning a specs/backlog record appends exactly one sidecar history line AND prepends exactly one record to its inline `## Workflow history`, leaving every prior record in place.
+  **AMENDED 2026-09-22 (plan `vhbvwz` E-07/E-08).** As authored this criterion required the inline block to be slimmed "to a single (latest) record line"; it now requires the opposite, for the reason recorded at R2. Pinned by `tests/test_history_routing.py` (`test_backlog_set_appends_sidecar_and_preserves_inline`, `test_specs_preserves_inline`).
 - AC2. The `aw record-history <id6>` verb returns a record's full chronological history from the sidecar.
 - AC3. The migration folds legacy inline-history into the sidecar with no loss and is idempotent (re-running adds nothing).
-- AC4. `aw attention --check` / `aw specs check` / `aw backlog check` / `aw index ... --check` still pass, and `attention` `last_history_at` still resolves from the retained latest-one inline line.
+- AC4. `aw attention --check` / `aw specs check` / `aw backlog check` / `aw index ... --check` still pass, and `attention` `last_history_at` resolves to the NEWEST inline record's date on a multi-record section.
+  **AMENDED 2026-09-22 (plan `vhbvwz` E-02/E-07).** As authored this said the derivation "still resolves from the retained latest-one inline line", which stopped being meaningful once the block keeps many records - and was already wrong for plans, which were never slimmed. A single-record fixture cannot tell the two candidate rules apart (its first and last record coincide), which is why the contradiction survived this spec's own review; the criterion now demands a NEWEST-FIRST multi-record case, pinned by `tests/test_attention_contract.py::HistoryTests::test_newest_first_section_yields_its_newest_record`.
 - AC5. A representative slimmed record is measurably smaller (history removed from the cached body).
 - AC6. Plans/IPDs are UNTOUCHED: every executed plan still carries its inline `executed` `## Workflow history` entry and passes `aw ipd lint --phase post-transition` (IPD-S405). The migration does not fold or slim the `plans` tree.
 
@@ -80,12 +86,18 @@ Key flow: state stays inline (cheap, always-needed); the growing narrative lives
 - Owner: maintainer (2026-08-18)
 - Resolution or deferral rationale: ONE GLOBAL `.aw/records/history.jsonl` keyed by id6 (Section 3). Maintainer chose global over per-tree/per-record for simplicity + cross-tree queries; append-only JSONL keeps conflicts rare.
 
-### OQ-2: keep a short inline history TAIL? RESOLVED
+### OQ-2: keep a short inline history TAIL? RESOLVED, THEN SUPERSEDED 2026-09-10
 
 - Blocking: no
-- Status: resolved
-- Owner: maintainer (2026-08-18)
-- Resolution or deferral rationale: KEEP THE LATEST ONE line inline (the current state's provenance); full chronological log lives in `.aw/records/history.jsonl`.
+- Status: resolved (superseded)
+- Owner: maintainer (2026-08-18; superseded by the maintainer 2026-09-10)
+- Resolution or deferral rationale (ORIGINAL, 2026-08-18, PRESERVED AS SUPERSEDED - do not delete): KEEP THE LATEST ONE line inline (the current state's provenance); full chronological log lives in `.aw/records/history.jsonl`.
+  THE ORIGINAL REASONING IS KEPT BECAUSE IT STILL CONSTRAINS THE DESIGN. The slimming was a considered decision, not an accident, and its motivation was concrete: `aw attention`'s `last_history_at` derivation reads the inline block, so exactly one line was retained specifically to keep that derivation working. Any future change to inline history must still satisfy that reader, which is why the record of WHY latest-one was chosen stays here rather than being erased.
+- **SUPERSEDING RESOLUTION (maintainer, 2026-09-10; implemented by plan `vhbvwz` E-08, 2026-09-22): KEEP THE FULL INLINE HISTORY for specs and backlog items, newest-first, matching what plans already do.**
+  WHY THE ORIGINAL PREMISE FAILED. This question's answer rested on "the full chronological log lives in `.aw/records/history.jsonl`". It does not, for anyone but the machine that wrote it: `git check-ignore -v .aw/records/history.jsonl` resolves to `.aw/.gitignore`, so the sidecar is gitignored and does not survive a clone. Every record the slimming dropped was therefore destroyed rather than relocated. Measured consequence on this repository's own work: three `aw specs note` calls during the 2026-09-10 setid cleanup recorded substantial reasoning that existed ONLY in the sidecar, while each spec showed exactly one inline record - which `AGENTS.md` forbids outright, since an answer must never live only in a gitignored tree.
+  WHAT DECIDED IT. Tracing the CALLERS rather than the writers showed the sidecar is written by nine deliberate record-keeping actions and that `status_set.py` writes to it ZERO times, so plan history was ALREADY inline, already version-controlled, and already protected by `ipd_lint` IPD-S405. The August decision left specs and backlog on a different durability model from plans, and that split was the actual defect. One model - the one that already worked - is the answer.
+  THE SIDECAR IS NOT REMOVED. It remains a machine-local, cross-tree ACTIVITY LOG read by `aw record-history <id6>` (Section 3, R1, R3 and AC2 are untouched). It is simply no longer the durable store, so a failed sidecar write can never cost a record; that failure is now REPORTED rather than swallowed (`record_history.append_advisory`).
+  THE ORIGINAL CONSTRAINT WAS HONORED, BY FIXING THE READER FIRST. Keeping more than one inline line was only safe once `last_history_at` genuinely meant "newest", so plan `vhbvwz` corrected that derivation (E-02) BEFORE changing either writer (E-08); see Section 2.2 as amended for the measurement. Landing them in the other order would have made every multi-record spec and backlog item report its OLDEST date.
 
 ### OQ-3: is this a release blocker? RESOLVED
 

@@ -709,6 +709,52 @@ def validate_transition_allowed(
     return True, None
 
 
+def same_status_message_is_duplicate(
+    text: str, *, status: str, date: str, message: str
+) -> bool:
+    """Whether writing ``message`` as a ``status``/``date`` record would merely REPEAT the newest one.
+
+    True when the artifact's NEWEST existing history record already carries the same status token, the
+    same date, and a byte-identical message. Pure; ``text`` is whole artifact text.
+
+    WHY THIS PREDICATE EXISTS (plan ``vhbvwz`` E-01, finding F-10). Making a same-status
+    ``--message`` write its history record - the ``x6tk1u`` fix directly below - cannot key on message
+    PRESENCE alone, because that grows duplicate history on an idempotent re-assertion. Measured
+    before the rule was added: running the identical ``aw ipd set reviewed <id6> -m "identical note"``
+    three times produced THREE identical records. That is not hypothetical; both runners call
+    ``set_plan_approved`` with the hardcoded constant ``FULL_AUTO_APPROVAL_MESSAGE``
+    (``oc_runipd.py``, ``agy_runipd.py``) from two call sites each, so a re-run over an
+    already-``auto-approved`` plan would append one duplicate per run forever.
+
+    DELIBERATELY COMPARED AGAINST THE NEWEST RECORD ONLY, not against every record in the file. The
+    rule must distinguish "I am re-asserting the state I just asserted" (silent) from "I am adding a
+    new note" (recorded), and a genuinely new note that happens to reuse an older wording is the
+    SECOND case. Scanning the whole file would refuse it, which is the ``x6tk1u`` defect wearing a
+    different hat. The ACTOR is deliberately NOT compared either: the same note re-asserted under a
+    different actor string is still the same note.
+    """
+
+    from agent_workflows import attention as _att
+    from agent_workflows import attention_contract as _ac
+    from agent_workflows import plan_readiness as _readiness
+
+    newest = _ac.newest_history_record(
+        [line.strip() for line in _att._history_section_lines(text)]
+    )
+    if newest is None:
+        return False
+    # The SHARED record parser, not a second copy of the grammar: `plan_readiness` already owns it and
+    # `attention_contract.actor_refusal` exists because that shape is a contract rather than a habit.
+    m = _readiness._HISTORY_RECORD_PARTS_RE.match(newest)
+    if m is None:
+        return False
+    return (
+        m.group("date") == date
+        and m.group("mid").strip() == status
+        and m.group("msg").strip() == (message or "").strip()
+    )
+
+
 def apply_status_change(
     rec: ArtifactRecord,
     target_status: str,
@@ -1093,7 +1139,33 @@ def apply_status_change(
     content_changed = new_lines != lines
     path_changed = dest_path.resolve() != rec.path.resolve()
 
-    if not content_changed and not path_changed:
+    # WRITE A DELIBERATE `--message` EVEN WHEN NOTHING ELSE MOVED (plan `vhbvwz` E-01, bug `x6tk1u`).
+    #
+    # THE BUG THIS FIXES: this early return used to be unconditional, and it sits BEFORE the history
+    # write below, so `aw set <the-status-it-already-has> <artifact> --message "<reasoning>"` discarded
+    # the message and exited 0. Measured on this repository: roughly 2000 characters of recorded
+    # reasoning were swallowed, noticed only because `git status` showed no modification. Nothing else
+    # records it either - this module writes NOTHING to the history sidecar - so the note was simply
+    # gone.
+    #
+    # THE SHAPE IS THE ESTABLISHED ONE. Four field writes above (`Blocks-Release`, `From-Backlog`,
+    # `Item-Dependencies`, `Priority`) were each hoisted out of the status-change branch for exactly
+    # this reason: the field must be written even when the status does not move. The FROM-BACKLOG
+    # PRECEDENT is the closest, since it was hoisted specifically so `aw ipd set --from-backlog`
+    # persists "even on a no-op (same-status) transition"; this is the same correction applied to the
+    # history record.
+    #
+    # PRESENCE ALONE IS NOT THE DISCRIMINATOR, and the dedup half is not optional: see
+    # `same_status_message_is_duplicate` for the measured three-identical-records run and for the two
+    # runner call sites that would otherwise append a duplicate on every re-run.
+    _explicit_message = (getattr(args, "message", None) or "").strip()
+    _write_history_anyway = bool(_explicit_message) and not (
+        same_status_message_is_duplicate(
+            text, status=norm_status, date=today, message=message
+        )
+    )
+
+    if not content_changed and not path_changed and not _write_history_anyway:
         return rec.path, norm_status
 
     # Write the Workflow history record. NEWEST-FIRST, NOT appended: the `insert(i + 1, ...)` below

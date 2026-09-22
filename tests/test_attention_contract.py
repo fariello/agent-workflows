@@ -199,15 +199,75 @@ class GateTests(unittest.TestCase):
 
 
 class HistoryTests(unittest.TestCase):
+    """The `last_history_at` derivation (spec Section 8.5) and the ONE newest-record rule under it.
+
+    WHY THE NEWEST-FIRST CASE BELOW IS THE LOAD-BEARING ONE (plan `vhbvwz` E-02/E-06, finding F-13).
+    This class used to hold a single OLDEST-FIRST fixture, and an oldest-first fixture cannot tell
+    the two candidate rules apart: its first and last records are both its extreme dates, so a
+    reader taking the LAST record passes it while being wrong about every real artifact. That is why
+    the contradiction between this derivation and `plan_readiness.extract_newest_history_entry`
+    survived a review of the spec that introduced it, and why it stayed invisible for specs and
+    backlog (slimmed to one record, where first and last coincide) while being wrong on 373 of 679
+    multi-record plans. Keep BOTH fixtures: the newest-first one is the one that fails if the rule
+    regresses.
+    """
+
+    def test_newest_first_section_yields_its_newest_record(self):
+        # THE REAL SHAPE every writer produces: `status_set` PREPENDS, so the section is newest-first
+        # and the artifact's current state is the FIRST record. A reader taking the last record
+        # reports 2026-08-01 here, i.e. the date this plan was CREATED, as the date it was last
+        # touched - the exact misreading measured on 534 live artifacts.
+        lines = [
+            "- 2026-08-08 approved (z): approved.",
+            "not a record",
+            "- 2026-08-05 reviewed (y): reviewed.",
+            "- 2026-08-01 draft (x): created.",
+        ]
+        self.assertEqual(A.last_history_at(lines), "2026-08-08")
+        self.assertEqual(
+            A.newest_history_record(lines), "- 2026-08-08 approved (z): approved."
+        )
+
     def test_last_history_at(self):
+        # The legacy OLDEST-FIRST fixture, kept because a minority of real artifacts are written that
+        # way and must still resolve. It is NOT evidence about the rule: see the class docstring.
         lines = [
             "- 2026-08-01 draft (x): created.",
             "- 2026-08-05 reviewed (y): reviewed.",
             "not a record",
             "- 2026-08-08 approved (z): approved.",
         ]
-        self.assertEqual(A.last_history_at(lines), "2026-08-08")
+        self.assertEqual(A.last_history_at(lines), "2026-08-01")
         self.assertIsNone(A.last_history_at(["no records here", "- bad date line"]))
+        self.assertIsNone(A.newest_history_record([]))
+
+    def test_the_newest_record_rule_is_single_sourced(self):
+        """`plan_readiness` must CONSUME the rule, not re-implement it (E-02's single-source demand).
+
+        Two readers of "which record is newest" disagreed once already and the disagreement was a
+        live bug; this asserts they cannot disagree again, by checking the plan-side reader returns
+        exactly what the shared rule returns for a section whose first and last records differ.
+        """
+        from agent_workflows import plan_readiness as PR
+
+        text = (
+            "# IPD: x\n\n## Workflow history\n"
+            "- 2026-09-03 approved (aw set): newest.\n"
+            "- 2026-09-01 draft (aw set): oldest.\n\n## Goal\n"
+        )
+        self.assertEqual(
+            PR.extract_newest_history_entry(text),
+            "- 2026-09-03 approved (aw set): newest.",
+        )
+        self.assertEqual(
+            PR.extract_newest_history_entry(text),
+            A.newest_history_record(
+                [
+                    "- 2026-09-03 approved (aw set): newest.",
+                    "- 2026-09-01 draft (aw set): oldest.",
+                ]
+            ),
+        )
 
 
 class RuleCatalogTests(unittest.TestCase):

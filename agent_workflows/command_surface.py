@@ -1378,6 +1378,19 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         ),
         exit_contract=(0, 1, 2),
     ),
+    # plan `vhbvwz` E-05: the backlog ANNOTATION verb, declared with the same shape as its `specs note`
+    # precedent (mutation, `human_recipe="text"`, no mutation gate: a note writes one history record,
+    # changes no status and moves no file, so there is nothing for a gate to protect).
+    CommandDeclaration(
+        command="backlog note",
+        command_class="mutation",
+        human_recipe="text",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--message", "--date"),
+        exit_contract=(0, 2),
+    ),
     CommandDeclaration(
         command="backlog check",
         command_class="check",
