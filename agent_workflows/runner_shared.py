@@ -17380,6 +17380,84 @@ def rescore_is_an_improvement(before: str | None, after: str | None) -> bool:
     return after_rank > before_rank
 
 
+def read_recorded_outcome(
+    run_dir: Path, item: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """The outcome JSON the AGENT wrote for one item, or None when there is nothing readable.
+
+    runrecon-02 (`fduoj4`) E-02: ONE definition of where that file lives and of what "unreadable"
+    means, because two readers spelling the path differently is how a reader ends up looking under a
+    name the writer never used. Returns None for an absent file, an unparseable one, and a
+    non-mapping payload alike: each means "the step recorded nothing this driver can honor", and the
+    CALLER decides what to do with that.
+
+    TOLERANT OF A MALFORMED ITEM, deliberately and as a recorded behavior change. The two inlined
+    copies this replaces indexed `item['position']` and `item['id6']` directly, so an item missing
+    either raised `KeyError` out of `reconcile_disposition`. This returns None instead. The reason is
+    the same one `fduoj4` F-13 records for `configured_file`: this reader is now also reached from the
+    CRASH path, where one malformed item raising would abort the whole reconciliation loop before
+    `save_state` and lose the verdict for every OTHER item in the queue. A crashed run is exactly
+    when the ledger is most likely to be malformed, so failing soft per item is the correct posture
+    there, and no caller relies on the raise (both callers pass items built by the queue builder,
+    which always writes both keys).
+    """
+
+    position = item.get("position")
+    id6 = item.get("id6")
+    if position is None or not id6:
+        return None
+    try:
+        outcome_path = run_dir / "outcomes" / f"{int(position):02d}-{id6}.json"
+    except (TypeError, ValueError):
+        return None
+    if not outcome_path.exists():
+        return None
+    try:
+        outcome = load_json(outcome_path)
+    except DriverError:
+        return None
+    return outcome if isinstance(outcome, dict) else None
+
+
+def outcome_precedence_disposition(
+    bucket: str | None, outcome: Mapping[str, Any] | None
+) -> str | None:
+    """THE ONE DEFINITION of what a plan's bucket plus a step's RECORDED outcome establish.
+
+    runrecon-02 (`fduoj4`) E-02. Returns the established disposition, or None for "this evidence
+    establishes nothing" - never a guess. Three rungs, in order:
+
+      1. A plan in `executed/` is `executed`. The directory is the harder-to-forge signal, because
+         `aw ipd finalize` is what moves a plan there.
+      2. A RECORDED `executed` is DOWNGRADED to `substantially-complete`. This is the
+         ANTI-FABRICATION RULE, not an inconvenience: an agent writing `disposition: executed` into
+         its own outcome file is making a SELF-CLAIM, and this repository does not treat a self-claim
+         as completion authority. Do not remove it to make a case report better.
+      3. Any other recorded disposition in `TERMINAL_STATES` minus `{dependency-blocked,
+         not-attempted}` is honored verbatim. Those two are subtracted because they describe what the
+         SCHEDULER decided about an item, not what a turn accomplished, so an agent cannot record
+         them about itself.
+
+    IT OWNS NO FALLBACK AND TAKES NO `exit_code`, and both absences are what make it safe on its two
+    callers (plan finding F-10/F-11). `reconcile_disposition` has an exit code and appends its own
+    `partial`/`failed-safely` fallback; the CRASH path has NO exit code, because the process died
+    without producing one, and its fallback is the honest `interrupted` guess it already made. A
+    helper carrying either would force one caller to accept the other's answer, which is exactly the
+    design PR-701 measured and rejected: routing the crash path through `reconcile_disposition`
+    itself flips a crashed step to `failed-safely` on every one of the four no-answer branches.
+    """
+
+    if bucket == "executed":
+        return "executed"
+    if outcome:
+        disposition = outcome.get("disposition")
+        if disposition == "executed":
+            return "substantially-complete"
+        if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}:
+            return str(disposition)
+    return None
+
+
 def reconcile_disposition(
     repo: Path,
     item: dict[str, Any],
@@ -17409,13 +17487,13 @@ def reconcile_disposition(
             return "reviewed", None
         return "failed-safely", None
 
-    outcome_path = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
-    outcome: dict[str, Any] | None = None
-    if outcome_path.exists():
-        try:
-            outcome = load_json(outcome_path)
-        except DriverError:
-            outcome = None
+    # runrecon-02 (`fduoj4`) E-02: the outcome read and the bucket/outcome precedence are now the two
+    # SHARED helpers above, so the CRASH path (`reconcile_interrupted`) honors the same rules from the
+    # same code rather than from a second copy. The behavior here is unchanged: the rungs the helper
+    # applies are the three this function applied inline, in the same order, and everything the helper
+    # declines to answer still falls through to the deferral passthrough and the exit-code fallback
+    # below, which stay HERE because they are this caller's and not the precedence's.
+    outcome: dict[str, Any] | None = read_recorded_outcome(run_dir, item)
     try:
         current_plan = resolve_plan_path(
             repo, item.get("configured_file", ""), item["id6"]
@@ -17423,17 +17501,304 @@ def reconcile_disposition(
         bucket = plan_bucket(current_plan)
     except DriverError:
         bucket = None
-    if bucket == "executed":
-        return "executed", outcome
-    if outcome:
-        disposition = outcome.get("disposition")
-        if disposition == "executed":
-            return "substantially-complete", outcome
-        if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}:
-            return disposition, outcome
+    established = outcome_precedence_disposition(bucket, outcome)
+    if established is not None:
+        return established, outcome
     if item.get("status") == INTEGRATION_DEFERRED_STATUS:
         return INTEGRATION_DEFERRED_STATUS, outcome
     return ("partial" if exit_code == 0 else "failed-safely"), outcome
+
+
+#: The provenance marker written beside a disposition this driver RECOVERED from a step's own outcome
+#: file rather than OBSERVED itself (runrecon-02 `fduoj4` E-02).
+#:
+#: THE DISTINCTION IS LOAD-BEARING and is why the value is recorded in a field of its own rather than
+#: folded into the status. A driver-reported disposition was observed by the driver, which watched the
+#: turn end and scored it. A RECOVERED one was read out of a file the driver never validated, written
+#: by an agent whose process then died. Both are honest, they are not equally strong, and a later
+#: reader (or auditor) must be able to tell them apart without re-deriving it.
+RECOVERED_FROM_OUTCOME = "recovered-from-outcome"
+
+#: The item field carrying :data:`RECOVERED_FROM_OUTCOME` when recovery fired.
+RECOVERY_PROVENANCE_KEY = "disposition_provenance"
+
+#: The item field carrying the commits the RECOVERED outcome file recorded, as a list of
+#: `{"sha": str, "resolved": bool}` records (runrecon-02 `fduoj4` E-03).
+RECOVERED_COMMITS_KEY = "recovered_commits"
+
+
+def recorded_commit_shas(outcome: Mapping[str, Any] | None) -> list[str]:
+    """The commit shas an outcome file recorded, normalized, in recorded order.
+
+    runrecon-02 (`fduoj4`) E-03. Tolerates BOTH shapes real outcome files carry, because both exist in
+    the corpus: a bare list of sha strings (what the runbook's schema asks for, and what the measured
+    incident's `outcomes/02-97df1z.json` contains) and a list of mappings carrying a `sha` key (which
+    `ipd_lifecycle` documents reading as `last_outcome.commits[].sha`). Anything else in the list is
+    skipped rather than raising: this is a REPORTING read on a crash path, and one malformed entry
+    must not cost the whole reconciliation.
+    """
+
+    if not outcome:
+        return []
+    raw = outcome.get("commits")
+    if not isinstance(raw, (list, tuple)):
+        return []
+    shas: list[str] = []
+    for entry in raw:
+        if isinstance(entry, str):
+            sha = entry.strip()
+        elif isinstance(entry, Mapping):
+            sha = str(entry.get("sha") or "").strip()
+        else:
+            continue
+        if sha:
+            shas.append(sha)
+    return shas
+
+
+def describe_recorded_commits(
+    repo: Path, outcome: Mapping[str, Any] | None
+) -> list[dict[str, Any]]:
+    """Each recorded sha paired with whether it RESOLVES in ``repo``. Reports; never acts.
+
+    runrecon-02 (`fduoj4`) E-03. The measured incident is the whole reason this exists:
+    `outcomes/02-97df1z.json` recorded `"commits": ["209227d5..."]` with `"pushed": false`, and that
+    sha was the ONLY pointer to a lane holding a net-new module plus its tests. Reconciling the step
+    while dropping the sha leaves a human to go looking for work the driver already knew about.
+
+    IT VALIDATES AND MERGES NOTHING, and the distinction is exact: `resolved` answers "does this
+    object exist in this repository", which is a read (`git cat-file -e <sha>^{commit}`). It does NOT
+    answer "is this lane mergeable", "is this work complete", or "should this be integrated": those
+    belong to the `integpath` Set (`rl67b0`'s `integrate` verb, `51vw4y`'s deferral ladder). An
+    unresolvable sha is reported as recorded-but-unresolved rather than dropped or asserted, because
+    both of those would be claims this function is not entitled to make.
+    """
+
+    described: list[dict[str, Any]] = []
+    for sha in recorded_commit_shas(outcome):
+        resolved = False
+        try:
+            rc, _out, _err = _run_git(repo, ["cat-file", "-e", f"{sha}^{{commit}}"])
+            resolved = rc == 0
+        except Exception:
+            # An unusable git (absent binary, unreadable repo) is an UNPROVABLE resolution, never a
+            # proven absence, and it must not take the reconciliation down with it.
+            resolved = False
+        described.append({"sha": sha, "resolved": resolved})
+    return described
+
+
+def reconcile_interrupted(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    save_state: Callable[[Path, dict[str, Any]], None],
+) -> None:
+    """Decide what happened to every item left `running` by a driver that died mid-turn.
+
+    ONE DEFINITION, SHARED BY BOTH HOSTS (runrecon-02 `fduoj4` E-01). It was forked per host, and
+    `run_viewer.repair_run` reached into `oc_runipd` for the oc copy, so the agy crash path and the
+    repair verb could silently disagree with each other. The two copies had already DIVERGED in one
+    code line (F-13): oc indexed `item["configured_file"]` and agy used `.get(..., "")`, so on an item
+    missing that key oc raised `KeyError` past an `except DriverError` that does not catch it,
+    ABORTING the whole loop before `save_state` and losing the verdict for every other item. This
+    keeps AGY'S TOLERANT FORM, deliberately: a crashed ledger is exactly where a malformed item is
+    likely, and failing the whole reconciliation over one of them is strictly worse than reconciling
+    the rest.
+
+    WHAT IT DECIDES FROM, in order:
+
+      1. THE PLAN'S DIRECTORY. A plan in `executed/` promotes the item to `executed`, UNLESS the turn
+         was force-cut (see the R22 gate below).
+      2. THE STEP'S OWN RECORDED OUTCOME (`outcomes/<NN>-<id6>.json`), through the shared
+         :func:`outcome_precedence_disposition`. This is the gap `fduoj4` closes: the recorded answer
+         was ON DISK IN THIS RUN DIRECTORY and was never consulted, so a step that finished its work,
+         recorded `substantially-complete` and committed to a lane was written down as merely
+         `interrupted`. Measured (backlog `ydbhfd`): `aw oc run e32j35 97df1z` was killed by a
+         reboot, `outcomes/02-97df1z.json` recorded `substantially-complete` with a real commit sha,
+         and `state.json` recorded `interrupted` with `last_outcome: None`.
+      3. OTHERWISE the honest `interrupted` guess, byte-for-byte as before. A step that really did die
+         before producing anything must still be recorded as having been interrupted, which is why the
+         precedence helper returns None rather than a fallback of its own.
+
+    TWO ANTI-FABRICATION RULES SURVIVE UNCHANGED and neither may be weakened to make a case report
+    better:
+
+      * THE FORCE-INTERRUPT REFUSAL (spec `c4gd2h` R22, runstop `m0z0ti` E-05). An item flagged
+        INDETERMINATE is never promoted, not from the directory and not from its outcome file. A
+        force-cut turn's own self-report is EXACTLY the evidence R22 says the driver never
+        established, so consulting it there would re-open the hole the gate closes. The outcome
+        consultation is therefore on the non-indeterminate path only.
+      * THE SELF-CLAIM DOWNGRADE, inside the shared precedence helper: a recorded `executed` becomes
+        `substantially-complete`. The measured case needs NO relaxation of this, because its outcome
+        file already says `substantially-complete`.
+
+    IT CONSULTS THE OUTCOME FILE FOR EXECUTE-ACTION ITEMS ONLY. A `review` or `orchestrate` turn does
+    not write one (plan finding F-12), so reading it for them would be reading evidence that does not
+    exist for that kind of turn, and a stale or foreign file would decide a verdict about work of a
+    different shape. A crashed queue can hold all three action kinds.
+
+    RECOVERY CHANGES WHAT A RESUME DOES, NOT ONLY WHAT THE RECORD SAYS, and that was a maintainer
+    decision rather than an inference (`fduoj4` OQ-03, answered 2026-09-10). `run_queue` calls
+    `requeue_interrupted` on the line after this function, and that flips every still-`interrupted`
+    item back to `queued`; a step recovered to `substantially-complete` leaves that set, so it is NOT
+    retried. `substantially-complete` is also in `EXECUTION_SUCCESS_STATES`, which `edge_satisfied`
+    reads for a non-review item, so recovery can release a dependent that was waiting. Both effects
+    are intended: work proven to have finished is not redone, and dependents waiting on it may
+    proceed. The conservative alternative (record the provenance but leave the status `interrupted`
+    for requeue purposes) was DECLINED, so the status field and the provenance field must not
+    disagree.
+
+    `save_state` IS INJECTED, following the maintainer's `818uru` OQ-02 wrapper ruling rather than
+    inventing a new mechanism for it. The shared `save_state` needs `write_report`, which is class (c)
+    DIVERGED (each host renders a different document), so a shared body cannot pick one without
+    silently giving the other host the wrong report format. Each host therefore keeps a one-line
+    wrapper at the ORIGINAL name and signature, binding its own; every existing call site is
+    untouched, which is what `tests/test_rununify_run_queue.py`'s wrapper assertions require.
+    """
+
+    from agent_workflows import runner_stop
+
+    repo = Path(state["repo"])
+    for item in state["queue"]:
+        if item["status"] != "running":
+            continue
+        attempts = item.get("attempts", [])
+        if attempts:
+            raw_log = attempts[-1].get("log")
+            session_id = extract_session_id(Path(raw_log)) if raw_log else None
+            if session_id:
+                existing = state.setdefault("set_sessions", {}).get(item["setid"])
+                if existing in (None, session_id):
+                    state["set_sessions"][item["setid"]] = session_id
+                    state["session_id"] = session_id
+                    attempts[-1]["session_id"] = session_id
+                else:
+                    attempts[-1]["session_reconciliation_error"] = (
+                        f"persisted={existing} observed={session_id}"
+                    )
+        # THE INDETERMINATE GATE IS EVALUATED ONCE, HERE, and read by both the directory promotion and
+        # the outcome recovery below. One predicate, so the two paths cannot drift into disagreeing
+        # about whether a turn's outcome was established (`runner_stop.is_indeterminate` is itself the
+        # single predicate every level-4 gate branches on, for the same reason).
+        indeterminate = runner_stop.is_indeterminate(item)
+        bucket: str | None = None
+        try:
+            # AGY'S TOLERANT FORM (F-13). `item["configured_file"]` raises `KeyError`, which the
+            # `except DriverError` below does NOT catch, so one malformed item aborted the whole loop
+            # before `save_state`.
+            path = resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
+            bucket = plan_bucket(path)
+            if bucket == "executed":
+                # runstop m0z0ti (E-05, spec R22): THE FABRICATED-SUCCESS GATE.
+                #
+                # The promotion below infers success from the plan's DIRECTORY alone. For an item whose
+                # turn was FORCE-CUT that is a live R22 violation: if the agent had already moved the
+                # plan to `executed/` but was interrupted before its work was complete or verified,
+                # this would record `executed` - a success the driver never established, which is
+                # precisely what level 4 exists to prevent. So for an item flagged INDETERMINATE the
+                # promotion refuses to fire and the conflict is REPORTED instead.
+                #
+                # Deliberately narrow: ordinary (non-indeterminate) interrupted items are promoted
+                # exactly as before, and a control test pins that. Widening this to all interrupted
+                # items would disable a legitimate promotion rather than fix a fabrication.
+                if indeterminate:
+                    item["reconciliation_conflict"] = (
+                        f"plan is in executed/ ({path}) but this turn was force-interrupted "
+                        f"(level 4), so the driver never established that the work completed; "
+                        f"refusing to record it executed (spec c4gd2h R22). "
+                        f"{runner_stop.RECONCILIATION_ACTION}"
+                    )
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "interrupted-promotion-refused-unknown-outcome",
+                            "id6": item["id6"],
+                            "plan_bucket": "executed",
+                            "certainty": runner_stop.CERTAINTY_INDETERMINATE,
+                            "disposition": runner_stop.FORCED_DISPOSITION,
+                            "requires_reconciliation": True,
+                            "reason": item["reconciliation_conflict"],
+                        },
+                    )
+                    print(
+                        f"reconcile {item['id6']}: {item['reconciliation_conflict']}",
+                        file=sys.stderr,
+                    )
+                else:
+                    item["status"] = "executed"
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "interrupted-reconciled-executed",
+                            "id6": item["id6"],
+                        },
+                    )
+                    continue
+        except DriverError:
+            bucket = None
+
+        # runrecon-02 (`fduoj4`) E-02/E-03: CONSULT THE EVIDENCE THE STEP ITSELF WROTE, before falling
+        # back to the directory guess. Reached only when the promotion above did not fire, and gated on
+        # the two conditions the docstring justifies: an EXECUTE action (a review/orchestrate turn
+        # writes no outcome file) and a NON-INDETERMINATE turn (R22).
+        if not indeterminate and item.get("action", "execute") not in (
+            "review",
+            "orchestrate",
+        ):
+            outcome = read_recorded_outcome(run_dir, item)
+            recovered = outcome_precedence_disposition(bucket, outcome)
+            if recovered is not None:
+                item["status"] = recovered
+                item[RECOVERY_PROVENANCE_KEY] = RECOVERED_FROM_OUTCOME
+                item["last_outcome"] = outcome
+                commits = describe_recorded_commits(repo, outcome)
+                if commits:
+                    item[RECOVERED_COMMITS_KEY] = commits
+                if attempts:
+                    now = utc_now()
+                    attempts[-1].setdefault("interrupted_at", now)
+                    attempts[-1].setdefault("ended_at", now)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "interrupted-recovered-from-outcome",
+                        "id6": item["id6"],
+                        "disposition": recovered,
+                        "provenance": RECOVERED_FROM_OUTCOME,
+                        "commits": commits,
+                    },
+                )
+                print(
+                    f"reconcile {item['id6']}: recovered {recovered} from the step's own "
+                    f"recorded outcome ({RECOVERED_FROM_OUTCOME}); "
+                    + (
+                        "recorded commits "
+                        + ", ".join(
+                            f"{c['sha']}"
+                            + ("" if c["resolved"] else " (recorded, unresolved here)")
+                            for c in commits
+                        )
+                        if commits
+                        else "no commits recorded"
+                    ),
+                    file=sys.stderr,
+                )
+                continue
+
+        item["status"] = "interrupted"
+        if attempts:
+            now = utc_now()
+            attempts[-1].setdefault("interrupted_at", now)
+            attempts[-1].setdefault("ended_at", now)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {"at": utc_now(), "event": "interrupted-detected", "id6": item["id6"]},
+        )
+    save_state(run_dir, state)
 
 
 def record_item_spec_edits(

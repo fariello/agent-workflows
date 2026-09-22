@@ -3265,85 +3265,13 @@ def execute_item(
     )
 
 
+# runrecon-02 (`fduoj4`) E-01: one-line wrapper over the shared `reconcile_interrupted`, the exact
+# counterpart of the `oc_runipd` wrapper, binding THIS driver's `save_state`. The shared body took THIS
+# host's tolerant `item.get("configured_file", "")` form, because the oc form raised `KeyError` past an
+# `except DriverError` that does not catch it and so abandoned a whole crashed queue on one malformed
+# item. `save_state` is injected (class (c) DIVERGED `write_report`; `818uru` OQ-02 wrapper ruling).
 def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
-    repo = Path(state["repo"])
-    for item in state["queue"]:
-        if item["status"] != "running":
-            continue
-        attempts = item.get("attempts", [])
-        if attempts:
-            raw_log = attempts[-1].get("log")
-            session_id = extract_session_id(Path(raw_log)) if raw_log else None
-            if session_id:
-                existing = state.setdefault("set_sessions", {}).get(item["setid"])
-                if existing in (None, session_id):
-                    state["set_sessions"][item["setid"]] = session_id
-                    state["session_id"] = session_id
-                    attempts[-1]["session_id"] = session_id
-                else:
-                    attempts[-1]["session_reconciliation_error"] = (
-                        f"persisted={existing} observed={session_id}"
-                    )
-        try:
-            path = resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
-            if plan_bucket(path) == "executed":
-                # runstop m0z0ti (E-05, spec R22): THE FABRICATED-SUCCESS GATE, the exact counterpart
-                # of the `oc_runipd` gate (orchestrator CID-3). This promotion infers success from the
-                # plan's DIRECTORY alone, consulting neither the outcome artifact nor any stop record.
-                # For a FORCE-CUT turn that records a success the driver never established: if the
-                # agent had already moved the plan to `executed/` but was interrupted before its work
-                # was complete or verified, `executed` would be a fabrication. So it refuses to fire
-                # for an item flagged INDETERMINATE and reports the conflict instead.
-                #
-                # Deliberately narrow: ordinary interrupted items are promoted exactly as before, and
-                # a control test pins that.
-                if runner_stop.is_indeterminate(item):
-                    item["reconciliation_conflict"] = (
-                        f"plan is in executed/ ({path}) but this turn was force-interrupted "
-                        f"(level 4), so the driver never established that the work completed; "
-                        f"refusing to record it executed (spec c4gd2h R22). "
-                        f"{runner_stop.RECONCILIATION_ACTION}"
-                    )
-                    append_jsonl(
-                        run_dir / "events.jsonl",
-                        {
-                            "at": utc_now(),
-                            "event": "interrupted-promotion-refused-unknown-outcome",
-                            "id6": item["id6"],
-                            "plan_bucket": "executed",
-                            "certainty": runner_stop.CERTAINTY_INDETERMINATE,
-                            "disposition": runner_stop.FORCED_DISPOSITION,
-                            "requires_reconciliation": True,
-                            "reason": item["reconciliation_conflict"],
-                        },
-                    )
-                    print(
-                        f"reconcile {item['id6']}: {item['reconciliation_conflict']}",
-                        file=sys.stderr,
-                    )
-                else:
-                    item["status"] = "executed"
-                    append_jsonl(
-                        run_dir / "events.jsonl",
-                        {
-                            "at": utc_now(),
-                            "event": "interrupted-reconciled-executed",
-                            "id6": item["id6"],
-                        },
-                    )
-                    continue
-        except DriverError:
-            pass
-        item["status"] = "interrupted"
-        if attempts:
-            now = utc_now()
-            attempts[-1].setdefault("interrupted_at", now)
-            attempts[-1].setdefault("ended_at", now)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {"at": utc_now(), "event": "interrupted-detected", "id6": item["id6"]},
-        )
-    save_state(run_dir, state)
+    runner_shared.reconcile_interrupted(run_dir, state, save_state=save_state)
 
 
 def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:

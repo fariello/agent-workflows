@@ -13,6 +13,7 @@ import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from unittest import TestCase
 
 from agent_workflows import cli, run_viewer
@@ -2960,3 +2961,250 @@ class SharedLifecycleRenderingTests(TestCase):
                         buf.getvalue(),
                         f"criterion A14 violation: `aw runs {flag}` emitted ANSI.",
                     )
+
+
+# ==================================================================================================
+# runrecon-02 (`fduoj4`) E-04: the read surface must report a BETTER-INFORMED label, without mutating
+# ==================================================================================================
+
+
+def _abandoned_run_fixture(
+    root: Path, *, outcome: Any = None, action: str = "execute"
+) -> Path:
+    """One run whose single step is `running` with NO live driver: the `abandoned?` shape.
+
+    NO `driver.lock` FILE AT ALL, which is what `driver_holder_state` reads as `HOLDER_NONE`
+    (measured: `test_no_lock_file_means_no_holder`). That is deliberately the simplest honest way to
+    reach the projection without holding a real flock from a subprocess, which the liveness module
+    already covers directly.
+
+    Fixture-based per this module's header hazard: `.aw/records/runs/` is gitignored, so a test keyed
+    to the developer's live corpus is unrunnable in a fresh checkout or a lane worktree.
+    """
+
+    run_id = "run-20260902T013603Z-1758564"
+    d = root / ".aw" / "records" / "runs" / run_id
+    (d / "outcomes").mkdir(parents=True, exist_ok=True)
+    if outcome is not None:
+        (d / "outcomes" / "02-97df1z.json").write_text(
+            json.dumps(outcome), encoding="utf-8"
+        )
+    (d / "state.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "repo": str(root),
+                "created_at": "2026-09-02T01:36:03+00:00",
+                "updated_at": "2026-09-02T01:36:03+00:00",
+                "queue": [
+                    {
+                        "position": 2,
+                        "id6": "97df1z",
+                        "setid": "e32j35",
+                        "action": action,
+                        "status": "running",
+                        "configured_file": ".aw/records/plans/pending/20260902-e32j35-02-97df1z-x.ipd.md",
+                        "last_outcome": None,
+                        "attempts": [{"number": 1, "log": None}],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return d
+
+
+def _only_step(run_dir: Path, root: Path) -> run_viewer.StepSummary:
+    """The single step of a one-step fixture run, read through the real loader."""
+
+    summary = run_viewer.load_run_summary(run_dir, root)
+    assert summary is not None, f"no summary loaded for {run_dir}"
+    return summary.steps[0]
+
+
+_RECORDED = {
+    "disposition": "substantially-complete",
+    "summary": "aw ipd lint --phase pre-transition reports conforming",
+    "commits": ["209227d54f1fd7e34115ee9a198c74513a99567d"],
+    "pushed": False,
+}
+
+
+class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
+    """E-04. `abandoned?` means "no live driver, but nothing recorded what happened".
+
+    THAT SENTENCE WAS FALSE for the measured case, and that is the whole defect: the step HAD recorded
+    what happened (`substantially-complete`, with a commit sha) in the same run directory this view
+    was already reading. The projection had exactly two inputs and never looked.
+
+    THE READ STILL MUTATES NOTHING. `GUIDING_PRINCIPLES` P10, applied deliberately by executed plan
+    `ssk6nf`, which REJECTED auto-repair on read and shipped the opt-in `aw runs repair` verb as the
+    durable fix. So the label improves and `state.json` is untouched, which is asserted on both its
+    bytes and its mtime rather than merely intended.
+    """
+
+    def test_a_step_with_a_recorded_outcome_no_longer_reads_abandoned(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = _abandoned_run_fixture(root, outcome=_RECORDED)
+            summary = run_viewer.load_run_summary(d, root)
+            assert summary is not None
+            step = summary.steps[0]
+            self.assertEqual(step.status, "substantially-complete?")
+            # The PERSISTED value is still carried, so nothing is hidden and the badge can still say
+            # what the driver actually recorded.
+            self.assertEqual(step.persisted_status, "running")
+            self.assertTrue(step.is_projected)
+
+    def test_the_projection_keeps_its_question_mark(self):
+        """A bare `substantially-complete` would be indistinguishable from a PERSISTED status.
+
+        That is the exact confusion `ABANDONED`'s own comment exists to prevent: a persisted status is
+        a fact the reconciler recorded, a projection is this view's read-time inference. Both are
+        honest; they are not the same claim.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = _abandoned_run_fixture(root, outcome=_RECORDED)
+            step = _only_step(d, root)
+            self.assertTrue(step.status.endswith(run_viewer.PROJECTION_SUFFIX))
+
+    def test_a_step_with_no_recorded_outcome_still_reads_abandoned(self):
+        """The label is unchanged where nothing IS known, which is the case it was written for."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = _abandoned_run_fixture(root, outcome=None)
+            step = _only_step(d, root)
+            self.assertEqual(step.status, run_viewer.ABANDONED)
+
+    def test_a_self_claimed_executed_is_downgraded_on_the_read_path_too(self):
+        """The anti-fabrication downgrade is in the SHARED precedence, so the view inherits it.
+
+        A view that reported `executed?` here would be repeating an agent's self-claim about its own
+        turn, which this repository does not treat as completion authority - and it would do so in the
+        one surface an operator reads first.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = _abandoned_run_fixture(root, outcome={"disposition": "executed"})
+            step = _only_step(d, root)
+            self.assertEqual(step.status, "substantially-complete?")
+
+    def test_a_review_or_orchestrate_step_is_not_projected_from_an_outcome_file(self):
+        """The same action gate the reconciler applies: those turns write no outcome file."""
+        for action in ("review", "orchestrate"):
+            with self.subTest(action=action), tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                d = _abandoned_run_fixture(root, outcome=_RECORDED, action=action)
+                step = _only_step(d, root)
+                self.assertEqual(step.status, run_viewer.ABANDONED)
+
+    def test_the_read_path_writes_nothing(self):
+        """P10, asserted on the FILE rather than on intent: bytes AND mtime unchanged.
+
+        Asserting only the content would pass for a rewrite of identical bytes, which is still a write
+        (it races a driver's own writer, which is exactly why `repair_run` refuses under a live
+        holder). So the mtime is asserted too.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = _abandoned_run_fixture(root, outcome=_RECORDED)
+            state_file = d / "state.json"
+            before_bytes = state_file.read_bytes()
+            before_mtime = state_file.stat().st_mtime_ns
+
+            run_viewer.load_run_summary(d, root)
+            run_viewer.load_run_summary(d, root)
+
+            self.assertEqual(state_file.read_bytes(), before_bytes)
+            self.assertEqual(state_file.stat().st_mtime_ns, before_mtime)
+
+    def test_the_status_tally_counts_the_projected_label(self):
+        """DISCLOSED rather than silently changed: `counts` is keyed on the PROJECTED status.
+
+        That was already true before this plan (the increment has always followed the overwrite, so an
+        abandoned step tallied under the literal key `abandoned?`), so the aggregation RULE is
+        untouched; what changes is which projected word a recovered step contributes. Recorded here so
+        a consumer of `counts` is not surprised by a new key, and so the behavior is pinned rather
+        than left to be re-derived.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = _abandoned_run_fixture(root, outcome=_RECORDED)
+            summary = run_viewer.load_run_summary(d, root)
+            assert summary is not None
+            self.assertEqual(summary.counts, {"substantially-complete?": 1})
+
+
+class RepairReportsRecoveredProvenanceTests(TestCase):
+    """E-02/E-03 through the one MUTATING verb: `aw runs repair` must SAY what it recovered.
+
+    A recovered verdict and a directory-derived one are not equally strong, so reporting them
+    identically would hide that difference from the operator who just asked this verb to decide the
+    question. And the recorded commit sha is the only pointer to the lane holding the work, which is
+    why it is surfaced rather than left for a human to go digging for.
+    """
+
+    def test_repair_records_the_recovered_disposition_and_reports_it(self):
+        from agent_workflows import runner_shared
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = _abandoned_run_fixture(root, outcome=_RECORDED)
+            code, message = run_viewer.repair_run(d, root)
+
+            self.assertEqual(code, 0)
+            self.assertIn("97df1z running -> substantially-complete", message)
+            self.assertIn(runner_shared.RECOVERED_FROM_OUTCOME, message)
+            # The sha cannot resolve in a fixture tree, so it must be reported as SUCH: not dropped
+            # (which loses the pointer) and not asserted (which claims something unverified).
+            self.assertIn("209227d54f1fd7e34115ee9a198c74513a99567d", message)
+            self.assertIn("unresolved here", message)
+
+            # And DURABLY, which is the difference between this verb and the read path above.
+            persisted = json.loads((d / "state.json").read_text(encoding="utf-8"))
+            item = persisted["queue"][0]
+            self.assertEqual(item["status"], "substantially-complete")
+            self.assertEqual(
+                item[runner_shared.RECOVERY_PROVENANCE_KEY],
+                runner_shared.RECOVERED_FROM_OUTCOME,
+            )
+
+    def test_repair_of_a_step_with_no_outcome_is_unchanged(self):
+        """The pre-existing behavior must be untouched where there is nothing to recover."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = _abandoned_run_fixture(root, outcome=None)
+            code, message = run_viewer.repair_run(d, root)
+            self.assertEqual(code, 0)
+            self.assertIn("97df1z running -> interrupted", message)
+            self.assertNotIn("recovered-from-outcome", message)
+
+    def test_the_repair_help_no_longer_states_the_removed_limitation(self):
+        """The shipped help TEXT asserted this limitation as a fact, so E-02 makes it false.
+
+        It read: "The decision reads the plan's DIRECTORY, not the step's own
+        `outcomes/<NN>-<id6>.json`. A step that recorded `substantially-complete` with committed lane
+        work is therefore reconciled to `interrupted`, which understates it. Tracked as backlog
+        `ydbhfd`." `repair_run` delegates to the reconciler this plan changed, so leaving that
+        paragraph would ship a false statement about the product's own behavior.
+        """
+        help_text = run_viewer.REPAIR_HELP
+        self.assertNotIn("not the step's own", help_text)
+        self.assertNotIn(
+            "ydbhfd",
+            help_text,
+            "the backlog id is removed because the item is CLOSED by the plan that fixed it; a "
+            "citation pointing at a closed item tells a reader to go looking for open work",
+        )
+        # It must now DESCRIBE the consultation, including the anti-fabrication downgrade.
+        self.assertIn("outcomes/<NN>-<id6>.json", help_text)
+        self.assertIn("recovered-from-outcome", help_text)
+        self.assertIn("downgraded to `substantially-complete`", help_text)
+
+    def test_the_repair_help_contains_no_em_or_en_dashes(self):
+        """User-facing prose rule: no em or en dashes in text an end user reads."""
+        for dash in ("\u2014", "\u2013"):
+            with self.subTest(dash=dash):
+                self.assertNotIn(dash, run_viewer.REPAIR_HELP)

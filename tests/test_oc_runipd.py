@@ -18,6 +18,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from typing import Any
 from unittest import mock
 from pathlib import Path
 
@@ -926,6 +927,722 @@ class AtomicWriteAndReconcileTests(unittest.TestCase):
             self.assertEqual(item["status"], "interrupted")
             self.assertIn("interrupted_at", item["attempts"][-1])
             self.assertIn("ended_at", item["attempts"][-1])
+
+    def test_reconcile_interrupted_tolerates_an_item_with_no_configured_file(self):
+        """runrecon-02 (`fduoj4`) E-01: the DIVERGENCE the extraction had to resolve, pinned.
+
+        The two host copies differed in exactly one code line: oc indexed
+        `item["configured_file"]` while agy used `item.get("configured_file", "")`. On an item
+        MISSING that key the oc form raised `KeyError`, which the surrounding `except DriverError`
+        does NOT catch, so the exception escaped the loop and `save_state` never ran - abandoning
+        the verdict for every OTHER item in a crashed queue over one malformed entry. The shared
+        version takes AGY'S TOLERANT FORM, and this is what proves it: a crashed ledger is exactly
+        where a malformed item is likely, so failing the whole reconciliation over one is strictly
+        worse than reconciling the rest.
+
+        ASSERTED ON BOTH HOSTS, because the point of the extraction is that they cannot differ here
+        again, and asserting it for one would have passed before the change too.
+        """
+
+        from agent_workflows import agy_runipd
+
+        for module in (driver, agy_runipd):
+            with self.subTest(
+                driver=module.__name__
+            ), tempfile.TemporaryDirectory() as t:
+                temp = Path(t)
+                repo = temp / "repo"
+                run_dir = repo / ".aw" / "records" / "runs" / "r"
+                run_dir.mkdir(parents=True)
+                state = {
+                    "run_id": "r",
+                    "repo": str(repo),
+                    "set_sessions": {},
+                    "queue": [
+                        # NO `configured_file` KEY AT ALL. This is the shape that raised.
+                        {
+                            "position": 1,
+                            "id6": "nocfga",
+                            "setid": "demo",
+                            "status": "running",
+                            "attempts": [{"number": 1}],
+                        },
+                        # A SECOND item, so the test also proves the loop CONTINUED. Without it,
+                        # "did not raise" would be satisfied by a version that silently stopped.
+                        {
+                            "position": 2,
+                            "id6": "nocfgb",
+                            "setid": "demo",
+                            "configured_file": "nonexistent.ipd.md",
+                            "status": "running",
+                            "attempts": [{"number": 1}],
+                        },
+                    ],
+                }
+                module.atomic_write_json(run_dir / "state.json", state)
+
+                module.reconcile_interrupted(run_dir, state)
+
+                self.assertEqual(state["queue"][0]["status"], "interrupted")
+                self.assertEqual(
+                    state["queue"][1]["status"],
+                    "interrupted",
+                    "the loop must reach every item; a raise on the first one used to abandon "
+                    "the whole crashed queue before `save_state`",
+                )
+                # And the verdict must be DURABLE, which is the half the `KeyError` destroyed.
+                persisted = json.loads((run_dir / "state.json").read_text())
+                self.assertEqual(
+                    [i["status"] for i in persisted["queue"]],
+                    ["interrupted", "interrupted"],
+                )
+
+
+def _crashed_run_fixture(
+    root: Path,
+    *,
+    outcome: Any = "absent",
+    action: str = "execute",
+    indeterminate: bool = False,
+    plan_in_executed: bool = False,
+) -> tuple[Path, Path, dict]:
+    """The MEASURED SHAPE of the incident backlog `ydbhfd` recorded, as a fixture.
+
+    runrecon-02 (`fduoj4`) E-05. Built from the real incident rather than a simplification: a queue
+    item stuck at `running` with `last_outcome: None`, and an `outcomes/<NN>-<id6>.json` recording a
+    terminal disposition plus a `commits` list. That is what `aw oc run e32j35 97df1z` left behind
+    when a server reboot killed it, and a fixture that simplified any of those three away would stop
+    testing the defect.
+
+    FIXTURES, NEVER THE LIVE TREE. `.aw/records/runs/` is gitignored, so it is absent in every fresh
+    checkout and in every isolated lane worktree the runner allocates by default; a test keyed to the
+    developer's live run corpus passes here and is unrunnable exactly where it actually runs.
+
+    ``outcome`` takes the sentinel ``"absent"`` (write no file at all), the sentinel ``"unparseable"``
+    (write bytes that are not JSON), or a mapping to serialize. The three are distinct cases the
+    fallback ordering must treat identically, and passing ``None`` could not tell "no file" from
+    "a file whose content is null".
+    """
+
+    repo = root / "repo"
+    plans = repo / ".aw" / "records" / "plans"
+    bucket = "executed" if plan_in_executed else "pending"
+    (plans / bucket).mkdir(parents=True, exist_ok=True)
+    plan_name = "20260902-e32j35-02-97df1z-recorded.ipd.md"
+    (plans / bucket / plan_name).write_text("# plan\n", encoding="utf-8")
+
+    run_dir = repo / ".aw" / "records" / "runs" / "run-20260902T013603Z-1758564"
+    (run_dir / "outcomes").mkdir(parents=True)
+    if outcome == "unparseable":
+        (run_dir / "outcomes" / "02-97df1z.json").write_text(
+            "{not json at all", encoding="utf-8"
+        )
+    elif outcome != "absent":
+        (run_dir / "outcomes" / "02-97df1z.json").write_text(
+            json.dumps(outcome), encoding="utf-8"
+        )
+
+    item: dict[str, Any] = {
+        "position": 2,
+        "id6": "97df1z",
+        "setid": "e32j35",
+        "action": action,
+        # The path names `pending/`, exactly as a real record does, so resolution is by id6 and the
+        # `plan_in_executed` case exercises the promotion the way the driver really reaches it.
+        "configured_file": f".aw/records/plans/pending/{plan_name}",
+        "dependencies": [],
+        "status": "running",
+        "last_outcome": None,
+        "attempts": [{"number": 1, "log": None}],
+    }
+    if indeterminate:
+        item["stopped"] = runner_stop.forced_disposition(requester="test-operator")
+    state = {
+        "schema_version": 1,
+        "run_id": run_dir.name,
+        "repo": str(repo),
+        "set_sessions": {},
+        "queue": [item],
+    }
+    driver.atomic_write_json(run_dir / "state.json", state)
+    return repo, run_dir, state
+
+
+#: The measured incident's own outcome payload: `substantially-complete` with one commit sha and
+#: `pushed: false`. The sha is the real one from `outcomes/02-97df1z.json`.
+_MEASURED_OUTCOME = {
+    "disposition": "substantially-complete",
+    "summary": "aw ipd lint --phase pre-transition reports conforming",
+    "commits": ["209227d54f1fd7e34115ee9a198c74513a99567d"],
+    "pushed": False,
+}
+
+
+class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
+    """runrecon-02 (`fduoj4`) E-02/E-03/E-05: the crash reconciler must read the step's own evidence.
+
+    THE DEFECT, measured (backlog `ydbhfd`, 2026-09-02): `aw oc run e32j35 97df1z` was killed by a
+    server and network reboot. `outcomes/02-97df1z.json` had ALREADY been written and recorded
+    `"disposition": "substantially-complete"` with a real commit sha and a substantive summary, and
+    `state.json` recorded that step `interrupted` with `last_outcome: None`. The authoritative answer
+    was on disk in the same run directory and was never consulted, because the reconciler decided
+    from the plan's DIRECTORY alone.
+
+    EVERY TEST RUNS ON BOTH HOSTS. The two copies of this function were not the same object and had
+    already diverged once, so a one-sided assertion would have proven nothing about `aw agy run`.
+    """
+
+    HOSTS = ("oc_runipd", "agy_runipd")
+
+    def _modules(self):
+        from agent_workflows import agy_runipd
+
+        return (("oc_runipd", driver), ("agy_runipd", agy_runipd))
+
+    # ---- the measured case ------------------------------------------------------------------
+
+    def test_the_measured_shape_recovers_its_recorded_disposition(self):
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(
+                    Path(t), outcome=_MEASURED_OUTCOME
+                )
+
+                module.reconcile_interrupted(run_dir, state)
+
+                item = state["queue"][0]
+                self.assertEqual(
+                    item["status"],
+                    "substantially-complete",
+                    "the step recorded `substantially-complete` and committed to a lane; "
+                    "recording it as merely `interrupted` understates work that finished",
+                )
+                # THE PROVENANCE IS NOT COSMETIC. A driver-reported disposition was OBSERVED by the
+                # driver; this one was READ from a file the driver never validated. The two are both
+                # honest and are not equally strong, so they must be distinguishable afterwards.
+                from agent_workflows import runner_shared
+
+                self.assertEqual(
+                    item[runner_shared.RECOVERY_PROVENANCE_KEY],
+                    runner_shared.RECOVERED_FROM_OUTCOME,
+                )
+                self.assertEqual(item["last_outcome"], _MEASURED_OUTCOME)
+                # And it must be DURABLE, not only in the in-memory dict the caller passed.
+                persisted = json.loads((run_dir / "state.json").read_text())
+                self.assertEqual(
+                    persisted["queue"][0]["status"], "substantially-complete"
+                )
+
+    def test_the_recovery_is_reported_as_an_event(self):
+        """A recovered verdict must be auditable, in the same channel every other verdict uses."""
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(
+                    Path(t), outcome=_MEASURED_OUTCOME
+                )
+                with contextlib.redirect_stderr(io.StringIO()):
+                    module.reconcile_interrupted(run_dir, state)
+                events = [
+                    json.loads(line)
+                    for line in (run_dir / "events.jsonl")
+                    .read_text(encoding="utf-8")
+                    .splitlines()
+                ]
+                recovered = [
+                    e
+                    for e in events
+                    if e.get("event") == "interrupted-recovered-from-outcome"
+                ]
+                self.assertEqual(len(recovered), 1, events)
+                self.assertEqual(recovered[0]["disposition"], "substantially-complete")
+                self.assertEqual(recovered[0]["id6"], "97df1z")
+                # `interrupted-detected` must NOT also be emitted: one item, one verdict.
+                self.assertEqual(
+                    [e for e in events if e.get("event") == "interrupted-detected"], []
+                )
+
+    # ---- E-03: the recorded commits ---------------------------------------------------------
+
+    def test_the_recorded_commits_are_surfaced(self):
+        """E-03. The sha was the ONLY pointer to a lane holding a net-new module plus its tests.
+
+        In a fixture repo the sha cannot resolve, which is the POINT of the second assertion: an
+        unresolvable sha must be reported as recorded-but-unresolved rather than dropped (which loses
+        the pointer) or asserted (which claims something unverified).
+        """
+        from agent_workflows import runner_shared
+
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(
+                    Path(t), outcome=_MEASURED_OUTCOME
+                )
+                with contextlib.redirect_stderr(io.StringIO()):
+                    module.reconcile_interrupted(run_dir, state)
+                commits = state["queue"][0][runner_shared.RECOVERED_COMMITS_KEY]
+                self.assertEqual(
+                    commits,
+                    [
+                        {
+                            "sha": "209227d54f1fd7e34115ee9a198c74513a99567d",
+                            "resolved": False,
+                        }
+                    ],
+                )
+
+    def test_a_resolvable_sha_is_reported_resolved(self):
+        """The other direction, so `resolved` is not a constant `False` that happens to read right."""
+        from agent_workflows import runner_shared
+
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t)
+            repo, run_dir, state = _crashed_run_fixture(root, outcome="absent")
+            for args in (
+                ["init", "-q"],
+                ["config", "user.email", "t@example.invalid"],
+                ["config", "user.name", "t"],
+                ["commit", "-q", "--allow-empty", "-m", "fixture"],
+            ):
+                subprocess.run(["git", *args], cwd=repo, check=True)
+            sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            (run_dir / "outcomes" / "02-97df1z.json").write_text(
+                json.dumps(
+                    {
+                        "disposition": "substantially-complete",
+                        "commits": [sha, "0" * 40],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                driver.reconcile_interrupted(run_dir, state)
+
+            self.assertEqual(
+                state["queue"][0][runner_shared.RECOVERED_COMMITS_KEY],
+                [{"sha": sha, "resolved": True}, {"sha": "0" * 40, "resolved": False}],
+            )
+
+    def test_nothing_is_validated_merged_or_checked_out(self):
+        """E-03's fence, asserted on the SOURCE of the reporting helper rather than trusted.
+
+        Reporting a recorded sha is not confirming a lane is mergeable: that belongs to the
+        `integpath` Set. So the only git verb this path may reach for is the read `cat-file`.
+        """
+        from agent_workflows import runner_shared
+
+        # CODE ONLY. The docstring NAMES the forbidden verbs in order to state the fence, so asserting
+        # over the whole unparse would fail on the explanation rather than on the implementation.
+        node = ast.parse(
+            inspect_source(runner_shared, "describe_recorded_commits")
+        ).body[0]
+        assert isinstance(node, ast.FunctionDef)
+        body = [
+            s
+            for s in node.body
+            if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant))
+        ]
+        source = "\n".join(ast.unparse(s) for s in body)
+        for forbidden in ("merge", "checkout", "cherry-pick", "reset", "update-ref"):
+            with self.subTest(verb=forbidden):
+                self.assertNotIn(forbidden, source)
+        self.assertIn("cat-file", source)
+
+    # ---- E-05: the four fallback branches ---------------------------------------------------
+    #
+    # EACH MUST YIELD THE UNCHANGED `interrupted` GUESS. These four are the tests that would have
+    # caught PR-701: measured against a direct `reconcile_disposition` call, all four return
+    # `partial` or `failed-safely` instead, because that function's final line is
+    # `("partial" if exit_code == 0 else "failed-safely")`. So if any of them reports something other
+    # than `interrupted`, the implementation took the REJECTED route and must be fixed - the
+    # assertions are correct as written and must not be relaxed.
+
+    def _assert_falls_back_to_interrupted(self, outcome: Any, why: str) -> None:
+        from agent_workflows import runner_shared
+
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(Path(t), outcome=outcome)
+
+                module.reconcile_interrupted(run_dir, state)
+
+                item = state["queue"][0]
+                self.assertEqual(
+                    item["status"],
+                    "interrupted",
+                    f"{why}: the honest guess must be preserved EXACTLY. A `partial` or "
+                    "`failed-safely` here means the implementation called "
+                    "`reconcile_disposition` (or reproduced its exit-code fallback), which is "
+                    "the design PR-701 measured and rejected",
+                )
+                self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
+                self.assertNotIn(runner_shared.RECOVERED_COMMITS_KEY, item)
+
+    def test_fallback_no_outcome_file(self):
+        self._assert_falls_back_to_interrupted(
+            "absent", "a step that died before writing anything"
+        )
+
+    def test_fallback_unparseable_outcome_file(self):
+        self._assert_falls_back_to_interrupted(
+            "unparseable", "a truncated write is not a verdict"
+        )
+
+    def test_fallback_outcome_file_without_a_disposition_key(self):
+        self._assert_falls_back_to_interrupted(
+            {"summary": "no disposition key at all", "pushed": False},
+            "a file recording no disposition establishes no disposition",
+        )
+
+    def test_fallback_unhonored_disposition(self):
+        """`dependency-blocked` and `not-attempted` are the two the precedence explicitly subtracts.
+
+        They describe what the SCHEDULER decided about an item, not what a turn accomplished, so an
+        agent cannot record them about itself.
+        """
+        for unhonored in ("dependency-blocked", "not-attempted"):
+            self._assert_falls_back_to_interrupted(
+                {"disposition": unhonored, "pushed": False},
+                f"a self-recorded {unhonored!r}",
+            )
+
+    # ---- E-05: the four CONTROL tests -------------------------------------------------------
+
+    def test_control_a_self_claimed_executed_is_still_downgraded(self):
+        """THE ANTI-FABRICATION DOWNGRADE. An agent's claim about its own turn is not authority.
+
+        The measured case needs NO relaxation of this rule, because its outcome file already says
+        `substantially-complete`, which is honored without any downgrade. So a change that removes
+        the downgrade to make some case report `executed` is not fixing this plan's defect.
+        """
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(
+                    Path(t),
+                    outcome={"disposition": "executed", "pushed": False},
+                )
+                with contextlib.redirect_stderr(io.StringIO()):
+                    module.reconcile_interrupted(run_dir, state)
+                self.assertEqual(
+                    state["queue"][0]["status"],
+                    "substantially-complete",
+                    "a self-claimed `executed` must be DOWNGRADED; the plan's directory is the "
+                    "only thing that may establish `executed`",
+                )
+
+    def test_control_an_indeterminate_item_is_refused_even_with_a_claiming_outcome(
+        self,
+    ):
+        """spec `c4gd2h` R22. A force-cut turn's own self-report is exactly the evidence R22 says
+        the driver never established, so the outcome file must NOT override the refusal.
+
+        The plan sits in `executed/` AND the outcome file claims success, i.e. both promotion routes
+        are armed at once, and both must refuse.
+        """
+        from agent_workflows import runner_shared
+
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(
+                    Path(t),
+                    outcome=_MEASURED_OUTCOME,
+                    indeterminate=True,
+                    plan_in_executed=True,
+                )
+                with contextlib.redirect_stderr(io.StringIO()):
+                    module.reconcile_interrupted(run_dir, state)
+
+                item = state["queue"][0]
+                self.assertEqual(item["status"], "interrupted")
+                self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
+                self.assertIn("reconciliation_conflict", item)
+                self.assertIn("c4gd2h R22", item["reconciliation_conflict"])
+                events = [
+                    json.loads(line)
+                    for line in (run_dir / "events.jsonl")
+                    .read_text(encoding="utf-8")
+                    .splitlines()
+                ]
+                self.assertEqual(
+                    len(
+                        [
+                            e
+                            for e in events
+                            if e.get("event")
+                            == "interrupted-promotion-refused-unknown-outcome"
+                        ]
+                    ),
+                    1,
+                    events,
+                )
+                self.assertEqual(
+                    [
+                        e
+                        for e in events
+                        if e.get("event") == "interrupted-recovered-from-outcome"
+                    ],
+                    [],
+                )
+
+    def test_control_a_review_action_item_consults_no_outcome_file(self):
+        """E-02's action gate, half one. A `review` turn does not write this file (F-12), so reading
+        it for one would be reading evidence that does not exist for that kind of turn.
+
+        WITHOUT THIS TEST the gate is unpinned and a later refactor deleting it passes everything
+        else, which is why the plan required it rather than leaving the gate to a comment.
+        """
+        from agent_workflows import runner_shared
+
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(
+                    Path(t), outcome=_MEASURED_OUTCOME, action="review"
+                )
+                module.reconcile_interrupted(run_dir, state)
+                item = state["queue"][0]
+                self.assertEqual(item["status"], "interrupted")
+                self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
+
+    def test_control_an_orchestrate_action_item_consults_no_outcome_file(self):
+        """E-02's action gate, half two. An `orchestrate` item is retired by the runner and spends no
+        agent turn, so it writes no outcome file either."""
+        from agent_workflows import runner_shared
+
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(
+                    Path(t), outcome=_MEASURED_OUTCOME, action="orchestrate"
+                )
+                module.reconcile_interrupted(run_dir, state)
+                item = state["queue"][0]
+                self.assertEqual(item["status"], "interrupted")
+                self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
+
+    # ---- the directory promotion is unchanged ------------------------------------------------
+
+    def test_an_ordinary_plan_in_executed_is_still_promoted(self):
+        """The pre-existing promotion must be untouched by the new consultation, and it must WIN.
+
+        A plan in `executed/` with an outcome file recording the weaker `substantially-complete` must
+        record `executed`: the directory is the harder-to-forge signal, which is the same precedence
+        `reconcile_disposition` has always applied.
+        """
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                _repo, run_dir, state = _crashed_run_fixture(
+                    Path(t), outcome=_MEASURED_OUTCOME, plan_in_executed=True
+                )
+                module.reconcile_interrupted(run_dir, state)
+                self.assertEqual(state["queue"][0]["status"], "executed")
+
+    # ---- OQ-03: the behavior change the maintainer authorized --------------------------------
+
+    def test_a_recovered_step_is_NOT_requeued_on_resume(self):
+        """OQ-03, answered by the maintainer 2026-09-10: YES, a recovered step stops being retried.
+
+        THIS IS A CHANGE TO WHAT A RESUME DOES, not only to what a record says, which is why it needs
+        its own validation rather than an inspection of a record. `run_queue` calls
+        `requeue_interrupted` on the line after `reconcile_interrupted`, and that flips every
+        still-`interrupted` item back to `queued` with `recovery_next = True`. A step recovered to
+        `substantially-complete` leaves that set, so committed work is not redone.
+
+        THE CONTROL IS IN THE SAME TEST: the un-recovered step MUST still be requeued, or this would
+        pass by having broken recovery retry altogether.
+        """
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                root = Path(t)
+                _repo, run_dir, state = _crashed_run_fixture(
+                    root / "recovered", outcome=_MEASURED_OUTCOME
+                )
+                with contextlib.redirect_stderr(io.StringIO()):
+                    module.reconcile_interrupted(run_dir, state)
+                requeued = module.requeue_interrupted(run_dir, state)
+                self.assertEqual(
+                    requeued,
+                    [],
+                    "a step proven to have finished must not be re-run; that would redo "
+                    "committed work",
+                )
+                self.assertEqual(state["queue"][0]["status"], "substantially-complete")
+                self.assertNotIn("recovery_next", state["queue"][0])
+
+                # THE CONTROL: no outcome file, so no recovery, so the retry behaviour is UNCHANGED.
+                _repo2, run_dir2, state2 = _crashed_run_fixture(
+                    root / "plain", outcome="absent"
+                )
+                module.reconcile_interrupted(run_dir2, state2)
+                self.assertEqual(
+                    module.requeue_interrupted(run_dir2, state2), ["97df1z"]
+                )
+                self.assertEqual(state2["queue"][0]["status"], "queued")
+                self.assertTrue(state2["queue"][0]["recovery_next"])
+
+    def test_recovery_changes_dependent_scheduling_as_MEASURED_not_as_the_plan_predicted(
+        self,
+    ):
+        """OQ-03's THIRD reader, exercised in both directions and RE-MEASURED rather than assumed.
+
+        THE PLAN'S PREMISE FOR THIS TEST IS STALE, and the correction is recorded here because a test
+        written to the plan's wording would have asserted a release that cannot happen. The plan says
+        `edge_satisfied` reads the in-run status against `EXECUTION_SUCCESS_STATES`, so recovering a
+        step to `substantially-complete` would RELEASE a waiting dependent. Measured at execution HEAD:
+        that IN-RUN SHORTCUT WAS DELETED by a maintainer ruling on 2026-09-19 ("one check, not gates in
+        depth"), precisely because `substantially-complete` means finalize did NOT happen, so the plan
+        is still in `pending/` and its lane was never merged - and the shortcut had dispatched a
+        dependent into a tree with none of the work. `edge_satisfied`'s `executed:` branch now reads the
+        plan's DIRECTORY ON DISK and nothing else, so the edge stays UNSATISFIED either way. Measured:
+        `dependency_status` returns `(False, ['97df1z'])` both before and after recovery.
+
+        WHAT RECOVERY ACTUALLY CHANGES IS THE DRAIN CLASSIFICATION, and it is a real consequence rather
+        than a nil result. `classify_drain_block` asks whether waiting can still pay off:
+
+          * NOT recovered -> the target is `interrupted`, which is NOT in `TERMINAL_STATES`, so the
+            verdict is TRANSIENT and the dependent stays `queued` for a later attempt.
+          * RECOVERED -> the target is terminal, so the run is DONE with it, and the verdict is
+            PERMANENT: the dependent is labelled `dependency-blocked` instead of waiting forever on a
+            step that will never be retried.
+
+        THAT IS THE COHERENT OUTCOME of the maintainer's answer, not a side effect to be regretted: if
+        a recovered step is never requeued (the sibling test above), then a dependent waiting on it
+        MUST stop waiting, or the run would hold a `queued` item whose prerequisite can no longer
+        advance. The two halves are the same decision seen from either end.
+
+        AND THE CASCADE MUST NOT FIRE, which is the protective half: `substantially-complete` IS in
+        `EXECUTION_SUCCESS_STATES`, so `cascade_dependency_blocked` does not treat the recovered step as
+        a DEAD prerequisite and does not kill the dependent as unsatisfiable. Asserted, because that is
+        the difference between "this run cannot finish your dependent" and "your dependent is doomed".
+        """
+        for name, module in self._modules():
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
+                root = Path(t)
+                verdicts = {}
+                for label, outcome in (
+                    ("recovered", _MEASURED_OUTCOME),
+                    ("plain", "absent"),
+                ):
+                    _repo, run_dir, state = _crashed_run_fixture(
+                        root / label, outcome=outcome
+                    )
+                    # A dependent of the crashed step, queued and waiting on it.
+                    state["queue"].append(
+                        {
+                            "position": 3,
+                            "id6": "depend",
+                            "setid": "e32j35",
+                            "action": "execute",
+                            "configured_file": ".aw/records/plans/pending/20260902-e32j35-03-depend-x.ipd.md",
+                            "dependencies": ["97df1z"],
+                            "status": "queued",
+                            "attempts": [],
+                        }
+                    )
+                    dependent = state["queue"][1]
+
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        module.reconcile_interrupted(run_dir, state)
+
+                    # The EDGE verdict is unchanged, because the disk is its only authority.
+                    ok, missing = module.dependency_status(dependent, state)
+                    self.assertFalse(
+                        ok,
+                        f"{label}: the plan is still in pending/, so the `executed:` edge must "
+                        "stay unsatisfied; a True here would mean the deleted in-run shortcut "
+                        "has been reintroduced",
+                    )
+                    self.assertEqual(missing, ["97df1z"])
+
+                    _, miss, why = module.dependency_status_detailed(dependent, state)
+                    verdicts[label] = module.classify_drain_block(
+                        dependent,
+                        state,
+                        miss,
+                        why,
+                        terminal_states=module.TERMINAL_STATES,
+                        success_states=module.EXECUTION_SUCCESS_STATES,
+                        review_success_states=module.SUCCESS_STATES,
+                        parse_token=module.parse_dependency_token,
+                    ).verdict
+                    # The cascade must NOT declare the dependent doomed in either case.
+                    self.assertEqual(
+                        [
+                            i["id6"]
+                            for i in module.cascade_dependency_blocked(state, run_dir)
+                        ],
+                        [],
+                        f"{label}: a recovered step is a terminal SUCCESS, so it is not a dead "
+                        "prerequisite and its dependent must not be cascaded to "
+                        "`dependency-blocked` as unsatisfiable",
+                    )
+
+                from agent_workflows import runner_shared
+
+                self.assertEqual(
+                    verdicts["plain"],
+                    runner_shared.DRAIN_BLOCK_TRANSIENT,
+                    "an `interrupted` prerequisite is non-terminal, so waiting may still pay off",
+                )
+                self.assertEqual(
+                    verdicts["recovered"],
+                    runner_shared.DRAIN_BLOCK_PERMANENT,
+                    "a RECOVERED prerequisite is terminal and will never be retried, so a "
+                    "dependent must stop waiting rather than hold the queue open forever",
+                )
+
+    def test_the_fixture_builds_its_own_repo_and_never_the_live_run_tree(self):
+        """E-05's fixture requirement, asserted on BEHAVIOR rather than on source text.
+
+        `.aw/records/runs/` is gitignored, so a test built on the developer's live corpus passes here
+        and fails in every fresh checkout and in every isolated lane worktree the runner allocates by
+        default. The requirement rests on that gitignore alone; do NOT look for the plan's "roughly 32
+        tests fail in a lane worktree" figure to confirm it, which review measured as stale
+        (`tests/test_run_viewer.py` passes 69 of 69), and do not conclude from its absence that
+        live-corpus tests are now safe.
+
+        ASSERTED BY BEHAVIOR, and the first draft of this test is why. It grepped this class's own
+        source for `dir="."` and failed - on its own docstring, which contained the string it was
+        forbidding. A source-text assertion about a file that must DESCRIBE the forbidden pattern is
+        self-defeating. So instead: the fixture's run directory must be inside the temporary tree, and
+        this repository's real run tree must be untouched by building one.
+        """
+
+        live = REPO_ROOT / ".aw" / "records" / "runs"
+        before = sorted(p.name for p in live.iterdir()) if live.is_dir() else None
+
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t).resolve()
+            _repo, run_dir, state = _crashed_run_fixture(
+                root, outcome=_MEASURED_OUTCOME
+            )
+            self.assertTrue(
+                run_dir.resolve().is_relative_to(root),
+                f"the fixture's run dir {run_dir} must live inside the temporary tree",
+            )
+            self.assertTrue(Path(state["repo"]).resolve().is_relative_to(root))
+            driver.reconcile_interrupted(run_dir, state)
+
+        after = sorted(p.name for p in live.iterdir()) if live.is_dir() else None
+        self.assertEqual(
+            before,
+            after,
+            "building and reconciling a fixture must not touch this repository's own "
+            "(gitignored) run tree",
+        )
+
+
+def inspect_source(module: Any, qualname: str) -> str:
+    """The source of one top-level symbol in ``module``. A local helper so the tests above can make
+    SOURCE-level assertions (a fence) without importing `inspect` at module scope."""
+
+    import inspect as _inspect
+
+    return _inspect.getsource(getattr(module, qualname))
 
 
 class HeartbeatFormattingTests(unittest.TestCase):

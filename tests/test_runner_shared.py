@@ -1131,6 +1131,200 @@ class LaneIntegrationExtractionTests(unittest.TestCase):
                 )
 
 
+class ReconcileInterruptedExtractionTests(unittest.TestCase):
+    """runrecon-02 (`fduoj4`) E-06: the guard for the crash-reconciler extraction.
+
+    WHY HERE AND NOT IN `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`, which is where E-06 first
+    said to put it. That table's `Owned` row asserts BOTH that the listed runner has no top-level AST
+    definition of the symbol AND that the runner's attribute IS the owner's object. A WRAPPED symbol
+    fails both halves BY CONSTRUCTION, which is exactly why that table's own comment records eight
+    wrapped symbols as deliberately absent. `reconcile_interrupted` is wrapped: each host keeps a
+    one-line `def` at the original name injecting its own `save_state`, because `save_state` needs the
+    class (c) DIVERGED `write_report` and a shared body choosing one host's report renderer would
+    silently give the other host the wrong format. So the row was INAPPLICABLE and the pin belongs in
+    this module, beside `SingleDefinitionTests`, which is where every other wrapped symbol's equivalent
+    guarantee lives. The plan anticipated this case and said to state which shape was produced: a
+    WRAPPER, for the reason above.
+
+    WHAT THIS GUARDS, since grep would not guard it. The crash reconciler is what decides, after a
+    driver dies, whether a step's work is recorded as finished or as merely interrupted - and since this
+    plan that decision also changes whether a resume RETRIES the step and whether its dependents are
+    released. A textually identical copy in one host would let a correction reach only one driver, which
+    is precisely how `render_stream`'s ANSI constants came to be re-forked and how `aw agy run` carried
+    a broken `dependency_status_detailed` for months. Worse, it already HAD diverged: the two copies
+    differed in one code line, so one host raised `KeyError` and abandoned a whole crashed queue where
+    the other reconciled it.
+
+    THE THIRD CALLER IS ASSERTED TOO. `run_viewer.repair_run` is not a runner, and it used to reach
+    into `oc_runipd` for this function, so it could disagree with the agy crash path. Its call is
+    asserted to name `runner_shared`, which no assertion about the two runners can cover.
+    """
+
+    SYMBOL = "reconcile_interrupted"
+
+    def test_the_shared_module_owns_the_body(self):
+        self.assertIn(self.SYMBOL, top_level_definitions(runner_shared))
+
+    def test_each_host_keeps_a_single_delegating_wrapper(self):
+        """A wrapper is permitted; a wrapper that GREW A BODY is a re-fork with extra steps.
+
+        The bar is structural, exactly as `SingleDefinitionTests` sets it for the eight `INJECTED`
+        symbols: the runner-local `def` must hold ONE statement, and that statement must name the
+        shared function.
+        """
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                node = next(
+                    (
+                        n
+                        for n in ast.parse(module_source(_MODULES[runner])).body
+                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and n.name == self.SYMBOL
+                    ),
+                    None,
+                )
+                self.assertIsNotNone(
+                    node,
+                    f"{runner}.{self.SYMBOL} must keep a wrapper at its original name",
+                )
+                assert node is not None
+                statements = [
+                    s
+                    for s in node.body
+                    if not (
+                        isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant)
+                    )
+                ]
+                self.assertEqual(
+                    len(statements),
+                    1,
+                    f"{runner}.{self.SYMBOL} has {len(statements)} statements; a wrapper "
+                    "that grows logic is a re-fork with extra steps",
+                )
+                self.assertIn(
+                    f"runner_shared.{self.SYMBOL}", ast.unparse(statements[0])
+                )
+
+    def test_each_wrapper_keeps_the_ORIGINAL_signature(self):
+        """No call site may have had to change, so no wrapper may expose the injected parameter."""
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                node = next(
+                    n
+                    for n in ast.parse(module_source(_MODULES[runner])).body
+                    if isinstance(n, ast.FunctionDef) and n.name == self.SYMBOL
+                )
+                self.assertEqual([a.arg for a in node.args.args], ["run_dir", "state"])
+                self.assertEqual([a.arg for a in node.args.kwonlyargs], [])
+
+    def test_the_two_hosts_no_longer_carry_two_implementations(self):
+        """The property the whole extraction exists for, asserted on the SOURCE not on identity.
+
+        Identity cannot be asserted for a wrapped symbol (each host's attribute is its own wrapper, by
+        design), so what is asserted instead is that neither wrapper CONTAINS the decision: the words
+        that carry it appear in `runner_shared` and in neither runner.
+        """
+        markers = ("interrupted-detected", "interrupted-reconciled-executed")
+        shared_src = module_source(runner_shared)
+        for marker in markers:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, shared_src)
+        for runner in BOTH:
+            src = module_source(_MODULES[runner])
+            for marker in markers:
+                with self.subTest(runner=runner, marker=marker):
+                    self.assertNotIn(
+                        marker,
+                        src,
+                        f"{runner} still carries the reconciliation decision itself; the "
+                        "extraction has been un-done and the two hosts can disagree again",
+                    )
+
+    def test_the_repair_verb_calls_the_shared_definition(self):
+        """`run_viewer.repair_run` is the THIRD caller, and it is not a runner.
+
+        It previously called `oc_runipd.reconcile_interrupted`, so `aw runs repair` ran the OpenCode
+        host's copy for every run whatever host wrote it. Asserted on the AST rather than by grep,
+        because a stale `oc_runipd.` mention in a comment must not satisfy this.
+        """
+        from agent_workflows import run_viewer
+
+        tree = ast.parse(module_source(run_viewer))
+        repair = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and n.name == "repair_run"
+        )
+        targets = {
+            ast.unparse(n.func)
+            for n in ast.walk(repair)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == self.SYMBOL
+        }
+        self.assertEqual(targets, {f"runner_shared.{self.SYMBOL}"})
+
+    def test_the_shared_body_reads_the_outcome_through_the_shared_precedence(self):
+        """E-02's central property: ONE definition of the precedence, reached by BOTH callers.
+
+        Asserted because the rejected design (PR-701) is the one a later refactor would drift back
+        toward: calling `reconcile_disposition` from the crash path, which flips a crashed step to
+        `failed-safely` on every no-answer branch. So the crash path must call the HELPER and must not
+        call `reconcile_disposition`.
+        """
+        tree = ast.parse(module_source(runner_shared))
+        bodies = {
+            n.name: n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef)
+            and n.name in (self.SYMBOL, "reconcile_disposition")
+        }
+        for name in (self.SYMBOL, "reconcile_disposition"):
+            called = {
+                ast.unparse(n.func)
+                for n in ast.walk(bodies[name])
+                if isinstance(n, ast.Call)
+            }
+            with self.subTest(function=name):
+                self.assertIn("outcome_precedence_disposition", called)
+                self.assertIn("read_recorded_outcome", called)
+        self.assertNotIn(
+            "reconcile_disposition",
+            {
+                ast.unparse(n.func)
+                for n in ast.walk(bodies[self.SYMBOL])
+                if isinstance(n, ast.Call)
+            },
+            "the crash path must NOT call `reconcile_disposition`: it has no exit code to pass, "
+            "and that function's fallback returns `partial`/`failed-safely` rather than the "
+            "`interrupted` guess a crashed step with no recorded outcome must keep (PR-701)",
+        )
+
+    def test_the_precedence_helper_owns_no_fallback_and_takes_no_exit_code(self):
+        """Why the helper is SAFE on both callers, asserted rather than argued.
+
+        A helper carrying an `exit_code` parameter or a `partial`/`failed-safely` fallback would be
+        `reconcile_disposition` again, and the crash path would inherit an answer it must not give.
+        """
+        node = next(
+            n
+            for n in ast.parse(module_source(runner_shared)).body
+            if isinstance(n, ast.FunctionDef)
+            and n.name == "outcome_precedence_disposition"
+        )
+        params = [a.arg for a in node.args.args + node.args.kwonlyargs]
+        self.assertEqual(params, ["bucket", "outcome"])
+        # CODE ONLY, with the docstring dropped: that docstring NAMES the three forbidden tokens in
+        # order to explain why they are absent, so asserting over the whole unparse would fail on the
+        # explanation rather than on the implementation. Measured while writing this test.
+        body = ast.unparse(_without_docstring(node))
+        for forbidden in ("exit_code", "failed-safely", "partial"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, body)
+        # And it must be able to say "no answer", which is what preserves the caller's own fallback.
+        self.assertIsNone(runner_shared.outcome_precedence_disposition(None, None))
+
+
 class NoRunnerImportTests(unittest.TestCase):
     """The shared module must not import either runner, at module level OR lazily."""
 
@@ -1405,6 +1599,16 @@ class WrapperTests(unittest.TestCase):
         relocated_execute_callers = {
             "save_state": 22,
         }
+        # runrecon-02 (`fduoj4`) E-01: `reconcile_interrupted` moved to `runner_shared` and its body
+        # makes ONE `save_state` call, so that call RELOCATED with the function on BOTH hosts. It is
+        # subtracted for the identical reason `run_checked`'s six and `execute_item`'s twenty-two are:
+        # no surviving call site in either runner was touched. The wrapper each host keeps INJECTS
+        # `save_state` as a NAME rather than calling it, which is why it adds nothing back, and which is
+        # also why `save_state` had to be injected at all (it needs the class (c) DIVERGED
+        # `write_report`, so a shared body cannot pick one host's report renderer).
+        relocated_reconcile_callers = {
+            "save_state": 1,
+        }
         moved_callers_of_run_checked = sum(RELOCATED_RUN_CHECKED_CALLERS.values())
         for (runner, name), premove in sorted(self.PREMOVE_CALL_SITES.items()):
             with self.subTest(runner=runner, symbol=name):
@@ -1415,6 +1619,8 @@ class WrapperTests(unittest.TestCase):
                     expected -= relocated_init_callers[name]
                 if name in relocated_execute_callers:
                     expected -= relocated_execute_callers[name]
+                if name in relocated_reconcile_callers:
+                    expected -= relocated_reconcile_callers[name]
                 expected += self.ADDED_CALL_SITES.get((runner, name), 0)
                 expected += self.CLEAN_BASE_GUARD_CALL_SITES.get((runner, name), 0)
                 expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
