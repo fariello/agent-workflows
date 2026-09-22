@@ -81,7 +81,28 @@ def _mk_repo(tmp: Path):
         json.dumps({"plan_id": "aaa111", "base_head": base, "scope_paths": ["src/"]}),
         encoding="utf-8",
     )
+    # The plan's ISOLATED LANE, allocated at the frozen base. `check.scope-drift` measures that tree
+    # and reports nothing for a plan without one (rcptstale `wmnmei`), so a repo with no lane would
+    # make every scope row below pass VACUOUSLY - which is exactly what the table's own docstring
+    # says must not happen. The repo root is still what is RETURNED (every caller passes it to the
+    # gate); `_lane_of` recovers the lane path for a caller that must place a change inside it.
+    from agent_workflows import worktree_lease as lease
+
+    lease.allocate_worktree(tmp, "aaa111")
     return tmp
+
+
+def _lane_of(repo_root: Path, plan_id: str = "aaa111") -> Path:
+    """The lane worktree `_mk_repo` allocated, resolved through the production inspector.
+
+    Resolved rather than reconstructed from a path convention, so this cannot drift from where
+    `check_engine._plan_execution_tree` actually looks.
+    """
+    from agent_workflows import worktree_lease as lease
+
+    lane = lease.inspect_lane(repo_root, plan_id).worktree_path
+    assert lane is not None, f"no lane worktree registered for {plan_id}"
+    return lane
 
 
 @contextlib.contextmanager
@@ -142,7 +163,8 @@ class TestPreCommitGate(unittest.TestCase):
         for case, rel, expected_rc, required, why in self.SCOPE_CASES:
             with tempfile.TemporaryDirectory() as temp:
                 root = _mk_repo(Path(temp))
-                target = root / rel
+                # The change goes in the LANE: that is the tree the rule measures.
+                target = _lane_of(root) / rel
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text("x\n", encoding="utf-8")
                 rc, msgs = pcgate.check(root)
@@ -281,7 +303,9 @@ class TestPreCommitGate(unittest.TestCase):
 
     def test_no_divergence_hook_matches_aw_check(self):
         # the hook and the engine's scope-drift rule produce the SAME rule for the same tree
-        (self.root / "other" / "g.py").write_text("y\n", encoding="utf-8")
+        lane_file = _lane_of(self.root) / "other" / "g.py"
+        lane_file.parent.mkdir(parents=True, exist_ok=True)
+        lane_file.write_text("y\n", encoding="utf-8")
         _rc, msgs = pcgate.check(self.root)
         engine_rules = {d.rule for d in ce.check_scope_drift(self.root)}
         self.assertIn("check.scope-drift", engine_rules)

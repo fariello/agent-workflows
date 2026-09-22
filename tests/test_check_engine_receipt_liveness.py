@@ -18,6 +18,14 @@ Covers, each in its OWN temp git repo (no test here reads the live checkout):
       derivation against a `parent.name` regression, since `aw archive plans` creates such shards);
   (g) the assertions also run through `check_commit_invariants`, the aggregator the hook actually
       calls, so the fix is proven on the surface that gates commits.
+
+EVERY ARRANGEMENT IS NOW LANE-ISOLATED, and that is a precondition of the rule rather than test
+scaffolding (rcptstale `wmnmei`, maintainer ruling 2026-09-10). `check_scope_drift` measures the plan's
+ISOLATED LANE WORKTREE and reports NOTHING for a plan that has none, so a fixture with no lane is
+silent for a reason that has nothing to do with liveness, and every flagging assertion below would
+pass vacuously against a broken predicate. `_arrange` therefore allocates a real lane via
+`worktree_lease.allocate_worktree` and dirties the out-of-scope path INSIDE it. The liveness claims are
+unchanged and are still the subject: what moved is WHICH TREE carries the out-of-scope change.
 """
 
 from __future__ import annotations
@@ -97,9 +105,26 @@ class ReceiptLivenessTests(unittest.TestCase):
             ["git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True
         ).stdout.strip()
 
+    def _allocate_lane(self) -> Path:
+        """Allocate the plan's REAL lane worktree, which the rule now requires as its subject.
+
+        Uses the production allocator rather than a hand-built directory, so the fixture cannot drift
+        from where `check_scope_drift` actually looks (`_plan_execution_tree` -> `inspect_lane`).
+        """
+        from agent_workflows import worktree_lease as lease
+
+        return lease.allocate_worktree(self.root, PLAN_ID).path
+
     def _dirty_out_of_scope(self) -> None:
-        """Create a working-tree change OUTSIDE the plan's declared Scope-Paths (`src/`)."""
-        (self.root / "other" / "x.py").write_text("y\n", encoding="utf-8")
+        """Create a change OUTSIDE the declared Scope-Paths (`src/`) IN THE LANE the rule measures.
+
+        In the lane, not in the main tree: the advisory's subject is the lane-isolated execution's own
+        tree, so a main-tree change is deliberately invisible to it (maintainer ruling 2026-09-10).
+        Writing it here would make every flagging assertion in this file pass or fail for the wrong
+        reason.
+        """
+        (self.lane / "other").mkdir(parents=True, exist_ok=True)
+        (self.lane / "other" / "x.py").write_text("y\n", encoding="utf-8")
 
     def _scope_hits(self, include_untracked: bool = False):
         return [
@@ -119,11 +144,17 @@ class ReceiptLivenessTests(unittest.TestCase):
         ]
 
     def _arrange(self, rel_dir: str, scope_paths: str = "src/") -> str:
-        """Plan at `rel_dir`, committed, receipt frozen at HEAD, one out-of-scope dirty path."""
+        """Plan at `rel_dir`, committed, receipt frozen at HEAD, lane allocated, lane dirtied.
+
+        The lane is allocated AFTER the base commit so it is cut at exactly the frozen `base_head`,
+        which is what a real `aw ipd begin` + isolated turn produces and what `_plan_execution_tree`'s
+        ancestry check requires.
+        """
         self._plan_at(rel_dir, scope_paths)
         self._commit_all("init")
         base = self._head()
         self._write_receipt(base)
+        self.lane = self._allocate_lane()
         self._dirty_out_of_scope()
         return base
 
@@ -162,11 +193,16 @@ class ReceiptLivenessTests(unittest.TestCase):
     # -- (c) unreachable frozen base ---------------------------------------------------
 
     def test_c_base_head_not_ancestor_of_head_is_skipped(self):
-        """(c) A `base_head` that is not an ancestor of HEAD cannot describe this history."""
+        """(c) A `base_head` that is not an ancestor of HEAD cannot describe this history.
+
+        A lane is allocated and dirtied exactly as in the flagging cases, so the silence is
+        attributable to the UNREACHABLE BASE and not merely to the plan having no lane to measure.
+        """
         self._plan_at("pending")
         self._commit_all("init")
         # A well-formed but unreachable sha (not in this repo's history at all).
         self._write_receipt("0" * 40)
+        self.lane = self._allocate_lane()
         self._dirty_out_of_scope()
         self.assertEqual([d.detail for d in self._scope_hits()], [])
 
@@ -193,6 +229,7 @@ class ReceiptLivenessTests(unittest.TestCase):
         )
         self.assertNotEqual(orphan_head, self._head())
         self._write_receipt(orphan_head)
+        self.lane = self._allocate_lane()
         self._dirty_out_of_scope()
         self.assertEqual([d.detail for d in self._scope_hits()], [])
 
@@ -201,6 +238,7 @@ class ReceiptLivenessTests(unittest.TestCase):
         self._plan_at("pending")
         self._commit_all("init")
         self._write_receipt("")
+        self.lane = self._allocate_lane()
         self._dirty_out_of_scope()
         self.assertEqual([d.detail for d in self._scope_hits()], [])
 

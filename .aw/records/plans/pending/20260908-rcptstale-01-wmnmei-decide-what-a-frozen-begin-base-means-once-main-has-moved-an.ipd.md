@@ -10,7 +10,7 @@
   ONE OF THE ITEM'S SIX QUESTIONS IS ALREADY ANSWERED IN THE TREE, and a plan transcribing the item would have commissioned work that exists. Its question 4 asks whether a stale receipt deserves its own state and rule. Its question 1's premise about liveness is partly satisfied by `_receipt_is_live` (`check_engine.py:1266`, landed in `45f8156c` at 2026-08-30 01:57:40, roughly nine hours BEFORE this item was written at `06b6c72e` 11:09:14), which already rejects a receipt whose plan is TERMINAL or whose `base_head` is not an ancestor of HEAD. That is why the six named plans stopped contributing. But it does NOT cover the case that still fires: all three current contributors sit in `pending/` with bases that ARE ancestors, so each is live by both tests while being 41 to 139 commits behind.
   AND "STALE" IS NOT EVEN THE RIGHT NAME FOR TWO OF THE THREE, which is the sharpest measurement in this plan and the one that reframes OQ-01. `hp9rot`'s receipt was written 2026-09-08T21:42 and its lane worktree is ACTIVELY DIRTY (8 modified files under `.aw/worktrees/hp9rot`, lane HEAD `8c06675c`), yet 41 commits have landed on main since it began. `xdr83v` and `yvvf98` are the same shape one day older. So these are not abandoned baselines: they are CORRECTLY FROZEN bases belonging to executions still in flight, which the advisory reports as drift purely because MAIN moved, not because the plan did anything. A rule that cannot tell "this plan wandered out of its fence" from "other agents committed while this plan was working" is mislabelling, and 174 of 174 current findings are the second case.
 - Scope: Answer, with evidence, what a frozen `base_head` should mean once HEAD has moved far past it, and implement only what that answer authorizes. The one change this plan will make under EVERY outcome is to stop a single frozen baseline from emitting one finding per intervening file, because that multiplication is what turns a real signal into noise and is independent of the base question. EXPLICITLY NOT receipt expiration: the item forbids it as the presumed answer and records four concrete reasons, all re-verified below and joined by a fifth.
-- Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_scope_drift.py, tests/test_receipt_stale_base.py, tests/test_check_engine_receipt_liveness.py, tests/test_event_derived_lifecycle.py
+- Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_scope_drift.py, tests/test_receipt_stale_base.py, tests/test_check_engine_receipt_liveness.py, tests/test_event_derived_lifecycle.py, tests/test_phase4_hooks.py, tests/test_finalize_scope_ownership.py
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -24,6 +24,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-22 implementation performed (opencode its_direct/pt3-claude-opus-5-1m-us): NOT a status transition; the terminal `executed` transition is `aw ipd finalize`'s alone and is deliberately not claimed here. Implemented OQ-01's maintainer ruling as a TREE-SELECTION fix plus E-05's unconditional per-plan collapse, at HEAD `132e8333` in lane `.aw/worktrees/wmnmei`. MEASURED MY OWN DISTRIBUTION, which had moved a FOURTH time: 380 findings from SIX plans (219/100/28/18/13/2), not the review's 174-from-three, this plan's 110-from-eight, or the item's 1013-from-16. After: 4 findings from four plans, 17 offending paths, all lane-local. TWO OF THIS PLAN'S OWN CLAIMS WERE CORRECTED BY MEASUREMENT rather than inherited: F-3b's ABSOLUTE 100-percent-committed split is now 90 percent (343 committed-only, 32 worktree-only, 5 both), because this shared checkout carries dirty files it did not at review; and the cohesion cut is 57 percent (380 -> 162), not 76/79. Both corrections are recorded in V-01/V-03 rather than smoothed over. E-02 answered the overload question EXPLICITLY: six of seven `base_head` consumers want the identical git revision and the frozen value was NOT changed; the advisory is the one outlier and its need is a different TREE, not a different baseline, which is why all five of this plan's candidates were the wrong axis. E-04 re-verified all four anti-expiry reasons as still-true, stated reason (5), and listed FIVE live receipts an expiry would revoke today (replacing review's single `hp9rot` instance, which has since left the tree). E-06 added NO rule code and recorded why. SCOPE WAS WIDENED ADDITIVELY by two existing test files (`tests/test_phase4_hooks.py`, `tests/test_finalize_scope_ownership.py`) whose main-tree arrangements would otherwise have passed VACUOUSLY under the new rule; reasoned as decision D1, both literal-file eligible, no assertion deleted. Suite: `1 failed, 8208 passed, 3 skipped, 2 xfailed` against a baseline of `1 failed, 8189 passed, 3 skipped, 2 xfailed`, the one failure being the pre-existing environmental `tests/test_turn_bounds.py` case caused by this lane's ambient `OPENCODE_CONFIG_CONTENT` (proven by re-running it with the variable unset: 1 passed). Repo-wide rule-code SET identical before and after; `aw check plans` exits 1 both before and after on three unrelated codes.
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its one remaining open question is `Blocking: no` (OQ-02), which under the maintainer ruling of 2026-09-10 is not a not-ready condition; its blocking OQ-01 was answered on 2026-09-10. Performed at HEAD `84111de2` at the maintainer's explicit instruction of 2026-09-10, who was shown that 10 of 15 `no-go` plans were held by stale bookkeeping and chose to have them hand-fixed with evidence recorded rather than re-reviewed. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
@@ -41,26 +42,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the current state, because the item's numbers are stale
 
-- [ ] E-01 RE-MEASURE THE FINDING DISTRIBUTION AND WRITE IT DOWN, per plan, and do NOT cite this plan's numbers or the item's. This is the first E-item because every later decision is judged against it and because the figure has now moved TWICE, by an order of magnitude and then back up.
+- [x] E-01 RE-MEASURE THE FINDING DISTRIBUTION AND WRITE IT DOWN, per plan, and do NOT cite this plan's numbers or the item's. This is the first E-item because every later decision is judged against it and because the figure has now moved TWICE, by an order of magnitude and then back up.
   MEASURE PER PLAN, NOT IN TOTAL. The shape of the problem is concentration: at review, 174 findings from exactly THREE plans (`xdr83v` 81, `yvvf98` 75, `hp9rot` 18) at HEAD `3a3eaa79`; at authoring one day earlier, 110 from eight. A total alone cannot distinguish "a few frozen bases" from "widespread real drift", and that distinction decides whether E-05's per-plan collapse is sufficient.
   FOR EACH CONTRIBUTING PLAN, RECORD: its receipt's `base_head` and `timestamp` (the field is `timestamp`, not `frozen_at`), its lifecycle directory and `- Status:`, the count of non-merge commits from that base to HEAD, whether `_receipt_is_live` returns True, and WHETHER ITS LANE WORKTREE EXISTS AND IS DIRTY (`git -C .aw/worktrees/<id> status --porcelain`). That last column is the one review added and it is the point: `hp9rot` had 8 modified lane files while contributing 18 findings, which makes it an ACTIVE execution, not an abandoned baseline.
   SPLIT THE OUT-OF-SCOPE PATHS BY SOURCE, per contributor, using `_changed_path_sources(repo, base)` and applying the SAME fence `check_scope_drift` applies (the `.aw/state/`+`.aw/worktrees/` prefix skip, `_is_implicitly_allowed`, `_scope_match`). Report committed-only, worktree-only and both. Measured at review: 81/0/0, 75/0/0, 18/0/0. If your split is still ~100 percent committed, say so explicitly, because that single fact is what makes E-03's ownership candidate the leading one rather than a curiosity.
   ALSO CONFIRM THE SELF-HEAL. The item named six plans (`qcqhj7`, `58ha43`, `2c122z`, `rchpms`, `j4v6ga`, `2ouj70`). All six were measured terminal and NOT enumerated by the scan (104 plan files iterated), while all six receipts remain on disk. Verify that is still so, and if any receipt has been DELETED, report it: the item explicitly forbade deleting these and a deletion would mean its warning was ignored.
   - Depends on: none
   - Expected outcome: a per-plan table of contributors with base, timestamp, age in commits, directory, status, liveness AND lane-dirtiness; the committed/worktree split of out-of-scope paths per contributor; explicit confirmation of whether the item's six named plans are still terminal, unenumerated, and their receipts intact.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ENUMERATE EVERY CONSUMER OF THE FROZEN BASE AND WHAT EACH NEEDS FROM IT. This is the item's question 1 and it is the question the whole exploration turns on: whether one field has been overloaded for three purposes.
+- [x] E-02 ENUMERATE EVERY CONSUMER OF THE FROZEN BASE AND WHAT EACH NEEDS FROM IT. This is the item's question 1 and it is the question the whole exploration turns on: whether one field has been overloaded for three purposes.
   THE KNOWN CONSUMERS, to be verified and extended by search rather than trusted from this list: `check.scope-drift` (`check_engine.py:1363`) uses it as the baseline for an ADVISORY; `_paths_changed_by_this_execution` (`ipd_lifecycle.py:1200`) uses it as a GIT REVISION for the finalize delta; `_intervening_commits_touching` (`:1225`) re-diffs the same range for the collision signal; `finalize_precheck` reads it off the receipt and refuses without a usable one (`:1485`); and `run_begin` re-emits it in its success payload (`:3025`). Search for every read across the package AND `agent_workflows/hooks/`, and say whether each wants the same thing. Note `ipd_set_plan`'s `ExecutionManifest.base_head` is a DIFFERENT field with the same name (a Set-level manifest, not the receipt) and must not be conflated.
   THE CODE ALREADY DOCUMENTS THE CONSTRAINT, AND IT MUST NOT BE BROKEN. The docstring of `begin` (`ipd_lifecycle.py:946-950`; the constraint is on `begin`, NOT on `run_begin`, which is the thin CLI entry point at `:2933`) records that `isolated_baseline` deliberately does not influence `base_head` because finalize consumes it as a git revision and a lane's HEAD "is not even its ancestor", so mixing sources "would silently corrupt the finalize delta". Any answer that changes what is FROZEN, rather than what the ADVISORY compares against, collides with that. Quote it in your finding.
   ANSWER THE OVERLOAD QUESTION EXPLICITLY, in one sentence per consumer: does the advisory need the same base as the finalize delta? The plausible answer is no (an advisory about the CURRENT tree could legitimately use a merge-base, or the plan's own commits, while the finalize delta must keep the exact frozen revision), but this E-item must establish it rather than assume it.
   - Depends on: E-01
   - Expected outcome: a consumer table naming every read of `base_head`, what each needs, and a stated verdict on whether the advisory and the finalize delta genuinely require the same field.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: answer the question the item was filed to answer
 
-- [ ] E-03 SET OUT THE CANDIDATE ANSWERS FOR WHAT THE ADVISORY SHOULD COMPARE AGAINST, with the cost of each, and do NOT choose. This is the item's question 2.
+- [x] E-03 SET OUT THE CANDIDATE ANSWERS FOR WHAT THE ADVISORY SHOULD COMPARE AGAINST, with the cost of each, and do NOT choose. This is the item's question 2.
   THE CANDIDATES, now FIVE rather than four: (a) the frozen base as today; (b) the MERGE-BASE of the frozen base and HEAD; (c) the plan's OWN commits; (d) the advisory does not run once the base is stale by some measure; and (e) THE FROZEN BASE AS TODAY, BUT ATTRIBUTED, i.e. keep the range and filter it through the ownership predicate that already ships. For each, say what it reports correctly and what it misses.
   CANDIDATE (e) IS NOT HYPOTHETICAL AND MUST BE MEASURED, NOT DESCRIBED. `h9cn0y` is `executed`, and `_execution_cohesive_committed_paths(repo, base, scope_paths)` (`ipd_lifecycle.py:1258`) is callable today. Measured at review over the three contributors, with the SAME fence applied, it yields 21, 7 and 9 out-of-scope paths instead of 81, 75 and 18: a 76 percent reduction that comes from CORRECTING ATTRIBUTION rather than from compressing output. Re-run that measurement yourself and put the numbers in the table. Also state its documented COST honestly: cohesion is a heuristic that errs in both directions (see its own docstring), so option (e) trades a systematic over-report for a smaller two-sided error, and that trade is part of what OQ-01 decides.
   NOTE THAT (b) AND (d) ARE ANSWERS TO A QUESTION THE MEASUREMENT DID NOT ASK. Both key on the base being OLD. But E-01's lane-dirtiness column and F-5b show the contributors are ACTIVE executions whose bases are correctly frozen, so age is a proxy for "main moved", not for "this plan is stale". Say plainly, per option, whether it addresses misattribution or only volume.
@@ -69,19 +70,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT PICK THE WINNER. Every candidate except (a) changes what a fail-closed-adjacent gate reports, and the maintainer declined to have the analogous decision made for them.
   - Depends on: E-02
   - Expected outcome: a five-row candidate table with, per option, what it reports, what it misses, and whether it addresses misattribution or only volume; the re-measured cohesion figures for option (e) with its stated heuristic cost; a written statement of what transferred from `lbgzxg` and what `h9cn0y` already supplies; no option selected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RE-VERIFY THE REJECTED FRAMING RATHER THAN QUIETLY DROPPING IT, so nobody re-proposes expiry as the obvious fix. The item rejected "expire a receipt when its base drifts too far from HEAD" and gave four reasons; each must be re-checked at your HEAD and recorded as still-true or changed.
+- [x] E-04 RE-VERIFY THE REJECTED FRAMING RATHER THAN QUIETLY DROPPING IT, so nobody re-proposes expiry as the obvious fix. The item rejected "expire a receipt when its base drifts too far from HEAD" and gave four reasons; each must be re-checked at your HEAD and recorded as still-true or changed.
   THE FOUR REASONS, TO RE-VERIFY: (1) a receipt IS execution authority and `aw ipd finalize` refuses without a valid one (`finalize_precheck` at `ipd_lifecycle.py:1485` returns cannot-run for an unusable base), so expiring receipts silently revokes permission for in-flight work; (2) "too far" has no principled definition, since commit distance, wall-clock age and semantic distance disagree; (3) expiry treats the symptom rather than the question; (4) it interacts with worktree isolation, where a lane's base is deliberately NOT main's HEAD, so "far from HEAD" is the NORMAL and correct state for an isolated turn. Reason (4) has grown STRONGER since the item was written, because isolation is now the DEFAULT (`oc_runipd.py:7888-7891`, `--no-isolate-worktree` with `default=True`), so the case where distance-from-HEAD is normal is now the common case rather than an exception.
   REASON (1) HAS A LIVE INSTANCE AGAIN, so do NOT report it as lapsed. The item feared expiry stranding the `wtiso` stack that `6knsrx` needed; `6knsrx` is now `superseded/`, so THAT instance is gone. But measured at review, `hp9rot` holds a live receipt (written 2026-09-08T21:42) whose lane worktree has 8 uncommitted modified files while 41 commits have landed on main since it began. A distance-keyed expiry would revoke authority for that execution TODAY. Re-measure at YOUR head and report the list, or an explicit none if the lanes have since landed; the point is to check rather than to inherit either conclusion.
   ADD A FIFTH REASON IF YOUR MEASUREMENT SUPPORTS IT, and review's does: expiry (and every age-keyed variant, including candidate (d)) fires HARDEST on the most active execution, because a fast-moving main accrues distance fastest exactly while a plan is being worked. That inverts the intent. State it as reason (5) with your own evidence, or say why your measurement does not support it.
   - Depends on: E-03
   - Expected outcome: each of the four rejection reasons recorded as still-true or changed WITH evidence, plus reason (5) stated or explicitly declined; an explicit LIST of live receipts an expiry rule would revoke today (or an evidenced none); no expiry implemented.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: fix the multiplication, which is true under every answer
 
-- [ ] E-05 COLLAPSE THE PER-FILE MULTIPLICATION INTO A PER-PLAN FINDING THAT NAMES A COUNT. This is the item's question 3 and it is the ONE change that is correct regardless of how OQ-01 resolves, because the volume problem is independent of the base question.
+- [x] E-05 COLLAPSE THE PER-FILE MULTIPLICATION INTO A PER-PLAN FINDING THAT NAMES A COUNT. This is the item's question 3 and it is the ONE change that is correct regardless of how OQ-01 resolves, because the volume problem is independent of the base question.
   IT DEPENDS ON E-01 ONLY, DELIBERATELY. This item needs the measured distribution and nothing else; E-02 to E-04 are the analysis feeding OQ-01, and chaining the collapse behind them would strand the plan's one unconditionally-correct deliverable behind a maintainer decision. That independence is stated in the gate and is the reason this sits in its own task group.
   THE MECHANISM IS EXPLICIT AND LOCAL: `check_scope_drift` loops `for c in sorted(set(out_of_scope))` and appends one Drift per path (`check_engine.py:1386`). One frozen base therefore yields one finding per file in the intervening history; measured at review, 81 for `xdr83v`.
   DO NOT LOSE THE PATHS. A count alone is less useful than the list when the drift is REAL: a plan genuinely touching three undeclared files should still say WHICH three. So the finding must carry the paths (in its detail, or bounded with an explicit "and N more"), not merely a number. Losing them would trade one usability failure for another. Keep the existing `observed`/`required`/`recovery` enrichment (`enrich_drift`, `check_engine.py:351`) populated: the pre-commit hook prints `recovery` verbatim as its teaching message, so a collapsed finding with an empty recovery field would silently degrade the hook's output.
@@ -90,9 +91,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THIS DOES NOT MOVE ANY GATE, AND THAT IS MEASURED RATHER THAN HOPED. At review `aw check plans` exits 1 with 193 findings across FIVE rule codes, of which scope-drift is 174; the other four (`check.lifecycle-transition-invalid`, `check.ipd-dependency-findings-blocked`, `check.review-finding-unescalated`, `check.review-decision-unescalated`) keep the exit at 1 no matter what this rule emits. Re-measure and state the before/after totals, the exit codes, and the rule-code sets; the claim to prove is that no CLASS is added or removed.
   - Depends on: E-01
   - Expected outcome: one finding per plan carrying the count AND the paths, with `recovery` still populated; the unconditional collapse rule stated and justified; before/after totals, exit codes and rule-code sets measured with no CLASS added or removed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 MAKE THE MISATTRIBUTED CASE VISIBLE AS WHAT IT IS, rather than as scope drift, if and only if OQ-01's answer calls for it. This is the item's question 4, re-asked against the mechanism that already exists.
+- [x] E-06 MAKE THE MISATTRIBUTED CASE VISIBLE AS WHAT IT IS, rather than as scope drift, if and only if OQ-01's answer calls for it. This is the item's question 4, re-asked against the mechanism that already exists.
   WHAT ALREADY EXISTS, so nothing is rebuilt: `_receipt_is_live` (`check_engine.py:1266`) already rejects a receipt whose plan is TERMINAL or whose base is not an ancestor of HEAD, and it FAILS SAFE (undeterminable means skip) for reasons its docstring records at length. It landed in `45f8156c`, about nine hours before the backlog item was written, and it is why the item's six named plans stopped contributing.
   WHAT IT DOES NOT COVER, which is the whole remaining case: a plan in `pending/` whose base IS an ancestor but is 41 to 139 commits behind while its lane is actively being worked. That receipt is live by both tests, and the finding it produces names OTHER agents' commits. So if a distinct advisory state is wanted, it is a THIRD condition alongside the two that exist, not a replacement for them.
   NAME IT FOR THE DEFECT, NOT FOR THE AGE, if OQ-01 authorizes a state at all. The item floated `check.receipt-base-stale`, and review's measurement argues against that spelling: nothing about these bases is stale in the sense of wrong, and the honest description is that intervening history is being attributed to this plan. Put the naming choice to the maintainer with OQ-02 rather than settling it here, and record whichever is chosen with its reason.
@@ -100,7 +101,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT SURFACE IT IN `aw doctor` OR `aw attention` HERE. That is the item's question 6 and it is deferred with a reason below.
   - Depends on: E-04, E-05
   - Expected outcome: either a distinct, decision-authorized advisory state (registered in `RULE_REGISTRY` with an explicit severity and invariant) for the live-but-misattributed case, or a recorded decision that none is added with the reason; no new rule code introduced without OQ-01 authorizing it.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -195,6 +196,12 @@ No spec change is expected. `check.scope-drift` is an engine rule rather than a 
 
 Write no em or en dashes in any user-facing finding message this plan produces.
 
+EXECUTED 2026-09-22, recorded here because the section above is the plan's prediction and this is the outcome. `check_scope_drift`'s docstring was EXTENDED (not replaced): it now records WHICH TREE is measured and why, the accepted cost of silence in a shared main checkout, and that a finding is now one-per-plan carrying a count and the paths. `_receipt_is_live`'s docstring gained the case its two tests do NOT cover (live-and-far-behind), stated even though E-06 added no new state, so the next reader does not conclude the two tests are exhaustive. A new `_plan_execution_tree` carries OQ-01's ruling, the withdrawal of candidate (e) with its measured figures, and the accepted-cost paragraph nobody may later reverse as an oversight. `check_commit_invariants`' rule list was updated in the same file, since it describes `check.scope-drift` to every reader of the aggregator.
+
+NO SPEC CHANGE WAS NEEDED, as predicted. Searched for spec text asserting the rule's shape (`grep -rn "scope-drift" .aw/records/specs/ docs/`): no spec mentions `check.scope-drift` at all, and the only non-engine mentions are two one-line CLI/installer help strings naming the rule in a list (`cli.py:5547`, `engine.py:5616`), neither of which asserts one-finding-per-path or which tree is measured, so neither needed editing. No `.spec.md` file was touched and none is declared in `Scope-Paths`.
+
+SCOPE-PATHS WAS WIDENED ADDITIVELY, and it must be said here rather than left to the diff: `tests/test_phase4_hooks.py` and `tests/test_finalize_scope_ownership.py` were added. Both are EXISTING tests whose arrangements place an out-of-scope change in the MAIN tree and assert the advisory fires; under tree selection that arrangement is silent by design, so each had to move its change into the plan's lane or become a vacuous pass. The plan could not have named them when authored, because all five of its candidate BASELINES would have left both untouched; only the TREE answer moves them. Both entries are literal file paths (`scope_entry_is_literal_file` -> True for each), so the widening is eligible under `rcptwiden 63425h`; no entry was removed; no assertion in either file was deleted or weakened. Reasoned in full as decision D1 of this turn's register.
+
 ## Open questions
 
 ### OQ-01: What should the frozen base MEAN for the advisory once HEAD has moved far past it?
@@ -218,6 +225,7 @@ Write no em or en dashes in any user-facing finding message this plan produces.
 - Resolution or deferral rationale: DEPENDS ON OQ-01 AND IS DELIBERATELY SUBORDINATE TO IT. The item's question 4 asks whether reporting this AS scope drift is a mislabelling rather than only a volume problem, and F-5/F-5b show the condition is real and uncovered: live by both existing tests, 41 to 139 commits behind, with the plan itself having drifted nowhere. But a new `check.*` code is a new contract that CI and every plan's validation section then compares against, and an unregistered id silently defaults to `error` with an empty invariant, so it must not be minted as a convenience.
   THE NAME IS PART OF THE QUESTION, which review added. The item proposed `check.receipt-base-stale`; the measurement argues that spelling is wrong, because nothing about these bases is stale in the sense of incorrect and the observable defect is that intervening commits are attributed to this plan. A name keyed on staleness would teach every future reader the diagnosis review just disproved. Whether to name it for the age or for the misattribution is the maintainer's call, and E-06 must record whichever is chosen with its reason.
   E-06 is written so that RECORDING the decision not to add a code is a legitimate completed outcome, which is why this is non-blocking: the plan finishes either way, and the answer only decides whether E-06 writes code or prose.
+  ANSWERED IN THE NEGATIVE BY EXECUTION, 2026-09-22, and left `open` for the maintainer because the NAME is theirs to choose if they ever want one. E-06 added NO rule code and recorded the decision in prose, for a reason OQ-01's resolution created rather than one this plan foresaw: tree selection REMOVES the condition a new state would have reported. Measured this turn, 380 findings from six plans became 4 findings from four, and every survivor is lane-local work genuinely outside that plan's fence, so there is no longer a population of live-but-misattributed findings needing a distinct label. Minting a CI-visible contract for an eliminated condition would be cost with no signal, and the item's proposed spelling (`check.receipt-base-stale`) is the one the measurement disproves, since nothing about these bases is stale in the sense of incorrect. If a maintainer later wants the shared-main-checkout SILENCE made visible, that is a new question (OQ-01 explicitly declined a "scope not checked, not lane-isolated" line), not this one.
 
 ### OQ-03: Is the advisory worth keeping at all for a plan whose base is very old?
 
@@ -231,35 +239,345 @@ Write no em or en dashes in any user-facing finding message this plan produces.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL per-plan distribution you measured, with counts per location, plus for each contributor its `base_head`, receipt `timestamp`, lifecycle directory, plan `- Status:`, commits-since-base, `_receipt_is_live` verdict, and the lane-worktree dirtiness output (`git -C .aw/worktrees/<id> status --porcelain`, or an explicit "no lane"). THEN paste the per-contributor committed-only / worktree-only / both split from `_changed_path_sources` with the same fence applied, and say in one sentence whether the noise is committed history. THEN paste the membership check showing whether the item's six named plans (`qcqhj7`, `58ha43`, `2c122z`, `rchpms`, `j4v6ga`, `2ouj70`) are still unenumerated, and confirm each of their receipt FILES still exists. A missing receipt is a finding to report, not a tidy-up.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT HEAD `132e8333` on 2026-09-22, in lane `.aw/worktrees/wmnmei`. Every figure below is my own; none is inherited. The pre-change rule (main tree, one finding per path) yielded **380 findings from exactly SIX plans**, not the 174-from-three the review measured nor the 110-from-eight this plan authored nor the item's 1013-from-16: the distribution has now moved a FOURTH time, which is the plan's own F-1 holding.
 
-- [ ] V-02 validates E-02
+```
+plan files iterated: 68 | plans with a LIVE receipt + fence: 6
+
+id6     base      timestamp             dir      status      age  live  lane         lane tree
+m7gvuz  b5208b0e  2026-09-19T04:37:15Z  pending  approved    344  True  ABSENT       no lane
+qdd5jq  54c7f5fb  2026-09-20T21:39:24Z  pending  approved    151  True  HOLDS-WORK   0 dirty
+li44r9  ee20e831  2026-09-22T04:28:42Z  pending  approved     31  True  HOLDS-WORK   0 dirty
+lc4unl  c49c9027  2026-09-22T07:10:05Z  pending  approved     12  True  HOLDS-WORK   0 dirty
+xipfy1  d1d6b6eb  2026-09-22T07:44:46Z  pending  approved      7  True  HOLDS-WORK   0 dirty
+wmnmei  132e8333  2026-09-22T08:26:01Z  pending  approved      0  True  HOLDS-WORK   7 dirty
+```
+
+All six sit in `pending/`, all six are `approved`, and `_receipt_is_live` returns **True for all six** while they are 0 to 344 non-merge commits behind, so live-and-far-behind is confirmed as a condition neither existing liveness test captures (F-5 holds). Five of the six hold a lane worktree; `m7gvuz` has NONE (`inspect_lane` -> `ABSENT`).
+
+COMMITTED / WORKING-TREE SPLIT of the out-of-scope set, per contributor, from `_changed_path_sources` with the SAME fence (`.aw/state/`+`.aw/worktrees/` prefix skip, `_is_implicitly_allowed`, `_scope_match`):
+
+```
+m7gvuz: committed-only=212 worktree-only=3 both=4 | old-rule findings=219
+qdd5jq: committed-only=93  worktree-only=6 both=1 | old-rule findings=100
+li44r9: committed-only=21  worktree-only=7 both=0 | old-rule findings=28
+lc4unl: committed-only=11  worktree-only=7 both=0 | old-rule findings=18
+xipfy1: committed-only=6   worktree-only=7 both=0 | old-rule findings=13
+wmnmei: committed-only=0   worktree-only=2 both=0 | old-rule findings=2
+TOTALS: committed-only=343 worktree-only=32 both=5
+```
+
+IN ONE SENTENCE: the noise is overwhelmingly COMMITTED intervening history (343 of 380, i.e. 90 percent, with 32 worktree-only and 5 in both), so F-3b's direction holds but its ABSOLUTE claim does NOT - review measured 0 percent working-tree and I measure 8 percent, because this shared checkout now carries dirty files (including my own edits) that it did not then. I am recording the correction rather than restating the 100/0 split.
+
+THE SIX NAMED PLANS from item `v880xk`, re-verified: all six remain UNENUMERATED by the scan and all six receipt FILES are intact. None was deleted, so the item's prohibition was honored.
+
+```
+qcqhj7: enumerated_by_scan=False receipt_file_exists=True
+58ha43: enumerated_by_scan=False receipt_file_exists=True
+2c122z: enumerated_by_scan=False receipt_file_exists=True
+rchpms: enumerated_by_scan=False receipt_file_exists=True
+j4v6ga: enumerated_by_scan=False receipt_file_exists=True
+2ouj70: enumerated_by_scan=False receipt_file_exists=True
+receipt count on disk: 30
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the consumer table with the ACTUAL search output enumerating every read of `base_head` across the package and hooks. Quote `run_begin`'s constraint sentence verbatim. State in one sentence per consumer whether it needs the same field as the others, and give an explicit verdict on the overload question; "unclear" is an acceptable verdict if the evidence genuinely does not settle it, but silence is not.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: EVERY read of `base_head` across the package, located by search (`grep -rn "base_head" agent_workflows/ --include=*.py`), including `agent_workflows/hooks/` which has NONE:
 
-- [ ] V-03 validates E-03
+```
+ipd_lifecycle.py:1467   "base_head": head,                      <- the WRITER (begin builds the receipt)
+ipd_lifecycle.py:1564   diff --name-only {base_head}..HEAD      <- _changed_path_sources (GIT REVISION)
+ipd_lifecycle.py:1603   _changed_path_sources(...).union()      <- _paths_changed_by_this_execution
+ipd_lifecycle.py:1617   diff --name-only {base_head}..HEAD      <- _intervening_commits_touching (GIT REVISION)
+ipd_lifecycle.py:1748   merge-base --is-ancestor sha base_head  <- _run_record_committed_paths window filter
+ipd_lifecycle.py:1815   log --no-merges ... {base_head}..HEAD   <- _execution_cohesive_committed_paths
+ipd_lifecycle.py:2036   receipt.get("base_head")                <- finalize_precheck: REFUSES without a usable one
+ipd_lifecycle.py:2044   evidence["base_head"]                   <- finalize evidence record
+ipd_lifecycle.py:4253   "base_head": receipt["base_head"]       <- run_begin re-emits it in its payload
+runner_shared.py:5340   receipt.get("base_head")                <- audit-target basis selection
+check_engine.py:2127    receipt.get("base_head")                <- _receipt_is_live ancestry test
+check_engine.py:2290    receipt.get("base_head")                <- check_scope_drift (THE ADVISORY)
+agent_workflows/hooks/: (no reads under hooks/)
+```
+
+`ipd_set_plan.py`'s `ExecutionManifest.base_head` (:773, :792, :818, :899, :934, :1110) is a DIFFERENT field with the same name, a Set-level manifest rather than a receipt, and is NOT conflated here.
+
+CONSUMER TABLE, one verdict sentence each:
+
+| Consumer | What it needs from the field | Same field as the others? |
+|---|---|---|
+| `_changed_path_sources` / `_paths_changed_by_this_execution` | a GIT REVISION it can put on the left of `base..HEAD` | YES: it must be the exact frozen commit or the finalize delta is wrong |
+| `_intervening_commits_touching` | the same revision RANGE, re-diffed for in-scope collisions | YES: it is the same range by construction |
+| `_run_record_committed_paths` / `_execution_cohesive_committed_paths` | the same range, as a membership/anchoring window | YES |
+| `finalize_precheck` | a USABLE base, refusing (`EXIT_CANNOT_RUN`) without one | YES: this is the authority read |
+| `run_begin` payload / `runner_shared` audit basis | an opaque identifier to REPORT | INDIFFERENT: it only echoes the value |
+| `_receipt_is_live` | a commit whose ANCESTRY of HEAD it can test | YES, and note it tests ancestry in THIS tree |
+| `check.scope-drift` (the advisory) | a baseline to compare a changed set against | **NO** |
+
+`begin`'s constraint sentence, quoted VERBATIM from `ipd_lifecycle.py` (the docstring of `begin`, NOT of `run_begin`, which is the thin CLI entry point):
+
+> ``isolated_baseline`` deliberately does NOT influence ``base_head``. The receipt's ``base_head`` is
+> always captured from ``repo_root`` because finalize consumes it as a GIT REVISION
+> (``_paths_changed_by_this_execution`` diffs ``base..HEAD``, and ``_intervening_commits_touching``
+> re-diffs the same range); a lane's HEAD is not this tree's HEAD and is not even its ancestor, so
+> sourcing both from one "execution tree" would silently corrupt the finalize delta.
+
+VERDICT ON THE OVERLOAD QUESTION, explicit: the field IS overloaded, but NOT in the way this plan assumed. Six of the seven consumers want the identical thing, an exact git revision, and the frozen value is therefore correctly constrained and was not changed. The ADVISORY is the one consumer with a different need, and its need is not a different BASELINE at all - it is a different TREE. That is what made all five of E-03's candidates the wrong axis, and it is why the fix changes only which tree the advisory measures while leaving the frozen value, the union surface's shape, and every other consumer untouched.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the FIVE-row candidate table naming, per option, what it reports correctly, what it misses, and whether it addresses misattribution or only volume. Paste the re-measured cohesion figures for candidate (e) (`_execution_cohesive_committed_paths` over each live receipt, same fence) alongside the unattributed counts, and quote its docstring's own statement that cohesion errs in both directions. Paste what you read from `lbgzxg` and state explicitly whether ownership-based attribution is available to the advisory. Confirm in one sentence that NO option was selected and that `_paths_changed_by_this_execution`'s shape and value were not changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE CANDIDATE TABLE, with candidate (f) added because OQ-01's answer is not among the five this plan enumerated:
 
-- [ ] V-04 validates E-04
+| # | Candidate | What it reports correctly | What it misses | Misattribution or only volume? |
+|---|---|---|---|---|
+| (a) | the frozen base, main tree (status quo) | every path that changed in the window, so it never misses the plan's own drift | nothing changed by the plan is missed; everything ELSE is falsely included | neither: it IS the misattribution |
+| (b) | merge-base of frozen base and HEAD | identical to (a) here | identical to (a): measured 380 findings, byte-identical totals, because the base IS an ancestor so merge-base == base | only volume, and it reduces none |
+| (c) | the plan's OWN commits | would be exact if it existed | NOT MEASURABLE: no channel names this execution's commits (no `AW-Run`/`AW-Item` trailers in history, backlog `a8eufb`), so it is only approximable BY cohesion and collapses onto (e) | misattribution in principle, unavailable in fact |
+| (d) | skip once the base is "stale" by some measure | nothing; it deletes the signal for the plans that need it most | fires HARDEST on the most active execution: `wmnmei` is 0 commits behind with 7 dirty lane files, `qdd5jq` is 151 behind and clean | only volume, and keyed on the wrong variable |
+| (e) | frozen base, main tree, COHESION-attributed | narrows to commits that touched declared territory: 380 -> 162 (57 percent cut) | none of the surviving 162 is VERIFIED to be the author's work; two-sided heuristic error | misattribution, partially, by heuristic |
+| (f) | **measure the plan's ISOLATED LANE; report nothing when there is none** | 380 -> 17 offending paths in 4 findings, each lane-local and attributable on EVIDENCE | hand work in a shared main checkout gets no advisory at all (the accepted cost) | misattribution, on evidence rather than heuristic |
+
+CANDIDATE (e) RE-MEASURED myself, per live receipt, with the same fence, alongside the unattributed counts and the lane figures:
+
+```
+id6      unattributed  cohesion  lane
+m7gvuz            219       102     0   (no lane -> silent)
+qdd5jq            100        43     5
+li44r9             28         8     9
+lc4unl             18         5     0   (lane base not an ancestor of lane HEAD -> silent)
+xipfy1             13         4     1
+wmnmei              2         0     2
+TOTAL             380       162    17
+```
+
+My cohesion cut is 57 percent (380 -> 162), NOT the 76/79 percent review measured; the ratio moved with the distribution, so it is recorded rather than inherited. Cohesion's own docstring states its cost verbatim:
+
+> ACCEPTED COST, stated because it is real and is the reason the fail-closed tests matter. Cohesion
+> is a HEURISTIC, not proof of authorship, and it errs in both directions. A co-worker who touches
+> one of this plan's declared paths in the same commit as unrelated files makes those files look
+> like this plan's (a false DEMAND, which is fail-closed and merely annoying). An executor who
+> commits an out-of-scope path in a commit containing NO declared path escapes the reason
+> requirement (a false EXCUSE, and the genuine weakening).
+
+Note `9kmbr0` (a contributor in an earlier pass this session) measured `anchored=False`, the fail-closed switch firing exactly as documented: with no recognizable commit footprint, cohesion knows nothing and the caller must leave the committed half unfiltered.
+
+WHAT TRANSFERRED FROM `lbgzxg`, read this turn: it attributed the finalize WORKING-TREE half on positive evidence rather than dirtiness, and its reasoning survives in `_working_tree_path_is_owned`'s docstring (a documented misnomer that now judges both halves) - that demanding a reason for an unowned path forces a plan either to write a false claim into its permanent record or to block on a condition it does not control. `h9cn0y` then shipped `_execution_cohesive_committed_paths` for the committed half and is `executed`, so ownership-based attribution IS available to the advisory today and needed no invention. Measured above as candidate (e).
+
+AND IT WAS NOT ADOPTED, which is the finding. OQ-01's resolution WITHDRAWS (e) rather than deferring it: its cut is real but it compresses a misdirected measurement, so 17 paths measured in the right tree beats 162 guessed in the wrong one. NO OPTION WAS SELECTED BY ME: the selection is the maintainer's, recorded in OQ-01 on 2026-09-10, and I implemented that answer. `_paths_changed_by_this_execution` was NOT changed in shape or in value - it is still the union-returning surface, still consumed by finalize unchanged, and `tests/test_finalize_scope_ownership.py::ChangedPathSourcesSplitTests` (25 passed) pins that; what changed is the TREE the advisory passes to it.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: for each of the four anti-expiry reasons, paste the evidence showing it still holds or has changed, including the isolation default for reason (4) located by name. State reason (5) with your evidence or say why your measurement does not support it. THEN state explicitly whether any CURRENTLY LIVE receipt would be revoked by an expiry rule today, with the LIST and, for each, its lane dirtiness (or an evidenced none). Paste proof that no expiry mechanism was implemented and that no receipt file was deleted (`git status` plus a `.aw/state/ipd-lifecycle/` listing with its count).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: EACH of the four rejection reasons re-checked at HEAD `132e8333`, plus the fifth.
 
-- [ ] V-05 validates E-05
+REASON (1), a receipt IS execution authority: HOLDS, and its mechanism is unchanged. `finalize_precheck` reads the base off the receipt and returns cannot-run without a usable one:
+
+```
+ipd_lifecycle.py:2036   base_head = str(receipt.get("base_head") or "").strip()
+ipd_lifecycle.py:2037   if not base_head or base_head == "unversioned":
+ipd_lifecycle.py:2038       return (EXIT_CANNOT_RUN, f"the begin receipt for {plan_id} has no usable base HEAD; ...")
+```
+
+AND IT HAS FIVE LIVE INSTANCES TODAY, so it is emphatically not lapsed. This is the explicit LIST an expiry rule keyed on distance would revoke right now:
+
+```
+  wmnmei:    0 commits behind | lane HOLDS-WORK | 7 dirty | receipt ts 2026-09-22T08:26:01Z
+  lc4unl:   12 commits behind | lane HOLDS-WORK | 0 dirty | receipt ts 2026-09-22T07:10:05Z
+  xipfy1:    7 commits behind | lane HOLDS-WORK | 0 dirty | receipt ts 2026-09-22T07:44:46Z
+  li44r9:   31 commits behind | lane HOLDS-WORK | 0 dirty | receipt ts 2026-09-22T04:28:42Z
+  qdd5jq:  151 commits behind | lane HOLDS-WORK | 0 dirty | receipt ts 2026-09-20T21:39:24Z
+  m7gvuz:  344 commits behind | lane ABSENT     |   n/a   | receipt ts 2026-09-19T04:37:15Z
+```
+
+Five of the six hold a lane classified `HOLDS-WORK`, i.e. commits beyond its base or a dirty tree, which is work in flight. Any distance threshold above 0 revokes at least `qdd5jq` and `m7gvuz`; any threshold at or below 12 also revokes `lc4unl`; and my OWN receipt (`wmnmei`, 7 dirty lane files) would be revoked by any WALL-CLOCK rule tighter than hours. Review's single instance (`hp9rot`) is gone from the tree; five new ones replaced it, which is the regeneration F-2b describes.
+
+REASON (2), "too far" has no principled definition: HOLDS, and this measurement sharpens it. The three plausible metrics DISAGREE on the ordering of the same six plans. By commit distance the worst offender is `m7gvuz` (344); by wall-clock age it is also `m7gvuz` (3 days); but by LANE ACTIVITY the healthiest is `wmnmei` (0 behind, 7 dirty) and the most abandoned is `m7gvuz` (no lane at all). So distance and abandonment are not the same variable, and no threshold on distance can express "abandoned".
+
+REASON (3), expiry treats the symptom rather than the question: HOLDS, and it is now demonstrated rather than argued. The question ("what should the advisory compare against") turned out to be the wrong question entirely (which TREE), and no expiry rule would have discovered that; it would have silenced the symptom and left the misattribution in place for every plan under the threshold.
+
+REASON (4), it interacts with worktree isolation: HOLDS and has STRENGTHENED, exactly as the plan predicted. Isolation is the DEFAULT, located by name in `oc_runipd.py`:
+
+```
+        dest="isolate_worktree",
+        action="store_false",
+        default=True,
+        help="Do not isolate each execute turn in its own git worktree; run in the main tree "
+        "instead. Default: each IPD executes in an isolated worktree and its verified branch is "
+        "integrated back to main.",
+```
+
+So distance-from-HEAD is the NORMAL state of a correct isolated turn, and under OQ-01's answer the lane is now the rule's SUBJECT rather than an exception to it, which strengthens reason (4) further still.
+
+REASON (5), STATED and supported by my own measurement: expiry and every age-keyed variant (including candidate (d)) fire HARDEST on the most active execution, because a fast-moving main accrues distance fastest precisely while a plan is being worked. Evidence: `qdd5jq` is 151 commits behind with a `HOLDS-WORK` lane, while `m7gvuz`, the one plan with NO lane at all and therefore the best abandonment candidate, is distinguished from it by distance only as 344-versus-151, a difference of degree that no threshold can turn into a difference of kind. Inverting the intent is exactly what the item warned of.
+
+NO EXPIRY WAS IMPLEMENTED AND NO RECEIPT WAS DELETED. Proof, both directions:
+
+```
+$ git status --porcelain            # (nothing under .aw/state/; receipts are gitignored anyway)
+ M agent_workflows/check_engine.py
+ M tests/test_check_engine_receipt_liveness.py
+ M tests/test_event_derived_lifecycle.py
+ M tests/test_finalize_scope_ownership.py
+ M tests/test_phase4_hooks.py
+?? tests/test_check_engine_scope_drift.py
+?? tests/test_receipt_stale_base.py
+
+$ ls .aw/state/ipd-lifecycle/*.receipt.json | wc -l
+30
+```
+
+30 receipts before, 30 after; the count is unchanged and includes all six of the item's named plans. `tests/test_receipt_stale_base.py::NoExpiryTests::test_the_rule_never_removes_a_receipt` pins the read-only property in a fixture (30 commits of distance, receipt still present with its original `base_head`), and `test_no_distance_or_age_field_gates_the_advisory` pins that the verdict does not change with distance alone.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the ACTUAL passing output of the fixture-based collapse test, and quote the assertion showing the finding carries BOTH the count and the paths AND a non-empty `recovery`. Paste the MULTI-PLAN fixture case proving two contributing plans yield exactly two findings. Paste the real-drift preservation test showing a three-path drift still names all three. Paste the hook-surface output from `precommit_scope_gate.check` on a fixture, showing it still names the rule, prints `fix:` and mentions `Scope-Paths`. Paste the per-plan distribution before and after; the two repo-wide rule-code SETS, confirming they are identical (or naming the one code OQ-01 authorized); and the before/after `(rule, location)` SET comparison. Paste `aw check plans`' unpiped exit code before and after, and state plainly which other rule codes hold it where it is.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE FIXTURE-BASED COLLAPSE TESTS, actual passing output (`tests/test_check_engine_scope_drift.py`, the file this plan declared and which did not previously exist):
 
-- [ ] V-06 validates E-06
+```
+$ python3 -m pytest tests/test_check_engine_scope_drift.py
+.........                                                                [100%]
+9 passed in 4.95s
+```
+
+THE COUNT AND THE PATHS TOGETHER, quoted from the passing assertion (`test_many_offending_paths_yield_exactly_one_finding_naming_the_count`), which asserts BOTH halves deliberately because a count-only finding would be as unusable as the volume it replaced:
+
+```python
+        self.assertEqual(len(hits), 1, ...)
+        detail = hits[0].detail
+        self.assertIn("5 changed paths are outside", detail)
+        for rel in rels:
+            self.assertIn(rel, detail,
+                f"the collapsed finding dropped {rel!r}; a count without the paths is unactionable: ...")
+```
+
+AND A NON-EMPTY `recovery` (`test_the_finding_still_carries_a_populated_recovery_for_the_hook`):
+
+```python
+        self.assertTrue(hit.recovery, "recovery must stay populated")
+        self.assertIn("Scope-Paths", hit.recovery)
+        self.assertTrue(hit.observed, "observed must stay populated")
+        self.assertIn("other/f.py", hit.observed)
+```
+
+THE MULTI-PLAN CASE, proving the collapse is per PLAN and not global (`MultiPlanTests::test_two_contributing_plans_yield_two_findings_one_each`): two plans, each with its own lane, yield exactly TWO findings; the first names `other/one.py` and `other/two.py` and `assertNotIn("other/three.py", first)` proves one plan's finding does not absorb another's paths.
+
+THE REAL-DRIFT PRESERVATION TEST (`test_a_real_three_path_drift_still_names_all_three`): a three-path drift still names all three AND states `"3 changed paths"`. A small genuine drift is not hidden.
+
+THE HOOK SURFACE, run on a fixture through `precommit_scope_gate.check` (not merely the engine), with its ACTUAL message:
+
+```
+HOOK exit: 1
+  - /tmp/.../20260828-t-01-aaa111-x.ipd.md: check.scope-drift: 3 changed paths are outside the plan's declared Scope-Paths: 'other/a.py', 'other/b.py', 'other/c.py'
+      fix: restrict the change to Scope-Paths, or declare the path in the plan's Scope-Paths (then re-`aw ipd begin`), or reconcile it at `aw ipd finalize`
+
+names rule: True
+prints fix: True
+mentions Scope-Paths: True
+```
+
+All three promises `tests/test_phase4_hooks.py` asserts survive the collapsed detail string, and that suite passes (10 passed).
+
+THE PER-PLAN DISTRIBUTION BEFORE AND AFTER (both computed at the same HEAD `132e8333` from the same tree state, the BEFORE column being the old rule's main-tree/one-per-path shape):
+
+```
+id6       OLD findings  NEW findings  NEW paths  reason
+m7gvuz             219             0          0  no usable lane (ABSENT) -> silent
+qdd5jq             100             1          5
+li44r9              28             1          9
+lc4unl              18             0          0  no usable lane (HOLDS-WORK, base not ancestor) -> silent
+xipfy1              13             1          1
+wmnmei               2             1          2
+TOTAL              380             4         17
+```
+
+380 findings -> 4 findings. Two effects compose and are separable: the COLLAPSE alone would have given 6 findings (one per contributing plan), and TREE SELECTION silences the two plans with no usable lane.
+
+THE ACTUAL COLLAPSED FINDINGS now emitted repo-wide:
+
+```
+2 changed paths are outside the plan's declared Scope-Paths: 'tests/test_finalize_scope_ownership.py', 'tests/test_phase4_hooks.py'
+5 changed paths are outside the plan's declared Scope-Paths: 'agent_workflows/ipd_lint.py', 'agent_workflows/status_set.py', 'tests/test_lifecycle_palette_singleness.py', 'tests/test_refusal_surfacing.py', 'tests/test_runner_refork_guard.py'
+9 changed paths are outside the plan's declared Scope-Paths: 'tests/test_dirty_base_gate.py', 'tests/test_lane_allocation_idempotent.py', 'tests/test_lane_clean_base.py', 'tests/test_lane_tool_identity.py', 'tests/test_nested_tty_noninteractive.py', 'tests/test_runner_shared.py', 'tests/test_runner_stop.py', 'tests/test_rununify_main.py', 'tools/runner_fork_scan.py'
+1 changed path is outside the plan's declared Scope-Paths: 'tests/test_runner_refork_guard.py'
+```
+
+The first is MY OWN plan's lane, correctly reporting the two existing test files this change had to touch; it is declared as an additive widening rather than suppressed (see decision D1). Every finding names other-plan lane work that is genuinely out of those plans' declared fences, so each remaining finding is now a REAL signal.
+
+THE `(rule, location)` SET, the pair `tests/test_ci_check_parity.py:87` compares, verified rather than assumed:
+
+```
+('check.scope-drift', '20260908-rcptstale-01-wmnmei-...ipd.md')
+('check.scope-drift', '20260908-retrywire-01-xipfy1-...ipd.md')
+('check.scope-drift', '20260917-hostdedup-01-li44r9-...ipd.md')
+('check.scope-drift', '20260919-lifeglyph-07-qdd5jq-...ipd.md')
+```
+
+The RULE is unchanged and each LOCATION is a plan file, exactly as before, so collapsing N findings for one plan preserves the pair by construction. The set SHRANK (the two silenced plans dropped out), which is the tree selection and not the collapse; `tests/test_ci_check_parity.py` passes (its parity claim is that two runs on the SAME tree agree, which they do).
+
+THE REPO-WIDE RULE-CODE SETS, before and after, and no CLASS added or removed by this change:
+
+```
+BEFORE: ['check.collisions-not-checked', 'check.ipd-uncarried-obligation', 'check.lifecycle-transition-invalid', 'check.scope-drift']
+AFTER:  ['check.collisions-not-checked', 'check.ipd-uncarried-obligation', 'check.lifecycle-transition-invalid', 'check.scope-drift']
+```
+
+IDENTICAL. No new code was minted (OQ-02 is answered in the negative; see V-06).
+
+THE CI GATE, measured UNPIPED (`cmd >/dev/null 2>&1; echo $?`):
+
+```
+$ python3 -m agent_workflows check plans >/dev/null 2>&1; echo $?
+1        # BEFORE
+1        # AFTER
+```
+
+Exit 1 both times, and the collapse did NOT clear CI. The codes holding it there are `check.ipd-uncarried-obligation` (53 findings), `check.lifecycle-transition-invalid` (8) and `check.collisions-not-checked` (1), all unrelated defects in other plans' records. F-14's structural claim holds although its specific code list has rotated since review.
+
+THE COLLAPSE IS UNCONDITIONAL, with no threshold, as the plan directed. My measured distribution supports that and does not contradict it: the per-plan offender counts are 9, 5, 2 and 1, so any threshold above 1 would have suppressed a genuine single-path drift (`xipfy1`'s `tests/test_runner_refork_guard.py`), which is precisely the real-drift case the collapse must preserve.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: state which way OQ-01 resolved and what E-06 therefore did. If a state was added, paste its rule code, its `RULE_REGISTRY` entry showing the deliberate severity and invariant trace, a fixture test producing it for a live-but-misattributed receipt, and confirmation that the existing terminal-plan and unreachable-base behaviors are unchanged with their tests' output. If NO state was added, paste the docstring text recording the decision and its reason, and paste the sentence added to `_receipt_is_live`'s docstring naming the case it does not cover. Either way, paste the actual output of `tests/test_check_engine_receipt_liveness.py` and `tests/test_event_derived_lifecycle.py` showing the fail-safe direction preserved.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: HOW OQ-01 RESOLVED, and what E-06 therefore did. OQ-01 was resolved by the maintainer on 2026-09-10 as a TREE-SELECTION answer, NOT a new advisory state: "MEASURE THE ISOLATED LANE WHEN THERE IS ONE, AND REPORT NOTHING WHEN THERE IS NOT." It explicitly withdrew candidate (e) and overturned both this plan's framing and the review's. E-06 therefore added **NO new rule code** and instead (i) implemented the tree selection and (ii) RECORDED the decision and its reason in the docstrings, which the plan's own E-06 declares a legitimate completed outcome.
+
+WHY NO CODE, beyond deference: OQ-01 removed the CONDITION a new state would have reported. Under tree selection the live-but-misattributed findings do not exist to be relabelled (380 -> 4, every survivor lane-local), so minting a CI-visible contract for an eliminated condition would be cost with no signal. OQ-02 (the NAME) remains `Status: open` and `Blocking: no`, and is now largely moot; the item's proposed spelling `check.receipt-base-stale` is the one the measurement disproves, since nothing about these bases is stale in the sense of incorrect.
+
+`RULE_REGISTRY` IS UNCHANGED, so no unregistered id can fall back to `_DEFAULT_RULESPEC` (`error`, empty invariant). Pinned behaviorally by `tests/test_check_engine_scope_drift.py::RuleLocationSetTests::test_the_severity_and_invariant_come_from_the_shared_registry`, which asserts the collapsed finding's `severity`/`assurance`/`determinism` all come from `rule_spec("check.scope-drift")` rather than being hand-set.
+
+THE SENTENCE ADDED TO `_receipt_is_live`'s DOCSTRING naming the case its two tests do NOT cover, quoted from the shipped code:
+
+> WHAT THESE TWO TESTS DO **NOT** COVER, stated because their absence was mistaken for exhaustive
+> and cost a graduation to discover (rcptstale ``wmnmei``, backlog ``v880xk``). LIVENESS IS NOT
+> DISTANCE, and distance is not staleness. A plan sitting in ``pending/`` whose ``base_head`` IS an
+> ancestor of HEAD passes BOTH tests here while being arbitrarily far behind: measured 2026-09-22
+> across six live receipts, 4 to 344 non-merge commits, five of the six holding a lane worktree that
+> was being actively worked. [...] The defect those receipts produced was MISATTRIBUTION rather than
+> spent authority: all 350 findings named OTHER agents' commits [...] That is fixed in
+> :func:`check_scope_drift` by selecting the EXECUTION TREE (see :func:`_plan_execution_tree`), not by
+> widening liveness, and deliberately so: this predicate answers "is this authority spent", which is a
+> different question from "which tree does this authority describe".
+
+(The docstring's "350" is the figure measured at the moment it was written this session, before my own lane's two files entered the working tree; V-01's 380 is the final measurement. Both are recorded rather than reconciled into one number, since the point of F-1 is that the figure is perishable.)
+
+THE EXISTING TERMINAL-PLAN AND UNREACHABLE-BASE BEHAVIORS ARE UNCHANGED, with the fail-safe direction preserved. Actual output of both declared regression suites:
+
+```
+$ python3 -m pytest tests/test_check_engine_receipt_liveness.py
+..................                                                       [100%]
+18 passed in 5.56s
+
+$ python3 -m pytest tests/test_event_derived_lifecycle.py
+.......                                                                  [100%]
+7 passed in 3.91s
+```
+
+All seven liveness cases (a) through (g) pass, INCLUDING (e), the fail-safe direction: an undeterminable liveness is still treated as NOT live and produces a skip rather than a finding or a traceback. Note those fixtures now allocate a REAL lane worktree and dirty the out-of-scope path INSIDE it, because otherwise every flagging assertion in the file would pass VACUOUSLY under the new tree selection - the silence would come from having no lane rather than from liveness. No liveness assertion was deleted or weakened; only the tree carrying the arrangement moved. The new fail-safe direction of the tree selection itself is pinned by `tests/test_receipt_stale_base.py::TreeSelectionTests::test_tree_resolution_fails_SILENT_when_git_cannot_answer`, which induces the error and asserts the exercised path.
+  - Result: pass
 
 ## Approval and execution gate
 
