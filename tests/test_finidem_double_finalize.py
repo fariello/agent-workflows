@@ -505,16 +505,33 @@ class BothHostsDriverFinalizeIsIdempotent(unittest.TestCase):
                 )
 
     def test_both_hosts_share_the_one_decision(self):
-        """The rule is defined ONCE, so the two duplicated bodies cannot answer differently."""
+        """The rule is reached ONCE from both hosts, so they cannot answer differently.
+
+        RE-POINTED, NOT WEAKENED, when hostdedup Order 01 (`li44r9`) consolidated `driver_finalize`.
+        This test was written when the body was DUPLICATED per host and asserted the literal
+        `finalize_outcome` inside each copy. There is now ONE body in `runner_shared` and the hosts are
+        thin wrappers, so the original assertion would fail on a tree where the property is MORE true
+        than before. The property itself is unchanged and is asserted in two steps: each host delegates
+        to the shared definition, and the shared definition routes through `finalize_outcome`. A host
+        that re-forked its own body, or a shared body that dropped the decision, still fails.
+        """
         import inspect
 
+        shared_src = inspect.getsource(RS.driver_finalize)
+        self.assertIn(
+            "finalize_outcome",
+            shared_src,
+            "the SHARED driver_finalize must route its result through the shared decision; "
+            "dropping it here silently un-does finidem `ld8lb3` for BOTH hosts at once",
+        )
         for host in self.HOSTS:
             with self.subTest(host=host):
                 src = inspect.getsource(self._driver(host).driver_finalize)
                 self.assertIn(
-                    "finalize_outcome",
+                    "runner_shared.driver_finalize",
                     src,
-                    f"{host}'s driver_finalize must route its result through the SHARED decision",
+                    f"{host}'s driver_finalize must delegate to the ONE shared definition; a re-forked "
+                    "body could answer the idempotency question differently from its twin",
                 )
 
     def test_finalize_outcome_never_keys_on_a_missing_receipt(self):

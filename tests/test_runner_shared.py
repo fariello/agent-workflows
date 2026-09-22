@@ -123,6 +123,17 @@ RELOCATED_RUN_CHECKED_CALLERS: dict[str, int] = {
     "git_common_dir": 1,
     # integpath-02 (`6sb3yu`): `git rev-parse`, `git diff --name-only`, `git diff`.
     "build_lane_outcome": 3,
+    # hostdedup Order 01 (`li44r9`): `set_plan_approved` was BYTE-IDENTICAL in both runners and moved
+    # here whole. Its body makes TWO `run_checked` calls -- the pinned `python -m agent_workflows` form
+    # and the console-script `aw` fallback -- so each runner's census legitimately drops by two.
+    #
+    # THIS IS A RELOCATION AND NOT A REWRITE, which is the distinction this whole table exists to
+    # record: no surviving call site in either runner was edited, and each host's remaining wrapper
+    # passes `run_checked` as a NAME (`run_checked_fn=run_checked`), which is an INJECTION rather than a
+    # call and therefore adds nothing back to the count. The shared body spells the calls
+    # `run_checked_fn(...)` because this module may not import a runner; that is the same mechanism
+    # `driver_begin` next door already uses.
+    "set_plan_approved": 2,
 }
 
 # Shared `run_checked` callers that were BORN HERE rather than relocated from a runner, mapped the

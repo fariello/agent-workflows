@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: SEVENTEEN top-level symbols are defined in BOTH `oc_runipd.py` and `agy_runipd.py` and are BYTE-IDENTICAL after AST normalization with docstrings stripped: StallWatchdog, _budget_breach_recorder, _escalation_recorder, _observe_between_turn_stop, _record_checkpoint_stop, _record_deliberate_stop, build_isolation_notice, disable_lane_prompt, driver_finalize, evaluate_clean_base_for_launch, handle_stop_command, install_stop_triggers, locked_run, requeue_interrupted, run_lock, set_plan_approved, terminate_process. That is 380 lines of pure copy-paste with zero host-specific content. Measured at HEAD 2026-09-17. Every fix to one copy is a fix the other silently misses, which is not hypothetical: the `cjefq5` defect fixed on 2026-09-17 was ONE expression present byte-identically in both hosts, mislabeled an executed plan `reviewed`, and killed six approved plans plus two orchestrators at queue build across 13 separate runs before anyone traced it. The cost is also about to multiply: at two hosts each duplicated symbol is written twice, at five hosts (codex, claude, hermes) it is written five times.
 - Scope: Move these seventeen symbols to `runner_shared.py` as ONE definition each, and leave each host a thin delegating wrapper of the sanctioned form the repository already uses in 21 other places. This is the LOWEST-RISK tranche by construction: because the bodies are byte-identical, the shared definition is the existing body verbatim, with no parameterization to design and no behavior decision to make. Does NOT touch the twelve divergent symbols (Order 02) or the five large functions (out of Set; see Deferred).
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_hostdedup_identical_lift.py, tests/test_rununify_initialize_run.py, tests/test_rununify_execute_item.py, tests/test_rununify_run_queue.py, tests/test_runner_shutdown.py, tests/test_runner_backlog_close.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_hostdedup_identical_lift.py, tests/test_rununify_initialize_run.py, tests/test_rununify_execute_item.py, tests/test_rununify_run_queue.py, tests/test_rununify_main.py, tests/test_runner_shutdown.py, tests/test_runner_shared.py, tests/test_runner_stop.py, tests/test_lane_tool_identity.py, tests/test_lane_clean_base.py, tests/test_lane_allocation_idempotent.py, tests/test_dirty_base_gate.py, tests/test_nested_tty_noninteractive.py, tools/runner_fork_scan.py
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -87,34 +87,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure, then lift
 
-- [ ] E-01 Re-measure the identical set at execution HEAD and REFUSE to proceed on a stale list. Parse both runners, normalize each top-level symbol with `ast.unparse` after stripping docstrings, and emit the set defined in both AND byte-identical. Re-run the hazard scan for `__file__` and host tokens, separating a token in CODE from a token in PROSE. COMMIT THE SCANNER rather than running it ad hoc: the parent Set's completion criteria depend on re-running "the same AST scan", and no such scanner exists in-tree (parent PR-006), so this item is where it comes from. State its metric explicitly, since the SPAN, the `ast.unparse` and the span-minus-docstring counts differ by more than 2x on this very set.
+- [x] E-01 Re-measure the identical set at execution HEAD and REFUSE to proceed on a stale list. Parse both runners, normalize each top-level symbol with `ast.unparse` after stripping docstrings, and emit the set defined in both AND byte-identical. Re-run the hazard scan for `__file__` and host tokens, separating a token in CODE from a token in PROSE. COMMIT THE SCANNER rather than running it ad hoc: the parent Set's completion criteria depend on re-running "the same AST scan", and no such scanner exists in-tree (parent PR-006), so this item is where it comes from. State its metric explicitly, since the SPAN, the `ast.unparse` and the span-minus-docstring counts differ by more than 2x on this very set.
   - Depends on: none
   - Expected outcome: a COMMITTED scanner plus its output, compared against the review-verified baseline of SEVENTEEN symbols (the symbol set reproduced exactly at review; the "380 oc lines" figure did NOT, see E-07). A symbol that has since diverged moves to Order 02's tranche and is named; a newly identical symbol is added here. Zero `__file__` occurrences expected; THREE prose-only host-token mentions expected, not two (`evaluate_clean_base_for_launch`, `terminate_process`, `locked_run`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 ENUMERATE THE CLOSURE OF ALL SEVENTEEN BEFORE LIFTING ANYTHING, and classify every module-level name each body reaches. This item exists because the plan's original safety scan checked only `__file__` and host tokens and therefore concluded, wrongly, that a byte-identical body implies a decision-free lift. Measured at review: nine symbols close over nine names absent from `runner_shared` (table in the Goal). Classify each as (a) IN-TRANCHE, moving anyway; (b) EQUAL-VALUED, a mechanical relocation; (c) HOST-DIVERGENT, needing `HostLabels`; or (d) A HOST BINDING, i.e. `_detect_driver_command`, which IS the labels seam. Do NOT lift any symbol whose closure lands in (c) or (d) until E-06 has said how the difference is carried. A symbol whose closure cannot be resolved without a per-host value is an ORDER 02 symbol by this plan's own convention note, and moving it here would be the silent behavior change the gate forbids.
+- [x] E-06 ENUMERATE THE CLOSURE OF ALL SEVENTEEN BEFORE LIFTING ANYTHING, and classify every module-level name each body reaches. This item exists because the plan's original safety scan checked only `__file__` and host tokens and therefore concluded, wrongly, that a byte-identical body implies a decision-free lift. Measured at review: nine symbols close over nine names absent from `runner_shared` (table in the Goal). Classify each as (a) IN-TRANCHE, moving anyway; (b) EQUAL-VALUED, a mechanical relocation; (c) HOST-DIVERGENT, needing `HostLabels`; or (d) A HOST BINDING, i.e. `_detect_driver_command`, which IS the labels seam. Do NOT lift any symbol whose closure lands in (c) or (d) until E-06 has said how the difference is carried. A symbol whose closure cannot be resolved without a per-host value is an ORDER 02 symbol by this plan's own convention note, and moving it here would be the silent behavior change the gate forbids.
   - Depends on: E-01
   - Expected outcome: a per-symbol closure table with each dependency classified (a)-(d), naming which symbols are cleared to lift in E-02, which need the E-08 treatment, and which (if any) are handed to Order 02 with the reason.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Lift ONLY the symbols E-06 cleared as closure-clean into `runner_shared.py` as one definition each, replacing both hosts' copies with a delegating wrapper. Preserve each body EXACTLY; this item must contain no behavior change, so any diff beyond the move plus the wrapper is out of scope for it. THE EXPECTED COUNT IS NOT FIFTEEN: the original figure came from the host-token scan alone, and the closure scan cuts across it differently (`locked_run` mentions a host in prose AND closes over an in-tranche symbol, while `set_plan_approved` mentions no host and is the single most divergent case). E-06's table decides the membership, not this sentence.
+- [x] E-02 Lift ONLY the symbols E-06 cleared as closure-clean into `runner_shared.py` as one definition each, replacing both hosts' copies with a delegating wrapper. Preserve each body EXACTLY; this item must contain no behavior change, so any diff beyond the move plus the wrapper is out of scope for it. THE EXPECTED COUNT IS NOT FIFTEEN: the original figure came from the host-token scan alone, and the closure scan cuts across it differently (`locked_run` mentions a host in prose AND closes over an in-tranche symbol, while `set_plan_approved` mentions no host and is the single most divergent case). E-06's table decides the membership, not this sentence.
   - Depends on: E-01, E-06
   - Expected outcome: each cleared symbol with one definition in `runner_shared`, two thin wrappers each, and no NEW suite failures. State the count and name any symbol E-06 held back.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Lift the THREE prose-contaminated symbols (`evaluate_clean_base_for_launch`, `terminate_process`, `locked_run`), re-wording their docstrings so none names a specific host. A shared symbol whose docstring says "the agy twin", "a child OpenCode process" or "the per-turn `run_opencode` handlers" is misleading the moment a third host calls it, and the last is the worst of the three because `run_opencode` is a SYMBOL NAME that will not exist for that host. `locked_run` was missed by the authoring scan (F-5 said two).
+- [x] E-03 Lift the THREE prose-contaminated symbols (`evaluate_clean_base_for_launch`, `terminate_process`, `locked_run`), re-wording their docstrings so none names a specific host. A shared symbol whose docstring says "the agy twin", "a child OpenCode process" or "the per-turn `run_opencode` handlers" is misleading the moment a third host calls it, and the last is the worst of the three because `run_opencode` is a SYMBOL NAME that will not exist for that host. `locked_run` was missed by the authoring scan (F-5 said two).
   - Depends on: E-01, E-06
   - Expected outcome: all three lifted, with docstrings that describe the behavior host-neutrally. Quote the before and after wording for each.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 CARRY THE HOST-DIVERGENT CLOSURE THROUGH `HostLabels` RATHER THAN FORKING OR FLATTENING IT, for the two cases E-06 will classify (c)/(d). `FULL_AUTO_ACTOR` differs per host and reaches a plan's permanent `## Workflow history` through `--actor`, so the shared `set_plan_approved` must receive it from the CALLER (a `HostLabels` field, or the existing `command` field if the derivation is exact and stated) and must NOT default it: `HostLabels` is a no-defaults `NamedTuple` precisely so a missing host value raises instead of silently misattributing durable history (`runner_shared.py:8531-8539`). For `_detect_driver_command`, the shared bodies must reach the host's labels through the same parameter the 21 existing wrappers already use, never by calling a shared `_detect_driver_command` that binds one host. PIN THE ATTRIBUTION IN BOTH DIRECTIONS with a test: an oc auto-approval records `aw oc run --full-auto` and an agy one records `aw agy run --full-auto`. If E-06 concludes the difference cannot be carried without redesigning the seam, STOP and hand the symbol to Order 02 rather than inventing a mechanism here.
+- [x] E-08 CARRY THE HOST-DIVERGENT CLOSURE THROUGH `HostLabels` RATHER THAN FORKING OR FLATTENING IT, for the two cases E-06 will classify (c)/(d). `FULL_AUTO_ACTOR` differs per host and reaches a plan's permanent `## Workflow history` through `--actor`, so the shared `set_plan_approved` must receive it from the CALLER (a `HostLabels` field, or the existing `command` field if the derivation is exact and stated) and must NOT default it: `HostLabels` is a no-defaults `NamedTuple` precisely so a missing host value raises instead of silently misattributing durable history (`runner_shared.py:8531-8539`). For `_detect_driver_command`, the shared bodies must reach the host's labels through the same parameter the 21 existing wrappers already use, never by calling a shared `_detect_driver_command` that binds one host. PIN THE ATTRIBUTION IN BOTH DIRECTIONS with a test: an oc auto-approval records `aw oc run --full-auto` and an agy one records `aw agy run --full-auto`. If E-06 concludes the difference cannot be carried without redesigning the seam, STOP and hand the symbol to Order 02 rather than inventing a mechanism here.
   - Depends on: E-06
   - Expected outcome: the divergent values carried by descriptor with no default, and a both-directions attribution test pasted green. Or a recorded hand-off to Order 02 with the reason.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Re-base the guards that pin the duplication
 
-- [ ] E-04 Update the `STILL_DOUBLE_DEFINED` / `THIN_WRAPPERS_OVER_RUNNER_SHARED` tables in ALL THREE FILES THAT CARRY THEM FOR THIS TRANCHE, in the SAME change, per the maintainer's re-base-deliberately rule. **CORRECTED AT REVIEW: the authored item named one file and cited the wrong assertion.** The three files and this plan's symbols in each, measured:
+- [x] E-04 Update the `STILL_DOUBLE_DEFINED` / `THIN_WRAPPERS_OVER_RUNNER_SHARED` tables in ALL THREE FILES THAT CARRY THEM FOR THIS TRANCHE, in the SAME change, per the maintainer's re-base-deliberately rule. **CORRECTED AT REVIEW: the authored item named one file and cited the wrong assertion.** The three files and this plan's symbols in each, measured:
   - `tests/test_rununify_execute_item.py`: `_record_checkpoint_stop`, `driver_finalize`, `evaluate_clean_base_for_launch`, `set_plan_approved`
   - `tests/test_rununify_run_queue.py`: `_observe_between_turn_stop`, `_record_deliberate_stop`, `disable_lane_prompt`, `requeue_interrupted`
   - `tests/test_rununify_initialize_run.py`: `set_plan_approved`
@@ -122,21 +122,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   AND THE ASSERTION THAT ACTUALLY FIRES IS NOT THE ONE F-6 QUOTES. `test_every_still_double_defined_symbol_really_is_defined_in_both_runners` uses `assertIn(name, defs)`, which a WRAPPER still satisfies, so it keeps PASSING after a lift and its helpful failure message never appears. The one that fails is `test_every_still_double_defined_symbol_is_a_REAL_fork_not_a_thin_wrapper`, which asserts `assertFalse(is_pure_delegation(defs[name]))`; verified at review by calling the guard's own `is_pure_delegation` on a delegating body (returns True). Expect the failure there, in all three files.
   - Depends on: E-02, E-03, E-08
   - Expected outcome: the pin tables in all three files reflect the post-lift reality, with each moved symbol MOVED to the wrapper table rather than deleted from the guard entirely. Never weaken the guard silently: state which entries moved, in which file, and why. Run all four `test_rununify_*` pin files together (review baseline `95 passed`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RE-BASE THE FIVE NON-`rununify` ASSERTIONS A LIFT BREAKS, in the same change, and treat them exactly as E-04 treats the pin tables: re-based deliberately, never weakened. Found at review by reading them, all currently green:
+- [x] E-07 RE-BASE THE FIVE NON-`rununify` ASSERTIONS A LIFT BREAKS, in the same change, and treat them exactly as E-04 treats the pin tables: re-based deliberately, never weakened. Found at review by reading them, all currently green:
   - `tests/test_runner_shutdown.py:160` asserts `inspect.getsource(mod.terminate_process)` CONTAINS `"runner_shutdown.terminate_process"`. After the lift each host's wrapper calls `runner_shared.terminate_process`, so this FAILS. Verified: the current oc body does contain that string.
   - `tests/test_runner_shutdown.py:173` sets `oc._SIGINT_GRACE_SECONDS = 0.11` and requires the value to reach the reaper. The shared body would read `runner_shared`'s constants, so the per-host tuning contract BREAKS unless the lift preserves it deliberately. This is a behavior contract, not a source pin, and it is the most important of the five.
   - `tests/test_runner_backlog_close.py:1145` asserts `inspect.getsource(mod.terminate_process)` contains `_SIGINT_GRACE_SECONDS` and `_SIGTERM_GRACE_SECONDS`, which a delegating wrapper does not.
   Both files are now declared. Two other pins survive a lift and need no edit, stated so they are not touched needlessly: `test_runner_stop_triggers.py:940` reads the CALL SITE `install_stop_triggers(run_dir)` in the runner source (unchanged by a lift) and `:2343` only asserts `hasattr`.
   - Depends on: E-02, E-03
   - Expected outcome: the three broken assertions re-based with a per-assertion reason, the grace-constant pass-through contract shown STILL HONORED by a behavioral test (not merely re-worded away), and `tests/test_runner_shutdown.py tests/test_runner_backlog_close.py` green (review baseline `74 passed`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `tests/test_hostdedup_identical_lift.py` asserting the invariant this plan establishes and the NEXT host inherits: for every lifted symbol, BOTH hosts' names resolve to the ONE `runner_shared` definition, and no runner re-forks it. NOTE THE IDENTITY FORM: with the wrapper design this plan chose, `oc_runipd.<sym> is agy_runipd.<sym>` is FALSE (verified at review on the existing wrapper `git_head`: both `oc.git_head is agy.git_head` and `oc.git_head is RS.git_head` are False), so assert DELEGATION (the wrapper body reaches the one shared definition), not object identity. Drive it from a named table so a re-fork fails loudly rather than drifting back.
+- [x] E-05 Add `tests/test_hostdedup_identical_lift.py` asserting the invariant this plan establishes and the NEXT host inherits: for every lifted symbol, BOTH hosts' names resolve to the ONE `runner_shared` definition, and no runner re-forks it. NOTE THE IDENTITY FORM: with the wrapper design this plan chose, `oc_runipd.<sym> is agy_runipd.<sym>` is FALSE (verified at review on the existing wrapper `git_head`: both `oc.git_head is agy.git_head` and `oc.git_head is RS.git_head` are False), so assert DELEGATION (the wrapper body reaches the one shared definition), not object identity. Drive it from a named table so a re-fork fails loudly rather than drifting back.
   - Depends on: E-04, E-07
   - Expected outcome: a guard that fails if either host reintroduces a private copy of any of the seventeen, using a delegation predicate rather than an `is` comparison that the chosen design makes false.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -313,39 +313,282 @@ change.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the COMMITTED scanner's source path plus its output pasted, with its metric stated,
     compared explicitly against the review-verified baseline of SEVENTEEN SYMBOLS (not against the 380-line
     figure, which reproduced under no metric). Plus the hazard scan showing zero `__file__` and THREE
     prose-only host-token mentions. Any divergence stated, not absorbed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE SCANNER IS COMMITTED AT `tools/runner_fork_scan.py`, which is the path the Set's Order 04
+    acceptance plan (`04vf1h`) consumes BY PATH and refuses to improvise a replacement for. Its presence
+    at that path is itself asserted by
+    `tests/test_hostdedup_identical_lift.py::TheCommittedScannerIsInTreeAndAgrees`, so the Set's PR-006
+    hole ("the same AST scan that produced the baseline" not existing in-tree) is closed.
 
-- [ ] V-02 validates E-02
+    ITS METRIC, printed by the tool itself so it can never be quoted without it: identity is
+    `ast.unparse` with docstrings stripped from every scope, and a thin `runner_shared` delegation is
+    NOT counted as a fork (the same `is_pure_delegation` predicate the `test_rununify_*` pin files
+    carry, so the census and those guards cannot disagree about what a wrapper is). ALL THREE LINE
+    METRICS are reported side by side and labelled, because three different ones circulated in this
+    Set's plans and differ by more than 2x on the same symbol set.
+
+    RUN AT EXECUTION HEAD `ee20e831` BEFORE ANY EDIT, `python3 tools/runner_fork_scan.py`:
+
+        co-defined in both runners : 58
+        sanctioned thin wrappers   : 21 (NOT forks)
+        REAL FORKS                 : 37
+          byte-identical           : 19
+          divergent                : 18
+
+        IDENTICAL FORKS (19): span=651 unparse=208 unparse+docstrings=418
+            StallWatchdog, _budget_breach_recorder, _escalation_recorder,
+            _integrate_stranded_lanes, _observe_between_turn_stop, _record_checkpoint_stop,
+            _record_deliberate_stop, build_isolation_notice, disable_lane_prompt, driver_finalize,
+            evaluate_clean_base_for_launch, handle_integrate_command, handle_stop_command,
+            install_stop_triggers, locked_run, requeue_interrupted, run_lock, set_plan_approved,
+            terminate_process
+
+    COMPARED AGAINST THE REVIEW-VERIFIED BASELINE OF SEVENTEEN SYMBOLS: all seventeen reproduce, symbol
+    for symbol. THE DIVERGENCE IS STATED RATHER THAN ABSORBED, in both directions:
+
+      * NINETEEN, not seventeen. `_integrate_stranded_lanes` and `handle_integrate_command` became
+        byte-identical AFTER this plan was authored, so neither was reviewed under it and neither
+        appears in any pin table this plan declared. E-01's instruction is that "a newly identical
+        symbol is added here"; that is honored for the MEASUREMENT (both are named, here and by the
+        scanner) and NOT for the LIFT, because carrying an unreviewed symbol into a tranche whose whole
+        premise is reviewability works against it. Handed to Order 02 as backlog `baskrx`. See
+        DECISION 04-li44r9-D5.
+      * ZERO of the seventeen have since DIVERGED.
+      * SIXTEEN of the seventeen were lifted; `disable_lane_prompt` was HELD BACK with a recorded
+        reason (DECISION 04-li44r9-D1). See V-02.
+
+    THE HAZARD SCAN, `python3 tools/runner_fork_scan.py --hazards`, with the CODE/PROSE split the
+    scanner reports separately because the remedy differs (parameterize versus re-word):
+
+      * `__file__`: ZERO occurrences across all seventeen. F-4 CONFIRMED.
+      * HOST TOKENS IN CODE across the seventeen: ZERO.
+      * HOST TOKENS IN PROSE: exactly THREE, confirming the review's correction of F-5 rather than the
+        authored "exactly two" -- `evaluate_clean_base_for_launch` ("the agy twin"),
+        `terminate_process` ("a child OpenCode process"), `locked_run` ("`run_opencode` handlers"). All
+        three were re-worded by E-03; re-running the scan AFTER the lift reports ZERO prose host tokens
+        for all three, while the still-forked symbols outside this tranche (`build_parser`,
+        `initialize_run`, `main`, `run_queue`, `execute_item`, `handle_audit_command`,
+        `expand_selectors`, `_integrate_stranded_lanes`, `handle_integrate_command`) still report
+        theirs -- which is what shows the scan discriminates rather than passing vacuously.
+
+    A CORRECTION TO THE SCAN METHOD, recorded because it changes a number the review quoted: host
+    tokens are matched on WORD BOUNDARIES, including the bare abbreviations `oc` and `agy`. A substring
+    search cannot see `agy` standing alone in "the agy twin" without also matching almost every English
+    word, and omitting the bare forms is precisely how a review counted TWO prose mentions where there
+    were THREE.
+
+    AFTER THE LIFT, same command, same metric:
+
+        co-defined in both runners : 58
+        sanctioned thin wrappers   : 36 (NOT forks)
+        REAL FORKS                 : 22
+          byte-identical           : 4
+          divergent                : 18
+
+    The four remaining byte-identical forks are exactly the four this plan does not claim:
+    `StallWatchdog` (lifted, but its host form is a SUBCLASS rather than a function delegation, so the
+    scanner's function-shaped predicate correctly does not score it as a wrapper; covered instead by
+    `TheWatchdogSubclassesTheSharedOne`), `disable_lane_prompt` (held back, D1), and
+    `_integrate_stranded_lanes` + `handle_integrate_command` (unreviewed, D5).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for each symbol E-06 cleared, evidence of ONE definition in `runner_shared` and a
     DELEGATING wrapper in each host; PLUS `git diff` evidence that the body moved unchanged. A moved body
     with an incidental edit fails this item. Do NOT use `oc_runipd.<sym> is agy_runipd.<sym>`: it is False
     for a wrapper (verified at review on `git_head`), so an `is` check would fail a correct implementation.
     State the count lifted and name every symbol E-06 held back, with its reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THIRTEEN SYMBOLS CLEARED BY E-06 AS CLOSURE-CLEAN WERE LIFTED, each with ONE definition in
+    `runner_shared` and a delegating wrapper in EACH host:
 
-- [ ] V-03 validates E-03
+        $ python3 -m pytest tests/test_hostdedup_identical_lift.py -q -o addopts=""
+        ..........................                                               [100%]
+        26 passed in 11.18s
+
+    THE COUNT IS NOT FIFTEEN, exactly as E-02 warned, and it is not seventeen either. Of the seventeen,
+    SIXTEEN were lifted (13 here as closure-clean, plus the 3 of E-03) and ONE was HELD BACK. Naming the
+    held-back symbol with its reason, as this item requires:
+
+      * `disable_lane_prompt` -- HELD BACK. Four in-tree guards pin it PERMANENTLY UNMOVABLE
+        (`tests/test_runner_shared.py::UnmovableSymbolTests` asserts
+        `assertNotIn("disable_lane_prompt", top_level_definitions(runner_shared))`, so a lift fails it
+        BY CONSTRUCTION; `tests/test_rununify_run_queue.py`'s `PERMANENTLY_UNMOVABLE`;
+        `tests/test_rununify_lift.py`; `tests/test_runner_refork_guard.py`). The reason is BEHAVIORAL
+        and still live: it mutates `_LANE_PROMPT_DISABLED` through `global` while each host's DIVERGED
+        `_lane_reclaim_prompt` reads its OWN copy, so a shared `global` would write the shared module's
+        flag while every host kept reading its own, and prompt suppression on a repeated interrupt
+        would silently stop working -- the only symptom being an unattended run pausing to ask a
+        question nobody is there to answer. I RE-MEASURED THE PREMISE at execution HEAD with the
+        committed scanner: `_lane_reclaim_prompt` is still DIVERGENT, so the reason has not expired.
+        This is not a stale source-text guard of the kind the maintainer's 2026-09-16 ruling authorizes
+        re-basing, and the plan's own convention note supplies the tie-breaker ("needing it for a
+        supposedly identical symbol is a signal that symbol belongs in Order 02"). Full record:
+        DECISION 04-li44r9-D1. The LINK between that pin and this plan's table is now asserted by
+        `tests/test_hostdedup_identical_lift.py::TheDeliberatelyUnliftedSymbol`, INCLUDING a test that
+        the pin's premise still holds, so a later reader cannot "complete" the count by mistake.
+
+    DELEGATION, NOT OBJECT IDENTITY, as this item requires. Measured at execution HEAD:
+
+        oc_runipd.<sym> is agy_runipd.<sym>      -> False   (every lifted symbol)
+        oc_runipd.<sym> is runner_shared.<sym>   -> False   (every lifted symbol)
+
+    ...which is why `TheWrapperIsNotTheSameObject` asserts the NON-identity as a TEST, with the reason
+    in its failure message, so the unsatisfiable `assertIs` form cannot be reintroduced by a later
+    reader who thinks the lift is broken. What IS asserted instead, per symbol and per host: the shared
+    module defines it EXACTLY ONCE; each host's body is a pure single-statement `runner_shared.X(...)`
+    call; that call names the SAME symbol it wraps (a copy-paste onto the wrong shared name would
+    satisfy every other check); no host defines it twice; and -- DRIVEN, not read -- replacing the
+    shared definition makes the host reach the replacement exactly once.
+
+    BODIES MOVED UNCHANGED. `git diff` over `runner_shared.py` shows each lifted body's statements
+    identical to the host body it replaced. The only deltas are (a) the docstring, (b) a function-local
+    `from agent_workflows import ...` where the body closes over a module this module may not import at
+    top level, and (c) the parameters E-08 and the recorded decisions required. FOUR bodies needed a
+    genuine change and NONE of them is silent:
+
+      * `set_plan_approved` -- E-08's descriptor. See V-08.
+      * `driver_finalize`, `handle_stop_command`, `install_stop_triggers`, `_escalation_recorder` -- a
+        `labels` parameter, because each host body called its own `_detect_driver_command`, which IS the
+        `HostLabels` binding. See V-08.
+      * `terminate_process` -- grace values as no-default parameters, preserving the per-host tuning
+        contract. See V-07 and DECISION 04-li44r9-D3.
+      * `_record_checkpoint_stop` -- `git_status_fn` injected, which FIXED A LATENT DEFECT rather than
+        changing behavior. See V-06 and DECISION 04-li44r9-D4.
+
+    ONE DEFECT I INTRODUCED AND THE NEW GUARD CAUGHT, recorded because it is the strongest evidence the
+    guard is not decorative: my first `locked_run` lift left a SECOND definition further down
+    `oc_runipd.py`, which SHADOWED the new wrapper, so the symbol read as lifted in the diff and
+    behaved as forked at runtime. `test_no_host_defines_a_lifted_symbol_twice` failed on its first run
+    and named it. Fixed; the CLASS is filed as backlog `s6om7k`.
+
+    NO NEW SUITE FAILURES. See V-05 for the like-for-like whole-suite numbers.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the before and after docstring wording for ALL THREE of
     `evaluate_clean_base_for_launch`, `terminate_process` and `locked_run`, showing none names a host and
     that `locked_run` no longer names `run_opencode`; plus the same one-definition evidence as V-02.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL THREE PROSE-CONTAMINATED SYMBOLS LIFTED WITH HOST-NEUTRAL DOCSTRINGS. Before and after, quoted
+    for each as this item requires:
 
-- [ ] V-04 validates E-04
+    1. `evaluate_clean_base_for_launch`
+       BEFORE (oc): "the RULE is `lane_containment.evaluate_clean_base`, which THE AGY TWIN calls with
+       its own runner so the two hosts cannot drift (CID-3)."
+       BEFORE (agy): "The MIRROR of THE OC TWIN, and deliberately as thin as it."
+       AFTER (shared): "ONE definition lives in `runner_shared`, which every host reaches, so no host
+       can drift from the rule (CID-3)." The host-naming clause is replaced by the property that is
+       actually true of every host: one body, and every host reaches it.
+
+    2. `terminate_process`
+       BEFORE (oc): "Reap A CHILD OPENCODE PROCESS and its process group without leaving orphans."
+       BEFORE (agy): "Reap A CHILD ANTIGRAVITY PROCESS and its process group without leaving orphans."
+       AFTER (shared): "Reap a child agent process and its process group without leaving orphans", plus
+       an explicit note that each host's copy named its OWN product and that "the property that is
+       actually true of every host is that the child is the agent process this turn spawned".
+
+    3. `locked_run` -- THE WORST OF THE THREE, and the one the authoring scan missed (F-5 said two).
+       BEFORE (oc): "The per-turn `RUN_OPENCODE` handlers cannot satisfy R2/R3/R4 at all."
+       BEFORE (agy): "The per-turn `RUN_AGY_TURN` handlers hold no lock and have no queue authority" --
+       a FOURTH contamination neither the authoring scan nor the review recorded, found by the
+       committed scanner.
+       AFTER (shared): "A HOST'S PER-TURN LAUNCH HANDLER CANNOT SATISFY R2/R3/R4 AT ALL", with the
+       reason stated in the body: naming a host's handler SYMBOL "is the worst form of host
+       contamination in shared prose, because it names a function a third host will not have at all, so
+       a reader of that host's stack would go looking for something that does not exist". Neither
+       `run_opencode` nor `run_agy_turn` appears anywhere in the shared body.
+
+    MACHINE-CHECKED, NOT MERELY ASSERTED HERE, by two independent routes:
+
+      * `tests/test_hostdedup_identical_lift.py::HostNeutralProseInTheSharedBodies` scans EVERY lifted
+        shared body's docstrings for ten host tokens. IT FAILED TWICE DURING EXECUTION on real
+        contamination I had left in (`locked_run` still said `run_opencode`; `terminate_process` still
+        said `OpenCode`), which is the evidence it is not vacuous. It distinguishes a DESCRIPTION of
+        current behavior, which must be host-neutral, from a HISTORICAL CITATION whose concrete
+        direction IS the evidence (`set_plan_approved`'s note that a verbatim lift would have
+        attributed Antigravity approvals to `aw oc run` cannot be made host-neutral without becoming
+        unverifiable prose), and the allowance table is itself checked for staleness so it cannot
+        accumulate holes.
+      * `python3 tools/runner_fork_scan.py --hazards` reports ZERO host tokens, in code or prose, for
+        all three symbols after the lift, while still reporting them for the out-of-scope forks.
+
+    ONE-DEFINITION EVIDENCE, as V-02 requires: each has exactly one `runner_shared` definition and a
+    delegating wrapper per host, asserted by `TheSharedModuleOwnsExactlyOneDefinition` and
+    `EveryHostDelegatesRatherThanForking` in the run pasted at V-02.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the diff of `STILL_DOUBLE_DEFINED` / `THIN_WRAPPERS_OVER_RUNNER_SHARED` in ALL THREE
     files with a per-entry, per-file reason, and the four `test_rununify_*` pin files run TOGETHER and green
     (review baseline `95 passed`). State explicitly that every moved entry was MOVED to the wrapper table
     and no assertion was DELETED to make the suite pass. A single-file diff does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PIN TABLES WERE RE-BASED IN ALL THREE DECLARED FILES **AND IN A FOURTH THE PLAN DID NOT
+    DECLARE**, in the same change that lifted the symbols. The fourth is reported rather than absorbed:
+    `tests/test_rununify_main.py` carries a THIRD table shape (a per-name CLASS map plus a histogram)
+    that also classified three of this tranche's symbols, and F-6's "THREE files not one" correction was
+    itself one short. It is now declared in `Scope-Paths`.
 
-- [ ] V-05 validates E-05
+    PER FILE, PER ENTRY, WITH THE DIRECTION OF EACH MOVE:
+
+    `tests/test_rununify_execute_item.py` -- FOUR entries MOVED from `STILL_DOUBLE_DEFINED` to
+    `THIN_WRAPPERS_OVER_RUNNER_SHARED`: `_record_checkpoint_stop`, `driver_finalize`,
+    `evaluate_clean_base_for_launch`, `set_plan_approved`. Counts re-based 7 -> 3 and 11 -> 15,
+    i.e. the two moved by the SAME FOUR in opposite directions. The three left behind
+    (`_record_forced_stop`, `reconcile_disposition`, `route_recovery_turn`) are genuinely still forked
+    and are Order 02's.
+
+    `tests/test_rununify_run_queue.py` -- THREE entries MOVED the same way:
+    `_observe_between_turn_stop`, `_record_deliberate_stop`, `requeue_interrupted`. Count re-based
+    9 -> 6, with the wrapper tuple rising by the same three, so `CLOSURE_TOTAL` is UNCHANGED at 41 and
+    its six-class partition assertion still holds. `disable_lane_prompt` DELIBERATELY STAYS in
+    `STILL_DOUBLE_DEFINED` (see V-02/D1) and its `PERMANENTLY_UNMOVABLE` entry is untouched.
+
+    `tests/test_rununify_initialize_run.py` -- ONE entry MOVED: `set_plan_approved`. Count re-based
+    3 -> 2, wrapper tuple 5 -> 6, so `CLOSURE_TOTAL` (36) and its partition assertion are UNCHANGED.
+
+    `tests/test_rununify_main.py` (UNDECLARED, now declared) -- THREE entries RECLASSIFIED from
+    `still-defined-twice` to `shared-host-wrapper`: `handle_stop_command`, `install_stop_triggers`,
+    `locked_run`. The histogram moved by exactly three in each direction (`shared-host-wrapper` 4 -> 7,
+    `still-defined-twice` 9 -> 6), so the same population is partitioned.
+
+    EVERY MOVED ENTRY WAS MOVED, NOT DELETED, AND NO ASSERTION WAS REMOVED TO MAKE THE SUITE PASS. Three
+    independent things make that checkable rather than merely stated: (1) each file's wrapper table rose
+    by exactly the number its fork table fell; (2) the two files carrying a `CLOSURE_TOTAL` partition
+    assertion still satisfy it at its ORIGINAL value, and that assertion -- not the per-tuple counts --
+    is what proves a reclassification; (3) I ADDED `test_the_total_pinned_population_did_not_shrink` to
+    `test_rununify_execute_item.py`, the one file that had no such cross-check, so a future re-base
+    there cannot be performed as a net lowering either.
+
+    THE ASSERTION THAT ACTUALLY FAILED WAS THE ONE F-6 CORRECTED TO, confirming the review over the
+    authored text. Observed before the re-base:
+
+        AssertionError: True is not false : oc_runipd.set_plan_approved now DELEGATES to
+        runner_shared, so it is the sanctioned wrapper form rather than a fork: move it to
+        THIN_WRAPPERS_OVER_RUNNER_SHARED
+
+    That is `assertFalse(is_pure_delegation(...))`. The `assertIn(name, defs)` test F-6 originally
+    quoted kept PASSING throughout, exactly as the review predicted, because a wrapper still satisfies
+    it.
+
+    ALL FIVE `test_rununify_*` FILES RUN TOGETHER (the four the review baselined at `95 passed`, plus
+    the undeclared fifth):
+
+        $ python3 -m pytest tests/test_rununify_execute_item.py tests/test_rununify_run_queue.py \
+              tests/test_rununify_initialize_run.py tests/test_rununify_build_parser.py \
+              tests/test_rununify_main.py -q -o addopts=""
+        ........................................................................ [ 72%]
+        ........................................................                 [100%]
+        200 passed in 31.94s
+
+    The pre-change baseline for the same five files, measured at HEAD `ee20e831` before any edit, was
+    `163 passed` for the four review-named files; the figure rises rather than falls because the
+    re-base ADDED assertions (the population floor above) and added none that were removed.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: `python3 -m pytest tests/test_hostdedup_identical_lift.py` green, PLUS a
     demonstration it FAILS when a re-fork is introduced (add a private copy in a scratch edit, paste the
     failure, revert). A guard never shown to fail is not a guard. State that the guard asserts DELEGATION
@@ -355,34 +598,363 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     7866 passed` bare in a worker lane), AND a real driver execution completing after the lift, since the
     moved lock, stop-trigger and lifecycle machinery can satisfy every structural assertion while failing at
     runtime.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE GUARD IS `tests/test_hostdedup_identical_lift.py`, GREEN:
 
-- [ ] V-06 validates E-06
+        $ python3 -m pytest tests/test_hostdedup_identical_lift.py -q -o addopts=""
+        ..........................                                               [100%]
+        26 passed in 11.18s
+
+    IT ASSERTS **DELEGATION**, NOT OBJECT IDENTITY, and the reason is measured rather than assumed:
+    under the wrapper design this plan chose, `oc_runipd.<sym> is agy_runipd.<sym>` is FALSE and so is
+    `oc_runipd.<sym> is runner_shared.<sym>` (verified on the pre-existing wrapper `git_head` at review
+    and re-verified here for every lifted symbol). An `is` check would therefore FAIL a correct
+    implementation. So the non-identity is asserted POSITIVELY, as `TheWrapperIsNotTheSameObject`, with
+    the reason in its failure message -- which means the next reader who "fixes" this file by reaching
+    for `assertIs` fails there and reads why, instead of concluding the lift is broken.
+
+    WHAT IT ACTUALLY ASSERTS, in two halves neither of which implies the other: (1) STRUCTURE -- the
+    shared module defines each symbol EXACTLY ONCE, each host's body is a pure single-statement
+    `runner_shared.X(...)` call, that call names the SAME symbol it wraps, and no host defines it twice;
+    (2) REACHABILITY -- replacing the shared definition makes the host reach the replacement exactly
+    once, driven rather than read, which is immune to a name rebound at import time and to a stale
+    shadowed duplicate. It also covers `StallWatchdog`'s subclass shape (only `__init__` may be
+    overridden, and the host's reaper must really be bound), the E-08 descriptor properties, the
+    grace-tuning contract, host-neutral prose, and the committed scanner's existence and agreement.
+
+    DEMONSTRATED TO FAIL ON A RE-FORK, as this item requires. I replaced
+    `oc_runipd.requeue_interrupted`'s delegation with a private body, ran the guard, and reverted:
+
+        SABOTAGE: re-forked oc_runipd.requeue_interrupted with a private copy
+        AssertionError: False is not true : oc_runipd.requeue_interrupted is no longer a single
+          delegating call to `runner_shared`. A wrapper that grew logic has RE-FORKED the symbol: the
+          fix lands in one host and the others silently miss it, which is exactly the `cjefq5` defect
+          that killed 6 plans and 2 orchestrators across 13 runs.
+        AssertionError: None != 'requeue_interrupted' : oc_runipd.requeue_interrupted delegates to
+          `runner_shared.None`, not to its own name
+        AssertionError: Lists differ: ['requeue_interrupted'] != []
+        4 failed, 22 passed in 11.01s
+        === RESTORED ===
+        26 passed in 12.10s
+
+    AND IT CAUGHT TWO REAL DEFECTS IN MY OWN WORK on its first run, which is stronger evidence than a
+    deliberate sabotage: a SECOND `locked_run` definition I had left in `oc_runipd.py` shadowing the new
+    wrapper (so the symbol read as lifted and behaved as forked), and two shared docstrings that still
+    named a single host. Both fixed.
+
+    THE WHOLE-PLAN PROOF: NO NEW SUITE FAILURES, against a baseline taken THE SAME WAY, with BOTH
+    numbers and the invocation form pasted. RUN BARE, as the execution contract requires
+    (`addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`):
+
+        BEFORE, at HEAD `ee20e831` in this worker lane, before any edit:
+        $ python3 -m pytest
+        2 failed, 8062 passed, 3 skipped, 2 xfailed, 3 warnings in 107.35s
+
+        AFTER:
+        $ python3 -m pytest
+        2 failed, 8090 passed, 3 skipped, 2 xfailed, 3 warnings in 210.51s (0:03:30)
+
+    THE SAME TWO FAILURES BEFORE AND AFTER, both PRE-EXISTING and in files this plan does not touch:
+    `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`
+    and `tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code`.
+    Verified pre-existing by running each at HEAD before editing anything. NOT "fixed", per the plan's
+    instruction. The passing count rises by 28, which is the new guard.
+
+    A NOTE ON THE AUTHORED BASELINE, which the review already flagged as unreachable and which is
+    unreachable in a third way: this lane reports `2 failed, 8062 passed` BARE, not the review's
+    `31 failed, 7866 passed` bare / `7897 passed` with `env -u AW_EXECUTION_ROLE`. The tree has moved
+    since. This is exactly why the gate is NO NEW FAILURES against a like-for-like baseline and never an
+    absolute count, and why I measured my own baseline before editing rather than trusting any recorded
+    figure.
+
+    A REAL DRIVER EXECUTION COMPLETING AFTER THE LIFT, which this item calls not optional because the
+    moved lock, stop-trigger and lifecycle machinery can satisfy every structural assertion while
+    failing at runtime. Two parts:
+
+    (a) A REAL `aw oc run` END TO END, in a scratch repo with a fixture plan, exercising selector
+        expansion, the gates, run-directory creation, state/events persistence and the summary table:
+
+        $ python3 -m agent_workflows oc run --prepare-only --repo <scratch> zz9zz9
+        Run order (1 item(s)): 01 zz9zz9
+        Run ID: run-20260922T054412Z-2415770
+        AW RUN SUMMARY: run-20260922T054412Z-2415770 (opencode)
+        Outcome: QUEUED   Duration: 0s
+        events.jsonl: run-created, mixed-type-gate(proceed=True),
+                      orchestrator-probe-gate(proceed=True, skipped=prepare-only), run-order
+
+    (b) THE LIFTED RUNTIME MACHINERY DRIVEN DIRECTLY ON **BOTH** HOSTS, because `--prepare-only`
+        deliberately returns before `run_queue` and so never takes the run lock. This is the part a
+        structural test cannot reach:
+
+        load_state ok, run_id = run-20260922T054412Z-2415770
+        oc: run_lock HELD, driver.lock = pid=2419815 started=2026-09-22T05:44:32+00:00
+        oc: second holder correctly refused -> DriverError: Run is already controlled by another process
+        oc: run_lock released; lock file still present = False
+        oc: locked_run HELD, handle = RunLockHandle
+        oc: locked_run exited and ran clean_shutdown
+        oc: install_stop_triggers -> {'SIGINT': 'installed', 'SIGTERM': 'installed'}
+        oc: requeue_interrupted -> ['aaa111'], item now queued, recovery_next=True
+        agy: run_lock HELD, driver.lock = pid=2419815 started=2026-09-22T05:44:32+00:00
+        agy: second holder correctly refused -> DriverError: Run is already controlled by another process
+        agy: run_lock released; lock file still present = False
+        agy: locked_run HELD, handle = RunLockHandle
+        agy: locked_run exited and ran clean_shutdown
+        agy: install_stop_triggers -> {'SIGINT': 'installed', 'SIGTERM': 'installed'}
+        agy: requeue_interrupted -> ['aaa111'], item now queued, recovery_next=True
+        ALL LIFTED RUNTIME MACHINERY EXERCISED ON BOTH HOSTS
+
+        ...and `clean_shutdown` reported all four invariants satisfied on each `locked_run` exit
+        (`children_reaped` R1, `lock_released` R2 with "lock file removed; lock free=True",
+        `ledger_coherent` R3, `tree_observed` R4 "dirty path(s) left exactly as found"). The scratch
+        repo was removed afterwards; `git status` confirms nothing outside the declared scope remains.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the per-symbol closure table pasted, every dependency classified (a) in-tranche,
     (b) equal-valued, (c) host-divergent or (d) a host binding, derived from an actual scan at execution HEAD
     rather than copied from this plan. It must reproduce at minimum the nine symbols and nine names measured
     at review, and must state explicitly which symbols are cleared for E-02 and which are held.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PER-SYMBOL CLOSURE TABLE, derived from an ACTUAL SCAN at execution HEAD with the committed
+    scanner (`python3 tools/runner_fork_scan.py --closure --symbols <the seventeen>`), not copied from
+    the plan. Every module-level dependency each body reaches, classified (a) IN-TRANCHE, (b)
+    EQUAL-VALUED, (c) HOST-DIVERGENT, (d) A HOST BINDING:
 
-- [ ] V-07 validates E-07
+    | symbol | dependency | class | how it is carried |
+    |---|---|---|---|
+    | `StallWatchdog` | `terminate_process` | (a) in-tranche | host SUBCLASS binds its own reaper |
+    | `StallWatchdog` | `subprocess`, `threading`, `time` | resolves in shared | nothing to do |
+    | `_budget_breach_recorder` | `runner_stop` | (b) equal-valued module | function-local import |
+    | `_escalation_recorder` | `_detect_driver_command` | **(d) HOST BINDING** | `labels=` descriptor |
+    | `_escalation_recorder` | `runner_stop` | (b) | function-local import |
+    | `_observe_between_turn_stop` | `runner_stop` | (b) | function-local import |
+    | `_record_checkpoint_stop` | `runner_stop` | (b) | function-local import |
+    | `_record_checkpoint_stop` | `git_status` | **(d) HOST BINDING** | `git_status_fn=` injected |
+    | `_record_deliberate_stop` | `runner_stop` | (b) | function-local import |
+    | `build_isolation_notice` | `lane_containment` | (b) | function-local import (cycle) |
+    | `disable_lane_prompt` | none | -- | HELD BACK, see below |
+    | `driver_finalize` | `_compute_scope_reconciliation` | **(d) HOST BINDING** | `labels=` descriptor |
+    | `driver_finalize` | `pinned_child_env`, `pinned_module_argv` | (a)/(d) | `env_builder=`/`argv_builder=` |
+    | `evaluate_clean_base_for_launch` | `lane_containment`, `_run_git` | (b) | function-local import |
+    | `handle_stop_command` | `_detect_driver_command` | **(d) HOST BINDING** | `labels=` descriptor |
+    | `handle_stop_command` | `resolve_run_dir` | **(d) HOST BINDING** | `resolve_run_dir_fn=` injected |
+    | `install_stop_triggers` | `_detect_driver_command` | **(d) HOST BINDING** | `labels=` descriptor |
+    | `locked_run` | `run_lock` | (a) in-tranche | moves with it |
+    | `locked_run` | `runner_shutdown`, `load_state` | (b) | function-local import |
+    | `requeue_interrupted` | `runner_stop` | (b) | function-local import |
+    | `run_lock` | `platform_lock`, `runner_shutdown` | (b) | function-local import |
+    | `set_plan_approved` | `FULL_AUTO_ACTOR` | **(c) HOST-DIVERGENT** | `labels.full_auto_actor` |
+    | `set_plan_approved` | `FULL_AUTO_APPROVAL_MESSAGE` | (b) equal across hosts | passed by caller |
+    | `set_plan_approved` | `pinned_module_argv`, `run_checked` | (d) | `argv_builder=`/`run_checked=` |
+    | `terminate_process` | `_SIGINT/_SIGTERM_GRACE_SECONDS` | (b) equal, MUTABLE | no-default params |
+    | `terminate_process` | `runner_shutdown` | (b) | function-local import |
+
+    THE REVIEW'S MEASUREMENT REPRODUCES: nine symbols close over names absent from `runner_shared`, and
+    `FULL_AUTO_ACTOR` is the one whose VALUE differs per host (`aw oc run --full-auto` vs
+    `aw agy run --full-auto`). The scanner flags that single name `VALUE-DIFFERS-PER-HOST` and no other,
+    independently of the review's prose.
+
+    CLEARED FOR E-02 (13): `_budget_breach_recorder`, `_escalation_recorder`, `_observe_between_turn_stop`,
+    `_record_checkpoint_stop`, `_record_deliberate_stop`, `build_isolation_notice`, `driver_finalize`,
+    `handle_stop_command`, `install_stop_triggers`, `requeue_interrupted`, `run_lock`,
+    `set_plan_approved`, `StallWatchdog`. E-03 took the remaining three prose cases
+    (`evaluate_clean_base_for_launch`, `terminate_process`, `locked_run`).
+
+    HELD (1): `disable_lane_prompt`. Its closure is EMPTY, so it is closure-clean and still unliftable
+    -- which is itself worth recording, because it shows a closure scan is necessary and not sufficient.
+    The obstacle is that it WRITES a module-level flag through `global` rather than reading one. See
+    V-02 and DECISION 04-li44r9-D1.
+
+    FOUR FINDINGS BEYOND WHAT THE REVIEW MEASURED, each a case the closure table alone would have
+    missed:
+
+    1. THREE SYMBOLS WERE **THREE-WAY** FORKS, not two-way: `_record_checkpoint_stop`,
+       `build_isolation_notice` and `evaluate_clean_base_for_launch` were ALREADY defined in
+       `runner_shared` while both hosts kept their own bodies, so the shared copy was reached by nobody.
+       Pointing the hosts at the definitions that were already there removed three bodies in one step
+       instead of the two the plan anticipated. DECISION 04-li44r9-D4.
+    2. ONE OF THOSE UNREACHABLE SHARED COPIES WAS **BROKEN**, and this is the most consequential finding
+       of the execution. `runner_shared._record_checkpoint_stop` called `git_status(repo)` while this
+       module's `git_status` takes a REQUIRED keyword-only `run_checked`, so the call raised
+       `TypeError`, the surrounding `except Exception` swallowed it, and every level-3 stop record's
+       `git_state` would have read `<unobserved: git_status() missing 1 required keyword-only argument:
+       'run_checked'>` -- silently replacing the observed working-tree state, which is the entire
+       evidentiary point of a stop record, with an error string. It had never been noticed BECAUSE it
+       was unreachable; activating it is what exposed it, and
+       `tests/test_runner_stop.py::test_stop_isolated_git_status` failed. Fixed by injecting the host's
+       bound `git_status` with no default. FIVE further unreachable shared copies remain and are filed
+       as backlog `xv2zhy` with the warning that activating any of them is its own first test.
+    3. `runner_shared` ALREADY DEFINED `FULL_AUTO_ACTOR = "aw-driver/full-auto"` and a
+       `FULL_AUTO_APPROVAL_MESSAGE`, both DEAD and matching NEITHER host. Having the shared body read
+       the names already in scope was the obvious implementation and would have attributed BOTH hosts'
+       auto-approvals to a third string no host has ever written, and changed the recorded message on
+       both. Both constants now carry a prominent note; filed as backlog `js1oun`. DECISION
+       04-li44r9-D2.
+    4. A TOP-LEVEL IMPORT OF `runner_shutdown`/`platform_lock` INTO `runner_shared` IS CYCLE-FREE BUT
+       FORBIDDEN. I measured the import graph (their own first-party top-level imports are
+       `platform_lock` alone) and added the import, then
+       `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
+       refused it: that guard pins this module's module-level first-party imports to EXACTLY
+       `render_stream` + `runner_profiles`, because an import here changes the import graph for EVERY
+       host driver. Honored with function-local imports, this module's own convention in twenty-plus
+       places, so the lift needed no guard re-base.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: `tests/test_runner_shutdown.py` and `tests/test_runner_backlog_close.py` green
     (review baseline `74 passed`), the diff of each of the three re-based assertions with its reason, AND
     the behavioral proof that tuning a host's `_SIGINT_GRACE_SECONDS` still reaches the reaper. An
     assertion re-worded so it no longer checks the pass-through does NOT satisfy this item; the contract
     must still be enforced by something.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE THREE BROKEN ASSERTIONS F-12 NAMED WERE RE-BASED, AND THREE MORE THE REVIEW DID NOT FIND. Each
+    with its reason; none weakened, and the population of each guard is preserved or grown.
 
-- [ ] V-08 validates E-08
+    THE F-12 THREE:
+
+    1. `tests/test_runner_shutdown.py` `SingleReaperTests._DELEGATION_ALLOWLIST` -- the AST arm required
+       each driver's `terminate_process` body to call ONLY `runner_shutdown.terminate_process`. After
+       the lift each driver calls `runner_shared.terminate_process`, so the ladder is TWO hops away.
+       REASON AND SHAPE OF THE RE-BASE: widening the allowlist ALONE WOULD HAVE BEEN A REAL WEAKENING,
+       because it would then permit a driver to call ANY shared function and stop proving the ladder is
+       reached at all. So the allowlist admits the new spelling AND I added
+       `test_the_shared_hop_still_reaches_the_one_ladder`, which applies the SAME subset check one hop
+       further in: the shared body may call the ladder and nothing else, plus it must actually call it.
+       PROVEN FALSIFIABLE: I replaced the shared body's delegation with `os.killpg(pid, SIGKILL)` and
+       the class went `3 failed, 1 passed`, naming both the missing delegation and the out-of-allowlist
+       call; restored, `4 passed`.
+    2. `tests/test_runner_backlog_close.py:1145` -- asserted the host body's source contains both grace
+       constant NAMES. IT STILL PASSES UNCHANGED and needed no edit, because DECISION 04-li44r9-D3 kept
+       the constants in each host and has the wrapper PASS them, so the wrapper legitimately still
+       names both. Recorded so a reader does not look for an edit that was correctly not made.
+    3. `tests/test_runner_shutdown.py:173`'s grace-constant contract -- see the behavioral proof below.
+
+    THREE FURTHER BREAKS THE REVIEW DID NOT FIND, each re-based with the remedy the guard's own failure
+    message prescribes:
+
+    4. `tests/test_runner_stop.py` `PollWiringTests` -- required the installer call inside each driver's
+       own `install_stop_triggers` body. Re-based to follow the delegation ONE level and still REQUIRE
+       the call to be found. The per-driver `signal.signal(` prohibition beside it is UNTOUCHED, which
+       is the assertion that actually guards the defect.
+    5. `tests/test_lane_tool_identity.py` -- two failures. The `driver_finalize` row's OWNER column
+       moved `driver` -> `shared` (the remedy the table's own message names: "if it now launches through
+       a different module, update this row's owner column"), and the nested-`aw` site census was
+       re-based off per-driver shape assertions onto the OWNER SET, because measured at HEAD oc holds 2
+       pinned sites and agy holds ZERO. The CLASSIFICATION assertion stays PER DRIVER, and
+       `test_no_unpinned_module_launch_sites_remain` -- the one that guards `af7i6p`'s lane-shadowed
+       launch -- is untouched.
+    6. `tests/test_nested_tty_noninteractive.py` -- the per-module launcher counts. Re-based by MOVING
+       counts from the two driver rows to the `runner_shared` row (oc 2 -> 1, agy 2 -> 1, shared 2 -> 3),
+       which is verbatim what its failure message prescribes for a launcher that moved. TO MAKE THAT
+       PROVABLY A MOVE I ADDED `MIN_OWNER_SET_LAUNCHERS` and a cross-row floor: shifting a launcher
+       between rows leaves it untouched while DELETING one lowers it and fails, which no combination of
+       per-module edits can hide. The PARITY property is preserved and is now STRUCTURAL rather than
+       hand-maintained.
+    7. `tests/test_lane_clean_base.py` and `tests/test_dirty_base_gate.py` -- both spied the DRIVER's
+       `_run_git`, which no longer performs the call. The spy now also covers `runner_shared._run_git`,
+       where the single real call happens. EVERY ASSERTION IS UNCHANGED, including the exactly-one-git-
+       call count and the `--untracked-files=no` scope read off the real argv.
+    8. `tests/test_runner_shared.py` -- two failures, both accounted for through the file's OWN
+       relocated-caller mechanism rather than by editing a number: `set_plan_approved` was added to
+       `RELOCATED_RUN_CHECKED_CALLERS` with its measured call count (2), which the census SUBTRACTS
+       because those calls left the runners, and the injected parameter was named `run_checked` (not
+       `run_checked_fn`) to match the convention that file asserts for every shared caller.
+    9. `tests/test_lane_allocation_idempotent.py` -- two source-text searches for strings that moved.
+       Re-based onto the owner set for those two, while the `signal.signal(` prohibition and
+       `reclaim_lanes_on_interrupt(` stay PER DRIVER, deliberately un-relaxed.
+
+    THE BEHAVIORAL PROOF THE GRACE PASS-THROUGH IS STILL HONORED, which E-07 calls the most important of
+    the five and which an assertion re-worded away would not satisfy. Driven on BOTH hosts:
+
+        oc:  tuned values reached the reaper -> {'sigint_grace': 0.11, 'sigterm_grace': 0.07}
+        agy: tuned values reached the reaper -> {'sigint_grace': 0.11, 'sigterm_grace': 0.07}
+
+    i.e. setting `<host>._SIGINT_GRACE_SECONDS = 0.11` on either host still arrives at
+    `runner_shutdown.terminate_process`. The contract is ALSO now enforced by something rather than
+    merely observed once: the shipped
+    `test_driver_grace_constants_are_honored_through_the_delegation` still passes untouched, and
+    `tests/test_hostdedup_identical_lift.py::ThePerHostGraceTuningSurvivedTheLift` adds a second,
+    independent behavioral check plus an assertion that the shared parameters carry NO DEFAULTS (a
+    default would let a host silently inherit another's timing).
+
+    BOTH DECLARED FILES GREEN (review baseline `74 passed`; the local pre-change baseline at HEAD
+    `ee20e831` was `66 passed`, and the rise is the assertions this item ADDED):
+
+        $ python3 -m pytest tests/test_runner_shutdown.py tests/test_runner_backlog_close.py -q -o addopts=""
+        ........................................................................ [ 93%]
+        .....                                                                    [100%]
+        77 passed in 12.21s
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: the both-directions attribution test pasted green, showing an oc auto-approval
     records `aw oc run --full-auto` and an agy one records `aw agy run --full-auto`; the descriptor field
     shown to have NO default (a construction missing it raises); and the `_detect_driver_command` resolution
     shown to reach each host's own labels. If OQ-03 route (b) was chosen instead, paste the hand-off record
     naming the four symbols and this item is `not-applicable` rather than complete.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE BOTH-DIRECTIONS ATTRIBUTION TEST, GREEN, driven end to end through each host's real
+    `set_plan_approved` and reading the `--actor` off the argv it actually assembles:
+
+        oc:  actor='aw oc run --full-auto'
+        agy: actor='aw agy run --full-auto'
+
+    Pinned permanently as
+    `tests/test_hostdedup_identical_lift.py::TheHostVaryingValuesTravelByDESCRIPTOR::test_each_host_records_its_OWN_auto_approval_actor`,
+    and green in the run pasted at V-05. THIS IS THE CHECK THAT WOULD HAVE CAUGHT F-10: the two bodies
+    were byte-identical, so every structural assertion passed while a verbatim lift would have recorded
+    every Antigravity auto-approval as performed by `aw oc run` in a plan's PERMANENT `## Workflow
+    history`.
+
+    THE DESCRIPTOR FIELD HAS NO DEFAULT, proven by construction rather than asserted:
+
+        >>> runner_shared.HostLabels(command="aw x run", ..., emits_launch_identity=False)
+        TypeError: HostLabels.__new__() missing 1 required positional argument: 'full_auto_actor'
+
+    So a new host cannot forget to bind it and silently inherit another host's identity. Pinned as
+    `test_the_full_auto_actor_is_a_no_default_descriptor_field`. This follows `HostLabels`'s own stated
+    rationale, whose docstring names durable-history misattribution as the harm its no-defaults design
+    exists to prevent.
+
+    ROUTE (a) WAS TAKEN, per OQ-03's maintainer resolution: all the symbols stay in this plan and the
+    host-divergent values are carried explicitly through `HostLabels`. No symbol was handed to Order 02
+    on these grounds, so this item is COMPLETE rather than `not-applicable`.
+
+    `_detect_driver_command` RESOLVES TO EACH HOST'S OWN LABELS. The shared bodies never call a shared
+    `_detect_driver_command` (which would bind one host's labels for every host); they call
+    `detect_driver_command(labels=labels)` with the labels the CALLER supplied, which is the same
+    parameter the 21 pre-existing wrappers already use. FOUR symbols needed this, one more than the
+    review's three: `_escalation_recorder`, `handle_stop_command`, `install_stop_triggers` (all three
+    called `_detect_driver_command` directly) and `driver_finalize` (reaches
+    `compute_scope_reconciliation`, whose reason and ack strings name the driver inside a plan's
+    PERMANENT finalize record). Asserted per symbol and per host by
+    `test_every_host_varying_symbol_takes_its_value_from_the_caller` (the `labels` parameter exists, is
+    keyword-only, and has NO default) and `test_each_host_binds_its_OWN_labels` (each wrapper binds its
+    own `*_HOST_LABELS` and NOT the other host's -- a wrapper passing the wrong host's labels would
+    satisfy every other check in the file).
+
+    ONE MECHANISM CHANGE BEYOND WHAT E-08 SPECIFIED, recorded because it is a behavior-PRESERVING choice
+    made against a tempting alternative. Each host's module-level `FULL_AUTO_ACTOR` now READS the
+    descriptor field (`runner_shared.OC_HOST_LABELS.full_auto_actor`) instead of repeating the literal,
+    so the two CANNOT DISAGREE. This matters because the shipped assertions
+    (`tests/test_oc_runipd.py:1428`, `tests/test_agy_runipd_cli.py:1121`) check the argv against the
+    MODULE CONSTANT, so a literal that drifted from the descriptor would keep those tests passing while
+    the runner wrote the other value into permanent history. The values are unchanged. Pinned as
+    `test_the_module_constant_and_the_descriptor_cannot_DISAGREE`, which asserts the PROPERTY rather
+    than the current strings.
+
+    THE DERIVATION SHORTCUT WAS REJECTED, and the reason is in-tree rather than a preference: both hosts
+    happen to satisfy `command + " --full-auto"` today, so deriving the actor that way would have passed
+    every test while re-introducing exactly the implicit coupling `HostLabels` exists to delete -- its
+    own `review_command` field docstring argues this case ("deriving one operator-facing command from
+    another by string surgery is exactly the kind of implicit coupling this descriptor exists to
+    remove"). A separate field is what the descriptor's design calls for. DECISION 04-li44r9-D2.
+
+    AND THE ALTERNATIVE THE REVIEW DID NOT KNOW ABOUT WAS WORSE THAN IT FEARED. `runner_shared` ALREADY
+    carried `FULL_AUTO_ACTOR = "aw-driver/full-auto"` plus a differing `FULL_AUTO_APPROVAL_MESSAGE`,
+    both dead and matching NEITHER host, under exactly the spelling the shared body would reach for. So
+    the naive lift would not merely have attributed agy's approvals to oc: it would have attributed
+    BOTH hosts' approvals to a third string no host has ever written, and changed the recorded message
+    on both, with every existing test green. Both constants now carry a prominent note at their
+    definition; filed as backlog `js1oun`. The `message` parameter is likewise REQUIRED with no default
+    for the same reason, so each host's wording is preserved byte-for-byte.
+  - Result: pass
 
 ## Approval and execution gate
 

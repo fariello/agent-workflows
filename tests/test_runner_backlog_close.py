@@ -51,6 +51,7 @@ from agent_workflows import (
     check_engine,
     ipd_schema,
     oc_runipd,
+    runner_shared,
 )
 from tests.support import REPO_ROOT
 
@@ -1605,15 +1606,35 @@ class ShutdownReportOnInterrupt(unittest.TestCase):
         self.assertTrue(
             callable(report), "the callable `71vjbn` will invoke must exist"
         )
+        # THE OWNING MODULE IS RESOLVED, NOT ASSUMED. hostdedup Order 01 (`li44r9`) lifted the lock and
+        # state helpers into `runner_shared`, and reaches `platform_lock` through a FUNCTION-LOCAL import
+        # (deliberately, so this module's pinned module-level first-party import set does not grow). So a
+        # trap hard-coded to `oc_runipd` now misses the real collaborator and the test would pass
+        # vacuously on a tree where the helper IS called. Each name is therefore trapped on whichever
+        # module actually exposes it, and a name exposed by NEITHER is skipped explicitly rather than
+        # silently: `platform_lock` is no longer a module attribute anywhere, and its acquisition is
+        # covered by trapping `run_lock`, which is the only body that takes it.
         forbidden = ("run_lock", "locked_run", "save_state", "platform_lock")
         for name in forbidden:
-            with self.subTest(forbidden=name), tempfile.TemporaryDirectory() as tmp:
+            owner = next(
+                (m for m in (oc_runipd, runner_shared) if hasattr(m, name)), None
+            )
+            if owner is None:
+                # NOT a silent pass: assert the fallback coverage actually exists, so this branch cannot
+                # become a hole if `run_lock` is ever renamed or removed too.
+                self.assertTrue(
+                    hasattr(oc_runipd, "run_lock") or hasattr(runner_shared, "run_lock"),
+                    f"{name} is exposed by no module AND run_lock is gone, so nothing covers the lock "
+                    "acquisition a signal handler must not perform",
+                )
+                continue
+            with self.subTest(forbidden=name, owner=owner.__name__), tempfile.TemporaryDirectory() as tmp:
                 run_dir = Path(tmp)
                 oc_runipd._SIGNAL_REPORT_DONE.clear()
                 oc_runipd._SIGNAL_REPORT_STATE.clear()
                 oc_runipd.register_signal_report(run_dir, _state_with_open_item())
                 hits: list[str] = []
-                real = getattr(oc_runipd, name)
+                real = getattr(owner, name)
 
                 def trap(*args, _name=name, _real=real, _hits=hits, **kwargs):
                     _hits.append(_name)
@@ -1621,7 +1642,7 @@ class ShutdownReportOnInterrupt(unittest.TestCase):
 
                 sink = io.StringIO()
                 with (
-                    mock.patch.object(oc_runipd, name, trap),
+                    mock.patch.object(owner, name, trap),
                     contextlib.redirect_stdout(sink),
                     contextlib.redirect_stderr(sink),
                 ):

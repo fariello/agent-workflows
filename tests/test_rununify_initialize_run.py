@@ -174,10 +174,19 @@ LIVE_OPTION_KEY_UNION = 35  # 22 shared + 13 host-specific
 #:     `__module__` -> `agent_workflows.runner_shared`, likewise for `parse_plan_file`. They are
 #:     therefore no longer forks and MUST NOT be listed here; they moved to
 #:     RESOLVES_IN_RUNNER_SHARED below.
+#:   * `set_plan_approved` LIFTED into `runner_shared` by hostdedup Order 01 (`li44r9`) E-02/E-08, in the
+#:     same change that re-based this table. It MOVED to THIN_WRAPPERS_OVER_RUNNER_SHARED below rather
+#:     than being deleted, so it is still asserted -- now as a wrapper that must really delegate.
+#:     IT WAS THE HARDEST SYMBOL IN THAT TRANCHE despite its two bodies having been BYTE-IDENTICAL, and
+#:     the reason is worth recording here because it generalizes: each body read a module-level
+#:     `FULL_AUTO_ACTOR`, AST comparison matches on the NAME, and the two names resolved to DIFFERENT
+#:     strings (`aw oc run --full-auto` vs `aw agy run --full-auto`). That string is passed as `--actor`
+#:     and lands in a plan's PERMANENT `## Workflow history`, so a verbatim lift would have attributed
+#:     every Antigravity auto-approval to the OpenCode driver. The value now arrives through
+#:     `HostLabels.full_auto_actor`, which has no default.
 STILL_DOUBLE_DEFINED = (
     "enforce_dependency_preflight",
     "expand_selectors",
-    "set_plan_approved",
 )
 
 #: Imported FROM `runner_shared`, so they move with a relocated core for free.
@@ -221,9 +230,13 @@ ALREADY_ONE_OBJECT = (
 #: them as forks would OVERSTATE the remaining work, which is exactly what this table exists to
 #: prevent.
 THIN_WRAPPERS_OVER_RUNNER_SHARED = (
+    # hostdedup Order 01 (`li44r9`) E-04: `set_plan_approved` MOVED here from `STILL_DOUBLE_DEFINED`
+    # above in the same change that lifted it. See the note on that tuple for why it needed a
+    # `HostLabels` field rather than a verbatim move.
     "discover_plans",
     "enforce_requested_action",
     "git_common_dir",
+    "set_plan_approved",
     "validate_manifest",
     "write_report",
 )
@@ -788,7 +801,12 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         # so they moved to THIN_WRAPPERS_OVER_RUNNER_SHARED. Re-measured from the tables above rather
         # than edited to fit, and each reclassification is proven individually by the fork-vs-wrapper
         # test in this class, which reports the delegation itself.
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 3)
+        #
+        # 3 -> 2, RE-MEASURED by hostdedup Order 01 (`li44r9`) E-04, which lifted `set_plan_approved`.
+        # It MOVED to `THIN_WRAPPERS_OVER_RUNNER_SHARED`, which rose by one, so the partition assertion
+        # immediately below is UNCHANGED against `CLOSURE_TOTAL` -- and that assertion, not this figure,
+        # is what proves the re-base was a reclassification rather than a deletion.
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 2)
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED)
             + len(RESOLVES_IN_RUNNER_SHARED)
