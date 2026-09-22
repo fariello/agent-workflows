@@ -187,6 +187,29 @@ from agent_workflows.runner_shared import (
     dispatch_orchestrator_item as dispatch_orchestrator_item,
 )
 
+# runverdict (`1bfppy`) E-01/E-02: the ONE fail-closed VERIFIER VERDICT MAPPING, bound here as a
+# re-export so `tests/test_runner_refork_guard.py` can assert BOTH hosts see the SAME object. Imported
+# from `runner_shared` and NEVER defined here: a verdict test written in a driver is precisely the
+# re-fork that let `CORRECTION_REQUIRED` be recorded as `verified` in two byte-identical copies.
+from agent_workflows.runner_shared import (
+    map_verdict as map_verdict,
+)
+from agent_workflows.runner_shared import (
+    normalize_verdict as normalize_verdict,
+)
+from agent_workflows.runner_shared import (
+    verdict_refusal_text as verdict_refusal_text,
+)
+from agent_workflows.runner_shared import (
+    VerdictMapping as VerdictMapping,
+)
+from agent_workflows.runner_shared import (
+    VERDICT_REFUSAL_CODE_DECLINED as VERDICT_REFUSAL_CODE_DECLINED,
+)
+from agent_workflows.runner_shared import (
+    VERDICT_REFUSAL_CODE_UNREADABLE as VERDICT_REFUSAL_CODE_UNREADABLE,
+)
+
 # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, bound HERE rather than reached through
 # `runner_shared.` at the call site, because the cross-driver symmetry guard
 # (`tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`) requires each driver to CARRY

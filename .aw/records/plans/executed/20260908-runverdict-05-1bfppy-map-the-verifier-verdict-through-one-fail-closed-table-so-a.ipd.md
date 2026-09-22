@@ -14,18 +14,25 @@
   THE KNOWN SET IS FOUR VALUES, NOT THREE, AND THE FOURTH IS DECIDED HERE. `CONFORMING` is in live use by twelve existing tests and is not in the prompt. Mapping it is IN SCOPE and is not a prompt change; changing the PROMPT to advertise it is OUT of scope and belongs to whoever owns the schema. If the decision is that `CONFORMING` must NOT pass, then updating those twelve call sites is in scope and must be done in the same change rather than left as a red suite.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 5
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1bfppy
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: wyw936
 
 ## Workflow history
+- 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 1bfppy verified (set runverdict, attempt 1).
+- 2026-09-22 execution-performed (opencode/its_direct/pt3-claude-opus-5-1m-us): NOT A STATUS TRANSITION. This entry records WORK DONE, not a lifecycle step: the terminal `approved -> executed` transition is the RUNNER's through `aw ipd finalize`, and `ipd_lifecycle.validate_transition` refuses it for any other actor ("only `aw ipd finalize` may perform it"). An earlier draft of this line began with the word `executed` and `aw check` correctly flagged it as `check.lifecycle-transition-invalid`, because `_plan_status_events` parses the leading token as a status event; that was an accidental forged attestation and is corrected here rather than left standing. `aw ipd begin` was likewise attempted and correctly REFUSED with `AW-LIFECYCLE-ROLE-001` (the runner owns begin/finalize for a managed lane), so this lane holds no receipt and this plan stays in `pending/` for the driver to transition.
+  All six E-items performed and all six V-items verified with pasted evidence. Suite: `1 failed, 8281 passed, 3 skipped, 2 xfailed` versus a pre-work baseline of `1 failed, 8253 passed, 3 skipped, 2 xfailed` measured in this same lane worktree; SAME single failing node id both times (`tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`), which is ENVIRONMENTAL and not mine: it asserts a non-isolated turn gets no denial policy, and it trips because the OpenCode process executing this plan exports `OPENCODE_CONFIG_CONTENT` into the test env. Proven by re-running it with that one variable unset: `76 passed`.
+  THE HEADLINE FINDING IS THAT THIS PLAN'S CENTRAL DEFECT WAS ALREADY FIXED BEFORE EXECUTION, and the change was reshaped rather than abandoned. The plan (authored 2026-09-08, reviewed 09-09) targets a gate whose `else` recorded `CORRECTION_REQUIRED`, typos, empty strings and unparseable JSON as `verified`. Commit `61137509` (2026-09-18) added an `elif verify_verdict == "VERIFIED"` arm and flipped that `else` to `unverified`/`partial`, closing the leak. MEASURED at HEAD `d51be185`, the pre-existing branch was ALREADY fail-closed on every input the plan predicted would move, so the plan's "six of ten currently return verified" is no longer true and I did not claim it. THREE PROPERTIES WERE STILL GENUINELY MISSING, and they are what this change delivers: (1) the SUBSTRING SHAPE survived the fix, and measurably misclassified - `NOT BLOCKED` mapped to `blocked` because `"BLOCKED" in "NOT BLOCKED"`; (2) the KNOWN SET was inherited rather than decided, since `CONFORMING` had reached the success path for months only by falling through the `else`; (3) the branch was INLINE, hence untestable over its input alphabet and unguardable against a re-fork. All three are now closed by one exact-match table in `runner_shared`, consumed by both hosts, with 28 new tests and a mutation-checked anti-re-fork guard.
+  OQ-02 RESOLVED AGAINST ITS OWN SUGGESTED DEFAULT, on a measurement that reversed it. The plan said to accept `CONFORMING` as an alias because twelve tests depended on it passing; `61137509` had already rewritten all twelve to `VERIFIED` (measured: zero occurrences remain), so the cost of refusing it is zero. Decisively, at HEAD it ALREADY mapped to `unverified`, so accepting it would have made this fail-closed table MORE PERMISSIVE than the gate it replaces - the single widened input in the pre/post contrast. That comparison is now a permanent test.
+  TWO DEFECTS FOUND AND FILED (backlog items, both `chore`): a literal `"verifier-declined"` spelled twice (fixed in place by binding the new constant to the existing `INTEGRATION_REFUSED_VERIFIER_DECLINED`, since two literals drift and an alias cannot), and the stale-premise class itself. OQ-01 (the `correction_required -> runnable` requeue) remains deliberately deferred and unimplemented, as the fence requires; OQ-03 (the `Order: 5` collision with `bxx9af`) is untouched and remains the maintainer's call.
+  SIBLING COORDINATION, read on disk at execution AND re-read at validation: `r2i1b1` is `executed`, so the ADOPT branch applied and refusals are carried through its `Refusal` record via `record_refusal` rather than as bare strings. `fzxfph` is `approved` in `pending/` (NOT landed), so per E-02 this change mints NO name for the unparseable case: it writes the pre-existing `unverified` token and puts its own distinction in a different field (`Refusal.code`), leaving that plan's `verification_status` vocabulary untouched and impossible to double-classify.
+  NO SPEC AMENDED (spec `25kzda` is moved toward, not changed); the verifier PROMPT and its three-value schema are byte-unchanged, confirmed by `tests/test_reporting_contract.py` passing, which asserts that line verbatim.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-D01..PR-D11, ten FIXED, PR-D06 open as non-blocking OQ-03; readiness go-pending-approval
 
@@ -49,53 +56,76 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared fail-closed mapping
 
-- [ ] E-01 ADD ONE SHARED VERDICT MAPPING to `runner_shared.py` that takes the raw verdict value and returns the runner's disposition pair, mapping the THREE documented verdicts EXPLICITLY and treating everything else as NOT verified. Locate the current gate by SYMBOL (`build_verifier_prompt`'s consumer inside `execute_item_core` in `runner_shared.py`, the `v_outcome_file` block), never by the line numbers in this plan.
+- [x] E-01 ADD ONE SHARED VERDICT MAPPING to `runner_shared.py` that takes the raw verdict value and returns the runner's disposition pair, mapping the THREE documented verdicts EXPLICITLY and treating everything else as NOT verified. Locate the current gate by SYMBOL (`build_verifier_prompt`'s consumer inside `execute_item_core` in `runner_shared.py`, the `v_outcome_file` block), never by the line numbers in this plan.
   SITE IT IN `runner_shared.py`, NOT IN `oc_runipd.py`. `agy_runipd` already imports 48 names from `oc_runipd` (AST-measured at review; the plan was authored at 47 and the count is a moving target, so re-derive it rather than quoting either figure) and zero flow back, so adding it to oc for agy to import would deepen the layering defect backlog `cnwy8g` owns. `runner_shared` is where both hosts already bind shared decisions (`DriverError` at `runner_shared.py:170`; find `determine_action` and `action_for` by NAME, since this plan's line numbers for them are stale).
   CONSUME THE EXISTING STATE VOCABULARY rather than inventing tokens: `run_state.py:34` already defines `STATE_CORRECTION_REQUIRED`, and `run_state.py` imports NO first-party module at all (AST-verified), so importing it into `runner_shared` cannot create a cycle. Check that before writing the import and say what you found.
   DO NOT DROP THE SUBSTRING MATCH FOR `NOT CONFORMING`, AND ANSWERING WHERE IT COMES FROM ALSO ANSWERS `CONFORMING`. MEASURED AT REVIEW: `NOT CONFORMING` appears NOWHERE in the repository except the two gate lines themselves (no prompt, no test, no outcome file, no spec), so nothing currently emits it. But its sibling `CONFORMING` IS written by twelve tests, and `aw ipd lint`'s only pass disposition is the word `conforming` (`ipd_lint.py:12`, `:1019`), so the pair is best read as a verifier echoing the LINTER's vocabulary rather than the prompt's. Keep BOTH as accepted aliases (`CONFORMING` -> verified, `NOT CONFORMING` -> blocked) unless you decide otherwise, and if you decide otherwise, own the twelve test updates in this change.
   BEWARE THE SUBSTRING TRAP THAT MAKES THIS PAIR DANGEROUS: `"CONFORMING" in "NOT CONFORMING"` is TRUE. So an exact-match table is REQUIRED, and any implementation that keeps substring semantics must test `NOT CONFORMING` BEFORE `CONFORMING` or it will silently map a rejection to a pass. That ordering hazard is exactly the class of defect this plan exists to remove, so prefer exact matching on a normalized token and say so.
   - Depends on: none
   - Expected outcome: one function in `runner_shared.py` mapping `VERIFIED`, `CORRECTION_REQUIRED`, `BLOCKED` and the two `CONFORMING` aliases EXPLICITLY by exact match, anything else to NOT verified; it consumes `run_state`'s existing token rather than a new string; no import cycle; the `CONFORMING`/`NOT CONFORMING` provenance question answered from evidence and the twelve existing call sites accounted for.
-  - Execution state: pending
+  - Execution state: performed
+    EVIDENCE: `map_verdict`/`normalize_verdict`/`VerdictMapping`/`verdict_refusal_text` added to `runner_shared.py` beside the `INTEGRATION_*` signal constants. EXACT MATCH on a normalized token (`normalize_verdict` upper-cases, strips, and COLLAPSES internal whitespace), so no arm's behavior depends on another arm's position.
+    OQ-02 RESOLVED AGAINST THE PLAN'S SUGGESTED DEFAULT, on a measurement that inverts its premise. The plan said to accept `CONFORMING` because twelve tests depend on it reaching the success path; MEASURED at execution, commit `61137509` (2026-09-18) already rewrote all twelve to `{"verdict": "VERIFIED"}` and zero occurrences of `"verdict": "CONFORMING"` remain in `tests/` or `agent_workflows/`, so the cost of fail-closing it is ZERO. The DECIDING argument is stronger: at HEAD `CONFORMING` already maps to `unverified`/`partial` (it falls through the `else`), so accepting it would have made this "fail-closed" table MORE PERMISSIVE than the gate it replaces. That was caught by the pre/post contrast table, which named it as the single widened input, and a permanent guard now pins it (`test_the_table_is_never_more_permissive_than_the_gate_it_replaced`). `NOT CONFORMING` IS kept as a rejection, because the pre-existing gate honored it, so mapping it preserves behavior.
+    `run_state` CONSUMED, NOT RE-SPELLED: `_verdict_state` resolves `STATE_VERIFIED`/`STATE_CORRECTION_REQUIRED`/`STATE_BLOCKED` through `run_state`, via a LAZY in-function import matching `resolve_retry_budget`'s existing precedent at `runner_shared.py:2098`. NO CYCLE: AST walk confirms `run_state.py` imports NO first-party module (`first-party imports in run_state.py: NONE`), and a fresh interpreter importing `runner_shared` succeeds.
+    ONE DRIFT DEFECT FOUND AND FIXED WHILE DOING THIS: `VERDICT_REFUSAL_CODE_DECLINED` and the pre-existing `INTEGRATION_REFUSED_VERIFIER_DECLINED` both spelled the literal `"verifier-declined"`. Two literals can drift; an alias cannot. The former is now BOUND to the latter and a test pins the identity.
 
-- [ ] E-02 ROUTE BOTH RUNNERS THROUGH IT AND DELETE BOTH PRIVATE COPIES. NOTE: `execute_item` was unified into `runner_shared.execute_item_core` (commit `70a2059f`), so the `v_outcome_file` block already lives in `runner_shared.py` and both runners route through it; updating that unified site routes both runners through the mapping without leaving private copies in either runner module.
+- [x] E-02 ROUTE BOTH RUNNERS THROUGH IT AND DELETE BOTH PRIVATE COPIES. NOTE: `execute_item` was unified into `runner_shared.execute_item_core` (commit `70a2059f`), so the `v_outcome_file` block already lives in `runner_shared.py` and both runners route through it; updating that unified site routes both runners through the mapping without leaving private copies in either runner module.
   THE `except Exception:` ARM IS PART OF THE DEFECT, NOT SEPARATE. `verify_disp = "verified" if v_rc == 0 else "unverified"` on unparseable JSON (`runner_shared.py:11855`, previously `oc_runipd.py:6644-6645`, agy `:3695-3696`) means a malformed outcome file with a zero exit reads as verified. Route it through the same mapping so an unreadable verdict is an UNREADABLE verdict, not a passing one. The `else:` arm (no outcome file at all) is a DIFFERENT fact and belongs to sibling plan `fzxfph`; do not change its meaning here, but do not let it silently become the new fail-open path either.
   THIS ARM IS ALSO CLAIMED BY SIBLING `fzxfph`, WHICH IS A REAL OVERLAP AND NOT A HYPOTHETICAL ONE. That plan's E-01 enumerates the SAME `except` site as the first of "three facts collapsed into `unverified`" and rewrites it in the SAME module, while its own scope fence tells it not to change the verdict mapping. Both plans therefore edit this one arm, each believing the other owns only the adjacent lines, and both declare `Item-Dependencies: none`. Read `fzxfph`'s `- Status:` and directory ON DISK before you touch this arm. If it has landed, ADOPT its named fact for the unparseable case instead of inventing a second name for the same condition; if it has not, keep your change to this arm minimal and say in the plan record which name you used, so its executor can reconcile rather than double-classify. The two plans must not both mint a token for "the verifier wrote something unreadable".
   PRESERVE THE `BLOCKED` BEHAVIOR EXACTLY. `BLOCKED` today yields `verify_disp = "blocked"` AND `disposition = "partial"`. That is correct and must be byte-unchanged, so the fix cannot be claimed as an improvement while regressing the one case that already worked. NOTE the second assignment is the load-bearing half: `disposition = "partial"` is what downgrades the item, and a mapping that returns only a `verify_disp` would silently drop it.
   - Depends on: E-01
   - Expected outcome: both runners call the shared mapping (via `runner_shared.execute_item_core`); neither retains a substring test; the unparseable-JSON path fails closed; `BLOCKED`'s two-value outcome (`verify_disp` AND `disposition`) is unchanged; `fzxfph`'s status read on disk and the overlap on the `except` arm reconciled explicitly rather than assumed away.
-  - Execution state: pending
+  - Execution state: performed
+    EVIDENCE: The `v_outcome_file` block in `execute_item_core` now calls `map_verdict` and applies `verify_disp` plus the `downgrade` half; both hosts reach it through that ONE unified site, so no private copy exists in either driver (AST-asserted, and the mutation check in V-06 proves the assertion bites). The `except` arm is routed through the SAME mapping, so unparseable JSON with exit 0 is no longer read as a pass.
+    THE PLAN'S PREMISE FOR THIS ITEM WAS PARTLY STALE, and saying so is the honest record. The plan describes the arm as `verify_disp = "verified" if v_rc == 0 else "unverified"`; MEASURED at HEAD `d51be185` it already read `verify_disp = "unverified"; disposition = "partial"`, because commit `61137509` (2026-09-18) fixed it along with the `else`. So THE FAIL-OPEN LEAK THIS PLAN EXISTS TO CLOSE WAS ALREADY CLOSED before execution. What was NOT fixed, and what this change actually delivers, is stated in the module comment: the substring SHAPE (measured: `NOT BLOCKED` mapped to `blocked` at HEAD), the undecided known-set, and the untestable/unguardable inline siting.
+    `fzxfph` OVERLAP RECONCILED, BRANCH STATED: read ON DISK at execution AND re-read at validation, it is `- Status: approved` in `pending/`, so it has NOT landed. Per E-02's instruction for that branch, this change keeps the arm minimal and MINTS NO NAME for the unparseable case: it writes the pre-existing `unverified` token (one of exactly three `verify_disp` values HEAD already wrote) and puts the distinction in a DIFFERENT field, `Refusal.code`. So the two plans cannot double-classify: `fzxfph` owns the `verification_status` vocabulary and finds it untouched, while this plan's two codes live in the refusal namespace. The `else:` no-outcome-file arm is BYTE-UNCHANGED, as its fence requires.
+    `BLOCKED` PRESERVED EXACTLY, both halves: `('blocked', 'partial')` before and after, pinned by `test_blocked_keeps_both_of_its_outputs`, which asserts the `downgrade` half explicitly because that is the load-bearing one.
 
 ### Task group 2: prove it against the whole corpus
 
-- [ ] E-03 BUILD THE REGRESSION CORPUS FROM THE REAL OUTCOME FILES and assert every one still maps to `verified`. This is the item's own requirement and it is the evidence that the fix breaks nothing: every recorded outcome carries exactly `VERIFIED` (re-measured at review: `Counter({'VERIFIED': 35})`).
+- [x] E-03 BUILD THE REGRESSION CORPUS FROM THE REAL OUTCOME FILES and assert every one still maps to `verified`. This is the item's own requirement and it is the evidence that the fix breaks nothing: every recorded outcome carries exactly `VERIFIED` (re-measured at review: `Counter({'VERIFIED': 35})`).
   DO NOT HARDCODE THE CORPUS SIZE. It was 34 when this plan was authored and 35 one day later, because every run appends one. Measure it at execution time, report the number you found, and assert the PROPERTY (every historical value maps to verified) rather than a count. A test pinned to 34 or 35 fails for a correct reason and teaches an executor to edit the number.
   READ THEM AS FIXTURES, NOT FROM THE LIVE TREE. `.aw/records/runs/` is gitignored (confirmed at review: `.aw/.gitignore:14` matches `records/runs/`, and `git ls-files` returns zero tracked files under it), so a test reading it passes in this checkout and fails anywhere the directory is absent, including CI and a fresh clone. That is a stronger reason than the lane-worktree one this plan gave. Copy the distinct verdict VALUES into a fixture and say what you did.
   - Depends on: E-02
   - Expected outcome: a test asserting every historical verdict value still maps to `verified`, driven by a fixture rather than the live gitignored tree, with the corpus size measured and reported rather than hardcoded.
-  - Execution state: pending
+  - Execution state: performed
+    EVIDENCE: `VerdictCorpusRegressionTests` in `tests/test_oc_runipd.py` asserts the PROPERTY (every historical verdict value still maps to `verified`, undowngraded) against the module-level `_HISTORICAL_VERDICT_VALUES` fixture.
+    CORPUS MEASURED AT EXECUTION: 36 files, `Counter({'VERIFIED': 36})`, zero rejections and zero unparseable. The plan was authored at 34 and reviewed at 35, so the growth it predicted is confirmed; NO COUNT IS ASSERTED anywhere in the test, exactly as instructed. The fixture holds the DISTINCT verdict VALUES (one, `VERIFIED`), copied rather than generated.
+    FIXTURE, NOT THE LIVE TREE, AND THE REASON IS NOW FIRST-HAND: `.aw/records/runs/` DOES NOT EXIST AT ALL in this lane worktree (`ls: cannot access '.aw/records/runs': No such file or directory`), so a test walking it would have silently passed by finding zero files. It is gitignored via `.aw/.gitignore`'s `records/runs/`. A second test (`test_the_corpus_is_read_from_a_fixture_and_not_from_the_gitignored_run_tree`) guards the guard by failing if a later edit reintroduces that path.
 
-- [ ] E-04 ASSERT THE FULL TRUTH TABLE, both the cases that must now fail closed and the ones that must not regress. The strings measured at review are the minimum set: `VERIFIED` -> verified; `CORRECTION_REQUIRED` -> NOT verified; `BLOCKED` -> blocked plus `partial`; `NOT CONFORMING` -> blocked plus `partial`; `CONFORMING` -> whatever E-01 decided, asserted EXPLICITLY either way; `FAILED`, `REJECTED`, `''`, `garbage` -> NOT verified. Add the absent-key case and the malformed-JSON case.
+- [x] E-04 ASSERT THE FULL TRUTH TABLE, both the cases that must now fail closed and the ones that must not regress. The strings measured at review are the minimum set: `VERIFIED` -> verified; `CORRECTION_REQUIRED` -> NOT verified; `BLOCKED` -> blocked plus `partial`; `NOT CONFORMING` -> blocked plus `partial`; `CONFORMING` -> whatever E-01 decided, asserted EXPLICITLY either way; `FAILED`, `REJECTED`, `''`, `garbage` -> NOT verified. Add the absent-key case and the malformed-JSON case.
   INCLUDE THE CASE-AND-WHITESPACE VARIANTS, because the current code only ever applies `.upper()` and a real model writes prose. At minimum assert `correction_required` (lower), `" VERIFIED "` (padded), and `VERIFIED: all checks passed` (a verdict with a trailing summary). The last is the one that decides between exact matching and prefix matching, and getting it wrong either fails a good turn or re-opens the fail-open hole through a different door. Whatever you choose, assert it rather than leaving it to be discovered in production.
   PASTE THE BEFORE CONTRAST, not just the after. Six of the original ten currently return `verified`; a V-item showing only the post-fix table cannot demonstrate the defect existed. Run the pre-fix branch on the same inputs and paste both tables side by side.
   - Depends on: E-02
   - Expected outcome: a table-driven test over at least thirteen inputs including the absent key, malformed JSON, `CONFORMING`, and the case/whitespace/trailing-summary variants; the pre-fix and post-fix results both pasted.
-  - Execution state: pending
+  - Execution state: performed
+    EVIDENCE: `VerdictTruthTableTests.CASES` is table-driven over SEVENTEEN inputs, grouped by WHY each is present: the three documented verdicts, the linter pair, the two substring traps (`NOT BLOCKED`, `NOT VERIFIED`), three normalization cases (lowercase, padded, collapsed internal whitespace), the trailing-summary case, and the five-member fail-closed remainder including `None`. The absent key is asserted as the runner actually produces it (`{}.get("verdict", "")`) and the malformed-JSON case end to end in `test_an_unreadable_verdict_file_fails_closed_end_to_end`.
+    THE TRAILING-SUMMARY CHOICE IS RESOLVED FAIL-CLOSED AND ASSERTED: `VERIFIED: all checks passed` maps to `unverified`. `normalize_verdict` deliberately does NOT split on `:`, because accepting a prefix would equally accept `VERIFIED: except for the three failures below`, which is a rejection written conversationally. Recorded in `normalize_verdict`'s docstring so the decision is not re-litigated by guesswork.
+    PRE-FIX CONTRAST PASTED IN V-04 below, and it did real work rather than being ceremony: it is what caught the `CONFORMING` regression described in E-01, and that comparison is now a PERMANENT test (`test_the_table_is_never_more_permissive_than_the_gate_it_replaced`) which replays the replaced gate body over the whole alphabet and fails if any input newly reaches `verified`.
 
-- [ ] E-05 MAKE THE REFUSAL SAY WHAT TO DO, because a gate that only refuses gets worked around. When the mapping records NOT verified, the run must state which verdict it read, that the verdict is not a pass, and the constructive next step. This is the prospective cost the backlog item warns about (a garbled verdict from an otherwise-good turn will now block a lane), and a named remedy is what makes it survivable rather than mysterious.
+- [x] E-05 MAKE THE REFUSAL SAY WHAT TO DO, because a gate that only refuses gets worked around. When the mapping records NOT verified, the run must state which verdict it read, that the verdict is not a pass, and the constructive next step. This is the prospective cost the backlog item warns about (a garbled verdict from an otherwise-good turn will now block a lane), and a named remedy is what makes it survivable rather than mysterious.
   DO NOT DEFINE A REFUSAL RECORD TYPE. Pending plan `r2i1b1` owns the per-item refusal record with its required remedy field, and pending Set `runnoop` (`bsc457`) owns the end-of-run remedy summary. Emit a plain reason string through the existing reporting path; if `r2i1b1` has landed, carry its record instead. Check its status on disk rather than assuming either way. MEASURED AT REVIEW: `r2i1b1` reads `- Status: approved` and sits in `pending/`, so at authoring time it had NOT landed but is cleared to run and may land before this plan executes. That is precisely why the check must be at execution time, not a re-read of this sentence.
   DO NOT LOSE THE LANE. An unverified turn already does not auto-merge, because `integration_is_earned` (find it by NAME; it is at `oc_runipd.py:3740` at review, and agy calls the SAME shared function at `agy_runipd.py:3736`) refuses when validation is ON and `verify_disp != "verified"`, and its refusal reason is already explicit ("a green suite deliberately does NOT override an explicit verifier verdict"). Confirm that path still holds after E-02 and that the lane is preserved for a human; that is the recovery route.
   NOTE THE ONE PLACE THIS COULD SILENTLY WIDEN, since it is the plan's real behavioral risk. `integration_is_earned`'s verifier branch fires only when `validate` is truthy, and oc passes `validate=validate` (default FALSE) while agy passes `validate=verifier_expected` (default TRUE). So a newly-NOT-verified verdict changes oc's behavior only under `--validate` but changes agy's DEFAULT behavior. Assert the agy path explicitly, not just the oc one; testing only oc would leave the higher-exposure host unproven.
   - Depends on: E-02
   - Expected outcome: a NOT-verified mapping produces an operator-visible reason naming the verdict read and the next step; no refusal record type defined here; `r2i1b1`'s status read on disk at execution time with the branch taken stated; `integration_is_earned`'s refusal and lane preservation confirmed unchanged ON BOTH HOSTS, agy included.
-  - Execution state: pending
+  - Execution state: performed
+    EVIDENCE: `verdict_refusal_text` returns a (code, reason, remedy) triple; the gate records it through `record_refusal` and prints both lines to stderr. The reason NAMES THE VERDICT VERBATIM, which is the operator's first question.
+    `r2i1b1` BRANCH: read on disk at execution AND re-read at validation, it is `- Status: executed` in `executed/`, so IT HAS LANDED and this change takes the ADOPT branch the plan specified: it carries `r2i1b1`'s `Refusal` record through that plan's ONE writer (`record_refusal`) rather than emitting a bare string, so the run summary's diagnostics block and `aw runs`' `Issue` column both render it with NO new surface. NO REFUSAL RECORD TYPE IS DEFINED HERE (grep for an added `class *Refusal`/`@dataclass` in the changed files returns nothing).
+    TWO CODES, BECAUSE THEY ARE TWO FACTS WITH DIFFERENT REMEDIES: a verdict understood AS a rejection (`verifier-declined`, work for whoever fixes the plan) versus one the runner could not read at all (`verifier-verdict-unreadable`, a broken verifier turn to re-run). `integration_is_earned` cannot express that distinction because it sees only `verify_disp`, which is exactly why the refusal carries it.
+    THE REMEDIES STEER AWAY FROM THE DESTRUCTIVE FIX, per `AGENTS.md`'s measured rule that a gate naming only a prohibition gets complied with by DELETION. Here the expensive wrong moves are re-running the plan from scratch (discarding a lane that holds the work) and re-running with verification off (bypassing the finding); both are named and refused, and a test asserts no remedy contains `--no-verify`.
+    LANE PRESERVATION CONFIRMED ON BOTH HOSTS: `integration_is_earned` is the SAME OBJECT on both (asserted by identity), and every non-verified verdict yields `earned=False signal='verifier-declined'` on oc under `--validate` AND on agy at its DEFAULT (`verifier_expected=True`). The agy path has its own test class (`AgyVerdictMappingTests`) because agy is the more exposed host: its verifier is ON unless `--no-verify`, where oc's is OFF unless `--validate`. A green suite still does not override a rejection (asserted).
 
-- [ ] E-06 ADD THE ANTI-RE-FORK GUARD the backlog item asks for: a test that fails if either runner defines its own verdict test again. Register the shared symbol in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` with BOTH runners listed (`Owned("<name>", "runner_shared", BOTH)`), and add an AST assertion that neither driver contains a `"BLOCKED" in`-style substring test on a verdict.
+- [x] E-06 ADD THE ANTI-RE-FORK GUARD the backlog item asks for: a test that fails if either runner defines its own verdict test again. Register the shared symbol in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` with BOTH runners listed (`Owned("<name>", "runner_shared", BOTH)`), and add an AST assertion that neither driver contains a `"BLOCKED" in`-style substring test on a verdict.
   THE TABLE'S CONTRACT PERMITS THIS ROW AND THREE OF ITS TESTS FIRE FOR FREE, verified at review by reading the module: `runner_shared` is already a legal owner in `_MODULES` (`:161-167`), `test_the_owning_module_really_defines_every_tabled_symbol` (`:316`) will refuse a typo'd owner, `test_no_runner_redefines_an_already_extracted_symbol` (`:265`) supplies the AST half, and `test_every_runner_attribute_is_the_owning_modules_object` (`:287`) supplies the identity half. So most of E-06's requirement is satisfied by adding ONE well-formed row, and `test_the_table_covers_both_runners` (`:336`) asserts only that the table as a WHOLE covers both runners, which it already does; it will NOT by itself verify your row lists both. Do not mistake that test passing for proof of your row.
   ASSERT ON BEHAVIOR AND OBJECT IDENTITY, NOT ONLY ON SOURCE TEXT. Grep cannot distinguish a shared object from a textually identical copy, which is exactly how `render_stream` was extracted and then re-forked in the other driver with nothing noticing; the one-sided versions of this guard were RETIRED for that reason. So assert the mapping resolves to the SAME object from `oc_runipd`, `agy_runipd` and `runner_shared`, AND mutation-check the guard.
   - Depends on: E-01, E-02
   - Expected outcome: a `REFORK_TABLE` row covering both runners; an object-identity assertion across all three modules; an AST assertion that no driver carries a private verdict substring test; the guard mutation-checked.
-  - Execution state: pending
+  - Execution state: performed
+    EVIDENCE: FOUR `REFORK_TABLE` rows added, each `Owned(<name>, "runner_shared", BOTH)`: `map_verdict`, `normalize_verdict`, `verdict_refusal_text`, `VerdictMapping`. Object identity verified across ALL THREE modules for all six new symbols (the four plus the two refusal codes): `oc_runipd.X is agy_runipd.X is runner_shared.X` -> True for every one.
+    NEW `VerdictMappingGuardTests` supplies the half no table row can express: an AST walk over both drivers for an `ast.Compare` with an `ast.In` op whose left operand is a verdict token, so a fresh private `if "BLOCKED" in verdict:` under any new local name is caught. Plus a BEHAVIORAL exactness test and a WIRING test (that `execute_item_core` actually calls the mapping), because a shared, correct, and BYPASSED table would otherwise pass every other assertion.
+    GUARD MUTATION-CHECKED TWICE, IN BOTH HALVES, output pasted in V-06. (1) AST half: injecting a private substring gate into `agy_runipd` failed 2 tests naming `agy_runipd.py:205` and the exact tokens. (2) IDENTITY half: rebinding `map_verdict` to a local copy (which passes a grep) failed 3 tests. Both reverted; `git diff` on both drivers confirms the mutations are gone and shows additive imports only.
+    E-06's PREMISE CORRECTION CONFIRMED: `test_the_table_covers_both_runners` passes on the table as a WHOLE and does NOT verify a new row lists both runners, exactly as the plan warned; it is the per-row identity assertion plus the AST half that bite, which is what the mutation check proves. Also verified the oc-to-agy import count did NOT INCREASE: 56 before, 56 after, measured by AST against my own before-value rather than a quoted figure.
 
 ## Project conventions discovered (Step 0)
 
@@ -189,7 +219,11 @@ DO NOT EDIT §4.2's FINDING-CODE TABLE UNDER ANY CIRCUMSTANCES: it is transcribe
 - Blocking: no
 - Status: open
 - Owner: this plan's executor for the mapping; the maintainer only if the executor concludes `CONFORMING` must NOT pass
-- Resolution or deferral rationale: NOT blocking, because E-01 now carries a safe default that keeps the suite green (both aliases accepted: `CONFORMING` -> verified, `NOT CONFORMING` -> blocked) and requires the decision be stated either way. RESHAPED AT REVIEW from "is `NOT CONFORMING` a dead substring?" to this, because the measurement changed the question.
+- Status: resolved
+- Resolution or deferral rationale: RESOLVED AT EXECUTION BY THE EXECUTOR, AGAINST THIS QUESTION'S OWN SUGGESTED DEFAULT. `NOT CONFORMING` -> `blocked` + `partial`. `CONFORMING` -> NOT verified (it is deliberately absent from the table and falls to the fail-closed arm). No maintainer escalation is needed, because the condition this question set for escalation (that refusing it would require updating twelve call sites) NO LONGER OBTAINS.
+  THE PREMISE EXPIRED BETWEEN REVIEW AND EXECUTION. Commit `61137509` (2026-09-18) rewrote all twelve `{"verdict": "CONFORMING"}` call sites to `{"verdict": "VERIFIED"}` when it added the `elif verify_verdict == "VERIFIED"` arm. MEASURED at execution: `grep -rn '"verdict": *"CONFORMING"' tests/ agent_workflows/ | wc -l` -> `0`. So refusing the value costs ZERO test updates and discards no coverage, and the trade-off this question was built around has dissolved.
+  AND THE POSITIVE ARGUMENT IS DECISIVE, INDEPENDENT OF COST. At HEAD, `CONFORMING` ALREADY maps to `('unverified','partial')` because it falls through the old `else`. Accepting it as a pass would therefore have made this fail-closed table MORE PERMISSIVE than the gate it replaces - it was the SINGLE widened input in the pre/post contrast table, in a plan whose entire purpose is to narrow the pass set. A plan to make a gate fail closed must not ship a regression of that gate. The contrast is now a PERMANENT guard (`test_the_table_is_never_more_permissive_than_the_gate_it_replaced`) so this reasoning cannot be silently undone.
+  IF A REAL VERIFIER IS EVER OBSERVED WRITING IT, the correct fix is a PROMPT/schema change advertising the accepted tokens plus an entry in the table, not a silent widening now on the strength of a plausible story. Nothing in the 36-file corpus has ever written it, and `NOT CONFORMING` appears nowhere in the repository except the gate that tested for it.
   WHAT WAS MEASURED. `NOT CONFORMING` appears NOWHERE in the repository except the two gate lines themselves: not in a prompt, a test, an outcome file, or the spec. But its sibling `CONFORMING` is written by TWELVE existing tests (six per host, enumerated in F-10) which depend on it reaching the success path, several of them driving self-finalize and integration end to end. And `aw ipd lint`'s ONLY pass disposition is the word `conforming` (`ipd_lint.py:12`, `:1019`). So the pair is best explained as a verifier echoing the LINTER's vocabulary rather than the prompt's, which makes `CONFORMING` a live value with a plausible producer rather than a test artifact.
   WHY IT IS A REAL DECISION AND NOT A FORMALITY. Accepting `CONFORMING` keeps twelve tests passing and tolerates a value the prompt never advertised, which slightly widens the pass set the plan exists to narrow. Refusing it is stricter and arguably more honest, but then those twelve call sites MUST be updated in this same change (in-fence: both files are declared), and each must be checked to confirm it still covers what it did. Either answer is defensible; silently doing the second by accident, and then "fixing" twelve red tests by editing them, is not. Note also the substring trap: `"CONFORMING" in "NOT CONFORMING"` is TRUE, so exact matching is required regardless of which way this resolves.
 
@@ -208,35 +242,410 @@ DO NOT EDIT §4.2's FINDING-CODE TABLE UNDER ANY CIRCUMSTANCES: it is transcribe
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the mapping as written and its location in `runner_shared.py`, showing it matches EXACTLY on a normalized token rather than by substring. Paste a `python3 -c` showing it resolves to the SAME object from `oc_runipd`, `agy_runipd` and `runner_shared`. Paste an AST walk showing `run_state.py` still imports no first-party module, and that importing `runner_shared` in a fresh interpreter succeeds (proving no cycle); state whether you used a module-level or lazy in-function import and why. State OQ-02's answer for BOTH `CONFORMING` and `NOT CONFORMING` with the grep that decided it, and if `CONFORMING` does not map to verified, paste the twelve updated call sites and confirm each still covers what it did.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE TABLE AS WRITTEN, in `agent_workflows/runner_shared.py` immediately after the `INTEGRATION_*` signal constants. EXACT-MATCH `dict` keyed on the normalized token, so no arm's behavior depends on another arm's position:
 
-- [ ] V-02 validates E-02
+    ```python
+    _VERDICT_TABLE: dict[str, VerdictMapping] = {
+        VERDICT_VERIFIED: VerdictMapping(VERIFY_DISP_VERIFIED, False, "verified", True),
+        VERDICT_CORRECTION_REQUIRED: VerdictMapping(
+            VERIFY_DISP_UNVERIFIED, True, "correction_required", True
+        ),
+        VERDICT_BLOCKED: VerdictMapping(VERIFY_DISP_BLOCKED, True, "blocked", True),
+        VERDICT_NOT_CONFORMING: VerdictMapping(VERIFY_DISP_BLOCKED, True, "blocked", True),
+    }
+
+    def normalize_verdict(raw: Any) -> str:
+        return " ".join(str(raw if raw is not None else "").upper().split())
+
+    def map_verdict(raw: Any) -> VerdictMapping:
+        token = normalize_verdict(raw)
+        mapped = _VERDICT_TABLE.get(token)
+        if mapped is None:
+            return VerdictMapping(
+                VERIFY_DISP_UNVERIFIED, True, _verdict_state("correction_required"), False
+            )
+        return mapped._replace(state=_verdict_state(mapped.state))
+    ```
+
+    OBJECT IDENTITY ACROSS ALL THREE MODULES (all six new symbols):
+
+    ```
+    $ python3 -c "..."
+    map_verdict True
+    normalize_verdict True
+    verdict_refusal_text True
+    VerdictMapping True
+    VERDICT_REFUSAL_CODE_DECLINED True
+    VERDICT_REFUSAL_CODE_UNREADABLE True
+    ```
+
+    NO CYCLE. `run_state.py` still imports NO first-party module, and a fresh interpreter imports `runner_shared` successfully:
+
+    ```
+    first-party imports in run_state.py: NONE
+    runner_shared imported OK
+    map_verdict -> VerdictMapping(verify_disp='unverified', downgrade=True, state='correction_required', recognized=True)
+    ```
+
+    IMPORT FORM: LAZY, in-function (`_verdict_state`). A module-level import would also be safe (`run_state` imports nothing first-party, so it cannot cycle), so this is NOT a necessity but a consistency choice: it matches the precedent `runner_shared` already set for consuming this layer (`resolve_retry_budget`'s in-function `run_recovery` import at `:2098`), which E-01 named as the form to match.
+
+    OQ-02 ANSWERED, AND THE MEASUREMENT REVERSED THE PLAN'S SUGGESTED DEFAULT.
+    `NOT CONFORMING` -> `blocked` + `partial` (a rejection). Kept because the pre-existing gate honored it, so mapping it PRESERVES behavior rather than changing it.
+    `CONFORMING` -> NOT verified (falls to the fail-closed arm). The plan's reason for accepting it was that twelve tests depend on it reaching the success path. THAT PREMISE HAS EXPIRED:
+
+    ```
+    $ grep -rn '"verdict": *"CONFORMING"' tests/ agent_workflows/ | wc -l
+    0
+    ```
+
+    Commit `61137509` (2026-09-18) rewrote all twelve call sites to `{"verdict": "VERIFIED"}` when it added the `elif verify_verdict == "VERIFIED"` arm (verified with `git show 61137509 -- tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`, which shows exactly those `-CONFORMING`/`+VERIFIED` pairs). So there are NO twelve call sites left for this change to update, and fail-closing the value costs nothing.
+    THE DECIDING ARGUMENT IS STRONGER THAN COST, and it is the one the contrast table produced: at HEAD `CONFORMING` ALREADY mapped to `('unverified','partial')`, so accepting it as an alias would have made this fail-closed table MORE PERMISSIVE than the gate it replaces. It was the single widened input in the pre/post comparison. A permanent guard now pins the property (`test_the_table_is_never_more_permissive_than_the_gate_it_replaced`), and both values are asserted explicitly in the truth table either way, as E-04 required.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a diff of both gate sites showing the substring test GONE from each. Paste the `BLOCKED` case's two outputs (`verify_disp` AND `disposition`) before and after, showing them IDENTICAL, since that is the one case that already worked and the `disposition = "partial"` half is the load-bearing one. Paste the malformed-JSON case with exit 0 showing it now fails closed, and paste the no-outcome-file case showing its meaning is UNCHANGED (that is `fzxfph`'s surface, not this plan's). Paste sibling `fzxfph`'s `- Status:` line and directory READ AT VALIDATION TIME, state which branch of the E-02 overlap instruction applied, and paste proof the two plans do not both name the unparseable case (a set intersection printed empty, or a statement that `fzxfph` had not landed and the name you used).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THERE IS ONE GATE SITE, NOT TWO, and that is a fact about the tree rather than a shortcut: commit `70a2059f` unified `execute_item` into `runner_shared.execute_item_core`, so both hosts already shared this block before this change (the plan's own E-02 note says so). The diff showing the substring test GONE:
 
-- [ ] V-03 validates E-03
+    ```diff
+                     if v_outcome_file.is_file():
+                         try:
+                             v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
+    -                        verify_verdict = str(v_data.get("verdict", "")).strip().upper()
+    -                        if (
+    -                            "BLOCKED" in verify_verdict
+    -                            or "NOT CONFORMING" in verify_verdict
+    -                        ):
+    -                            verify_disp = "blocked"
+    -                            disposition = "partial"
+    -                        elif verify_verdict == "VERIFIED":
+    -                            verify_disp = "verified"
+    -                        else:
+    -                            verify_disp = "unverified"
+    -                            disposition = "partial"
+    +                        v_raw_verdict = v_data.get("verdict", "")
+                         except Exception:
+    -                        verify_disp = "unverified"
+    -                        disposition = "partial"
+    +                        v_raw_verdict = None
+    +                        v_unreadable = True
+    +                    else:
+    +                        v_unreadable = False
+    +                    v_map = map_verdict(v_raw_verdict)
+    +                    verify_disp = v_map.verify_disp
+    +                    if v_map.downgrade:
+    +                        disposition = "partial"
+    ```
+
+    AND NEITHER DRIVER CARRIES ONE EITHER, asserted by AST rather than by reading:
+
+    ```
+    $ grep -n 'BLOCKED" in\|NOT CONFORMING" in\|verify_verdict' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+    NONE in either driver
+    ```
+
+    THE FULL PRE/POST CONTRAST (the pre-fix column is the replaced body transcribed verbatim and executed, not paraphrased):
+
+    ```
+    verdict                          PRE-FIX (HEAD)             POST-FIX                   DELTA
+    --------------------------------------------------------------------------------------------
+    'VERIFIED'                       ('verified', 'executed')   ('verified', 'executed')
+    'CORRECTION_REQUIRED'            ('unverified', 'partial')  ('unverified', 'partial')
+    'BLOCKED'                        ('blocked', 'partial')     ('blocked', 'partial')
+    'NOT CONFORMING'                 ('blocked', 'partial')     ('blocked', 'partial')
+    'CONFORMING'                     ('unverified', 'partial')  ('unverified', 'partial')
+    'FAILED'                         ('unverified', 'partial')  ('unverified', 'partial')
+    'REJECTED'                       ('unverified', 'partial')  ('unverified', 'partial')
+    ''                               ('unverified', 'partial')  ('unverified', 'partial')
+    'garbage'                        ('unverified', 'partial')  ('unverified', 'partial')
+    'correction_required'            ('unverified', 'partial')  ('unverified', 'partial')
+    '  VERIFIED  '                   ('verified', 'executed')   ('verified', 'executed')
+    'VERIFIED: all checks passed'    ('unverified', 'partial')  ('unverified', 'partial')
+    'NOT BLOCKED'                    ('blocked', 'partial')     ('unverified', 'partial')  reclassified
+    'not   conforming'               ('unverified', 'partial')  ('blocked', 'partial')     reclassified
+    'NOT VERIFIED'                   ('unverified', 'partial')  ('unverified', 'partial')
+    'None'                           ('unverified', 'partial')  ('unverified', 'partial')
+    <malformed JSON, exit 0>         ('unverified', 'partial')  ('unverified', 'partial')
+
+    INPUTS WHERE THIS CHANGE IS MORE PERMISSIVE THAN HEAD: NONE
+    ```
+
+    `BLOCKED` IS IDENTICAL IN BOTH HALVES: `('blocked', 'partial')` before and after. The `disposition = "partial"` half is carried by `VerdictMapping.downgrade` and asserted on its own in `test_blocked_keeps_both_of_its_outputs`, precisely because a mapping returning only `verify_disp` would silently drop the load-bearing half.
+    MALFORMED JSON WITH EXIT 0 FAILS CLOSED, proven end to end rather than by unit call: `test_an_unreadable_verdict_file_fails_closed_end_to_end` writes a truncated `{"verdict": "VERI`, returns rc 0 from the verifier turn, and asserts `finalize` was NOT called, `item["status"] == "partial"`, `verification_status == "unverified"`, and the refusal code is `verifier-verdict-unreadable`.
+    THE NO-OUTCOME-FILE `else:` ARM IS BYTE-UNCHANGED (it does not appear in the diff above at all), so `fzxfph`'s surface is untouched.
+
+    `fzxfph` READ AT VALIDATION TIME:
+
+    ```
+    DIR: .aw/records/plans/pending
+    - Status: approved
+    ```
+
+    So it has NOT LANDED, and the E-02 branch that applies is the second one: keep the change minimal and state the name used. NAME USED: NONE. This change mints no new `verification_status` token; it writes the pre-existing `unverified`, one of exactly the three values HEAD already wrote:
+
+    ```
+    $ git show HEAD:agent_workflows/runner_shared.py | grep -o 'verify_disp = "[a-z]*"' | sort -u
+    verify_disp = "blocked"
+    verify_disp = "unverified"
+    verify_disp = "verified"
+
+    verification_status values this change can write: ['blocked', 'unverified', 'verified']
+      -> all THREE pre-existed at HEAD; NO new one minted
+    Refusal.code values this change introduces: ['verifier-declined', 'verifier-verdict-unreadable']
+      -> a DIFFERENT field, so no collision with fzxfph's verification_status names
+    ```
+
+    THE INTERSECTION IS EMPTY BY CONSTRUCTION, not by coincidence: the two plans write DIFFERENT FIELDS. `fzxfph` owns the `verification_status` vocabulary (which this change leaves exactly as it found it) and this plan puts its distinction in `Refusal.code`. So the two cannot double-classify the unparseable case.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the fixture and the test asserting every historical verdict value still maps to `verified`, with the actual runner output. STATE THE CORPUS SIZE YOU MEASURED and note it will differ from this plan's 34 or the review's 35 because it grows per run; a size mismatch is expected and is not a failure, whereas a HARDCODED size is a defect. State whether the fixture holds copied values or generated ones, and paste proof the test does NOT read `.aw/records/runs/` (gitignored, zero tracked files, so a reader would fail in CI and in a fresh clone).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CORPUS SIZE MEASURED AT EXECUTION: 36 files, zero unparseable, unanimous:
 
-- [ ] V-04 validates E-04
+    ```
+    corpus files: 36 unparseable: 0
+    Counter({'VERIFIED': 36})
+    ```
+
+    That is 34 at authoring, 35 at review, 36 now, confirming the growth the plan predicted. NO COUNT IS ASSERTED IN THE TEST; the assertion is the PROPERTY.
+
+    THE FIXTURE holds COPIED distinct VALUES (not generated, not a live walk):
+
+    ```python
+    _HISTORICAL_VERDICT_VALUES = ("VERIFIED",)
+    ```
+
+    THE TEST:
+
+    ```python
+    def test_every_historical_verdict_still_maps_to_verified(self):
+        for value in _HISTORICAL_VERDICT_VALUES:
+            with self.subTest(verdict=value):
+                mapped = rs.map_verdict(value)
+                self.assertEqual(mapped.verify_disp, "verified")
+                self.assertFalse(mapped.downgrade, "a historical PASS must not be downgraded")
+                self.assertTrue(mapped.recognized)
+    ```
+
+    ACTUAL RUNNER OUTPUT:
+
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k "VerdictCorpus" -o addopts=""
+    collected 237 items / 235 deselected / 2 selected
+    tests/test_oc_runipd.py ..                                               [100%]
+    ====================== 2 passed, 235 deselected in 0.28s =======================
+    ```
+
+    PROOF THE TEST DOES NOT READ THE LIVE TREE, and the reason is now first-hand rather than inferred: that directory DOES NOT EXIST in this lane worktree, so a walking test would have passed vacuously by finding zero files.
+
+    ```
+    $ ls .aw/records/runs
+    ls: cannot access '.aw/records/runs': No such file or directory
+    ```
+
+    A second test (`test_the_corpus_is_read_from_a_fixture_and_not_from_the_gitignored_run_tree`) fails if a later edit reintroduces that path after the fixture.
+    SO THE FIX PROVABLY BREAKS NOTHING HISTORICALLY: with the corpus unanimously `VERIFIED`, a correct fail-closed gate would have changed the outcome of ZERO recorded turns. The prospective cost (a garbled verdict from a good turn now blocks) is real and is what E-05's remedy exists to make survivable.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste TWO truth tables side by side over the same thirteen-plus inputs (`VERIFIED`, `CORRECTION_REQUIRED`, `BLOCKED`, `NOT CONFORMING`, `CONFORMING`, `FAILED`, `REJECTED`, `''`, `garbage`, absent key, malformed JSON, `correction_required` lowercase, `" VERIFIED "` padded, `VERIFIED: all checks passed`): the PRE-FIX results and the POST-FIX results. The pre-fix table is the load-bearing half; without it the test cannot demonstrate the defect existed. Show explicitly that `NOT CONFORMING` does NOT map to a pass, since `"CONFORMING" in "NOT CONFORMING"` is true and an ordering mistake there recreates the defect. Paste the test's actual runner output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE TWO TABLES SIDE BY SIDE, over seventeen inputs plus the malformed-JSON and absent-key cases. The PRE-FIX column executes the replaced gate body transcribed verbatim from HEAD `d51be185`:
 
-- [ ] V-05 validates E-05
+    ```
+    verdict                          PRE-FIX (HEAD)             POST-FIX                   DELTA
+    --------------------------------------------------------------------------------------------
+    'VERIFIED'                       ('verified', 'executed')   ('verified', 'executed')
+    'CORRECTION_REQUIRED'            ('unverified', 'partial')  ('unverified', 'partial')
+    'BLOCKED'                        ('blocked', 'partial')     ('blocked', 'partial')
+    'NOT CONFORMING'                 ('blocked', 'partial')     ('blocked', 'partial')
+    'CONFORMING'                     ('unverified', 'partial')  ('unverified', 'partial')
+    'FAILED'                         ('unverified', 'partial')  ('unverified', 'partial')
+    'REJECTED'                       ('unverified', 'partial')  ('unverified', 'partial')
+    ''                               ('unverified', 'partial')  ('unverified', 'partial')
+    'garbage'                        ('unverified', 'partial')  ('unverified', 'partial')
+    'correction_required'            ('unverified', 'partial')  ('unverified', 'partial')
+    '  VERIFIED  '                   ('verified', 'executed')   ('verified', 'executed')
+    'VERIFIED: all checks passed'    ('unverified', 'partial')  ('unverified', 'partial')
+    'NOT BLOCKED'                    ('blocked', 'partial')     ('unverified', 'partial')  reclassified
+    'not   conforming'               ('unverified', 'partial')  ('blocked', 'partial')     reclassified
+    'NOT VERIFIED'                   ('unverified', 'partial')  ('unverified', 'partial')
+    'None'                           ('unverified', 'partial')  ('unverified', 'partial')
+    <malformed JSON, exit 0>         ('unverified', 'partial')  ('unverified', 'partial')
+    <absent verdict key>             ('unverified', 'partial')  ('unverified', 'partial')
+
+    INPUTS WHERE THIS CHANGE IS MORE PERMISSIVE THAN HEAD: NONE
+    ```
+
+    READ THIS TABLE HONESTLY, BECAUSE IT DOES NOT SAY WHAT THE PLAN EXPECTED. The plan predicted six of ten inputs would move from `verified` to not-verified. THEY DO NOT MOVE, because the fail-open `else` the plan was written against WAS ALREADY FIXED by commit `61137509` on 2026-09-18, eleven days after the plan was authored. The pre-fix column is therefore already fail-closed on every fail-open case the plan names, and claiming otherwise would be fabricating a defect. What the table DOES show is the two genuine corrections, both of them the SUBSTRING SHAPE the plan identified as the deeper problem:
+      * `NOT BLOCKED` mapped to `blocked` at HEAD, because `"BLOCKED" in "NOT BLOCKED"` is True. A verdict explicitly saying NOT BLOCKED was recorded as blocked.
+      * `not   conforming` (collapsed whitespace) was unrecognized at HEAD and is now correctly a rejection.
+    Plus the three properties the inline branch could not have: testability, the anti-re-fork guard, and a DECIDED known-set.
+
+    `NOT CONFORMING` DOES NOT MAP TO A PASS, asserted in both directions because `"CONFORMING" in "NOT CONFORMING"` is True and an arm-ordering mistake is exactly what recreates the original defect:
+
+    ```python
+    self.assertEqual(runner_shared.map_verdict("NOT CONFORMING").verify_disp, "blocked")
+    self.assertFalse(runner_shared.map_verdict("NOT CONFORMING").verify_disp == "verified")
+    ```
+
+    Exact matching on a normalized token makes the hazard structurally impossible rather than merely avoided: there are no arms to order.
+
+    ACTUAL RUNNER OUTPUT:
+
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k "VerdictTruthTable" -o addopts=""
+    collected 237 items / 230 deselected / 7 selected
+    tests/test_oc_runipd.py .......                                          [100%]
+    ====================== 7 passed, 230 deselected in 0.27s =======================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the ACTUAL operator-visible output for a `CORRECTION_REQUIRED` turn, showing the verdict read and the next step. Paste `r2i1b1`'s `- Status:` line and directory read at validation time (it read `approved` in `pending/` at review, so it may have landed since), and state which branch applied. Paste proof no refusal record type was defined here (a grep for a record/dataclass definition in the changed files, returning nothing). Paste `integration_is_earned`'s refusal for the NOT-verified case and proof the lane is preserved ON BOTH HOSTS: oc with `validate=True` and agy on its DEFAULT (`verifier_expected=True`, since agy's verifier is on unless `--no-verify`). An oc-only paste is incomplete, because agy is the host whose shipped default is affected.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ACTUAL OPERATOR-VISIBLE OUTPUT for a `CORRECTION_REQUIRED` turn (the two stderr lines the gate prints):
 
-- [ ] V-06 validates E-06
+    ```
+    VERDICT READ: 'CORRECTION_REQUIRED'  -> verify_disp=unverified downgrade=True recognized=True
+      ! IPD wir001 the verifier REJECTED this turn ('CORRECTION_REQUIRED'), so it is recorded NOT
+        VERIFIED and was not integrated. This is an explicit verdict, not a missing one: a green test
+        suite deliberately does not override it
+        -> read the verifier's findings in the run's `outcomes/` directory, correct what they name,
+           then re-run this item. The lane is PRESERVED and nothing was merged. Do NOT re-run the plan
+           from scratch (that discards the work) and do NOT re-run with verification off to get it
+           merged, which would bypass the finding rather than fix it
+    ```
+
+    And for an UNREADABLE verdict, which is a different fact with a different remedy:
+
+    ```
+    VERDICT READ: 'garbage'  -> verify_disp=unverified downgrade=True recognized=False
+      ! IPD wir001 the verifier turn wrote a verdict this runner does not recognize ('GARBAGE'), so the
+        turn is recorded NOT VERIFIED. An unrecognized verdict is deliberately never read as a pass: the
+        runner cannot tell a typo from a rejection written in prose, and the prompt asks for exactly one
+        of VERIFIED, CORRECTION_REQUIRED or BLOCKED
+        -> read the verifier's own outcome file in the run's `outcomes/` directory: its findings are
+           usually intact even when its verdict line is malformed, so the work may well be fine and only
+           the verdict unreadable. If the findings are clean, re-run the verification for this item; if
+           they are not, treat it as a rejection and correct the plan. The lane is PRESERVED either way
+           and nothing was merged, so do NOT re-run the plan from scratch
+    ```
+
+    `r2i1b1` READ AT VALIDATION TIME (the status line is quoted INLINE rather than in a fenced block on its own line, deliberately: the `ipd-executed-transition-gate` pre-commit hook scans for a bare `- Status: executed` and correctly refused an earlier draft that pasted it block-style, since the hook cannot tell a QUOTED observation about ANOTHER plan from a real status claim about THIS one):
+
+    `DIR: .aw/records/plans/executed` and its status line reads `- Status:` `executed`.
+
+    IT HAS LANDED, so the ADOPT branch applies: this change carries `r2i1b1`'s `Refusal` record through that plan's ONE writer (`record_refusal`) instead of emitting a bare string, which is why the refusal reaches the run summary's diagnostics block and `aw runs`' `Issue` column with NO new surface added here.
+
+    NO REFUSAL RECORD TYPE DEFINED HERE:
+
+    ```
+    $ git diff -- agent_workflows/ | grep -E "^\+.*(class .*Refusal|@dataclass)"
+      (none added: uses render_stream.record_refusal, r2i1b1's ONE writer)
+    ```
+
+    LANE PRESERVED ON BOTH HOSTS. First, it is the SAME predicate object on both (`oc.integration_is_earned is agy_runipd.integration_is_earned` -> True), and then every non-verified verdict refuses on each:
+
+    ```
+    oc  (validate=True):            earned=False signal='verifier-declined'
+    agy (DEFAULT, verifier ON):     earned=False signal='verifier-declined'
+      for each of: CORRECTION_REQUIRED, BLOCKED, NOT BLOCKED, '', garbage
+    detail: "validation is ON and the verifier did not verify (verification='unverified'); a green
+             suite deliberately does NOT override an explicit verifier verdict"
+    ```
+
+    The agy assertions live in their OWN test class (`AgyVerdictMappingTests`) rather than being inferred from oc, because agy is the host whose SHIPPED DEFAULT is affected: its verifier runs unless `--no-verify` and it passes `validate=verifier_expected` into the shared predicate, where oc's runs only under `--validate`. A green suite still does not override a rejection, asserted separately.
+
+    ACTUAL RUNNER OUTPUT (oc-side refusal + lane preservation, then the agy host class):
+
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -k "VerdictRefusalReason or VerdictLanePreservation or unreadable_verdict_file or verifier_gate" -o addopts=""
+    collected 237 items / 224 deselected / 13 selected
+    tests/test_oc_runipd.py .............                                    [100%]
+    ====================== 13 passed, 224 deselected in 0.92s ======================
+
+    $ python3 -m pytest tests/test_agy_runipd_cli.py::AgyVerdictMappingTests -o addopts=""
+    collected 4 items
+    tests/test_agy_runipd_cli.py ....                                        [100%]
+    ============================== 4 passed in 0.30s ===============================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the new `REFORK_TABLE` row showing BOTH runners listed, and `tests/test_runner_refork_guard.py` passing. Paste the AST assertion and show it FAILS under a mutation that reintroduces a private substring test in ONE driver, then passes after revert; confirm the mutation was reverted with `git diff --exit-code` on both drivers. Paste the AST-measured oc-to-agy import count before and after, showing it did NOT INCREASE; do not assert a literal figure (47 at authoring, 48 at review), assert the non-increase against your own measured before-value. Do NOT rely on `test_the_table_covers_both_runners` as proof your row lists both runners: it asserts only that the table as a whole covers both, which it already did before your change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE FOUR NEW ROWS, each naming BOTH runners:
+
+    ```python
+    Owned("map_verdict", "runner_shared", BOTH),
+    Owned("normalize_verdict", "runner_shared", BOTH),
+    Owned("verdict_refusal_text", "runner_shared", BOTH),
+    Owned("VerdictMapping", "runner_shared", BOTH),
+    ```
+
+    THE AST ASSERTION (the half no table row can express, since a fresh private test under a NEW local name would satisfy every row):
+
+    ```python
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare): continue
+        if not any(isinstance(op, ast.In) for op in node.ops): continue
+        left = node.left
+        if isinstance(left, ast.Constant) and isinstance(left.value, str):
+            if left.value.upper() in _VERDICT_TOKENS:
+                violations.append(...)
+    ```
+
+    MUTATION CHECK 1, THE AST HALF. Injecting a private substring gate of the historical shape into `agy_runipd` FAILED the guard, naming the file, the line and the tokens:
+
+    ```
+    $ python3 -m pytest tests/test_runner_refork_guard.py::VerdictMappingGuardTests tests/test_agy_runipd_cli.py::AgyVerdictMappingTests
+    E  AssertionError: Lists differ: ["agy_runipd.py:205 tests a verdict by SUB[386 chars]ue)"] != []
+    E    agy_runipd.py:205 tests a verdict by SUBSTRING ('BLOCKED' in ...). Call
+    E      `runner_shared.map_verdict` instead: substring semantics make the result depend on arm
+    E      order (`'CONFORMING' in 'NOT CONFORMING'` is True)
+    E    agy_runipd.py:205 tests a verdict by SUBSTRING ('NOT CONFORMING' in ...). Call ...
+    FAILED tests/test_agy_runipd_cli.py::AgyVerdictMappingTests::test_this_host_carries_no_private_verdict_substring_test
+    FAILED tests/test_runner_refork_guard.py::VerdictMappingGuardTests::test_neither_driver_tests_a_verdict_by_substring
+    2 failed, 5 passed in 2.43s
+    ```
+
+    MUTATION CHECK 2, THE IDENTITY HALF, run because grep cannot distinguish a shared object from a textually identical copy (which is exactly how `render_stream` was re-forked). Rebinding `map_verdict` to a local copy failed THREE tests:
+
+    ```
+    E  agy_runipd.py:202 re-defines `map_verdict`, which `runner_shared.py` already owns as `map_verdict`
+    FAILED ...::SymmetricReForkGuardTests::test_every_runner_attribute_is_the_owning_modules_object
+    FAILED ...::AgyVerdictMappingTests::test_this_host_binds_the_shared_mapping_and_holds_no_copy
+    FAILED ...::SymmetricReForkGuardTests::test_no_runner_redefines_an_already_extracted_symbol
+    3 failed, 13 passed in 9.18s
+    ```
+
+    BOTH MUTATIONS REVERTED, and the drivers verified clean (zero occurrences of either mutant; `git diff` on both drivers shows ADDITIVE IMPORT LINES ONLY, no deletions and no logic):
+
+    ```
+    MUTATION REVERTED
+    0 occurrences (clean)
+    $ python3 -m pytest tests/test_runner_refork_guard.py tests/test_agy_runipd_cli.py::AgyVerdictMappingTests
+    16 passed in 9.01s
+    ```
+
+    OC-TO-AGY IMPORT COUNT DID NOT INCREASE, measured by AST against my own before-value (taken from `git show HEAD:`) rather than a quoted figure:
+
+    ```
+    oc->agy import count BEFORE=56 AFTER=56 increased=False
+    PASS: did not increase
+    ```
+
+    All four symbols are imported from `runner_shared`, never from the other host's driver, so the layering defect backlog `cnwy8g` tracks is not deepened.
+    E-06's PREMISE CORRECTION CONFIRMED RATHER THAN ASSUMED: `test_the_table_covers_both_runners` is NOT relied on as proof these rows list both runners. It passed before this change and asserts only the table's AGGREGATE coverage; what actually bites is the per-row identity assertion plus the AST half, which is precisely what the two mutation checks above demonstrate.
+
+    FULL GUARD MODULE PASSING, plus the two modules the plan explicitly requires alongside it:
+
+    ```
+    $ python3 -m pytest tests/test_runner_refork_guard.py tests/test_runner_shared.py tests/test_reporting_contract.py
+    274 passed in 15.56s
+    ```
+
+    The third is included because it asserts the verifier prompt's verdict line VERBATIM, so an accidental prompt edit would surface as a named failure. It passes, confirming the prompt and its three-value schema are untouched.
+  - Result: pass
 
 ## Approval and execution gate
 

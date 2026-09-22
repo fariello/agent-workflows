@@ -224,6 +224,31 @@ REFORK_TABLE: tuple[Owned, ...] = (
     # (`test_no_runner_redefines_an_already_extracted_symbol`), both proven against this symbol by the
     # mutation check recorded in the plan's V-05.
     Owned("render_disposition_summary", "run_selection_policy", BOTH),
+    # --- runner_shared: the VERIFIER VERDICT MAPPING, added by `runverdict` Order 05 (`1bfppy`) ----
+    #
+    # SYMMETRIC (`BOTH`) BECAUSE THE DEFECT WAS SYMMETRIC. The verdict gate this mapping replaces
+    # existed as TWO BYTE-IDENTICAL COPIES, one per host (`oc_runipd` and `agy_runipd`), and both
+    # carried the same fail-open `else` that recorded `CORRECTION_REQUIRED` - a verdict the prompt
+    # explicitly asks the model for - as `verified`. A one-sided row would guard the less exposed
+    # host: agy runs its verifier on its SHIPPED DEFAULT (`not no_verify`) and feeds the verdict
+    # into `integration_is_earned`, while oc requires an explicit `--validate`.
+    #
+    # WHAT THIS ROW BUYS THAT GREP CANNOT. The table that decides whether a verifier's REJECTION is
+    # honored must be ONE object. A textually identical copy in one driver is exactly how
+    # `render_stream`'s ANSI constants came to be re-forked and how `aw agy run` silently carried a
+    # broken `dependency_status_detailed` for months; `assertIs` distinguishes a shared object from
+    # a copy and reading the source cannot. `VerdictMappingGuardTests` below adds the half no table
+    # row can express: that neither driver carries a private substring test on a verdict, which is
+    # the SHAPE of the original defect rather than the name of it.
+    #
+    # AND NOTE WHAT DOES *NOT* ENFORCE THE SYMMETRY, because the obvious answer is wrong:
+    # `test_the_table_covers_both_runners` asserts only that the table's AGGREGATE `runners` set
+    # equals `BOTH`, which it already did before these rows. What makes THESE rows bite is the
+    # per-row identity assertion plus the AST half, both mutation-checked in this plan's V-06.
+    Owned("map_verdict", "runner_shared", BOTH),
+    Owned("normalize_verdict", "runner_shared", BOTH),
+    Owned("verdict_refusal_text", "runner_shared", BOTH),
+    Owned("VerdictMapping", "runner_shared", BOTH),
 )
 
 _MODULES = {
@@ -410,6 +435,93 @@ class SymmetricReForkGuardTests(unittest.TestCase):
         self.assertGreater(
             len(agy_rows), 1, "the agy side must not collapse to one symbol"
         )
+
+
+#: The verdict tokens whose appearance inside an `in` comparison means a SUBSTRING test on a verifier
+#: verdict. Chosen from the two the original defective gate actually tested plus their alias, since
+#: those are the strings a re-fork would reach for.
+_VERDICT_TOKENS = ("BLOCKED", "NOT CONFORMING", "CONFORMING", "VERIFIED")
+
+
+class VerdictMappingGuardTests(unittest.TestCase):
+    """The verdict mapping must stay ONE fail-closed table, and no driver may test a verdict itself.
+
+    WHY THIS EXISTS BEYOND THE TABLE ROWS ABOVE (runverdict `1bfppy` E-06). The identity rows prove
+    both hosts see the same `map_verdict` object. They CANNOT prove a driver did not ALSO grow a
+    second, private verdict test beside it - a fresh `if "BLOCKED" in verdict:` under a new local
+    name would satisfy every row in the table while re-creating the exact defect. So this class
+    asserts on the SHAPE of the defect rather than on a symbol name.
+
+    THE DEFECT BEING GUARDED, precisely. Both drivers once carried this, byte-identically:
+
+        verify_verdict = str(v_data.get("verdict", "")).upper()
+        if "BLOCKED" in verify_verdict or "NOT CONFORMING" in verify_verdict: ...
+        else: verify_disp = "verified"
+
+    Two things are wrong and only one of them was the leak. The LEAK was the permissive `else`
+    (fixed in `61137509`). The SHAPE is the substring test, which survives a fixed `else`: measured
+    before this change, the repaired branch still mapped `NOT BLOCKED` to `blocked`, because
+    `"BLOCKED" in "NOT BLOCKED"`. The same trap runs the other way and is worse -
+    `"CONFORMING" in "NOT CONFORMING"` is True - so under substring semantics the table's behavior
+    depends on the ORDER of its arms and a reordering silently maps a rejection to a pass. Exact
+    matching on a normalized token is what removes the hazard, and this test is what keeps it removed.
+    """
+
+    def test_neither_driver_tests_a_verdict_by_substring(self):
+        """No `<token> in <expr>` comparison naming a verdict token, in either driver."""
+        violations = []
+        for runner in BOTH:
+            module = _MODULES[runner]
+            tree = ast.parse(module_source(module))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Compare):
+                    continue
+                if not any(isinstance(op, ast.In) for op in node.ops):
+                    continue
+                left = node.left
+                if isinstance(left, ast.Constant) and isinstance(left.value, str):
+                    if left.value.upper() in _VERDICT_TOKENS:
+                        violations.append(
+                            f"{runner}.py:{node.lineno} tests a verdict by SUBSTRING "
+                            f"({left.value!r} in ...). Call "
+                            f"`runner_shared.map_verdict` instead: substring semantics make "
+                            f"the result depend on arm order "
+                            f"(`'CONFORMING' in 'NOT CONFORMING'` is True)"
+                        )
+        self.assertEqual(
+            violations,
+            [],
+            "A PRIVATE VERDICT SUBSTRING TEST HAS RETURNED:\n  "
+            + "\n  ".join(violations),
+        )
+
+    def test_the_mapping_is_exact_and_not_a_substring_match(self):
+        """The property the guard above protects, asserted on BEHAVIOR rather than on source.
+
+        `NOT BLOCKED` and `NOT CONFORMING` are the pair that proves exactness: under substring
+        semantics the first wrongly reads as `blocked`, and mis-ordered arms make the second wrongly
+        read as a pass. Both are asserted, in both directions.
+        """
+        self.assertEqual(
+            runner_shared.map_verdict("NOT CONFORMING").verify_disp, "blocked"
+        )
+        self.assertFalse(
+            runner_shared.map_verdict("NOT CONFORMING").verify_disp == "verified"
+        )
+        # Substring semantics would make this `blocked`; exact matching makes it unrecognized.
+        not_blocked = runner_shared.map_verdict("NOT BLOCKED")
+        self.assertEqual(not_blocked.verify_disp, "unverified")
+        self.assertFalse(not_blocked.recognized)
+
+    def test_the_mapping_is_reached_from_the_shared_execute_path(self):
+        """The wiring half: the one call site both hosts run through actually calls it.
+
+        An identity row proves the object is SHARED; it does not prove anything CALLS it. This
+        asserts `execute_item_core`'s verifier block invokes the mapping, so the table cannot be
+        shared, correct, and bypassed all at once.
+        """
+        source = module_source(runner_shared)
+        self.assertIn("v_map = map_verdict(", source)
 
 
 if __name__ == "__main__":

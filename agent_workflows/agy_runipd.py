@@ -189,6 +189,30 @@ from agent_workflows.runner_shared import (
     dispatch_orchestrator_item as dispatch_orchestrator_item,
 )
 
+# runverdict (`1bfppy`) E-01/E-02: the ONE fail-closed VERIFIER VERDICT MAPPING, imported from
+# `runner_shared` and NOT from `oc_runipd`, for the same layering reason the note below gives. THIS HOST
+# IS THE MORE EXPOSED ONE: its verifier is gated on `not no_verify` (default ON) and it passes
+# `validate=verifier_expected` into `integration_is_earned`, where oc gates on `--validate` (default
+# OFF). So the verdict mapping decides integration on THIS host's shipped default.
+from agent_workflows.runner_shared import (
+    map_verdict as map_verdict,
+)
+from agent_workflows.runner_shared import (
+    normalize_verdict as normalize_verdict,
+)
+from agent_workflows.runner_shared import (
+    verdict_refusal_text as verdict_refusal_text,
+)
+from agent_workflows.runner_shared import (
+    VerdictMapping as VerdictMapping,
+)
+from agent_workflows.runner_shared import (
+    VERDICT_REFUSAL_CODE_DECLINED as VERDICT_REFUSAL_CODE_DECLINED,
+)
+from agent_workflows.runner_shared import (
+    VERDICT_REFUSAL_CODE_UNREADABLE as VERDICT_REFUSAL_CODE_UNREADABLE,
+)
+
 # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, imported from `runner_shared` and NOT from
 # `oc_runipd`. This host already imports 53 names from that driver (AST-measured), and adding to that
 # pile would deepen the layering defect backlog `cnwy8g` owns; `7nkcgp`'s F-11 caught a proposed shared

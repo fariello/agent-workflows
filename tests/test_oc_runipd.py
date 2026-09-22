@@ -6581,6 +6581,114 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
             self.assertEqual(
                 item["status"], "partial", "item disposition must be partial"
             )
+            # runverdict (`1bfppy`) E-05: the refusal must be DURABLE and ACTIONABLE, not merely
+            # correct. Read through `r2i1b1`'s ONE reader, so this asserts the real surface the run
+            # summary and `aw runs` consume rather than a key this test happened to pick.
+            refusal = driver.refusal_of_item(item)
+            self.assertIsNotNone(
+                refusal,
+                "a rejected verdict must record a Refusal, or no read surface reports it",
+            )
+            self.assertEqual(refusal.code, driver.VERDICT_REFUSAL_CODE_DECLINED)
+            self.assertIn("CORRECTION_REQUIRED", refusal.reason)
+            self.assertTrue(refusal.remedy.strip())
+            self.assertEqual(item["verification_status"], "unverified")
+
+    def test_an_unreadable_verdict_file_fails_closed_end_to_end(self):
+        """runverdict (`1bfppy`) E-02: malformed verification JSON must NOT be recorded verified.
+
+        THE HOLE THIS CLOSES was `except Exception: verify_disp = "verified" if v_rc == 0 else
+        "unverified"`, which read an unparseable outcome file written by a zero-exit verifier as a
+        PASS. The exit code says the process ended tidily; it says nothing about the verdict.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "unr001")
+            run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+            (run_dir / "outcomes").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+
+            item = {
+                "position": 1,
+                "id6": "unr001",
+                "setid": "demo",
+                "status": "queued",
+                "configured_file": str(plan.relative_to(repo)),
+                "action": "execute",
+            }
+            state = {
+                "run_id": "run-test",
+                "created_at": "2026-08-28T00:00:00+00:00",
+                "updated_at": "2026-08-28T00:00:00+00:00",
+                "selectors": ["demo"],
+                "repo": str(repo),
+                "queue": [item],
+                "set_sessions": {},
+                "session_id": None,
+                "options": {
+                    "opencode": "/bin/true",
+                    "model": "opus",
+                    "self_finalize": True,
+                    "isolate_worktree": True,
+                    "no_audit": False,
+                },
+            }
+
+            (run_dir / "outcomes" / "01-unr001.json").write_text(
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            # Truncated mid-object: exactly what a killed or confused verifier leaves behind.
+            (run_dir / "outcomes" / "01-unr001-verification.json").write_text(
+                '{"verdict": "VERI', encoding="utf-8"
+            )
+
+            finalize_calls = []
+
+            def fake_finalize(r, p, i, a, m):
+                finalize_calls.append((i, a, m))
+                return 0, "finalized"
+
+            def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
+                work_dir = kwargs.get("work_dir")
+                if kwargs.get("fresh_session"):
+                    # EXIT 0, which is the whole point: a tidy exit with an unreadable verdict.
+                    return 0, "vses", str(run_dir / "vlog"), ["oc"]
+                wt = Path(work_dir) if work_dir else repo
+                (wt / "src").mkdir(parents=True, exist_ok=True)
+                (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+                subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+                return 0, "ses1", str(run_dir / "log"), ["oc"]
+
+            with (
+                mock.patch.object(driver, "driver_begin", lambda *a, **k: (0, "ok")),
+                mock.patch.object(driver, "run_opencode", fake_run),
+                mock.patch.object(driver, "driver_finalize", fake_finalize),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(
+                finalize_calls,
+                [],
+                "finalize must NOT be called on an unreadable verdict",
+            )
+            self.assertEqual(item["status"], "partial")
+            self.assertEqual(item["verification_status"], "unverified")
+            refusal = driver.refusal_of_item(item)
+            self.assertIsNotNone(refusal)
+            self.assertEqual(
+                refusal.code,
+                driver.VERDICT_REFUSAL_CODE_UNREADABLE,
+                "an unreadable verdict is a DIFFERENT fact from a rejection",
+            )
+            self.assertTrue(refusal.remedy.strip())
 
     def test_review_action_full_auto(self):
         """E-09: --action review --full-auto reviews and auto-approves plans without mutating item action to execute."""
@@ -6970,6 +7078,387 @@ class EndOfRunDispositionSummaryTests(unittest.TestCase):
         for remedy in pol.DISPOSITION_REMEDIES.values():
             self.assertNotIn(remedy, src)
         self.assertIs(driver.render_disposition_summary, pol.render_disposition_summary)
+
+
+# ==================================================================================================
+# THE VERIFIER VERDICT MAPPING (runverdict `1bfppy`)
+# ==================================================================================================
+
+#: THE HISTORICAL CORPUS, AS A FIXTURE RATHER THAN A LIVE READ (E-03).
+#:
+#: These are the DISTINCT verdict VALUES found across every `outcomes/*-verification.json` file in the
+#: maintainer's run tree, measured at execution: 36 files, all carrying exactly `VERIFIED`, zero
+#: rejections and zero unparseable files.
+#:
+#: WHY A FIXTURE AND NOT A WALK OF `.aw/records/runs/`. That directory is GITIGNORED
+#: (`.aw/.gitignore` matches `records/runs/`, and `git ls-files` returns zero tracked files under it),
+#: so a test reading it would pass in the maintainer's checkout and fail everywhere else: in CI, in a
+#: fresh clone, and in an isolated lane worktree - measured, it does not exist in the worktree this
+#: change was written in. A test that silently passes by finding nothing is worse than no test.
+#:
+#: AND WHY NO COUNT IS ASSERTED. The corpus GROWS by one file per verified run (34 when this plan was
+#: authored, 35 at its review, 36 at execution), so a hardcoded size fails for a correct reason and
+#: teaches the next executor to edit the number instead of reading the test. The PROPERTY is what
+#: matters: every verdict a real verifier has ever written must still map to `verified`.
+_HISTORICAL_VERDICT_VALUES = ("VERIFIED",)
+
+
+class VerdictCorpusRegressionTests(unittest.TestCase):
+    """E-03: the fail-closed table must not reclassify a single historical outcome.
+
+    This is the evidence that the change breaks nothing. Because the corpus is unanimously `VERIFIED`,
+    a correct fail-closed gate would have altered ZERO historical turns, which is also what falsifies
+    the "failing closed will start blocking lanes that currently merge" objection RETROSPECTIVELY. The
+    objection remains true PROSPECTIVELY (a garbled verdict from an otherwise-good turn now blocks),
+    which is exactly why `verdict_refusal_text` names a remedy.
+    """
+
+    def test_every_historical_verdict_still_maps_to_verified(self):
+        from agent_workflows import runner_shared as rs
+
+        for value in _HISTORICAL_VERDICT_VALUES:
+            with self.subTest(verdict=value):
+                mapped = rs.map_verdict(value)
+                self.assertEqual(mapped.verify_disp, "verified")
+                self.assertFalse(
+                    mapped.downgrade,
+                    "a historical PASS must not be downgraded to `partial`",
+                )
+                self.assertTrue(mapped.recognized)
+
+    def test_the_corpus_is_read_from_a_fixture_and_not_from_the_gitignored_run_tree(
+        self,
+    ):
+        """Guard the guard: a later 'improvement' to walk the live tree would silently pass."""
+        source = Path(__file__).read_text(encoding="utf-8")
+        marker = "_HISTORICAL_VERDICT_VALUES = "
+        self.assertIn(marker, source)
+        self.assertNotIn(".aw/records/runs", source.split(marker)[1][:2000])
+
+
+class VerdictTruthTableTests(unittest.TestCase):
+    """E-04: the FULL input alphabet, including everything that must fail closed.
+
+    THE TABLE IS THE TEST. Each row is `(raw verdict, verify_disp, downgrades?, recognized?)`, and the
+    rows are grouped by why they are here rather than alphabetically, because the grouping IS the
+    argument: the documented verdicts, the linter-vocabulary aliases, the substring traps, the
+    normalization cases, and the fail-closed remainder.
+    """
+
+    # (raw, verify_disp, downgrade, recognized)
+    CASES = (
+        # --- the three DOCUMENTED verdicts, verbatim from the prompt's schema line ---------------
+        ("VERIFIED", "verified", False, True),
+        ("CORRECTION_REQUIRED", "unverified", True, True),
+        ("BLOCKED", "blocked", True, True),
+        # --- the LINTER-vocabulary pair (plan OQ-02, resolved AGAINST the plan's default) ---------
+        # `NOT CONFORMING` is honored as a rejection, exactly as the pre-existing gate honored it.
+        # `CONFORMING` is deliberately NOT a pass: at HEAD it already mapped to `unverified`, so
+        # accepting it would WIDEN the pass set of a gate whose purpose is to narrow it, and the
+        # twelve tests that once depended on it were rewritten to `VERIFIED` by `61137509` (measured:
+        # zero occurrences remain), so nothing pays for fail-closing it. See its definition.
+        ("NOT CONFORMING", "blocked", True, True),
+        ("CONFORMING", "unverified", True, False),
+        # --- THE SUBSTRING TRAPS, which are the reason exact matching is mandatory ---------------
+        # `"CONFORMING" in "NOT CONFORMING"` is True, so under substring semantics a REJECTION maps
+        # to a PASS whenever the arms are ordered wrongly. And `"BLOCKED" in "NOT BLOCKED"` is True,
+        # which the pre-existing gate got wrong: it mapped `NOT BLOCKED` to `blocked`. Measured.
+        ("NOT BLOCKED", "unverified", True, False),
+        ("NOT VERIFIED", "unverified", True, False),
+        # --- NORMALIZATION: case, padding, and collapsed internal whitespace ---------------------
+        ("correction_required", "unverified", True, True),
+        ("  VERIFIED  ", "verified", False, True),
+        ("not   conforming", "blocked", True, True),
+        # --- A VERDICT WITH A TRAILING SUMMARY, resolved FAIL-CLOSED and asserted either way -----
+        # This is the plan's sharpest open choice. Accepting a prefix would also accept
+        # `VERIFIED: except for the three failures below`, which is a rejection written
+        # conversationally; reading that as a pass is the defect class this table removes. So a
+        # verdict carrying prose is `unverified` WITH a reason naming what it wrote.
+        ("VERIFIED: all checks passed", "unverified", True, False),
+        # --- THE FAIL-CLOSED REMAINDER: typos, unknown values, emptiness, absence ---------------
+        ("FAILED", "unverified", True, False),
+        ("REJECTED", "unverified", True, False),
+        ("", "unverified", True, False),
+        ("garbage", "unverified", True, False),
+        (None, "unverified", True, False),
+    )
+
+    def test_the_full_truth_table(self):
+        from agent_workflows import runner_shared as rs
+
+        for raw, disp, downgrade, recognized in self.CASES:
+            with self.subTest(verdict=raw):
+                mapped = rs.map_verdict(raw)
+                self.assertEqual(mapped.verify_disp, disp)
+                self.assertEqual(mapped.downgrade, downgrade)
+                self.assertEqual(mapped.recognized, recognized)
+
+    def test_only_two_tokens_ever_reach_verified(self):
+        """The closed pass set, asserted as a SET so a future entry cannot widen it unnoticed."""
+        from agent_workflows import runner_shared as rs
+
+        passing = {raw for raw, disp, _d, _r in self.CASES if disp == "verified"}
+        self.assertEqual(passing, {"VERIFIED", "  VERIFIED  "})
+        # The normalized ALPHABET of passes is a single token, which is the strongest form of this
+        # claim: only `VERIFIED` passes, however it is spelled.
+        self.assertEqual({rs.normalize_verdict(p) for p in passing}, {"VERIFIED"})
+
+    def test_the_table_is_never_more_permissive_than_the_gate_it_replaced(self):
+        """THE ANTI-REGRESSION GUARD, and the reason `CONFORMING` is not a pass (OQ-02).
+
+        A plan whose whole purpose is to make a gate FAIL CLOSED must not ship an input on which the
+        new gate is more permissive than the old one. This replays the PRE-EXISTING gate body (the
+        `if/elif/else` as it stood before this change) against the new table over the full alphabet
+        and fails if ANY input newly reaches `verified`.
+
+        It caught a real regression while this change was being written: an earlier draft accepted
+        `CONFORMING` as an alias on the plan's suggested default, and this comparison showed it was
+        the ONE input where the "fail-closed" table would have been LOOSER than the code it replaced.
+        """
+        from agent_workflows import runner_shared as rs
+
+        def pre_existing_gate(raw):
+            """The replaced body, transcribed verbatim rather than paraphrased."""
+            v = str(raw if raw is not None else "").strip().upper()
+            if "BLOCKED" in v or "NOT CONFORMING" in v:
+                return "blocked"
+            if v == "VERIFIED":
+                return "verified"
+            return "unverified"
+
+        widened = []
+        for raw, _disp, _downgrade, _recognized in self.CASES:
+            before = pre_existing_gate(raw)
+            after = rs.map_verdict(raw).verify_disp
+            if after == "verified" and before != "verified":
+                widened.append(f"{raw!r}: {before} -> {after}")
+        self.assertEqual(
+            widened,
+            [],
+            "THE NEW TABLE IS MORE PERMISSIVE THAN THE GATE IT REPLACED for:\n  "
+            + "\n  ".join(widened),
+        )
+
+    def test_a_missing_verdict_key_is_not_a_pass(self):
+        """The absent-key case as the runner actually produces it: `v_data.get("verdict", "")`."""
+        from agent_workflows import runner_shared as rs
+
+        mapped = rs.map_verdict({}.get("verdict", ""))
+        self.assertEqual(mapped.verify_disp, "unverified")
+        self.assertTrue(mapped.downgrade)
+        self.assertFalse(mapped.recognized)
+
+    def test_blocked_keeps_both_of_its_outputs(self):
+        """`BLOCKED` is the one case the old gate got right, so it must be byte-unchanged.
+
+        The `downgrade` half is the LOAD-BEARING one: `verify_disp` alone is advisory, and it is
+        `disposition = "partial"` that actually stops a rejected turn being finalized. A mapping
+        returning only the first would look correct and change nothing.
+        """
+        from agent_workflows import runner_shared as rs
+
+        for raw in ("BLOCKED", "NOT CONFORMING"):
+            with self.subTest(verdict=raw):
+                mapped = rs.map_verdict(raw)
+                self.assertEqual(mapped.verify_disp, "blocked")
+                self.assertTrue(mapped.downgrade)
+
+    def test_the_documented_verdicts_are_exactly_the_prompt_schema(self):
+        """The prompt and its consumer must not disagree by construction (finding F-6).
+
+        The gate used to be able to express TWO outcomes while the prompt asked for THREE, which is
+        how a documented verdict came to have no arm. This asserts the three named constants are the
+        three the prompt actually advertises, read from the prompt text itself.
+        """
+        from agent_workflows import runner_shared as rs
+
+        source = Path(str(rs.__file__)).read_text(encoding="utf-8")
+        self.assertIn(
+            f'"verdict": "{rs.VERDICT_VERIFIED}|{rs.VERDICT_CORRECTION_REQUIRED}'
+            f'|{rs.VERDICT_BLOCKED}"',
+            source,
+        )
+        for token in (
+            rs.VERDICT_VERIFIED,
+            rs.VERDICT_CORRECTION_REQUIRED,
+            rs.VERDICT_BLOCKED,
+        ):
+            with self.subTest(token=token):
+                self.assertTrue(rs.map_verdict(token).recognized)
+
+    def test_the_state_vocabulary_is_run_states_and_not_a_new_one(self):
+        """The mapping CONSUMES `run_state`'s tokens rather than minting a parallel vocabulary."""
+        from agent_workflows import run_state, runner_shared as rs
+
+        self.assertEqual(
+            rs.map_verdict("CORRECTION_REQUIRED").state,
+            run_state.STATE_CORRECTION_REQUIRED,
+        )
+        self.assertEqual(rs.map_verdict("VERIFIED").state, run_state.STATE_VERIFIED)
+        self.assertEqual(rs.map_verdict("BLOCKED").state, run_state.STATE_BLOCKED)
+        # The fail-closed arm lands in the same state a rejection does: not verified.
+        self.assertEqual(
+            rs.map_verdict("garbage").state, run_state.STATE_CORRECTION_REQUIRED
+        )
+
+
+class VerdictRefusalReasonTests(unittest.TestCase):
+    """E-05: a refusal must name WHAT IT READ and WHAT TO DO, and must not invite the destructive fix.
+
+    `AGENTS.md` records the measured failure mode: a gate stating only a prohibition gets complied
+    with by DELETION. Here the destructive "fix" is to re-run the plan from scratch (discarding a lane
+    that already holds the work) or to re-run with verification off (bypassing the finding), so every
+    branch is asserted to steer away from both.
+    """
+
+    def test_a_rejection_names_the_verdict_and_a_constructive_remedy(self):
+        from agent_workflows import runner_shared as rs
+
+        code, reason, remedy = rs.verdict_refusal_text(
+            "CORRECTION_REQUIRED", rs.map_verdict("CORRECTION_REQUIRED")
+        )
+        self.assertEqual(code, rs.VERDICT_REFUSAL_CODE_DECLINED)
+        self.assertIn("CORRECTION_REQUIRED", reason)
+        self.assertIn("PRESERVED", remedy)
+        self.assertIn("Do NOT re-run the plan from scratch", remedy)
+
+    def test_the_declined_code_IS_the_integration_signal_and_not_a_second_spelling(
+        self,
+    ):
+        """One literal, one object. Two spellings of `verifier-declined` could drift; an alias cannot.
+
+        Both names describe the same fact and an operator reads them side by side, so this asserts the
+        binding is STRUCTURAL rather than a coincidence that a later edit to either site would break.
+        """
+        from agent_workflows import runner_shared as rs
+
+        self.assertIs(
+            rs.VERDICT_REFUSAL_CODE_DECLINED, rs.INTEGRATION_REFUSED_VERIFIER_DECLINED
+        )
+
+    def test_an_unreadable_verdict_is_a_DIFFERENT_code_from_a_rejection(self):
+        """Two facts, two codes: they route to different people and different actions."""
+        from agent_workflows import runner_shared as rs
+
+        rejected = rs.verdict_refusal_text(
+            "CORRECTION_REQUIRED", rs.map_verdict("CORRECTION_REQUIRED")
+        )[0]
+        unreadable = rs.verdict_refusal_text("garbage", rs.map_verdict("garbage"))[0]
+        self.assertNotEqual(rejected, unreadable)
+        self.assertEqual(unreadable, rs.VERDICT_REFUSAL_CODE_UNREADABLE)
+
+    def test_an_unreadable_verdict_quotes_what_it_read_and_lists_the_legal_values(self):
+        from agent_workflows import runner_shared as rs
+
+        _code, reason, remedy = rs.verdict_refusal_text(
+            "probably fine?", rs.map_verdict("probably fine?")
+        )
+        self.assertIn("PROBABLY FINE?", reason)
+        for token in ("VERIFIED", "CORRECTION_REQUIRED", "BLOCKED"):
+            self.assertIn(token, reason)
+        self.assertIn("re-run the verification", remedy)
+
+    def test_an_empty_verdict_does_not_produce_an_empty_reason(self):
+        """`Refusal` refuses an empty field, so a blank verdict must still yield real text."""
+        from agent_workflows import runner_shared as rs
+
+        code, reason, remedy = rs.verdict_refusal_text("", rs.map_verdict(""))
+        self.assertTrue(code.strip())
+        self.assertIn("(empty)", reason)
+        self.assertTrue(remedy.strip())
+
+    def test_every_refusal_text_satisfies_the_shared_refusal_record_contract(self):
+        """The text must be constructible as a real `Refusal`, which requires a non-empty remedy."""
+        from agent_workflows import runner_shared as rs
+        from agent_workflows.render_stream import Refusal
+
+        for raw in ("CORRECTION_REQUIRED", "BLOCKED", "NOT CONFORMING", "", "garbage"):
+            with self.subTest(verdict=raw):
+                code, reason, remedy = rs.verdict_refusal_text(raw, rs.map_verdict(raw))
+                record = Refusal(code=code, reason=reason, remedy=remedy)
+                self.assertTrue(record.remedy.strip())
+
+    def test_no_remedy_offers_to_switch_verification_off(self):
+        """A remedy must never name a SHORTCUT PAST the thing that refused (the `--full-auto` rule)."""
+        from agent_workflows import runner_shared as rs
+
+        for raw in ("CORRECTION_REQUIRED", "BLOCKED", "garbage", ""):
+            with self.subTest(verdict=raw):
+                remedy = rs.verdict_refusal_text(raw, rs.map_verdict(raw))[2]
+                self.assertNotIn("--no-verify", remedy)
+
+    def test_a_verified_verdict_needs_no_refusal_text(self):
+        """Sanity: the refusal path is only ever reached for a non-verified verdict."""
+        from agent_workflows import runner_shared as rs
+
+        self.assertEqual(rs.map_verdict("VERIFIED").verify_disp, "verified")
+        self.assertFalse(rs.map_verdict("VERIFIED").downgrade)
+
+
+class VerdictLanePreservationTests(unittest.TestCase):
+    """E-05: an unverified verdict must still REFUSE INTEGRATION on BOTH hosts, lane preserved.
+
+    THE TWO HOSTS ARE NOT EQUALLY EXPOSED, which is why both are asserted. oc gates its verifier on
+    `--validate` (default FALSE), while agy gates on `not no_verify` (default TRUE) and passes
+    `validate=verifier_expected` into the SAME shared predicate. So the fail-open path this change
+    closes was on agy's SHIPPED DEFAULT and only on an opt-in oc path; testing oc alone would leave
+    the more exposed host unproven.
+    """
+
+    def test_every_non_verified_verdict_refuses_integration_on_both_hosts(self):
+        from agent_workflows import agy_runipd, oc_runipd as oc, runner_shared as rs
+
+        # ONE shared predicate, so "both hosts" is a claim about object identity first.
+        self.assertIs(oc.integration_is_earned, agy_runipd.integration_is_earned)
+
+        for raw in ("CORRECTION_REQUIRED", "BLOCKED", "NOT BLOCKED", "", "garbage"):
+            mapped = rs.map_verdict(raw)
+            with self.subTest(verdict=raw):
+                self.assertNotEqual(mapped.verify_disp, "verified")
+                for host, predicate in (
+                    ("oc (--validate)", oc.integration_is_earned),
+                    ("agy (default verifier ON)", agy_runipd.integration_is_earned),
+                ):
+                    verdict = predicate(
+                        validate=True,
+                        verify_disp=mapped.verify_disp,
+                        suite_result=None,
+                    )
+                    self.assertFalse(
+                        verdict.earned,
+                        f"{host}: a non-verified verdict must NOT earn integration",
+                    )
+                    self.assertEqual(
+                        verdict.signal, rs.INTEGRATION_REFUSED_VERIFIER_DECLINED
+                    )
+
+    def test_a_green_suite_does_not_override_an_explicit_rejection(self):
+        """The property that makes the fix meaningful rather than cosmetic."""
+
+        from agent_workflows import oc_runipd as oc, runner_shared as rs
+
+        class _Suite:
+            passing = True
+            reason = "all green"
+
+        mapped = rs.map_verdict("CORRECTION_REQUIRED")
+        verdict = oc.integration_is_earned(
+            validate=True, verify_disp=mapped.verify_disp, suite_result=_Suite()
+        )
+        self.assertFalse(verdict.earned)
+        self.assertIn("does NOT override", verdict.detail)
+
+    def test_a_verified_verdict_still_earns_integration(self):
+        """The other direction: the fix must not have broken the passing path."""
+        from agent_workflows import oc_runipd as oc, runner_shared as rs
+
+        verdict = oc.integration_is_earned(
+            validate=True,
+            verify_disp=rs.map_verdict("VERIFIED").verify_disp,
+            suite_result=None,
+        )
+        self.assertTrue(verdict.earned)
+        self.assertEqual(verdict.signal, rs.INTEGRATION_EARNED_BY_VERIFIER)
 
 
 if __name__ == "__main__":
