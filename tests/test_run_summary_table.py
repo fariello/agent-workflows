@@ -972,3 +972,145 @@ def test_the_committed_fixture_is_tracked_and_not_gitignored() -> None:
         "the stranded fixture is GITIGNORED, so this suite would pass only in this checkout; "
         "commit it somewhere tracked"
     )
+
+
+# ==================================================================================================
+# progdenom: the progress fraction counts DISPATCHABLE WORK, not queue length
+# ==================================================================================================
+#
+# THE MAINTAINER'S STATEMENT OF THE BUG, quoted because it is the specification: running a 5-member
+# and a 6-member Set with 3 and 2 members already executed "will start counting at 5/11 instead of
+# 0/6. The run will not run the 5 that are executed and therefore it MUST NOT count them in the
+# progress."
+#
+# MEASURED on live run `run-20260922T003657Z-1022108` before the fix: 62 queue entries of which TEN
+# arrived `initial_status: executed` and TWO arrived frozen `reviewed`, so the runner announced
+# `13/62` when it had performed 1 item of 50 it could ever dispatch.
+
+
+def _q(**kw):
+    """One queue entry with the two fields the predicate reads."""
+    entry = {"id6": kw.pop("id6", "aaaaaa")}
+    entry.update(kw)
+    return entry
+
+
+def test_an_already_executed_set_member_is_not_dispatchable_work() -> None:
+    """The core discrimination: `initial_status` is what says "this arrived done"."""
+    from agent_workflows.render_stream import item_is_dispatchable_work
+
+    assert not item_is_dispatchable_work(
+        _q(initial_status="executed", status="executed")
+    )
+    # An item that this run EXECUTED is still work: it arrived approved and was dispatched.
+    assert item_is_dispatchable_work(
+        _q(initial_status="approved", status="executed", attempts=[{"n": 1}])
+    )
+    # The ordinary pending case.
+    assert item_is_dispatchable_work(_q(initial_status="approved", status="queued"))
+
+
+def test_a_frozen_reviewed_entry_is_not_dispatchable_work() -> None:
+    """It is never dispatched, so counting it promises a turn that cannot happen."""
+    from agent_workflows.render_stream import item_is_dispatchable_work
+
+    assert not item_is_dispatchable_work(
+        _q(initial_status="reviewed", status="reviewed")
+    )
+    # But an item whose plan was reviewed and which HAS attempts was dispatched, so it counts.
+    assert item_is_dispatchable_work(
+        _q(initial_status="reviewed", status="reviewed", attempts=[{"n": 1}])
+    )
+
+
+def test_the_maintainers_exact_scenario_counts_zero_of_six() -> None:
+    """setA 5 members (3 executed) + setB 6 members (2 executed) must read 0/6, never 5/11."""
+    from agent_workflows.render_stream import (
+        dispatchable_work_total,
+        item_is_dispatchable_work,
+    )
+
+    queue = (
+        [
+            _q(id6=f"a{i}", initial_status="executed", status="executed")
+            for i in range(3)
+        ]
+        + [
+            _q(id6=f"a{i}", initial_status="approved", status="queued")
+            for i in range(3, 5)
+        ]
+        + [
+            _q(id6=f"b{i}", initial_status="executed", status="executed")
+            for i in range(2)
+        ]
+        + [
+            _q(id6=f"b{i}", initial_status="approved", status="queued")
+            for i in range(2, 6)
+        ]
+    )
+    assert len(queue) == 11, "fixture must reproduce the stated 5 + 6 shape"
+    assert dispatchable_work_total(queue) == 6
+
+    # BOTH HALVES of the fraction must exclude the same entries, which is the half that made the
+    # old number look plausible: a pre-executed entry inflated the numerator too, because its
+    # status is not `queued`.
+    numerator = sum(
+        1
+        for i in queue
+        if i.get("status") not in ("queued", "not-attempted")
+        and item_is_dispatchable_work(i)
+    )
+    assert numerator == 0, "a run that has performed nothing must open at 0"
+
+
+def test_the_denominator_never_divides_by_zero() -> None:
+    """A queue with nothing dispatchable must not crash the progress bar."""
+    from agent_workflows.render_stream import dispatchable_work_total
+
+    assert dispatchable_work_total([]) == 0
+    all_done = [_q(id6="x", initial_status="executed", status="executed")]
+    assert dispatchable_work_total(all_done) == 1, (
+        "a non-empty queue with nothing dispatchable must floor at 1 so a caller dividing by it "
+        "cannot raise; the honest 'nothing to do' signal is the status counts, not a crash"
+    )
+
+
+def test_both_hosts_and_the_summary_share_ONE_definition() -> None:
+    """The banner and the summary bar must not be able to disagree about how much work a run holds.
+
+    Three call sites previously each wrote their own `len(queue)`. Asserting they resolve to the SAME
+    function is what stops one of them being fixed and the others drifting.
+    """
+    from agent_workflows import render_stream, runner_shared, agy_runipd as agy
+
+    assert (
+        runner_shared.dispatchable_work_total is render_stream.dispatchable_work_total
+    )
+    assert agy.dispatchable_work_total is render_stream.dispatchable_work_total
+
+
+def test_the_rendered_progress_line_excludes_pre_executed_members() -> None:
+    """End to end through the real renderer, not just the predicate."""
+    queue = [
+        _q(id6="done01", setid="setA", initial_status="executed", status="executed"),
+        _q(id6="done02", setid="setA", initial_status="executed", status="executed"),
+        _q(id6="work01", setid="setA", initial_status="approved", status="queued"),
+        _q(id6="work02", setid="setA", initial_status="approved", status="queued"),
+    ]
+    out = _strip_ansi(
+        render_run_summary_table(
+            {"run_id": "run-progdenom", "queue": queue, "driver": "oc"},
+            pal=Palette(enabled=False),
+        )
+    )
+    assert "0/2" in out, (
+        "the progress fraction must count only the two dispatchable items; got:\n" + out
+    )
+    assert "0/4" not in out and "2/4" not in out, (
+        "queue length must not appear as the denominator:\n" + out
+    )
+    # The pre-executed members are still LISTED: excluded from the count, not hidden.
+    assert "done01" in out and "done02" in out, (
+        "an already-executed Set member is legitimate provenance and must still be shown:\n"
+        + out
+    )

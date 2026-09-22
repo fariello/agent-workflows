@@ -168,6 +168,9 @@ from agent_workflows.render_stream import (
     Palette,
     StreamTracker,
     _STATUS_COLOR,
+    # `progdenom`: ONE definition of "work this run can dispatch", shared with the summary bar so the
+    # live banner and the end-of-run progress cannot disagree.
+    dispatchable_work_total,
     execution_index,
     # orchprobe-03 (`m7gvuz`) E-06: the probe gate records its refusal through child 01's ONE writer
     # rather than assigning the key itself, which is the whole point of that record existing: a
@@ -16580,7 +16583,12 @@ def execute_item_core(
         },
     )
 
-    total = len(state["queue"])
+    # `progdenom`: the `IPD nn/NN` banner counts DISPATCHABLE WORK, not queue length. A Set whose
+    # members are partly already executed used to announce `IPD 07/62` for a run that could only ever
+    # dispatch 50 items, because `len` counts entries that arrived `executed` and entries frozen
+    # `reviewed` awaiting approval. One shared predicate with the summary bar, so the banner and the
+    # summary cannot disagree about how much work a run holds.
+    total = dispatchable_work_total(state["queue"])
     mode_note = " (recovery)" if recovery else ""
     action_str = f"action={action}"
     seq = execution_index(item, state)

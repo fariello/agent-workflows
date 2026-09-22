@@ -21,6 +21,7 @@ output for the same event stream.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 import datetime as dt
 import json
 from dataclasses import dataclass
@@ -1769,6 +1770,66 @@ def format_run_order_announcement(
     return lines
 
 
+def item_is_dispatchable_work(item: Mapping[str, Any]) -> bool:
+    """Will this queue entry ever be HANDED TO AN AGENT in this run? The progress denominator.
+
+    THE DEFECT THIS FIXES, measured on live run `run-20260922T003657Z-1022108` (2026-09-22). Selecting
+    two Sets whose members are partly already done put 62 entries in the queue of which TEN arrived
+    `initial_status: executed` and two arrived needing approval, so the runner announced `IPD 07/62`
+    and `Progress: .../62` while only 50 items could ever be dispatched. The maintainer's statement of
+    it is exact: running a 5-member and a 6-member Set with 3 and 2 already executed "will start
+    counting at 5/11 instead of 0/6. The run will not run the 5 that are executed and therefore it
+    MUST NOT count them in the progress."
+
+    IT INFLATES BOTH HALVES OF THE FRACTION, which is why the number looks plausible and is wrong
+    twice. A pre-executed entry is counted in `total_items` because that is `len(queue)`, AND in
+    `completed_count` because its status is not `queued`, so a run that has done nothing opens at
+    `10/62` instead of `0/50`. Neither figure describes work this run will perform.
+
+    WHAT COUNTS AS DISPATCHABLE: an entry whose `initial_status` was NOT already terminal-successful,
+    and which is not frozen `reviewed` awaiting approval. Both exclusions are read from state the
+    queue builder ALREADY writes (`initial_status`, set at `runner_shared.initialize_run`), so this
+    invents no new field and cannot disagree with the dispatcher about what it will pick up.
+
+    EXCLUDED FROM THE COUNT, NOT FROM THE TABLE, and the distinction is deliberate. A Set member that
+    executed in an earlier run is legitimate provenance: it belongs in the summary listing, because a
+    reader needs to see the Set is complete rather than wonder where its other members went. What it
+    must not do is claim a share of THIS run's progress. Callers therefore keep iterating the whole
+    queue and use this predicate only where a count of WORK is meant.
+
+    ``reviewed`` IS EXCLUDED FOR THE SAME REASON AS ``executed``, not as a bonus fix: a frozen
+    `reviewed` entry is never dispatched (`initial_queue_status` gives it that status precisely because
+    its plan status is outside `NON_TERMINAL_QUEUE_STATUSES`), so counting it promises an agent turn
+    that cannot happen. Measured in the same run: 2 of the 62.
+    """
+
+    initial = str(item.get("initial_status") or "").strip()
+    # The queue builder preserves exactly one terminal status, `executed` (see
+    # `runner_shared.initial_queue_status`, whose fix is deliberately narrow). So that single value is
+    # what "arrived already done" means here; a broader terminal set would be inventing cases the
+    # builder cannot produce.
+    if initial == "executed":
+        return False
+    # Frozen awaiting approval. Read the LIVE status, because this is the state the builder assigns at
+    # queue build and nothing in a run promotes it without an explicit operator act.
+    if str(item.get("status") or "").strip() == "reviewed" and not item.get("attempts"):
+        return False
+    return True
+
+
+def dispatchable_work_total(queue: Sequence[Mapping[str, Any]]) -> int:
+    """How many queue entries this run can actually dispatch. The honest progress denominator.
+
+    Returns at least 1 when the queue is non-empty but nothing is dispatchable, so a caller dividing
+    by it cannot raise; a `0/0` run is reported by the `queued` count being zero rather than by a
+    crash in the progress bar. An EMPTY queue returns 0, because there is genuinely nothing.
+    """
+
+    if not queue:
+        return 0
+    return sum(1 for item in queue if item_is_dispatchable_work(item)) or 1
+
+
 def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
     """The 1-based index of an item in the run's execution sequence.
 
@@ -2315,7 +2376,13 @@ def render_run_summary_table(
         verify = item.get("verification_status") or "-"
         status_counts[status] = status_counts.get(status, 0) + 1
 
-        if status not in ("queued", "not-attempted"):
+        # COUNTED ONLY IF THIS RUN COULD DISPATCH IT (`progdenom`). Both halves of the fraction must
+        # exclude the same entries or the bar is wrong twice: a pre-executed Set member used to be
+        # counted here (its status is not `queued`) AND in the total, so a run that had performed
+        # nothing opened at `10/62` rather than `0/50`.
+        if status not in ("queued", "not-attempted") and item_is_dispatchable_work(
+            item
+        ):
             completed_count += 1
 
         # Calculate item duration, cost, tokens
@@ -2417,7 +2484,11 @@ def render_run_summary_table(
         tot_cache = tot_item_cache
         tot_tokens = tot_item_tok
 
-    total_items = len(queue)
+    # THE DENOMINATOR IS DISPATCHABLE WORK, NOT QUEUE LENGTH (`progdenom`). `len(queue)` counts Set
+    # members that arrived already `executed` and entries frozen `reviewed` awaiting approval, neither
+    # of which this run can dispatch, so it promised turns that could not happen. See
+    # `item_is_dispatchable_work` for the measurement.
+    total_items = dispatchable_work_total(queue)
     prog_bar = format_progress_bar(completed_count, total_items, width=10)
 
     # Status summary line

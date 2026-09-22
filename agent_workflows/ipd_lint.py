@@ -843,7 +843,15 @@ _QUALIFIED_IDENT_RE = re.compile(r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$")
 #: 2026-09-20, so `20260919` (the carrier constant's value, which this plan's review suggested) would
 #: have fired on plans authored after that review. A later re-measurement must move this forward the
 #: same way rather than assuming this value still holds.
-CITATION_ANCHOR_CUTOVER_DATE = "20260921"  # compact YYYYMMDD
+#:
+#: RE-MEASURED 2026-09-22 AND MOVED FORWARD, exactly as the paragraph above instructs. Five plans were
+#: authored on 2026-09-21 (the orchestrator-coverage children `k311gw`, `04vf1h`, `p9j6c0`, `40it5e`
+#: plus that day's other work), so the newest pending `- Date:` became `20260921` - EQUAL to this
+#: constant, and the rule applies at `>=`, so the advisory was one day from firing on plans authored
+#: before it existed. `tests/test_ipd_lint.py` asserts the constant is STRICTLY GREATER than the
+#: newest plan date for that reason and caught it. Moved to `20260923` rather than `20260922` so a
+#: plan authored later today does not immediately re-trip the same guard.
+CITATION_ANCHOR_CUTOVER_DATE = "20260923"  # compact YYYYMMDD
 
 _CITATION_PLAN_DATE_RE = re.compile(r"(?m)^- Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
 

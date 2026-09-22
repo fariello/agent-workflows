@@ -1526,17 +1526,25 @@ class RealRepositorySets(unittest.TestCase):
         ),
         (
             "rununify",
-            True,
-            rs.RETIRE_ELIGIBLE,
-            {},
+            False,
+            rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
+            {"40it5e": "to-review"},
             (),
-            11,
-            {"executed"},
+            12,
+            {"executed", "to-review"},
             "THE THREE-COLUMN, NO-`Id` LAYOUT, and the Set that motivated the unauthored-rows rule. "
             "Its placeholder rows `03+` and `last` stood unauthored by deliberate design and the "
             "runner correctly refused the parent on every run for two weeks; on the maintainer's "
-            "2026-09-14 ruling they were replaced with nine named children, all now executed. The "
-            "count is asserted at >= 11 (the original two plus those nine)",
+            "2026-09-14 ruling they were replaced with nine named children, all now executed. "
+            "RE-MEASURED 2026-09-22 AND RE-POINTED PER THIS CLASS'S OWN RULE (re-measure, never "
+            "loosen): the row asserted ELIGIBLE with 11 children, and a TWELFTH child `40it5e` was "
+            "authored `to-review` on 2026-09-22, so the parent is correctly refused again. That is "
+            "this class's documented 'a NEW child being AUTHORED flips eligible back to refused' "
+            "case, arriving for the same reason as `h0zljh` above: the orchestrator coverage gate "
+            "found this parent carrying E-02 and E-03 that no child covered, and retirement SKIPS "
+            "the pre-transition E/V checkpoint, so those two items would have been marked complete "
+            "having never been performed. The Set therefore now exercises BOTH halves of the "
+            "eligible/refused transition over its history rather than only the eligible end",
         ),
         (
             "runprofile",
