@@ -27,8 +27,10 @@ WHAT IS ASSERTED:
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
 import inspect
+import io
 import json
 import subprocess
 import time
@@ -1733,3 +1735,1019 @@ class TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam:
 
         hints = typing.get_type_hints(agy_runipd.run_agy_turn)
         assert hints["return"] == tuple[int, str | None, Path, list[str]]
+
+
+# ==================================================================================================
+# reaskscore-03 (`dy9ymn`): A TURN THAT PROVABLY ATTEMPTED NOTHING IS RETRIED, NOT LEFT TERMINAL
+# ==================================================================================================
+#
+# WHY THESE LIVE HERE, beside the host-truncation family above rather than in a new file: this is the
+# CONSUMER of `ty7w6o`'s signal and the other half of the same measured incident. The cases are
+# deliberately built in `tmp_path`; the live `.aw/records/runs/` tree is gitignored and absent in CI,
+# so a test reading it would pass locally and fail in a fresh clone.
+#
+# THE TWO PROPERTIES THAT MATTER MORE THAN THE HAPPY PATH, each with its own class:
+#
+#   1. THE PREDICATE MUST BE UNABLE TO FIRE ON A TURN THAT DID ANYTHING. Every negative control is
+#      built in the MODE WHERE IT CAN ACTUALLY FAIL, which is the point `TheNegativeControls` exists
+#      to make: two of the four conditions are VACUOUS on an isolated turn (`ending_head` and
+#      `ending_status` read the MAIN CHECKOUT while the lane is `work_dir`), so asserting all four in
+#      one mode would present two controls that cannot fail as if they had passed.
+#   2. THE REQUEUE MUST HAPPEN BEFORE THE CASCADE OBSERVES THE TERMINAL STATUS, or the retry rescues
+#      nothing. That is the actual user-visible defect and it needs an end-to-end multi-item run.
+
+
+def _zero_work_attempt(isolated: bool = True, **extra):
+    """An attempt record in the shape the measured incident produced."""
+
+    attempt = {
+        "number": 1,
+        "starting_head": "7c233993",
+        "ending_head": "7c233993",
+        "ending_status": "",
+    }
+    if isolated:
+        attempt["worktree"] = "/tmp/lane/zqs0px"
+        attempt["worktree_lane_id"] = "zqs0px"
+        attempt["worktree_base"] = "7c233993"
+    attempt.update(extra)
+    return attempt
+
+
+def _empty_lane(**extra):
+    lane = {
+        "state": "EMPTY",
+        "branch": "aw/lane/zqs0px",
+        "commits_ahead": 0,
+        "dirty": False,
+    }
+    lane.update(extra)
+    return lane
+
+
+def _verdict(
+    item=None, attempt=None, lane=None, outcome_written=False, disposition="partial"
+):
+    from agent_workflows import runner_shared
+
+    return runner_shared.turn_attempted_nothing(
+        item if item is not None else {"id6": "zqs0px", "action": "execute"},
+        attempt if attempt is not None else _zero_work_attempt(),
+        disposition=disposition,
+        outcome_written=outcome_written,
+        lane=_empty_lane() if lane is None else lane,
+    )
+
+
+class TestTheZeroWorkVerdictIsEvidenceBased:
+    """V-01/E-01: the measured shape is recognized, and every missing input FAILS CLOSED."""
+
+    def test_the_measured_case_is_recognized_with_its_reason_and_facts(self):
+        verdict = _verdict()
+        assert verdict.attempted_nothing is True
+        assert verdict.proven is True
+        # A REASONED verdict, not a bare bool: this authorizes spending a turn's tokens.
+        assert "PROVABLY attempted nothing" in verdict.reason
+        assert verdict.facts["outcome_written"] is False
+        assert verdict.facts["isolated"] is True
+        assert verdict.facts["lane_commits_ahead"] == 0
+        assert verdict.facts["lane_dirty"] is False
+
+    def test_an_absent_lane_reading_cannot_prove_it(self):
+        """FAIL-CLOSED: a lane that cannot be inspected is not evidence of emptiness."""
+
+        verdict = _verdict(lane=None if False else {})
+        # An empty mapping carries no `commits_ahead`.
+        assert verdict.attempted_nothing is False
+        assert verdict.proven is False
+        assert "FAIL-CLOSED" in verdict.reason
+
+    def test_a_missing_lane_for_an_isolated_turn_cannot_prove_it(self):
+        from agent_workflows import runner_shared
+
+        verdict = runner_shared.turn_attempted_nothing(
+            {"id6": "zqs0px", "action": "execute"},
+            _zero_work_attempt(),
+            disposition="partial",
+            outcome_written=False,
+            lane=None,
+        )
+        assert (verdict.attempted_nothing, verdict.proven) == (False, False)
+        assert "FAIL-CLOSED" in verdict.reason
+
+    def test_an_unreadable_outcome_question_cannot_prove_it(self):
+        verdict = _verdict(outcome_written=None)
+        assert (verdict.attempted_nothing, verdict.proven) == (False, False)
+        assert "FAIL-CLOSED" in verdict.reason
+
+    def test_a_shared_tree_turn_missing_its_ending_status_cannot_prove_it(self):
+        attempt = _zero_work_attempt(isolated=False)
+        attempt.pop("ending_status")
+        verdict = _verdict(attempt=attempt, lane=None)
+        assert (verdict.attempted_nothing, verdict.proven) == (False, False)
+        assert "FAIL-CLOSED" in verdict.reason
+
+    def test_a_shared_tree_turn_missing_its_heads_cannot_prove_it(self):
+        attempt = _zero_work_attempt(isolated=False)
+        attempt.pop("ending_head")
+        verdict = _verdict(attempt=attempt, lane=None)
+        assert (verdict.attempted_nothing, verdict.proven) == (False, False)
+
+    def test_a_lane_whose_commits_ahead_is_not_an_int_cannot_prove_it(self):
+        verdict = _verdict(lane=_empty_lane(commits_ahead=None))
+        assert (verdict.attempted_nothing, verdict.proven) == (False, False)
+
+    def test_the_predicate_is_PURE_and_probes_nothing(self):
+        """The two probed facts are INJECTED, which is what keeps it exhaustively testable."""
+
+        from agent_workflows import runner_shared
+
+        # THE BODY, not the docstring: the docstring legitimately NAMES `describe_lane` as the
+        # collector's single source, and grepping the whole source would flag that reference.
+        tree = ast.parse(
+            inspect.getsource(runner_shared.turn_attempted_nothing).lstrip()
+        )
+        fn = tree.body[0]
+        assert isinstance(fn, ast.FunctionDef)
+        body = ast.Module(body=fn.body[1:], type_ignores=[])
+        called = {
+            node.func.id
+            for node in ast.walk(body)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        } | {
+            node.func.attr
+            for node in ast.walk(body)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        }
+        for forbidden in (
+            "run_checked",
+            "describe_lane",
+            "open",
+            "read_text",
+            "is_file",
+        ):
+            assert forbidden not in called, forbidden
+        assert "subprocess" not in ast.dump(body)
+
+    def test_which_conditions_bite_in_which_mode_is_DOCUMENTED(self):
+        """A reader who believes all four conditions always bite will over-trust an isolated verdict."""
+
+        from agent_workflows import runner_shared
+
+        # Collapsed, because the phrases wrap across doc lines; a literal search on the raw
+        # docstring would fail on intact prose.
+        doc = " ".join((runner_shared.turn_attempted_nothing.__doc__ or "").split())
+        assert "MAIN CHECKOUT" in doc
+        assert "TRUE BY CONSTRUCTION" in doc
+        assert "commits_ahead" in doc
+
+    def test_it_does_NOT_use_holds_work_as_the_commit_test(self):
+        """`holds_work` stays True forever after a `--no-ff` merge, so it cannot answer this."""
+
+        from agent_workflows import runner_shared
+
+        source = inspect.getsource(runner_shared.turn_attempted_nothing)
+        assert (
+            "holds_work" in source
+        ), "the refusal must be stated where a reader will look"
+        tree = ast.parse(source.lstrip())
+        reads = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and node.value == "holds_work"
+        ]
+        assert reads == [], "`holds_work` must not be READ as the commit test"
+
+
+class TestTheNegativeControls:
+    """V-02: one control per condition, each built in the MODE WHERE IT CAN ACTUALLY FAIL.
+
+    A control that cannot fail is not a control, and presenting one as passing would MISREPORT the
+    predicate's strictness. So each case below names its mode:
+
+      * `outcome file exists`  -> ISOLATED (bites in both modes; asserted on the isolated fixture,
+        which is the mode the defect was measured in).
+      * `the lane holds a commit` / `the lane is dirty` -> ISOLATED (the only mode where a lane
+        exists at all).
+      * `ending_head != starting_head` / `dirty tree` -> SHARED-TREE (`--no-isolate-worktree`).
+        On an ISOLATED turn both fields read the MAIN checkout, so they are fixed regardless of what
+        the lane did and a control flipping them there would be vacuous.
+    """
+
+    def test_an_outcome_file_refuses_the_verdict_isolated_mode(self):
+        verdict = _verdict(outcome_written=True)
+        assert verdict.attempted_nothing is False
+        assert verdict.proven is True
+        assert "outcome file WAS written" in verdict.reason
+
+    def test_a_lane_commit_refuses_the_verdict_isolated_mode(self):
+        verdict = _verdict(lane=_empty_lane(commits_ahead=3, state="HOLDS-WORK"))
+        assert verdict.attempted_nothing is False
+        assert "3 commit(s)" in verdict.reason
+
+    def test_a_dirty_lane_refuses_the_verdict_isolated_mode(self):
+        verdict = _verdict(lane=_empty_lane(dirty=True, state="HOLDS-WORK"))
+        assert verdict.attempted_nothing is False
+        assert "DIRTY" in verdict.reason
+
+    def test_a_moved_head_refuses_the_verdict_SHARED_TREE_mode(self):
+        """MODE: shared tree. On an isolated turn this field cannot move, so the control would be vacuous."""
+
+        attempt = _zero_work_attempt(isolated=False, ending_head="deadbeef")
+        verdict = _verdict(attempt=attempt, lane=None)
+        assert verdict.attempted_nothing is False
+        assert "HEAD MOVED" in verdict.reason
+
+    def test_a_dirty_shared_tree_refuses_the_verdict_SHARED_TREE_mode(self):
+        """MODE: shared tree, for the same reason as above."""
+
+        attempt = _zero_work_attempt(
+            isolated=False, ending_status=" M agent_workflows/x.py"
+        )
+        verdict = _verdict(attempt=attempt, lane=None)
+        assert verdict.attempted_nothing is False
+        assert "DIRTY" in verdict.reason
+
+    def test_the_isolated_fixture_really_is_vacuous_for_those_two_conditions(self):
+        """The MEASUREMENT behind the mode split, asserted so the claim is not merely prose.
+
+        An ISOLATED turn whose lane committed real work still reports `starting_head == ending_head`
+        and an empty `ending_status`, because both read the MAIN checkout. If the predicate rested on
+        them, this fixture would be called zero-work. It is refused on the LANE facts instead."""
+
+        attempt = _zero_work_attempt()
+        assert attempt["starting_head"] == attempt["ending_head"]
+        assert attempt["ending_status"] == ""
+        verdict = _verdict(attempt=attempt, lane=_empty_lane(commits_ahead=5))
+        assert verdict.attempted_nothing is False, (
+            "the verdict must be refused by the LANE's commits, which are the only load-bearing "
+            "commit evidence on an isolated turn"
+        )
+
+    @pytest.mark.parametrize(
+        "disposition",
+        (
+            "interrupted",
+            "unknown_outcome",
+            "dependency-blocked",
+            "not-attempted",
+            "merge-retry",
+        ),
+    )
+    def test_every_protected_disposition_is_refused(self, disposition):
+        verdict = _verdict(disposition=disposition)
+        assert verdict.attempted_nothing is False
+        assert verdict.proven is True
+
+    def test_a_review_action_is_refused(self):
+        verdict = _verdict(item={"id6": "zqs0px", "action": "review"})
+        assert verdict.attempted_nothing is False
+        assert "REVIEW" in verdict.reason
+
+    def test_a_deliberately_stopped_item_is_refused(self):
+        verdict = _verdict(
+            item={
+                "id6": "zqs0px",
+                "action": "execute",
+                "stopped": {"stopped_deliberately": True},
+            }
+        )
+        assert verdict.attempted_nothing is False
+        assert "DELIBERATE OPERATOR STOP" in verdict.reason
+
+    def test_an_indeterminate_item_is_refused_through_the_EXISTING_predicate(self):
+        """E-02: the refusal REUSES `runner_stop.is_indeterminate` so the two routes cannot disagree."""
+
+        from agent_workflows import runner_stop
+
+        with mock.patch.object(
+            runner_stop, "is_indeterminate", return_value=True
+        ) as gate:
+            verdict = _verdict()
+        assert gate.called, "the existing predicate must be CALLED, not restated"
+        assert verdict.attempted_nothing is False
+        assert "INDETERMINATE" in verdict.reason
+
+    def test_the_merge_retry_refusal_uses_the_CONSTANT_not_a_bare_string(self):
+        from agent_workflows import runner_shared
+
+        source = inspect.getsource(runner_shared.turn_attempted_nothing)
+        assert "INTEGRATION_DEFERRED_STATUS" in source
+
+    def test_the_unreachable_refusals_are_RECORDED_as_such(self):
+        """So a later reader does not mistake defence in depth for the live guard."""
+
+        from agent_workflows import runner_shared
+
+        doc = inspect.getdoc(runner_shared) or ""
+        text = inspect.getsource(runner_shared).split("ZERO_WORK_REFUSED_STATUSES", 1)[
+            0
+        ]
+        assert "DEFENCE IN DEPTH" in text
+        assert "EVIDENCE CONJUNCTION" in text
+        assert doc is not None
+
+
+class TestTheHostTruncationSignalIsSupportingNotRequired:
+    """V-03/E-03: the chosen reading, its rationale, and the case that proves it is not sufficient."""
+
+    def test_a_zero_work_turn_WITHOUT_a_truncation_record_still_fires(self):
+        verdict = _verdict()
+        assert verdict.attempted_nothing is True
+        assert verdict.truncated is False
+        assert "SUPPORTING" in verdict.reason
+
+    def test_a_zero_work_turn_WITH_a_truncation_record_fires_and_says_so(self):
+        attempt = _zero_work_attempt(
+            host_truncation={
+                "verdict": lane_containment.HOST_TURN_TRUNCATING,
+                "background_tasks": 2,
+            }
+        )
+        verdict = _verdict(attempt=attempt)
+        assert verdict.attempted_nothing is True
+        assert verdict.truncated is True
+        assert "HOST ITSELF admitted" in verdict.reason
+
+    def test_a_truncation_record_ALONE_does_NOT_authorize_a_retry(self):
+        """A host may truncate a turn that had ALREADY done real work."""
+
+        attempt = _zero_work_attempt(
+            host_truncation={"verdict": lane_containment.HOST_TURN_TRUNCATING}
+        )
+        verdict = _verdict(attempt=attempt, lane=_empty_lane(commits_ahead=1))
+        assert verdict.attempted_nothing is False
+        assert (
+            verdict.truncated is True
+        ), "the record is still READ, just not sufficient"
+
+    def test_the_choice_and_its_reason_are_RECORDED_in_the_code(self):
+        """OQ-02 obliges the executor to decide, implement ONE reading, and record why."""
+
+        from agent_workflows import runner_shared
+
+        doc = " ".join((runner_shared.turn_attempted_nothing.__doc__ or "").split())
+        assert "SUPPORTING" in doc and "NOT REQUIRED" in doc
+        assert "OQ-02" in doc
+        assert "confine the retry to the one measured cause" in doc
+        assert "CAUSE-AGNOSTIC" in doc
+
+
+class TestTheZeroWorkRetryIsBoundedByTheFrozenBudget:
+    """V-04's budget half: the LIMIT is the frozen `--retry-budget` and the SPEND lives on the item."""
+
+    @staticmethod
+    def _decide(used, budget):
+        from agent_workflows import runner_shared
+
+        item = {"id6": "zqs0px"}
+        if used:
+            item[runner_shared.ZERO_WORK_RETRY_COUNT_KEY] = used
+        return runner_shared.zero_work_retry_decision(
+            item, {"options": {"retry_budget": budget}}, _verdict()
+        )
+
+    def test_budget_zero_gives_no_retry_at_all(self):
+        decision = self._decide(0, 0)
+        assert (decision.retry, decision.exhausted) == (False, True)
+        assert decision.budget == 0
+
+    def test_budget_one_gives_exactly_one_retry_then_stands(self):
+        first = self._decide(0, 1)
+        assert first.retry is True
+        assert first.attempts == 0
+        second = self._decide(1, 1)
+        assert (second.retry, second.exhausted) == (False, True)
+
+    def test_a_budget_above_one_is_still_bounded_by_the_frozen_value(self):
+        assert self._decide(0, 3).retry is True
+        assert self._decide(1, 3).retry is True
+        assert self._decide(2, 3).retry is True
+        exhausted = self._decide(3, 3)
+        assert (exhausted.retry, exhausted.exhausted) == (False, True)
+
+    def test_a_refused_verdict_never_retries_even_at_a_generous_budget(self):
+        from agent_workflows import runner_shared
+
+        decision = runner_shared.zero_work_retry_decision(
+            {"id6": "zqs0px"},
+            {"options": {"retry_budget": 10}},
+            _verdict(outcome_written=True),
+        )
+        assert (decision.retry, decision.exhausted) == (False, False)
+
+    def test_the_counter_is_SEPARATE_from_the_other_two_budgets(self):
+        from agent_workflows import runner_shared
+
+        keys = {
+            runner_shared.ZERO_WORK_RETRY_COUNT_KEY,
+            runner_shared.TURN_RETRY_COUNT_KEY,
+            runner_shared.FINALIZE_RETRY_COUNT_KEY,
+        }
+        assert len(keys) == 3, "spec 5.5 counts corrections separately for each action"
+
+    def test_the_frozen_budget_is_READ_and_never_re_resolved(self):
+        from agent_workflows import runner_shared
+
+        source = inspect.getsource(runner_shared.zero_work_retry_decision)
+        assert "frozen_retry_budget" in source
+        assert "resolve_retry_budget" not in source
+
+    def test_no_new_retry_knob_was_added(self):
+        """The frozen `--retry-budget` remains the only limit for this class."""
+
+        from agent_workflows import runner_shared
+
+        source = inspect.getsource(runner_shared).split("reaskscore-03 (`dy9ymn`)", 1)[
+            1
+        ]
+        block = source.split("integpath-03 (`51vw4y`)", 1)[0]
+        assert "add_argument" not in block
+        assert "zero_work_budget" not in block
+        assert "zero-work-budget" not in block
+
+    def test_plan_retry_is_NOT_called(self):
+        """It needs a `RunEngine` over a `ledger.jsonl` no driver run writes."""
+
+        from agent_workflows import runner_shared
+
+        for fn in (
+            runner_shared.zero_work_retry_decision,
+            runner_shared.handle_zero_work_retry,
+        ):
+            assert "plan_retry" not in inspect.getsource(fn)
+
+
+class TestTheZeroWorkRetryIsAuditable:
+    """V-05/E-05: an event per retry, NONE on a refusal, and the reason in the report either way."""
+
+    @staticmethod
+    def _run(tmp_path, *, lane, outcome, budget=2, status="partial", item_extra=None):
+        from agent_workflows import runner_shared
+
+        repo = tmp_path / "repo"
+        (repo / "outcomes").mkdir(parents=True, exist_ok=True)
+        run_dir = tmp_path / "run"
+        (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+        item = {
+            "id6": "zqs0px",
+            "position": 2,
+            "setid": "reaskscore",
+            "action": "execute",
+            "status": status,
+            "attempts": [_zero_work_attempt()],
+        }
+        item.update(item_extra or {})
+        state = {
+            "run_id": "r",
+            "repo": str(repo),
+            "options": {"retry_budget": budget},
+            "queue": [item],
+        }
+        if outcome:
+            (run_dir / "outcomes" / "02-zqs0px.json").write_text("{}", encoding="utf-8")
+
+        saved: list[int] = []
+
+        def save_state(rd, st):
+            saved.append(1)
+
+        with mock.patch.object(
+            runner_shared, "read_zero_work_evidence", return_value=(outcome, lane)
+        ):
+            result = runner_shared.handle_zero_work_retry(
+                repo=repo,
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                host_labels=runner_shared.OC_HOST_LABELS,
+                save_state=save_state,
+                append_jsonl=runner_shared.append_jsonl,
+            )
+        events = (
+            [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            if (run_dir / "events.jsonl").exists()
+            else []
+        )
+        return result, item, state, events
+
+    def test_a_retry_emits_exactly_one_event_carrying_the_facts_and_the_budget(
+        self, tmp_path
+    ):
+        from agent_workflows import runner_shared
+
+        result, item, _state, events = self._run(
+            tmp_path, lane=_empty_lane(), outcome=False
+        )
+        assert result == "queued"
+        zero = [e for e in events if e["event"] == "zero-work-retry"]
+        assert len(zero) == 1
+        (event,) = zero
+        assert event["id6"] == "zqs0px"
+        assert event["attempt"] == 1
+        assert event["from_status"] == "partial"
+        assert "PROVABLY attempted nothing" in event["reason"]
+        assert event["facts"]["lane_commits_ahead"] == 0
+        assert event["retry_attempts_used"] == 1
+        assert event["retry_budget"] == 2
+        assert event["budget_remaining"] == 1
+        assert event["host_truncation"] is False
+        assert item[runner_shared.ZERO_WORK_RETRY_COUNT_KEY] == 1
+        assert item["status"] == "queued"
+        assert item["recovery_next"] is True
+        assert item["requeue_from_status"] == "partial"
+
+    def test_a_REFUSAL_emits_no_event_and_changes_no_status(self, tmp_path):
+        from agent_workflows import runner_shared
+
+        result, item, _state, events = self._run(
+            tmp_path, lane=_empty_lane(commits_ahead=2), outcome=False
+        )
+        assert result == "partial"
+        assert item["status"] == "partial"
+        assert [e for e in events if e["event"] == "zero-work-retry"] == []
+        assert runner_shared.ZERO_WORK_RETRY_COUNT_KEY not in item
+        refusal = item[runner_shared.ZERO_WORK_REFUSAL_KEY]
+        assert refusal["attempted_nothing"] is False
+        assert "2 commit(s)" in refusal["reason"]
+
+    def test_an_item_that_did_not_end_partial_is_untouched(self, tmp_path):
+        from agent_workflows import runner_shared
+
+        result, item, _state, events = self._run(
+            tmp_path, lane=_empty_lane(), outcome=False, status="executed"
+        )
+        assert result == "executed"
+        assert item["status"] == "executed"
+        assert events == []
+        assert runner_shared.ZERO_WORK_REFUSAL_KEY not in item
+
+    def test_the_exhausted_case_stands_terminal_and_records_a_refusal(self, tmp_path):
+        from agent_workflows import runner_shared
+
+        result, item, _state, events = self._run(
+            tmp_path,
+            lane=_empty_lane(),
+            outcome=False,
+            budget=0,
+        )
+        assert result == "partial"
+        assert [e for e in events if e["event"] == "zero-work-retry"] == []
+        assert item[runner_shared.ZERO_WORK_REFUSAL_KEY]["exhausted"] is True
+        assert (
+            "budget is exhausted" in item[runner_shared.ZERO_WORK_REFUSAL_KEY]["reason"]
+        )
+
+    def test_the_report_names_BOTH_a_retry_and_a_refusal_reason(self):
+        from agent_workflows import runner_shared
+
+        state = {
+            "queue": [
+                {
+                    "id6": "aaa111",
+                    "status": "queued",
+                    runner_shared.ZERO_WORK_RETRY_KEY: {
+                        "retries_used": 1,
+                        "retry_budget": 2,
+                        "reason": "the turn PROVABLY attempted nothing",
+                    },
+                },
+                {
+                    "id6": "bbb222",
+                    "status": "partial",
+                    runner_shared.ZERO_WORK_REFUSAL_KEY: {
+                        "exhausted": False,
+                        "reason": "the lane holds 2 commit(s) beyond its base, which is work",
+                    },
+                },
+            ]
+        }
+        rendered = "\n".join(runner_shared.render_zero_work_notes(state))
+        assert "Zero-work turns" in rendered
+        assert "aaa111` RE-DISPATCHED (zero-work retry 1 of 2)" in rendered
+        assert "bbb222` not retried (status `partial`)" in rendered
+        assert "2 commit(s)" in rendered
+
+    def test_the_report_section_is_absent_when_nothing_happened(self):
+        from agent_workflows import runner_shared
+
+        assert (
+            runner_shared.render_zero_work_notes(
+                {"queue": [{"id6": "x", "status": "executed"}]}
+            )
+            == []
+        )
+
+    def test_the_renderer_is_reached_from_the_SHARED_report_writer(self):
+        from agent_workflows import runner_shared
+
+        assert "render_zero_work_notes" in inspect.getsource(runner_shared.write_report)
+
+
+class TestTheRequeueFiresFromInsideTheDispatchLoop:
+    """V-06/E-06: the call site is AFTER `execute_item` returns, INSIDE `while True:`, on both hosts.
+
+    WHY THIS IS ITS OWN PROPERTY: the plan originally cited the pre-loop `--retry-incomplete` block,
+    which carries the right requeue SHAPE but is the wrong PLACE - it runs BEFORE `while True:` and
+    inspects statuses left by a PREVIOUS invocation, so a check there never observes an in-run turn.
+    Asserted on STRUCTURE rather than on a byte offset, which drifts.
+    """
+
+    @staticmethod
+    def _run_queue_tree(driver):
+        return ast.parse(inspect.getsource(driver.run_queue).lstrip())
+
+    @DRIVERS
+    def test_the_call_is_inside_the_dispatch_loop(self, driver):
+        tree = self._run_queue_tree(driver)
+        loops = [n for n in ast.walk(tree) if isinstance(n, ast.While)]
+        assert loops, "run_queue must still have its dispatch loop"
+        inside = {
+            id(call)
+            for loop in loops
+            for call in ast.walk(loop)
+            if isinstance(call, ast.Call)
+        }
+        calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "handle_zero_work_retry"
+        ]
+        assert len(calls) == 1, "exactly one seam per host"
+        assert id(calls[0]) in inside, (
+            "a check placed in the PRE-LOOP `--retry-incomplete` block would never observe a turn "
+            "that happened during this run"
+        )
+
+    @DRIVERS
+    def test_the_call_follows_execute_item_in_the_same_try_statement(self, driver):
+        """It must be on the `else` of the `try` wrapping `execute_item`, so it runs only on RETURN."""
+
+        tree = self._run_queue_tree(driver)
+        matches = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Try):
+                continue
+            body_calls = {
+                call.func.id
+                for call in ast.walk(ast.Module(body=node.body, type_ignores=[]))
+                if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+            }
+            if "execute_item" not in body_calls:
+                continue
+            orelse_attrs = {
+                call.func.attr
+                for call in ast.walk(ast.Module(body=node.orelse, type_ignores=[]))
+                if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+            }
+            matches.append(orelse_attrs)
+        assert matches, "the `try` around `execute_item` must still exist"
+        assert any("handle_zero_work_retry" in attrs for attrs in matches)
+
+    @DRIVERS
+    def test_the_call_precedes_the_cascade_on_the_next_iteration(self, driver):
+        """The ordering property, stated as the reason the placement is load-bearing."""
+
+        source = inspect.getsource(driver.run_queue)
+        cascade_at = source.index("cascade_dependency_blocked")
+        seam_at = source.index("handle_zero_work_retry")
+        assert cascade_at < seam_at, (
+            "the cascade is at the TOP of the loop, so it first observes this turn's terminal status "
+            "on the NEXT iteration; the seam sits after the dispatch, which is before that"
+        )
+
+    @DRIVERS
+    def test_the_rule_is_not_reimplemented_per_host(self, driver):
+        """Only the SEAM is per host; the predicate, budget and event are shared (R2.6/R6.1)."""
+
+        source = inspect.getsource(driver)
+        assert "def turn_attempted_nothing" not in source
+        assert "def zero_work_retry_decision" not in source
+        assert "def handle_zero_work_retry" not in source
+
+    def test_the_reason_the_pre_loop_block_is_wrong_is_RECORDED(self):
+        """So a later reader does not "tidy" the seam into the requeue block whose shape it copies."""
+
+        from agent_workflows import runner_shared
+
+        doc = " ".join((runner_shared.handle_zero_work_retry.__doc__ or "").split())
+        assert "retry-incomplete" in doc
+        assert "PREVIOUS invocation" in doc
+        assert "cascade" in doc.lower()
+
+
+class TestTheSiblingsAreNotBlockedEndToEnd:
+    """V-04's user-visible half: the SET survives a zero-work turn, on BOTH hosts.
+
+    THIS IS THE ACTUAL DEFECT and a unit test on the predicate cannot prove it. In
+    `run-20260918T045802Z-2547360` one `partial` item took `qmgn12`, `di08i9` and `rgaasb` down with
+    it for a `BLOCKED` run with 1 of 5 executed. So this drives each host's REAL `run_queue` over a
+    multi-item queue with a dependent and an orchestrator, and asserts the dependent still EXECUTES.
+
+    THE TURN HAPPENS DURING THE RUN, not on a resume, which is the property E-06 exists to make
+    reachable: `retry_incomplete=False` throughout, so nothing here can be satisfied by the pre-loop
+    requeue block.
+
+    MODE: SHARED TREE (`--no-isolate-worktree`), deliberately and with NO mock of the evidence
+    collector, so this is a genuine end-to-end path. The isolated-lane reading needs a live
+    `git worktree` and is covered by the unit cases above.
+    """
+
+    @staticmethod
+    def _repo(tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.email", "t@e.st"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+        (repo / "README.md").write_text("x\n", encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
+        return repo
+
+    @staticmethod
+    def _state(repo, run_dir, budget):
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        queue = [
+            {
+                "position": 1,
+                "id6": "zqs0px",
+                "setid": "reaskscore",
+                "action": "execute",
+                "kind": "child",
+                "status": "queued",
+                "dependencies": [],
+                "attempts": [],
+            },
+            {
+                "position": 2,
+                "id6": "qmgn12",
+                "setid": "reaskscore",
+                "action": "execute",
+                "kind": "child",
+                "status": "queued",
+                "dependencies": ["executed:zqs0px"],
+                "attempts": [],
+            },
+            # THE ORCHESTRATOR, the third member V-04 requires. It is NOT agent-executed: the loop
+            # routes an `orchestrate` action to `dispatch_orchestrator_item`, which RECONSIDERS while a
+            # child is still actionable and TERMINATES once one reaches a non-success terminal state.
+            # So it is the surface that shows a zero-work `partial` taking the SET down, not just a
+            # sibling.
+            {
+                "position": 3,
+                "id6": "s0gnha",
+                "setid": "reaskscore",
+                "action": "orchestrate",
+                "kind": "orchestrator",
+                "status": "queued",
+                "dependencies": [],
+                "attempts": [],
+            },
+        ]
+        state = {
+            "schema_version": 1,
+            "run_id": run_dir.name,
+            "repo": str(repo),
+            "created_at": "2026-09-19T00:00:00+00:00",
+            "updated_at": "2026-09-19T00:00:00+00:00",
+            "selectors": ["reaskscore"],
+            "options": {"retry_budget": budget, "isolate_worktree": False},
+            "set_sessions": {},
+            "queue": queue,
+        }
+        (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        return head
+
+    @classmethod
+    def _drive(cls, driver, tmp_path, *, budget=2, zero_work_forever=False):
+        """Run the real loop. `zqs0px`'s FIRST turn does nothing at all; its second does the work."""
+
+        repo = cls._repo(tmp_path)
+        run_dir = tmp_path / f"run-{driver.__name__}"
+        (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+        head = cls._state(repo, run_dir, budget)
+        executed_dir = repo / ".aw" / "records" / "plans" / "executed"
+        executed_dir.mkdir(parents=True, exist_ok=True)
+        turns: list[str] = []
+
+        def finalize_on_disk(id6):
+            (executed_dir / f"20260919-reaskscore-01-{id6}-stub.ipd.md").write_text(
+                f"# IPD: stub\n\n- Id: {id6}\n- Status: executed\n", encoding="utf-8"
+            )
+
+        def fake_exec(rd, st, it, *a, **kw):
+            id6 = str(it["id6"])
+            turns.append(id6)
+            if len(turns) > 20:
+                raise AssertionError("SPIN: the loop is not converging")
+            # Every turn records an attempt, exactly as the real one does.
+            attempt = {
+                "number": len(it.get("attempts") or []) + 1,
+                "starting_head": head,
+                "ending_head": head,
+                "ending_status": "",
+                "recovery": bool(kw.get("recovery")),
+            }
+            it.setdefault("attempts", []).append(attempt)
+            first_turn_for_item = len([t for t in turns if t == id6]) == 1
+            if id6 == "zqs0px" and (zero_work_forever or first_turn_for_item):
+                # THE MEASURED SHAPE: no outcome file, no commit, clean tree, terminal `partial`.
+                it["status"] = "partial"
+            else:
+                it["status"] = "executed"
+                (rd / "outcomes" / f"{it['position']:02d}-{id6}.json").write_text(
+                    json.dumps({"disposition": "executed"}), encoding="utf-8"
+                )
+                finalize_on_disk(id6)
+            driver.save_state(rd, st)
+
+        buf = io.StringIO()
+        with mock.patch.object(driver, "execute_item", side_effect=fake_exec):
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                rc = driver.run_queue(run_dir, retry_incomplete=False)
+        state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        statuses = {it["id6"]: it["status"] for it in state["queue"]}
+        events = [
+            json.loads(line)
+            for line in (run_dir / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        return rc, statuses, turns, events, state, buf.getvalue()
+
+    @DRIVERS
+    def test_the_zero_work_item_is_re_dispatched_and_its_dependent_still_executes(
+        self, driver, tmp_path
+    ):
+        from agent_workflows import runner_shared
+
+        rc, statuses, turns, events, state, _out = self._drive(driver, tmp_path)
+        assert turns == [
+            "zqs0px",
+            "zqs0px",
+            "qmgn12",
+        ], "the zero-work item must be re-dispatched IN THIS RUN, before its dependent"
+        assert statuses["zqs0px"] == "executed"
+        assert (
+            statuses["qmgn12"] == "executed"
+        ), "THE DEFECT: the dependent of a zero-work turn must no longer be cascaded onto"
+        assert (
+            [e for e in events if e["event"] == "dependency-blocked"] == []
+        ), "THE DEFECT: one zero-work turn must no longer cascade onto its siblings"
+        # THE ORCHESTRATOR IS STILL TERMINATED, AND THE REASON IS A FIXTURE ARTIFACT RATHER THAN THE
+        # CASCADE. Stated rather than hidden, because asserting `executed` here would be asserting
+        # something this fixture cannot earn: no orchestrator PLAN exists on the synthetic repo's disk,
+        # so Set membership cannot be resolved and `dispatch_orchestrator_item` terminates with
+        # `no-orchestrator`. What matters for THIS plan is that it is NOT terminated for a child-driven
+        # reason and names NO unfinished child - i.e. the zero-work turn did not take the parent down.
+        orch = [e for e in events if e["event"] == "orchestrator-deferred"]
+        assert (
+            orch
+        ), "the orchestrator must still be dispatched through the shared performer"
+        assert orch[-1]["reason"] == "no-orchestrator", orch[-1]["reason"]
+        assert (
+            orch[-1]["unfinished_children"] == []
+        ), "the parent must not be refused because of the zero-work child"
+        assert len([e for e in events if e["event"] == "zero-work-retry"]) == 1
+        item = next(it for it in state["queue"] if it["id6"] == "zqs0px")
+        assert item[runner_shared.ZERO_WORK_RETRY_COUNT_KEY] == 1
+        # THE EXIT CODE IS NOT ASSERTED ZERO HERE, and the reason is the same fixture artifact: the
+        # orchestrator above cannot retire on a synthetic repo holding no orchestrator plan, so the run
+        # honestly exits nonzero on THAT and not on the zero-work item. Asserting 0 would demand the
+        # fixture earn something unrelated to this plan; the budget-exhaustion cases below assert
+        # nonzero, and the EXECUTED statuses above are what this plan's claim rests on.
+
+    @DRIVERS
+    def test_the_retry_is_dispatched_in_RECOVERY_mode(self, driver, tmp_path):
+        _rc, _st, _turns, _ev, state, _out = self._drive(driver, tmp_path)
+        item = next(it for it in state["queue"] if it["id6"] == "zqs0px")
+        assert [a["recovery"] for a in item["attempts"]] == [False, True]
+
+    @DRIVERS
+    def test_without_the_fix_the_cascade_would_fire_which_is_what_this_prevents(
+        self, driver, tmp_path
+    ):
+        """THE NEGATIVE CONTROL: with the seam neutralized, the sibling IS blocked.
+
+        This is what makes the assertion above meaningful rather than a tautology - it demonstrates
+        the fixture genuinely reaches the cascade when the retry does not happen."""
+
+        from agent_workflows import runner_shared
+
+        with mock.patch.object(
+            runner_shared,
+            "handle_zero_work_retry",
+            side_effect=lambda **kw: str(kw["item"].get("status") or ""),
+        ):
+            rc, statuses, turns, events, _state, _out = self._drive(driver, tmp_path)
+        assert turns == ["zqs0px"], "no retry happens when the seam is neutralized"
+        assert statuses["zqs0px"] == "partial"
+        assert (
+            statuses["qmgn12"] == "dependency-blocked"
+        ), "this is the MEASURED defect: one zero-work item takes its sibling down with it"
+        assert [
+            e
+            for e in events
+            if e["event"] == "dependency-blocked" and e["id6"] == "qmgn12"
+        ], "the cascade genuinely fires in this fixture, which is what makes the positive case meaningful"
+        assert rc != 0
+
+    @DRIVERS
+    def test_budget_zero_gives_no_retry_at_all_end_to_end(self, driver, tmp_path):
+        rc, statuses, turns, events, _state, out = self._drive(
+            driver, tmp_path, budget=0
+        )
+        assert turns == [
+            "zqs0px"
+        ], "`--retry-budget 0` must mean NO retry (spec 25kzda 5.5)"
+        assert statuses["zqs0px"] == "partial"
+        assert [e for e in events if e["event"] == "zero-work-retry"] == []
+        assert "budget is exhausted" in out
+        assert rc != 0
+
+    @DRIVERS
+    def test_a_permanently_zero_work_item_cannot_loop_past_the_budget(
+        self, driver, tmp_path
+    ):
+        """Boundedness, measured with the COUNTER pasted rather than inferred from the status.
+
+        A retry that fired twice because the code hardcoded two, and one that fired twice because the
+        budget allowed two, are indistinguishable from the final status alone."""
+
+        from agent_workflows import runner_shared
+
+        rc, statuses, turns, events, state, _out = self._drive(
+            driver, tmp_path, budget=2, zero_work_forever=True
+        )
+        assert turns == [
+            "zqs0px",
+            "zqs0px",
+            "zqs0px",
+        ], "budget + 1 dispatches, never more"
+        assert statuses["zqs0px"] == "partial"
+        item = next(it for it in state["queue"] if it["id6"] == "zqs0px")
+        assert item[runner_shared.ZERO_WORK_RETRY_COUNT_KEY] == 2
+        assert len([e for e in events if e["event"] == "zero-work-retry"]) == 2
+        assert item[runner_shared.ZERO_WORK_REFUSAL_KEY]["exhausted"] is True
+        assert rc != 0
+
+    @DRIVERS
+    def test_a_budget_above_one_bounds_the_same_way(self, driver, tmp_path):
+        from agent_workflows import runner_shared
+
+        _rc, _st, turns, events, state, _out = self._drive(
+            driver, tmp_path, budget=3, zero_work_forever=True
+        )
+        assert turns == ["zqs0px"] * 4
+        item = next(it for it in state["queue"] if it["id6"] == "zqs0px")
+        assert item[runner_shared.ZERO_WORK_RETRY_COUNT_KEY] == 3
+        assert len([e for e in events if e["event"] == "zero-work-retry"]) == 3
+
+    @DRIVERS
+    def test_the_counter_PERSISTS_across_a_resume(self, driver, tmp_path):
+        """The spend lives in `state.json` on the item, so a resume cannot buy fresh retries."""
+
+        from agent_workflows import runner_shared
+
+        repo = self._repo(tmp_path)
+        run_dir = tmp_path / f"resume-{driver.__name__}"
+        (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+        head = self._state(repo, run_dir, 2)
+        state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        item["status"] = "partial"
+        item[runner_shared.ZERO_WORK_RETRY_COUNT_KEY] = 2
+        item["attempts"] = [
+            {
+                "number": 1,
+                "starting_head": head,
+                "ending_head": head,
+                "ending_status": "",
+            }
+        ]
+        (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        reread = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        assert (
+            reread["queue"][0][runner_shared.ZERO_WORK_RETRY_COUNT_KEY] == 2
+        ), "the counter is durable state, not in-memory bookkeeping"
+        decision = runner_shared.zero_work_retry_decision(
+            reread["queue"][0], reread, _verdict()
+        )
+        assert (decision.retry, decision.exhausted) == (False, True)
+        assert decision.attempts == 2

@@ -4738,6 +4738,36 @@ def run_queue(
                 },
             )
             print(f"IPD {runnable['id6']} failed safely: {exc}", file=sys.stderr)
+        else:
+            # reaskscore-03 (`dy9ymn`) E-04/E-06: A TURN THAT PROVABLY ATTEMPTED NOTHING GETS ONE MORE
+            # ATTEMPT INSTEAD OF TAKING ITS WHOLE SET DOWN.
+            #
+            # PLACEMENT IS THE SUBSTANCE, so it is stated exactly. It is INSIDE the dispatch loop, on
+            # the `else` of the `try` above, so it runs when and only when `execute_item` RETURNED
+            # (never after a deliberate stop, an interrupt, or a `DriverError`, each of which breaks or
+            # re-raises). The requeue SHAPE it copies lives in the pre-loop `--retry-incomplete` block,
+            # and that is the WRONG PLACE for the call: that block runs BEFORE `while True:` and
+            # inspects statuses left by a PREVIOUS invocation, so a check placed there would never
+            # observe a zero-work turn that happened during THIS run.
+            #
+            # AND IT MUST PRECEDE THE CASCADE, which is why "inside the loop" is not enough on its own:
+            # `cascade_dependency_blocked` runs at the TOP of the loop and first sees this turn's
+            # terminal status on the NEXT iteration, by which point the siblings would already be
+            # `dependency-blocked` and a retry would rescue nothing. The window between here and that
+            # iteration is generous, but it is not optional.
+            #
+            # THE RULE ITSELF IS SHARED (spec `7ckptx` R2.6/R6.1) and this host contributes only the
+            # seam and its own `save_state`/`append_jsonl`/labels bindings, so the two drivers cannot
+            # drift on the predicate, the budget arithmetic, or the event.
+            runner_shared.handle_zero_work_retry(
+                repo=Path(state["repo"]),
+                run_dir=run_dir,
+                state=state,
+                item=runnable,
+                host_labels=runner_shared.OC_HOST_LABELS,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+            )
     state = load_state(run_dir)
     # dirtygates Order 05 (`ajxr5d`) E-11: RETIRE THE REVIEW SWEEP LANE, once, HERE.
     #

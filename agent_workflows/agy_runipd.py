@@ -3619,6 +3619,26 @@ def run_queue(
                 },
             )
             print(f"IPD {runnable['id6']} failed safely: {exc}", file=sys.stderr)
+        else:
+            # reaskscore-03 (`dy9ymn`) E-04/E-06: the EXACT MIRROR of the oc seam. A turn that provably
+            # attempted nothing is re-dispatched once within the frozen `--retry-budget` instead of
+            # taking its whole Set down with a terminal `partial`.
+            #
+            # INSIDE the dispatch loop and on the `try`'s `else`, so it runs when and only when
+            # `execute_item` RETURNED; and BEFORE the next iteration's `cascade_dependency_blocked`,
+            # which is what makes the retry able to rescue the siblings at all. The pre-loop
+            # `--retry-incomplete` block carries the requeue SHAPE but is the wrong PLACE: it inspects
+            # statuses left by a previous invocation and never sees an in-run turn. See the longer note
+            # at the oc call site.
+            runner_shared.handle_zero_work_retry(
+                repo=Path(state["repo"]),
+                run_dir=run_dir,
+                state=state,
+                item=runnable,
+                host_labels=runner_shared.AGY_HOST_LABELS,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+            )
 
     state = load_state(run_dir)
     # dirtygates Order 05 (`ajxr5d`) E-11/E-06: RETIRE THE REVIEW SWEEP LANE, once, HERE - the mirror of
