@@ -90,9 +90,15 @@ TARGET = "initialize_run"
 
 #: Frozen on BOTH hosts. Read from a live run, not from the source, because `freeze_run_policy_flags`
 #: contributes through a `**` expansion whose members are defined in another module.
+#: `allow_concurrent_driver` JOINED 2026-09-22 (runconcur-01 `vddpml`), through the SHARED
+#: `freeze_run_policy_flags` expansion rather than through either host's dict body. That is the ONLY way
+#: it could have arrived, and it is the direction these counts want: the flag reaches both hosts because
+#: ONE table declares it, so it could not have landed on one host only. The load-bearing number - the
+#: thirteen HOST-SPECIFIC keys - is unmoved, which is the property this partition exists to police.
 SHARED_OPTION_KEYS = frozenset(
     {
         "action",
+        "allow_concurrent_driver",
         "allow_dirty_base",
         "allow_drafts",
         "allow_mixed",
@@ -150,7 +156,10 @@ HOST_SPECIFIC_OPTION_COUNT = 13  # 7 oc-only + 6 agy-only
 # `allow_uncovered_orchestrator_work`, frozen by the one shared `freeze_run_policy_flags` expansion.
 # The host-specific count is UNCHANGED, which is the property that matters here: the new policy could
 # not land on one host only.
-LIVE_OPTION_KEY_UNION = 35  # 22 shared + 13 host-specific
+# RE-MEASURED 2026-09-22 (35 -> 36) by runconcur-01 (`vddpml`), for exactly the same reason and with the
+# same reading: one SHARED key, `allow_concurrent_driver`, through the same one shared expansion, with
+# the host-specific count again UNMOVED.
+LIVE_OPTION_KEY_UNION = 36  # 23 shared + 13 host-specific
 
 # ==================================================================================================
 # E-01(b): THE CLOSURE. 37 free module-level names at execution HEAD (the plan's review said 34).

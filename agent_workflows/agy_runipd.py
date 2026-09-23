@@ -458,6 +458,30 @@ from agent_workflows.runner_shared import (
     format_slated_artifacts_table as format_slated_artifacts_table,
 )
 
+# runconcur-01 (`vddpml`) E-01/E-02/E-05: the REPOSITORY-scoped concurrency layer, the twin of the oc
+# block. Bound as RE-EXPORTS (object identity holds across both hosts and `runner_shared`, asserted in
+# `tests/test_concurrent_driver_guard.py`) rather than as wrappers, because nothing here is
+# host-specific: the lock path, the peer query and the serializer are all repository facts. A per-host
+# copy would let one host race the other, which is the defect.
+from agent_workflows.runner_shared import (
+    peer_drivers as peer_drivers,
+)
+from agent_workflows.runner_shared import (
+    format_peer_driver_report as format_peer_driver_report,
+)
+from agent_workflows.runner_shared import (
+    integration_lock as integration_lock,
+)
+from agent_workflows.runner_shared import (
+    integration_lock_path as integration_lock_path,
+)
+from agent_workflows.runner_shared import (
+    integrate_under_repository_lock as integrate_under_repository_lock,
+)
+from agent_workflows.runner_shared import (
+    runs_repo_root as runs_repo_root,
+)
+
 # retrywire (`xipfy1`) E-07: the TURN-FAILURE CORRECTION layer, the twin of the oc block. Bound from
 # `runner_shared` and NOT from `oc_runipd`, so this adds no cross-driver import: the layer is
 # host-neutral, and importing it through the peer driver would make agy depend on oc for a rule

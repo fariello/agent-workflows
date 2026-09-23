@@ -117,7 +117,13 @@ LITERAL_PARTITION = {"shared": 17, "oc_only": 7, "agy_only": 10}
 #: as two because argparse generates the negative form as a real option string; `--repo`, `-h`, `--help`
 #: and the positional `id6` were already shared with `integrate`. SYMMETRIC again, for the same reason:
 #: the declaration is shared, so neither host-only set could move.
-LIVE_PARTITION = {"shared": 55, "oc_only": 8, "agy_only": 8}
+#: RE-MEASURED 2026-09-22 (55 -> 56 shared) by runconcur-01 (`vddpml`), which registered
+#: `--allow-concurrent-driver` through the SHARED `RUN_POLICY_FLAGS` table. ONE new string rather than
+#: two, and that is the measurement worth keeping: it is the table's SECOND `kind="str"` row, and a
+#: valued flag gets no auto-generated `--no-X` the way every `bool` row does (the same asymmetry
+#: `--allow-uncovered-orchestrator-work` established). SYMMETRIC, because one table declares it and it
+#: therefore could not have landed on one host only, which is the property this table polices.
+LIVE_PARTITION = {"shared": 56, "oc_only": 8, "agy_only": 8}
 
 #: E-03: the residual de-duplication payoff, as a NUMBER rather than an impression. Identical
 #: normalized code lines between the two `build_parser` bodies. THIS IS THE CEILING on what
@@ -137,9 +143,13 @@ IDENTICAL_NORMALIZED_LINES = 24
 #: `--allow-uncovered-orchestrator-work` and it adds exactly ONE option string rather than two, which
 #: is the measurement worth keeping: it is the table's first `kind="str"` row, and a valued flag gets
 #: no auto-generated `--no-X` the way every `bool` row does.
-POLICY_FLAG_ROWS = 13
+#: RE-MEASURED 2026-09-22 (13 -> 14 rows, 22 -> 23 strings) by runconcur-01 (`vddpml`). The new row is
+#: `--allow-concurrent-driver`, the table's SECOND `kind="str"` row, so it likewise adds exactly ONE
+#: option string. Registrations per host is UNCHANGED, which is the point of keeping it beside these
+#: two: a flag joining the shared table costs no new `add_argument` call site on either host.
+POLICY_FLAG_ROWS = 14
 POLICY_REGISTRATIONS_PER_HOST = 2
-LIVE_STRINGS_FROM_POLICY_TABLE = 22
+LIVE_STRINGS_FROM_POLICY_TABLE = 23
 
 
 def module_body(name: str) -> list[ast.stmt]:
@@ -451,6 +461,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--allow-dirty-base",
                 "--allow-drafts",
                 "--allow-mixed",
+                "--allow-concurrent-driver",
                 "--allow-uncovered-orchestrator-work",
                 "--allow-unverifiable",
                 "--audit",
@@ -499,6 +510,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--allow-dirty-base",
                 "--allow-drafts",
                 "--allow-mixed",
+                "--allow-concurrent-driver",
                 "--allow-uncovered-orchestrator-work",
                 "--allow-unverifiable",
                 "--audit",
@@ -589,6 +601,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--allow-dirty-base",
                 "--allow-drafts",
                 "--allow-mixed",
+                "--allow-concurrent-driver",
                 "--allow-uncovered-orchestrator-work",
                 "--allow-unverifiable",
                 "--follow-generated",
@@ -630,6 +643,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--allow-dirty-base",
                 "--allow-drafts",
                 "--allow-mixed",
+                "--allow-concurrent-driver",
                 "--allow-uncovered-orchestrator-work",
                 "--allow-unverifiable",
                 "--dangerous",

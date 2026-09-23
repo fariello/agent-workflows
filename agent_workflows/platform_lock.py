@@ -48,6 +48,18 @@ caller permitted to pass it. Adding a second blocking caller needs its own justi
 because several callers turn the already-held case into an operator-facing refusal and an
 accidental block would HANG a driver rather than fail it.
 
+A CALLER THAT GENUINELY NEEDS TO WAIT SHOULD POLL THIS NON-BLOCKING ACQUIRE, NOT PASS
+``blocking=True``, and the reason is the warning directly above. ``runner_shared.integration_lock``
+(runconcur-01 ``vddpml``) is the case that established this: policy B serializes two concurrent
+drivers' publishes to ``main``, so it MUST wait, yet an integration runs a full test suite, which
+means an unbounded wait is operationally indistinguishable from the hang this rule exists to
+prevent. It therefore loops on ``acquire`` (no ``blocking``), reports progress to the operator while
+waiting, expires at a stated bound, and DEFERS the work on expiry rather than failing it. The
+sentence above stays TRUE - ``save_registry`` remains the only ``blocking=True`` caller - and the
+waiting requirement is met without a second caller acquiring the power to hang a driver silently. A
+future caller that wants an UNBOUNDED, SILENT wait is the thing still forbidden here; a bounded,
+reporting, deferring wait built from the non-blocking primitive needs no exception to this rule.
+
 PLATFORM REACH, STATED HONESTLY. This module removes the import-time barrier and nothing more.
 :func:`acquire` works wherever ``filelock`` works. :func:`probe_free` answers only where the
 POSIX primitive is available and returns ``None`` (undetermined) elsewhere, which is the same
