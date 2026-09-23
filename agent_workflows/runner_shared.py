@@ -4328,6 +4328,12 @@ INTEGRATION_REFUSAL_TRANSIENT = "merge-retry"
 #: `integration_failed_conflict`, `integration_failed_scope_violation` and
 #: `integration_failed_combined_red`, all collapsing to this one kind). The old name asserted the
 #: rarest of the four and was actively misleading for the other three.
+#:
+#: AND A MEASURED RED WITH NO *NEW* FAILURES IS NOT A REFUSAL AT ALL (revalbase 01, `tgyfs2`), which is
+#: recorded here because this block is where a reader looks for the refusal taxonomy. The post-merge
+#: revalidation verdict is RELATIVE to the lane's own pre-work baseline, so a merged tree that fails only
+#: what was ALREADY failing PASSES and never reaches this kind. No third kind was added: see
+#: :func:`new_failures_since_baseline`, which refuses to judge whenever the comparison cannot be trusted.
 INTEGRATION_REFUSAL_CONFLICT = "merge-refused"
 
 #: The refusal kind meaning THE GATE COULD NOT MEASURE, as distinct from measured and failing.
@@ -15402,6 +15408,283 @@ def perform_gate_answer(
 REVALIDATION_CACHE_KEY: str = "post_merge_revalidation"
 
 
+# ---- THE RELATIVE REVALIDATION VERDICT (revalbase 01, `tgyfs2`) -----------------------------------
+#
+# WHAT THIS SECTION IS FOR. The post-merge revalidation gate used to ask an ABSOLUTE question ("is the
+# merged tree green?") when the only sound question is a RELATIVE one ("did this lane introduce a
+# failure that was not already there?"). So any pre-existing red test refused EVERY lane in a run.
+# MEASURED in run `run-20260922T024054Z-2245533`: items `ld8lb3` and `65cuw0` both ended
+# `merge-refused` for `integration_failed_combined_red`, and in both cases the post-merge failing SET
+# was EXACTLY the one id their own `attempt["suite_baseline"]` already recorded as failing before the
+# work existed, with the passing count risen by exactly the tests each lane adds. Two verified lanes
+# were stranded across an 8.5-hour unattended run, three further items cascaded to
+# `dependency-blocked`, and a human then re-merged them by hand where the combined suite passed on
+# the first attempt. :func:`new_failures_since_baseline` is that relative comparison.
+#
+# THIS IS NOT THE BASELINE GATE THE MAINTAINER REJECTED, and the distinction decides whether this
+# section is legitimate. The prohibition recorded above (see "THE PRE-WORK SUITE BASELINE") is about
+# the ADJUDICATION ANSWER: nothing may refuse, downgrade or otherwise change an outcome on the
+# strength of a baseline, because the rejected proposal was to REFUSE a `not-mine` claim for any
+# failing id ABSENT from the baseline. That is a gate that makes an outcome WORSE using the baseline,
+# and it is still forbidden; `perform_gate_answer` still touches the baseline only to render it, and
+# `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` still holds. What happens HERE is the
+# opposite direction: the baseline can only ever make this gate MORE PERMISSIVE, never refuse
+# anything it would have passed, and it decides nothing about whose fault a failure is. The sign of
+# the effect is the whole difference.
+#
+# THE COMPARISON IN HERE IS THE ONE THAT ALREADY INVERTED THIS REPOSITORY'S INTEGRATION GATE ONCE, so
+# it is written to REFUSE TO BE THE AUTHORITY. Plan `32ij2j` compared failing SETS as a subset and
+# derived them from an always-empty string, so every lane passed INCLUDING one that broke everything;
+# `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` exists for that case and
+# calls it the most important in its file. Three rules below close the ways the subtraction can lie,
+# and each is a MEASURED hazard rather than a hypothetical one. A list may make a refusal SPECIFIC;
+# it may NEVER manufacture a pass.
+
+#: The relative judgements :func:`new_failures_since_baseline` can return. THREE-VALUED, and the third
+#: is the one that matters: `unknown` means "this comparison cannot be trusted", and every caller must
+#: treat it exactly as it treats a red, never as a green. It mirrors :class:`SuiteBaseline`'s own
+#: three-valued discipline ("an empty tuple with `state == 'absent'` means UNKNOWN, not 'nothing was
+#: failing'") rather than inventing a fourth spelling of that rule.
+REVALIDATION_REGRESSED: str = "regressed"
+REVALIDATION_NO_REGRESSION: str = "no-regression"
+REVALIDATION_UNKNOWN: str = "unknown"
+
+#: The truncation cap the failing-id lists are subject to, read from the DRIVER's extractor rather
+#: than re-declared. `oc_runipd.SUITE_FAILURE_LINE_LIMIT` is 40 and this module may not import a
+#: driver (`tests/test_runner_shared.py::NoRunnerImportTests` AST-walks it and fails on any import
+#: naming `runipd`), so the value is duplicated as a CONSTANT and pinned equal by a test rather than
+#: imported. A drift between the two makes the cap check miss, which is why it is asserted.
+SUITE_FAILURE_LIST_CAP: int = 40
+
+#: A failing line that could not be parsed into a node id. Deliberately a value that can never equal a
+#: real node id, so an unparseable line is ALWAYS NEW and therefore always refuses, rather than
+#: vanishing from the difference (see :func:`normalize_failure_id`).
+UNPARSEABLE_FAILURE_ID: str = "<unparseable>"
+
+#: A `FAILED`/`ERROR` line as the extractor produces it: the verdict word, the node id, then whatever
+#: trailing message pytest appended. The trailing message is what must be stripped, because the SAME
+#: failure can carry different text in two runs; the verdict word must NOT be, because a test that now
+#: ERRORS where it previously FAILED has changed behavior and must not subtract cleanly.
+_FAILURE_ID_RE = re.compile(r"^(FAILED|ERROR)\s+(\S+)")
+
+
+def normalize_failure_id(line: str) -> str:
+    """The comparable identity of one `FAILED`/`ERROR` line: `"<VERDICT> <node id>"`.
+
+    revalbase 01 (`tgyfs2`) E-02. RAW STRING EQUALITY IS INSUFFICIENT, which is why this exists: the
+    extractor's lines are `^(?:FAILED|ERROR)\\s+\\S.*$`, so a line carries the node id PLUS whatever
+    trailing message pytest appended (`- assert 1 == 2`, an exception repr, a truncated diff). Two
+    runs reporting the SAME failure can therefore differ in that trailing text, and comparing raw
+    strings would read one pre-existing failure as one removed plus one introduced - a fabricated
+    regression.
+
+    NORMALIZED TOWARD REFUSING, NEVER TOWARD PASSING, because every normalization choice here is a
+    chance to make two DIFFERENT failures look like one, and a collision reads as "already failing"
+    and integrates. So four things are deliberately NOT collapsed:
+
+      * THE VERDICT WORD IS KEPT. `FAILED path::t` and `ERROR path::t` are different observations: a
+        test that now ERRORS (a collection or fixture fault) where it previously FAILED (an assertion)
+        has changed behavior, and subtracting one from the other would hide that.
+      * A PARAMETRIZATION SUFFIX IS KEPT. `test_x[a]` and `test_x[b]` are different failures, and the
+        suffix is part of the node id the extractor already captured.
+      * NOTHING IS LOWERCASED AND NO PATH IS REWRITTEN. Both sides run the same argv over the same
+        repository through the SAME extractor, so a case or path difference would signal a real
+        difference in what was measured rather than noise to be smoothed away.
+      * AN UNPARSEABLE LINE BECOMES :data:`UNPARSEABLE_FAILURE_ID` RATHER THAN BEING DROPPED, so it
+        can never equal a baseline id and therefore always counts as NEW. Dropping it would let a
+        failure disappear from the difference, which is a silent fail-open.
+    """
+
+    match = _FAILURE_ID_RE.match(str(line or "").strip())
+    if match is None:
+        return UNPARSEABLE_FAILURE_ID
+    return f"{match.group(1)} {match.group(2)}"
+
+
+class RevalidationComparison(NamedTuple):
+    """The RELATIVE verdict about a merged tree: what is NEW, and whether that is even knowable.
+
+    revalbase 01 (`tgyfs2`) E-01. `judgement` is the only field a caller should branch on, and only
+    :data:`REVALIDATION_NO_REGRESSION` may be read as permission to integrate a red tree.
+    """
+
+    #: One of :data:`REVALIDATION_REGRESSED`, :data:`REVALIDATION_NO_REGRESSION`,
+    #: :data:`REVALIDATION_UNKNOWN`.
+    judgement: str
+    #: The normalized ids present in the merged tree's failing set and ABSENT from the baseline's.
+    #: Meaningful ONLY for `regressed`; empty for `no-regression`, and for `unknown` it is whatever
+    #: the untrustworthy subtraction produced and must NOT be acted on.
+    new_ids: tuple[str, ...] = ()
+    #: WHY, in one operator-readable clause. Always non-empty.
+    reason: str = ""
+    #: The normalized baseline id set the comparison was made against, for the audit record.
+    baseline_ids: tuple[str, ...] = ()
+    #: The normalized merged-tree id set, likewise.
+    merged_ids: tuple[str, ...] = ()
+
+    @property
+    def introduced_nothing(self) -> bool:
+        """True ONLY for a trusted `no-regression`. The single predicate a gate may pass on."""
+
+        return self.judgement == REVALIDATION_NO_REGRESSION
+
+
+def new_failures_since_baseline(
+    merged_failures: Sequence[str],
+    baseline: SuiteBaseline | None,
+    *,
+    suite_passed: bool = False,
+) -> RevalidationComparison:
+    """Which failures the merged tree has that its own pre-work baseline did NOT. PURE: no I/O.
+
+    revalbase 01 (`tgyfs2`) E-01/E-02. THE QUESTION THIS ANSWERS is "did this lane INTRODUCE a
+    failure?", which is the only sound question a post-merge gate can ask; "is the tree green?"
+    blames a lane for whatever was already red, which is the defect this function exists to remove.
+
+    THREE-VALUED, AND `unknown` IS NOT A SOFT `no-regression`. It means the subtraction cannot be
+    trusted, and a caller must treat it exactly as it treats a regression: refuse. Three conditions
+    produce it, and EACH IS A MEASURED WAY THE SUBTRACTION LIES rather than a defensive flourish.
+
+      1. THE BASELINE IS NOT `completed`. An absent baseline means NOBODY MEASURED, and reading its
+         empty `failures` tuple as "nothing was failing" is precisely the inversion
+         :class:`SuiteBaseline`'s own docstring and :func:`suite_baseline_context` both exist to
+         prevent. This keeps the change strictly a NARROWING of when a refusal fires: with no
+         baseline, behavior is bit-for-bit what it was before this function existed.
+      2. THE SUITE DID NOT PASS AND ITS FAILING LIST IS EMPTY. This is the `32ij2j` INVERSION, and it
+         is not hypothetical: that plan compared failing sets as a subset over a string production
+         NEVER WROTE (`SuiteCheckResult.summary` was always `""` in shipped code, the `h5pyqa`
+         defect), so its empty set was a subset of everything and every lane passed INCLUDING one that
+         broke the whole suite. Reached here unchanged, `merged - baseline` would be empty, this
+         function would answer `no-regression`, and a tree that broke everything would integrate. An
+         empty merged list on a non-passing suite is therefore UNKNOWN, forever.
+      3. EITHER LIST IS AT THE TRUNCATION CAP. `oc_runipd.extract_suite_failures` stops at
+         :data:`SUITE_FAILURE_LIST_CAP` (40) in FIRST-SEEN order, while this repository's `addopts`
+         carry `-n auto --dist=worksteal` plus random ordering, so two runs of the SAME red tree can
+         retain DIFFERENT 40-line subsets. MEASURED at review: 60 identical pre-existing failures
+         reported in reverse order by the second run yield 20 FALSELY NEW ids, i.e. a fabricated
+         regression. Detected by LENGTH, never by parsing prose.
+
+    ``suite_passed`` IS REQUIRED INFORMATION AND NOT A CONVENIENCE. Without it condition 2 cannot be
+    evaluated, because "empty because green" and "empty because nothing parsed" look identical from
+    the list alone - and the EXIT CODE, not the list, is this repository's authority on which one it
+    is (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`). It DEFAULTS
+    False, the conservative reading, so a caller that forgets it gets `unknown` rather than a pass.
+    """
+
+    baseline_state = (
+        baseline.state if baseline is not None else SUITE_BASELINE_NOT_STARTED
+    )
+    merged_ids = tuple(normalize_failure_id(line) for line in (merged_failures or ()))
+
+    if baseline is None or not baseline.known:
+        detail = (
+            baseline.reason if baseline is not None else ""
+        ) or "no reason recorded"
+        return RevalidationComparison(
+            judgement=REVALIDATION_UNKNOWN,
+            new_ids=merged_ids,
+            reason=(
+                f"the pre-work suite baseline is {baseline_state!r}, so what was ALREADY failing "
+                f"before this work is UNKNOWN and no failure can be attributed to the merge "
+                f"({detail}); an unknown baseline is NEVER read as an empty failing set"
+            ),
+            merged_ids=merged_ids,
+        )
+
+    baseline_ids = tuple(normalize_failure_id(line) for line in baseline.failures)
+
+    if not suite_passed and not merged_ids:
+        return RevalidationComparison(
+            judgement=REVALIDATION_UNKNOWN,
+            reason=(
+                "the merged suite did NOT pass yet reported NO failing ids, so the failing set is "
+                "UNKNOWN rather than empty; answering 'no regression' here is the inversion that "
+                "sank plan 32ij2j, where an always-empty list would have integrated a lane that "
+                "broke the whole suite"
+            ),
+            baseline_ids=baseline_ids,
+            merged_ids=merged_ids,
+        )
+
+    if (
+        len(merged_ids) >= SUITE_FAILURE_LIST_CAP
+        or len(baseline_ids) >= SUITE_FAILURE_LIST_CAP
+    ):
+        return RevalidationComparison(
+            judgement=REVALIDATION_UNKNOWN,
+            reason=(
+                f"a failing-id list is at the {SUITE_FAILURE_LIST_CAP}-line truncation cap "
+                f"(baseline {len(baseline_ids)}, merged {len(merged_ids)}), and the extractor "
+                "truncates in FIRST-SEEN order while the suite runs under `-n auto --dist=worksteal` "
+                "with random ordering, so two runs of one red tree can keep DIFFERENT subsets; "
+                "subtracting truncated lists fabricates regressions and is refused"
+            ),
+            baseline_ids=baseline_ids,
+            merged_ids=merged_ids,
+        )
+
+    known = set(baseline_ids)
+    new_ids = tuple(dict.fromkeys(i for i in merged_ids if i not in known))
+    if new_ids:
+        return RevalidationComparison(
+            judgement=REVALIDATION_REGRESSED,
+            new_ids=new_ids,
+            reason=(
+                f"{len(new_ids)} failure(s) are NEW since the baseline at "
+                f"{baseline.base_commit[:12] or 'the recorded base commit'}: "
+                + ", ".join(new_ids)
+            ),
+            baseline_ids=baseline_ids,
+            merged_ids=merged_ids,
+        )
+    return RevalidationComparison(
+        judgement=REVALIDATION_NO_REGRESSION,
+        reason=(
+            f"every failing id in the merged tree was ALREADY failing at the baseline commit "
+            f"{baseline.base_commit[:12] or '(unrecorded)'}"
+            + (f" ({baseline.summary})" if baseline.summary else "")
+            + f", so this work introduced no failure ({len(merged_ids)} pre-existing)"
+        ),
+        baseline_ids=baseline_ids,
+        merged_ids=merged_ids,
+    )
+
+
+def revalidation_baseline_for(item: Mapping[str, Any]) -> SuiteBaseline | None:
+    """The `SuiteBaseline` for an item's LATEST attempt, or None when there is none to read.
+
+    revalbase 01 (`tgyfs2`) E-03. READS `attempts[-1]`, NOT `attempts[0]`, because
+    :func:`execute_item_core` writes `attempt["suite_baseline"]` on EACH attempt, so a retried item
+    compared against `attempts[0]` would be judged against a baseline taken at a different commit.
+    Deliberately simpler than :func:`resolve_lane_endpoints`, which scans backwards for the first
+    attempt naming a lane: here a MISSING record must stay missing rather than resolve to an older
+    attempt's, because an older attempt's baseline describes a different measurement.
+
+    RETURNS None RATHER THAN A SYNTHETIC EMPTY BASELINE, so the distinction between "no record" and
+    "a record saying nothing was failing" survives to the caller, which fails closed on both.
+    """
+
+    attempts = item.get("attempts")
+    if not isinstance(attempts, Sequence) or isinstance(attempts, (str, bytes)):
+        return None
+    for candidate in reversed(list(attempts)):
+        if not isinstance(candidate, Mapping):
+            continue
+        record = candidate.get("suite_baseline")
+        if not isinstance(record, Mapping):
+            # An attempt exists but recorded no baseline: UNKNOWN, and not an invitation to read an
+            # older attempt's measurement as this one's.
+            return None
+        return SuiteBaseline(
+            state=str(record.get("state") or SUITE_BASELINE_NOT_STARTED),
+            base_commit=str(record.get("base_commit") or ""),
+            failures=tuple(str(line) for line in (record.get("failures") or ())),
+            reason=str(record.get("reason") or ""),
+            summary=str(record.get("summary") or ""),
+        )
+    return None
+
+
 def materialize_merge_result(
     repo: Path,
     base_commit: str,
@@ -15748,24 +16031,38 @@ def make_integration_validation_runner(
         if tree_id and isinstance(cache, dict) and tree_id in cache:
             # E-04: ONE run per distinct merge result. A cache hit is recorded so a reader can see the
             # suite was not re-run and WHY that was sound.
+            #
+            # revalbase 01 (`tgyfs2`) E-03: THE CACHED VALUE IS A MEASUREMENT AND THE JUDGEMENT IS
+            # RECOMPUTED HERE, which is OQ-03's resolution (b). The entry is keyed on the merged TREE
+            # while the verdict is now RELATIVE to a PER-ITEM baseline, and two items in ONE run can
+            # reach the same merge result holding DIFFERENT baselines (measured in run
+            # `run-20260922T024054Z-2245533`: `ld8lb3` at `301a1d8fbc15`, `65cuw0` at `ee20e831f5f1`).
+            # Serving the cached JUDGEMENT wholesale would therefore answer with someone else's
+            # baseline. Adding the baseline to the KEY was the alternative and was rejected because it
+            # re-runs a ~107s suite for a comparison that needs none, partially defeating the one
+            # property the cache exists for ("ONE run per distinct merge result").
             cached = cache[tree_id]
             if path is not None:
                 release_merge_result(repo, path)
+            passed, reason, comparison = _relative_revalidation_verdict(item, cached)
             _record_revalidation(
                 item,
-                passed=bool(cached.get("passed")),
+                passed=passed,
                 tree_id=tree_id,
                 reason=(
-                    "reused the revalidation already measured for merge result "
-                    f"{tree_id[:12]}: {cached.get('reason') or 'no detail'}"
+                    "reused the suite MEASUREMENT already taken for merge result "
+                    f"{tree_id[:12]} and recomputed this item's own baseline comparison: "
+                    f"{reason or 'no detail'}"
                 ),
+                failures=list(cached.get("failures") or ()),
                 cached=True,
                 # INHERITED, NOT ASSUMED: a cached entry that was never a measurement must not become
                 # one by being reused. Older cache entries carry no flag and default to measured, which
                 # matches how they were recorded.
                 measured=cached.get("measured", True) is not False,
+                comparison=comparison,
             )
-            return bool(cached.get("passed"))
+            return passed
         if path is None:
             _record_revalidation(
                 item,
@@ -15777,9 +16074,16 @@ def make_integration_validation_runner(
             return False
 
         measured = True
+        suite_passed = False
+        collected_nothing = False
         try:
             result = suite_check(path, str((state or {}).get("run_id") or ""))
             passed = bool(getattr(result, "passing", False))
+            # THE SUITE'S OWN VERDICT, KEPT SEPARATE FROM `passed`, because `passed` is about to become
+            # a RELATIVE judgement while the baseline comparison needs to know what the EXIT CODE said.
+            # `new_failures_since_baseline` refuses to subtract an empty failing list on a non-passing
+            # suite (the `32ij2j` inversion), and that check is only possible with this fact preserved.
+            suite_passed = passed
             reason = str(getattr(result, "reason", "") or "") or (
                 "the suite reported " + ("passing" if passed else "failing")
             )
@@ -15790,6 +16094,11 @@ def make_integration_validation_runner(
                 # tree that has nothing to break. Narrowed to exactly 5 so a real failure (1), a timeout
                 # (124) and a spawn failure (127) all keep refusing.
                 passed = True
+                # NOT COMPARABLE, AND THEREFORE SHORT-CIRCUITED BELOW. A tree that collected nothing has
+                # no failing set, so feeding its empty list to the baseline comparison would be read as
+                # the `32ij2j` inversion shape and answered `unknown`, converting a deliberate pass back
+                # into a refusal. The exit-5 reading is decided HERE and the comparison never sees it.
+                collected_nothing = True
                 reason = (
                     "the merge result collected NO tests (pytest exit 5), so the merge cannot have "
                     "broken anything; treating as passing for revalidation only. This is NOT a trust "
@@ -15802,20 +16111,30 @@ def make_integration_validation_runner(
             passed, failures = False, []
             # NOT A MEASUREMENT (`l2mzxn`). The suite raised, so no verdict about the merged tree was
             # ever produced; reporting this as combined-red would blame the code for a harness fault.
+            # A baseline comparison against a measurement that never happened is meaningless, so the
+            # comparison is skipped on this path too (see `_relative_revalidation_verdict`).
             measured = False
             reason = f"the post-merge suite run errored ({exc}); refusing (fail-closed)"
         finally:
             release_merge_result(repo, path)
 
+        # revalbase 01 (`tgyfs2`) E-03: THE MEASUREMENT IS CACHED, THE JUDGEMENT IS NOT. What goes in is
+        # what the suite OBSERVED (its exit verdict and its failing ids); the per-item relative
+        # judgement is derived from it below and again on every cache hit, because the baseline it is
+        # relative to belongs to the ITEM and not to the tree. `passed` is still cached so the exit-5
+        # and unmeasured paths reuse their own reading rather than re-deriving it.
+        measurement = {
+            "passed": passed,
+            "reason": reason,
+            "measured": measured,
+            "suite_passed": suite_passed,
+            "failures": [str(f) for f in failures],
+            "collected_nothing": collected_nothing,
+        }
         if isinstance(cache, dict) and tree_id:
-            # THE `measured` FLAG IS CACHED WITH THE VERDICT, so a second lane reaching the same merge
-            # result inherits the harness/code distinction instead of silently downgrading to a
-            # measured red on the cache-hit path.
-            cache[tree_id] = {
-                "passed": passed,
-                "reason": reason,
-                "measured": measured,
-            }
+            cache[tree_id] = measurement
+
+        passed, reason, comparison = _relative_revalidation_verdict(item, measurement)
         _record_revalidation(
             item,
             passed=passed,
@@ -15824,10 +16143,82 @@ def make_integration_validation_runner(
             failures=failures,
             merged_files=list(merged_files or ()),
             measured=measured,
+            comparison=comparison,
         )
         return passed
 
     return _runner
+
+
+def _relative_revalidation_verdict(
+    item: Mapping[str, Any],
+    measurement: Mapping[str, Any],
+) -> tuple[bool, str, RevalidationComparison | None]:
+    """Turn one suite MEASUREMENT of a merged tree into this ITEM's relative verdict.
+
+    revalbase 01 (`tgyfs2`) E-03. THE ONE PLACE THE SUBTRACTION IS APPLIED, called from exactly two
+    sites that are the same site twice: the fresh measurement and its cache hit. Returns
+    ``(passed, reason, comparison)``, where ``comparison`` is None whenever no comparison was made.
+
+    IT CHANGES ONLY ONE THING, A MEASURED RED WITH NO NEW FAILURES, and refuses to touch anything else:
+
+      * A PASSING MEASUREMENT PASSES UNCHANGED, with no comparison made. There is nothing to attribute.
+      * AN UNMEASURED REFUSAL REFUSES UNCHANGED. The suite never produced a verdict about the merged
+        tree (`l2mzxn`'s harness-fault distinction), and a baseline comparison against a measurement
+        that never happened is meaningless.
+      * THE `pytest` EXIT-5 READING IS UNTOUCHED. A tree that collected nothing has an empty failing
+        set for a reason that has nothing to do with the baseline, and running it through the
+        comparison would answer `unknown` (correctly, by the `32ij2j` rule) and thereby convert a
+        deliberate pass into a refusal.
+      * A REGRESSION OR AN UNTRUSTWORTHY COMPARISON STILL REFUSES, carrying the comparison's own
+        reason so an operator reads WHICH ids were new, or WHY the subtraction was not trusted.
+
+    AND IT WARNS WHEN IT PASSES A RED TREE (OQ-01, resolved to integrate AND warn). Silence would hide
+    a genuinely red main, which is the opposite failure from the one this plan fixes. The warning names
+    the pre-existing ids and the baseline commit, costs one line, and does not add a refusal kind.
+    """
+
+    passed = bool(measurement.get("passed"))
+    reason = str(measurement.get("reason") or "")
+    if passed or measurement.get("measured") is False:
+        return passed, reason, None
+    if measurement.get("collected_nothing"):
+        return passed, reason, None
+
+    baseline = revalidation_baseline_for(item)
+    comparison = new_failures_since_baseline(
+        [str(line) for line in (measurement.get("failures") or ())],
+        baseline,
+        suite_passed=bool(measurement.get("suite_passed")),
+    )
+    if not comparison.introduced_nothing:
+        return (
+            False,
+            f"{reason}; and the merged tree is refused because {comparison.reason}",
+            comparison,
+        )
+
+    listed = ", ".join(comparison.merged_ids) or "(none)"
+    with contextlib.suppress(Exception):
+        print(
+            "  ! post-merge revalidation PASSED a RED tree for {0}: {1}. Already failing at "
+            "baseline {2}: {3}".format(
+                item.get("id6") or "(unknown item)",
+                "this work introduced no new failure",
+                (baseline.base_commit[:12] if baseline is not None else "")
+                or "(unrecorded)",
+                listed,
+            ),
+            file=sys.stderr,
+        )
+    return (
+        True,
+        (
+            "the merged suite is RED but this work INTRODUCED NO FAILURE, so revalidation passes: "
+            f"{comparison.reason}. The suite's own verdict was: {reason}"
+        ),
+        comparison,
+    )
 
 
 def _record_revalidation(
@@ -15841,6 +16232,7 @@ def _record_revalidation(
     cached: bool = False,
     skipped: bool = False,
     measured: bool = True,
+    comparison: RevalidationComparison | None = None,
 ) -> None:
     """Record WHAT the post-merge revalidation measured, ON THE ITEM. NEVER raises.
 
@@ -15872,12 +16264,21 @@ def _record_revalidation(
     integration at the seam that already records `integration_signal`. Nothing is lost and no new
     injection is invented.
 
+    ``comparison`` is revalbase 01 (`tgyfs2`) E-04 and is PURELY ADDITIVE: every key above keeps its
+    name and its meaning, so a consumer reading only them is unaffected. It exists because the verdict is
+    now RELATIVE, and a relative verdict an auditor has to INFER is the same class of problem as a
+    refusal an operator cannot explain. Four facts are recorded - the baseline's state, the commit it was
+    taken at, the normalized id set it contributed, and the NEW ids that drove the judgement - which
+    together let a reader reconstruct the subtraction rather than trust it. None when no comparison was
+    made (a passing suite, a harness fault, the exit-5 reading, the verifier-mode skip), and the ABSENCE
+    of the block is itself the honest statement that nothing was compared.
+
     Best effort: a bookkeeping failure must never turn a measured verdict into an exception on the
     integration path.
     """
 
     with contextlib.suppress(Exception):
-        item["post_merge_revalidation"] = {
+        record: dict[str, Any] = {
             "passed": bool(passed),
             "tree": tree_id,
             "reason": reason,
@@ -15887,6 +16288,15 @@ def _record_revalidation(
             "skipped": bool(skipped),
             "measured": bool(measured),
         }
+        if comparison is not None:
+            record["baseline_comparison"] = {
+                "judgement": comparison.judgement,
+                "reason": comparison.reason,
+                "baseline_ids": list(comparison.baseline_ids),
+                "merged_ids": list(comparison.merged_ids),
+                "new_ids": list(comparison.new_ids),
+            }
+        item["post_merge_revalidation"] = record
 
 
 def revalidation_was_unmeasured(item: Mapping[str, Any]) -> bool:
