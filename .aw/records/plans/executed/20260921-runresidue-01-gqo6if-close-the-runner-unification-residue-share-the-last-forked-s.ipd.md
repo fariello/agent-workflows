@@ -6,16 +6,16 @@
 - Scope: Per symbol in the residue, either SHARE it (one implementation in `runner_shared`, host-shaped shell on each side) or RECORD IT AS GENUINELY HOST-SPECIFIC against the maintainer's own test ("one host does A, the other NOT A") with the evidence. IN: every symbol E-01's committed scanner puts in the STRICT class, which are unambiguous; every symbol it puts BETWEEN strict and loose, each decided and recorded; and `reclaim_lanes_on_interrupt`, which the strict test misses only because both copies call shared helpers while remaining near-identical to each other. THE MEMBERSHIP IS WHATEVER THE SCANNER REPORTS AT EXECUTION HEAD, not a count fixed here: the authored "7 strict / 13 between" did not reproduce (review measured 23 to 25 strict and 12 to 13 between), and a plan whose scope is pinned to a stale count either under-covers the residue or reports false completion. OUT: re-doing any of the 11 executed `rununify` children's work, changing the five large host-shaped functions the Set always expected as residue (`run_queue`, `main`, `build_parser` and their kin already delegate), and any behavior change at all - this is extraction, so a behavior difference found mid-flight is a finding to report, not a thing to fix here.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/runner_shutdown.py, tests/test_runner_shared.py, tests/test_runner_refork_guard.py, tests/test_rununify_characterization.py, .aw/records/research
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runresidue
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: gqo6if
-- Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: gqo6if verified (set runresidue, attempt 1). [Scope reconciliation - out-of-scope tests/test_runresidue_residue.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_rununify_run_queue.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_worktree_lease_merged_reclaim.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tools/runner_fork_scan.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/runner_shutdown.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_runner_refork_guard.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_runner_shared.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_rununify_characterization.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; 7 findings, all FIXED; E-04 split into four cluster items; readiness go-pending-approval; typed review record under .aw/records/reviews/
 
