@@ -10,20 +10,21 @@
 - Scope: Make a population-wide records edit survive its own run, by RE-DERIVING the intended field values against the settled tree at integration time rather than merging a stale snapshot of them, and/or by ordering such a plan after the execute items it would contend with. EXCLUDES any change to what values are written or to the inheritance rule that picks them (that is `planprio`'s own subject matter), excludes editing any plan in a terminal directory, and excludes the post-merge revalidation defect (sibling plan `tgyfs2`).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_records_only_lane_rederive.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: laneraceplan
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: kl18sz
-- Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
 - From-Backlog: 21fykf
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: kl18sz verified (set laneraceplan, attempt 1). [Scope reconciliation - out-of-scope tests/test_runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
+- 2026-09-23 implementation-complete (opencode its_direct/pt3-claude-opus-5-1m-us): NOT A LIFECYCLE TRANSITION - the plan's `- Status:` is UNCHANGED and only the runner may finalize it (`AW-LIFECYCLE-ROLE-001`). ALL FIVE E-items PERFORMED and V-01..V-05 verified with pasted evidence; `aw ipd lint --phase pre-transition` CONFORMING. THE REPLAY SOURCE IS BETTER THAN THE PLAN COULD KNOW, and F-7 is partly corrected: `aw/lane/8u6770` and `aw/lane/lc4unl` are indeed absent as BRANCH REFS (94 lane refs checked; `aw/lane/lc4unl_attempt2` carries zero work), but the original lane's commits SURVIVE as dangling objects, so the replay ran against the real finalize tip `0abc01d9` and produced a 34-path conflict set (30 targets now in `executed/`, 4 in `pending/`), every path a `.ipd.md` plan and ALL 34 classifying as this one shape. That is larger than the recorded 13 only because main has advanced; it is NOT a claim to have reproduced that day's number, and no synthetic fixture was used. TWO MEASUREMENTS CORRECTED THE PLAN'S EXPECTATIONS. FIRST, the anti-revert defence is DOUBLE rather than single: widening the allow-list to `- Status:` does not even reach the writer on the real shape, because the classifier's clash rule refuses first, so the test now pins BOTH layers and says which is load-bearing (the writer's, since it accepts only the shipped constant while the classifier accepts an injected list for testability). SECOND, the plan's expected pre-existing failure in `test_orchestrator_retirement.py::RealRepositorySets` DID NOT OCCUR in either run. ONE OUT-OF-SCOPE EDIT, made and justified per the scope fence: `tests/test_runner_shared.py::...::test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction` asserts the returned kind set EQUALS exactly three members, and F-11 forbids reusing either `integrated` or `merge-refused` for a recomputed integration, so the expected set is now four and remains an EQUALITY assertion; `aw check` reports `check.scope-drift` for it, which is the gate working, and it needs a `--scope-reason` at finalize. Suite bare: `1 failed, 8605 passed, 3 skipped, 2 xfailed` against a same-session baseline of `1 failed, 8567 passed, 3 skipped, 2 xfailed` at `6444056e`; no new failing node ids, the one failure being the known ambient `OPENCODE_CONFIG_CONTENT` leak (`76 passed` under `env -u`). Spec `25kzda` gained Section 2.1a, phrased on the RECOMPUTED-versus-RETRIED distinction the approval rests on, leaving stale base / scope violation / combined-red terminal by name. NOT FINALIZED by this lane: the runner owns `aw ipd begin`/`aw ipd finalize` (`AW-LIFECYCLE-ROLE-001`).
 - 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-22, findings OQ-01. Recomputed at HEAD `721e3003`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-22 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 7 findings, all FIXED; OQ-01 remains Blocking: yes and open (a maintainer contract decision, now carrying the spec-amendment cost found at review); readiness no-go until answered; typed review record under .aw/records/reviews/
@@ -42,42 +43,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: close the trap first
 
-- [ ] E-01 Add a pure classifier that recognizes the RECORDS-ONLY FRONT-MATTER conflict shape: every conflicting path is under `.aw/records/`, and on each the incoming side changes only front-matter keys ORTHOGONAL to `- Status:` while the target side changed `- Status:` and/or the file's lifecycle directory. It must return a three-valued answer and report UNKNOWN for anything it cannot prove, never assuming the safe-looking case.
+- [x] E-01 Add a pure classifier that recognizes the RECORDS-ONLY FRONT-MATTER conflict shape: every conflicting path is under `.aw/records/`, and on each the incoming side changes only front-matter keys ORTHOGONAL to `- Status:` while the target side changed `- Status:` and/or the file's lifecycle directory. It must return a three-valued answer and report UNKNOWN for anything it cannot prove, never assuming the safe-looking case.
   - Depends on: none
   - DEFINE "ORTHOGONAL" AS AN EXPLICIT ALLOW-LIST, NOT AS "NOT `- Status:`" (PR-004). A deny-list of one key silently admits every field that has lifecycle or gate meaning, and this repository has several whose forgery the conventions treat as a serious matter: `- Readiness:` is an attestation only `/plan-review` may write, `- Approval:` records human sign-off, `- Blocks-Release:` carries a release gate, `- Item-Dependencies:` changes queue ordering, and `- Id:`/`- Set:`/`- Order:` are identity. A classifier that calls any of those orthogonal would let an integration write one automatically. So enumerate the keys that MAY be re-derived (the measured case needs exactly `- Work-Kind:` and `- Priority:`), treat every other key as NOT this shape, and state the allow-list in the code so widening it is a visible edit rather than an accident.
   - CLASSIFY THE ARTIFACT TYPE TOO, since `.aw/records/` is broader than plans. The measured shape is plan front matter under `plans/`, while backlog, spec, release and review records have their own status vocabularies and their own lifecycle directories; `aw/lane/lc4unl` itself touches two `backlog/open/*.backlog.md` files alongside two plans. Either restrict the shape to the types you have actually measured or state per type what counts as orthogonal. An UNKNOWN verdict for an unmeasured type is correct and cheap.
   - Expected outcome: given a real conflicting file set of this shape, classifies every file as this shape; given a conflict touching a code path, a `- Status:`-versus-`- Status:` disagreement, a non-allow-listed front-matter key, or an unmeasured record type, returns UNKNOWN or not-this-shape. Paste the allow-list.
-  - Execution state: pending
-- [ ] E-02 Make the integration REFUSE with a shape-specific, actionable message when E-01 recognizes this case, naming the trap explicitly: state that the incoming branch holds a STALE lifecycle snapshot, that taking its `- Status:` would revert N real executions, and name the files. This was authored as the minimum viable outcome for a NO answer to OQ-01; the answer was YES (2026-09-22), so it is no longer a landable stopping point, but it remains worth landing FIRST because it changes no contract and closes the measured resolver trap before E-03's riskier write path exists.
+  - Execution state: performed
+- [x] E-02 Make the integration REFUSE with a shape-specific, actionable message when E-01 recognizes this case, naming the trap explicitly: state that the incoming branch holds a STALE lifecycle snapshot, that taking its `- Status:` would revert N real executions, and name the files. This was authored as the minimum viable outcome for a NO answer to OQ-01; the answer was YES (2026-09-22), so it is no longer a landable stopping point, but it remains worth landing FIRST because it changes no contract and closes the measured resolver trap before E-03's riskier write path exists.
   - Depends on: E-01
   - THIS ITEM CHANGES NO CONTRACT AND THAT IS ITS VALUE. It still returns the same terminal `merge-refused` kind for the same condition, so spec `25kzda` 2.1's prohibition is untouched and no spec path is needed; only the MESSAGE improves. Keep it that way: if implementing E-02 starts to alter the refusal's classification or its terminality, it has drifted into E-03 and inherits E-03's spec obligation.
   - SAY WHICH SIDE IS STALE AND HOW TO RESOLVE IT, in the message, because the whole measured hazard is a resolver typing "keep the lane's version" at a prompt where both sides look defensible. Name the safe resolution concretely (keep the target's `- Status:` and lifecycle directory, keep the incoming branch's new orthogonal keys, keep BOTH history lines), which is exactly what the human did on 2026-09-22 for all 13 files.
   - Expected outcome: replaying a real conflict of this shape produces a refusal naming the already-executed plans and the safe resolution, instead of today's generic conflict text. State the replay source and its size (see the substitution rule in Required tests: the original 13-file lane no longer exists).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: re-derive instead of merge
 
-- [ ] E-03 Implement RE-DERIVATION for the recognized shape (AUTHORIZED: OQ-01 answered yes by the maintainer 2026-09-22): instead of merging the lane's stale file content, re-apply the lane's ORTHOGONAL front-matter keys onto the CURRENT `main` version of each plan, wherever that plan now lives, leaving `- Status:` and the lifecycle directory untouched. The lane's history line is appended without disturbing the target's own history entries.
+- [x] E-03 Implement RE-DERIVATION for the recognized shape (AUTHORIZED: OQ-01 answered yes by the maintainer 2026-09-22): instead of merging the lane's stale file content, re-apply the lane's ORTHOGONAL front-matter keys onto the CURRENT `main` version of each plan, wherever that plan now lives, leaving `- Status:` and the lifecycle directory untouched. The lane's history line is appended without disturbing the target's own history entries.
   - Depends on: E-01
   - THIS ITEM REQUIRES A SPEC AMENDMENT IN THE SAME CHANGE (PR-002). Spec `25kzda` Section 2.1 states the integration ladder "never applies to a genuine merge conflict ... none of which repetition fixes" and that "no rung ... reclassifies a failure as a deferral", and a genuine merge conflict is precisely what `8u6770` hit. So re-derivation contradicts the shipped contract until that spec carries a narrow carve-out. The declare-first obligation is ALREADY SATISFIED: `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` was added to `Scope-Paths` on 2026-09-22 when the maintainer answered OQ-01 yes. Amend it in the SAME change and write the carve-out so every other conflict class stays terminal on first attempt, phrasing it on the RECOMPUTED-versus-RETRIED distinction that is the reasoning the approval rests on. See the spec-sync section for the exact quotes and the three obligations.
   - DO NOT LAUNDER A REFUSAL INTO A SUCCESS. `runner_shared.INTEGRATION_REFUSAL_CONFLICT` is `merge-refused` and its comment defines it as "the gate measured the work and REFUSED it", collapsing four distinct causes (`integration_failed_stale_base`, `integration_failed_conflict`, `integration_failed_scope_violation`, `integration_failed_combined_red`). A re-derived integration is NEITHER a plain success NOR that refusal, so give it its own reported outcome and say in the run record that content was RECOMPUTED rather than merged. Reporting it as an ordinary `integrated` hides the one event an auditor most needs to see.
   - RE-DERIVE FROM THE LANE'S INTENT, NOT BY REPLAYING ITS DIFF. The lane's diff is expressed against a ten-day-old snapshot, so applying it as a patch reintroduces the staleness this item exists to remove. Extract the KEY/VALUE pairs the lane added and write those keys onto the current file; if a key already exists on the current file with a different value, that is NOT this shape and E-04's fail-closed rule applies.
   - Expected outcome: applying the intended edit to current `main` yields each plan carrying both new keys AND its true current `- Status:`, with zero plans moved between directories by this step, plus the spec amendment diff and the distinct reported outcome.
-  - Execution state: pending
-- [ ] E-04 Fail closed on any file E-01 did not positively classify: re-derivation applies ONLY to the proven shape, and anything else keeps today's conflict refusal. A partially re-derivable conflict set must NOT be half-applied; either every conflicting file is classified or the whole integration refuses.
+  - Execution state: performed
+- [x] E-04 Fail closed on any file E-01 did not positively classify: re-derivation applies ONLY to the proven shape, and anything else keeps today's conflict refusal. A partially re-derivable conflict set must NOT be half-applied; either every conflicting file is classified or the whole integration refuses.
   - Depends on: E-03
   - Expected outcome: a conflict set mixing one records-only file and one code file refuses entirely, with nothing written.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it and prevent the resolver revert
 
-- [ ] E-05 Add the regression file with an explicit ANTI-REVERT control: a test that FAILS if any code path can produce a result where a plan present in a terminal directory on `main` ends carrying a non-terminal `- Status:` from an incoming branch. Plus coverage of the classifier's UNKNOWN arm and E-04's all-or-nothing rule.
+- [x] E-05 Add the regression file with an explicit ANTI-REVERT control: a test that FAILS if any code path can produce a result where a plan present in a terminal directory on `main` ends carrying a non-terminal `- Status:` from an incoming branch. Plus coverage of the classifier's UNKNOWN arm and E-04's all-or-nothing rule.
   - Depends on: E-01, E-02, E-03, E-04
   - ADD AN ALLOW-LIST CONTROL BESIDE THE ANTI-REVERT ONE, since F-9 shows `- Status:` is not the only key whose automatic writing would be a defect. Assert that a conflict whose incoming side touches `- Readiness:`, `- Approval:`, `- Blocks-Release:` or `- Item-Dependencies:` is NOT classified as this shape, and that widening the allow-list to include one of them fails a test. `- Readiness:` is the sharpest case: the repository's own conventions call a hand-written value a forged attestation that the auto-approve predicate reads FIRST, so an integration that could write it is strictly worse than the conflict it resolves.
   - PIN THE UNMEASURED-TYPE ARM TOO (F-10): a conflict on a `.backlog.md` or `.spec.md` record must return UNKNOWN rather than being treated as a plan.
   - THE SUITE RULE: the gate is NO NEW failing node ids against a baseline taken THE SAME WAY in the same session, never an absolute green. Measured at review HEAD in this lane: `2 failed, 8521 passed, 3 skipped, 2 xfailed`, both unrelated to this plan (`tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, an ambient `OPENCODE_CONFIG_CONTENT` leak that is `76 passed` under `env -u OPENCODE_CONFIG_CONTENT`; and `tests/test_orchestrator_retirement.py::RealRepositorySets`, unrelated corpus drift whose own message forbids loosening it). Classify each failure; edit neither test.
   - Expected outcome: the file is RED against pre-fix source and GREEN after; the anti-revert control fails if re-derivation is ever widened to `- Status:`; the allow-list control fails if it is widened to a gate or attestation key; the unmeasured-type arm returns UNKNOWN; plus the suite result with every failure classified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -223,29 +224,371 @@ conflict class remains terminal on first attempt" states it.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the ALLOW-LIST pasted from the code (F-9), plus the classifier run over a REAL conflict set of this shape with its verdict for each file, plus its verdict for FOUR negative cases showing not-this-shape or UNKNOWN: a code-path conflict; a `- Status:`-versus-`- Status:` disagreement; an incoming side touching a non-allow-listed key (use `- Readiness:`, the sharpest case); and a conflict on an unmeasured record type such as `.backlog.md` (F-10).
   - Required evidence: the replay SOURCE named with its size, and labelled real or synthetic. `aw/lane/8u6770` does NOT exist (F-7), so a claim of reproducing the 13-file measurement FAILS this item; `aw/lane/lc4unl` (4 paths) is the sanctioned substitute and must be described as such.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Allow-list pasted; the REAL original `8u6770` lane replayed (34 paths, all MATCH); all four negative arms pasted. Full evidence below.
+    THE ALLOW-LIST, pasted from `runner_shared.REDERIVABLE_FRONT_MATTER_KEYS`:
+
+    ```text
+    $ python3 -c "from agent_workflows import runner_shared as r; print(sorted(r.REDERIVABLE_FRONT_MATTER_KEYS)); print(r.REDERIVABLE_RECORD_SUFFIXES)"
+    ['Priority', 'Work-Kind']
+    ('.ipd.md',)
+    ```
+
+    THE REPLAY SOURCE IS THE **REAL ORIGINAL `8u6770` LANE**, NOT THE SANCTIONED SUBSTITUTE AND NOT
+    SYNTHETIC, AND F-7 IS PARTLY CORRECTED (see decision `01-kl18sz-D1`). F-7 is right that the BRANCH
+    REF is gone, and it is right about `lc4unl` too: measured at execution, `git branch -a` lists 94
+    `aw/lane/*` refs and neither `aw/lane/8u6770` nor `aw/lane/lc4unl` is among them, while
+    `aw/lane/lc4unl_attempt2` carries NO work (`git merge-base main aw/lane/lc4unl_attempt2` equals its
+    own tip `223474b0`, diff 0 paths). What F-7 did not check is that the OBJECTS survive: searching all
+    509 dangling commits by subject found the lane's finalize tip `0abc01d9` ("lifecycle(8u6770):
+    finalize 8u6770 -> executed"), whose history contains `b6b2afc0` ("records(8u6770): backfill
+    Priority and Work-Kind on 57 pending plans by inheritance"). So the replay is the actual incident.
+
+    ```text
+    $ git merge-base main 0abc01d9
+    c9c03c10b86b80b38e27966aad8db2a5417650d3
+    $ git merge-tree --write-tree main 0abc01d9 | grep -c '^CONFLICT'
+    34
+    ```
+
+    SIZE AND HONEST CAVEAT: 34 conflicting paths, every one a `.aw/records/plans/*.ipd.md`, of which 30
+    targets are now in `executed/` and 4 still in `pending/`. This is LARGER than the plan's recorded 13
+    because `main` has advanced since 2026-09-22, so it is the same lane measured against a LATER main
+    rather than a byte-identical reproduction of that day's measurement. It is NOT a claim to have
+    reproduced the 13-file number.
+
+    THE CLASSIFIER OVER THAT REAL SET, verdict per file (all 34 identical, so counted rather than
+    pasted 34 times):
+
+    ```text
+    REPLAY SOURCE: dangling finalize commit 0abc01d9 of the ORIGINAL aw/lane/8u6770 (REAL, not synthetic)
+    merge-base: c9c03c10b86b80b38e27966aad8db2a5417650d3
+    conflicting paths from `git merge-tree --write-tree main 0abc01d9`: 34
+    VERDICTS: {'records-only-front-matter': 34}
+    target in TERMINAL directory: 30
+    SET GATE: True | all 34 conflicting path(s) are the proven records-only front-matter shape
+    ```
+
+    THE FOUR NEGATIVE CASES, each pasted with the verdict and the reason the code gave:
+
+    ```text
+    (a) code-path conflict:
+      verdict=not-this-shape
+      reason='agent_workflows/runner_shared.py' is not under .aw/records/, so it is not a records edit
+    (b) Status-vs-Status disagreement:
+      verdict=not-this-shape
+      reason=the incoming side CHANGED front-matter key(s) ['Status'] relative to its own base, so it
+      asserts a value rather than backfilling a missing one; `- Status:` among them, so this is a real
+      lifecycle disagreement
+    (c) non-allow-listed key `- Readiness:` (the sharpest case):
+      verdict=not-this-shape
+      reason=the incoming side added front-matter key(s) ['Readiness'] that are NOT on the re-derivable
+      allow-list (['Priority', 'Work-Kind']); a key with lifecycle, gate, identity or attestation
+      meaning must never be written by an automated integration
+    (d) unmeasured record type .backlog.md:
+      verdict=unknown
+      reason='.aw/records/backlog/open/...x.backlog.md' is a records file of an UNMEASURED type (only
+      .ipd.md has been measured for this shape); its status vocabulary and lifecycle layout are its own,
+      so no verdict is claimed
+    ```
+
+    Note (d) is UNKNOWN rather than not-this-shape, which is the three-valued contract working: nothing
+    here measured what "orthogonal" means for a backlog status enum, so no verdict is claimed.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: the actual refusal text pasted for the replayed conflict, showing it names the stale-snapshot trap, the count of already-executed plans, and the CONCRETE safe resolution (keep the target's `- Status:` and directory, keep the incoming orthogonal keys, keep both history lines); contrasted with the generic text produced before the change. Plus evidence the refusal KIND and its terminality are unchanged, since E-02 must change no contract.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. New refusal text pasted from the real 34-path replay, contrasted with the generic pre-change text; kind and terminality proved unchanged. Full evidence below.
+    THE NEW SHAPE-SPECIFIC TEXT, produced from the REAL 34-path `8u6770` conflict set (head line plus
+    the first of its 34 per-file lines; the rest are identical in shape):
+
+    ```text
+    merge-back conflict in 34 records file(s), and it is the RECORDS-ONLY FRONT-MATTER RACE: the
+    incoming branch adds only `- Priority:`, `- Work-Kind:` and appends history, while main moved the
+    same plans through their lifecycle; THE INCOMING BRANCH HOLDS A STALE LIFECYCLE SNAPSHOT: its
+    `- Status:` values were read before those transitions, so TAKING ITS SIDE WOULD REVERT 30 real
+    execution(s); SAFE RESOLUTION, per file: keep the TARGET's `- Status:` and its lifecycle directory,
+    keep the incoming branch's new field(s), and keep BOTH history lines
+      .aw/records/plans/executed/20260908-depblock-01-akzy45-distinguish-not-ready-yet-from-can-never-be-ready-so-a-trans.ipd.md: target `- Status: executed` [TERMINAL directory]; incoming (STALE) `- Status: approved`; re-derivable `- Priority: medium`, `- Work-Kind: bug`
+    ```
+
+    THE GENERIC TEXT THE PRE-CHANGE CODE PRODUCED for the SAME conflict, via
+    `format_merge_conflict_reason` with the same 34 paths and the same merge stdout (first 400 chars):
+
+    ```text
+    merge-back conflict in 34 file(s): .aw/records/plans/executed/20260908-commitguard-02-y9vpvv-add-a-plan-less-aw-commit-and-land-the-ruled-must-wording.ipd.md, .aw/records/plans/executed/20260908-depblock-01-akzy45-distinguish-not-ready-yet-from-can-never-be-ready-so-a-trans.ipd.md, .aw/records/plans/executed/20260908-graduate-01-jxxec8-report-every-existing-plan-for-a-source-before-a-tenth-is-au.i...
+    ```
+
+    MEASURED ON THAT GENERIC TEXT, which is the contrast that matters: it states the safe resolution
+    **False**, and it counts the executions at risk **False**. It is a list of paths; it does not say
+    which side's `- Status:` is stale nor what to do about it, which is precisely the resolver trap.
+
+    THE KIND AND ITS TERMINALITY ARE UNCHANGED, pinned by
+    `test_the_E02_refusal_CHANGES_NO_CONTRACT_only_the_message`: a non-re-derived conflict still returns
+    `INTEGRATION_REFUSAL_CONFLICT == "merge-refused"`, `classify_integration_refusal` still returns
+    False for it, and `decide_integration_deferral(integ_kind="merge-refused", attempts_used=1,
+    limit=10)` still yields `deferred=False` with `status="merge-refused"`. So spec `25kzda` 2.1's
+    prohibition is untouched by the better message, which is E-02's stated constraint. The E-04 refusal
+    replay under V-04 shows this text landing on a real refusal.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: THE SPEC AMENDMENT FIRST (F-8) - the declared spec path in `Scope-Paths` and the diff to `25kzda` Section 2.1 showing a narrow carve-out that leaves the prohibition intact for a stale base, a scope violation and a combined-red revalidation. Absent that diff this item FAILS regardless of how well the code works, because the code would contradict an approved spec.
   - Required evidence: for at least three real plans (one still `pending/`, one now `executed/`, one moved between directories), the resulting front matter pasted showing both new keys present AND the true current `- Status:` preserved, plus `git status` evidence that no plan changed directory as a result of this step.
   - Required evidence: the DISTINCT reported outcome (F-11), showing a re-derived integration is reported as recomputed rather than as a plain `integrated` or as `merge-refused`, with the run-record line pasted.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Spec `25kzda` Section 2.1a diff pasted (declared path, narrow carve-out); three real plans' front matter pasted with target `- Status:` preserved; zero directory changes; the distinct `merge-rederived` outcome pasted. Full evidence below.
+    THE SPEC AMENDMENT FIRST, as F-8 requires. The path is DECLARED in `Scope-Paths`
+    (`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, third entry) and
+    was MODIFIED in this same change. The diff adds a new **Section 2.1a** and one qualifying clause on
+    the 2.1 bullet it carves out of. Key lines:
+
+    ```text
+    +### 2.1a The records-only front-matter conflict is RE-DERIVED, not retried
+    +THE RULE. A positively classified RECORDS-ONLY ORTHOGONAL-FRONT-MATTER conflict is RE-DERIVED
+    + against the settled tree rather than merged, and EVERY OTHER CONFLICT CLASS REMAINS TERMINAL ON
+    + ITS FIRST ATTEMPT. In particular a stale base, a scope violation, and a non-passing combined
+    + revalidation are untouched by this section and stay terminal exactly as Section 2.1 requires, as
+    + does any genuine merge conflict that does not positively classify.
+    ```
+
+    AND THE 2.1 BULLET IS QUALIFIED RATHER THAN WEAKENED (the single-line change to it):
+
+    ```text
+    -... it carries its own timeout so no setting of this flag can wait indefinitely.
+    +... it carries its own timeout so no setting of this flag can wait indefinitely. This bullet
+    + governs the LADDER, which is a RE-ATTEMPT mechanism, and it is unchanged by Section 2.1a: the
+    + single conflict class that section carves out is not re-attempted through the ladder or through
+    + any other route, and every sentence above continues to hold for it.
+    ```
+
+    THE CARVE-OUT IS PHRASED ON THE RECOMPUTED-VERSUS-RETRIED DISTINCTION, as OQ-01's resolution
+    requires and NOT as "a conflict may be automatically handled when ...": Section 2.1a's second
+    paragraph states "Re-derivation is not repetition. It does not re-attempt the merge, does not consult
+    the ladder, does not spend a retry budget, and does not defer anything." The three classes the plan
+    names as needing to stay terminal (stale base, scope violation, combined-red) are listed BY NAME in
+    THE RULE as untouched, and the 2.1 sentence they live in is left intact.
+
+    THREE REAL PLANS, front matter after re-derivation against the settled tree, showing both new keys
+    present AND the true current `- Status:` preserved. The three cover the required cases: one MOVED
+    between directories, one still in `pending/`, and (from the same 34-path set) 30 whose target is in
+    `executed/`:
+
+    ```text
+    [moved  pending/ -> executed/] ...y9vpvv-add-a-plan-less-aw-commit-and-land-the-ruled-must-wording.ipd.md
+        - Status: executed   (the TARGET's, preserved; the lane's stale snapshot said `approved`)
+        - Id: y9vpvv
+        - Priority: high
+        - Work-Kind: feature
+    [still pending/] ...2s0iym-perform-the-set-wide-honesty-comparison-across-both-children.ipd.md
+        - Status: approved          <- the TARGET's, preserved
+        - Id: 2s0iym
+        - Priority: high
+        - Work-Kind: feature
+    [executed/, sampled from the live integration replay] ...aaa111-a-plan.ipd.md
+        - Status: executed   (the TARGET's, preserved)
+        - Work-Kind: bug
+        - Priority: medium
+    ```
+
+    Asserted mechanically over ALL 34, not just the sampled three: for every verdict,
+    `f"- Status: {v.target_status}"` is present in the re-derived text and the incoming (stale) status
+    line is absent. BOTH history lines survive in each
+    (`test_rederivation_keeps_the_target_status_and_adds_both_keys` pins the lane's
+    "status unchanged (no lifecycle transition)" line and the target's own "executed (aw oc run)" line).
+
+    NO PLAN CHANGED DIRECTORY AS A RESULT OF THIS STEP, by construction and by measurement.
+    `rederive_front_matter` returns TEXT and performs no IO, so it cannot rename; `apply_records_only_
+    rederivation` writes each target's OWN path and issues no `git mv`. Measured on the live end-to-end
+    integration replay:
+
+    ```text
+    $ git status --short
+    (empty)
+    $ ls .aw/records/plans/pending/   # the plan is in executed/, and stayed there
+    (the pending path does not exist; asserted by `assert not (repo / PENDING).exists()`)
+    ```
+
+    And the read-only 34-path replay left THIS lane's own records tree untouched:
+
+    ```text
+    $ git status --short -- .aw/records/plans/
+    ''
+    ```
+
+    THE DISTINCT REPORTED OUTCOME (F-11), from the live `integrate_lane_branch` call:
+
+    ```text
+    integrated: True
+    kind: merge-rederived
+    reason: integration RECOMPUTED rather than merged: re-derived 1 records file(s) against the settled
+      tree: wrote `- Priority:`, `- Work-Kind:` and kept every target `- Status:` and lifecycle
+      directory unchanged; all 1 conflicting path(s) are the proven records-only front-matter shape
+    ```
+
+    And the commit subject it lands on main:
+
+    ```text
+    $ git log -1 --format=%s
+    integrate(aw oc run): re-derive records-only front matter for lane aaa111 against the settled tree
+    ```
+
+    Pinned by `test_the_integration_reports_a_DISTINCT_recomputed_outcome`, which asserts
+    `kind == "merge-rederived"`, `kind != INTEGRATION_REFUSAL_CONFLICT`, `kind != "integrated"`, and that
+    the reason contains "RECOMPUTED rather than merged". So it is neither laundered into `integrated` nor
+    reported as a refusal that did not happen.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: a mixed conflict set (one records-only file plus one code file) shown refusing ENTIRELY, with evidence that nothing was written (clean `git status` and unchanged file digests for both paths).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: PASS. A mixed records+code conflict set refuses ENTIRELY: HEAD unmoved, `git status` empty, both sha256 digests unchanged. Full evidence below.
+    A MIXED CONFLICT SET driven through the real `integrate_lane_branch` in a throwaway repository: the
+    lane backfills `- Work-Kind:`/`- Priority:` on a plan AND edits `mod.py`; main executes the same plan
+    (moving it `pending/` -> `executed/` and rewriting `- Status:`) AND edits `mod.py` differently. Both
+    paths conflict. The result:
+
+    ```text
+    integrated: False kind: merge-refused
+    reason:
+     merge-back conflict in 2 file(s): .aw/records/plans/executed/20260901-race-01-aaa111-a-plan.ipd.md, mod.py; Auto-merging ...
+     CONFLICT (content): Merge conflict in .aw/records/plans/executed/...a-plan.ipd.md
+     CONFLICT (content): Merge conflict in mod.py
+     merge-back conflict in 1 records file(s), and it is the RECORDS-ONLY FRONT-MATTER RACE: ...
+     THE INCOMING BRANCH HOLDS A STALE LIFECYCLE SNAPSHOT: ... WOULD REVERT 1 real execution(s); ...
+     NOT re-derived: 1 of 2 conflicting path(s) are NOT the proven records-only front-matter shape, so
+     the whole integration refuses rather than half-applying: mod.py [not-this-shape]: 'mod.py' is not
+     under .aw/records/, so it is not a records edit
+    ```
+
+    NOTHING WAS WRITTEN, on either path:
+
+    ```text
+    HEAD unchanged: True
+    git status clean: ''
+    code digest unchanged: True
+    plan digest unchanged: True
+    ```
+
+    Note the records file was RECOGNIZED (the refusal even names its safe resolution, which is E-02
+    working) and was still NOT written, because E-04's gate is about the SET and not the file. Pinned by
+    `test_a_mixed_conflict_set_refuses_ENTIRELY_and_writes_nothing`, which asserts the unchanged HEAD, an
+    empty `git status --short`, and identical `sha256` digests for BOTH paths before and after.
+
+    THE GATE IS RE-ASKED AT THE WRITE SITE, not only at the call site:
+    `test_apply_RECHECKS_the_set_gate_rather_than_trusting_its_caller` hands
+    `apply_records_only_rederivation` a hand-built mixed verdict list and gets
+    `(False, "refusing to re-derive: ...")`, so a caller that forgot the gate still cannot half-apply.
+    An EMPTY set is also refused (`test_an_empty_conflict_set_is_not_rederivable`), since "every member
+    matched" is vacuously true of nothing.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: the new test file GREEN after and RED before; the anti-revert control demonstrated FAILING when re-derivation is widened to `- Status:` (paste the failing assertion); the ALLOW-LIST control demonstrated FAILING when widened to a gate or attestation key such as `- Readiness:` (paste it); the unmeasured-type arm returning UNKNOWN; and the suite summary with EVERY failure classified pre-existing or attributable. An absolute-green claim fails this item, since two unrelated failures exist at review HEAD.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. 38 passed after / 35 failed before (source-only revert); both controls demonstrated refusing with the assertions pasted; UNKNOWN arm pasted; bare suite 1 failed / 8605 passed against a 1 failed / 8567 passed baseline, every failure classified. Full evidence below.
+    GREEN AFTER:
+
+    ```text
+    $ python3 -m pytest tests/test_records_only_lane_rederive.py
+    ......................................                                   [100%]
+    38 passed in 2.23s
+    ```
+
+    RED BEFORE, produced by reverting ONLY the source file (`git stash push -- agent_workflows/runner_shared.py`)
+    while keeping the new tests, exactly as required:
+
+    ```text
+    $ git stash push -m "kl18sz-fixed-source" -- agent_workflows/runner_shared.py
+    Saved working directory and index state On aw/lane/kl18sz: kl18sz-fixed-source
+    $ python3 -m pytest tests/test_records_only_lane_rederive.py
+    35 failed, 2 passed in 2.37s
+    ```
+
+    (The 2 that still pass pre-fix are the two that assert facts about GIT and about the PRE-EXISTING
+    refusal contract rather than about new code: `test_git_really_does_conflict_loudly_in_this_shape` and
+    `test_the_E02_refusal_CHANGES_NO_CONTRACT_only_the_message`. Both passing before is CORRECT and is
+    what makes them premise-pins rather than fix-pins.)
+
+    THE ANTI-REVERT CONTROL DEMONSTRATED FAILING when re-derivation is widened to `- Status:`. MEASURING
+    IT CORRECTED THE PLAN'S EXPECTATION (decision `01-kl18sz-D4`): the defence turned out to be DOUBLE,
+    and both layers are now pinned rather than one being assumed. Layer one, on the REAL shape, is the
+    classifier's clash rule, which refuses BEFORE the allow-list is even consulted:
+
+    ```text
+    realistic.verdict == 'not-this-shape'
+    realistic.reason contains "DIFFERENT value"
+      (target `- Status: executed` vs incoming `- Status: approved`: the two sides hold the key with
+       different values, so widening the allow-list alone does not produce a match)
+    ```
+
+    Layer two is the load-bearing one, reached via the only shape that evades layer one (a target with no
+    `- Status:` line, so the classifier legitimately matches with a widened list). The WRITER refuses, and
+    this is the pasted failing assertion:
+
+    ```text
+    E   agent_workflows.runner_shared.DriverError: rederive_front_matter: refusing to write
+    E   non-allow-listed front-matter key 'Status' (allow-list: ['Priority', 'Work-Kind'])
+    ```
+
+    That asymmetry is deliberate and is why the control is evidence rather than decoration: the
+    CLASSIFIER accepts an injected `allow_list` so a test can widen it, while the WRITER accepts only the
+    shipped `REDERIVABLE_FRONT_MATTER_KEYS`, so no test double and no future caller can widen what
+    actually reaches a permanent record.
+
+    THE ALLOW-LIST CONTROL, widened to a gate or attestation key, at BOTH layers.
+    `test_a_gate_or_attestation_key_is_never_this_shape` proves the CLASSIFIER refuses each of
+    `- Readiness:`, `- Approval:`, `- Blocks-Release:`, `- Item-Dependencies:` and `- Highest E allocated:`;
+    `test_the_writer_refuses_every_gate_or_attestation_key_even_if_classified` proves the WRITER refuses
+    each of `- Status:`, `- Readiness:`, `- Approval:`, `- Blocks-Release:` EVEN GIVEN A FORGED MATCHING
+    VERDICT. The `- Readiness:` case, pasted (the sharpest, since this repository treats a hand-written
+    value as a forged attestation the auto-approve predicate reads FIRST):
+
+    ```text
+    verdict=not-this-shape
+    reason=the incoming side added front-matter key(s) ['Readiness'] that are NOT on the re-derivable
+    allow-list (['Priority', 'Work-Kind']); a key with lifecycle, gate, identity or attestation meaning
+    must never be written by an automated integration
+    ```
+
+    THE UNMEASURED-TYPE ARM RETURNS UNKNOWN (F-10), for `.backlog.md`, `.spec.md` and `.release.md`:
+
+    ```text
+    verdict=unknown
+    reason='.aw/records/backlog/open/20260901-ccc333-01-ccc333-x.backlog.md' is a records file of an
+    UNMEASURED type (only .ipd.md has been measured for this shape); its status vocabulary and lifecycle
+    layout are its own, so no verdict is claimed
+    ```
+
+    THE SUITE, run BARE per the execution contract, with a baseline taken THE SAME WAY in this worktree
+    BEFORE any change (at HEAD `6444056e`):
+
+    ```text
+    BASELINE (before the change, HEAD 6444056e):
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 8567 passed, 3 skipped, 2 xfailed, 3 warnings in 126.58s (0:02:06)
+
+    AFTER the change:
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 8605 passed, 3 skipped, 2 xfailed, 3 warnings in 120.69s (0:02:00)
+    ```
+
+    NO NEW FAILING NODE IDS. Every failure classified:
+
+    1. `tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped` -
+       PRE-EXISTING and UNRELATED, present identically in the baseline. It is the ambient
+       `OPENCODE_CONFIG_CONTENT` leak the plan already records: `env -u OPENCODE_CONFIG_CONTENT python3 -m
+       pytest tests/test_turn_bounds.py` gives `76 passed`. Not edited (the scope fence forbids it), and
+       already carried by backlog `qdxxi9`/`gewvlv`.
+    2. `tests/test_orchestrator_retirement.py::RealRepositorySets` - the plan's second expected
+       pre-existing failure DID NOT OCCUR in either run here, so there is nothing to classify. Recorded
+       because the plan warned to expect it; corpus drift evidently moved it back to green.
+    3. `tests/test_runner_shared.py::LaneIntegrationBehaviorTests::test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction`
+       - ATTRIBUTABLE TO THIS CHANGE, and FIXED rather than left failing. It asserts the returned kind set
+       EQUALS exactly three members, and F-11 requires a fourth. The expected set is now four and remains
+       an EQUALITY assertion, so an unreviewed fifth kind still fails; the docstring records why, citing
+       spec Section 2.1a and F-11. See decision `01-kl18sz-D2`. `python3 -m pytest
+       tests/test_runner_shared.py` -> `230 passed`. NOTE this is an OUT-OF-SCOPE path: `aw check` reports
+       `check.scope-drift` on this plan for it, which is the gate working, and it needs a
+       `--scope-reason` at finalize.
+
+    The 38-test increase (8567 -> 8605) is this plan's own 38 new tests.
+  - Result: pass
 
 ## Approval and execution gate
 
