@@ -1,5 +1,5 @@
 - Id: cl9dms
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: cl9dms
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Runner dispatches a dependent whose executed: edge target finished substantially-complete, i.e. was never integrated, so the dependent runs against a tree missing the dependency's work
 
 ## Workflow history
+- 2026-09-23 done (aw set): Already FIXED by commit 8d5ccfb1 ('fix(runner): make the plan on disk the ONLY authority for an executed: dependency', 2026-09-19), verified an ancestor of HEAD 22cf67d9. That commit is the maintainer's response to the SAME incident this item was filed from, and its message names the defect as 'DEFECT 3 of the three the 2026-09-19 incident exposed'. WHAT CHANGED: edge_satisfied used to decide an executed: edge two ways, accepting the target's IN-MEMORY run status when the target was also in the run, which admitted substantially-complete via EXECUTION_SUCCESS_STATES. Now the by_id parameter is DELIBERATELY UNREAD (its docstring says so and says the maintainer removed the shortcut 'in favour of ONE authority: the plan's directory on disk'), and the live predicate resolves the plan path, takes plan_bucket, and requires 'executed' for an execute action. VERIFIED BY READING THE LIVE CODE, not the docstring: EXECUTION_SUCCESS_STATES and substantially-complete still appear in the function but ONLY inside comments narrating this very incident; every executable line of the executed: branch goes through plan_bucket/is_in_terminal_directory. The inconsistency this item flagged (77tr3o ruled substantially-complete does not count for retirement while it still counted for a dependency edge) is therefore resolved in the direction the item recommended. NOTE the item's warned second-order effect is real and unowned: tightening this makes dependents dependency-blocked where they previously ran, and nueip1 records that dependency-blocked has its own is-forever defect; nueip1 is already done, so that half is also addressed.
 - 2026-09-19 created (aw backlog): Filed from run-20260919T194413Z-2056285: executed:yaxr4i reported satisfied while yaxr4i's work existed only on an unintegrated lane branch; carrier for the half spec 77tr3o Section 4 deferred.
 
 MEASURED IN PRODUCTION, run `run-20260919T194413Z-2056285`, 2026-09-19. Queue position 3 (`n4xq3l`)
