@@ -105,7 +105,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - THE COMMIT-PATH CAUSE of the absent-record shape. That is `hv9gar`'s (`movehalf`) subject; this plan is detection only, and changing `offer_commit` here would collide with it.
 - MAKING THE CI GATE LOUDER. The item explicitly forbids it: the gate "was already correct, already fail-closed, and already red". Nothing here touches CI.
 - RE-IMPLEMENTING RECOMMENDATION (i). F-5: it is built; E-02 extends it.
-- A GENERAL "EVERY RECORD TYPE MUST BE CLAIMED EXACTLY ONCE" CHECK RULE. That is the portable counterpart to F-3 and is a broader change than this plan's runner-scoped fix; it belongs with the `check_engine` rule family and is named here so it is not lost.
+- A GENERAL "EVERY RECORD TYPE MUST BE CLAIMED EXACTLY ONCE" CHECK RULE. That is the portable counterpart to F-3 and is a broader change than this plan's runner-scoped fix; it belongs with the `check_engine` rule family and should be carried by a SUCCESSOR PLAN rather than a backlog item, since F-3 already measures the gap (every integrity rule asks whether an id6 is claimed more than once; none asks whether it is claimed at all) and what is missing is the reviewed rule design.
 
 ## Scope check
 

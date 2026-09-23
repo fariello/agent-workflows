@@ -1,5 +1,6 @@
 - Id: ccbe60
-- Status: open
+- Status: graduated
+- Graduated-To: lanecli
 - Blocks-Release: next
 - Set: ccbe60
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: Subprocess CLI tests run from a worktree silently exercise the MAIN checkout, because the editable install pins an absolute path
 
 ## Workflow history
+- 2026-09-23 graduated (aw set): Graduated to IPD lhjsu0 (lanecli Order 01). These three items are ONE defect with three victims (CLI, agent, suite), so one plan carries all three. VERIFIED LIVE at HEAD 22cf67d9 rather than trusting the filings: from a lane worktree with a NEUTRAL cwd, 'import agent_workflows' resolves to the MAIN checkout's __init__.py, because the editable install pins an absolute path there and the aw console script runs under a fixed interpreter shebang. THE MEASUREMENT THAT EXPLAINS WHY THIS SURVIVED: from the lane ROOT the cwd precedes the editable path, so the lane's own package wins and everything looks correct; only a neutral cwd or a subprocess flips it to main. Any fix or guard tested only from the lane root cannot distinguish fixed from broken, which the plan makes a hard requirement (E-04 must run from a NON-root cwd). ALSO MEASURED, and stronger than the filings claim: importing from a lane SUBDIRECTORY loaded MAIN's __init__.py while the LANE's agent_workflows/selectors.py shadowed the stdlib selectors module, crashing inside subprocess with AttributeError: module 'selectors' has no attribute 'SelectSelector'. That is two trees' code executing in one interpreter, not merely the wrong tree winning.
 - 2026-09-20 created (aw backlog): Filed while executing plan e3hzyc: discovered when a CLI-level regression test PASSED against unfixed code in a lane.
 
 FOUND WHILE EXECUTING PLAN e3hzyc IN AN ISOLATED LANE WORKTREE, and it is a validation-integrity defect rather than a cosmetic one: a test can report PASS while measuring code the change never touched.

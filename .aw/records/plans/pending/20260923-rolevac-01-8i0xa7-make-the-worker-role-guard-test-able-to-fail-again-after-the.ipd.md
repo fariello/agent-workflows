@@ -63,12 +63,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: the half nobody owns
 
-- [ ] E-04 DECIDE AND RECORD WHETHER THE RUNNERS SHOULD SCRUB THE MARKING FOR A SUITE INVOCATION, per OQ-02. Implement only if OQ-02 resolves that it belongs here; otherwise file it as its own item with the measurement attached.
+- [ ] E-04 DECIDE AND RECORD WHETHER THE RUNNERS SHOULD SCRUB THE MARKING FOR A SUITE INVOCATION, per OQ-02. Implement only if OQ-02 resolves that it belongs here; otherwise AUTHOR A SUCCESSOR PLAN carrying the measurement, rather than filing a backlog item, since the asymmetry is already measured and what is missing is a reviewed design.
   THE ASYMMETRY IS THE POINT: the conftest fix protects THIS repository because this repository ships that conftest. A managed target repo whose own tests read the ambient role gets no protection, and `8bif6g`'s harm (a false measured baseline feeding a `V-*` evidence block) applies there identically.
   DO NOT REMOVE THE MARKING FROM THE AGENT TURN. It is load-bearing for `AW-LIFECYCLE-ROLE-001` and incident `i452hf`; the conftest comment is explicit that removing it there "would restore a real defect to fix a reporting one". Any fix must distinguish the AGENT's environment (marked, deliberately) from a SUITE subprocess the agent launches (which is not a managed worker).
   IF THAT DISTINCTION CANNOT BE DRAWN RELIABLY, SAY SO AND DEFER. The runner cannot always know that a given subprocess is a test run, and a heuristic that guesses wrong in the unsafe direction (unmarking a real lifecycle call) is worse than the reporting defect it fixes. A recorded refusal with the reason is an acceptable outcome for this E-item.
   - Depends on: E-02, E-03
-  - Expected outcome: OQ-02 answered against the measured asymmetry; either a runner-side scrub that provably cannot unmark a lifecycle call, or a recorded decision naming why the distinction is undrawable, with a follow-on item filed either way; never a heuristic that can unmark the agent turn.
+  - Expected outcome: OQ-02 answered against the measured asymmetry; either a runner-side scrub that provably cannot unmark a lifecycle call, or a recorded decision naming why the distinction is undrawable, with a successor PLAN authored either way; never a heuristic that can unmark the agent turn.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -157,7 +157,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: OQ-02's recorded answer; if implemented, proof that a lifecycle call cannot be unmarked by the new path (a test asserting the agent turn is still marked); if refused, the named reason plus the follow-on item id6. Either way, the bare `python3 -m pytest` summary line.
+  - Required evidence: OQ-02's recorded answer; if implemented, proof that a lifecycle call cannot be unmarked by the new path (a test asserting the agent turn is still marked); if refused, the named reason plus the successor PLAN's id6. Either way, the bare `python3 -m pytest` summary line.
   - Observed evidence:
   - Result: pending
 

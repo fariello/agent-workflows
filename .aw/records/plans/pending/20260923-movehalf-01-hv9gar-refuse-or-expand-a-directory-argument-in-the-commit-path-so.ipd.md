@@ -96,7 +96,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - RE-FIXING THE STAGED-RENAME PARSER. `26519096` shipped it and F-3 verifies it working; E-01 re-proves it rather than changing it.
-- CONVERTING `aw backlog set` TO `git mv` (OQ-02). It would also fix my case, and it is deliberately not adopted here: the gateway is shared by every writer, and a per-writer fix leaves the next one exposed. Worth doing on its own merits, as its own item.
+- CONVERTING `aw backlog set` TO `git mv` (OQ-02). It would also fix my case, and it is deliberately not adopted here: the gateway is shared by every writer, and a per-writer fix leaves the next one exposed. Worth doing on its own merits, as a SUCCESSOR PLAN rather than a backlog item: the change is already designed (convert the writer's write+unlink to `artifact_core.git_mv`, mirroring the 2026-09-13 `status_set` conversion), so it needs authoring and review, not re-discovery.
 - A CHECK RULE FOR "RECORD EXISTS IN NO STATUS TREE". This is the detection counterpart to F-1 and is genuinely missing (a duplicated record is caught by `attention.duplicate-id`; an absent one is caught by nothing). It belongs with backlog `4y7nzh`'s write-time integrity work rather than in the commit gateway, and is named here so it is not lost.
 - CHANGING `aw commit`'s CLI SURFACE to reject directories at parse time. Defensible, but the defect is in the shared helper and fixing it at one CLI leaves the other callers exposed; E-02 fixes the gateway instead.
 

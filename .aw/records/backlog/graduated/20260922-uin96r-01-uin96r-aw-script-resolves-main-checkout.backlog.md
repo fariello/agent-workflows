@@ -1,5 +1,6 @@
 - Id: uin96r
-- Status: open
+- Status: graduated
+- Graduated-To: lanecli
 - Blocks-Release: next
 - Set: uin96r
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: The aw console script resolves agent_workflows from the main checkout, so a lane worktree's edits are invisible to CLI evidence
 
 ## Workflow history
+- 2026-09-23 graduated (aw set): Graduated to IPD lhjsu0 (lanecli Order 01). These three items are ONE defect with three victims (CLI, agent, suite), so one plan carries all three. VERIFIED LIVE at HEAD 22cf67d9 rather than trusting the filings: from a lane worktree with a NEUTRAL cwd, 'import agent_workflows' resolves to the MAIN checkout's __init__.py, because the editable install pins an absolute path there and the aw console script runs under a fixed interpreter shebang. THE MEASUREMENT THAT EXPLAINS WHY THIS SURVIVED: from the lane ROOT the cwd precedes the editable path, so the lane's own package wins and everything looks correct; only a neutral cwd or a subprocess flips it to main. Any fix or guard tested only from the lane root cannot distinguish fixed from broken, which the plan makes a hard requirement (E-04 must run from a NON-root cwd). ALSO MEASURED, and stronger than the filings claim: importing from a lane SUBDIRECTORY loaded MAIN's __init__.py while the LANE's agent_workflows/selectors.py shadowed the stdlib selectors module, crashing inside subprocess with AttributeError: module 'selectors' has no attribute 'SelectSelector'. That is two trees' code executing in one interpreter, not merely the wrong tree winning.
 - 2026-09-22 created (aw backlog): The aw console script resolves agent_workflows from the main checkout, so a lane worktree's edits are invisible to CLI evidence
 
 FOUND WHILE EXECUTING `d91i3e` (runrecon Order 01). Filed as `bug` because it is a correctness
