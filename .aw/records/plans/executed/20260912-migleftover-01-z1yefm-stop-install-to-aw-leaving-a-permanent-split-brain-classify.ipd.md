@@ -6,7 +6,7 @@
 - Scope: Give the install-time migration path a way to reach a cleanup disposition, sweep the empty legacy directories it leaves, and stop the residue from being reported as a live split-brain layout. Includes a regression test built from the measured real-repo state.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/layout_migration.py, agent_workflows/doctor.py, tests/test_layout_migration.py, tests/test_installer.py, tests/test_doctor.py
 - Item-Dependencies: executed:h90ij1
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: high
 - Readiness: go-pending-approval
@@ -15,11 +15,11 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: z1yefm
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: x15f0q
 - Blocks-Release: f33nrj
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: z1yefm verified (set migleftover, attempt 1). [Scope reconciliation - widened-scope agent_workflows/command_surface.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run)]
 - 2026-09-23 approved (opencode): execution performed in lane z1yefm; the terminal transition is the runner's to make via `aw ipd finalize`, NOT claimed here. All six E-items performed and all six V-items verified with pasted evidence. OQ-02 resolved by measurement: `remove` alone cleared the empty-dir residue, so NO new pruning was written and the change is flag threading plus one safety guard plus tests. TWO defects found beyond the plan's expectation: (1) `remove` DELETED `.agents/skills`, which E-05 forbids, fixed here with a guard in `_is_removable_leftover` reading `engine.SKILLS_DIR` (DECISION D1); (2) the migration PREFLIGHT refuses any repo carrying `.agents/skills`, filed as backlog `72qlya` (bug/high/Blocks-Release) since `layout_inventory.py` is outside Scope-Paths (DECISION D3). Harness misreporting filed as `izfscm`. End-to-end rehearsed on real legacy repo `pysyslib`: layout `aw` (was `aw+litter`), zero empty dirs, all 92 skills files surviving, source repo unmutated.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item x15f0q (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
