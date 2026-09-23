@@ -9,7 +9,7 @@
   THE MECHANISM IS CONFIRMED, NOT INFERRED, so the mitigation is exact rather than defensive. Measured at review in a scratch file: `ruff --fix` DELETES `from sys import argv` while LEAVING `from os import path as path` untouched. The redundant-alias form is what marks a re-export as intentional, which is why the `as <same-name>` spelling is the mitigation and why dropping it on even one name loses that name silently.
   THE GUARD THAT CAUGHT IT is `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests` (find it by class name; `:1617` at review), whose `test_the_implementation_is_shared_not_copied` asserts OBJECT IDENTITY over `_SHARED_NAMES` (`:1633`). That tuple holds TWELVE names at review, not eleven: `dependency_status_detailed` was added by `03ie04` E-04 after agy carried its own broken copy for months precisely because the list omitted it. NOTE that `_SHARED_NAMES` is NOT where a re-homed name gets registered; see E-05, which corrects that.
 - Scope: Move every name child 01 classified host-neutral from `oc_runipd.py` into `runner_shared.py`, in reviewable batches, as a PURE MOVE with no body change, keeping the shared module free of any runner import and the agy-to-oc direction at zero, preserving the `as <same-name>` re-export form, and extending the cross-driver symmetry guard. CLOSES backlog `cnwy8g`. EXCLUDES any name classified opencode-specific or UNSETTLED by child 01; excludes any diverged symbol (`818uru` deferred those behind `lanectn`); excludes any behavior change whatsoever.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_runner_item_dependencies.py, tests/test_runner_layering.py, tests/test_runner_refork_guard.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_runner_item_dependencies.py, tests/test_runner_layering.py, tests/test_runner_refork_guard.py, tests/test_orchestrator_probe_cache.py, tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json, tests/test_spec_impact_visibility.py, tests/test_rununify_main.py, tests/test_runner_backlog_close.py, tests/test_runner_backlog_close_in_lane.py, tests/test_suite_baseline.py, tests/test_runner_telemetry_integration.py, tests/test_lane_tool_identity.py, tests/test_oc_runipd.py, tests/test_resumedupe.py, tests/test_run_trailer_wiring.py, tests/test_rununify_execute_item_gates.py, tests/test_rununify_initialize_run.py, tests/test_runresidue_residue.py, agent_workflows/engine.py, AGENTS.md
 - Item-Dependencies: executed:9kmbr0
 - Status: approved
 - Work-Kind: bug
@@ -42,40 +42,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prepare before moving anything
 
-- [ ] E-01 READ CHILD 01'S CLASSIFICATION AND FREEZE THIS PLAN'S WORK LIST FROM IT, then RE-MEASURE the live import set and reconcile the two. Do NOT derive the work list from this plan's prose: the count moved from 40 to 47 in the five days before this plan was written, so it will have moved again.
+- [x] E-01 READ CHILD 01'S CLASSIFICATION AND FREEZE THIS PLAN'S WORK LIST FROM IT, then RE-MEASURE the live import set and reconcile the two. Do NOT derive the work list from this plan's prose: the count moved from 40 to 47 in the five days before this plan was written, so it will have moved again.
   RECONCILE THE DELTA EXPLICITLY, do not silently take the intersection. If a name appeared after child 01's classification, it is UNCLASSIFIED and must NOT be moved on a guess; record it and either classify it against child 01's stated criterion or leave it and say so. If a classified name has disappeared, record that too. A plan that quietly moves whatever is currently there has abandoned the classification the Set exists to be reviewed against.
   RESPECT THE UNSETTLED VERDICTS. Child 01 may have recorded names as UNSETTLED with reasons. An UNSETTLED name is NOT a host-neutral name and must not be moved. If moving one seems obviously right, that is a maintainer question, not a judgment call to make inside a pure-move plan.
   - Depends on: none
   - Expected outcome: a frozen work list derived from child 01's classification and reconciled against a fresh AST measurement, with every added, removed and UNSETTLED name named and its disposition stated; no name moved on a guess.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MAP EACH NAME'S OUTBOUND CALLS BEFORE MOVING IT, because a naive lift fails and `818uru` measured exactly how. Its record states that four of its 34 symbols called symbols OUTSIDE the moved set (`run_checked` -> `pinned_child_env`, `discover_plans` -> `parse_plan_file`, `save_state` -> `write_report`, `validate_manifest` -> `parse_dependency_token`), two of them DIVERGED between the hosts, so those dependencies were INJECTED rather than imported.
+- [x] E-02 MAP EACH NAME'S OUTBOUND CALLS BEFORE MOVING IT, because a naive lift fails and `818uru` measured exactly how. Its record states that four of its 34 symbols called symbols OUTSIDE the moved set (`run_checked` -> `pinned_child_env`, `discover_plans` -> `parse_plan_file`, `save_state` -> `write_report`, `validate_manifest` -> `parse_dependency_token`), two of them DIVERGED between the hosts, so those dependencies were INJECTED rather than imported.
   FOR EACH NAME IN THE WORK LIST, RECORD WHAT ITS BODY CALLS and whether each callee is (a) already in `runner_shared`, (b) also being moved in this plan, (c) still in `oc_runipd` and staying, or (d) DIVERGED between the hosts. Case (c) is the one that would create the very back-edge this plan exists to remove, and case (d) is `818uru`'s injection case. Produce this map BEFORE the first move; it decides the batch order.
   A NAME WHOSE CALLEES CANNOT BE SATISFIED WITHOUT A BACK-EDGE DOES NOT MOVE IN THIS PLAN. Record it as blocked with the specific callee that blocks it. Moving it and adding a `from agent_workflows.oc_runipd import ...` to `runner_shared` would be strictly worse than leaving it, because it would put the cycle in the shared module.
   - Depends on: E-01
   - Expected outcome: a per-name callee map classifying every callee into the four cases; a batch order derived from it; any name blocked by a case (c) callee recorded as blocked with the callee named, and NOT moved.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: move, one concern group at a time
 
-- [ ] E-03 MOVE THE FIRST BATCH AS A PURE MOVE and prove the pattern works before touching the rest. Take the concern group whose callee map is cleanest from E-02, not the largest.
+- [x] E-03 MOVE THE FIRST BATCH AS A PURE MOVE and prove the pattern works before touching the rest. Take the concern group whose callee map is cleanest from E-02, not the largest.
   PURE MOVE MEANS THE BODY IS BYTE-IDENTICAL. `818uru` verified each move with an AST-identity assertion against the pre-move definition plus an object-identity assertion that both runners resolve to the same object. Use that same pattern; `tests/test_runner_shared.py` already exists from that plan and is where these assertions live. Do NOT reformat, rename a local, add a type hint, or improve a docstring while moving. If a body must change, that is a different plan.
   PRESERVE THE `as <same-name>` RE-EXPORT FORM in both drivers for anything that remains reachable through them. `ruff` previously deleted six of these, and `ruff` plus `ruff-format` are pre-commit hooks here, so the deletion will be attempted on this plan's first commit. Expect a hook rejection, and when it happens, RE-VERIFY the staged set before retrying: `pre-commit` stashes unstaged changes and can restore paths you never staged.
   `runner_shared` MUST IMPORT NEITHER RUNNER. That is `818uru` E-01's admission rule and this Set's CID-2. Assert it by AST rather than by import success: a lazy in-function import succeeds at module load and is still a layering violation.
   - Depends on: E-02
   - Expected outcome: the first concern group moved; each move verified by AST-identity against the pre-move body plus object identity across `oc_runipd`, `agy_runipd` and `runner_shared`; re-export form intact through a real hook-passing commit; `runner_shared` importing neither runner, asserted by AST.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MOVE THE REMAINING BATCHES, one concern group per commit, each independently revertible. Re-run the bare suite after each batch and compare failing NODE IDS, not totals; a batch that changes the failing set stops the plan rather than being pushed through.
+- [x] E-04 MOVE THE REMAINING BATCHES, one concern group per commit, each independently revertible. Re-run the bare suite after each batch and compare failing NODE IDS, not totals; a batch that changes the failing set stops the plan rather than being pushed through.
   COMMIT PER BATCH, NOT ONCE AT THE END. The reason is mechanical: if one move breaks something, a per-batch history makes it a one-commit revert and a bisect useful, whereas a single large commit makes the failure a puzzle. Path-scope every commit and verify the staged set before each.
   DO NOT LET A LATER BATCH SILENTLY WIDEN AN EARLIER DECISION. If moving a name in batch 3 turns out to require moving something E-02 marked as staying, STOP and report; that is E-02's map being wrong, which is worth knowing, not something to absorb.
   - Depends on: E-03
   - Expected outcome: every host-neutral name in the frozen work list moved, one concern group per commit; the bare suite's failing node-id set unchanged after every batch; any discovered map error reported rather than absorbed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the direction and guard it
 
-- [ ] E-05 REGISTER EACH RE-HOMED NAME IN THE GUARD THAT OWNS ITS NEW HOME, AND MOVE ITS ROW OUT OF `_SHARED_NAMES` AS PART OF THE SAME MOVE. `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests` (find it by class name; `:1617` at review, and `_SHARED_NAMES` at `:1633`) asserts presence AND object identity via `test_the_implementation_is_shared_not_copied`. It is the test that caught `ruff` deleting six re-exports, so it must keep passing.
+- [x] E-05 REGISTER EACH RE-HOMED NAME IN THE GUARD THAT OWNS ITS NEW HOME, AND MOVE ITS ROW OUT OF `_SHARED_NAMES` AS PART OF THE SAME MOVE. `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests` (find it by class name; `:1617` at review, and `_SHARED_NAMES` at `:1633`) asserts presence AND object identity via `test_the_implementation_is_shared_not_copied`. It is the test that caught `ruff` deleting six re-exports, so it must keep passing.
   THE PLAN'S ORIGINAL INSTRUCTION TO EXTEND `_SHARED_NAMES` WITH RE-HOMED NAMES IS WRONG, AND THE CODE SAYS SO IN A COMMENT WRITTEN FOR EXACTLY THIS SITUATION. `_SHARED_NAMES` exists for `oc_runipd`-OWNED symbols that agy must bind rather than copy; its header comment states it "IS THE ONLY AVAILABLE HOME FOR A RUNNER-OWNED SHARED SYMBOL" precisely BECAUSE `REFORK_TABLE` cannot host one, since every `Owned` row names a NON-RUNNER owner and "naming `oc_runipd` as an owner would make its AST half forbid oc's own definition". The moment this plan re-homes a name into `runner_shared`, that name STOPS being runner-owned and becomes exactly what `REFORK_TABLE` is for. Measured at review: `REFORK_TABLE` already carries 29 rows whose owner IS `runner_shared` (`DriverError`, `utc_now`, `resolve_run_dir`, ...), and the two guards are strictly DISJOINT today (zero symbol overlap). So the correct action per re-homed name is to ADD an `Owned(<name>, "runner_shared", BOTH)` row to `REFORK_TABLE` and REMOVE it from `_SHARED_NAMES`, not to add it to both.
   LEAVING IT IN `_SHARED_NAMES` IS NOT MERELY REDUNDANT, IT IS A WEAKER GUARANTEE. `_SHARED_NAMES` asserts only `agy.<name> is oc.<name>`, which stays true if BOTH bind a copy; the `REFORK_TABLE` AST half additionally FORBIDS either runner from re-defining the symbol, which is the property a re-homed name needs and the one that caught the historical re-forks. Adding the row is what actually protects the move.
   DO NOT WEAKEN THE RUN-STATE ASSERTION. The dependency module separately asserts that a shared module "must not learn about the runner or its run state". A re-homed name that drags run-state knowledge into `runner_shared` would trip it, and that trip is CORRECT: it means the name was misclassified, not that the test is wrong.
@@ -83,20 +83,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   UPDATE CHILD 01'S FROZEN SET. Child 01 pinned the SORTED SET of oc-to-agy imported names in `tests/test_runner_layering.py`. Every move changes that set, so the pin must be updated in the SAME commit as the move it reflects, or the suite is red between commits and a bisect becomes useless. Do NOT delete the pin to make the suite pass; that is exactly the destructive fix child 01's constructive failure message exists to prevent.
   - Depends on: E-04
   - Expected outcome: every re-homed name carries an `Owned(<name>, "runner_shared", BOTH)` row in `REFORK_TABLE` and has been REMOVED from `_SHARED_NAMES`, with each of the 12 current entries accounted for as either still-there or moved and none in both or neither; the run-state assertion untouched and passing; child 01's frozen set updated in the same commit as each move; the pin still present and still failing on an unsanctioned addition.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PROVE THE RESIDUAL EQUALS THE CLASSIFICATION. The set of names still imported oc-to-agy must be EXACTLY the names child 01 classified opencode-specific, plus any name E-01 recorded as unclassified and E-02 recorded as blocked. A set difference in either direction is a failure, not a rounding error.
+- [x] E-06 PROVE THE RESIDUAL EQUALS THE CLASSIFICATION. The set of names still imported oc-to-agy must be EXACTLY the names child 01 classified opencode-specific, plus any name E-01 recorded as unclassified and E-02 recorded as blocked. A set difference in either direction is a failure, not a rounding error.
   PRINT TWO SET DIFFERENCES, BOTH EMPTY, rather than asserting equality in prose. Extra residual means something that should have moved did not; missing residual means something moved that was not sanctioned, which is the more serious direction because it means an opencode-specific symbol is now in the shared module.
   ASSERT THE REVERSE DIRECTION IS STILL ZERO. It is zero today, and this plan's whole subject is directionality; a cycle introduced while fixing a layering violation would be the worst possible outcome.
   - Depends on: E-05
   - Expected outcome: two empty set differences printed; the residual accounted for name by name against child 01's classification plus the recorded unclassified and blocked names; the agy-to-oc count still zero, measured by AST.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 CLOSE BACKLOG `cnwy8g` THROUGH THE SETTER, not by hand, and only after E-06 passes. The item carries NO `Blocks-Release` gate, so its close is not gate-gated, but it must still be closed by the tool so the workflow history records it.
+- [x] E-07 CLOSE BACKLOG `cnwy8g` THROUGH THE SETTER, not by hand, and only after E-06 passes. The item carries NO `Blocks-Release` gate, so its close is not gate-gated, but it must still be closed by the tool so the workflow history records it.
   DO NOT INVENT A GATE ON THE WAY OUT. If E-02 or E-04 discovered a SECOND behavioral defect traceable to this layering, the item's own instruction is to "gate it then", which means FILING a new item carrying its own gate, not retroactively gating this Set. Record any such discovery.
   - Depends on: E-06
   - Expected outcome: `cnwy8g` reads `- Status: done`, closed via `aw backlog set` with a message citing this plan; `aw backlog check` clean; no `Blocks-Release` field added to any plan in this Set; any second behavioral defect filed as a new item rather than gating this one.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -151,6 +151,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
+SCOPE-PATHS WAS AMENDED DURING EXECUTION, recorded here in prose because `aw ipd lint` (IPD-M103) refuses an unknown front-matter field and a fence decision is not a schema field. 2026-09-23 by the executor, adding the two paths below under this plan's own fence clause ("if the work GENUINELY requires a path outside the fence, MAKE THE EDIT AND JUSTIFY IT"). Both are REQUIRED by the move rather than convenient, and each is justified here so the addition is reviewable rather than silent. FIRST, `tests/test_orchestrator_probe_cache.py` carries a SECOND, INDEPENDENT pin on the very count `tests/test_runner_layering.py` freezes (`BothHostsShareEverySymbol::test_the_oc_to_agy_import_count_did_not_increase`, an exact `assertEqual(len(imported), 56)`), so re-homing even ONE name turns it red and no declared path can reach it. Its own failure message instructs "re-measure and update the baseline with the new count and a note", and its docstring already records four prior re-measurements in exactly that form, so following that convention is the sanctioned action; the assertion was NOT deleted, loosened to an inequality, or converted to a floor. SECOND, `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json` is the PRE-MOVE AST capture the pure-move proof compares against, and a fixture is the established shape for exactly this evidence (`818uru` shipped `runner_shared_premove_fingerprints.json` for the same purpose); inlining 14KB and growing of `ast.dump` output into a test module was considered and rejected as strictly worse. THIRD, FOURTH, FIFTH and SIXTH, added as later batches reached them and each for the SAME structural reason rather than a new one: a name leaving `oc_runipd` changes WHERE a caller resolves it, so a test that patched or read the OLD site no longer asserts what it says it asserts. `tests/test_spec_impact_visibility.py` patched `oc_runipd.spec_impacts_for_queue` because that is where `announce_run_order` used to resolve it; after the move the patch intercepted NOTHING and both tests would have passed VACUOUSLY on an announcer that never crashed, which is strictly worse than failing. `tests/test_rununify_main.py` carries a per-name CLOSURE CLASSIFICATION table plus a histogram, and re-homing a name legitimately moves it between classes (measured: `report_run_spec_edits` from `one-object-agy-imports-oc` to `shared-same-object`, which is the coupling being PAID DOWN, since that class counts exactly the names for which one host driver is still a library for the other). `tests/test_runner_backlog_close.py` and `tests/test_runner_backlog_close_in_lane.py` assert OBJECT IDENTITY and read SOURCE TEXT for the four names whose shared body needs an injected `run_checked`, so each host keeps a one-line delegating wrapper and the two wrapper objects differ BY CONSTRUCTION; those assertions were re-expressed structurally, in the identical form `tests/test_runner_shared.py::WrapperTests` already uses for `818uru`'s eight injected symbols, and NOT deleted or loosened. In every one of the four cases the alternative was to leave a test asserting something no longer true.
+
 - Over-scope: `oc_runipd.py` and `agy_runipd.py` are in scope ONLY to remove a moved definition and to adjust an import or re-export. Do NOT change any body, any gate, or any behavior. `tests/test_runner_layering.py` is in scope only to update child 01's frozen set, never to delete or weaken it. `selectors.py` is deliberately NOT declared, which is why the three `_read_*` names are deferred rather than redirected (F-9, OQ-01).
 - Under-scope: stated rather than left as `none`. After this plan the drivers are peers with respect to IMPORTS, but each still carries its own diverged symbols, its own duplicated constants (`SUCCESS_STATES` and `EXECUTION_SUCCESS_STATES` are measured equal but not identical), and at least one re-fork (`build_isolation_notice`). `rununify` owns those.
 
@@ -166,6 +168,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 N/A for the move itself, with the reason stated rather than asserted: relocating a definition changes no documented contract, no operator-facing string, and no run-record shape. No spec governs which module a host-neutral helper lives in.
 ONE THING TO CHECK RATHER THAN ASSUME, and it is a real risk in a move plan: if any re-homed name is NAMED in a spec, a README, or a docstring that cites its MODULE PATH, that citation becomes wrong the moment the definition moves. Grep the `.aw/records/specs/` tree and the package docstrings for every name in the work list before finalizing, and fix any stale module-path citation as documentation. A tree that contradicts itself about where a symbol lives is worse than one that never said. Any prose you write for a human reader must contain no em or en dashes.
+EXECUTED RESULT OF THE GREP THIS SECTION DEMANDS. All 41 files under `.aw/records/specs/` plus the four top-level docs were scanned for a line naming any of the 56 moved names TOGETHER WITH `oc_runipd`/`agy_runipd` as its home. Exactly ONE stale citation existed, and it was in `AGENTS.md`: "WHAT THE RUNNER DOES FOR YOU, each verifiable in `oc_runipd.py` by symbol: ... (`queue_sort_key`, `dependency_depth`)". Both names moved to `runner_shared`, so the sentence sent a reader to the wrong file. FIXED AT THE SOURCE rather than in the installed copy: that prose is templated from `agent_workflows/engine.py`, so editing only `AGENTS.md` would have been reverted by the next install. The corrected text names BOTH modules and says why. NO SPEC under `.aw/records/specs/` cites a moved name's module path at all, so no `.spec.md` was edited and none is declared in `- Scope-Paths:`; spec `25kzda` in particular was not touched.
+`agent_workflows/engine.py` AND `AGENTS.md` ARE THEREFORE TWO MORE OUT-OF-FENCE EDITS, disclosed on the same footing as the test files above and under the same clause. They are required rather than convenient: this section obliges the executor to fix a stale module-path citation, and a tree that contradicts itself about where a symbol lives is worse than one that never said.
 Do NOT edit spec `25kzda`'s §4.2 finding-code table under any circumstances: it is transcribed verbatim into `run_evidence.RUN_FINDING_CODES` with a byte-equality test, so editing a cell IS a code change.
 
 ## Open questions
@@ -195,41 +199,245 @@ Do NOT edit spec `25kzda`'s §4.2 finding-code table under any circumstances: it
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste child 01's classification as read, and the fresh AST measurement taken at execution time. Paste the reconciliation: every name added since the classification, every one removed, and every UNSETTLED one, each with its disposition. If the live count is not 47, say so; both drivers are edited by live runs. Paste the frozen work list this plan will act on.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CHILD 01'S CLASSIFICATION AS READ. It is TEST DATA, not prose: a `tuple[Name, ...]` named `CLASSIFICATION` in `tests/test_runner_layering.py`, from which the frozen set is DERIVED (`FROZEN_OC_TO_AGY_IMPORTS = frozenset(row.name for row in CLASSIFICATION)`), so admitting an import requires classifying it. At the pre-plan commit `55a99b5c` it held **56 rows, every verdict `host-neutral`, `UNSETTLED_VERDICTS = ()`**, and `MOVE_UNSETTLED` held 7 names on a separate axis.
+    FRESH AST MEASUREMENT AT EXECUTION TIME, taken with `ast.walk` over `ImportFrom` nodes in both drivers (not `tree.body`, so nested wrapper imports count; not grep, which cannot tell an `as <same-name>` re-export from a use):
+    ```
+    live oc->agy alias entries: 56
+    live distinct names       : 56
+    statements                : [512, 574, 610, 652, 1620, 2175, 2185, 2197]
+    reverse agy->oc           : 0 []
+    classification rows       : 56
+    frozen set size           : 56
+    ARRIVED since classification : []
+    DEPARTED since classification: []
+    ```
+    THE RECONCILIATION IS EMPTY IN BOTH DIRECTIONS, which this plan's prose did NOT predict and which is worth stating plainly: zero names arrived, zero departed. The plan's authored figure of 47 and its review figure of 48 are both stale (child 01 measured 56 at ITS execution on 2026-09-22, one day before this one), and V-01 explicitly anticipates that: "If the live count is not 47, say so". It is 56, and it matches child 01's frozen set EXACTLY, so there is no delta to dispose of and no name is moved on a guess.
+    UNSETTLED VERDICTS: `()`, empty, which is a MEASUREMENT child 01 recorded rather than tidiness (it read all 56 bodies with comments and docstrings stripped and found exactly one `oc` token in executable code, a host LABEL, which its criterion classifies as a parameter). So there is no UNSETTLED name for this plan to refuse to move.
+    THE FROZEN WORK LIST THIS PLAN ACTED ON, all 56, grouped as child 01 grouped them: backlog-closing (11) `BacklogCloseVerdict`, `CARRIER_KIND_IPD`, `CARRIER_KIND_OTHER`, `close_backlog_item`, `commit_backlog_close`, `evaluate_backlog_close`, `process_backlog_close`, `record_unclosed_backlog_items`, `render_unclosed_report`, `resolve_backlog_item`, `unclosed_backlog_items`; dependency-graph (13) `DEPENDENCY_FATAL_RULES`, `_artifact_owners`, `cascade_dependency_blocked`, `dependency_depth`, `dependency_reasons`, `dependency_status`, `dependency_status_detailed`, `dependency_target_id6`, `edge_satisfied`, `enforce_dependency_preflight`, `parse_dependency_token`, `preflight_dependency_findings`, `queue_sort_key`; spec-edit-visibility (9) `SPEC_NOT_FINALIZED`, `SPEC_RECONCILED`, `SPEC_RECONCILE_REFUSED`, `queue_plan_path`, `queue_with_plan_paths`, `record_item_spec_edits`, `report_run_spec_edits`, `spec_edit_record`, `spec_edit_summary`; suite-checking (5) `SUITE_CHECK_ARGV`, `SuiteCheckResult`, `extract_suite_failures`, `parse_suite_summary`, `run_suite_check`; run-ordering (4) `announce_run_order`, `run_order_rationale`, `simulate_dispatch_order`, `update_execution_order`; shutdown-reporting (4) `emit_shutdown_report`, `register_signal_report`, `render_runs_pointer`, `signal_report_callback`; tool-identity (4) `ToolIdentityError`, `assert_child_tool_identity`, `pinned_child_env`, `pinned_module_argv`; recovery-routing (3) `build_verify_and_continue_notice`, `classify_recovery_disposition`, `route_recovery_turn`; earned-integration (3) `collect_earned_paths`, `integration_is_earned`, `run_earned_paths`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the per-name callee map, with every callee classified as already-shared, also-moving, staying-in-oc, or DIVERGED. Paste the derived batch order and the reason for its first element. Paste every name recorded as BLOCKED with the specific callee that blocks it; an empty blocked list is an acceptable answer only if the map shows why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PER-NAME CALLEE MAP was computed by AST for all 56 bodies (every `ast.Name` load minus arguments, local stores, nested definitions, except-handler names, comprehension targets and builtins), and each callee classified into the four cases V-02 names. The full map is large; what decides the batching is the set of callees that are NOT already satisfiable, so those are enumerated exhaustively here and the rest summarised.
+    CASE (a) ALREADY IN `runner_shared`: the common case, and unremarkable. Includes `DriverError`, `utc_now`, `append_jsonl`, `load_state`, `save_state`, `resolve_plan_path`, `plan_bucket`, `action_for`, `Palette`, `should_color`, `SUCCESS_STATES`, `TERMINAL_STATES` and many more; no name in the work list was blocked by a case-(a) callee.
+    CASE (b) ALSO BEING MOVED: the intra-list edges, and they are what forced the batch GROUPING rather than a name-by-name order. Measured examples: `simulate_dispatch_order` and `run_order_rationale` call `queue_sort_key`, `parse_dependency_token` and `dependency_target_id6`; `dependency_depth` calls `parse_dependency_token`; `emit_shutdown_report` calls `record_unclosed_backlog_items` and `render_unclosed_report`, which call `unclosed_backlog_items`, which calls `evaluate_backlog_close`; `process_backlog_close` calls `collect_earned_paths`, `close_backlog_item` and `commit_backlog_close`; `dependency_status` and `dependency_status_detailed` call `edge_satisfied`, which calls `parse_dependency_token`.
+    CASE (c) oc-PRIVATE AND STAYING, ten names, each measured with its consumers so the decision was informed rather than defensive:
+    ```
+    EXECUTION_SUCCESS_STATES     consumers=3  in-work=[cascade_dependency_blocked, dependency_status_detailed]  OUTSIDE=[run_queue]
+    IntegrationVerdict           consumers=1  in-work=[integration_is_earned]                                   OUTSIDE=[]
+    SUITE_CHECK_TIMEOUT_SECONDS  consumers=1  in-work=[run_suite_check]                                         OUTSIDE=[]
+    SUITE_FAILURE_LINE_LIMIT     consumers=1  in-work=[extract_suite_failures]                                  OUTSIDE=[]
+    _SUITE_FAILURE_LINE_RE       consumers=1  in-work=[extract_suite_failures]                                  OUTSIDE=[]
+    _SUITE_SUMMARY_RE            consumers=1  in-work=[parse_suite_summary]                                      OUTSIDE=[]
+    _SIGNAL_REPORT_DONE          consumers=1  in-work=[emit_shutdown_report]                                     OUTSIDE=[]
+    _SIGNAL_REPORT_STATE         consumers=2  in-work=[emit_shutdown_report, register_signal_report]             OUTSIDE=[]
+    _carrier_kind                consumers=1  in-work=[evaluate_backlog_close]                                  OUTSIDE=[]
+    _consuming_actions_for       consumers=1  in-work=[preflight_dependency_findings]                            OUTSIDE=[]
+    ```
+    NINE OF THE TEN HAVE NO CONSUMER OUTSIDE THE WORK LIST, so they are CO-MOVES rather than blockers: leaving one behind would have split a closure and given the two hosts separate state (most sharply `_SIGNAL_REPORT_STATE`, the signal-report registry, where a split means a SIGINT reports from whichever half the handler resolved). The tenth, `EXECUTION_SUCCESS_STATES`, also has an outside consumer (`run_queue`) and was additionally defined in BOTH hosts as equal-but-not-identical set literals, so it was UNIFIED in `runner_shared` and re-exported by both, which `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests` had explicitly named as `cnwy8g`'s work.
+    CASE (d) DIVERGED, and this is where the real blocking happened. Measured by docstring-stripped AST comparison of every work-list name against any same-named definition in `runner_shared`: EIGHT names already had a shared copy, and THREE of those copies DIFFER from the host's body.
+    ```
+    ToolIdentityError                 shared copy AST-identical  -> consolidated
+    assert_child_tool_identity        shared copy AST-identical  -> consolidated
+    pinned_child_env                  shared copy AST-identical  -> consolidated
+    pinned_module_argv                shared copy AST-identical  -> consolidated
+    route_recovery_turn               shared copy AST-identical  -> consolidated, then REVERTED (see below)
+    build_verify_and_continue_notice  shared copy DIVERGES       -> BLOCKED, deferred
+    classify_recovery_disposition     shared copy DIVERGES       -> BLOCKED, deferred
+    record_item_spec_edits            shared copy DIVERGES       -> BLOCKED, deferred
+    ```
+    THE BLOCKED LIST, WITH THE SPECIFIC CALLEE OR CAUSE THAT BLOCKS EACH, as V-02 requires. `classify_recovery_disposition`: the shared copy calls `lane_branch_tip` and matches snapshots with `subj.startswith('wip(snapshot):')` where the host's calls `worktree_lease.commit_subject_is_interrupted_snapshot`, reads `st.path`/`st.base_commit` where the host reads `st.worktree_path`/`lane_base`, and drops the host's `not st.exists` and `not st.head` guards. `build_verify_and_continue_notice`: the shared copy replaces every direct attribute read on the decision record with `getattr(..., default)`, so a malformed record renders text instead of raising. `record_item_spec_edits`: the shared copy writes `item['spec_edits_reconciliation']` with keys `reconciled/reasons/acks/refused` where the host writes `item['spec_edits']` with `state/declared/modified_not_declared/declared_not_modified`. Each is a RECONCILIATION of two behaviors, not a pure move, and this plan's Deferred section excludes exactly that. Filed: `zt2b16`, `tm5vnx`.
+    `route_recovery_turn` IS THE CASE THE MAP GOT WRONG, and it is reported rather than absorbed, as E-04 requires. Its shared copy is AST-IDENTICAL, so it classified as consolidatable and was consolidated. It is still wrong: the body resolves `classify_recovery_disposition` in the SHARED namespace, and that sibling is not merely diverged but DEAD ON ARRIVAL, reading fields `worktree_lease.LaneState` does not have (`LaneState._fields` has `worktree_path`/`base_sha`, not `path`/`base_commit`), so it raises `AttributeError` on any lane that exists. Nothing had ever called it, because both hosts resolved their own. Four tests in `tests/test_resumedupe.py` failed with exactly that error the moment the consolidation made them reach it. REVERTED, with the reason recorded at oc's definition, in agy's stub, in the classification row and appended to `zt2b16`. THE LESSON, now written into the tree: an AST-identical function is only safely movable if everything it RESOLVES is also safely movable. So the callee map needed a fifth question it did not originally ask, which is not "is this body identical?" but "is the body it reaches identical too?".
+    THE DERIVED BATCH ORDER, and the reason for its first element. Batch 1 was spec-edit-visibility, chosen because its callee map was the CLEANEST (zero case-(c) co-moves among the eight moved names) rather than because it was the largest, exactly as E-03 directs. Then run-ordering plus its transitive dependency-graph closure; then backlog-closing plus shutdown-reporting plus earned-integration as one 16-name closure; then the dependency evaluator; then suite-checking; then the tool-identity consolidation and the injected four.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: for EVERY name in the first batch, paste the AST-identity assertion against its pre-move body AND the object-identity output showing `oc_runipd`, `agy_runipd` and `runner_shared` resolve to the same object. Paste the AST walk showing `runner_shared` imports NEITHER runner. Paste the actual commit that passed the pre-commit hooks, and paste the symmetry test passing AFTER that commit rather than only in the working tree, since the formatter acts at commit time. If a hook rejected the first attempt, paste that too along with the re-verified staged set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE FIRST BATCH was the eight spec-edit-visibility names: `SPEC_NOT_FINALIZED`, `SPEC_RECONCILED`, `SPEC_RECONCILE_REFUSED`, `queue_plan_path`, `queue_with_plan_paths`, `report_run_spec_edits`, `spec_edit_record`, `spec_edit_summary`. Commit `13760db4`.
+    AST-IDENTITY AGAINST THE PRE-MOVE BODY, AND OBJECT IDENTITY FROM ALL THREE MODULES, for every name in the batch. Both are asserted by a NEW shipped test (`tests/test_runner_shared.py::ReHomedHostNeutralNameTests`) against a pre-move fingerprint fixture captured at `55a99b5c`, so the proof is durable rather than a one-time transcript, and the same harness was re-run per name here:
+    ```
+    NAME                               AST==PRE  no oc def  no agy def  identity
+    SPEC_NOT_FINALIZED                 True      True       True        True
+    SPEC_RECONCILED                    True      True       True        True
+    SPEC_RECONCILE_REFUSED             True      True       True        True
+    queue_plan_path                    True      True       True        True
+    queue_with_plan_paths              True      True       True        True
+    report_run_spec_edits              True      True       True        True
+    spec_edit_record                   True      True       True        True
+    spec_edit_summary                  True      True       True        True
+    ALL PROPERTIES HOLD: True
+    ```
+    (`identity` is `oc.<name> is runner_shared.<name> and agy.<name> is runner_shared.<name>`; `no oc def`/`no agy def` are AST checks that neither host still contains a top-level definition, which identity alone would not catch when a stale duplicate is shadowed by a later import.)
+    `runner_shared` IMPORTS NEITHER RUNNER, asserted by AST rather than by import success, since a lazy in-function import would pass the latter. The shipped guard is `tests/test_runner_shared.py::NoRunnerImportTests::test_runner_shared_imports_neither_runner`, which walks the WHOLE tree for any `Import`/`ImportFrom` whose module or alias contains `runipd`; it passes, and it passed at every batch. Re-verified independently at the end of the plan: `grep -c 'runipd' ` over `runner_shared.py`'s import statements is 0.
+    THE COMMIT PASSED THE PRE-COMMIT HOOKS, which is the part that matters for the re-export form, and `aw commit` reported `committed 7 path(s): 13760db4a6d3570ebd489cda2c564875e57d984e`. The `as <same-name>` form survived it, verified AFTER the commit rather than only in the working tree: `grep -c 'as queue_plan_path\|as spec_edit_record\|as SPEC_RECONCILED'` gives 3 in `oc_runipd.py` and 3 in `agy_runipd.py`, and `python3 -m pytest tests/test_runner_shared.py -k ReHomed` gives `5 passed` at that commit.
+    NO HOOK REJECTED THIS BATCH, so there is no rejection transcript to paste for it, and that is worth saying plainly rather than leaving as an absence. THE PREDICTED `ruff` DELETION DID HAPPEN, one batch later and on a DIFFERENT name than the plan expected: `format_run_order_announcement` was a PLAIN (unaliased) import in `oc_runipd`, load-bearing only because the then-still-local `announce_run_order` called it. When that function moved in batch 2, the name became unused in oc and `ruff --fix` DELETED it on that batch's commit, after which `tests/test_run_order_announcement.py::AnnouncementFormatterTests::test_both_drivers_bind_the_same_formatter_object` failed with `AttributeError: module 'agent_workflows.oc_runipd' has no attribute 'format_run_order_announcement'`. Restored in the redundant-alias form with the incident recorded in-tree at the import (commit `dff92aa0`). So the plan's F-3 reproduced live, on this plan's own commits, and the mitigation is the one the plan named.
+    BOTH HALVES OF THE NEW GUARD WERE MUTATION-CHECKED, since a harness that cannot fail is decoration. (1) Changed ONE executable line in `spec_edit_record` (`.spec.md` -> `.SPEC.md`): `AssertionError: ['  spec_edit_record: body CHANGED during the move. `1f7xno` is a PURE-MOVE plan, so a body change here is either an accidental edit (revert it) or a deliberate improvement that belongs in its own plan with its own review']`, then reverted and `5 passed`. (2) Deleted agy's `queue_plan_path` re-export, which is exactly what `ruff` did to six of these once: `AssertionError: ['  queue_plan_path: ABSENT from agy_runipd. The `as <same-name>` re-export was lost, which is exactly what `ruff --fix` did to six of these once; restore it rather than deleting this assertion']`, then reverted and `5 passed`.
+    ONE CALLEE HAD TO BE RESOLVED, exactly as E-02 predicted and as the plan's own F-2 warned: `report_run_spec_edits` closes over `render_stream.format_spec_edit_report` and `.format_spec_impact_failure`, which `runner_shared` did not import, so the naive lift raised `NameError: name 'format_spec_edit_report' is not defined` on two tests. Both were ADDED TO THE EXISTING `render_stream` import statement, which leaves the MODULE SET that `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared` pins unchanged; that guard passes. `render_stream` imports no first-party module, so this closes no cycle. Had those two names been `oc_runipd`-private, the name could NOT have moved, because satisfying it would have put the back-edge inside the shared module.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the per-batch commit list, one concern group each. For each batch, paste the bare-suite failing NODE ID set after it, and show every set is identical to the baseline. Do not paste totals as the argument. If any batch changed the set, paste the investigation and its conclusion rather than a workaround.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PER-BATCH COMMIT LIST, one concern group each, each independently revertible:
+    ```
+    13760db4  batch 1/6  spec-edit-visibility (8 names)
+    3a0b597e  batch 2/6  run-ordering (4) + its transitive dependency closure (4)
+    dff92aa0  batch 2 fixup  the three consequences the first full-suite run found
+    7ff51ecb  batch 3/6  backlog-closing + shutdown-reporting + earned-integration (16)
+    96b88ba5  batch 4/6  dependency-graph evaluator (9) + EXECUTION_SUCCESS_STATES unified
+    12adf688  batch 5/6  suite-checking + earned-integration predicate (11)
+    edcbbe27  batch 6/6  the injected four + enforce_dependency_preflight + tool-identity consolidation
+    352bcdeb  E-05  fourteen names moved from _SHARED_NAMES into REFORK_TABLE
+    4c473711  E-07  close backlog cnwy8g
+    ```
+    THE FAILING NODE-ID SET, MEASURED IN THIS LANE BEFORE ANY EDIT (not inherited from this plan, whose figures are stale in both halves):
+    ```
+    $ python3 -m pytest        # BASELINE, bare, before any change
+    FAILED tests/test_run_packet_gates.py::TestStepPacketRendering::test_packet_digest_changes_when_bound_requirement_changes
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    2 failed, 8803 passed, 3 skipped, 2 xfailed, 6 warnings in 213.77s (0:03:33)
+    ```
+    AND AT THE END OF THE PLAN, same command, same worktree:
+    ```
+    $ python3 -m pytest        # FINAL
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 8815 passed, 3 skipped, 2 xfailed, 6 warnings in 132.66s (0:02:12)
+    ```
+    THE FINAL FAILING SET IS A SUBSET OF THE BASELINE, WHICH I REPORT AS A DIFFERENCE RATHER THAN AS SUCCESS. `test_turn_bounds` is present in both and is ENVIRONMENTAL: it asserts a NON-isolated turn receives no permission-denial policy by checking `policy_key not in main_env`, and `main_env` inherits the ambient environment, in which `OPENCODE_CONFIG_CONTENT` is exported because a contained worker lane is exactly where it is set. Already filed FOUR times (`4vn040`, `8dp3zp`, `hco0mk`, `r67fl1`), so no fifth duplicate was filed, and it was not touched. `test_run_packet_gates` was red in the BASELINE and is green at the end; it is flaky under the parallel run (it passes in isolation) and nothing in this plan's scope touches packet digests, so I report the improvement as unexplained-by-me rather than claiming credit.
+    I DID NOT COMPARE TOTALS AS THE ARGUMENT, and the totals differ legitimately: 8803 -> 8815 because this plan ADDS 12 tests (`ReHomedHostNeutralNameTests` 7, the two structural wrapper tests plus the ownership test in `SharedNotCopied`, and the two `_SHARED_NAMES` accounting tests).
+    EVERY BATCH CHANGED THE FAILING SET AT LEAST ONCE, AND EVERY SUCH CHANGE WAS INVESTIGATED RATHER THAN WORKED AROUND. This is the substance of V-04 and is reported in full, because a claim that six batches each landed clean would be false:
+    * BATCH 2 broke 3: `ruff` deleted oc's `format_run_order_announcement` import (restored in the alias form); two `tests/test_spec_impact_visibility.py` tests patched `oc_runipd.spec_impacts_for_queue` where the MOVED announcer no longer resolves it, so they intercepted nothing and would have passed VACUOUSLY on an announcer that never crashed (repointed at the resolving module); `test_rununify_main`'s closure table reclassified `report_run_spec_edits` from `one-object-agy-imports-oc` to `shared-same-object`, which is the coupling being PAID DOWN since that class counts exactly the names for which one host is still a library for the other.
+    * BATCH 3 broke 6, then 2: the shutdown-report ledger-ordering test and an induced-bucket-failure test both spied on `oc_runipd` attributes the moved bodies no longer resolve; the first observed an EMPTY list rather than a wrong order and the second never fired its induced failure, so a FAIL-CLOSED test would have passed vacuously on a verdict that closed. Both repointed. Four names (`close_backlog_item`, `commit_backlog_close`, `collect_earned_paths`, `process_backlog_close`) were HELD BACK to their own batch when a bare lift raised `TypeError: run_checked() missing 1 required keyword-only argument: 'env_builder'` on ten tests, which is `818uru`'s measured injection case.
+    * BATCH 4 broke 14, from ONE bug, and it is the most instructive failure in the plan: `_consuming_actions_for` called `runner_shared.action_for`, a QUALIFIED reference that named an imported MODULE in oc and has no counterpart inside the module itself, so the attribute access raised `NameError` which the body's own `except Exception: continue` SWALLOWED, making the function return an empty map and silently switching the dependency evaluator to its strict default. It was loud only because those 14 tests exist. A second gap surfaced with it: `edge_satisfied` read a module-level `_read_status` that `runner_shared` binds only function-locally. Both are now enumerated as RESOLUTION FIXES (below) and BOTH scanner gaps were closed.
+    * BATCH 5 broke 2: an extractor `__module__` assertion and an over-broad `"signal" not in names` AST check that conflated the signal MODULE with a NamedTuple FIELD named `signal`. Both narrowed to what they meant, neither weakened.
+    * BATCH 6 broke 163, then 19, then 8. The 163 were ONE missing re-export (`enforce_dependency_preflight`, which `initialize_run` calls by bare name) producing `NameError` through every CLI path; the rest were the wrapper-vs-identity contract and the closure tables, each repaired by moving the assertion to the property rather than the old layout.
+    THREE SCANNERS NOW EXIST BECAUSE OF THOSE FAILURES, and they ran on every batch after the one that motivated them: an UNRESOLVED-NAME scan over the moved block (corrected mid-plan, because it had been counting FUNCTION-LOCAL imports as module-level bindings, which is precisely how `edge_satisfied`'s gap was reported resolved when it was not), a QUALIFIED-SELF-REFERENCE scan (the `runner_shared.action_for` class of bug, which is invisible inside a swallowing `try`), and a HOST-SIDE unresolved-reference scan (the `enforce_dependency_preflight` class, where the mover deletes a definition while another body in the same file still names it). All three report 0 at the end of the plan.
+    NO BATCH WAS PUSHED THROUGH. Every changed node id was traced to a cause, and in every case the cause was either a genuine break in the move (fixed) or a test pinned to the OLD LAYOUT rather than to a property (re-expressed, with the reasoning recorded in-tree). One consolidation was REVERTED outright rather than made to pass (`route_recovery_turn`; see V-02).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `REFORK_TABLE` rows ADDED (each `Owned(<name>, "runner_shared", ...)`) and the `_SHARED_NAMES` tuple as it now reads, and account for all 12 of its review-time entries: each must be either still present (did not move) or moved into `REFORK_TABLE`, with NONE in both and none in neither. Paste `tests/test_runner_refork_guard.py` and `CrossDriverSymmetryTests` both PASSING, including the run-state assertion. Paste child 01's frozen set as updated, and paste it still FAILING on an unsanctioned addition (mutate, show the failure, revert). Paste proof the pin was updated in the same commit as the move it reflects, not in a later cleanup commit.
     PROVE THE NEW ROW ACTUALLY BITES, because a row that cannot fail is decoration: for ONE re-homed name, re-add a dummy definition of it to `oc_runipd` and paste `test_no_runner_redefines_an_already_extracted_symbol` FAILING with that name, then revert and paste it passing. An `Owned` row whose AST half was never exercised is a FAILED validation, since that half (not the identity half) is the property a re-homed name needs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE `REFORK_TABLE` ROWS ADDED, fourteen, each `Owned(<name>, "runner_shared", BOTH)` (commit `352bcdeb`):
+    ```
+    Owned("DEPENDENCY_FATAL_RULES", "runner_shared", BOTH),
+    Owned("_read_item_dependencies", "runner_shared", BOTH),
+    Owned("parse_dependency_token", "runner_shared", BOTH),
+    Owned("dependency_target_id6", "runner_shared", BOTH),
+    Owned("edge_satisfied", "runner_shared", BOTH),
+    Owned("dependency_status", "runner_shared", BOTH),
+    Owned("dependency_status_detailed", "runner_shared", BOTH),
+    Owned("dependency_reasons", "runner_shared", BOTH),
+    Owned("dependency_depth", "runner_shared", BOTH),
+    Owned("queue_sort_key", "runner_shared", BOTH),
+    Owned("cascade_dependency_blocked", "runner_shared", BOTH),
+    Owned("classify_drain_block", "runner_shared", BOTH),
+    Owned("record_transient_dependency_wait", "runner_shared", BOTH),
+    Owned("preflight_dependency_findings", "runner_shared", BOTH),
+    ```
+    `_SHARED_NAMES` AS IT NOW READS: `_SHARED_NAMES: tuple[str, ...] = ()`, empty.
+    ALL 14 REVIEW-TIME ENTRIES ACCOUNTED FOR, NONE IN BOTH AND NONE IN NEITHER. The tuple held FOURTEEN at execution, not the twelve this plan asserts in three places (the two additions are `classify_drain_block` and `record_transient_dependency_wait`, added by `depblock 01` `akzy45` E-04 after this plan's review; child 01's own V-05 already corrected the count to fourteen). Every one of the fourteen MOVED: measured, each is now defined in `runner_shared`, defined in NEITHER host, and carries a `REFORK_TABLE` row. The disposition per name is the same for all fourteen, so it is stated once rather than fourteen times: MOVED. Note this includes `_read_item_dependencies`, which this plan's F-9 and OQ-01 expected to stay: it did NOT stay, because child 01 measured at ITS execution that the three `_read_*` names had already departed to `runner_shared` (not to `selectors`) without this Set, so the name arrived in this plan's window already shared and needed only its guard row moved. That is a correction to this plan's prose and is reported rather than reconciled away.
+    BOTH GUARDS PASSING, including the run-state assertion:
+    ```
+    $ python3 -m pytest tests/test_runner_refork_guard.py -o addopts="" -q
+    17 passed in 18.80s
+    $ python3 -m pytest tests/test_runner_item_dependencies.py -o addopts="" -q
+    62 passed in 3.91s
+    ```
+    `test_shared_rule_modules_are_not_modified_by_the_runner` (the assertion that a shared rule module "must not learn about the runner or its run state") is inside that 62 and is UNTOUCHED; no re-homed name tripped it, which is the correct outcome rather than a lucky one, since a trip would have meant a misclassification.
+    PROOF THE NEW ROW ACTUALLY BITES, run twice, because the first mutation does not isolate the property the row adds. MUTATION 1, a dummy re-definition of `queue_sort_key` appended to `oc_runipd`:
+    ```
+    E  AssertionError: ['oc_runipd.py:6058 re-defines `queue_sort_key`, which `runner_shared.py` already owns as `queue_sort_key`']
+    FAILED tests/test_runner_refork_guard.py::SymmetricReForkGuardTests::test_no_runner_redefines_an_already_extracted_symbol
+    ```
+    That fires, but so would the weaker identity pin, because a trailing def shadows the re-export and identity then differs. So MUTATION 2 isolates the property: oc re-defines `queue_sort_key` AND agy imports OC's copy, which is the shape object identity cannot see.
+    ```
+    agy.queue_sort_key is oc.queue_sort_key: True     <- the OLD `_SHARED_NAMES` pin PASSES
+    oc.queue_sort_key is runner_shared.queue_sort_key: False
+    E  AssertionError: ['oc_runipd.py:6055 re-defines `queue_sort_key`, which `runner_shared.py` already owns as `queue_sort_key`']
+    ```
+    So a second body sits in a host driver, the guard this plan originally proposed to use PASSES, and the `REFORK_TABLE` AST half FAILS naming the file and line. That is the concrete demonstration that the row is a stronger guarantee and not merely a different filing. Both mutations reverted: `git diff --exit-code -- agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` -> clean, and `17 passed` again.
+    CHILD 01'S FROZEN SET AS UPDATED: 56 rows -> 4, shrinking in the SAME COMMIT as each move, which is what its own comment requires ("`1f7xno` re-homes these names one batch at a time and updates this table in the SAME commit as each move, so a row disappearing alongside a move in `runner_shared` is the plan working"). Per-commit: 56->48 (`13760db4`), 48->40 (`3a0b597e`), 40->27 (`7ff51ecb`), 27->19 (`96b88ba5`), 19->13 (`12adf688`), 13->4 (`edcbbe27`). The pin was never deleted or trimmed to match the code.
+    AND IT STILL FAILS ON AN UNSANCTIONED ADDITION, mutation-checked at child 01's own execution and re-confirmed here by adding a name to agy's import list from oc:
+    ```
+    E  AssertionError: the oc-to-agy import surface changed, and this guard exists because nothing else in the suite notices that.
+         ADDED (agy now imports these from oc and the table does not classify them): utc_now
+    ```
+    then reverted and `5 passed`.
+    THE VACUITY OF AN EMPTY `_SHARED_NAMES` IS ADDRESSED RATHER THAN IGNORED, which V-05 does not ask for but which an empty list plus a live loop would otherwise hide. Two new tests: `test_the_empty_list_is_EMPTY_BECAUSE_EVERY_NAME_WAS_PROMOTED_not_deleted` names all fourteen and asserts per name that `runner_shared` owns it, that a `REFORK_TABLE` row exists for it, and that neither runner defines it; and `test_a_name_added_back_to_the_list_is_really_checked` drives the identity loop with a temporary one-name tuple and requires it to RAISE, so "the empty list remains a working socket for the next runner-owned symbol" is tested rather than promised.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste TWO set differences, both printed EMPTY: residual minus classification-opencode-specific-plus-unclassified-plus-blocked, and the reverse. Paste the residual accounted for name by name. Paste the AST-measured agy-to-oc count showing it is still zero. Paste the oc-to-agy count before (47 or whatever E-01 measured) and after.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE TWO SET DIFFERENCES, BOTH PRINTED EMPTY, computed at execution time rather than asserted in prose:
+    ```
+    THE WORK LIST (child 01's classification, at the pre-plan commit 55a99b5c): 56
+    LIVE oc-to-agy RESIDUAL: 4 ['build_verify_and_continue_notice', 'classify_recovery_disposition', 'record_item_spec_edits', 'route_recovery_turn']
 
-- [ ] V-07 validates E-07
+    SANCTIONED RESIDUAL = opencode-specific + unclassified + blocked/deferred
+      opencode-specific (child 01 verdicts): [] -> ZERO, as classified
+      deferred (E-02 blocked: a DIVERGED shared copy exists): ['build_verify_and_continue_notice', 'classify_recovery_disposition', 'record_item_spec_edits', 'route_recovery_turn']
+
+    SET DIFFERENCE 1  residual - sanctioned  (extra residual: something that should have moved did not):
+        []
+    SET DIFFERENCE 2  sanctioned - residual  (missing residual: something moved that was NOT sanctioned):
+        []
+
+    REVERSE DIRECTION (agy-to-oc), measured by AST: 0 []
+
+    BEFORE: 56  AFTER: 4  MOVED OR CONSOLIDATED: 52
+    BOTH DIFFERENCES EMPTY AND REVERSE ZERO: True
+    ```
+    THE RESIDUAL ACCOUNTED FOR NAME BY NAME, all four, each against child 01's classification plus this plan's recorded blocks. Child 01 classified ZERO names opencode-specific and recorded ZERO unclassified (`UNSETTLED_VERDICTS = ()`), and E-01 measured ZERO arrivals and ZERO departures, so the ENTIRE sanctioned residual is E-02's blocked set and nothing else:
+    * `classify_recovery_disposition` BLOCKED: `runner_shared` already holds a copy whose docstring-stripped AST DIFFERS (different snapshot predicate, different `LaneState` fields, two guards dropped). Filed `zt2b16`.
+    * `build_verify_and_continue_notice` BLOCKED: shared copy diverges (every direct attribute read replaced by `getattr` with a default). Filed `zt2b16`.
+    * `record_item_spec_edits` BLOCKED: shared copy writes a DIFFERENT KEY (`spec_edits_reconciliation`) in a different record shape than the only reader looks for (`spec_edits`). Filed `tm5vnx`.
+    * `route_recovery_turn` BLOCKED: its shared copy is AST-IDENTICAL and the consolidation was performed and then REVERTED, because the body resolves `classify_recovery_disposition` in the SHARED namespace and that sibling is dead on arrival. Recorded in `zt2b16`.
+    CHILD 01'S PREDICTION WAS THAT THE RESIDUAL WOULD BE **EMPTY**, and it is 4, which its docstring says to report as a finding against the classification rather than absorb: "If Order 02 finds a residual it cannot move, that is a finding against this classification and should be reported as one." SO, REPORTED. The classification is not WRONG: all four are genuinely host-neutral by its criterion, and its criterion was about the BODY's content. What it did not measure is whether the DESTINATION already held a conflicting definition, which is the axis that actually blocked these four. That is an omission in the classification's axes (it separated "is it neutral?" from "can it move?" but assessed the latter only for collisions with other PLANS, not for collisions with existing shared code), not a wrong verdict, and the sharpest evidence is `route_recovery_turn`: neutral, AST-identical, and still unmovable.
+    THE AGY-TO-OC COUNT, MEASURED BY AST, BEFORE AND AFTER: 0 and 0. The reverse direction was zero at the start and is zero now; no cycle was introduced while fixing a layering violation, which this plan names as the worst possible outcome. Measured with the same `ast.walk` over `ImportFrom` nodes in `oc_runipd.py` for modules ending `agy_runipd`.
+    THE OC-TO-AGY COUNT BEFORE AND AFTER: **56 before** (what E-01 measured, not the 47 in this plan's prose) and **4 after**. Both halves of the pin that watches this number were updated with the measurement rather than loosened: child 01's derived frozen set (56 rows -> 4) and the independent exact `assertEqual(len(imported), 4)` in `tests/test_orchestrator_probe_cache.py`, whose docstring now records this re-measurement in the same form as the four before it and explains why four remain.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the ACTUAL output of the `aw backlog set` call closing `cnwy8g`, not a hand-edited file. Paste the item's `- Status:` line showing `done` and its workflow-history entry citing this plan. Paste `aw backlog check` clean. Paste a grep over all four plans in this Set showing NO `- Blocks-Release:` field was added. If a second behavioral defect was found, paste the new item's id and confirm it carries its own gate rather than this Set carrying one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE ACTUAL OUTPUT OF THE SETTER CALL, not a hand-edited file:
+    ```
+    $ aw backlog set .aw/records/backlog/graduated/20260903-runnerlayer-01-cnwy8g-...backlog.md --status done --message "Closed by runnerlayer Order 02 (1f7xno) ..."
+    aw backlog set: 20260903-runnerlayer-01-cnwy8g-agy-runipd-imports-40-names-from-oc-runipd-so-the-hosts-are-not-peers.backlog.md -> done
+    ```
+    The item MOVED directory as part of the transition, which is the setter doing its job: it now lives at `.aw/records/backlog/done/20260903-runnerlayer-01-cnwy8g-agy-runipd-imports-40-names-from-oc-runipd-so-the-hosts-are-not-peers.backlog.md`.
+    THE ITEM'S `- Status:` LINE:
+    ```
+    $ grep -n "^- Status:" .aw/records/backlog/done/20260903-runnerlayer-01-cnwy8g-*.backlog.md
+    2:- Status: done
+    ```
+    ITS WORKFLOW-HISTORY ENTRY CITING THIS PLAN (first line of `## Workflow history`, written by the setter):
+    ```
+    - 2026-09-23 set (aw backlog): Closed by runnerlayer Order 02 (1f7xno), which re-homed the host-neutral
+      names into runner_shared. MEASURED: the oc-to-agy import surface went from 56 names to 4 and the
+      reverse direction stayed at 0, both by AST walk; E-06's two set differences print EMPTY ...
+    ```
+    The prior entry reads `- 2026-09-09 graduated (aw set): Clear the stray Blocks-Release: next`, so the transition performed was `graduated -> done`, which is what the parent's F-12 records as the correct one.
+    `aw backlog check` CLEAN:
+    ```
+    $ aw backlog check
+    aw backlog check: all backlog items conform.
+    ```
+    NO `- Blocks-Release:` FIELD WAS ADDED TO ANY PLAN IN THIS SET. Grepped for the FRONT-MATTER field specifically, across all three plans (three, not the four this V-item says; the Set is `lyo1tz`, `9kmbr0`, `1f7xno`, as the parent's own review corrected):
+    ```
+    $ grep -c "^- Blocks-Release:" .aw/records/plans/*/2026090*runnerlayer*.ipd.md
+    .../20260908-runnerlayer-01-9kmbr0-...ipd.md:0
+    .../20260908-runnerlayer-00-lyo1tz-...ipd.md:0
+    .../20260908-runnerlayer-02-1f7xno-...ipd.md:0
+    ```
+    A bare `grep Blocks-Release` matches 22 lines across those files, and every one is PROSE explaining why no gate is carried; the count above is the field itself, which is what the requirement is about.
+    SECOND BEHAVIORAL DEFECTS WERE FOUND, and the item's own instruction ("gate it then", meaning FILE a new item rather than retro-gate this Set) was followed for each. THREE were filed, each carrying its own `- Blocks-Release: next` on its own merits as a bug:
+    * `232wcg` `ToolIdentityError` was defined TWICE, so `oc.ToolIdentityError is runner_shared.ToolIdentityError` was FALSE and `runner_shared.assert_child_tool_identity` raised a class NEITHER host catches; the run-fatal ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class degraded to the item-local `except DriverError`. This is the two-distinct-classes defect `818uru` fixed for `DriverError`, reintroduced one subclass down. FIXED in passing by batch 6's consolidation, verified: raising the shared class IS now caught by `except oc_runipd.ToolIdentityError`.
+    * `zt2b16` the recovery-routing pair diverges between host and shared copy, and the shared `classify_recovery_disposition` is DEAD ON ARRIVAL (reads `st.path`/`st.base_commit` off a `LaneState` with neither field). Carries the measurement.
+    * `tm5vnx` `record_item_spec_edits` has two copies writing DIFFERENT KEYS in different shapes, so `report_run_spec_edits` reads `spec_edits` while the shared body every run reaches writes `spec_edits_reconciliation`; the end-of-run spec report therefore reports every item as `not_finalized`.
+    Each is a NEW item with its own gate. This Set carries none.
+  - Result: pass
 
 ## Approval and execution gate
 
