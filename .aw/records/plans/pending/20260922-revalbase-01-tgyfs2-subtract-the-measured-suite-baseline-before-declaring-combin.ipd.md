@@ -42,41 +42,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the comparison
 
-- [ ] E-01 Add a pure predicate in `runner_shared` that takes the merged-tree failing ids and a `SuiteBaseline` and returns the NEW failing ids plus a three-valued judgement (`regressed` / `no-regression` / `unknown`). It MUST treat a baseline whose `state` is not `completed` as `unknown` and NEVER as an empty failing set, mirroring the discipline `SuiteBaseline.failures`' own docstring states. No I/O, no git, no suite run.
+- [x] E-01 Add a pure predicate in `runner_shared` that takes the merged-tree failing ids and a `SuiteBaseline` and returns the NEW failing ids plus a three-valued judgement (`regressed` / `no-regression` / `unknown`). It MUST treat a baseline whose `state` is not `completed` as `unknown` and NEVER as an empty failing set, mirroring the discipline `SuiteBaseline.failures`' own docstring states. No I/O, no git, no suite run.
   THIS IS THE COMPARISON THAT SANK PLAN `32ij2j`, SO THE PREDICATE MUST REFUSE TO BE THE AUTHORITY. Read `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` before writing a line: `32ij2j` "compared failing SETS as a subset and derived them from an always-empty string, so every lane passed including one that broke everything. Under the shipped design the EXIT CODE decides and the list only makes the question specific." The identical inversion is reachable HERE, and this plan as authored walked into it. MEASURED at review: if the post-merge extractor yields `()` on a genuinely red run - which is not hypothetical, it is the exact `h5pyqa` defect class where `stdout_excerpt` was read and `SuiteCheckResult.summary` was always `""` in shipped production code - then `merged_ids - baseline_ids` is EMPTY, the predicate says `no-regression`, and a suite that broke everything INTEGRATES. So: an EMPTY merged failing set on a NON-PASSING suite is `unknown`, never `no-regression`. The list narrows a refusal; it may never manufacture a pass. State that rule in the code beside the predicate, citing `32ij2j`, so the next refactor cannot re-derive the inversion.
   AND THE TRUNCATION CAP IS A SECOND WAY THE SUBTRACTION LIES. `oc_runipd.extract_suite_failures` stops at `SUITE_FAILURE_LINE_LIMIT` (40) and returns in FIRST-SEEN order, while this repo's `addopts` carry `-n auto --dist=worksteal` plus random ordering, so two runs of the SAME red tree can keep DIFFERENT 40-line subsets. MEASURED at review: 60 identical pre-existing failures, reported in reverse order by the second run, yield 20 FALSELY NEW ids. So when either side's list is at the cap, the subtraction is not sound and the judgement MUST be `unknown` rather than `regressed` or `no-regression`. Detect the cap by length, not by parsing prose.
   - Depends on: none
   - Expected outcome: a function that, given the two measured `ld8lb3` inputs, returns `no-regression` with an empty new-id set; given one added id, returns `regressed` naming only that id; given an `absent` baseline, returns `unknown`; given a NON-PASSING suite whose merged failing list is EMPTY, returns `unknown` (never `no-regression`); and given either list at the 40-line cap, returns `unknown`.
-  - Execution state: pending
-- [ ] E-02 Compare failing ids by NORMALIZED NODE ID rather than by raw line equality, reusing the existing extractor's output shape (`oc_runipd.extract_suite_failures`, which both sides already flow through) so a formatting difference between the baseline run and the post-merge run cannot read as a regression. State in the code WHICH normalization is applied and why raw-string comparison was insufficient.
+  - Execution state: performed
+- [x] E-02 Compare failing ids by NORMALIZED NODE ID rather than by raw line equality, reusing the existing extractor's output shape (`oc_runipd.extract_suite_failures`, which both sides already flow through) so a formatting difference between the baseline run and the post-merge run cannot read as a regression. State in the code WHICH normalization is applied and why raw-string comparison was insufficient.
   NORMALIZE TOWARD REFUSING, NOT TOWARD PASSING, because every normalization choice here is a chance to make two different failures look like one. The extractor's lines are `^(?:FAILED|ERROR)\s+\S.*$`, so a line carries the node id plus whatever trailing message pytest appended; strip the trailing message and keep the `path::Class::test` node id, and keep the `FAILED` versus `ERROR` distinction rather than collapsing it (a test that now ERRORS where it previously FAILED has changed behavior and must not subtract cleanly). If a line cannot be parsed into a node id, treat it as an UNMATCHABLE id that is always NEW, so an unparseable post-merge line refuses rather than vanishing from the difference. Do NOT normalize away a parametrization suffix: `test_x[a]` and `test_x[b]` are different failures.
   - Depends on: E-01
   - Expected outcome: two runs reporting the same failure with differing surrounding text compare EQUAL; two genuinely different node ids compare UNEQUAL; `FAILED path::t` and `ERROR path::t` compare UNEQUAL; `t[a]` and `t[b]` compare UNEQUAL; and an unparseable line is reported as NEW rather than silently dropped.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the wiring
 
-- [ ] E-03 Consume E-01's predicate inside `make_integration_validation_runner` so the returned verdict is relative: a measured red whose failing set introduces NOTHING new PASSES revalidation, and the recorded reason says so explicitly, naming the baseline commit it was compared against. A red with any new id keeps refusing. Read the baseline from the `item` the factory ALREADY receives; add no new parameter.
+- [x] E-03 Consume E-01's predicate inside `make_integration_validation_runner` so the returned verdict is relative: a measured red whose failing set introduces NOTHING new PASSES revalidation, and the recorded reason says so explicitly, naming the baseline commit it was compared against. A red with any new id keeps refusing. Read the baseline from the `item` the factory ALREADY receives; add no new parameter.
   APPLY THE SUBTRACTION AT EXACTLY ONE POINT, and not the one a quick reading suggests. The factory's `_runner` has SIX return paths, and only ONE of them is a measured red: the `passed = bool(getattr(result, "passing", False))` verdict after `suite_check`. The other five must be untouched, and each for its own reason. The `validate` branch returns True with `skipped=True` before any suite runs, because `integration_is_earned`'s two modes are ALTERNATIVES and the docstring records 14 tests going red when that distinction was missing. The no-`suite_check`, unresolvable-base/head, unmaterializable-merge and exception paths all carry `measured=False`, and a baseline comparison against a measurement that never happened is meaningless - leave them refusing. The `pytest` exit-5 path already forces `passed=True` and clears `failures`, so it must short-circuit BEFORE the comparison rather than being fed an empty failing list, which E-01 would correctly read as `unknown`.
   THE CACHE IS KEYED ON THE MERGED TREE, NOT ON THE BASELINE, and that is a correctness trap this plan must close. `cache[tree_id]` stores `{passed, reason, measured}` and a second lane reaching the SAME merge result reuses the verdict wholesale. Two items can share a merge result while holding DIFFERENT baselines (measured at review: `ld8lb3`'s base is `301a1d8fbc15` and `65cuw0`'s is `ee20e831f5f1`), so a cached relative verdict computed against one baseline must not be served to an item whose baseline differs. Either include the baseline identity in the cache key, or cache the raw failing-id set and re-run the comparison per item. State which you chose and why.
   READ THE BASELINE FROM THE LAST ATTEMPT, and say what happens when there is none. `execute_item_core` writes `attempt["suite_baseline"]` on each attempt, so read `attempts[-1]`, not `attempts[0]`, or a retried item is compared against a stale baseline. An item with no `attempts` at all, or an attempt with no `suite_baseline` key, is `unknown` and therefore refuses.
   - Depends on: E-01, E-02
   - Expected outcome: replaying `ld8lb3`'s recorded inputs through the factory yields `passed=True` with a reason naming base commit `301a1d8fbc15`; injecting one extra failing id yields `passed=False`; the five non-measured-red return paths are demonstrably unchanged; and a cache entry computed for one baseline is not served to an item with a different baseline.
-  - Execution state: pending
-- [ ] E-04 Extend the `_record_revalidation` record so an auditor can see the comparison rather than infer it: persist the baseline state, the baseline id set it was compared against, and the NEW ids that drove the verdict. Preserve every existing key and the existing `measured`/`skipped` honesty flags untouched.
+  - Execution state: performed
+- [x] E-04 Extend the `_record_revalidation` record so an auditor can see the comparison rather than infer it: persist the baseline state, the baseline id set it was compared against, and the NEW ids that drove the verdict. Preserve every existing key and the existing `measured`/`skipped` honesty flags untouched.
   - Depends on: E-03
   - Expected outcome: `item["post_merge_revalidation"]` gains the comparison fields; an existing consumer reading only today's keys is unaffected.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the guard
 
-- [ ] E-05 Add a regression test file pinning the behaviors and, more importantly, the ANTI-FAIL-OPEN controls. Drive the real factory, not a reimplementation of its logic. THE VERDICT CASES: equal failing sets integrate; one new id refuses; a non-`completed` baseline refuses (fail closed).
+- [x] E-05 Add a regression test file pinning the behaviors and, more importantly, the ANTI-FAIL-OPEN controls. Drive the real factory, not a reimplementation of its logic. THE VERDICT CASES: equal failing sets integrate; one new id refuses; a non-`completed` baseline refuses (fail closed).
   FOUR ANTI-FAIL-OPEN CONTROLS, NOT ONE, because a fix that makes this gate more permissive in any other case is worse than the defect it removes (the plan's own gate says so). (1) An absent baseline forced to read as an empty set must FAIL the test. (2) THE `32ij2j` INVERSION: a NON-PASSING suite whose merged failing list is EMPTY must refuse, and the test must fail if it ever passes - this is the single most important case in the file, for the reason `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` gives about the plan whose empty-set subtraction let a lane that broke everything integrate. (3) THE TRUNCATION CASE: either failing list at the 40-line `SUITE_FAILURE_LINE_LIMIT` cap must refuse rather than compare, pinned with a constructed 40+ id fixture. (4) THE CACHE CASE: a verdict cached for one baseline must not be served to an item whose baseline differs.
   AND PIN THE FIVE PATHS THAT MUST NOT MOVE, since the risk of this change is what it touches by accident: `validate=True` still returns True with `skipped=True` and runs no suite; no `suite_check` still refuses with `measured=False`; unresolvable base/head still refuses; an unmaterializable merge still refuses; a `suite_check` exception still refuses with `measured=False`. Assert on the recorded `measured` flag, not only on the boolean, so a path cannot be silently reclassified from harness-fault to code-red.
   DO NOT FORK `tests/test_suite_adjudication.py`. That file owns the exit-code-is-the-authority contract for `integration_is_earned`; this file owns the same principle for the post-merge gate. Cross-reference it in the module docstring rather than copying its cases, and state in that docstring which file owns which question.
   - Depends on: E-03, E-04
   - Expected outcome: the new file is RED against pre-fix source and GREEN after, with the pre-fix red demonstrated by reverting only the source file; all four anti-fail-open controls present and each shown failing when its hazard is forced; the five unchanged paths pinned including their `measured` flags.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -142,6 +142,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 No `.spec.md` amendment. The relevant spec text (`25kzda`, and `l2mzxn`'s 2026-09-21 separation of measured-red from unmeasured) already requires the gate to state what it measured; this plan makes the verdict honor the measurement it already takes, which moves TOWARD that contract rather than changing it. The in-code comment block above `INTEGRATION_REFUSAL_CONFLICT` should gain one sentence noting that a measured red with no NEW failures is not a refusal, since that block is where a future reader will look for the refusal taxonomy.
 
+DONE AT EXECUTION, and no spec file was touched (`Scope-Paths` declares none and none changed): the `INTEGRATION_REFUSAL_CONFLICT` block gained that sentence, stating that a measured red with no NEW failures never reaches this kind and that no third kind was added.
+
+AND ONE SPEC-ADJACENT QUESTION AROSE THAT THE PLAN DID NOT ANTICIPATE, resolved without a spec edit and recorded here because a reviewer should check the reading. Spec `25kzda` 5.1 ("THE HONEST LIMIT") and the in-code banner "THE PRE-WORK SUITE BASELINE" both carry a maintainer ruling that "a pre-work baseline may be supplied to the agent as INFORMATION so it can answer more accurately, but nothing refuses on it". That ruling is about the ADJUDICATION ANSWER: the rejected proposal, quoted verbatim in the code, was to REFUSE a `not-mine` claim for any failing id ABSENT from the baseline, and all four of its recorded reasons are reasons a baseline cannot be used to DISBELIEVE an agent. This plan runs in the opposite direction - the baseline can only make this gate MORE PERMISSIVE, never refuse anything that previously passed, and it judges nobody's fault - so nothing refuses on the baseline after this change either, and the prohibition is not violated. Verified rather than asserted: `perform_gate_answer` still touches `baseline` only inside its `gate_answer_question`/`gate_answer_record` calls (its own AST guard passes) and all of `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` still passes. The distinction is now written in the code beside the new section so the next reader does not re-derive it. Full reasoning in the lane's `decisions-and-questions.md` as DECISION 01-tgyfs2-D1, flagged for human review.
+
 ## Open questions
 
 ### OQ-01: Should a no-regression red integrate silently, or integrate while emitting a visible warning?
@@ -171,29 +175,204 @@ No `.spec.md` amendment. The relevant spec text (`25kzda`, and `l2mzxn`'s 2026-0
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the predicate driven on FIVE cases with output pasted: `ld8lb3`'s real baseline+merged id sets returning `no-regression` with an empty new set; the same plus one synthetic id returning `regressed` naming ONLY that id; a `state: absent` baseline returning `unknown`; a NON-PASSING suite whose merged failing list is EMPTY returning `unknown`; and either list at the 40-id cap returning `unknown`. Paste the actual return values, not a description. THE FOURTH AND FIFTH CASES ARE NOT OPTIONAL: a predicate that answers `no-regression` to an empty merged list on a red suite is the `32ij2j` inversion (F-7) and FAILS this item even if the first three cases pass, and one that subtracts truncated lists fabricates regressions (F-8).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: all FIVE cases driven on `R.new_failures_since_baseline`, actual return values pasted.
+
+    ```
+    === V-01 CASE 1: ld8lb3's REAL baseline+merged sets ===
+    RevalidationComparison(judgement='no-regression', new_ids=(), reason='every failing id in the merged tree was ALREADY failing at the baseline commit 301a1d8fbc15 (1 failed, 8042 passed, 3 skipped, 2 xfailed), so this work introduced no failure (1 pre-existing)', baseline_ids=('FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code',), merged_ids=('FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code',))
+
+    === V-01 CASE 2: same + ONE synthetic new id ===
+    RevalidationComparison(judgement='regressed', new_ids=('FAILED tests/test_new.py::T::test_added',), reason='1 failure(s) are NEW since the baseline at 301a1d8fbc15: FAILED tests/test_new.py::T::test_added', baseline_ids=('FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code',), merged_ids=('FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code', 'FAILED tests/test_new.py::T::test_added'))
+
+    === V-01 CASE 3: state='absent' baseline ===
+    RevalidationComparison(judgement='unknown', new_ids=('FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code',), reason="the pre-work suite baseline is 'absent', so what was ALREADY failing before this work is UNKNOWN and no failure can be attributed to the merge (the baseline suite had not finished); an unknown baseline is NEVER read as an empty failing set", baseline_ids=(), merged_ids=('FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code',))
+
+    === V-01 CASE 4: NON-PASSING suite, EMPTY merged list (the 32ij2j inversion) ===
+    RevalidationComparison(judgement='unknown', new_ids=(), reason="the merged suite did NOT pass yet reported NO failing ids, so the failing set is UNKNOWN rather than empty; answering 'no regression' here is the inversion that sank plan 32ij2j, where an always-empty list would have integrated a lane that broke the whole suite", baseline_ids=('FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code',), merged_ids=())
+
+    === V-01 CASE 5: either list at the 40-id cap ===
+    a NAIVE subtraction of the two truncated lists would fabricate 20 regressions
+    judgement: unknown
+    reason: a failing-id list is at the 40-line truncation cap (baseline 40, merged 40), and the extractor truncates in FIRST-SEEN order while the suite runs under `-n auto --dist=worksteal` with random ordering, so two runs of one red tree can keep DIFFERENT subsets; subtracting truncated lists fabricates regressions and is refused
+    ```
+
+    CASE 4 and CASE 5 both answer `unknown`, so neither inversion is reachable. Case 5's fixture is the F-8 measurement reproduced: 60 identical pre-existing failures, the second run reporting them in reverse order, whose naive subtraction of the two retained 40-id subsets fabricates exactly 20 regressions - the predicate refuses to judge it instead. The cap constant is pinned equal to `oc_runipd.SUITE_FAILURE_LINE_LIMIT` by `test_the_cap_CONSTANT_matches_the_extractor_it_describes`, because `runner_shared` may not import a driver and so duplicates the value. Purity is asserted by AST in `test_the_predicate_is_PURE` (no `_run_git`, `subprocess.run`, `open` or `Path` call).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: the normalization function's actual output pasted for each input, showing: two failing lines for the same node id differing in surrounding text comparing EQUAL; two different node ids comparing UNEQUAL; `FAILED path::t` versus `ERROR path::t` comparing UNEQUAL; `t[a]` versus `t[b]` comparing UNEQUAL; and an unparseable line treated as NEW rather than dropped. A normalization that collapses `FAILED`/`ERROR`, collapses a parametrization suffix, or silently discards an unparseable line FAILS this item, because each makes two different failures subtract as one.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `R.normalize_failure_id` output pasted per input.
+
+    ```
+    'FAILED tests/t.py::C::test_x - assert 1 == 2'
+      -> 'FAILED tests/t.py::C::test_x'
+    'FAILED tests/t.py::C::test_x - ValueError: totally different text'
+      -> 'FAILED tests/t.py::C::test_x'
+      EQUAL: True
+
+    'FAILED tests/t.py::C::test_x'  -> 'FAILED tests/t.py::C::test_x'
+    'FAILED tests/t.py::C::test_y'  -> 'FAILED tests/t.py::C::test_y'
+      EQUAL: False
+
+    'FAILED tests/t.py::C::test_x'  -> 'FAILED tests/t.py::C::test_x'
+    'ERROR tests/t.py::C::test_x'   -> 'ERROR tests/t.py::C::test_x'
+      EQUAL: False
+
+    'FAILED tests/t.py::test_x[a]'  -> 'FAILED tests/t.py::test_x[a]'
+    'FAILED tests/t.py::test_x[b]'  -> 'FAILED tests/t.py::test_x[b]'
+      EQUAL: False
+
+    'this is not a pytest failure line at all'
+      -> '<unparseable>'  (UNPARSEABLE sentinel = '<unparseable>')
+
+    an unparseable merged line is treated as NEW rather than dropped: judgement=regressed, new_ids=('<unparseable>',)
+    ```
+
+    So: same node id with differing trailing text compares EQUAL; two node ids compare UNEQUAL; `FAILED` versus `ERROR` for one node compares UNEQUAL; `[a]` versus `[b]` compares UNEQUAL; and an unparseable line becomes a sentinel that can never equal a baseline id, so it is reported NEW rather than silently dropped. A collection error with no `::` still parses to its path (`ERROR tests/test_broken.py`), pinned by `test_an_ERROR_line_with_no_node_id_still_parses_to_its_path`, because that shape is what a module that cannot be collected produces.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: the REAL `make_integration_validation_runner` driven with `ld8lb3`'s recorded inputs, pasting `passed` and the full recorded `reason`, which must name base commit `301a1d8fbc15`; then the same call with one extra failing id, pasting `passed=False`. Both through the factory, not a copy of its logic.
     ALSO REQUIRED: evidence that the comparison was applied at EXACTLY ONE return path. Paste the five other paths' behavior unchanged with their `measured` flags (`validate=True` -> True/`skipped=True`/no suite run; no `suite_check` -> False/`measured=False`; unresolvable base/head -> False/`measured=False`; unmaterializable merge -> False/`measured=False`; suite exception -> False/`measured=False`), and show the `pytest` exit-5 path still returning True WITHOUT reaching the comparison. Plus the cache evidence: two items with DIFFERENT baselines (`ld8lb3`'s `301a1d8fbc15` and `65cuw0`'s `ee20e831f5f1` are the real pair) reaching one merge result must not share a relative verdict; state which fix you chose and show it. And show the baseline is read from `attempts[-1]`, not `attempts[0]`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: the REAL `make_integration_validation_runner` driven over a real git fixture repo whose lane work is NOT in main. Every line below is that run's own output.
+
+    ```
+    === V-03 A: ld8lb3's recorded inputs through the REAL factory ===
+    passed: True
+    reason: the merged suite is RED but this work INTRODUCED NO FAILURE, so revalidation passes: every failing id in the merged tree was ALREADY failing at the baseline commit 301a1d8fbc15 (1 failed, 8042 passed), so this work introduced no failure (1 pre-existing). The suite's own verdict was: the driver-run suite did not pass
+    names base commit 301a1d8fbc15: True
+
+    === V-03 B: same inputs plus ONE extra failing id ===
+    passed: False
+    reason: the driver-run suite did not pass; and the merged tree is refused because 1 failure(s) are NEW since the baseline at 301a1d8fbc15: FAILED tests/test_new.py::T::test_added
+
+    === V-03 C: the CACHE across DIFFERING baselines (OQ-03 fix (b)) ===
+    suite invocations (must be 1): 1
+    ld8lb3 (baseline 301a1d8fbc15) passed: True  cached: False
+    65cuw0 (baseline ee20e831f5f1) passed: False  cached: True
+    65cuw0 judgement: regressed
+
+    === V-03 D: baseline read from attempts[-1], not attempts[0] ===
+    passed (True proves attempts[-1] was used): True
+    baseline commit named: True | stale named: False
+
+    === V-03 E: THE FIVE UNCHANGED PATHS + their measured flags ===
+    1. validate=True        -> passed=True, skipped=True, suite runs=0, has comparison=False
+    2. no suite_check       -> passed=False, measured=False
+    3. unresolvable base/head -> passed=False, measured=False
+    4. unmaterializable merge -> passed=False, measured=False
+    5. suite exception      -> passed=False, measured=False, has comparison=False
+
+    === V-03 F: pytest exit 5 returns True WITHOUT reaching the comparison ===
+    exit 5 -> passed=True, has comparison=False
+    reason: the merge result collected NO tests (pytest exit 5), so the merge cannot have broken anyth...
+    ```
+
+    And the OQ-01 warning fires on stderr whenever a red tree is passed, naming the pre-existing ids and the baseline commit:
+
+    ```
+      ! post-merge revalidation PASSED a RED tree for ld8lb3: this work introduced no new failure. Already failing at baseline 301a1d8fbc15: FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code
+    ```
+
+    THE CACHE FIX CHOSEN IS OQ-03's (b): the cache entry now stores the MEASUREMENT (`passed`, `reason`, `measured`, `suite_passed`, `failures`, `collected_nothing`) and `_relative_revalidation_verdict` recomputes the JUDGEMENT per item on both the fresh path and the cache-hit path. V-03 C is that fix proven: the suite ran ONCE (the property the cache exists for, so (a)'s ~107s re-run is avoided), `65cuw0` was a genuine cache HIT (`cached: True`), and yet the two items reached OPPOSITE verdicts because their baselines differ - which is exactly what serving the cached judgement wholesale would have got wrong.
+
+    THE COMPARISON IS APPLIED AT EXACTLY ONE POINT, `_relative_revalidation_verdict`, called from the fresh-measurement return and its cache-hit twin (the same site twice). The five fail-closed paths are untouched and keep their `measured` flags, so none can be reclassified from harness-fault to code-red; `validate=True` still runs no suite; and exit 5 short-circuits BEFORE the comparison via an explicit `collected_nothing` flag on the measurement (decision D2), so its empty failing list is never fed to the predicate where it would correctly read as `unknown` and undo the deliberate pass.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: the resulting `item["post_merge_revalidation"]` dict pasted in full for a no-regression case, showing the new comparison fields AND every pre-existing key (`passed`, `reason`, `failures`, `measured`, `skipped`, `cached`, `tree`, `merged_files`) still present with unchanged meaning.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `item["post_merge_revalidation"]` pasted in full for a no-regression case, as JSON straight off the item the real factory wrote.
+
+    ```json
+    {
+      "passed": true,
+      "tree": "66cc676040604bd64a2ff9ef55ea6df546bf62a4",
+      "reason": "the merged suite is RED but this work INTRODUCED NO FAILURE, so revalidation passes: every failing id in the merged tree was ALREADY failing at the baseline commit 301a1d8fbc15 (1 failed, 8042 passed), so this work introduced no failure (1 pre-existing). The suite's own verdict was: the driver-run suite did not pass",
+      "failures": [
+        "FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code"
+      ],
+      "merged_files": [
+        "lane_work.py"
+      ],
+      "cached": false,
+      "skipped": false,
+      "measured": true,
+      "baseline_comparison": {
+        "judgement": "no-regression",
+        "reason": "every failing id in the merged tree was ALREADY failing at the baseline commit 301a1d8fbc15 (1 failed, 8042 passed), so this work introduced no failure (1 pre-existing)",
+        "baseline_ids": [
+          "FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code"
+        ],
+        "merged_ids": [
+          "FAILED tests/test_defect_report.py::ValidatorTests::test_no_bare_except_was_introduced_around_the_new_code"
+        ],
+        "new_ids": []
+      }
+    }
+    ```
+
+    All eight pre-existing keys are present with unchanged meaning (`failures` still the raw extractor lines, `merged_files` still the gate's list, `measured: true` still meaning a real measurement, `skipped: false` still meaning it was not deliberately skipped), and the ONLY addition is the `baseline_comparison` block. It is round-trip JSON-serializable, pinned by `test_the_record_stays_JSON_SERIALIZABLE` because this dict is written into `state.json`. The block is ABSENT rather than null when no comparison was made (green suite, harness fault, exit 5, verifier-mode skip), so its absence is itself an honest statement, asserted on the exception and exit-5 paths.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `python3 -m pytest tests/test_integration_revalidation_baseline.py` output pasted GREEN after the change and RED before it (the before-run produced by reverting only the source file), plus the bare `python3 -m pytest` count line compared against YOUR OWN pre-change baseline in this worktree.
     ALL FOUR ANTI-FAIL-OPEN CONTROLS demonstrated failing when their hazard is forced, pasted individually: absent baseline read as empty; a non-passing suite with an empty merged list reading as `no-regression`; either list at the 40-id cap compared rather than refused; a cached verdict served across differing baselines. A file carrying only the three verdict cases plus the absent-baseline control does NOT satisfy this item.
     AND THE ATTRIBUTION STATEMENT: name every failing test in your bare run and say for each whether it is yours. Two were failing at review HEAD from other work (`test_turn_bounds.py::TestArmedForEveryUnattendedTurn`, `test_orchestrator_retirement.py::RealRepositorySets`); reporting a foreign failure as this plan's regression, or a green run you did not get, FAILS this item. If an EXISTING test in `tests/test_runner_shared.py`, `tests/test_suite_adjudication.py` or `tests/test_orchestrate_isolation.py` turned red, declare the file, re-base the assertion deliberately with its reason, and say so - do NOT weaken E-01's unknown-refuses rule to keep a fixture green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the new file GREEN after, RED before (produced by restoring only `agent_workflows/runner_shared.py` from HEAD while keeping the new tests).
+
+    ```
+    $ python3 -m pytest tests/test_integration_revalidation_baseline.py -o addopts="" -q     # AFTER
+    .................................                                        [100%]
+    33 passed in 1.27s
+
+    $ git show HEAD:agent_workflows/runner_shared.py > agent_workflows/runner_shared.py       # source only
+    $ python3 -m pytest tests/test_integration_revalidation_baseline.py -o addopts="" -q     # BEFORE
+    ...
+    E       AttributeError: module 'agent_workflows.runner_shared' has no attribute 'new_failures_since_baseline'
+    22 failed, 11 passed in 1.62s
+    ```
+
+    THE BARE SUITE, against my OWN pre-change baseline taken in this worktree before any edit:
+
+    ```
+    BEFORE (pre-change, this worktree):
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 8567 passed, 3 skipped, 2 xfailed, 3 warnings in 124.25s (0:02:04)
+
+    AFTER:
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 8600 passed, 3 skipped, 2 xfailed, 3 warnings in 118.16s (0:01:58)
+    ```
+
+    ATTRIBUTION STATEMENT, one line per failing test in the bare run. There is exactly ONE: `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`. It is NOT MINE - it fails identically in my pre-change baseline taken before I edited anything, it is the environment-dependent failure the plan itself names as pre-existing (it asserts `OPENCODE_CONFIG_CONTENT` is absent from a non-isolated turn's env, and this turn runs with that variable set), and it touches nothing this plan changes. The second failure the plan warned about (`test_orchestrator_retirement.py::RealRepositorySets`) did NOT occur here, so I am not reporting it. Passing count rose by exactly 33, which is exactly the tests this plan adds, and no test moved from pass to fail. NO EXISTING TEST TURNED RED: `tests/test_runner_shared.py`, `tests/test_suite_adjudication.py`, `tests/test_suite_baseline.py`, `tests/test_gate_answer_wiring.py` and `tests/test_orchestrate_isolation.py` run together give `453 passed`, so the Scope-Paths risk the plan flagged as "an inspection, not a run" is now a run: those fixtures build items with no `suite_baseline`, resolve to `unknown` under E-01, and keep refusing exactly as before. E-01's unknown-refuses rule was NOT weakened and no fixture was re-based.
+
+    ALL FOUR ANTI-FAIL-OPEN CONTROLS, each forced to its hazard and shown FAILING. The hazard is forced by applying the SAME assertion to the naive predicate the plan warns against (a bare subtraction with no unknown discipline), which is what the shipped code would be had the rules been omitted.
+
+    ```
+    === CONTROL 1: an ABSENT baseline read as an EMPTY set ===
+    hazard shape: ABSENT baseline, EMPTY merged list, RED suite
+      NAIVE (absent read as 'nothing was failing'): 'no-regression' -> assertion FAILS (a red tree nobody baselined would integrate)
+      SHIPPED: 'unknown' -> assertion holds
+    structural statement: an absent baseline is UNKNOWN for EVERY merged list
+      merged=empty    -> 'unknown'  introduced_nothing=False
+      merged=one id   -> 'unknown'  introduced_nothing=False
+      merged=five ids -> 'unknown'  introduced_nothing=False
+
+    === CONTROL 2: THE 32ij2j INVERSION, a NON-PASSING suite with an EMPTY merged list ===
+      NAIVE (hazard forced): 'no-regression'  -> assertion 'must not be no-regression' FAILS
+      SHIPPED             : 'unknown'  -> assertion holds
+
+    === CONTROL 3: either list at the 40-id TRUNCATION cap ===
+      NAIVE (hazard forced): 'regressed' naming 20 FABRICATED regressions -> the tree regressed NOTHING
+      SHIPPED             : 'unknown' (refuses to judge a truncated subtraction) -> assertion holds
+
+    === CONTROL 4: a verdict CACHED for one baseline served to an item whose baseline DIFFERS ===
+      NAIVE (cache serves the JUDGEMENT wholesale): 65cuw0 passed=True -> assertion 'must be False' FAILS
+      SHIPPED             : 65cuw0 passed=False, judgement='regressed' -> assertion holds
+    ```
+
+    A CORRECTION I AM DISCLOSING RATHER THAN ABSORBING: my first attempt at CONTROL 1 forced the wrong shape (an absent baseline with a NON-EMPTY merged list), where a naive subtraction answers `regressed` and therefore REFUSES - the safe direction. That shape does not exhibit the hazard, so presenting it as a forced control would have been a false claim. The shape above is the one that genuinely fails open, and it is distinguishable from control 2 by the BASELINE (absent here, `completed` there), so the two controls guard different inputs reaching the same false pass.
+
+    Each control is also pinned as a test in the new file: `test_ANTI_FAIL_OPEN_1_an_ABSENT_baseline_is_UNKNOWN_and_never_an_empty_set`, `test_ANTI_FAIL_OPEN_2_THE_32ij2j_INVERSION_an_empty_list_on_a_RED_suite` (plus its end-to-end twin through the real factory), `test_ANTI_FAIL_OPEN_3_either_list_at_the_TRUNCATION_CAP_is_UNKNOWN`, and `test_ANTI_FAIL_OPEN_4_a_verdict_cached_for_ONE_baseline_is_not_served_to_ANOTHER`. Control 2 has a deliberate complement (`test_a_GREEN_suite_with_an_empty_list_is_NOT_the_inversion_case`) so it is a discrimination rather than a blanket refusal, and the five unchanged paths are pinned with their `measured` flags in `TheFiveFailClosedPathsAreUNCHANGED`.
+  - Result: pass
 
 ## Approval and execution gate
 
