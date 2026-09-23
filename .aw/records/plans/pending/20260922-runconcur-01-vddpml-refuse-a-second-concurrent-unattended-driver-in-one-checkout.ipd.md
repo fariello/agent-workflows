@@ -18,14 +18,14 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: vddpml
-- Approval: 2026-09-22, recorded via aw ipd set: status set to approved
+- Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
 - From-Backlog: yuffut
 
 ## Workflow history
-- 2026-09-22 approved (aw set): status set to approved
+- 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; 8 findings, all FIXED; blocking OQ-04 resolved from its own recorded recommendation; readiness go-pending-approval; typed review record under .aw/records/reviews/
 
 - 2026-09-22 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008, all FIXED. Reviewed at HEAD `c1859b5e`; `aw ipd lint --phase author` exit 1 on `IPD-Q501` (the blocking OQ-04) before, `--phase review-finalize` conforming after. THE PROBLEM IS REAL AND THE PRIMITIVES CLAIMS ALL VERIFY: `platform_lock.probe_free` is three-valued and side-effect free exactly as quoted, `attention.get_active_runs_map` does filter to live `driver.lock` holders, `driver.lock` IS per-run (so F-4's scoping diagnosis is correct), the `--allow-uncovered-orchestrator-work` justification precedent is real, `engine._wire_optin_precommit_hook` exists with the four named callers, and the AGENTS.md managed block is generated from `engine.py`. The retracted silent-revert claim is correctly retracted and the backlog item `yuffut` records the same correction. FIVE MEASURED DEFECTS, each of which would have produced a guard that looks right and is not. (1) A LANE WORKTREE resolves to its OWN nonexistent runs root: `run_viewer.discover_run_dirs(Path("."))` returned 0 from this lane while `attention._resolve_runs_repo_root` + the same call returned 242, so a peer query built the obvious way reports NO PEER from every execute lane (PR-001). (2) Policy B needs a BLOCKING acquire, which `platform_lock` reserves to exactly one caller and warns "would HANG a driver rather than fail it"; the plan named no bound (PR-002). (3) E-04's flag cannot exist without amending spec `25kzda` 2.1, proven by construction: injecting one undeclared flag turned `test_the_spec_and_the_owned_table_agree_in_both_directions` RED while the file is otherwise `70 passed`, and the plan said it declared NO spec path "deliberately" (PR-003). (4) E-05's "same function object" is FALSE for a wrapper binding: measured, `oc_runipd.integrate_lane_branch is agy_runipd.integrate_lane_branch` is False and `is runner_shared....` is False, while the `state_root` re-export IS identical, so the authored assertion would fail a CORRECT implementation (PR-004). (5) OQ-04 option (iii)'s hook is blind to the driver's happy path, since `pre-merge-commit` does not run for a fast-forward and `integrate_lane_branch` publishes `--ff-only` first (PR-005/F-11). Also fixed: the blocking OQ-04 was already answered in its own body yet gated the plan at every checkpoint (PR-006); all six Deferred rows named no durable carrier, so `aw check` reported `check.ipd-uncarried-obligation` at error (PR-007); and E-03 was still a conditional A-or-B after OQ-01 resolved to B (PR-008). `aw check` now reports ZERO findings for this plan.
