@@ -7,20 +7,20 @@
 - Scope: Register `--type` on both host runners' `run` and `resume` parsers and thread it to the ALREADY-SHIPPED type-scoped sweep, so a spec awaiting review is reachable from the command line. IN: the flag on both hosts, its default (IPDs only, per spec `25kzda` 2.4a property 1), threading it to `sweep_review_candidates_for_type`, freezing it into run state per the resume rule, and the mixed-type gate becoming reachable for the first time. OUT: what a runner DOES with a selected spec once queued, which is the per-type dispatch table and is NOT this plan (see Deferred); multi-type SELECTION semantics beyond passing the operator's value through; any change to the sweep predicate or the dispatch table, both already correct.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_run_flag_surface.py, .aw/records/specs/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: specsweep
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: ui8b9b
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - Priority: medium
 - Work-Kind: feature
 - Blocks-Release: next
 - From-Spec: 6m4kow
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: ui8b9b verified (set specsweep, attempt 1). [Scope reconciliation - out-of-scope tests/test_rununify_build_parser.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_rununify_initialize_run.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 1: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-701..PR-704, all FIXED, no open questions. The premise re-verified and holds: zero --type registrations on either host, so the capability is built and unreachable. Four corrections, each measured at HEAD 2674c250: F-7 the headline population went stale within hours (the sweep now returns [] because the same spec-review round that authored this plan advanced all four specs to approved, and NO spec is at to-review repo-wide), so E-02's positive case must use a fixture and must not be manufactured by moving a real spec's status; F-8 the gate paragraph asserted OQ-01 was 'Blocking: yes and unresolved' while its fields read Blocking: no / resolved, so the plan refused itself while the linter and a runner would dispatch it; F-9 half of E-05 is already done (6m4kow carries no Blocks-Release and its history records the clearing in b16e1108), so its evidence as written was unobtainable and the item is re-aimed at the two genuinely stale assertions; F-10 E-01 named a 'run' subparser that does not exist (both hosts expose start/resume). No product code changed.
 
