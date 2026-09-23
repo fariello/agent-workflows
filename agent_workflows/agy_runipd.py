@@ -537,6 +537,28 @@ from agent_workflows.runner_shared import (
     edge_satisfied as edge_satisfied,
     preflight_dependency_findings as preflight_dependency_findings,
 )
+
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE SUITE CHECK and the EARNED-INTEGRATION
+# predicate, now bound from `runner_shared` instead of from the OTHER HOST DRIVER. The objects and
+# every call site are unchanged; only the module differs.
+#
+# THE NOTE THIS REPLACES IS WORTH KEEPING, because it explains why these names had to be reachable on
+# BOTH hosts at all: `execute_item_core` resolves them off `driver_module`, so a name missing from one
+# host would silently give that host NO suite baseline while the other had one, making an audit's
+# answer depend on which runner executed the plan. That is still true; the names are simply no longer
+# borrowed from a peer driver to satisfy it.
+#
+# `parse_suite_summary` EXISTED ONLY BECAUSE OF THIS LAYERING, and its own docstring says so: it was
+# created as an injectable reader so `runner_shared` could parse the suite count line WITHOUT importing
+# a runner. Re-homing it removes the reason for the injection.
+from agent_workflows.runner_shared import (
+    SUITE_CHECK_ARGV as SUITE_CHECK_ARGV,
+    SuiteCheckResult as SuiteCheckResult,
+    extract_suite_failures as extract_suite_failures,
+    integration_is_earned as integration_is_earned,
+    parse_suite_summary as parse_suite_summary,
+    run_suite_check as run_suite_check,
+)
 from agent_workflows.oc_runipd import (
     ToolIdentityError,
     assert_child_tool_identity as assert_child_tool_identity,  # noqa: F401
@@ -630,9 +652,6 @@ from agent_workflows.runner_shared import (
 from agent_workflows.oc_runipd import (
     # novalnomerge-01 (evgi9n) E-04: ONE shared integration predicate and ONE shared suite check, so a
     # fix to the self-finalize gate cannot land in one driver and silently miss the other.
-    SuiteCheckResult as SuiteCheckResult,
-    integration_is_earned as integration_is_earned,
-    run_suite_check as run_suite_check,
     # integearn-05 (`9lyg5h`) E-03/E-06: the three names the shared concurrent pre-work BASELINE is
     # injected with. They are re-exported HERE, under the same `as <same-name>` discipline as the
     # suite check above, because `execute_item_core` resolves them off `driver_module` and a name
@@ -642,9 +661,6 @@ from agent_workflows.oc_runipd import (
     #
     # `extract_suite_failures` IS `daexj1`/`h5pyqa`'s FUNCTION AND IS NOT RE-IMPLEMENTED. Sharing the
     # one extractor is what makes the pre-work and post-work id sets comparable at all.
-    SUITE_CHECK_ARGV as SUITE_CHECK_ARGV,
-    extract_suite_failures as extract_suite_failures,
-    parse_suite_summary as parse_suite_summary,
     close_backlog_item as close_backlog_item,
     collect_earned_paths as collect_earned_paths,
     commit_backlog_close as commit_backlog_close,

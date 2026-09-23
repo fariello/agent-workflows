@@ -1184,11 +1184,22 @@ class TheBoundariesAreRespected(unittest.TestCase):
     """F-11 and the shared-module rule, asserted so a future edit cannot quietly cross them."""
 
     def test_NO_SECOND_ID_EXTRACTOR_WAS_WRITTEN(self) -> None:
-        """`daexj1`/`h5pyqa` E-01 owns capture-time extraction; forking it would give two answers."""
+        """`daexj1`/`h5pyqa` E-01 owns capture-time extraction; forking it would give two answers.
+
+        THE HOME MOVED, THE CLAIM DID NOT (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`). This
+        asserted `agent_workflows.oc_runipd` because that is where the ONE extractor was DEFINED; it is
+        now defined in `runner_shared`, which both hosts bind. The property being pinned is
+        "exactly one extractor, and every consumer reaches THAT one", and it is unchanged and in fact
+        stronger: while the definition sat in a host driver, the other host reached it only by importing
+        from a peer driver, which is the coupling `cnwy8g` exists to remove.
+        """
 
         self.assertEqual(
-            "agent_workflows.oc_runipd", OC.extract_suite_failures.__module__
+            "agent_workflows.runner_shared", OC.extract_suite_failures.__module__
         )
+        # And BOTH hosts must reach that same object, which is the half a `__module__` check cannot
+        # make: a host could bind a copy whose `__module__` string is identical.
+        self.assertIs(OC.extract_suite_failures, R.extract_suite_failures)
         for symbol in (
             R.SuiteBaselineRun,
             R.start_suite_baseline,

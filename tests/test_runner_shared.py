@@ -7799,6 +7799,15 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
         # agy. An in-tree mutation check neutralizes it through the `oc_runipd` attribute, which is why
         # oc still re-exports it.
         "_consuming_actions_for",
+        # The suite-check and earned-integration co-moves. `IntegrationVerdict` is the record
+        # `integration_is_earned` returns, the two SUITE_* constants and the two regexes are what
+        # `run_suite_check`/`parse_suite_summary`/`extract_suite_failures` close over. None was ever
+        # imported by agy; all had to move because a public name in the work list closes over them.
+        "IntegrationVerdict",
+        "SUITE_CHECK_TIMEOUT_SECONDS",
+        "SUITE_FAILURE_LINE_LIMIT",
+        "_SUITE_FAILURE_LINE_RE",
+        "_SUITE_SUMMARY_RE",
     )
 
     def test_every_rehomed_name_is_the_SAME_OBJECT_from_all_three_modules(self):

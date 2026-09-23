@@ -322,6 +322,39 @@ from agent_workflows.runner_shared import (
     queue_sort_key as queue_sort_key,
 )
 from agent_workflows.runner_shared import (
+    IntegrationVerdict as IntegrationVerdict,
+)
+from agent_workflows.runner_shared import (
+    SUITE_CHECK_ARGV as SUITE_CHECK_ARGV,
+)
+from agent_workflows.runner_shared import (
+    SUITE_CHECK_TIMEOUT_SECONDS as SUITE_CHECK_TIMEOUT_SECONDS,
+)
+from agent_workflows.runner_shared import (
+    SUITE_FAILURE_LINE_LIMIT as SUITE_FAILURE_LINE_LIMIT,
+)
+from agent_workflows.runner_shared import (
+    SuiteCheckResult as SuiteCheckResult,
+)
+from agent_workflows.runner_shared import (
+    _SUITE_FAILURE_LINE_RE as _SUITE_FAILURE_LINE_RE,
+)
+from agent_workflows.runner_shared import (
+    _SUITE_SUMMARY_RE as _SUITE_SUMMARY_RE,
+)
+from agent_workflows.runner_shared import (
+    extract_suite_failures as extract_suite_failures,
+)
+from agent_workflows.runner_shared import (
+    integration_is_earned as integration_is_earned,
+)
+from agent_workflows.runner_shared import (
+    parse_suite_summary as parse_suite_summary,
+)
+from agent_workflows.runner_shared import (
+    run_suite_check as run_suite_check,
+)
+from agent_workflows.runner_shared import (
     DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
 )
 from agent_workflows.runner_shared import (
@@ -2968,235 +3001,6 @@ def _event_session_id(raw_line: str) -> str | None:
     return None
 
 
-#: novalnomerge-01 (evgi9n) E-01: the gating suite must never inherit `run_evidence.capture_command`'s
-#: 60s default. MEASURED at review: the bare suite runs ~37s on the reference host, so the default
-#: leaves ~23s of headroom, and because E-02 treats a timeout as a FAILURE an under-set timeout would
-#: silently degrade to "never integrate" -- recreating the very bug this module's gate change fixes.
-SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
-
-#: The repository's own test command, run BARE. `pyproject.toml` `addopts` already supplies
-#: `-q -n auto --dist=worksteal -m 'not slow'`, so adding `-n0` (4-6x slower), a second `-q`
-#: (suppresses the summary line this check parses) or `-p no:randomly` is forbidden by the repo
-#: contract and would also change what the gate measures.
-SUITE_CHECK_ARGV: tuple[str, ...] = (sys.executable or "python3", "-m", "pytest")
-
-_SUITE_SUMMARY_RE = re.compile(
-    r"^(?:=+\s*)?(\d+ (?:passed|failed).*?)(?:\s*=+)?$", re.MULTILINE
-)
-
-
-def parse_suite_summary(text: str) -> str:
-    """The suite's COUNT LINE out of its output, or `""` when none is present.
-
-    integearn-05 (`9lyg5h`) E-03: a NAMED, injectable reader for the one pattern `run_suite_check`
-    already applies inline, so the concurrent pre-work baseline in `runner_shared` can report the same
-    count line the post-work check reports. It exists ONLY because `runner_shared` may not import a
-    host driver (a shipped AST test enforces that), so every host specific must be handed over as a
-    name; this is the `run_checked`/`host_label` injection precedent applied to one regex.
-
-    IT IS THE SAME PATTERN, DELIBERATELY NOT A SECOND ONE. `run_suite_check` keeps its inline use, and
-    both now resolve `_SUITE_SUMMARY_RE`, because a second spelling of a parser is how a producer and
-    a reader drift apart (the render_stream F-4 defect class, measured twice in this package).
-    """
-
-    match = _SUITE_SUMMARY_RE.search(text or "")
-    return match.group(1).strip() if match else ""
-
-
-#: gatewire-01 (`h5pyqa`) E-02: the lines naming WHICH tests failed, which `_SUITE_SUMMARY_RE`
-#: deliberately does not capture.
-#:
-#: WHY A SECOND PATTERN RATHER THAN WIDENING THE FIRST. `_SUITE_SUMMARY_RE` answers "did it pass and
-#: by how much", and its single capture group feeds `SuiteCheckResult.summary`, which the integration
-#: refusal reason embeds. Widening it to also span the failure list would change that one-line reason
-#: into a paragraph on every refusal. These are two different questions with two different readers, so
-#: they get two patterns.
-#:
-#: BOTH `FAILED` AND `ERROR` ARE MATCHED, and the second is not padding. MEASURED on 2026-09-20 with a
-#: deliberately broken import under this repository's own `-n auto --dist=worksteal` addopts: a module
-#: that cannot be collected yields `ERROR test_broken.py` and NO `FAILED` line at all, while the count
-#: line reads `1 failed, 1 passed, 1 error`. Matching only `FAILED` would therefore show an agent
-#: nothing for the whole collection-error class, which is exactly the class most likely to be somebody
-#: else's fault and so most likely to be a true `not-mine`.
-_SUITE_FAILURE_LINE_RE = re.compile(r"^(?:FAILED|ERROR)\s+\S.*$", re.MULTILINE)
-
-#: How many failing-test lines are carried. A pathological run can redden hundreds of tests, and this
-#: text goes into a PROMPT; the cap keeps one bad suite from crowding out the rest of the question.
-#: Generous on purpose: attribution gets harder, not easier, as the list is truncated.
-SUITE_FAILURE_LINE_LIMIT: int = 40
-
-
-def extract_suite_failures(stdout: str, stderr: str = "") -> tuple[str, ...]:
-    """The `FAILED`/`ERROR` lines from a suite run, deduplicated, in first-seen order.
-
-    gatewire-01 (`h5pyqa`) E-02. SEPARATE FROM THE COUNT LINE BY DESIGN: a count ("1 failed") tells an
-    agent nothing it can attribute to its own diff, and attribution is the entire judgement the
-    integration-refusal answer turns on.
-
-    Deduplicated because xdist can report the same node twice across the short summary and a rerun
-    section, and a question that lists one failure three times reads as three failures.
-    """
-
-    seen: dict[str, None] = {}
-    for haystack in (stdout or "", stderr or ""):
-        for match in _SUITE_FAILURE_LINE_RE.finditer(haystack):
-            line = match.group(0).strip()
-            if line and line not in seen:
-                seen[line] = None
-            if len(seen) >= SUITE_FAILURE_LINE_LIMIT:
-                return tuple(seen)
-    return tuple(seen)
-
-
-class SuiteCheckResult(NamedTuple):
-    """What the DRIVER observed when it ran the suite itself.
-
-    novalnomerge-01 (evgi9n) E-01/E-02. This is an OBSERVED FACT, not a claim: the executor's outcome
-    JSON has a ``"tests"`` field, but nothing reads it, so it is the agent's own prose about work it
-    says it did. `passing` is True only on an observed exit 0.
-
-    `failures` ADDED BY gatewire-01 (`h5pyqa`) E-02, and it is DEFAULTED so that every existing
-    construction site and every test double that builds this tuple positionally keeps working. It
-    carries the `FAILED`/`ERROR` lines naming WHICH tests failed, because `summary` carries only the
-    count line and a count cannot be attributed to a diff.
-    """
-
-    passing: bool
-    exit_code: int
-    summary: str
-    reason: str
-    cwd: str
-    timeout_seconds: float
-    elapsed_seconds: float
-    failures: tuple[str, ...] = ()
-
-    @property
-    def failing_text(self) -> str:
-        """The failing tests as the QUESTION should show them, or an honest statement of absence.
-
-        NEVER RETURNS AN EMPTY STRING, because this lands in a prompt: an empty section reads as "no
-        failures" and would invite a false `not-mine`. When the names could not be recovered the agent
-        is told so, and given the count line instead, so it can answer from the evidence that exists
-        rather than from a blank.
-        """
-
-        if self.failures:
-            return "\n".join(self.failures)
-        if self.summary:
-            return (
-                f"{self.summary}\n"
-                "(the individual failing test names could not be recovered from this run's output; "
-                "re-run the suite yourself if you need them to answer)"
-            )
-        return (
-            "the suite did not pass and produced no parseable summary "
-            f"(exit {self.exit_code}): {self.reason}"
-        )
-
-
-def run_suite_check(
-    repo_dir: Path,
-    run_id: str,
-    *,
-    timeout: float = SUITE_CHECK_TIMEOUT_SECONDS,
-) -> SuiteCheckResult:
-    """Run the repository's suite in the PRIMARY checkout and report what actually happened.
-
-    novalnomerge-01 (evgi9n) E-01/E-02.
-
-    WHY THE PRIMARY CHECKOUT AND NOT THE LANE (PR-001, found at review as a BLOCKER): a linked
-    worktree resolves `.aw/state` relative to cwd (backlog `dh0uno`), so a lane sees a DIFFERENT state
-    tree. MEASURED: `tests/test_run_viewer.py` gives `36 passed` in the primary checkout and
-    `15 failed, 20 passed` in a lane, every failure being the `run_viewer`/state-resolution family. A
-    lane-run suite is therefore permanently red for reasons unrelated to the executing plan, which
-    would leave the integration gate closed forever -- the same symptom this change removes, with a new
-    cause. Callers MUST pass the primary repo, never `work_dir`.
-
-    HONEST LIMIT: this proves THE TREE is green, not that the lane's uncommitted state is. That is the
-    right trade (a green primary tree is what integration endangers) but it is not lane validation.
-
-    FAIL CLOSED (E-02): a suite that cannot be run is a FAILURE, never a pass.
-    `run_evidence.capture_command` already converts a timeout into exit 124 and any other exception
-    into exit 127 instead of raising, so this is an honest reading of a nonzero exit rather than new
-    machinery. Neither code is special-cased into a pass.
-
-    THE OUTPUT READ HERE ONLY STARTED WORKING AT gatewire-01 (`h5pyqa`), and the repair is in
-    `run_evidence.capture_command` rather than here. This function read
-    `tool_event["stdout_excerpt"]`, and `build_tool_event` NEVER WROTE THAT KEY: a `tool_event` is a
-    LEDGER record carrying `stdout_sha256`/`stdout_len` and deliberately not the text. Measured
-    2026-09-20 by calling `capture_command` directly - `sorted(tool_event)` contained no
-    `stdout_excerpt` - so this read yielded `""`, `summary` was ALWAYS empty, and every refusal reason
-    said `no summary line parsed`. The existing tests could not see it because every one of them mocks
-    `capture_command` and fabricates the key production never produced. `capture_command` now returns
-    the text on the mapping it hands back, so this read means what it always claimed to.
-    """
-    from agent_workflows import run_evidence
-
-    started = time.monotonic()
-    try:
-        tool_event, _envelope = run_evidence.capture_command(
-            run_id,
-            list(SUITE_CHECK_ARGV),
-            cwd=repo_dir,
-            evidence_kind="tests",
-            actor="driver",
-            timeout=timeout,
-            max_output_bytes=512_000,
-        )
-        exit_code = int(tool_event.get("exit_code", 127))
-        stdout = str(tool_event.get("stdout_excerpt") or "")
-        stderr = str(tool_event.get("stderr_excerpt") or "")
-    except Exception as exc:  # noqa: BLE001  # pragma: no cover
-        # DELIBERATE blind catch, and not redundant: `capture_command` guards its own subprocess call
-        # (timeout -> 124, other -> 127) but the lines BEFORE it are unguarded -- `Path(cwd).resolve()`
-        # and the `get_git_head`/`get_git_dirty_digest`/`get_worktree_path` probes all run first and can
-        # raise on a vanished cwd or a broken git dir. A gate that crashes is a gate that is OFF, so an
-        # unexpected exception here must still be a REFUSAL, never an escape from the gate.
-        elapsed = time.monotonic() - started
-        return SuiteCheckResult(
-            passing=False,
-            exit_code=127,
-            summary="",
-            reason=f"suite check could not run (fail-closed): {exc}",
-            cwd=str(repo_dir),
-            timeout_seconds=timeout,
-            elapsed_seconds=elapsed,
-        )
-
-    elapsed = time.monotonic() - started
-    summary = parse_suite_summary(stdout) or parse_suite_summary(stderr)
-    # gatewire-01 (`h5pyqa`) E-02: capture WHICH tests failed, not merely how many. `stdout` is
-    # discarded after this function returns, so a failure name not taken here is gone for good.
-    failures = extract_suite_failures(stdout, stderr)
-    if exit_code == 0:
-        reason = f"suite passed in {repo_dir} ({summary or 'no summary line parsed'})"
-    elif exit_code == 124:
-        reason = (
-            f"suite TIMED OUT after {timeout:.0f}s (ran {elapsed:.0f}s) in {repo_dir}; "
-            "treated as a failure (fail-closed)"
-        )
-    elif exit_code == 127:
-        reason = (
-            f"suite could not be executed in {repo_dir} (exit 127); "
-            "treated as a failure (fail-closed)"
-        )
-    else:
-        reason = (
-            f"suite FAILED with exit {exit_code} in {repo_dir} "
-            f"({summary or 'no summary line parsed'})"
-        )
-    return SuiteCheckResult(
-        passing=exit_code == 0,
-        exit_code=exit_code,
-        summary=summary,
-        reason=reason,
-        cwd=str(repo_dir),
-        timeout_seconds=timeout,
-        elapsed_seconds=elapsed,
-        failures=failures,
-    )
-
-
 #: Why an item did NOT reach the integration gate, or how it did. novalnomerge-01 (evgi9n) E-05:
 #: `verify_disp` alone conflates "no verifier ran" (None, because validation is off) with "the
 #: verifier declined" ("unverified"), and both previously landed the item in `substantially-complete`
@@ -3219,77 +3023,6 @@ INTEGRATION_REFUSED_VERIFIER_DECLINED = (
 )
 INTEGRATION_REFUSED_SUITE_FAILED = runner_shared.INTEGRATION_REFUSED_SUITE_FAILED
 INTEGRATION_REFUSED_NO_SIGNAL = runner_shared.INTEGRATION_REFUSED_NO_SIGNAL
-
-
-class IntegrationVerdict(NamedTuple):
-    """Whether an item earned automatic integration, and WHICH signal earned or refused it."""
-
-    earned: bool
-    signal: str
-    detail: str
-
-
-def integration_is_earned(
-    *,
-    validate: bool,
-    verify_disp: str | None,
-    suite_result: SuiteCheckResult | None,
-) -> IntegrationVerdict:
-    """Decide whether a completed execute turn has earned automatic integration.
-
-    novalnomerge-01 (evgi9n) E-03/E-04. ONE predicate, consumed by BOTH drivers, so a one-runner fix
-    cannot leave the other silently broken.
-
-    THE BUG THIS FIXES: the gate used to require `verify_disp == "verified"`, but `verify_disp` is only
-    ever assigned inside the validate-guarded block. `--validate` defaults FALSE while
-    `--no-self-finalize` defaults TRUE, so in the SHIPPED DEFAULT configuration self-finalize was
-    switched on and could never fire: every item ended `substantially-complete` with its lane
-    preserved and nothing integrated. Measured cost before the fix: ~$528 across five overnight runs,
-    21 plans stranded in lanes, then a full session hand-merging 24 lanes.
-
-    THE TWO MODES ARE ALTERNATIVES, NOT AN OR ACROSS BOTH SIGNALS:
-
-    * validation ON  -> the verifier's verdict decides, exactly as before. A verifier that DECLINED is
-      a stronger and more specific signal than a green suite, so a passing suite must NOT override it;
-      otherwise `--validate` would be weaker than the default, which is absurd.
-    * validation OFF -> the DRIVER-RUN SUITE decides. This is an observed fact, unlike the executor's
-      unread ``"tests"`` self-report. `aw ipd finalize` still applies its own independent fail-closed
-      gate afterwards (`ipd_lifecycle.finalize_precheck`: a current begin receipt, the
-      before-marking-executed lint requiring every `E-*` performed and every `V-*` passing with
-      non-empty `Observed evidence`, and a scope comparison), so this lowers the bar less than it
-      appears. Honest limit: that gate proves completeness and scope, NOT correctness, which is why a
-      real suite run supplies the correctness signal it lacks.
-    """
-    if validate:
-        if verify_disp == "verified":
-            return IntegrationVerdict(
-                True, INTEGRATION_EARNED_BY_VERIFIER, "verifier reported verified"
-            )
-        return IntegrationVerdict(
-            False,
-            INTEGRATION_REFUSED_VERIFIER_DECLINED,
-            f"validation is ON and the verifier did not verify (verification={verify_disp!r}); "
-            "a green suite deliberately does NOT override an explicit verifier verdict",
-        )
-    if suite_result is None:
-        return IntegrationVerdict(
-            False,
-            INTEGRATION_REFUSED_NO_SIGNAL,
-            "validation is OFF and no driver-run suite result is available; refusing to integrate "
-            "without any trust signal (fail-closed)",
-        )
-    if suite_result.passing:
-        return IntegrationVerdict(
-            True,
-            INTEGRATION_EARNED_BY_SUITE,
-            f"no verifier ran (validation off); driver-run suite PASSED: {suite_result.reason}",
-        )
-    return IntegrationVerdict(
-        False,
-        INTEGRATION_REFUSED_SUITE_FAILED,
-        f"no verifier ran (validation off) and the driver-run suite did not pass: "
-        f"{suite_result.reason}",
-    )
 
 
 # `build_review_prompt` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).

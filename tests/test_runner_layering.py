@@ -233,75 +233,7 @@ CLASSIFICATION: tuple[Name, ...] = (
     ),
     # --- shutdown reporting (4) ---------------------------------------------------------------
     # --- suite checking (5) -------------------------------------------------------------------
-    Name(
-        "run_suite_check",
-        "suite-checking",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "runs the repository suite in the PRIMARY checkout and reads the result; runs pytest, not opencode",
-        closes_over=("SUITE_CHECK_TIMEOUT_SECONDS",),
-        move_note=(
-            "MOVE MAY COLLIDE: three `integpath` plans are still pending and two declare both "
-            "drivers in Scope-Paths (`rl67b0`'s F-15 discusses this name directly). Neutral by the "
-            "criterion; sequencing is Order 02's problem (see MOVE_UNSETTLED)"
-        ),
-    ),
-    Name(
-        "SuiteCheckResult",
-        "suite-checking",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "the record of what the driver observed running the suite; a data class",
-        move_note="same `integpath` collision risk as `run_suite_check` (see MOVE_UNSETTLED)",
-    ),
-    Name(
-        "SUITE_CHECK_ARGV",
-        "suite-checking",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "the argv of the repository suite, `(python, -m, pytest)`; nothing to do with a host driver",
-    ),
-    Name(
-        "parse_suite_summary",
-        "suite-checking",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "extracts the suite COUNT LINE; exists because `runner_shared` may not import a host driver",
-        closes_over=("_SUITE_SUMMARY_RE",),
-        move_note=(
-            "ALREADY HALF-SHARED, and the reason is this very layering: it was created as an "
-            "injectable reader so `runner_shared` could parse the count line WITHOUT importing a "
-            "runner. Re-homing it removes the need for the injection"
-        ),
-    ),
-    Name(
-        "extract_suite_failures",
-        "suite-checking",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "pulls FAILED/ERROR node ids out of suite output; regex over pytest text",
-        closes_over=("SUITE_FAILURE_LINE_LIMIT", "_SUITE_FAILURE_LINE_RE"),
-    ),
     # --- earned integration (3) ---------------------------------------------------------------
-    Name(
-        "integration_is_earned",
-        "earned-integration",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "decides whether a completed turn earned automatic integration; verifier/suite logic",
-        closes_over=(
-            "INTEGRATION_EARNED_BY_SUITE",
-            "INTEGRATION_EARNED_BY_VERIFIER",
-            "INTEGRATION_REFUSED_NO_SIGNAL",
-            "INTEGRATION_REFUSED_SUITE_FAILED",
-            "INTEGRATION_REFUSED_VERIFIER_DECLINED",
-            "IntegrationVerdict",
-        ),
-        move_note=(
-            "MOVE MAY COLLIDE with the pending `integpath` Set, and it also cannot move without "
-            "its verdict record and five reason constants (see MOVE_UNSETTLED)"
-        ),
-    ),
     Name(
         "collect_earned_paths",
         "earned-integration",
@@ -401,17 +333,6 @@ MOVE_UNSETTLED: tuple[str, ...] = (
     # `_SIGNAL_REPORT_STATE` registry with `register_signal_report`, so the whole shutdown graph had
     # to land in one module or the two hosts would have kept separate signal registries.
     "build_verify_and_continue_notice",
-    # Sequencing: the `integpath` Set was editing this surface when Order 01 classified these names.
-    #
-    # RE-MEASURED AT EXECUTION AND THE HEDGE IS STALE: all three plans Order 01 named (`51vw4y`,
-    # `rl67b0`, `3v7wo6`) are in `.aw/records/plans/executed/`, so the collision it was avoiding has
-    # resolved itself. Order 01's own text predicted exactly this and told Order 02 to "re-measure
-    # rather than inherit either claim". `collect_earned_paths` and `run_earned_paths` therefore
-    # moved, and they were not optional in any case: the backlog-closing closure REACHES them, so
-    # deferring them would have blocked eleven other names.
-    "run_suite_check",
-    "SuiteCheckResult",
-    "integration_is_earned",
 )
 
 #: Verdicts the criterion genuinely could not settle. EMPTY, and that is a MEASUREMENT: every
