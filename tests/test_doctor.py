@@ -125,8 +125,25 @@ class DoctorTests(unittest.TestCase):
         )
 
     def test_split_brain_layout_detected(self) -> None:
-        (self.root / ".agents").mkdir(parents=True, exist_ok=True)
-        (self.root / ".aw").mkdir(parents=True, exist_ok=True)
+        """A GENUINE split-brain is reported: LIVE `.agents/workflows` content beside `.aw/system`.
+
+        z1yefm E-06 updated this fixture. It previously created two BARE EMPTY directories
+        (`.agents/` and `.aw/`) and asserted split-brain, which encoded the very false positive
+        that defect fixed: `.agents/skills` is the intended skills location for BOTH layouts, so
+        `.agents/` exists PERMANENTLY on a correctly migrated repo, and an existence test called
+        every such repo split-brain forever while the shared `engine.detect_split_brain_layout`
+        said otherwise. The claim under test is unchanged (a real split-brain IS detected); only
+        the fixture now creates a real one, namely a non-empty file under `.agents/workflows`.
+        The residue-only converse is asserted in
+        `DoctorLayoutClassificationIsContentAwareTests`.
+        """
+        (self.root / ".agents" / "workflows" / "assess").mkdir(
+            parents=True, exist_ok=True
+        )
+        (self.root / ".agents" / "workflows" / "assess" / "assess.md").write_text(
+            "# assess\nLIVE legacy workflow body\n", encoding="utf-8"
+        )
+        self.assertTrue(engine.detect_split_brain_layout(self.root))
         report = doctor.collect_doctor_report(self.root)
         self.assertIn("split-brain", report.env.layout)
         self.assertTrue(
@@ -288,6 +305,90 @@ class DoctorEnvironmentProbeReadsCanonicalPathsTests(unittest.TestCase):
         self.assertEqual(env.backend, "companion")
         self.assertEqual(status["preset"], env.preset)
         self.assertEqual(status["backend"], env.backend)
+
+
+class DoctorLayoutClassificationIsContentAwareTests(unittest.TestCase):
+    """migleftover Order 01 (z1yefm) E-06: doctor's layout verdict must match the shared detector.
+
+    Before the fix, `probe_environment` computed the layout from bare `.is_dir()` existence
+    tests, while `engine.detect_split_brain_layout` (the detector `cli._split_brain_guard`
+    consumes) walks `.agents/workflows` for a non-empty, non-cruft FILE. The two therefore
+    DISAGREED on a migrated repo: engine said False, doctor said
+    `.aw + .agents (dual layout / split-brain)` and advised running a migration that had
+    already run.
+
+    Cleanup alone can never fix that, because `.agents/skills` is the intended skills location
+    for BOTH layouts, so `.agents/` is a PERMANENT resident of a fully migrated repo.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        # A migrated repo: populated `.aw/system` ...
+        (self.root / ".aw" / "system" / "workflows").mkdir(parents=True)
+        (self.root / ".aw" / "system" / "VERSION").write_text(
+            "1.3.0\n", encoding="utf-8"
+        )
+        # ... plus the residue shape: EMPTY legacy tool dirs and a leftover README ...
+        for wf in ("assess", "verify", "benchmark", "setup-repo"):
+            (self.root / ".agents" / "workflows" / wf / "tools").mkdir(parents=True)
+        (self.root / ".agents" / "README.md").write_text(
+            "# .agents\n", encoding="utf-8"
+        )
+        # ... plus the PERMANENT shared skills directory, which is not residue at all.
+        skill = self.root / ".agents" / "skills" / "assess" / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("# assess skill\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_residue_only_repo_is_not_reported_split_brain(self) -> None:
+        """A migrated repo holding only residue reports a plain `.aw` layout."""
+        self.assertFalse(engine.detect_split_brain_layout(self.root))
+        res = doctor.probe_environment(self.root)
+        self.assertEqual(res.layout, ".aw")
+        self.assertNotIn(
+            "doctor.layout-split-brain",
+            [d.rule for d in res.drift],
+            [f"{d.rule}:{d.detail}" for d in res.drift],
+        )
+
+    def test_genuine_split_brain_is_still_detected(self) -> None:
+        """True-positive detection is NOT lost: a non-empty file under .agents/workflows counts."""
+        (self.root / ".agents" / "workflows" / "assess" / "assess.md").write_text(
+            "# assess\nLIVE legacy body\n", encoding="utf-8"
+        )
+        self.assertTrue(engine.detect_split_brain_layout(self.root))
+        res = doctor.probe_environment(self.root)
+        self.assertIn("split-brain", res.layout)
+        self.assertIn("doctor.layout-split-brain", [d.rule for d in res.drift])
+
+    def test_doctor_and_engine_agree_on_both_shapes(self) -> None:
+        """Bind doctor's verdict to the SHARED detector rather than to a literal path test."""
+        for genuine in (False, True):
+            with self.subTest(genuine=genuine):
+                live = self.root / ".agents" / "workflows" / "assess" / "assess.md"
+                if genuine:
+                    live.write_text("# assess\nLIVE\n", encoding="utf-8")
+                elif live.exists():
+                    live.unlink()
+                self.assertEqual(
+                    engine.detect_split_brain_layout(self.root),
+                    "split-brain" in doctor.probe_environment(self.root).layout,
+                    "doctor and engine disagree about split-brain",
+                )
+
+    def test_legacy_only_repo_still_reports_agents_layout(self) -> None:
+        """No regression for a repo that has NOT migrated: it is `.agents`, not split-brain."""
+        import shutil as _shutil
+
+        _shutil.rmtree(self.root / ".aw")
+        (self.root / ".agents" / "workflows" / "assess" / "assess.md").write_text(
+            "# assess\n", encoding="utf-8"
+        )
+        res = doctor.probe_environment(self.root)
+        self.assertEqual(res.layout, ".agents")
 
 
 if __name__ == "__main__":

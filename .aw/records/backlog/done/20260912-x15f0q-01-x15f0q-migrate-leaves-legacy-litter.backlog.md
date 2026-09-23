@@ -1,5 +1,5 @@
 - Id: x15f0q
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: x15f0q
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: install --to-aw leaves empty legacy directories and .agents/README.md behind, so every migrated repo permanently reports a dual-layout split-brain and doctor advises a migration that already ran
 
 ## Workflow history
+- 2026-09-23 set (aw backlog): closed by aw oc run: IPD z1yefm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260912-migleftover-01-z1yefm-stop-install-to-aw-leaving-a-permanent-split-brain-classify.ipd.md); evidence .aw/records/plans/executed/20260912-migleftover-01-z1yefm-stop-install-to-aw-leaving-a-permanent-split-brain-classify.ipd.md
 - 2026-09-12 graduated (aw set): Design handed off to a review-ready IPD authored from repo-verified root cause
 - 2026-09-12 open (aw set): status set to open
 - 2026-09-12 created (aw backlog): Reproduced on 9 real 1.2.1 legacy repos via tools/aw_upgrade_test.py
