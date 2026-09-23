@@ -1001,6 +1001,29 @@ def apply_status_change(
         tmp_text = _releases.set_work_kind_line(tmp_text, work_kind)
         new_lines = tmp_text.splitlines()
 
+    # Graduated-To write (setidhard bwgyum E-04): the FIFTH hoisted, status-branch-independent
+    # field-write on this path, in the SAME shape as the four above (Blocks-Release, From-Backlog,
+    # Item-Dependencies, Priority/Work-Kind), funnelling through the single shared
+    # `releases.set_graduated_to_line` primitive so there is no duplicate write path. `-`/None clears.
+    #
+    # WHY HERE RATHER THAN IN `backlog.run_set` (plan OQ-03, and the one place the plan's original
+    # design was wrong). This function is record-type-AGNOSTIC and is the shared handler for
+    # `aw backlog set`, `aw specs set`, `aw ipd set` and the bare `aw set`, so ONE write here serves the
+    # BACKLOG source, the SPEC source and the plan side at once. Spec 4w7d6s G3 puts the field on specs
+    # as well as items, and that half is therefore the same lines of code rather than a second
+    # implementation. A flag bolted onto `backlog.run_set` would serve one spelling of one verb.
+    #
+    # THE VALUE IS VALIDATED BEFORE IT REACHES HERE, at each setter surface, through the shared
+    # `releases.canonicalize_graduated_to` (which judges the token shape with the existing
+    # `plans.is_set_id_valid`), so this call site stays a pure write exactly like its four neighbours.
+    graduated_to = getattr(args, "graduated_to", None)
+    if graduated_to is not None:
+        from agent_workflows import releases as _releases
+
+        tmp_text = "\n".join(new_lines)
+        tmp_text = _releases.set_graduated_to_line(tmp_text, graduated_to)
+        new_lines = tmp_text.splitlines()
+
     # nobugship di08i9 E-02: THE POSITIONAL SPELLING'S HALF OF THE RECLASSIFICATION DEFAULT. When an
     # item's Work-Kind BECOMES `bug` and it carries no gate, the release gate is defaulted here too,
     # through the SAME shared `backlog.decide_gate_default` predicate `backlog.run_new` and
@@ -1558,6 +1581,23 @@ def run_set_command(
             "aw set: at least one target selector (id6, setid, or filename) is required.",
         )
         return 2
+
+    # setidhard bwgyum E-04: validate + canonicalize `--graduated-to` ONCE, here, BEFORE any artifact
+    # is resolved or written, so a malformed setid refuses with exit 2 instead of being persisted and
+    # then reported by `aw check`. Canonicalizing at the entry (rather than per record inside
+    # `apply_status_change`) means every target of a multi-selector call gets the same bytes, and the
+    # write site stays a pure write like its four neighbours. The shape authority is the shared
+    # `plans.is_set_id_valid`, reached through `releases.canonicalize_graduated_to`; `-` clears.
+    if getattr(args, "graduated_to", None) is not None:
+        from agent_workflows import releases as _releases_gt
+
+        _gt_canonical, _gt_err = _releases_gt.canonicalize_graduated_to(
+            getattr(args, "graduated_to", None)
+        )
+        if _gt_err:
+            term.status("fail", f"aw set: {_gt_err}")
+            return 2
+        args.graduated_to = _gt_canonical
 
     scoped_type_canonical = canonical_type(scoped_type)
 

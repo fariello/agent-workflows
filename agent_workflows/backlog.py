@@ -686,6 +686,20 @@ def run_set(args) -> int:
             f"aw backlog set: --priority must be one of {sorted(PRIORITIES)}\n"
         )
         return 2
+    # setidhard bwgyum E-04: validate the FORWARD graduation link's value HERE, before anything is
+    # resolved or written, in the same exit-2 shape the two flags above use. A setter that accepts a
+    # typo writes a link `aw check` then reports as malformed, turning one clear refusal into a
+    # confusing finding. The shape authority is the shared `plans.is_set_id_valid` (reached through
+    # `releases.canonicalize_graduated_to`), never a second setid pattern. `-` clears, matching every
+    # sibling link primitive.
+    from agent_workflows import releases as _releases_gt_flag
+
+    set_graduated_to, _gt_err = _releases_gt_flag.canonicalize_graduated_to(
+        getattr(args, "graduated_to", None)
+    )
+    if _gt_err:
+        sys.stderr.write(f"aw backlog set: {_gt_err}\n")
+        return 2
     # IPD laykok E-03: close the path-only outlier - resolve via the ONE unified resolver so
     # `aw backlog set` now accepts an id6/setid/status/stem/substring, not just a literal path.
     from agent_workflows import selectors as _sel
@@ -775,6 +789,30 @@ def run_set(args) -> int:
         from agent_workflows import releases as _releases
 
         rendered = _releases.set_blocks_release_line(rendered, item.blocks_release)
+
+    # setidhard bwgyum E-02: PRESERVE `- Graduated-To:` ACROSS THE TEMPLATE REBUILD. `_render_item`
+    # rebuilds the bullet block from a FIXED field template, so every field outside that template is
+    # silently dropped by this path. Measured before this fix: an item carrying
+    # `- Graduated-To: somesetid, othersetid` went through `aw backlog set --status graduated <path>`
+    # and came out with the line GONE, exit 0, no warning - which is catastrophic for THIS field
+    # specifically, because a graduation is exactly the transition that writes it.
+    #
+    # THE FIX FOLLOWS THE `Blocks-Release` PRECEDENT DIRECTLY ABOVE (re-apply a shared line primitive
+    # AFTER the render) rather than widening `_render_item`'s template, which is the in-tree answer to
+    # this exact problem and keeps ONE write mechanism per field: an explicit `--graduated-to` wins, and
+    # absent the flag an existing value is carried over unchanged.
+    #
+    # THE OTHER SPELLING OF THIS VERB NEVER HAD THE BUG. The bare `aw backlog set <status> <selector>`
+    # form routes to `status_set.run_set_command`, which rewrites lines surgically and PRESERVED the
+    # field when measured. So the defect was asymmetric between two paths of ONE verb; both are pinned
+    # by tests (tests/test_graduated_to_link.py) so the asymmetry cannot silently return.
+    from agent_workflows import releases as _releases_gt
+
+    existing_gt = _releases_gt.parse_graduated_to(text)
+    if set_graduated_to is not None:
+        rendered = _releases_gt.set_graduated_to_line(rendered, set_graduated_to)
+    elif existing_gt:
+        rendered = _releases_gt.set_graduated_to_line(rendered, ", ".join(existing_gt))
 
     # bklgkind b5sfwm E-03/E-04: apply the two CLASSIFICATION fields. APPLIED AFTER THE RENDER,
     # THROUGH THE SHARED LINE WRITERS, exactly as `--blocks-release` above is, so `_render_item` stays

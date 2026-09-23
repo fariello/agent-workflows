@@ -1474,6 +1474,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Link this plan to the backlog item it graduated from (a backlog id6); '-' clears it.",
     )
+    # setidhard bwgyum E-04: declared on this surface too because `status_set` (which performs the
+    # write) is record-type-agnostic, and `releases.check_graduated_to` tolerates the field on a plan
+    # for the same symmetry reason its `From-Backlog` twin does. The field's PRIMARY home is the SOURCE
+    # (a backlog item or spec); a plan carrying it is legal, not idiomatic.
+    p_ipd_set.add_argument(
+        "--graduated-to",
+        dest="graduated_to",
+        default=None,
+        help="Record the plan Set(s) this artifact graduated into: one setid, or several separated by "
+        "commas; '-' clears the field. A malformed setid is refused.",
+    )
     p_ipd_set.add_argument(
         "--priority",
         dest="priority",
@@ -4004,6 +4015,15 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Blocks-Release flag.",
     )
+    # setidhard bwgyum E-04: the untyped surface reaches the same shared write in `status_set`, so the
+    # flag is declared here too rather than being reachable only through a typed spelling.
+    p_set.add_argument(
+        "--graduated-to",
+        dest="graduated_to",
+        default=None,
+        help="Record the plan Set(s) this artifact graduated into (comma-separated setids); "
+        "'-' clears.",
+    )
     p_set.add_argument(
         "--dry-run", action="store_true", help="Preview without writing."
     )
@@ -4929,6 +4949,17 @@ def _build_parser() -> argparse.ArgumentParser:
             "clear it with '--blocks-release -'."
         ),
     )
+    # setidhard bwgyum E-04: the FORWARD graduation link, beside `--blocks-release` above (that
+    # registration is the precedent this follows). OPTIONAL by design (plan OQ-02): a required flag
+    # would fail every concurrent `aw backlog set graduated` the moment it landed, for a field nothing
+    # yet consumes. Multi-valued because a source may graduate more than once (spec 4w7d6s G3).
+    p_backlog_set.add_argument(
+        "--graduated-to",
+        dest="graduated_to",
+        default=None,
+        help="Record the plan Set(s) this item graduated into: one setid, or several separated by "
+        "commas; '-' clears the field. A malformed setid is refused.",
+    )
     # bklgkind b5sfwm E-01/E-02: the two CLASSIFICATION setters, so a mislabeled item is correctable
     # with the verb that OWNS its frontmatter instead of by hand. Both mirror `aw ipd set`'s pair with
     # ONE deliberate difference, ruled by the maintainer on 2026-09-10 (OQ-02): NO `-` CLEARING
@@ -5252,6 +5283,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "--evidence",
         default=None,
         help="Resolvable implementation-evidence citation (for implemented).",
+    )
+    # setidhard bwgyum E-04: the same FORWARD graduation link on the SPEC side, because spec 4w7d6s G3
+    # puts the field on specs as well as backlog items and a spec is an equally valid graduation source.
+    # Both spellings of this verb write it: the bare form through `status_set`, the `--status` form
+    # through `specs.run_set`.
+    p_specs_set.add_argument(
+        "--graduated-to",
+        dest="graduated_to",
+        default=None,
+        help="Record the plan Set(s) this spec graduated into: one setid, or several separated by "
+        "commas; '-' clears the field. A malformed setid is refused.",
     )
     p_specs_set.add_argument(
         "--by-human",

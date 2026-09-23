@@ -31,6 +31,27 @@ and its cross-tree attention class (see `aw attention`):
 optional `- Canonical: true` (a spec can be authoritative and unimplemented); `canonical` is NOT a
 status.
 
+## What a spec graduated into (`- Graduated-To:`)
+
+A spec may carry an optional `- Graduated-To: <setid>[, <setid>...]` bullet naming the plan Set or Sets
+it became, so a spec-first graduation is machine-readable from the spec end as well as from the plan
+end. Write it with the setter rather than by hand:
+
+```sh
+aw spec set implementing <id6> --graduated-to <setid>
+```
+
+It is the FORWARD half of the same link a plan records backwards as `- From-Spec: <spec-id6>`. The two
+directions are shaped differently on purpose: a plan names the ONE spec it came from, while a spec names
+the whole Set it generated (an orchestrator plus its children), which no single plan id6 could name.
+
+The field is OPTIONAL and MULTI-VALUED, because a spec may spawn more than one plan Set over its life:
+separate setids with commas, and pass `-` to clear. `aw check all` reports an entry naming no real plan
+Set (`check.graduated-to-dangling`), a value that is not a valid setid (`check.graduated-to-malformed`),
+and a repeated setid (`check.graduated-to-duplicate`, a warning). A setid resolves if any plan carries it
+in any lifecycle directory, terminal ones included, so the link keeps resolving once the work is done.
+Backlog items carry the same field; see `.aw/records/backlog/README.md`.
+
 Do NOT hand-edit the status or history. Use the owner verbs (they validate the transition, the
 anti-self-approval floor, and typed gates, then write atomically): `aw spec set <status> <id6|setid|fname>...`
 (or `aw specs set <path> --status <enum> [--message <text>]`; an agent records human approval with

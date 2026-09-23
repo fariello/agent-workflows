@@ -738,6 +738,26 @@ def run_set(args) -> int:
         from agent_workflows import releases as _releases
 
         new_text = _releases.set_work_kind_line(new_text, work_kind)
+    # setidhard bwgyum E-04: set/clear the optional multi-valued `- Graduated-To:` bullet (the FORWARD
+    # graduation link naming the plan Set or Sets this spec became; spec 4w7d6s G3 puts the field on
+    # specs as well as backlog items). Via the shared idempotent `releases.set_graduated_to_line`
+    # writer, exactly as the three fields above are, so there is no forked write path. `-`/None clears.
+    #
+    # THE `--status` SPELLING ROUTES HERE, NOT THROUGH `status_set`, which is why this call exists at
+    # all: the bare `aw specs set <status> <selector>` form reaches the shared hoisted write in
+    # `status_set.apply_status_change`, so without this the field would be writable by one spelling of
+    # one verb and not the other. The token shape is validated by the SHARED
+    # `releases.canonicalize_graduated_to` (which judges it with the existing `plans.is_set_id_valid`),
+    # refusing a typo here rather than writing a link `aw check` then reports as malformed.
+    graduated_to_arg = getattr(args, "graduated_to", None)
+    if graduated_to_arg is not None:
+        from agent_workflows import releases as _releases
+
+        _gt_canonical, _gt_err = _releases.canonicalize_graduated_to(graduated_to_arg)
+        if _gt_err:
+            sys.stderr.write(f"aw specs set: {_gt_err}\n")
+            return 2
+        new_text = _releases.set_graduated_to_line(new_text, _gt_canonical)
     # validate the complete result in memory; refuse (byte-identical) if it would not conform
     residual = validate_spec(path, new_text)
     if residual:

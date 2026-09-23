@@ -54,6 +54,7 @@ attention `Gate-Kind`/`Gate-Ref` bullets), then a prose body:
 - Summary: <one line>
 - Gate-Kind: <artifact|decision|todo|issue|date|external>   # iff blocked
 - Gate-Ref: <ref>                                            # iff blocked
+- Graduated-To: <setid>[, <setid>...]                        # optional, multi-valued
 
 ## Workflow history
 - YYYY-MM-DD <event> (<actor>): <one line>
@@ -98,5 +99,27 @@ activity log: it is gitignored, so never rely on it as the only home for a reaso
 When a backlog item becomes committed execution work, author an IPD under `.aw/records/plans/pending/`,
 then `aw backlog set <item> --status done` with a history line citing the plan id. The backlog captured
 the intent; the plan owns execution.
+
+Record what the item became with `--graduated-to <setid>`, the FORWARD half of the graduation link:
+
+```sh
+aw backlog set graduated <item> --graduated-to <setid> --message "graduated into <setid>"
+```
+
+The two halves point in opposite directions and both are worth having. The plan carries
+`- From-Backlog: <id6>` naming the ONE item it came from, and the item carries `- Graduated-To:`
+naming the whole plan Set it became, so either end answers "what is the other end of this handoff?"
+without scanning the corpus. The asymmetry is deliberate: a child plan has exactly one source, while a
+source generates a whole Set (an orchestrator plus its children), which a single plan id6 could not
+name.
+
+The field is OPTIONAL and MULTI-VALUED. Several setids are separated by commas, because a source may
+graduate more than once over its life; `-` clears the field. `aw check all` reports an entry naming no
+real plan Set (`check.graduated-to-dangling`), a value that is not a valid setid at all
+(`check.graduated-to-malformed`), and a setid listed twice (`check.graduated-to-duplicate`, a warning).
+A setid resolves if ANY plan carries it in ANY lifecycle directory, terminal ones included, so a link
+keeps resolving after the work it names is finished.
+
+The same field and the same flag exist on specs, since a spec is an equally valid graduation source.
 
 Do NOT hand-name backlog files or hand-edit status inconsistently with the directory; use the verbs.

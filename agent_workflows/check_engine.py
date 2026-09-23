@@ -166,6 +166,40 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.from-spec-dangling": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # setidhard Order bwgyum (spec 4w7d6s G3/G5): the FORWARD half of the graduation link - a source
+    # (backlog item or spec) whose `- Graduated-To:` names a plan Set that does not exist. Same severity
+    # (`error`), same assurance class, and the SAME invariant I-07 as its `From-Backlog` back-link twin
+    # above, for the reason the `From-Spec` twin claims it too: a graduation link is the carrier of a
+    # release-gate handoff, so a link pointing at nothing breaks the same gate-preservation invariant in
+    # whichever direction it points. Deterministic: a literal setid set-membership test against the
+    # setids declared by real plans, no inference.
+    "check.graduated-to-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    # The SHAPE defect, registered separately from the RESOLUTION defect on purpose: a token that is not
+    # a valid setid at all is a typo, and reporting it as "does not resolve to a plan Set" would send a
+    # reader hunting for a Set that was never named. Same severity as its dangling sibling: both make the
+    # link unusable as a handoff carrier.
+    "check.graduated-to-malformed": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    # The same setid listed twice in one multi-valued field. `warning`, NOT `error`, and the difference
+    # from its two siblings is deliberate: a repeated entry is redundant rather than broken (every entry
+    # still resolves, so the handoff it carries is intact), so it should be visible without blocking a
+    # commit. The reader does not silently dedupe, which is what leaves this reportable at all.
+    #
+    # NAMED `-repeated`, NOT `-duplicate`, AND THE NAME IS LOAD-BEARING. The sibling `graduate` Set's
+    # read-only pre-graduation view ships a structural PROHIBITION asserting that no rule id containing
+    # `graduation` or `duplicate` is ever registered (`tests/test_graduation_view.py`
+    # `NoUniquenessRuleTests`), because its own OQ-01 ruled that a source carrying several artifacts is
+    # LEGITIMATE decomposition and a rule counting them would flag correct work on every run. That
+    # prohibition is about artifact CLUSTERING per source and is correct; its keyword match is simply
+    # broader than its subject, and this rule is about a repeated token WITHIN ONE FIELD, which is
+    # unambiguously an author error. Renaming here was the cheap correct fix: weakening another plan's
+    # shipped guard to admit an unrelated rule would have traded a real invariant for a word.
+    "check.graduated-to-repeated": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     "check.orphaned-live-blocker": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_HEURISTIC, "I-07"
     ),
@@ -2962,6 +2996,18 @@ def check_types(
         # than sharing the one above) so a failure in either scan cannot suppress the other.
         try:
             drift.extend(check_from_spec_dangling(repo_root))
+        except Exception:
+            pass
+        # setidhard bwgyum E-03: the FORWARD graduation link (`- Graduated-To:` on a source naming the
+        # plan Set it became) is the same class of cross-tree ref check as the two back-link scans
+        # above, so it rides the same once-per-full-sweep seam. Its OWN try/except, for the same stated
+        # reason as its neighbours: a failure in one scan must not suppress another. NOTE the seam runs
+        # only in this `collisions` branch (`types == ["all"]`), so this rule fires on `aw check all`
+        # and NOT on a type-scoped `aw check backlog`.
+        try:
+            from agent_workflows import releases as _releases_fwd
+
+            drift.extend(_releases_fwd.check_graduated_to(repo_root))
         except Exception:
             pass
         # revgate Order 01 (15zvu6): a review file pointing at a nonexistent plan is the same class

@@ -539,6 +539,130 @@ def set_item_dependencies_line(text: str, value: Optional[str]) -> str:
 _ITEM_BLOCKS_RELEASE_RE = re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
 _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^- From-Backlog:\s*(\S+)\s*$")
 
+# ======================================================================================
+# setidhard Order bwgyum (spec 4w7d6s G3/G5, carried forward by spec 2lcqno Section 2): the
+# `Graduated-To` FORWARD graduation link and its reader.
+#
+# THE FIELD IS MULTI-VALUED, AND THAT IS THE ONE STRUCTURAL DIFFERENCE FROM ITS BACK-LINK TWIN.
+# `- From-Backlog:` names exactly ONE source id6 per artifact; `- Graduated-To:` names the plan Set
+# (or Sets) a source became, and a source may graduate more than once over its life (a spec may spawn
+# several plan Sets; a re-graduation adds an entry). Hence `<setid>[, <setid>...]`.
+#
+# DO NOT REUSE THE SINGLE-TOKEN PATTERN, AND THE FAILURE IS TOTAL RATHER THAN PARTIAL. Measured
+# against BOTH sibling patterns (`_ITEM_FROM_BACKLOG_RE`'s `(\S+)\s*$` and
+# `check_engine._ITEM_FROM_SPEC_RE`'s `(\S+)[ \t]*$`) on the line `- Graduated-To: first, second`:
+# both match NOTHING, because `\S+` cannot span the space and the `$` anchor then fails. So a copied
+# regex does not under-validate a two-entry field, it reports it as ABSENT and the file as CLEAN. On
+# the no-space form `first,second` the same pattern captures the single junk token `first,second`,
+# which resolves to no Set and reads as one confusing dangling entry. The value pattern below is
+# therefore whole-value (`(.+)`), split in `parse_graduated_to`.
+#
+# THE ASYMMETRY WITH THE BACK-LINK IS DELIBERATE (spec 4w7d6s G4): the back-link is by id6 because a
+# child points at exactly ONE source item; the forward link is by SETID because a source points at the
+# whole generated Set (orchestrator plus children). Do NOT "harmonize" the two onto one shape; making
+# the forward link an id6 would lose the Set.
+# ======================================================================================
+
+_ITEM_GRADUATED_TO_RE = re.compile(r"(?m)^-[ \t]*Graduated-To:[ \t]*(.+?)[ \t]*$")
+
+
+def parse_graduated_to(text: str) -> List[str]:
+    """Return the `- Graduated-To:` setids as an ORDERED list, or `[]` when the field is absent.
+
+    setidhard Order bwgyum E-01. Splits the whole value on commas and strips surrounding whitespace,
+    so both `a, b` and `a,b` parse to `['a', 'b']`. ORDER IS PRESERVED as written, because the list is
+    a history ("what this source became, in the order it became it") and re-sorting it would destroy
+    that reading.
+
+    TWO AUTHOR-ERROR CASES ARE DECIDED HERE RATHER THAN LEFT TO FALL OUT, because silently tolerating
+    either makes the field untrustworthy:
+
+    * AN EMPTY FIELD IS TREATED AS ABSENT. `- Graduated-To:` with no value (or only whitespace or only
+      commas) returns `[]`, exactly as a missing line does. It asserts nothing, so there is nothing to
+      resolve and nothing to report; `aw check` says nothing about it. This matches how every sibling
+      single-valued link field behaves when its value is missing (the `\\S+`-anchored patterns simply do
+      not match), so an author deleting a value gets the same silence on every field.
+    * A DUPLICATE ENTRY IS A FINDING, NOT A SILENT DEDUPE. This reader RETURNS duplicates as written
+      (so the caller can see them at all); `check_graduated_to` reports them as
+      `check.graduated-to-repeated`. Deduping here would hide an author error while leaving the
+      record saying something it does not mean, and a repeated setid is a real mistake (usually a
+      second graduation appended without reading the existing value).
+
+    This reader does NOT validate the token SHAPE and does NOT resolve anything: `check_graduated_to`
+    owns malformed-versus-dangling, via the EXISTING `plans.is_set_id_valid` authority.
+    """
+
+    m = _ITEM_GRADUATED_TO_RE.search(text)
+    if m is None:
+        return []
+    return [part.strip() for part in m.group(1).split(",") if part.strip()]
+
+
+_GRADUATED_TO_LINE_RE = re.compile(r"(?m)^- Graduated-To:[ \t]*[^\n]*$\n?")
+
+
+def set_graduated_to_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Graduated-To:` metadata line set to `value`, or removed when `value`
+    is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling
+    back to after `- Id:`, or leaving unchanged).
+
+    setidhard Order bwgyum E-04. Mirrors `set_from_backlog_line` exactly on anchor and clearing
+    semantics, so the forward and back links cannot drift on where they land or how they clear. The
+    value is written VERBATIM (a comma-separated setid list is one line); the SHAPE check lives in the
+    setter, which refuses a malformed token before calling this, and in `aw check`. Like
+    `set_priority_line`, the line pattern tolerates any value so an existing malformed line is still
+    replaced rather than duplicated."""
+    text = _GRADUATED_TO_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- Graduated-To: {value}\n"
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
+def canonicalize_graduated_to(
+    value: Optional[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Validate + canonicalize a `--graduated-to` flag value. Returns `(canonical, error)`.
+
+    setidhard Order bwgyum E-04: the SETTER-side guard, so a typo is refused at the point it is typed
+    instead of persisted and then reported twice by `aw check` (one clear refusal beats two confusing
+    findings). `'-'` passes through as the clear sentinel every sibling primitive accepts. The token
+    shape is judged by the EXISTING `plans.is_set_id_valid` authority (lowercase-kebab bounded by
+    `plans.MAX_SET_ID_LEN`); this function introduces NO second setid pattern, which is the drift
+    GUIDING_PRINCIPLES P8 forbids.
+
+    Canonicalization is whitespace-only: the entries are re-joined as `a, b` (comma AND space) so the
+    on-disk form is uniform regardless of how the flag was typed. ORDER IS PRESERVED and DUPLICATES ARE
+    NOT DROPPED, matching `parse_graduated_to`'s decided semantics: deduping here would silently
+    rewrite what the author asked for, and `aw check` reports the duplicate instead.
+    """
+
+    from agent_workflows import plans as _plans
+
+    if value is None:
+        return None, None
+    raw = value.strip()
+    if raw == "-":
+        return "-", None
+    entries = [part.strip() for part in raw.split(",") if part.strip()]
+    if not entries:
+        return (
+            None,
+            "--graduated-to needs at least one setid (pass '-' to clear the field)",
+        )
+    bad = [e for e in entries if not _plans.is_set_id_valid(e)]
+    if bad:
+        return None, (
+            "--graduated-to takes lowercase-kebab setids of at most "
+            f"{_plans.MAX_SET_ID_LEN} characters; malformed: {', '.join(repr(b) for b in bad)}"
+        )
+    return ", ".join(entries), None
+
 
 def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
     """Scan backlog + specs + plans items for a `Blocks-Release` value and flag any that does not
@@ -584,7 +708,21 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
     does not resolve to an existing backlog item id6 (bklggrad Order ku93tn; folds into the awcheck
     cross-tree sweep the same way `check_blocks_release` does). The graduation link's primary home is
     the plan; the scan tolerates it anywhere for symmetry. `rglob` recurses the disposition subdirs
-    (pending/executed/...)."""
+    (pending/executed/...).
+
+    ITS FORWARD MIRROR IS `check_graduated_to` BELOW (setidhard Order bwgyum), which validates the
+    OTHER direction of the same graduation: this function asks "does the source this artifact claims to
+    come from exist?", and that one asks "do the plan Sets this source claims to have become exist?".
+    Read them together; they share this traversal, this skip list, and the once-per-full-sweep seam in
+    `check_engine.check_types`.
+
+    THE TWO BACK-LINK TWINS DISAGREE ON FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE. Measured on a
+    scratch repo carrying a plan with both links and NEITHER a backlog nor a specs tree: the spec-side
+    `check_engine.check_from_spec_dangling` returned 0 findings (it bails out when its known-id set is
+    empty, because "we cannot distinguish a dangling link from an invisible spec corpus") while THIS
+    function returned 1 FALSE finding, having no such guard. `check_graduated_to` deliberately copies
+    the SPEC side's posture. Do NOT "harmonize" that guard away to match this function; the difference
+    is a known gap here, not a standard to spread."""
     from agent_workflows import (
         backlog as _backlog,
     )  # local import avoids an import cycle
@@ -619,6 +757,146 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
                             f"From-Backlog {m.group(1)!r} does not resolve to a backlog item",
                         )
                     )
+    return drift
+
+
+GRADUATED_TO_DANGLING_RULE = "check.graduated-to-dangling"
+GRADUATED_TO_MALFORMED_RULE = "check.graduated-to-malformed"
+GRADUATED_TO_REPEATED_RULE = "check.graduated-to-repeated"
+
+
+def check_graduated_to(repo_root: Path) -> List[_core.Drift]:
+    """Flag a `- Graduated-To:` entry that names no real plan Set, is malformed, or repeats.
+
+    setidhard Order bwgyum E-03: the DIRECT MIRROR of `check_from_backlog` directly above, in the same
+    module, with the same traversal (`rglob` over `plans`/`specs`/`backlog` under BOTH the `.aw/records/`
+    and legacy `.agents/` roots), the same skip list (`README.md`/`INDEX.md`/`STATUS.md` plus ignored
+    paths), and registered at the same once-per-full-sweep seam. Only the RESOLUTION TARGET differs: the
+    back-link resolves an id6 against `backlog.existing_backlog_ids`, and this resolves a SETID against
+    the set of setids that name a real plan Set.
+
+    WHAT COUNTS AS "A REAL PLAN SET" (plan OQ-01): ANY setid carried by at least one plan file in ANY
+    lifecycle directory, INCLUDING the terminal ones (`executed/`, `superseded/`, `not-executed/`). The
+    alternative (only live Sets resolve) is wrong for the same reason a retired-path filter was wrong on
+    the id6 twin: a graduated source's Set eventually becomes entirely `executed`, so a link that starts
+    resolving and later dangles because the work FINISHED would fire on exactly the successful case. This
+    matches how `From-Backlog` resolves against all backlog ids regardless of item status. Documented
+    edge case, correct rather than solved: a Set whose only member was retired to `not-executed/` still
+    resolves, because the source really did graduate into it and the record should say so.
+
+    THE RESOLUTION IS PLANS-ONLY AND MUST STAY THAT WAY (spec `2lcqno` N3). A setid is a SHARED,
+    cross-type TOPIC label, so a backlog item, a research report and a plan Set legitimately share one
+    token; that is the EXPECTED case, not a collision. Reading the setid through
+    `check_engine._parse_setid` over `check_engine._iter_plan_ipds` is therefore inherently type-scoped.
+    Do NOT "improve" it into an all-types search: `Graduated-To` names the plan Set a source became, and
+    a search that also matched the SOURCE's own setid would make every link trivially self-resolving.
+
+    NO NEW SETID PARSER AND NO NEW PLANS-PATH LITERAL. The declared setid is read by the existing
+    `check_engine._parse_setid` (which already handles the `<terse> (<descriptive>)` bullet form and is
+    bounded to the metadata region), over the existing `check_engine._iter_plan_ipds` iterator. The token
+    SHAPE is judged by the existing `plans.is_set_id_valid`. A second mechanism for any of the three is
+    the drift GUIDING_PRINCIPLES P8 forbids.
+
+    WHAT `_iter_plan_ipds` MISSES, stated because it decides whether a VALID link can be called dangling:
+    it globs `*.ipd.md` ONLY. Measured on this repository, every plan file matches and the non-matching
+    `.md` files are exactly the `README.md`/`INDEX.md`/`STATUS.md` files the skip list drops anyway, so
+    nothing real is lost today. A bare-`.md` plan (a form the naming grammar still permits) would be
+    invisible to this scan and its Set would read as nonexistent.
+
+    THE EMPTY-CORPUS FAIL-SAFE IS COPIED FROM THE SPEC-SIDE TWIN, NOT FROM THE BACKLOG ONE, and the two
+    twins genuinely disagree (measured, see `check_from_backlog`'s docstring): `check_from_spec_dangling`
+    returns early with no findings when its known set is empty, while `check_from_backlog` has no such
+    guard and produced a FALSE finding on a tree with no source corpus. For an `error`-severity rule that
+    can block a commit, the spec-side posture is correct, so an empty plan-Set set reports NOTHING.
+
+    THREE RULES, BECAUSE THE THREE DEFECTS NEED DIFFERENT FIXES:
+
+    * `check.graduated-to-dangling` - a well-formed setid naming no plan Set. Fix: correct the value, or
+      author the Set.
+    * `check.graduated-to-malformed` - a token that is not a valid setid at all (a typo, a stray word).
+      Reported SEPARATELY and never as dangling, because "does not resolve to a real Set" sends a reader
+      hunting for a missing Set when the real defect is in the token.
+    * `check.graduated-to-repeated` - the same setid twice in one field. `parse_graduated_to`
+      deliberately does not dedupe, so the record keeps saying what the author wrote and this reports it.
+      Named `-repeated` rather than `-duplicate` because the sibling `graduate` Set's read-only view
+      ships a structural prohibition on any rule id containing `duplicate` (see the RULE_REGISTRY entry
+      in `check_engine` for why that guard is correct and why renaming was the right answer to it).
+
+    REACH: this runs in the FULL cross-tree sweep only (`aw check all`), like every scan at that seam, so
+    `aw check backlog` does NOT validate the field. An empty `- Graduated-To:` line is treated as ABSENT
+    and reports nothing (see `parse_graduated_to`).
+    """
+    from agent_workflows import (
+        check_engine as _ce,
+    )  # local import avoids an import cycle
+    from agent_workflows import plans as _plans
+
+    repo_root = Path(repo_root)
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    drift: List[_core.Drift] = []
+
+    known_setids: set = set()
+    for _p, _t in _ce._iter_plan_ipds(repo_root):
+        sid, _desc = _ce._parse_setid(_t)
+        if sid:
+            known_setids.add(sid)
+    if not known_setids:
+        # No plan Set is discoverable at all (no plans tree, or an unreadable one). We cannot
+        # distinguish a dangling link from an invisible plan corpus, so report nothing rather than flag
+        # every link in the repo. This is the SPEC-side twin's fail-safe posture, deliberately.
+        return drift
+
+    for sub in ("backlog", "specs", "plans"):
+        for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
+            if not base.is_dir() or _core.is_ignored_path(
+                base, repo_root, ignored_dirs
+            ):
+                continue
+            for p in base.rglob("*.md"):
+                if p.name in (
+                    "README.md",
+                    "INDEX.md",
+                    "STATUS.md",
+                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                entries = parse_graduated_to(text)
+                if not entries:
+                    continue
+                seen: set = set()
+                for entry in entries:
+                    if not _plans.is_set_id_valid(entry):
+                        drift.append(
+                            _core.Drift(
+                                str(p),
+                                GRADUATED_TO_MALFORMED_RULE,
+                                f"Graduated-To entry {entry!r} is not a valid setid "
+                                "(lowercase-kebab, at most "
+                                f"{_plans.MAX_SET_ID_LEN} characters)",
+                            )
+                        )
+                        continue
+                    if entry in seen:
+                        drift.append(
+                            _core.Drift(
+                                str(p),
+                                GRADUATED_TO_REPEATED_RULE,
+                                f"Graduated-To names {entry!r} more than once",
+                            )
+                        )
+                        continue
+                    seen.add(entry)
+                    if entry not in known_setids:
+                        drift.append(
+                            _core.Drift(
+                                str(p),
+                                GRADUATED_TO_DANGLING_RULE,
+                                f"Graduated-To entry {entry!r} does not resolve to a plan Set",
+                            )
+                        )
     return drift
 
 

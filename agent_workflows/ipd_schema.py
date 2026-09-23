@@ -202,6 +202,21 @@ META_FROM_BACKLOG = "From-Backlog"
 # `aw check` surface (check.from-spec-dangling), NOT the schema layer - the same split every other
 # recognized-but-optional field uses (Scope-Paths / Blocks-Release / From-Backlog / Priority).
 META_FROM_SPEC = "From-Spec"
+# Graduated-To (setidhard Order bwgyum, spec 4w7d6s G3/G5): the FORWARD half of the graduation link,
+# naming the plan Set (or Sets) a source became, so graduation is machine-readable in BOTH directions
+# rather than only from the child back to its source. It is MULTI-VALUED (`<setid>[, <setid>...]`),
+# which is the one structural difference from every other link field here, because a source may
+# graduate more than once over its life. Its primary home is the SOURCE (a backlog item or a spec),
+# the mirror image of `From-Backlog`, whose primary home is the plan; it is recognized HERE because
+# the `aw check` scan that validates it tolerates the field on plans too for symmetry, so a plan
+# carrying it must not fail lint (measured before this entry existed: `IPD-M103`, exit 1).
+# Recognized but OPTIONAL (NOT in META_REQUIRED), mirroring META_FROM_BACKLOG/META_FROM_SPEC exactly:
+# recognition here only stops the IPD-M103 "unknown field" lint error, so no existing plan is
+# mass-failed (the grandfather guarantee). Value validation (do the setids resolve to real plan Sets,
+# is a token malformed, is an entry repeated) lives in the `aw check` surface
+# (check.graduated-to-dangling / -malformed / -duplicate, in `releases.check_graduated_to`), NOT the
+# schema layer - the same split every other recognized-but-optional field uses.
+META_GRADUATED_TO = "Graduated-To"
 # xprio Order 1b45el (graduated from backlog p9o1oo): a UNIFORM, recognized-but-OPTIONAL `Priority`
 # field (the shared low/medium/high vocab is backlog.PRIORITIES; do NOT fork it). Recognition here
 # only stops the IPD-M103 "unknown field" lint error; the ENUM value check lives in the `aw check`
@@ -249,6 +264,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_BLOCKS_RELEASE,
         META_FROM_BACKLOG,
         META_FROM_SPEC,
+        META_GRADUATED_TO,
         META_PRIORITY,
         META_WORK_KIND,
         META_READINESS,
