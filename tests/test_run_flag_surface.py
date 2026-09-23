@@ -84,8 +84,17 @@ SPEC_PATH = (
 #: draft admission gate and registered the flag in this table, so it is now one of the flags this
 #: surface owns. The exclusion was removed rather than kept as a stale comment, because an exclusion
 #: that names an owner who has since landed reads as an unbuilt feature.
+#:
+#: `--type` WAS excluded here and no longer is: `specsweep-01` (`ui8b9b`) registered it in
+#: `RUN_POLICY_FLAGS` and threaded it to the already-shipped type-scoped sweep, so this surface now
+#: OWNS it. The row was MOVED rather than deleted-and-re-added, which is the distinction
+#: `test_every_flag_the_spec_declares_is_accounted_for` measures: `declared - owned - excluded` must
+#: stay empty, so an exclusion whose owner has landed has to become an owned row in the same change.
+#: Its former reason read "needs the whole per-type dispatch table, not a flag", and that reading was
+#: HALF right, which is why the flag could land without the table: SELECTION needed only the flag,
+#: while EXECUTION does need the table and is deliberately still absent (spec `z7nbn1` owns it, and
+#: `--type spec` is refused at queue build rather than pretending to run).
 DECLARED_BUT_NOT_OWNED_HERE = {
-    "--type": "spec 2.2/2.3 multi-type selection; needs the whole per-type dispatch table, not a flag",
     "--action": "revsweep-01 (`76gsmv`) registers it with its per-type legality refusal",
     "--json": "output shape, not policy; exists on `status` today and is not a `run` policy flag",
 }
@@ -611,10 +620,18 @@ class MixedTypeGateWiringTests(unittest.TestCase):
     whenever the classification is single-type, which is what a still-dead gate would also produce; so
     the assertions below construct a REAL multi-type classification and require `gate_applied=True`.
 
-    THE LIMIT, asserted rather than merely commented, so a green run of this file is not mistaken for
-    more than it proves: no live `aw <host> run` invocation can yet produce a mixed selection, because
-    discovery is IPD-only and neither host registers `--type`. See
-    :meth:`test_no_live_invocation_can_yet_produce_a_mixed_selection`.
+    THE LIMIT IS GONE, AND ITS REMOVAL IS ASSERTED (specsweep-01 `ui8b9b`). This paragraph used to
+    record that no live `aw <host> run` invocation could produce a mixed selection, because discovery
+    was IPD-only and neither host registered `--type`. `--type` is now registered on both hosts and
+    threaded to the type-scoped sweep, so `--type ipd --type spec` reaches this gate from a real
+    command line. See :meth:`test_a_live_invocation_CAN_now_produce_a_mixed_selection`, which is the
+    former limit test inverted rather than deleted.
+
+    THE REMAINING LIMIT, stated because it is a different one and is still real: a selection CAN now
+    be mixed and a non-IPD selection still cannot be EXECUTED. `--type spec` selects specs and is then
+    refused at queue build by `runner_shared.refuse_unrunnable_selected_types`, because a queue entry
+    is plan-shaped. So this gate is reachable and consequential, while per-type dispatch (spec
+    `z7nbn1`) remains unbuilt.
     """
 
     def multi_type_paths(self, root) -> list:
@@ -801,20 +818,26 @@ class MixedTypeGateWiringTests(unittest.TestCase):
                 "two definitions of what confirmation means and they are free to diverge",
             )
 
-    def test_no_live_invocation_can_yet_produce_a_mixed_selection(self):
-        """THE LIMIT, as an assertion. Registering `--type` would falsify this and must fail here.
+    def test_a_live_invocation_CAN_now_produce_a_mixed_selection(self):
+        """THE LIMIT, INVERTED (specsweep-01 `ui8b9b` E-04). Formerly
+        `test_no_live_invocation_can_yet_produce_a_mixed_selection`.
 
-        Two independent reasons, both asserted: neither host registers `--type`, and discovery returns
-        IPDs only. When a later plan builds multi-type selection it will have to update this test,
-        which is the point - the limit becomes visible rather than being silently outgrown.
+        WHY THIS TEST CHANGED SIDES RATHER THAN BEING DELETED. `uyeko5` pinned the unreachability
+        deliberately, recording that it did so "so registering `--type` later fails here rather than
+        silently outgrowing it". `ui8b9b` registered `--type`, so this pin FAILED BY DESIGN and the
+        failure was the handoff signal working. Deleting it would have discarded the invariant it was
+        defending; inverting it keeps that invariant and flips only the claim that went stale.
 
-        THE DISCOVERY HALF WAS A SOURCE-TEXT PIN and is now behavioral. It read
-        `inspect.getsource(runner_shared.discover_plans)` and asserted `".aw" in source` and `"specs"
-        not in source`. The `"specs"` half was the dangerous one: the word appears in ordinary English
-        ("the specs tree", "spec-aware"), so ANY comment mentioning specs in that function failed a
-        test about behavior, and conversely a discovery that grew a spec tree through a variable named
-        something else passed. Now the test plants a REAL spec beside a real IPD in a temp repo and
-        requires discovery to return only the IPD, on both hosts.
+        THE INVARIANT IT DEFENDED, AND STILL DEFENDS, is that the mixed-type gate's reachability is a
+        FACT ABOUT THE SHIPPED SURFACE rather than a claim in a comment. It asserted that fact in the
+        negative when the surface could not reach the gate; it asserts the same fact in the positive
+        now that it can. Both directions fail if the flag and the gate ever come apart.
+
+        WHAT IS DELIBERATELY *NOT* INVERTED: the discovery half. `discover_plans` must STILL return
+        IPDs only, because `--type spec` reaches the specs tree through `discover_specs`, not by
+        widening plan discovery. A `discover_plans` that started returning specs would mean the
+        IPD-only default had been widened by the back door, which spec 2.4a property 1 forbids, so that
+        assertion is kept exactly as it was.
         """
         import tempfile
         from pathlib import Path as _P
@@ -822,7 +845,41 @@ class MixedTypeGateWiringTests(unittest.TestCase):
         for runner in BOTH:
             for sub in ("start", "resume"):
                 with self.subTest(runner=runner, subcommand=sub):
-                    self.assertNotIn("--type", _option_strings(runner, sub))
+                    self.assertIn(
+                        "--type",
+                        _option_strings(runner, sub),
+                        f"{runner}/{sub}: `--type` must be REGISTERED. This assertion was inverted by "
+                        "`ui8b9b`: while it read `assertNotIn`, the mixed-type gate was unreachable "
+                        "from any command line and the shipped `[RUN-MIXED-TYPES]` refusal was dead "
+                        "code. If this now fails, the flag was removed and the gate is dead again",
+                    )
+
+        # THE GATE ACTUALLY FIRES on a selection the flag can now produce. Registration alone does not
+        # prove reachability: the gate is reached with the resolved path set, so a runner that filtered
+        # non-plan paths out BEFORE the gate would leave it permanently single-type while every
+        # registration assertion above still passed. That filtering is the realistic regression here,
+        # which is why this half drives the real gate rather than inspecting the parser.
+        from agent_workflows import run_selection_policy
+
+        with tempfile.TemporaryDirectory() as td:
+            root = _P(td)
+            paths = self.multi_type_paths(root)
+            classification = run_selection_policy.classify_paths(root, paths)
+            self.assertTrue(
+                classification.is_mixed,
+                "the two-type path set must classify as MIXED; if it does not, the gate cannot "
+                "fire and the reachability claimed above is not real",
+            )
+            with self.assertRaises(runner_shared.DriverError) as ctx:
+                runner_shared.enforce_mixed_type_gate(
+                    root,
+                    paths,
+                    allow_mixed=False,
+                    interactive=False,
+                    host="oc",
+                    selector="reviews",
+                )
+            self.assertIn("[RUN-MIXED-TYPES]", str(ctx.exception))
 
         with tempfile.TemporaryDirectory() as td:
             root = _P(td)
@@ -833,10 +890,11 @@ class MixedTypeGateWiringTests(unittest.TestCase):
                     self.assertEqual(
                         sorted(found),
                         ["aaa111"],
-                        f"{runner}: discovery must return the IPD ONLY. The temp repo holds a real "
-                        f"spec at {spec.name} beside the IPD at {ipd.name}; returning the spec's "
-                        "id6 too would mean a live selection can be multi-type, which would make "
-                        "this whole class's honest limit false",
+                        f"{runner}: PLAN discovery must STILL return the IPD ONLY, and this half is "
+                        f"NOT inverted. The temp repo holds a real spec at {spec.name} beside the "
+                        f"IPD at {ipd.name}. `--type spec` reaches specs through `discover_specs`, "
+                        "so a spec appearing HERE would mean the normative IPD-only default (spec "
+                        "2.4a property 1) had been widened through plan discovery instead",
                     )
 
 
@@ -3605,9 +3663,20 @@ Real gate prose.
         """THE HONEST LIMIT, as an assertion rather than a comment (F-8).
 
         Spec 2.5a bullet 5's combined mixed-plus-draft interaction is implemented and tested at the
-        seam, but NO real invocation can trigger it: discovery is IPD-only and neither host registers
-        `--type`, so no selection can contain two types. A later plan that adds `--type` will have to
-        update this test, which is the point - the limit becomes visible rather than silently outgrown.
+        seam. What has changed (specsweep-01 `ui8b9b`) is WHY it does not fire on the run below.
+
+        THIS TEST'S FIRST ASSERTION WAS INVERTED, ITS SECOND WAS NOT, and the split is the whole point
+        of keeping it. It used to argue unreachability from TWO premises: that neither host registers
+        `--type`, and that no non-mixed run reaches the combined entry point. `ui8b9b` falsified the
+        first, so that assertion now requires the flag to BE registered. The second premise is
+        untouched and is the invariant this test actually defends: a `--allow-drafts` run that is NOT
+        mixed must not reach the combined gate. Deleting the test because one of its two assertions
+        went stale would have discarded a live invariant, which is why it was inverted in place (the
+        same treatment `test_a_live_invocation_CAN_now_produce_a_mixed_selection` received).
+
+        SO THE CLAIM IS NARROWER THAN IT WAS AND STILL HONEST: the combined path is reachable in
+        principle now that a selection can be mixed, and it is NOT reached by the single-type run this
+        test performs.
         """
         from agent_workflows import run_selection_policy
 
@@ -3615,10 +3684,19 @@ Real gate prose.
         for runner in BOTH:
             for sub in ("start", "resume"):
                 with self.subTest(runner=runner, subcommand=sub):
-                    self.assertNotIn("--type", _option_strings(runner, sub))
+                    self.assertIn(
+                        "--type",
+                        _option_strings(runner, sub),
+                        f"{runner}/{sub}: INVERTED by `ui8b9b`. While this read `assertNotIn`, it was "
+                        "one of two premises for declaring spec 2.5a bullet 5 unreachable; the flag "
+                        "now exists, so a mixed selection is possible and only the second premise "
+                        "(this run is single-type) keeps the combined gate unfired below",
+                    )
 
-        # And nothing in either runner REACHES the combined entry point, precisely BECAUSE it cannot
-        # fire; asserting that keeps the claim honest instead of implying a live combined gate.
+        # And nothing in either runner reaches the combined entry point ON A SINGLE-TYPE RUN, which is
+        # the assertion this test keeps. NOTE WHAT THIS NO LONGER CLAIMS: it is not evidence that the
+        # combined path is unreachable in general (it no longer is), only that a non-mixed run does not
+        # take it. That narrowing is deliberate; asserting the broader claim would now be false.
         #
         # OBSERVED, NOT GREPPED. This replaced an `assertNotIn("decide_selection_gates",
         # inspect.getsource(module))` pin, which is a change-detector twice over: THIS comment
@@ -3629,10 +3707,12 @@ Real gate prose.
             *_args, **_kwargs
         ):  # pragma: no cover - the point is it never runs
             raise AssertionError(
-                "the combined mixed-plus-draft gate FIRED on a real run. That is not a bug in this "
-                "test: it means a live selection can now be multi-type (someone registered `--type` "
-                "or widened discovery), so spec 2.5a bullet 5 is reachable and this honest-limit test "
-                "must be rewritten to assert the combined behavior instead of its unreachability"
+                "the combined mixed-plus-draft gate FIRED on a SINGLE-TYPE run. Note what this no "
+                "longer means: `--type` is registered (`ui8b9b`), so a mixed selection is reachable "
+                "and the gate firing on a genuinely MIXED run would be correct. The run below passes "
+                "only `--allow-drafts` with no `--type`, so its selection is IPD-only by the "
+                "normative default and the combined path must not be taken. Firing here means the "
+                "default widened, or a single-type selection is being classified as mixed"
             )
 
         for runner in BOTH:
@@ -4431,3 +4511,775 @@ class DependencyClosureTests(unittest.TestCase):
                         f"{runner} defines its own {name}; the closure must have exactly one "
                         "definition, in the shared module",
                     )
+
+
+class TypeScopedReviewSweepTests(unittest.TestCase):
+    """specsweep-01 (`ui8b9b`): `--type` is OPERATOR-REACHABLE, and its default did not widen.
+
+    WHAT THIS CLASS EXISTS FOR, since "a flag parses" is the least valuable thing in it. Spec `6m4kow`
+    R-15 was satisfied at the FUNCTION boundary and by nothing an operator could type:
+    `runner_shared.sweep_review_candidates_for_type(repo, "spec")` answered correctly while
+    `grep '"--type"'` returned ZERO in both hosts, so the capability was complete and unreachable. That
+    gap was documented at the function's own definition and excluded by name from executed plan
+    `uyeko5`. These tests are the reachability, plus the three properties that make adding the flag
+    SAFE rather than merely possible.
+
+    THE LOAD-BEARING TEST IS THE ONE ABOUT THE DEFAULT, not the one about the flag.
+    :meth:`test_a_bare_reviews_selection_is_byte_identical_to_the_ipd_only_sweep` is what proves spec
+    2.4a property 1 ("with no `--type`, `reviews` selects IPDs only") did not move, and property 1 is
+    NORMATIVE: a type added later must never join the sweep implicitly. A flag that works is worth
+    nothing if registering it silently widened what every existing invocation selects.
+
+    EVERY POSITIVE CASE USES A TEST-AUTHORED FIXTURE, NEVER THE LIVE TREE, and that is a measured
+    decision rather than a convention. The live population of `to-review` specs changed THREE times in
+    ten days: four specs when this plan was authored, ZERO at its review (the same review round
+    advanced all four to `approved`), and one (`z7nbn1`) at execution. A test asserting any of those
+    would have been wrong within hours, and the middle state would have made it pass VACUOUSLY against
+    unchanged code. A fixture is also the only honest option: manufacturing a population by advancing a
+    real spec's status would be a tooled lifecycle change made to satisfy a test.
+
+    TABLE-DRIVEN OVER (case x HOST) for this file's standing reason: the property is that the TWO hosts
+    agree, and `--full-auto` already shipped meaning opt-in on one host and opt-out on the other.
+    """
+
+    #: A spec at a given status, in the id6-carrying canonical name `discover_specs` requires.
+    SPEC = """# Spec: probe {id6}
+
+- Date: 2026-09-05
+- Id: {id6}
+- Status: {status}
+
+## Summary
+
+probe
+"""
+
+    PLAN = """# IPD: probe {id6}
+
+- Date: 2026-09-05
+- Kind: child
+- Concern: probe.
+- Scope: probe.
+- Scope-Paths: src/
+- Item-Dependencies: none
+- Status: {status}
+- Set: probe
+- Order: {order}
+- Highest E allocated: 01
+- Author: test
+- Id: {id6}
+
+## Workflow history
+- 2026-09-05 {status} (test): probe.
+"""
+
+    def make_repo(self, root, *, plans=(), specs=()):
+        """A committed repo holding `plans` and `specs` as ``[(id6, status)]`` pairs.
+
+        SPECS ARE WRITTEN AS REAL FILES under `.aw/records/specs/` with canonical id6-carrying names,
+        because `discover_specs` resolves identity through `check_engine._iter_spec_records` and
+        `_ITEM_ID_RE` and deliberately SKIPS a spec with no `- Id:`. A fixture that faked the tree
+        would not be swept at all and the test would pass for the wrong reason.
+        """
+        import subprocess
+
+        repo = root / "repo"
+        repo.mkdir(parents=True)
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=repo, check=True)
+        (repo / ".gitignore").write_text(".aw/records/runs/\n", encoding="utf-8")
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True)
+        for order, (id6, status) in enumerate(plans, start=1):
+            (pending / f"20260905-probe-{order:02d}-{id6}-probe.ipd.md").write_text(
+                self.PLAN.format(id6=id6, status=status, order=order), encoding="utf-8"
+            )
+        if specs:
+            spec_dir = repo / ".aw" / "records" / "specs"
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            for id6, status in specs:
+                (spec_dir / f"20260905-{id6}-01-{id6}-probe.spec.md").write_text(
+                    self.SPEC.format(id6=id6, status=status), encoding="utf-8"
+                )
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+        return repo
+
+    def sweep(self, runner, repo, argv):
+        """`expand_selectors` through the HOST, with the type set resolved as `initialize_run` does.
+
+        Driven through each host's own `expand_selectors` rather than the shared sweep directly,
+        because the defect this plan closed was in the THREADING: the shared function already worked,
+        and nothing passed it a type. A test calling the shared function would have passed before the
+        change and proves nothing about reachability.
+        """
+        args = _parse(runner, ["start", *argv, "--repo", str(repo)])
+        types = runner_shared.resolve_run_types(getattr(args, "types", None))
+        manifest = runner_shared.build_dynamic_manifest(
+            repo, _MODULES[runner].discover_plans(repo)
+        )
+        return _MODULES[runner].expand_selectors(
+            manifest, args.selectors, repo=repo, types=types
+        )
+
+    def test_the_type_vocabulary_is_the_policy_modules_own(self):
+        """`RUN_TYPE_CHOICES` must EQUAL spec 2.2's canonical order, tuple for tuple.
+
+        THIS TEST IS WHY THE TUPLE MAY BE SPELLED OUT in `runner_shared`. That module's module-level
+        first-party imports are pinned to exactly two (`test_no_new_module_level_first_party_import_in_
+        runner_shared`), so it cannot read `run_selection_policy.SPEC_TYPE_ORDER` at module scope and
+        the values are written literally. A literal copy is a second definition free to drift, so the
+        tie is enforced HERE instead: the flag's vocabulary and the type system's vocabulary are the
+        same list or this fails.
+
+        ORDER IS ASSERTED, not just membership, because `resolve_run_types` sorts its output by this
+        tuple to make two equivalent invocations freeze byte-identical run state, and
+        `SPEC_TYPE_ORDER`'s own docstring records that its order is load-bearing for the preview.
+        """
+        from agent_workflows import run_selection_policy
+
+        self.assertEqual(
+            runner_shared.RUN_TYPE_CHOICES,
+            run_selection_policy.SPEC_TYPE_ORDER,
+            "`--type`'s accepted vocabulary must be spec 2.2's canonical type list, in its order. "
+            "It is spelled literally in `runner_shared` only because that module's module-level "
+            "first-party imports are pinned, so THIS assertion is the thing keeping the copy honest",
+        )
+
+    def test_the_sweepable_set_is_exactly_what_the_sweep_can_enumerate(self):
+        """`RUN_TYPE_SWEEPABLE` must match the singular sweep's REAL behavior, both directions.
+
+        The constant decides which types are REFUSED, so a drift either refuses a capability the
+        package has (a type the sweep serves, absent here) or accepts one it lacks (a type here the
+        sweep answers `[]` for, which is the silent-empty-success failure the refusal exists to
+        prevent). Both directions are checked by DRIVING the sweep against a fixture that holds a
+        review-eligible artifact of each type, rather than by trusting the constant.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = self.make_repo(
+                _P(td), plans=[("pln001", "to-review")], specs=[("spc001", "to-review")]
+            )
+            manifest = runner_shared.build_dynamic_manifest(
+                repo, oc_runipd.discover_plans(repo)
+            )
+            wrong = []
+            for spec_type in runner_shared.RUN_TYPE_CHOICES:
+                got = runner_shared.sweep_review_candidates_for_type(
+                    repo, spec_type, manifest=manifest
+                )
+                declared = spec_type in runner_shared.RUN_TYPE_SWEEPABLE
+                if declared and not got:
+                    wrong.append(
+                        f"  {spec_type}: declared SWEEPABLE but the sweep returned nothing for a "
+                        "fixture holding a review-eligible artifact of this type\n"
+                        "    this direction matters because: the flag would REFUSE a type the "
+                        "package can actually serve, hiding a shipped capability behind a refusal"
+                    )
+                if not declared and got:
+                    wrong.append(
+                        f"  {spec_type}: NOT declared sweepable but the sweep returned {got}\n"
+                        "    this direction matters because: the flag refuses this type, so a "
+                        "capability that exists is unreachable - and if the refusal were removed "
+                        "instead, the type would need a runnable queue entry it does not have"
+                    )
+            self.assertEqual(
+                wrong,
+                [],
+                "`RUN_TYPE_SWEEPABLE` disagrees with `sweep_review_candidates_for_type`'s actual "
+                "behavior. It must be derived from that function's real branches (`ipd` walks the "
+                "manifest, `spec` walks the specs tree, everything else hits the fail-safe "
+                "`return []`).\n" + "\n".join(wrong),
+            )
+
+    def test_a_bare_reviews_selection_is_byte_identical_to_the_ipd_only_sweep(self):
+        """THE NORMATIVE DEFAULT DID NOT WIDEN (spec 2.4a property 1). The load-bearing test here.
+
+        Asserted THREE ways over one fixture that deliberately holds a `to-review` SPEC alongside two
+        `to-review` plans, because that fixture is the only one where widening is observable at all:
+
+        1. a bare `reviews` equals `--type ipd` exactly, so the default IS the ipd sweep;
+        2. both equal `sweep_review_candidates` - the pre-change function, unchanged and still shipped
+           - so the delegation really is verbatim rather than merely similar; and
+        3. the spec's id6 is ABSENT, which is what "IPDs only" means when a spec is present to be
+           wrongly included.
+
+        Without (3) this test would pass against a widened default whenever the fixture had no specs,
+        which is exactly how a normative default rots unnoticed.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as td:
+                repo = self.make_repo(
+                    _P(td),
+                    plans=[("pln001", "to-review"), ("pln002", "approved")],
+                    specs=[("spc001", "to-review")],
+                )
+                manifest = runner_shared.build_dynamic_manifest(
+                    repo, _MODULES[runner].discover_plans(repo)
+                )
+                bare = self.sweep(runner, repo, ["reviews"])
+                explicit = self.sweep(runner, repo, ["reviews", "--type", "ipd"])
+                legacy = runner_shared.sweep_review_candidates(manifest, repo=repo)
+                self.assertEqual(
+                    bare,
+                    ["pln001"],
+                    f"{runner}: a bare `reviews` must select the to-review PLAN only",
+                )
+                self.assertEqual(
+                    bare,
+                    explicit,
+                    f"{runner}: a bare `reviews` and `--type ipd` must be the SAME selection; a "
+                    "difference means the default is no longer the ipd sweep",
+                )
+                self.assertEqual(
+                    bare,
+                    legacy,
+                    f"{runner}: the default must still be `sweep_review_candidates`'s own answer "
+                    "VERBATIM. That function is unchanged and still shipped, so a difference here "
+                    "means the type-scoped path reimplemented the IPD walk instead of delegating",
+                )
+                self.assertNotIn(
+                    "spc001",
+                    bare,
+                    f"{runner}: the fixture holds a `to-review` SPEC and the default must NOT select "
+                    "it. Spec 2.4a property 1 is normative: 'with no --type, reviews selects IPDs "
+                    "only', and a type never joins the sweep implicitly",
+                )
+
+    def test_type_spec_selects_a_FIXTURE_spec_awaiting_review_on_both_hosts(self):
+        """REACHABILITY: the capability spec `6m4kow` R-15 shipped, now reachable from a command line.
+
+        THE FIXTURE IS THE POINT (see the class docstring): the live `to-review` spec population moved
+        three times in ten days, so this asserts against a spec this test wrote. It also asserts the
+        PLAN is absent, because `--type spec` selecting specs AND plans would be a union the operator
+        did not ask for - and would silently make every spec sweep a mixed selection.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as td:
+                repo = self.make_repo(
+                    _P(td),
+                    plans=[("pln001", "to-review")],
+                    specs=[("spc001", "to-review"), ("spc002", "approved")],
+                )
+                got = self.sweep(runner, repo, ["reviews", "--type", "spec"])
+                self.assertEqual(
+                    got,
+                    ["spc001"],
+                    f"{runner}: `--type spec` must select the spec at `to-review` and nothing else. "
+                    "`spc002` is `approved`, which the dispatch table routes to `plan` rather than "
+                    "`review`, so including it would mean membership stopped being the table's",
+                )
+                self.assertNotIn(
+                    "pln001",
+                    got,
+                    f"{runner}: `--type spec` must NOT also select the to-review PLAN. A union "
+                    "nobody asked for would make every spec sweep a MIXED selection",
+                )
+
+    def test_repeating_the_flag_selects_the_union_in_canonical_type_order(self):
+        """Spec 2.3 step 2: repetition is the UNION, deduplicated, in spec 2.2's type order."""
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as td:
+                repo = self.make_repo(
+                    _P(td),
+                    plans=[("pln001", "to-review")],
+                    specs=[("spc001", "to-review")],
+                )
+                self.assertEqual(
+                    self.sweep(
+                        runner,
+                        repo,
+                        ["reviews", "--type", "spec", "--type", "ipd"],
+                    ),
+                    ["pln001", "spc001"],
+                    f"{runner}: the union must be ordered by spec 2.2's type order (ipd before "
+                    "spec), NOT by the order the operator typed the flags. Run state freezes this "
+                    "list, so two equivalent invocations must produce identical state",
+                )
+                self.assertEqual(
+                    self.sweep(
+                        runner,
+                        repo,
+                        ["reviews", "--type", "spec", "--type", "spec"],
+                    ),
+                    ["spc001"],
+                    f"{runner}: a repeated SAME type must deduplicate. Without this, `--type spec "
+                    "--type spec` would look like a two-type selection and trip the mixed-type gate",
+                )
+
+    def test_an_empty_type_scoped_sweep_is_a_SUCCESS_that_exits_zero(self):
+        """Spec 2.4a property 3 holds for `--type spec` too: nothing awaiting review is HEALTHY.
+
+        `EmptyStatusSelection` is the type that makes `main` exit 0 for a status selector while a
+        misspelled id6 still exits 2, so this asserts BOTH the exception type at the seam and the
+        real process exit code. A repository with no spec awaiting review is the normal state - it is
+        the state the live tree was in at this plan's review - so getting an error for it would make
+        the flag unusable in the common case.
+        """
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as td:
+                repo = self.make_repo(
+                    _P(td),
+                    plans=[("pln001", "to-review")],
+                    specs=[("spc001", "approved")],
+                )
+                with self.assertRaises(_MODULES[runner].EmptyStatusSelection):
+                    self.sweep(runner, repo, ["reviews", "--type", "spec"])
+                out, err = io.StringIO(), io.StringIO()
+                with (
+                    contextlib.redirect_stdout(out),
+                    contextlib.redirect_stderr(err),
+                ):
+                    rc = _MODULES[runner].main(
+                        [
+                            "start",
+                            "reviews",
+                            "--type",
+                            "spec",
+                            "--repo",
+                            str(repo),
+                            "--prepare-only",
+                        ]
+                    )
+                self.assertEqual(
+                    rc,
+                    0,
+                    f"{runner}: an empty `--type spec` sweep must EXIT 0 (spec 2.4a property 3). "
+                    f"Got {rc}. stderr: {err.getvalue()[-400:]}",
+                )
+                self.assertFalse(
+                    (repo / ".aw" / "records" / "runs").exists(),
+                    f"{runner}: an empty selection must create nothing durable",
+                )
+
+    def test_membership_is_not_reimplemented_for_either_type(self):
+        """Both hosts reach the SAME shared sweep, and the sweep asks the SAME predicate.
+
+        Asserted by DELEGATION rather than by grepping for a function name, following this file's own
+        rule: `needs_review` is replaced with a sentinel that answers True for everything, and a
+        `--type spec` sweep must then return the `approved` spec it otherwise skips. A second
+        membership test inside the sweep would keep skipping it, because its own copy is untouched by
+        the patch - so the sentinel's effect IS the proof there is one predicate.
+
+        This is the property spec `6m4kow` R-16 requires and that `6ypimw` was written to restore: two
+        verbatim `_needs_review` closures had drifted, one testing `status == "to-review"` while the
+        dispatch table routed `draft` to review as well.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        from agent_workflows import run_selection_policy
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = self.make_repo(_P(td), specs=[("spc001", "approved")])
+            self.assertEqual(
+                runner_shared.sweep_review_candidates_for_type(repo, "spec"),
+                [],
+                "an `approved` spec must not be swept; the dispatch table routes it to `plan`",
+            )
+            with mock.patch.object(
+                run_selection_policy, "needs_review", lambda *a, **k: True
+            ):
+                for runner in BOTH:
+                    with self.subTest(runner=runner):
+                        self.assertEqual(
+                            self.sweep(runner, repo, ["reviews", "--type", "spec"]),
+                            ["spc001"],
+                            f"{runner}: patching `run_selection_policy.needs_review` must change "
+                            "this host's selection. An unchanged answer means the sweep carries its "
+                            "own membership test, which is the fork `6ypimw` deleted",
+                        )
+
+    def test_both_hosts_reach_the_SAME_shared_sweep_function(self):
+        """One function object, two hosts: the `rununify` property for this seam."""
+        self.assertIs(
+            oc_runipd.runner_shared.sweep_review_candidates_for_types,
+            agy_runipd.runner_shared.sweep_review_candidates_for_types,
+        )
+
+    #: (case, argv tail, the substring the refusal must contain, why an operator needs that substring)
+    REFUSALS = (
+        (
+            "a type the sweep cannot enumerate",
+            ["reviews", "--type", "research"],
+            "can enumerate only",
+            "spec 2.1 DECLARES seven types and two are served, so the grammar is deliberately wider "
+            "than the implementation (the `--action` precedent). Accepting `research` would report a "
+            "successful EMPTY selection, which tells the operator their sweep found nothing when it "
+            "never looked - the exact falsehood `refuse_unimplemented_run_flags` exists to prevent",
+        ),
+        (
+            "a type on the `all` selector",
+            ["all", "--type", "spec"],
+            "not honored by this selector",
+            "THE ASYMMETRY IS THE HAZARD. `--type spec` genuinely works on `reviews`, so an operator "
+            "has every reason to believe it worked on `all` too; `all` resolves against the "
+            "plans-only manifest, so ignoring it silently would hand them an IPD-only run they "
+            "believe was type-scoped",
+        ),
+        (
+            "a type on a NAMED selector",
+            ["pln001", "--type", "spec"],
+            "not honored by this selector",
+            "the same asymmetry reached the other way. A named selector resolves through the "
+            "manifest too, and this row exists because a refusal scoped only to `all` would leave "
+            "the commonest spelling (naming an item) silently ignoring the flag",
+        ),
+        (
+            "a spec that was SELECTED but cannot be RUN",
+            ["reviews", "--type", "spec"],
+            "cannot be RUN",
+            "THE HONEST LIMIT, enforced rather than documented. A queue entry is plan-shaped, so "
+            "queueing a spec would hand it to code that assumes a plan - and because "
+            "`resolve_plan_path` fails OPEN, that failure would be SILENT. The refusal is what stops "
+            "an operator reading type-scoped SELECTION as shipped per-type EXECUTION",
+        ),
+    )
+
+    def test_every_illegal_or_unrunnable_type_use_is_REFUSED_and_says_why(self):
+        """Every refusal, on both hosts, each asserting it left NOTHING DURABLE behind.
+
+        THE `nothing durable` HALF IS NOT DECORATION. Every one of these refusals is sited ahead of
+        the run directory precisely so a refused invocation costs an operator no reconciliation, which
+        is the same property the mixed-type refusal's "No work started." sentence promises. A refusal
+        that fired after the run directory existed would leave a run, a report and a ledger for zero
+        work, and no assertion about the message would notice.
+        """
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path as _P
+
+        wrong = []
+        for case, tail, needle, why in self.REFUSALS:
+            for runner in BOTH:
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo(
+                        _P(td),
+                        plans=[("pln001", "to-review")],
+                        specs=[("spc001", "to-review")],
+                    )
+                    problems = []
+                    err = io.StringIO()
+                    try:
+                        with contextlib.redirect_stderr(err):
+                            args = _parse(runner, ["start", *tail, "--repo", str(repo)])
+                            args.prepare_only = True
+                            _MODULES[runner].initialize_run(args)
+                    except runner_shared.RunFlagRefusal as exc:
+                        if needle not in str(exc):
+                            problems.append(
+                                f"the refusal does not contain {needle!r}: {str(exc)[:300]!r}"
+                            )
+                    except Exception as exc:  # noqa: BLE001 - any other error is itself the finding
+                        problems.append(
+                            f"expected a RunFlagRefusal, got {type(exc).__name__}: "
+                            f"{str(exc)[:200]}"
+                        )
+                    else:
+                        problems.append(
+                            "the invocation was ACCEPTED; no refusal was raised"
+                        )
+                    if (repo / ".aw" / "records" / "runs").exists():
+                        problems.append(
+                            "a run directory was created, so the refusal fired AFTER durable state "
+                            "existed and an operator is left with a run to reconcile"
+                        )
+                    if problems:
+                        wrong.append(
+                            f"  {case} on {runner} ({' '.join(tail)}):\n"
+                            + "".join(f"    - {p}\n" for p in problems)
+                            + f"    this row exists because: {why}"
+                        )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(self.REFUSALS) * len(BOTH)} (refusal, host) cells are wrong. READ "
+            "THE SHAPE: a row failing on BOTH hosts is a missing or mis-sited refusal in the shared "
+            "core; a row failing on ONE host means a host bypassed the shared seam, which is the "
+            "asymmetry this file exists to catch. A `nothing durable` failure alongside a correct "
+            "message means the refusal is real but sited too late.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_the_unrunnable_refusal_names_what_it_selected(self):
+        """The refusal must report the SELECTION, not merely decline.
+
+        This is the whole operator value of a flag that selects but cannot run: the sweep's answer is
+        the thing they wanted, so a refusal that withholds it converts a working capability into a
+        dead end. Asserted separately from the message-substring table above because it is a claim
+        about CONTENT (the resolved artifact) rather than about wording.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as td:
+                repo = self.make_repo(_P(td), specs=[("spc001", "to-review")])
+                args = _parse(
+                    runner, ["start", "reviews", "--type", "spec", "--repo", str(repo)]
+                )
+                args.prepare_only = True
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    _MODULES[runner].initialize_run(args)
+                self.assertIn(
+                    "spc001",
+                    str(ctx.exception),
+                    f"{runner}: the refusal must NAME the spec it selected. The selection is the "
+                    "capability this flag delivers, so withholding it makes the refusal a dead end "
+                    "instead of a usable answer an operator can act on",
+                )
+
+    def test_the_mixed_type_gate_REFUSES_a_real_invocation_and_proceeds_with_allow_mixed(
+        self,
+    ):
+        """E-04: the gate fires on a REAL command line, which nobody could produce before.
+
+        `uyeko5` proved this gate WIRED and CORRECT on a constructed classification while stating
+        plainly that no live invocation could trigger it. This test is the evidence that was
+        unobtainable then: `--type ipd --type spec` against a fixture holding a review-eligible item
+        of each type.
+
+        `gate_applied` IS NOT ASSERTED HERE and that is deliberate, not an omission: the unattended
+        refusal path raises, so there is no verdict object to read. The `gate_applied=True` assertion
+        lives on the `--allow-mixed` half below, which returns a verdict, and
+        `MixedTypeGateWiringTests` asserts it at the seam. What THIS test adds is that a REAL argv
+        reaches the gate at all.
+
+        THE `--allow-mixed` HALF THEN HITS THE UNRUNNABLE-TYPE REFUSAL, and that ordering is the
+        design (DECISION D4): the mixed gate asks about the operator's INTENT and this refusal states
+        the runner's CAPABILITY, so the intent question must come first. Reaching the SECOND refusal
+        is therefore the proof the FIRST one was satisfied rather than skipped.
+        """
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as td:
+                repo = self.make_repo(
+                    _P(td),
+                    plans=[("pln001", "to-review")],
+                    specs=[("spc001", "to-review")],
+                )
+                argv = [
+                    "start",
+                    "reviews",
+                    "--type",
+                    "ipd",
+                    "--type",
+                    "spec",
+                    "--repo",
+                    str(repo),
+                    "--unattended",
+                ]
+                args = _parse(runner, argv)
+                args.prepare_only = True
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    with self.assertRaises(runner_shared.DriverError) as ctx:
+                        _MODULES[runner].initialize_run(args)
+                self.assertIn(
+                    "[RUN-MIXED-TYPES]",
+                    str(ctx.exception),
+                    f"{runner}: a real multi-type invocation must hit the spec's mixed-type refusal. "
+                    "Before `--type` existed no argv could produce a mixed selection, so this "
+                    "refusal was unreachable shipped code",
+                )
+                self.assertIn("No work started.", str(ctx.exception))
+                self.assertFalse(
+                    (repo / ".aw" / "records" / "runs").exists(),
+                    f"{runner}: the mixed-type refusal must leave nothing durable",
+                )
+
+                args = _parse(runner, [*argv, "--allow-mixed"])
+                args.prepare_only = True
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    with self.assertRaises(runner_shared.RunFlagRefusal) as ctx2:
+                        _MODULES[runner].initialize_run(args)
+                message = str(ctx2.exception)
+                self.assertNotIn(
+                    "[RUN-MIXED-TYPES]",
+                    message,
+                    f"{runner}: `--allow-mixed` must SATISFY the mixed-type gate. Still seeing its "
+                    "refusal means the flag did not reach the gate",
+                )
+                self.assertIn(
+                    "cannot be RUN",
+                    message,
+                    f"{runner}: past the mixed gate, the selection must meet the unrunnable-type "
+                    "refusal. Reaching THIS refusal is the proof the mixed gate was satisfied "
+                    "rather than skipped, and it is where the honest limit is stated",
+                )
+
+    def test_the_gate_reports_gate_applied_TRUE_on_the_real_multi_type_path_set(self):
+        """`gate_applied=True` on the path set a REAL invocation produces, not a constructed one.
+
+        `gate_applied=False` is the SINGLE-TYPE short circuit and is what a still-unreachable gate
+        would also return, so it cannot satisfy this. The path set here is built by the same
+        `resolve_selected_artifact_paths` the runner uses, which is the seam that would break the gate
+        most plausibly: a resolver that filtered non-plan paths out would hand the gate one type and
+        the verdict would read `gate_applied=False` while every other test in this class still passed.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = self.make_repo(
+                _P(td),
+                plans=[("pln001", "to-review")],
+                specs=[("spc001", "to-review")],
+            )
+            manifest = runner_shared.build_dynamic_manifest(
+                repo, oc_runipd.discover_plans(repo)
+            )
+            types = ("ipd", "spec")
+            queue = runner_shared.sweep_review_candidates_for_types(
+                repo, types, manifest=manifest
+            )
+            selection = runner_shared.resolve_selected_artifact_paths(
+                repo, manifest, queue, types
+            )
+            self.assertEqual(
+                len(selection.all_paths),
+                2,
+                f"the resolver must place BOTH artifacts; got {selection.all_paths} with "
+                f"unresolved={selection.unresolved}",
+            )
+            self.assertEqual(
+                len(selection.plan_paths),
+                1,
+                "the PLAN subset must hold the plan only: the dependency preflight hands each path's "
+                "text to the IPD dependency evaluator, which can say nothing true about a spec",
+            )
+            verdict = runner_shared.enforce_mixed_type_gate(
+                repo,
+                list(selection.all_paths),
+                allow_mixed=True,
+                interactive=False,
+                host="oc",
+                selector="reviews",
+            )
+            self.assertTrue(verdict.proceed)
+            self.assertTrue(
+                verdict.gate_applied,
+                "gate_applied=False is the single-type short circuit and would also be returned by "
+                "a still-dead gate; on a genuinely mixed selection it must be True",
+            )
+            self.assertEqual(verdict.record.response_or_flag, "--allow-mixed")
+
+    def test_the_effective_type_set_is_FROZEN_into_run_state(self):
+        """E-03: run state records the EFFECTIVE type set, so a resume cannot re-derive it differently.
+
+        The default freezes as `["ipd"]` rather than `null`, for the reason `--retry-budget` freezes
+        its resolved integer: a bare `None` in durable state forces every later reader to re-resolve
+        it, and to re-resolve it differently. It also makes the run's own record able to say what it
+        selected, which a `null` cannot.
+        """
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as td:
+                repo = self.make_repo(_P(td), plans=[("pln001", "to-review")])
+                args = _parse(runner, ["start", "reviews", "--repo", str(repo)])
+                args.prepare_only = True
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    run_dir = _MODULES[runner].initialize_run(args)
+                state = runner_shared.load_state(run_dir)
+                self.assertEqual(
+                    state["options"]["types"],
+                    ["ipd"],
+                    f"{runner}: a bare invocation must freeze the EFFECTIVE default type set, not "
+                    "null. A null would leave the run unable to report what it selected and would "
+                    "force every reader to re-resolve the default for itself",
+                )
+
+    def test_resume_REFUSES_a_different_type_rather_than_re_scoping_the_queue(self):
+        """E-03's pinned rule: `--type` is REFUSED on resume (spec `:129`/`:131`), never overwritten.
+
+        WHY REFUSE RATHER THAN COPY `--full-auto`, which OVERWRITES its frozen value: `--type` is not
+        a policy a resume could re-apply, it IS THE SELECTION, and the queue is already frozen. An
+        accepted `--type` could therefore not re-scope the queue; it could only write a frozen option
+        CONTRADICTING the queue the run holds, leaving run state asserting a selection that never
+        happened. Spec `:129` names exactly this case ("flags that would change the frozen queue"), so
+        unlike `--full-auto` there is no `:129`-versus-`:131` tension to inherit. `uyeko5` recorded
+        that divergence and warned against copying a neighbour blindly; this is the explicit decision.
+
+        BOTH HALVES ARE ASSERTED, because the refusal alone is satisfiable by a flag nobody can use:
+        an OMITTED `--type` must leave the frozen value untouched.
+        """
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as td:
+                repo = self.make_repo(_P(td), plans=[("pln001", "to-review")])
+                args = _parse(runner, ["start", "reviews", "--repo", str(repo)])
+                args.prepare_only = True
+                with contextlib.redirect_stderr(io.StringIO()):
+                    run_dir = _MODULES[runner].initialize_run(args)
+
+                passed = _parse(
+                    runner,
+                    ["resume", run_dir.name, "--repo", str(repo), "--type", "spec"],
+                )
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    runner_shared.refuse_frozen_flags_on_resume(passed)
+                self.assertIn("--type", str(ctx.exception))
+                self.assertIn("cannot be changed on --resume", str(ctx.exception))
+
+                out, err = io.StringIO(), io.StringIO()
+                with (
+                    contextlib.redirect_stdout(out),
+                    contextlib.redirect_stderr(err),
+                ):
+                    rc = _MODULES[runner].main(
+                        ["resume", run_dir.name, "--repo", str(repo), "--type", "spec"]
+                    )
+                self.assertEqual(
+                    rc,
+                    2,
+                    f"{runner}: a resume passing `--type` must FAIL rather than re-scope the queue",
+                )
+
+                omitted = _parse(runner, ["resume", run_dir.name, "--repo", str(repo)])
+                state = {"options": {"types": ["ipd"]}}
+                self.assertFalse(
+                    runner_shared.apply_run_policy_flags_on_resume(state, omitted),
+                    f"{runner}: an OMITTED `--type` must change nothing",
+                )
+                self.assertEqual(
+                    state["options"]["types"],
+                    ["ipd"],
+                    f"{runner}: the frozen type set must survive a resume that does not name it. "
+                    "Without `default=None` on the resume parser, silence and an explicit value are "
+                    "indistinguishable and every resume clobbers frozen policy",
+                )

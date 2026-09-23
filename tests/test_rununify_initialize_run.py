@@ -95,6 +95,11 @@ TARGET = "initialize_run"
 #: it could have arrived, and it is the direction these counts want: the flag reaches both hosts because
 #: ONE table declares it, so it could not have landed on one host only. The load-bearing number - the
 #: thirteen HOST-SPECIFIC keys - is unmoved, which is the property this partition exists to police.
+#: `types` JOINED 2026-09-23 (specsweep-01 `ui8b9b`), through the SAME shared `freeze_run_policy_flags`
+#: expansion and for the same reason. It is the first frozen option whose value is a LIST rather than a
+#: scalar, and the value it freezes is the EFFECTIVE, RESOLVED type set (`["ipd"]` on a bare run, never
+#: `null`), so run state can report what the run selected without a later reader re-resolving the
+#: normative default for itself. The thirteen HOST-SPECIFIC keys are unmoved again.
 SHARED_OPTION_KEYS = frozenset(
     {
         "action",
@@ -116,6 +121,7 @@ SHARED_OPTION_KEYS = frozenset(
         "self_finalize",
         "session",
         "stall_timeout",
+        "types",
         "unattended",
         "unverifiable_ok",
         "verbosity",
@@ -159,7 +165,11 @@ HOST_SPECIFIC_OPTION_COUNT = 13  # 7 oc-only + 6 agy-only
 # RE-MEASURED 2026-09-22 (35 -> 36) by runconcur-01 (`vddpml`), for exactly the same reason and with the
 # same reading: one SHARED key, `allow_concurrent_driver`, through the same one shared expansion, with
 # the host-specific count again UNMOVED.
-LIVE_OPTION_KEY_UNION = 36  # 23 shared + 13 host-specific
+# RE-MEASURED 2026-09-23 (36 -> 37) by specsweep-01 (`ui8b9b`): one SHARED key, `types`, through the same
+# one shared expansion, host-specific count UNMOVED. Same reading a fourth time, which is itself the
+# useful observation: every growth in this union since the partition was first measured has been a
+# SHARED key arriving through ONE expansion, so the divergence these counts police has not widened once.
+LIVE_OPTION_KEY_UNION = 37  # 24 shared + 13 host-specific
 
 # ==================================================================================================
 # E-01(b): THE CLOSURE. 37 free module-level names at execution HEAD (the plan's review said 34).
