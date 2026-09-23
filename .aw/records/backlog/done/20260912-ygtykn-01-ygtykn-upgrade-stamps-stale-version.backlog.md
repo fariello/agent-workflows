@@ -1,5 +1,5 @@
 - Id: ygtykn
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: ygtykn
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: An upgrade stamps the SOURCE tree's baked VERSION file, so every install from a dev checkout writes a stale version and the manifest agrees
 
 ## Workflow history
+- 2026-09-23 set (aw backlog): closed by aw oc run: IPD i8u6hh executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260912-verstamp-01-i8u6hh-stop-stamping-a-stale-version-into-every-target-the-installe.ipd.md); evidence .aw/records/plans/executed/20260912-verstamp-01-i8u6hh-stop-stamping-a-stale-version-into-every-target-the-installe.ipd.md
 - 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-12 graduated (aw set): Design handed off to a review-ready IPD authored from repo-verified root cause
 - 2026-09-12 created (aw backlog): Found by an upgrade rehearsal against real 1.2.1 legacy repos (tools/aw_upgrade_test.py)
