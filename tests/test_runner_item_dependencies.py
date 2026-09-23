@@ -2978,44 +2978,102 @@ class AntiDivergenceGuardTests(unittest.TestCase):
 class CrossDriverSymmetryTests(unittest.TestCase):
     """Both drivers are declared in this plan's Scope-Paths, so REAL symmetry is required."""
 
-    # THIS LIST IS THE ONLY AVAILABLE HOME FOR A RUNNER-OWNED SHARED SYMBOL, and the reason is
-    # structural rather than preference (depreview 03ie04 E-04). The sibling guard
-    # `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` cannot host one: its `Owned` contract is
-    # "a NON-RUNNER module owns this symbol; no runner may re-define it", every row's owner is
-    # `render_stream`, `runner_shared` or `selectors`, and naming `oc_runipd` as an owner would make
-    # its AST half forbid oc's own definition. So `oc_runipd`-owned names that agy must BIND rather
-    # than copy are pinned here, by OBJECT IDENTITY, in `test_the_implementation_is_shared_not_copied`.
+    # THIS LIST IS NOW EMPTY, AND THAT IS THE OUTCOME IT WAS WAITING FOR (runnerlayer Order 02
+    # `1f7xno`, backlog `cnwy8g`). Do NOT delete it and do NOT delete the test below: read on.
     #
-    # KNOW WHAT THIS CATCHES AND WHAT IT DOES NOT: identity catches a RE-DEFINED copy, which is what
-    # actually happened to `dependency_status_detailed` (agy carried its own broken copy for months
-    # BECAUSE this list did not name it, so the guard passed over a live divergence). It would NOT
-    # catch a copy assigned over the re-export at import time. That residual hole is accepted, not
-    # fixed here: no such pattern exists in either driver today.
-    _SHARED_NAMES = (
-        "_read_item_dependencies",
-        "parse_dependency_token",
-        "dependency_target_id6",
-        "edge_satisfied",
-        "dependency_status",
-        # depreview 03ie04 E-04: the `_detailed` sibling was MISSING from this list, which is exactly
-        # why the guard below passed over agy's real copy of it. Both names are required.
-        "dependency_status_detailed",
-        "dependency_reasons",
-        "dependency_depth",
-        "queue_sort_key",
-        "cascade_dependency_blocked",
-        # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification joins the guard. Registered for the
-        # precise reason the `dependency_status_detailed` entry above exists: the drain arm is the ONE
-        # dependency site each host still implements SEPARATELY (each has its own `run_queue` and its own
-        # copy of the labelling loop), so the RULE it applies must be one object or the two hosts will
-        # drift exactly as they did before. Both names, because writing the record is as host-neutral as
-        # deciding the verdict, and a host that re-forked only the writer would silently diverge on what
-        # a waiting item reports.
-        "classify_drain_block",
-        "record_transient_dependency_wait",
-        "preflight_dependency_findings",
-        "DEPENDENCY_FATAL_RULES",
-    )
+    # WHAT IT EXISTED FOR. It was the ONLY AVAILABLE HOME for an `oc_runipd`-OWNED shared symbol, and
+    # the reason was structural rather than preference (depreview `03ie04` E-04). The sibling guard
+    # `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` cannot host one: its `Owned` contract is "a
+    # NON-RUNNER module owns this symbol; no runner may re-define it", so naming `oc_runipd` as an owner
+    # would make its AST half forbid oc's OWN definition. So the fourteen names oc owned and agy had to
+    # BIND rather than copy were pinned here, by object identity.
+    #
+    # WHY IT IS EMPTY. `1f7xno` re-homed all fourteen into `runner_shared`. The moment a name stopped
+    # being runner-owned it became exactly what `REFORK_TABLE` is for, so each was ADDED there and
+    # REMOVED here in the same change. The two guards stay DISJOINT, which they always were, and the
+    # migration is one-way.
+    #
+    # THE ROWS THEY MOVED TO ARE A STRICTLY STRONGER GUARANTEE, which is why this is a promotion and not
+    # a loss of coverage. This list asserted only `agy.<name> is oc.<name>`, which stays TRUE if both
+    # hosts bind the same COPY. `REFORK_TABLE`'s AST half additionally FORBIDS either runner from
+    # re-defining the symbol, which is the property that actually protects a re-homed name: the failure
+    # mode is a host growing its own definition back, and that is precisely what agy did to
+    # `dependency_status_detailed` for months while every suite stayed green BECAUSE this list did not
+    # name it.
+    #
+    # WHY THE EMPTY TUPLE AND ITS TEST STAY. If a future change gives `oc_runipd` a new symbol agy must
+    # bind, this is still the only legal home for it, for the unchanged structural reason above. An empty
+    # list with a live test is a working socket; deleting it would mean the next such symbol has nowhere
+    # to be pinned and gets bound with nothing asserting it, which is the state that produced the
+    # measured defect. The test below is written to PASS on an empty tuple and to bite the moment one is
+    # added.
+    _SHARED_NAMES: tuple[str, ...] = ()
+
+    def test_the_empty_list_is_EMPTY_BECAUSE_EVERY_NAME_WAS_PROMOTED_not_deleted(self):
+        """The honest statement about a vacuous test: name where the coverage WENT.
+
+        The identity test below now loops zero names, so on its own it proves nothing. That is
+        acceptable ONLY because every name it used to cover is asserted somewhere STRONGER, and this
+        test is what makes that claim checkable instead of a comment nobody re-verifies.
+
+        For each of the fourteen names this list held before runnerlayer Order 02 (`1f7xno`), it
+        asserts the promotion really happened: `runner_shared` OWNS the symbol, `REFORK_TABLE` carries
+        a row naming it, and NEITHER runner defines it. If someone empties this list without moving a
+        name, or trims `REFORK_TABLE`, this fails and names the symbol.
+        """
+        from tests import test_runner_refork_guard as refork  # noqa: PLC0415
+
+        promoted = (
+            "DEPENDENCY_FATAL_RULES",
+            "_read_item_dependencies",
+            "parse_dependency_token",
+            "dependency_target_id6",
+            "edge_satisfied",
+            "dependency_status",
+            "dependency_status_detailed",
+            "dependency_reasons",
+            "dependency_depth",
+            "queue_sort_key",
+            "cascade_dependency_blocked",
+            "classify_drain_block",
+            "record_transient_dependency_wait",
+            "preflight_dependency_findings",
+        )
+        tabled = {row.symbol for row in refork.REFORK_TABLE}
+        for name in promoted:
+            with self.subTest(symbol=name):
+                self.assertTrue(
+                    hasattr(runner_shared, name),
+                    f"{name} was promoted out of _SHARED_NAMES, so `runner_shared` must OWN it",
+                )
+                self.assertIn(
+                    name,
+                    tabled,
+                    f"{name} left _SHARED_NAMES but has no REFORK_TABLE row, so NOTHING now guards "
+                    "it. Add the row rather than restoring the weaker identity pin",
+                )
+                for mod in (oc_runipd, agy_runipd):
+                    self.assertIs(
+                        getattr(mod, name),
+                        getattr(runner_shared, name),
+                        f"{mod.__name__}.{name} is not `runner_shared`'s object",
+                    )
+
+    def test_a_name_added_back_to_the_list_is_really_checked(self):
+        """The socket works: an entry added to the empty tuple IS asserted, not silently ignored.
+
+        Without this, "the empty list stays as a working socket for the next runner-owned symbol" is
+        an untested promise, and the next such symbol could be pinned here while the loop below
+        quietly did nothing. Driven with a temporary one-name tuple rather than by editing the class.
+        """
+        original = type(self)._SHARED_NAMES
+        try:
+            type(self)._SHARED_NAMES = ("a_name_no_module_defines",)
+            with self.assertRaises(AssertionError) as caught:
+                self.test_every_shared_name_is_present_on_both_drivers_and_is_the_SAME_object()
+            self.assertIn("a_name_no_module_defines", str(caught.exception))
+        finally:
+            type(self)._SHARED_NAMES = original
 
     def test_every_shared_name_is_present_on_both_drivers_and_is_the_SAME_object(self):
         """PRESENCE and IDENTITY for every shared name, in one report.
