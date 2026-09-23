@@ -353,6 +353,16 @@ class MetadataFieldVocabularyTests(unittest.TestCase):
             "documented parity false of the schema",
         ),
         (
+            "Graduated-To",
+            "META_GRADUATED_TO",
+            False,
+            "recognized-but-OPTIONAL (setidhard Order bwgyum): the FORWARD half of the graduation "
+            "link, and the only MULTI-VALUED field in this vocabulary (a source may graduate more "
+            "than once, so the value is a comma-separated setid list). Its primary home is the "
+            "SOURCE, not a plan; it is recognized here because the `aw check` scan that validates it "
+            "tolerates it on plans for symmetry, and without recognition such a plan failed IPD-M103",
+        ),
+        (
             "Priority",
             "META_PRIORITY",
             False,
