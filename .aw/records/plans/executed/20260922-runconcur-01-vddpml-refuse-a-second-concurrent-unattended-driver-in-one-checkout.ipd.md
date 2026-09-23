@@ -11,20 +11,20 @@
 - Scope: Prevent two concurrently-integrating unattended drivers in one checkout, by detecting a live peer driver at startup and refusing (or serializing the integration step alone), and make the presence of a peer VISIBLE in operator-facing output. Consume the existing `platform_lock` primitives and the existing liveness probe; add no new lock implementation. EXCLUDES any change to the per-run `driver.lock` contract (spec `c4gd2h` R2's observable release), excludes the stale-base and dirty-tree guards inside `integrate_lane_branch` (which work and are not the gap), and excludes attended/interactive runs beyond reporting.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/engine.py, AGENTS.md, tests/test_concurrent_driver_guard.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/platform_lock.py, agent_workflows/command_surface.py, tests/test_platform_lock.py, tests/test_rununify_build_parser.py, tests/test_rununify_initialize_run.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runconcur
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: vddpml
-- Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
 - From-Backlog: yuffut
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: vddpml verified (set runconcur, attempt 1). [Scope reconciliation - widened-scope agent_workflows/command_surface.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope agent_workflows/platform_lock.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope tests/test_platform_lock.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope tests/test_runner_shared.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope tests/test_rununify_build_parser.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope tests/test_rununify_initialize_run.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run)]
 - 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; 8 findings, all FIXED; blocking OQ-04 resolved from its own recorded recommendation; readiness go-pending-approval; typed review record under .aw/records/reviews/
 
