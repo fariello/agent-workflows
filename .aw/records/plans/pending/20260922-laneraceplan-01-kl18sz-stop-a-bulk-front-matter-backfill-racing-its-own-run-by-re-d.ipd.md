@@ -10,19 +10,21 @@
 - Scope: Make a population-wide records edit survive its own run, by RE-DERIVING the intended field values against the settled tree at integration time rather than merging a stale snapshot of them, and/or by ordering such a plan after the execute items it would contend with. EXCLUDES any change to what values are written or to the inheritance rule that picks them (that is `planprio`'s own subject matter), excludes editing any plan in a terminal directory, and excludes the post-merge revalidation defect (sibling plan `tgyfs2`).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_records_only_lane_rederive.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: laneraceplan
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: kl18sz
+- Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
 - From-Backlog: 21fykf
 
 ## Workflow history
+- 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-22, findings OQ-01. Recomputed at HEAD `721e3003`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-22 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 7 findings, all FIXED; OQ-01 remains Blocking: yes and open (a maintainer contract decision, now carrying the spec-amendment cost found at review); readiness no-go until answered; typed review record under .aw/records/reviews/
 
