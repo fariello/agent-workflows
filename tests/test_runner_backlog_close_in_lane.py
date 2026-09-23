@@ -1172,7 +1172,7 @@ class BothHostsBehaveIdentically(unittest.TestCase):
     def test_the_gated_setter_spelling_is_untouched(self):
         """F-8's warning, pinned here too: the positional `set done <sel>` form SKIPS
         `evaluate_blocking_close`, so changing `--dir` must not have changed the spelling."""
-        src = inspect.getsource(oc_runipd.close_backlog_item)
+        src = inspect.getsource(runner_shared.close_backlog_item)
         self.assertIn('"--status"', src)
         self.assertIn('"done"', src)
         self.assertIn('"--no-commit"', src)

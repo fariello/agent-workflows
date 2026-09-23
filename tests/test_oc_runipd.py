@@ -7103,8 +7103,21 @@ class OcTelemetryWiringTests(unittest.TestCase):
         ]
         self.assertIn("runner_shared.turn_telemetry(", body)
         self.assertNotIn("subprocess.run(", body)
+        # THE HELPER SITES STILL EXIST, asserted as a NON-EMPTY floor rather than as `> 3`
+        # (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`). The old bound was a census of how many
+        # `subprocess.run(` sites this module happened to hold, and re-homing the suite check and the
+        # backlog-close helpers took several of them to `runner_shared` with their bodies, which dropped
+        # the count to exactly 3 and turned a true statement into a failure.
+        #
+        # THE PROPERTY THIS TEST DEFENDS IS UNCHANGED and is carried by the two assertions above: the
+        # ONE telemetry block is inside `run_opencode`, and `run_opencode` itself spawns nothing. What
+        # the third assertion adds is that uninstrumented helper launches EXIST somewhere in the module,
+        # so the first two are not vacuously true of a module that simply has no helpers left. A floor
+        # of one says exactly that and does not re-break every time a helper is legitimately shared.
         self.assertGreater(
-            source.count("subprocess.run("), 3, "the helper sites still exist"
+            source.count("subprocess.run("),
+            0,
+            "the uninstrumented helper sites must still exist, or the assertions above are vacuous",
         )
 
     def test_every_caller_reaches_the_instrumented_launcher_and_names_its_phase(

@@ -164,6 +164,33 @@ RELOCATED_RUN_CHECKED_CALLERS: dict[str, int] = {
     # `run_checked_fn(...)` because this module may not import a runner; that is the same mechanism
     # `driver_begin` next door already uses.
     "set_plan_approved": 2,
+    # runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the backlog-close and earned-paths trio, the
+    # LAST group of `run_checked` callers `oc_runipd` still owned. ONE call each, counted by walking the
+    # three bodies rather than estimated: `collect_earned_paths` diffs the attempt's head range,
+    # `close_backlog_item` invokes the pinned nested `aw backlog set --status done`, and
+    # `commit_backlog_close` reaches the tooled commit path once.
+    #
+    # THE SUBTRACTION IS ASYMMETRIC HERE, WHICH IS WHY THE COUNT IS STATED PER HOST BELOW RATHER THAN
+    # IN THIS TABLE. Every other row subtracts from BOTH runners because both DEFINED the moved
+    # function. These three were defined only in `oc_runipd`; `agy_runipd` IMPORTED them, so agy's
+    # pre-move `run_checked` census never counted them (measured: 0 at the pre-move HEAD) and
+    # subtracting from agy would drive its expectation negative. See
+    # `REHOMED_BACKLOG_CLOSE_CALL_SITES` and its use in the census test.
+    #
+    # WHY THEY HAD TO BE INJECTED AT ALL rather than lifted plainly: the shared `run_checked` takes a
+    # host-specific `env_builder`, so a shared body cannot resolve one. Measured when the lift was first
+    # attempted without the injection: `TypeError: run_checked() missing 1 required keyword-only
+    # argument: 'env_builder'` on ten tests in `tests/test_runner_backlog_close.py`.
+    "collect_earned_paths": 1,
+    "close_backlog_item": 1,
+    "commit_backlog_close": 1,
+}
+
+#: The three rows above, subtracted from `oc_runipd` ONLY. They were oc-owned and agy-imported, so agy
+#: never had these call sites to lose; a symmetric subtraction would make agy's expected census
+#: negative, which is how this was caught (`0 != -5`).
+REHOMED_BACKLOG_CLOSE_CALL_SITES: dict[tuple[str, str], int] = {
+    ("oc_runipd", "run_checked"): 3,
 }
 
 # Shared `run_checked` callers that were BORN HERE rather than relocated from a runner, mapped the
@@ -1660,7 +1687,16 @@ class WrapperTests(unittest.TestCase):
         relocated_reconcile_callers = {
             "save_state": 1,
         }
-        moved_callers_of_run_checked = sum(RELOCATED_RUN_CHECKED_CALLERS.values())
+        # The three `1f7xno` rows are excluded from the SYMMETRIC subtraction and applied per host
+        # below, for the reason recorded on `REHOMED_BACKLOG_CLOSE_CALL_SITES`.
+        _asymmetric = {
+            "collect_earned_paths",
+            "close_backlog_item",
+            "commit_backlog_close",
+        }
+        moved_callers_of_run_checked = sum(
+            v for k, v in RELOCATED_RUN_CHECKED_CALLERS.items() if k not in _asymmetric
+        )
         for (runner, name), premove in sorted(self.PREMOVE_CALL_SITES.items()):
             with self.subTest(runner=runner, symbol=name):
                 expected = premove
@@ -1677,6 +1713,7 @@ class WrapperTests(unittest.TestCase):
                 expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
                 expected += self.LANE_BACKLOG_CLOSE_CALL_SITES.get((runner, name), 0)
                 expected += self.REVIEW_SWEEP_LANE_CALL_SITES.get((runner, name), 0)
+                expected -= REHOMED_BACKLOG_CLOSE_CALL_SITES.get((runner, name), 0)
                 self.assertEqual(
                     self.call_sites(runner, name),
                     expected,
@@ -7646,6 +7683,63 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
         "edge_satisfied": "function-local import of the shared `_read_status` reader",
     }
 
+    #: Names whose shared body took an INJECTED dependency, so each host keeps a one-line delegating
+    #: `def` at the original name. Their bodies therefore DIFFER from the pre-move capture (a gained
+    #: keyword-only parameter is not byte-identical) and their host attributes are NOT the shared
+    #: object, both by construction. This is `818uru`'s `INJECTED` case, and the same enumerate-rather-
+    #: than-exempt rule applies: each is listed with what it needs and why it could not be resolved.
+    #:
+    #: ALL SIX NEED A HOST-SPECIFIC CALLABLE A SHARED BODY CANNOT RESOLVE. Four call the shared
+    #: `run_checked`, which itself takes a host `env_builder`; `process_backlog_close` additionally
+    #: takes its two closers so an in-tree test patching `oc_runipd.close_backlog_item` still
+    #: intercepts; `enforce_dependency_preflight` and `route_recovery_turn` keep a host wrapper that
+    #: predates this plan and was left in place rather than rewritten.
+    #:
+    #: WHAT REPLACES THE TWO CHECKS THEY CANNOT PASS, so this is not a hole:
+    #:   * `tests/test_runner_backlog_close.py::SharedNotCopied` asserts each host's `def` is a SINGLE
+    #:     delegating statement naming `runner_shared.<same name>`, which FORBIDS a wrapper that grew a
+    #:     body - a stronger property than the object identity it replaces.
+    #:   * `test_runner_shared_OWNS_every_wrapped_implementation` below asserts the shared module holds
+    #:     exactly one definition of each, so "one implementation" is measured and not assumed.
+    WRAPPED_SINCE_MOVE = (
+        "close_backlog_item",
+        "collect_earned_paths",
+        "commit_backlog_close",
+        "process_backlog_close",
+        "enforce_dependency_preflight",
+    )
+
+    def test_runner_shared_OWNS_every_wrapped_implementation(self):
+        """The half a wrapper cannot express: exactly ONE body, and it is in the shared module."""
+        shared_defs = _top_level_definitions_by_node(runner_shared)
+        for name in self.WRAPPED_SINCE_MOVE:
+            with self.subTest(symbol=name):
+                self.assertIn(
+                    name,
+                    shared_defs,
+                    f"{name} is declared WRAPPED, so `runner_shared` must own its implementation; a "
+                    "wrapper delegating to nothing is a broken binding, not a share",
+                )
+                sites = []
+                for path in sorted(
+                    pathlib.Path(runner_shared.__file__).parent.glob("*.py")
+                ):
+                    try:
+                        tree = ast.parse(path.read_text(encoding="utf-8"))
+                    except SyntaxError:  # pragma: no cover
+                        continue
+                    for node in tree.body:
+                        if (
+                            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                            and node.name == name
+                        ):
+                            sites.append(path.name)
+                self.assertEqual(
+                    sorted(s for s in sites if s == "runner_shared.py"),
+                    ["runner_shared.py"],
+                    f"{name} must have EXACTLY ONE implementation, in runner_shared; sites {sites}",
+                )
+
     def test_every_rehomed_body_is_BYTE_IDENTICAL_to_its_pre_move_capture(self):
         """The falsifiable half of the pure-move claim: edit one moved line and this fails.
 
@@ -7656,7 +7750,10 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
         shared_defs = _top_level_definitions_by_node(runner_shared)
         wrong = []
         for name, expected in sorted(self.pre.items()):
-            if name in self.RESOLUTION_FIXED_SINCE_MOVE:
+            if (
+                name in self.RESOLUTION_FIXED_SINCE_MOVE
+                or name in self.WRAPPED_SINCE_MOVE
+            ):
                 continue
             node = shared_defs.get(name)
             if node is None:
@@ -7772,6 +7869,11 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
         for runner in BOTH:
             defined = top_level_definitions(_MODULES[runner])
             for name in sorted(self.pre):
+                if name in self.WRAPPED_SINCE_MOVE:
+                    # A WRAPPED name is REQUIRED to have a runner-local delegating def. That it is a
+                    # single statement rather than a second body is asserted elsewhere; see
+                    # `WRAPPED_SINCE_MOVE`.
+                    continue
                 if name in defined:
                     wrong.append(
                         f"  {runner} re-DEFINES {name} at line {defined[name]}; it must BIND "
@@ -7818,6 +7920,10 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
         """
         wrong = []
         for name in sorted(self.pre):
+            if name in self.WRAPPED_SINCE_MOVE:
+                # Different objects BY CONSTRUCTION; see `WRAPPED_SINCE_MOVE` for what is asserted
+                # instead, and by which shipped tests.
+                continue
             if name in self.CO_MOVED_PRIVATE:
                 shared = getattr(runner_shared, name, None)
                 self.assertIsNotNone(

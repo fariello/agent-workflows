@@ -433,8 +433,15 @@ class TestFreshExecutionCases(ResumeRoutingBase):
         self.assertTrue(record["reason"])
 
     def test_the_undetermined_asymmetry_is_recorded_in_a_comment(self):
-        """A later reader must find the REASON, not 'fix' this into a refusal."""
-        source = module_source(OC)
+        """A later reader must find the REASON, not 'fix' this into a refusal.
+
+        SEARCHES BOTH HOMES since runnerlayer Order 02 (`1f7xno`) consolidated `route_recovery_turn`
+        into `runner_shared`: the comment travelled with the body it annotates, which is exactly what
+        should happen to a comment explaining a body. Concatenating both sources keeps the claim
+        ("a later reader finds the reason") true wherever the body lives, rather than pinning it to a
+        module the code may leave again.
+        """
+        source = module_source(OC) + "\n" + module_source(RS)
         marker = "FAIL-TOWARD-DOING-THE-WORK"
         self.assertIn(marker, source)
         window = source[source.index(marker) : source.index(marker) + 1200]
@@ -492,11 +499,18 @@ class TestPromptContent(ResumeRoutingBase):
         """The shipped constraint: a refusal is one more way for an unattended run to stall."""
         import ast
 
-        source = module_source(OC)
+        # EACH NAME IS LOOKED UP IN WHICHEVER MODULE DEFINES IT. `route_recovery_turn` was
+        # consolidated into `runner_shared` by runnerlayer Order 02 (`1f7xno`) while
+        # `build_verify_and_continue_notice` stayed in `oc_runipd` (its shared copy DIVERGES, so
+        # consolidating it would be a reconciliation rather than a pure move; filed as `zt2b16`). A
+        # single-module scan would now raise StopIteration on the moved one, which is a test failing
+        # because it cannot FIND the code rather than because the code is wrong.
+        candidates = [module_source(OC), module_source(RS)]
         for name in ("build_verify_and_continue_notice", "route_recovery_turn"):
             node = next(
                 n
-                for n in ast.parse(source).body
+                for src in candidates
+                for n in ast.parse(src).body
                 if isinstance(n, ast.FunctionDef) and n.name == name
             )
             body = "\n".join(
@@ -739,7 +753,24 @@ class TestDriverSymmetry(ResumeRoutingBase):
                     )
                 ]
                 rendered = "\n".join(ast.unparse(stmt) for stmt in body)
-                self.assertIn("from agent_workflows.oc_runipd import", rendered)
+                # THE STUB MAY DELEGATE TO EITHER HOME, and accepting `runner_shared` is a widening in
+                # the SAME direction this test's own docstring already argued for (runnerlayer Order 02
+                # `1f7xno`, backlog `cnwy8g`). It used to require the source be `oc_runipd`, which was
+                # the only home available when it was written; `route_recovery_turn` has since been
+                # consolidated into `runner_shared` (its two copies were AST-identical), so the stub now
+                # names that module and a test demanding the OLD source would FORBID the improvement -
+                # exactly the mistake the docstring above describes being corrected once already.
+                #
+                # THE SHARED SOURCE IS THE STRICTLY BETTER ONE, for the reason recorded above: one
+                # object both hosts resolve, with no import from one driver into the other. The
+                # anti-re-fork property is untouched, because what is asserted is still that the body
+                # is an import plus a return and nothing else.
+                self.assertTrue(
+                    "from agent_workflows.oc_runipd import" in rendered
+                    or "from agent_workflows.runner_shared import" in rendered,
+                    f"{name}'s stub must delegate to the ONE implementation, in either "
+                    f"`oc_runipd` (legacy) or `runner_shared` (preferred); body was: {rendered}",
+                )
                 self.assertIn("_shared(", rendered)
                 # A delegating wrapper is an import plus a return; more than that is a re-fork.
                 self.assertLessEqual(len(body), 2, f"{name} grew logic: {rendered}")

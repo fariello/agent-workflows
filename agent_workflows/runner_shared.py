@@ -25160,6 +25160,480 @@ def execute_item_core(
 # cross-driver symmetry test. Preserve the form.
 # ==================================================================================================
 # ==== runnerlayer 02 (`1f7xno`): re-homed host-neutral names ====
+def collect_earned_paths(
+    repo: Path, item: dict[str, Any], *, run_checked: Callable[..., str]
+) -> list[str]:
+    """The repo-relative paths one item's turn produced: its diff plus its finalized plan path.
+
+    Best-effort by design (E-04 fails closed): a git failure yields fewer earned paths, which can
+    only ever WITHHOLD a close, never manufacture one."""
+    earned: list[str] = []
+    attempts = item.get("attempts") or []
+    for attempt in attempts:
+        start = attempt.get("starting_head")
+        end = attempt.get("ending_head")
+        if not start or not end or start == end:
+            continue
+        try:
+            out = run_checked(
+                ["git", "diff", "--name-only", f"{start}..{end}"], cwd=repo
+            )
+        except (DriverError, OSError):
+            continue
+        for line in out.splitlines():
+            path = line.strip()
+            if path and path not in earned:
+                earned.append(path)
+    last_plan = item.get("last_plan_path")
+    if last_plan:
+        try:
+            rel = str(Path(last_plan).resolve().relative_to(Path(repo).resolve()))
+        except ValueError:
+            rel = str(last_plan)
+        if rel not in earned:
+            earned.append(rel)
+    return earned
+
+
+def close_backlog_item(
+    repo: Path,
+    item_path: Path,
+    item_id6: str,
+    evidence: str,
+    message: str,
+    *,
+    run_checked: Callable[..., str],
+) -> tuple[int, str]:
+    """Close a backlog item `done` through the LIFECYCLE-OWNED setter, never by editing the file.
+
+    ``repo`` is the tree the setter operates on: it is where the item file MOVES and, inseparably,
+    the ``repo_root`` the release-gate predicate evaluates against (see the warning below).
+
+    THE `--status` SPELLING IS DELIBERATE AND LOAD-BEARING (zhr6mc D1). `aw backlog set <status>
+    <selector>` (positional) dispatches to `status_set.run_set_command`, which does NOT run the
+    shared release-gate close predicate and cannot even accept `--evidence`; `aw backlog set
+    <selector> --status done` dispatches to `backlog.run_set`, which DOES call
+    `check_engine.evaluate_blocking_close` and REFUSES an illegitimate blocking close. Verified live:
+    a `graduated` item carrying `Blocks-Release: next` closed with NO evidence via the positional
+    form (exit 0) and was REFUSED via this one. The runner must be gated, so it uses this form; do
+    not "simplify" it back to the positional spelling.
+
+    `--dir` IS NOT MERELY "WHERE THE FILE MOVES" (dirtygates-03 `9iq461` F-10/F-11). Because the
+    gated route runs `check_engine.evaluate_blocking_close`, this ONE argument also chooses the tree
+    that predicate scans for release-gate carriers (`check_engine.py`'s `done` branch calls
+    `find_from_backlog_artifacts(repo_root, item_id6)`) and the tree its `--evidence` citation is
+    resolved against (`resolve_evidence_artifact(repo_root, evidence)`). `backlog.run_set` derives
+    both from the same `resolve_verb_repo_root(args.dir)`, so THE TWO CANNOT BE SPLIT FROM HERE: one
+    `--dir` is one tree for the move AND the gate. That is why `process_backlog_close` performs the
+    MOVE in the lane but takes the ELIGIBILITY decision against main BEFORE calling this, and why the
+    evidence it cites is a path that resolves in the lane. Do not "simplify" this to a lane-only
+    evaluation: in the lane this run's own plan already sits in `executed/`, so a lane-side carrier
+    scan is MORE likely to find a satisfying carrier than main's, and the error direction is the
+    permissive one -- a release-gated item could close `done` that main's view would refuse.
+    """
+    cmd = pinned_module_argv(
+        [
+            "backlog",
+            "set",
+            item_id6,
+            "--status",
+            "done",
+            "--evidence",
+            evidence,
+            "--message",
+            message,
+            "--dir",
+            str(repo),
+            "--no-commit",
+        ]
+    )
+    # Launched through the SHARED `run_checked` rather than a fresh `subprocess.run`: it already
+    # carries the af7i6p tooling pin AND the ttywedge (g40w37) `stdin=DEVNULL` terminal denial, so this
+    # close cannot become the one nested-`aw` site that wedges on a prompt nobody can answer. Its
+    # nonzero contract is an exception, which is converted back to the (rc, message) pair the
+    # fail-closed caller needs.
+    try:
+        return 0, run_checked(cmd, cwd=repo)
+    except (DriverError, FileNotFoundError, OSError) as exc:
+        return 1, str(exc).strip()
+
+
+def commit_backlog_close(
+    repo: Path,
+    item_id6: str,
+    message: str,
+    *,
+    run_id: str | None = None,
+    plan_id6: str | None = None,
+    run_checked: Callable[..., str],
+) -> str | None:
+    """Path-scoped-commit the item file the setter just MOVED, via the shared tooled commit path.
+
+    Returns the new commit sha, or None when nothing was committed.
+
+    RUN OWNERSHIP TRAILERS (runtrailwire-01 `wao266` E-02/E-03). ``run_id`` is the live run's own id
+    and ``plan_id6`` the queue item (plan) whose execution earned the close; both are threaded from
+    the caller's `state`/`item` and formatted by the canonical `git_commit_helper.run_item_trailers`,
+    never hand-built, so the `AW-Run`/`AW-Item` key spelling is single-sourced and cannot drift.
+    KEYWORD-ONLY AND OPTIONAL BY DESIGN: `agy_runipd` imports this function BY NAME and both drivers
+    must keep resolving the same object, so the existing three-positional call form stays valid.
+
+    WITH NO RUN ID THE TRAILER IS OMITTED, NEVER SYNTHESIZED (E-03). `run_item_trailers` already
+    skips an absent value and returns `[]` when both are absent, which `offer_commit` composes into a
+    BYTE-IDENTICAL message, so the safe behavior is the default and needs no special case here. The
+    tempting "improvement" is to synthesize an id from a timestamp or the plan id; do not. The whole
+    value of an immutable trailer is that a later reader can TRUST it, so a trailer asserting run
+    ownership it cannot substantiate is strictly worse than no trailer at all (the same discipline
+    `h9cn0y` E-03 applies when it refuses to name a responsible sha it cannot substantiate).
+
+    WHICH PATH STILL CALLS THIS (dirtygates-03 `9iq461` E-02): the NON-ISOLATED one only
+    (`--no-isolate-worktree`), where the setter genuinely wrote into the shared checkout and leaving
+    the move uncommitted would hand the next turn a dirty tree. AN ISOLATED TURN NO LONGER CALLS IT:
+    its move happens in the lane and is swept up by the lane's own finalize commit, so it rides the
+    merge and arrives on main as part of one ref update. Making a SECOND commit on main there would be
+    the exact mid-run write to the shared checkout this plan removes. Kept, not deleted, because the
+    non-isolated path is a supported escape hatch (orchestrator `8lfoum` OQ-01 resolved to keep it).
+
+    WHY COMMIT AT ALL ON THAT PATH (zhr6mc D2): `aw backlog set` moves the file (graduated/ -> done/)
+    and does not commit, so leaving it would hand the next turn a dirty main tree -- which the
+    `z2isfg` begin-dirty gate and the `driverfin-03` dirty-overlap gate both consume, and which is
+    precisely the contamination those gates exist to stop.
+
+    WHY THIS HELPER: `git_commit_helper.offer_commit` snapshots the index BEFORE staging, stages only
+    the explicit paths, commits only the intersection of those paths with what it itself staged, and
+    on failure resets ONLY its own paths. That is the shared-checkout-safe path AGENTS.md prescribes;
+    a raw `git add` here could sweep in a co-worker's staged work.
+
+    The path set is filtered to entries whose BASENAME contains this item's id6, so a co-worker's
+    concurrent edit to a DIFFERENT backlog item can never be swept into the runner's commit.
+    """
+    from agent_workflows import git_commit_helper as _gch
+
+    # Only EXISTING backlog roots may be named. A pathspec that matches nothing makes `git status`
+    # exit nonzero ("did not match any files"), which `run_checked` turns into a DriverError, which
+    # this function suppresses -- so naming both layouts unconditionally made the commit silently
+    # never happen in any repo with only one of them (i.e. every real repo). Measured live.
+    roots = [
+        rel
+        for rel in (".aw/records/backlog", ".agents/backlog")
+        if (Path(repo) / rel).exists()
+    ]
+    if not roots:
+        return None
+    try:
+        # `-uall` is LOAD-BEARING. Git's default `--porcelain` collapses an untracked directory to the
+        # DIRECTORY entry (`?? .aw/records/backlog/done/`), whose basename carries no id6, so the
+        # id6 filter below silently matched nothing and the newly written item was never staged -- the
+        # move committed as a bare deletion, or not at all. Measured live before this flag was added.
+        # `-uall` lists the individual untracked FILE instead.
+        porcelain = run_checked(
+            ["git", "status", "--porcelain", "-uall", "--", *roots],
+            cwd=repo,
+        )
+    except (DriverError, OSError):
+        return None
+    paths: list[str] = []
+    for line in porcelain.splitlines():
+        # PARSE THE STATUS FIELD, DO NOT SLICE A FIXED WIDTH. `run_checked` returns a `.strip()`ed
+        # blob, so porcelain's leading space for an unstaged change is already gone: `" D <path>"`
+        # arrives as `"D <path>"`, and a blind `line[3:]` then ate the path's own first character,
+        # producing `aw/records/...` and a `git add` pathspec failure. Measured live. Splitting on the
+        # first run of whitespace after the 1-2 char status code is width-independent.
+        parts = line.strip().split(None, 1)
+        if len(parts) != 2:
+            continue
+        raw = parts[1].strip()
+        if not raw:
+            continue
+        # A rename/copy entry is `old -> new`; both sides belong to the same move.
+        for candidate in raw.split(" -> "):
+            candidate = candidate.strip().strip('"')
+            if (
+                candidate
+                and item_id6 in Path(candidate).name
+                and candidate not in paths
+            ):
+                paths.append(candidate)
+    if not paths:
+        return None
+    # FAIL CLOSED on a partial view: the setter MOVES the file, so a legitimate close always yields
+    # both sides (the deletion and the addition). Seeing only one means the porcelain view is not what
+    # this function assumes, and committing half a move would leave the tree worse than not committing
+    # at all. The item is already `done` on disk either way; the operator commits it.
+    if len(paths) < 2:
+        return None
+    try:
+        outcome = _gch.offer_commit(
+            repo,
+            paths,
+            message=message,
+            assume_yes=True,
+            interactive=False,
+            # RUN OWNERSHIP, MACHINE-READABLE AND IMMUTABLE (E-02/E-03). The canonical formatter, not
+            # a hand-built string, so the key spelling lives in ONE place. Values come from the LIVE
+            # run threaded in by the caller; when a caller has no run id (a hand-driven or test
+            # invocation) this returns `[]` and the message composes BYTE-IDENTICALLY to today's.
+            # NOTHING IS SYNTHESIZED to fill the gap: an absent trailer means UNKNOWN ownership, while
+            # a fabricated one would be a false ownership claim in permanent history.
+            trailers=_gch.run_item_trailers(run_id, plan_id6),
+        )
+    except Exception:
+        return None
+    return getattr(outcome, "commit", None)
+
+
+def process_backlog_close(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    *,
+    lane_repo: Path | None = None,
+    lane_handle: Any = None,
+    run_checked: Callable[..., str],
+    close_backlog_item: Callable[..., tuple[int, str]],
+    commit_backlog_close: Callable[..., Any],
+) -> None:
+    """After a plan reaches `executed`, close its backlog item if this run earned it (E-02/E-03/E-04).
+
+    Records the verdict on the queue item either way, so E-06 can report every item left open WITH
+    ITS REASON rather than merely noting that something did not happen.
+
+    THE DECISION AND THE WRITE HAPPEN IN DIFFERENT TREES, DELIBERATELY (dirtygates-03 `9iq461`).
+    ``lane_repo`` is the isolated turn's lane worktree, passed BEFORE the merge, and ``lane_handle``
+    its `WorktreeHandle` (whose `base_commit..branch` range is where the turn's commits actually are).
+    When both are None (a `--no-isolate-worktree` turn, or a post-merge caller) everything behaves
+    exactly as it did before.
+
+    WHY SPLIT THEM. The write must be in the LANE so the item's move rides the lane's finalize commit
+    and reaches main through the SAME merge as the code: a merge is atomic, so the bookkeeping lands
+    if and only if the work lands, and NOTHING is written to the shared checkout while the run is
+    still going. That mid-run write is not a theoretical tidiness point -- measured 2026-09-13, one
+    item's uncommitted close left main dirty and a whole-tree gate then refused 27 of 42, 23 of 41 and
+    18 of 43 remaining queue items across three consecutive runs.
+    The DECISION must be taken against MAIN (OQ-01, resolved) because it asks whether ALL carriers of
+    the item prove the work. That is a claim about several plans, carrier discovery scans the
+    FILESYSTEM (`find_from_backlog_artifacts`), and 21 of 108 carried items have more than one carrier
+    (one has nine), so a lane-side evaluation could close an item whose sibling carrier never ran.
+    The single fact the lane legitimately contributes -- "my own plan is executed" -- is passed
+    explicitly as `executed_overrides`, which is a worker asserting a fact about its OWN item.
+    """
+    item_id6 = item.get("from_backlog")
+    if not item_id6:
+        return
+    repo = Path(state["repo"])
+    # THE TREE THE MOVE HAPPENS IN. `repo` for a non-isolated turn (unchanged behavior); the lane for
+    # an isolated one, so the move is swept into the lane's commit and arrives via the merge.
+    write_repo = Path(lane_repo) if lane_repo is not None else repo
+    isolated = write_repo.resolve() != repo.resolve()
+    # THE EARNED SET, AND THE TRAP IN IT (E-03; the plan's F-7, corrected by measurement).
+    # `collect_earned_paths` diffs the ATTEMPT's `starting_head..ending_head`, and both of those are
+    # MAIN's HEAD sampled around the turn. For an ISOLATED turn main's HEAD never moves, so that range
+    # is `X..X` and yields NOTHING -- and because the earned gate can only ever WITHHOLD a close, the
+    # visible symptom would not be an error but a close that silently never happens again. So the lane
+    # branch's own range is added, which is where the work actually is. It is read with `cwd=repo`
+    # deliberately: a linked worktree shares the object database and refs with its parent, so the range
+    # resolves identically from either cwd (measured; the cwd was never the issue, the RANGE was).
+    earned_paths = collect_earned_paths(repo, item, run_checked=run_checked)
+    if isolated and lane_handle is not None:
+        for path in collect_lane_earned_paths(
+            repo, lane_handle, run_checked=run_checked
+        ):
+            if path not in earned_paths:
+                earned_paths.append(path)
+    item["earned_paths"] = earned_paths
+    overrides: dict[str, str] = {}
+    if isolated:
+        with contextlib.suppress(Exception):  # fail closed: no override = fewer closes
+            overrides = lane_executed_carrier_override(repo, write_repo, item)
+    try:
+        # ELIGIBILITY AGAINST MAIN. `repo`, never `write_repo`.
+        verdict = evaluate_backlog_close(
+            repo,
+            item_id6,
+            run_earned_paths(state),
+            executed_overrides=overrides,
+        )
+    except Exception as exc:  # fail closed: never let a close attempt break the run
+        item["backlog_close"] = {
+            "item": item_id6,
+            "closed": False,
+            "reason": f"close evaluation failed: {exc}",
+        }
+        return
+    record: dict[str, Any] = {
+        "item": item_id6,
+        "closed": False,
+        "reason": verdict.reason,
+        "rule": verdict.rule,
+        "evidence": verdict.evidence,
+        # Recorded so an operator (and V-01) can tell from the run's own state WHICH tree performed
+        # the write, rather than inferring it from the absence of a commit.
+        "wrote_in": "lane" if isolated else "main",
+    }
+    if not verdict.close:
+        item["backlog_close"] = record
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "backlog-item-left-open",
+                "id6": item["id6"],
+                "backlog_item": item_id6,
+                "reason": verdict.reason,
+            },
+        )
+        return
+    # RESOLVE THE ITEM IN THE TREE THE MOVE WILL HAPPEN IN. A lane-side move driven by a main-side
+    # path is exactly the half-state this plan removes.
+    item_path = resolve_backlog_item(write_repo, item_id6)
+    if item_path is None:  # fail closed (raced away between evaluation and close)
+        record["reason"] = f"backlog item {item_id6} disappeared before the close"
+        item["backlog_close"] = record
+        return
+    message = (
+        f"closed by aw oc run: IPD {item['id6']} executed "
+        f"({verdict.reason}); evidence {verdict.evidence}"
+    )
+    rc, out = close_backlog_item(
+        write_repo, item_path, item_id6, verdict.evidence or "", message
+    )
+    if rc != 0:
+        # E-04 fail-closed: a refused setter leaves the item ALONE and the refusal is the reason.
+        record["reason"] = f"setter refused the close: {out or f'exit {rc}'}"
+        item["backlog_close"] = record
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "backlog-close-refused",
+                "id6": item["id6"],
+                "backlog_item": item_id6,
+                "detail": record["reason"],
+            },
+        )
+        return
+    record["closed"] = True
+    # E-02: COMMIT IN THE TREE THE MOVE HAPPENED IN, WHICH IS THE WHOLE OF THE FIX.
+    #
+    # For an ISOLATED turn that is the LANE, so this commit lands on the lane BRANCH and reaches main
+    # through the same merge as the code: no commit is made on main, which is what E-02 asked for. It
+    # is a SEPARATE lane commit rather than part of the finalize commit, necessarily so -- the close
+    # can only be evaluated once the plan IS `executed`, which is what finalize makes true, so it
+    # cannot precede it. That costs nothing: both commits are on the lane branch, and a merge takes the
+    # branch or nothing, so the maintainer's stated property holds exactly ("the move lands if and only
+    # if the merge lands").
+    #
+    # AND THE COMMIT IS NOT OPTIONAL HERE. Leaving the move uncommitted in the lane would be worse than
+    # the bug being fixed: `integrate_lane_branch` merges the BRANCH (`git diff base..branch`), so an
+    # uncommitted change is not in the merge at all, and `teardown_lane_if_classified` then refuses to
+    # tear down a lane holding a dirty tracked file -- so the close would be silently dropped AND the
+    # lane stranded. For a NON-ISOLATED turn this is the pre-existing behavior, unchanged.
+    #
+    # AND IT CARRIES RUN OWNERSHIP (runtrailwire-01 `wao266` E-02). The ids come from the LIVE run's
+    # own state and the queue item in hand -- `state["run_id"]` and `item["id6"]` -- never from a
+    # global and never from a read of `.aw/records/runs/`, which is gitignored and absent from a lane
+    # worktree. `state.get` rather than `state[...]` because a hand-built or legacy state may carry no
+    # run id, and the correct answer there is an omitted trailer, not a KeyError mid-close.
+    record["commit"] = commit_backlog_close(
+        write_repo,
+        item_id6,
+        message,
+        run_id=state.get("run_id"),
+        plan_id6=item.get("id6"),
+    )
+    # SCOPED INTEGRITY SELF-CHECK, IMMEDIATELY AFTER OUR OWN WRITE (2026-09-22).
+    #
+    # WHY HERE AND NOT ONLY IN CI. A `_staged_paths` bug committed this very relocation as a bare
+    # ADDITION, so the pre-move copy survived in HEAD beside its destination and the item held two
+    # contradictory lifecycle states at once. 36 items were corrupted over two days. The CI gate that
+    # catches it is correct and fired, but it speaks only after a push, and 143 commits landed on
+    # `origin/main` while it was red. The runner KNOWS which id6 it just wrote, so checking that one
+    # id6 costs one tree walk and reports at the moment of creation rather than two days later.
+    #
+    # IT REPORTS AND NEVER RAISES. The close is already committed by this point, so refusing would
+    # leave the tree in exactly the same state while additionally killing the run; the useful act is to
+    # make the corruption impossible to MISS. The fact lands in three places a later reader actually
+    # consults: the item's own `backlog_close` record, the run's `events.jsonl`, and stderr.
+    with contextlib.suppress(Exception):  # never let a self-check break a run
+        claimants = backlog_item_paths_for_id(write_repo, item_id6)
+        if len(claimants) > 1:
+            record["integrity"] = {
+                "rule": "attention.duplicate-id",
+                "id6": item_id6,
+                "paths": claimants,
+                "detail": (
+                    f"backlog item {item_id6} now exists at {len(claimants)} paths, so its lifecycle "
+                    "state is contradictory; a relocation committed only half of its move"
+                ),
+            }
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "backlog-close-integrity-violation",
+                    "id6": item["id6"],
+                    "backlog_item": item_id6,
+                    "rule": "attention.duplicate-id",
+                    "paths": claimants,
+                },
+            )
+            sys.stderr.write(
+                f"warning: backlog item {item_id6} exists at {len(claimants)} paths after its close "
+                f"({', '.join(claimants)}); `aw attention` will report attention.duplicate-id and its "
+                "board is NOT authoritative until this is repaired\n"
+            )
+    item["backlog_close"] = record
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "backlog-item-closed",
+            "id6": item["id6"],
+            "backlog_item": item_id6,
+            "evidence": verdict.evidence,
+            "rule": verdict.rule,
+            "commit": record["commit"],
+            "wrote_in": record["wrote_in"],
+        },
+    )
+    print(
+        Palette(should_color(sys.stdout))(
+            f"  \u2713 backlog item {item_id6} closed done (evidence {verdict.evidence})",
+            "green",
+        )
+    )
+
+
+def enforce_dependency_preflight(
+    repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
+) -> list[tuple[str, str, str]]:
+    """Fail CLOSED on an invalid selected dependency graph BEFORE any host session starts.
+
+    Raises `DriverError` when the shared evaluator reports any finding for the selected plans, so a
+    malformed/dangling/ambiguous/cyclic/self-edge statement (and the `unresolved` scaffold sentinel)
+    refuses the run at freeze time rather than after a session has already mutated the repository.
+    Returns the findings list (empty) when the graph is valid, so a caller can record "checked, clean".
+    """
+    findings = preflight_dependency_findings(repo, plan_paths, phase=phase)
+    if not findings:
+        return findings
+    fatal = [f for f in findings if f[1] in DEPENDENCY_FATAL_RULES]
+    lines = [f"  {rule}: {msg} [{loc}]" for loc, rule, msg in findings]
+    label = (
+        "run ABORTED (identity/type ambiguity is fatal)"
+        if fatal
+        else "run refused before any session started"
+    )
+    raise DriverError(
+        "dependency preflight failed: "
+        + label
+        + " - the selected IPDs' `- Item-Dependencies:` statements did not pass the shared "
+        f"evaluator at phase {phase!r}:\n"
+        + "\n".join(lines)
+        + "\nFix with `aw ipd dependencies set <id6> none|<edge>...`, then re-run."
+    )
+
+
 #: novalnomerge-01 (evgi9n) E-01: the gating suite must never inherit `run_evidence.capture_command`'s
 #: 60s default. MEASURED at review: the bare suite runs ~37s on the reference host, so the default
 #: leaves ~23s of headroom, and because E-02 treats a timeout as a FAILURE an under-set timeout would

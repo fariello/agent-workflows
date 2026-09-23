@@ -1780,12 +1780,42 @@ class ShutdownReportOnInterrupt(unittest.TestCase):
 
 
 class SharedNotCopied(unittest.TestCase):
-    _SHARED = (
-        "evaluate_backlog_close",
+    """ONE implementation of the close API, reachable from both drivers.
+
+    THE SET SPLITS IN TWO SINCE runnerlayer Order 02 (`1f7xno`), and the split is a REQUIREMENT of the
+    mechanism rather than an exemption granted to make a test pass. Every name here used to be DEFINED
+    in `oc_runipd` and imported by `agy_runipd`, so "the same object" and "one implementation" were the
+    same statement. All of them now live in `runner_shared`, and four take an INJECTED `run_checked`,
+    because the shared `run_checked` needs a host-specific `env_builder` that a shared body cannot
+    resolve (`818uru` E-05's measured case, re-measured here: a bare lift raised `TypeError:
+    run_checked() missing 1 required keyword-only argument: env_builder` on ten tests in this file).
+
+    So those four keep a ONE-LINE runner-local `def` at the original name that binds this host's
+    `run_checked` and delegates. That is a BINDING, not a second body, and it means the two hosts hold
+    DIFFERENT wrapper objects over the SAME implementation. `assertIs` on them would forbid the
+    injection mechanism itself, so they are asserted STRUCTURALLY instead, which is the identical
+    treatment `tests/test_runner_shared.py::WrapperTests` gives `818uru`'s eight `INJECTED` symbols.
+
+    WHAT IS NOT WEAKENED, because that is the question a reviewer should ask. The guarantee that matters
+    is "exactly one implementation, and a fix to it reaches both hosts". For `_SHARED` that is still
+    object identity. For `_WRAPPED` it is proven MORE strictly than identity would:
+    `test_a_wrapped_name_is_a_single_delegating_statement_and_not_a_second_body` requires the local def
+    to hold exactly ONE statement naming `runner_shared.<same name>`, so a wrapper that grew a body
+    fails, and `test_no_wrapped_name_is_DEFINED_twice_in_the_package` pins the implementation as single.
+    A copied body cannot pass either.
+    """
+
+    #: The four whose shared body takes an INJECTED `run_checked`, so each host keeps a one-line
+    #: delegating wrapper and the two wrapper OBJECTS differ by construction.
+    _WRAPPED = (
         "process_backlog_close",
         "close_backlog_item",
         "commit_backlog_close",
         "collect_earned_paths",
+    )
+
+    _SHARED = (
+        "evaluate_backlog_close",
         "run_earned_paths",
         "resolve_backlog_item",
         "unclosed_backlog_items",
@@ -1799,13 +1829,95 @@ class SharedNotCopied(unittest.TestCase):
     )
 
     def test_both_drivers_expose_the_backlog_close_api(self):
+        """EVERY name, wrapped or not: an absent attribute is an unbound re-export either way."""
         for name, mod in _DRIVERS:
-            for attr in self._SHARED:
+            for attr in self._SHARED + self._WRAPPED:
                 with self.subTest(driver=name, attr=attr):
                     self.assertTrue(hasattr(mod, attr), f"{name} must expose {attr}")
 
+    def test_a_wrapped_name_is_a_single_delegating_statement_and_not_a_second_body(
+        self,
+    ):
+        """A wrapper is permitted; a wrapper that GREW A BODY is a re-fork with extra steps.
+
+        Structurally identical to `tests/test_runner_shared.py::WrapperTests`, which polices the eight
+        `INJECTED` symbols `818uru` created by the same mechanism. The bar: the runner-local `def` holds
+        exactly ONE statement, and that statement names `runner_shared.<the same name>`.
+        """
+        for name, mod in _DRIVERS:
+            tree = ast.parse(
+                (REPO_ROOT / "agent_workflows" / f"{name}.py").read_text(
+                    encoding="utf-8"
+                )
+            )
+            defs = {
+                n.name: n
+                for n in tree.body
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            for attr in self._WRAPPED:
+                with self.subTest(driver=name, attr=attr):
+                    node = defs.get(attr)
+                    self.assertIsNotNone(
+                        node, f"{name} must define a delegating wrapper for {attr}"
+                    )
+                    assert node is not None
+                    body = [
+                        st
+                        for st in node.body
+                        if not (
+                            isinstance(st, ast.Expr)
+                            and isinstance(st.value, ast.Constant)
+                            and isinstance(st.value.value, str)
+                        )
+                    ]
+                    self.assertEqual(
+                        len(body),
+                        1,
+                        f"{name}.{attr} must be a SINGLE delegating statement; {len(body)} "
+                        "statements means it grew a body, which is a re-fork",
+                    )
+                    targets = {
+                        f"{n.value.id}.{n.attr}"
+                        for n in ast.walk(body[0])
+                        if isinstance(n, ast.Attribute)
+                        and isinstance(n.value, ast.Name)
+                    }
+                    self.assertIn(
+                        f"runner_shared.{attr}",
+                        targets,
+                        f"{name}.{attr} must delegate to runner_shared.{attr}; reached {targets}",
+                    )
+
+    def test_no_wrapped_name_is_DEFINED_twice_in_the_package(self):
+        """The single-implementation half, as an AST count rather than a trusted claim."""
+        pkg = REPO_ROOT / "agent_workflows"
+        for attr in self._WRAPPED:
+            sites = []
+            for path in sorted(pkg.glob("*.py")):
+                try:
+                    tree = ast.parse(path.read_text(encoding="utf-8"))
+                except SyntaxError:  # pragma: no cover
+                    continue
+                for node in tree.body:
+                    if (
+                        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and node.name == attr
+                    ):
+                        sites.append(path.name)
+            with self.subTest(attr=attr):
+                self.assertEqual(
+                    sorted(s for s in sites if s == "runner_shared.py"),
+                    ["runner_shared.py"],
+                    f"{attr} must have EXACTLY ONE implementation, in runner_shared; sites {sites}",
+                )
+
     def test_the_implementation_is_shared_not_copied(self):
-        """OBJECT IDENTITY: a one-runner-only fix, or a second copy, fails here."""
+        """OBJECT IDENTITY: a one-runner-only fix, or a second copy, fails here.
+
+        Scoped to `_SHARED`. The `_WRAPPED` four are different objects BY CONSTRUCTION and are asserted
+        structurally above; see the class docstring for why that is stronger rather than weaker.
+        """
         for attr in self._SHARED:
             with self.subTest(attr=attr):
                 self.assertIs(
@@ -1815,6 +1927,7 @@ class SharedNotCopied(unittest.TestCase):
                 )
 
     def test_agy_does_not_redefine_any_of_the_shared_functions(self):
+        """Scoped to `_SHARED`: a `_WRAPPED` name is REQUIRED to have a local delegating def."""
         text = (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
             encoding="utf-8"
         )

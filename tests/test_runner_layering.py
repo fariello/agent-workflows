@@ -142,55 +142,31 @@ CLASSIFICATION: tuple[Name, ...] = (
     # queued plan may run, and both hosts must answer it identically. `dependency_status_detailed`
     # is the cautionary tale of the whole Set: agy carried its own BROKEN copy for months because
     # the symmetry guard's name list omitted it.
-    Name(
-        "enforce_dependency_preflight",
-        "dependency-graph",
-        NEUTRAL,
-        LAZY_WRAPPER,
-        "raises `DriverError` on an invalid selected graph; `DriverError` is ALREADY shared",
-        move_note=(
-            "the behavioral defect the backlog item filed (two DriverError classes) was fixed "
-            "by `818uru`, so this is now a pure layering move"
-        ),
-    ),
     # --- backlog closing (11) ----------------------------------------------------------------
     # The rule set deciding whether a run may close a backlog item. Its in-tree comment already
     # states the intent this Set is finishing: every rule "lives ONCE in `oc_runipd` and this
     # module binds the SAME objects", which is the right instinct wired to the wrong module.
-    Name(
-        "close_backlog_item",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "closes an item through the lifecycle-owned setter, never by editing the file",
-        closes_over=("run_checked",),
-        move_note="`run_checked` is already a `runner_shared` symbol each host wraps (injection precedent)",
-    ),
-    Name(
-        "commit_backlog_close",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "path-scoped-commits the moved item file via the shared tooled commit path",
-        closes_over=("run_checked",),
-    ),
-    Name(
-        "process_backlog_close",
-        "backlog-closing",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "orchestrates the close after a plan reaches executed; the ONE body with an `oc` token in CODE",
-        closes_over=("collect_lane_earned_paths",),
-        move_note=(
-            "LIVE DEFECT: its commit message hardcodes `closed by aw oc run:` while agy calls this "
-            "same function, so agy-driven runs record a false provenance today. A host LABEL is a "
-            "parameter, not an opencode concept, so the verdict stays neutral; filed as a bug, NOT "
-            "fixed by `9kmbr0`, which moves and changes nothing"
-        ),
-    ),
     # --- run ordering (4) ---------------------------------------------------------------------
     # --- recovery routing (3) -----------------------------------------------------------------
     # All three are the lazy-wrapper tier, which is the tier an identity audit cannot see.
+    Name(
+        "route_recovery_turn",
+        "recovery-routing",
+        NEUTRAL,
+        LAZY_WRAPPER,
+        "records the routing verdict durably and dispatches; writes run state and events",
+        move_note=(
+            "TRIED AND REVERTED BY `1f7xno`, and the reason is the sharpest lesson in that plan: the "
+            "shared copy of this function is AST-IDENTICAL, so it passed the pure-move fingerprint, "
+            "but its body resolves `classify_recovery_disposition` in the SHARED namespace, and THAT "
+            "sibling is dead on arrival (it reads `st.path`/`st.base_commit` off a `LaneState` whose "
+            "real fields are `worktree_path`/`base_sha`, so it raises `AttributeError` on any live "
+            "lane). Consolidating this one name made four `tests/test_resumedupe.py` tests fail with "
+            "exactly that error. An AST-identical function is only safely movable if everything it "
+            "RESOLVES is also safely movable, so all three recovery-routing names defer together. "
+            "Filed as `zt2b16`"
+        ),
+    ),
     Name(
         "classify_recovery_disposition",
         "recovery-routing",
@@ -207,19 +183,6 @@ CLASSIFICATION: tuple[Name, ...] = (
         move_note="cannot move alone: the `RecoveryDisposition` record and three DISPOSITION_* constants must move with it",
     ),
     Name(
-        "route_recovery_turn",
-        "recovery-routing",
-        NEUTRAL,
-        LAZY_WRAPPER,
-        "records the routing verdict durably and dispatches; writes run state and events",
-        closes_over=(
-            "DISPOSITION_FRESH_EXECUTION",
-            "DISPOSITION_UNDETERMINED",
-            "RecoveryDisposition",
-            "save_state",
-        ),
-    ),
-    Name(
         "build_verify_and_continue_notice",
         "recovery-routing",
         NEUTRAL,
@@ -234,15 +197,6 @@ CLASSIFICATION: tuple[Name, ...] = (
     # --- shutdown reporting (4) ---------------------------------------------------------------
     # --- suite checking (5) -------------------------------------------------------------------
     # --- earned integration (3) ---------------------------------------------------------------
-    Name(
-        "collect_earned_paths",
-        "earned-integration",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "diffs an attempt's head range to list the paths it produced; a git diff",
-        closes_over=("run_checked",),
-        move_note="same `integpath` collision risk (see MOVE_UNSETTLED)",
-    ),
     # --- declared spec-edit visibility (1 of an original 9) -----------------------------------
     # THE GROUP THAT ALREADY MOVED, and the clearest evidence of both the accretion and the fix.
     # All nine arrived in the thirteen days between Order 01's review and its execution; EIGHT were
@@ -274,48 +228,6 @@ CLASSIFICATION: tuple[Name, ...] = (
     # --- nested-`aw` tool identity (4) --------------------------------------------------------
     # The group whose neutrality is load-bearing rather than incidental: agy imports these
     # BECAUSE a second copy already diverged once. See the in-tree comment above the import.
-    Name(
-        "pinned_child_env",
-        "tool-identity",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "pins a nested `aw` child's PYTHONPATH to the runner's own package root; about `aw`, not opencode",
-        closes_over=("runner_package_root",),
-        move_note="the plan's worked example: sounds host-specific, is documented as requiring symmetry",
-    ),
-    Name(
-        "pinned_module_argv",
-        "tool-identity",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "builds argv invoking the runner's OWN `agent_workflows` CLI; the suppressing half of the pin",
-        closes_over=("_AW_PIN_BOOTSTRAP",),
-    ),
-    Name(
-        "assert_child_tool_identity",
-        "tool-identity",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "verifies a pinned child resolves this package to the runner's own copy; fails closed",
-        closes_over=("_AW_PIN_PROBE", "_TOOL_IDENTITY_VERIFIED"),
-        move_note=(
-            "memoized through a module-level `_TOOL_IDENTITY_VERIFIED`, so a move must not leave "
-            "two caches; also counted by the ttywedge launcher-symmetry guard, which asserts the "
-            "hosts expose an EQUAL number of nested-`aw` launchers"
-        ),
-    ),
-    Name(
-        "ToolIdentityError",
-        "tool-identity",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "the run-fatal identity mismatch exception; nothing in it is about opencode",
-        move_note=(
-            "MOVE SHAPE IS AN EXCEPTION BINDING, not a function relocation: both hosts' `except` "
-            "clauses bind it, and its sibling `StallTimeout` is DELIBERATELY defined in both "
-            "drivers with an in-tree note saying so. Order 02 needs it in its callee map"
-        ),
-    ),
 )
 
 #: Names whose VERDICT is settled but whose MOVE Order 02 must resolve or defer, with the axis

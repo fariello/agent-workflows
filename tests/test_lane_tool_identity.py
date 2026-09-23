@@ -60,6 +60,23 @@ from agent_workflows import agy_runipd
 from agent_workflows import oc_runipd as driver
 from agent_workflows import runner_shared
 
+# WHY THE PROBE AND THE MEMO ARE NEUTRALIZED ON `runner_shared` AND NOT ON `driver` (runnerlayer
+# Order 02 `1f7xno`, backlog `cnwy8g`). The pin's four public names and the five private ones they
+# close over (`_AW_PIN_PROBE`, `_TOOL_IDENTITY_VERIFIED`, `runner_package_root`, `_AW_PIN_BOOTSTRAP`,
+# `_AW_PIN_STRIP`) were CONSOLIDATED onto `runner_shared`, which already carried a byte-identical copy
+# of each; `oc_runipd` re-exports them so every name below still resolves through `driver`.
+#
+# A RE-EXPORT IS NOT A PATCH POINT, and that is the whole reason these sites changed: rebinding
+# `driver._AW_PIN_PROBE` replaces the host's ALIAS while the shared body keeps reading its own global,
+# so the induced mismatch never fires and an `assertRaises(ToolIdentityError)` reports
+# "ToolIdentityError not raised" - which is exactly how these tests failed when the consolidation
+# landed. Neutralizing the OWNING module's global is what actually reaches the code under test.
+#
+# THE CONSOLIDATION ALSO FIXED A LIVE DEFECT (`232wcg`), which is worth knowing here because this file
+# is where a tool-identity regression would surface: there were TWO `ToolIdentityError` classes, so
+# `runner_shared.assert_child_tool_identity` raised one that neither host's `except ToolIdentityError`
+# names, and the run-fatal ABORT-RUN escalation degraded to the item-local `except DriverError`.
+
 PROBE = "import agent_workflows as a, os; print(os.path.realpath(a.__file__))"
 
 # The two halves of the pin, named once so the guard and the runtime tests agree.
@@ -368,7 +385,7 @@ class LaneToolIdentityRuntimeTests(unittest.TestCase):
         argv = (
             [sys.executable]
             + (["-P"] if sys.version_info >= (3, 11) else [])
-            + ["-c", driver._AW_PIN_PROBE]
+            + ["-c", runner_shared._AW_PIN_PROBE]
         )
         got = _resolved_module(
             [sys.executable]
@@ -801,8 +818,8 @@ class ToolIdentityAssertionTests(unittest.TestCase):
     """E-04: residual mismatch must be a loud, recorded, RUN-FATAL refusal."""
 
     def setUp(self) -> None:
-        driver._TOOL_IDENTITY_VERIFIED.clear()
-        self.addCleanup(driver._TOOL_IDENTITY_VERIFIED.clear)
+        runner_shared._TOOL_IDENTITY_VERIFIED.clear()
+        self.addCleanup(runner_shared._TOOL_IDENTITY_VERIFIED.clear)
 
     def test_matching_child_passes_and_records_once(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -826,16 +843,16 @@ class ToolIdentityAssertionTests(unittest.TestCase):
         """A deliberately mismatched child must abort with the named diagnostic."""
         with tempfile.TemporaryDirectory() as temp:
             events = Path(temp) / "events.jsonl"
-            original = driver._AW_PIN_PROBE
+            original = runner_shared._AW_PIN_PROBE
             # Force the probe to report a foreign module path.
-            driver._AW_PIN_PROBE = (
+            runner_shared._AW_PIN_PROBE = (
                 "print('/somewhere/else/agent_workflows/__init__.py')\n"
             )
             try:
                 with self.assertRaises(driver.ToolIdentityError) as ctx:
                     driver.assert_child_tool_identity(events, cwd=Path(temp))
             finally:
-                driver._AW_PIN_PROBE = original
+                runner_shared._AW_PIN_PROBE = original
             message = str(ctx.exception)
             self.assertIn("ABORTING RUN", message)
             self.assertIn("tool-identity mismatch", message)
@@ -851,14 +868,14 @@ class ToolIdentityAssertionTests(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as temp:
             events = Path(temp) / "events.jsonl"
-            original = driver._AW_PIN_PROBE
+            original = runner_shared._AW_PIN_PROBE
             foreign = "/somewhere/else/agent_workflows/__init__.py"
-            driver._AW_PIN_PROBE = f"print({foreign!r})\n"
+            runner_shared._AW_PIN_PROBE = f"print({foreign!r})\n"
             try:
                 with self.assertRaises(driver.ToolIdentityError) as ctx:
                     driver.assert_child_tool_identity(events, cwd=Path(temp))
             finally:
-                driver._AW_PIN_PROBE = original
+                runner_shared._AW_PIN_PROBE = original
             message = str(ctx.exception)
             self.assertIn(_parent_module(), message, "must name what it EXPECTED")
             self.assertIn(foreign, message, "must name what it GOT")
@@ -1258,8 +1275,8 @@ class TheProbeDeniesTheChildATerminal(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        driver._TOOL_IDENTITY_VERIFIED.clear()
-        self.addCleanup(driver._TOOL_IDENTITY_VERIFIED.clear)
+        runner_shared._TOOL_IDENTITY_VERIFIED.clear()
+        self.addCleanup(runner_shared._TOOL_IDENTITY_VERIFIED.clear)
 
     def test_the_probe_is_launched_pinned_with_no_terminal(self):
         spy = _LaunchSpy(stdout=_parent_module() + "\n1.2.3\n")
@@ -1321,7 +1338,7 @@ class TheProbeDeniesTheChildATerminal(unittest.TestCase):
         )
         wrong: list[str] = []
         for case, child_path, child_version, expect_raise, why in cases:
-            driver._TOOL_IDENTITY_VERIFIED.clear()
+            runner_shared._TOOL_IDENTITY_VERIFIED.clear()
             spy = _LaunchSpy(stdout=f"{child_path}\n{child_version}\n")
             raised = None
             record = None
