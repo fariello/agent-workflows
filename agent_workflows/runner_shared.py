@@ -6605,6 +6605,689 @@ def handle_turn_failure_retry(
 
 
 # ==================================================================================================
+# reaskscore-03 (`dy9ymn`): A TURN THAT PROVABLY ATTEMPTED NOTHING COSTS ONE RETRY, NOT A WHOLE SET
+# ==================================================================================================
+#
+# THE DEFECT, MEASURED. `partial` is TERMINAL and outside `EXECUTION_SUCCESS_STATES`, so
+# `cascade_dependency_blocked` marks every dependent `dependency-blocked` and
+# `decide_orchestrator_dispatch` refuses the parent. In `run-20260918T045802Z-2547360` item `zqs0px`
+# ended `partial` after 36 seconds having written NO outcome, performed NO `E-*` item, left
+# `starting_head == ending_head` with a clean tree and ZERO lane commits - and took `qmgn12`,
+# `di08i9` and `rgaasb` down with it, for a `BLOCKED` run with 1 of 5 executed. The same shape
+# recurred twice more that day.
+#
+# THE CASCADE IS CORRECT; THE TRIGGER IS NOT, and that distinction is the whole design. Nothing here
+# loosens a dependency, success-bar or orchestrator-retirement predicate: loosening the cascade would
+# dispatch a dependent against a base lacking the commits it depends on. What is added is a NARROW,
+# EVIDENCE-BASED verdict that separates "attempted nothing" from "attempted and fell short", plus a
+# BOUNDED re-queue on that verdict alone.
+#
+# WHY THIS IS NOT `xipfy1`'s RETRY PATH, since both spend the same frozen budget and a reader will ask.
+# `TURN_RETRY_CLASSIFICATION` above lists `partial` as NEVER retryable, with the reason stated in
+# terms: a blanket `partial` retry is strictly broader than this predicate, and it would retry a
+# VERIFIER DOWNGRADE (which also writes `partial`). That row deliberately defers the narrow case to
+# this section. So the two paths are disjoint by construction: `handle_turn_failure_retry` never
+# retries `partial`, and this one retries NOTHING ELSE.
+#
+# THE COUNTERS ARE SEPARATE FOR THE SAME REASON `FINALIZE_RETRY_COUNT_KEY` AND `TURN_RETRY_COUNT_KEY`
+# ARE SEPARATE: spec `25kzda` 5.5 says the budget "counts correction attempts after the initial
+# attempt, separately for each action". Sharing one counter would let a refused finalize silently
+# consume a zero-work retry, and vice versa. NO NEW KNOB IS ADDED: the frozen `--retry-budget` read
+# through `frozen_retry_budget` remains the only limit, so the category error this module names
+# elsewhere (conflating it with `--integration-retry-limit`) is not committed.
+
+#: The per-item key counting ZERO-WORK re-dispatches spent. Mirrors the shipped `integration_attempts`
+#: shape (read the frozen limit from options, keep the spend on the ITEM), which needs no
+#: `run_engine.RunEngine` and no `ledger.jsonl` - neither of which a driver run has. `plan_retry` is
+#: deliberately NOT used here; see the `retrywire` header above for why it is unreachable.
+ZERO_WORK_RETRY_COUNT_KEY: str = "zero_work_retries"
+
+#: The decision record left on the item when a zero-work verdict was REFUSED, so the run report can
+#: say WHY an item that ended `partial` was not retried. "We looked and could not prove it" is
+#: exactly what a human needs in order to judge whether this predicate is too strict (OQ-03).
+ZERO_WORK_REFUSAL_KEY: str = "zero_work_refusal"
+
+#: The decision record left on the item when a zero-work retry WAS spent, so `aw runs` can report it.
+ZERO_WORK_RETRY_KEY: str = "zero_work_retry"
+
+#: The statuses this verdict REFUSES outright, because each describes an intent or a non-attempt
+#: rather than a turn that ran and produced nothing.
+#:
+#: MOST OF THESE ARE DEFENCE IN DEPTH RATHER THAN LIVE PATHS, and saying so keeps a reader's attention
+#: on the condition that actually protects the change. The zero-work branch is entered only for an item
+#: whose disposition is the terminal `partial`, and each protected class carries a DIFFERENT status at
+#: that point: a deliberately stopped item `interrupted`, a forced one `unknown_outcome`, a deferred
+#: integration `merge-retry`, an unrun one `dependency-blocked`/`not-attempted`. A `review` action
+#: cannot present as `partial` either, because its scorer returns `reviewed`/`approved`/
+#: `failed-safely`. THEY ARE KEPT ANYWAY: a later change to the disposition vocabulary, or a caller
+#: reaching this predicate from another seam, would make them live, and fail-closed redundancy is cheap
+#: here. But they are NOT the safety property - the EVIDENCE CONJUNCTION below is.
+ZERO_WORK_REFUSED_STATUSES: frozenset[str] = frozenset(
+    {
+        "interrupted",
+        "unknown_outcome",
+        "dependency-blocked",
+        "not-attempted",
+        "queued",
+        "running",
+        "integration-deferred",
+        "merge-retry",
+    }
+)
+
+
+class ZeroWorkVerdict(NamedTuple):
+    """Whether one finished turn PROVABLY attempted nothing, with the reason and the facts it read.
+
+    A REASONED VERDICT RATHER THAN A BARE BOOL, because this authorizes spending a full turn's tokens
+    and a human must be able to audit why it fired (or why it did not).
+
+    attempted_nothing: True ONLY when every evidence condition holds. Anything else is False.
+    proven:            False means "cannot prove nothing was attempted" - a missing or unreadable
+                       input, which is the FAIL-CLOSED direction and means today's behavior.
+    reason:            the human sentence, recorded on the item either way.
+    facts:             the inputs actually read, so the verdict is reproducible from state.json.
+    truncated:         whether `ty7w6o`'s host-truncation record corroborated it (SUPPORTING, never
+                       required; see :func:`turn_attempted_nothing`).
+    """
+
+    attempted_nothing: bool
+    proven: bool
+    reason: str
+    facts: dict[str, Any]
+    truncated: bool
+
+
+def recorded_outcome_path(run_dir: Path, item: Mapping[str, Any]) -> Path | None:
+    """Where THIS item's outcome file would be, or None when the item cannot name one.
+
+    Split out from :func:`read_recorded_outcome` because the zero-work predicate needs a different
+    question: that reader collapses "absent" and "unparseable" into one `None`, and those are OPPOSITE
+    answers here (absent PROVES nothing was written; unparseable proves nothing at all)."""
+
+    position = item.get("position")
+    id6 = item.get("id6")
+    if position is None or not id6:
+        return None
+    try:
+        return run_dir / "outcomes" / f"{int(position):02d}-{id6}.json"
+    except (TypeError, ValueError):
+        return None
+
+
+def turn_ran_in_a_lane(attempt: Mapping[str, Any]) -> bool:
+    """Did this attempt run in an ISOLATED lane worktree rather than in the main checkout?
+
+    Read from the attempt's own durable allocation record, so it answers correctly on a resumed run.
+    Isolation is the DEFAULT, and which conditions of the conjunction carry weight depends on this
+    answer - see :func:`turn_attempted_nothing`."""
+
+    return bool(attempt.get("worktree") or attempt.get("worktree_lane_id"))
+
+
+def host_truncation_of_attempt(attempt: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """`ty7w6o`'s host-truncation record for this attempt, or None. Read-only."""
+
+    record = attempt.get("host_truncation")
+    return record if isinstance(record, Mapping) else None
+
+
+def turn_attempted_nothing(
+    item: Mapping[str, Any],
+    attempt: Mapping[str, Any],
+    *,
+    disposition: str,
+    outcome_written: bool | None,
+    lane: Mapping[str, Any] | None,
+) -> ZeroWorkVerdict:
+    """Did this finished turn PROVABLY attempt nothing? PURE: no I/O, no state write, no print.
+
+    HOST-NEUTRAL AND HERE RATHER THAN IN EITHER DRIVER (spec `7ckptx` R2.6, R6.1): the RULE is defined
+    once and the two drivers contribute only the seam that reaches it.
+
+    PURE BY INJECTION, not by pretending git is free. The two facts that need a probe are supplied by
+    the caller: `outcome_written` (does the attempt's outcome file exist?) and `lane` (the lane's own
+    reading, whose single producer is :func:`describe_lane`). :func:`read_zero_work_evidence` is the
+    one impure collector, so this function stays exhaustively testable over a matrix.
+
+    CONJUNCTIVE AND FAIL-CLOSED. EVERY condition must hold; any single sign of work REFUSES the
+    verdict, and any MISSING or UNREADABLE input yields `proven=False`, meaning "cannot prove nothing
+    was attempted", meaning NO retry and today's exact behavior.
+
+    WHICH CONDITIONS CARRY WEIGHT IN WHICH MODE, stated because a reader who believes all four are
+    always load-bearing will OVER-TRUST the verdict on an isolated turn:
+
+      1. NO OUTCOME FILE WAS WRITTEN - load-bearing in BOTH modes.
+      2. `starting_head == ending_head` - load-bearing ONLY for a SHARED-TREE turn. Both fields are
+         written as `git_head(repo)` on the MAIN CHECKOUT while an isolated turn works in `work_dir`,
+         so on an isolated turn a lane agent never moves the main checkout's HEAD and this is TRUE BY
+         CONSTRUCTION - true even for a lane that committed substantial real work.
+      3. NO COMMIT BEYOND THE BASE - load-bearing in BOTH modes, but READ FROM DIFFERENT PLACES: the
+         LANE's own `commits_ahead` for an isolated turn (the only source that answers "did THIS lane
+         commit anything"), and condition 2 for a shared-tree turn.
+      4. A CLEAN TREE - the LANE's own `dirty` for an isolated turn; `attempt["ending_status"]` for a
+         shared-tree turn, where that field genuinely describes the tree the agent worked in.
+
+    DELIBERATELY NOT `worktree_lease.holds_work` AS THE COMMIT TEST. `LaneState.holds_work` is
+    measured against the lane's OWN creation base, which stays non-zero FOREVER after a merge (its own
+    docstring says so), so it cannot answer "did THIS attempt commit anything".
+
+    THE HOST-TRUNCATION SIGNAL IS **SUPPORTING**, NOT REQUIRED (`dy9ymn` OQ-02, decided here).
+    WHY: the four evidence conditions are what PROVE nothing was attempted; the host's admission
+    merely explains WHY, so requiring it would confine the retry to the one measured cause and let a
+    future zero-work turn with a different cause block a Set again. The cost of this choice, stated so
+    it is not discovered later: the predicate is CAUSE-AGNOSTIC and so also fires on causes nobody has
+    measured. That is judged acceptable precisely because the conjunction, not the cause, is the
+    safety property. A truncation record therefore NEVER authorizes a retry by itself - a host may
+    truncate a turn that had already done real work, and such a turn fails condition 1, 3 or 4.
+
+    AN ITEM THAT PRODUCED ANY EVIDENCE OF WORK IS NOT RETRIED, even a dirty tree with no commit. An
+    uncommitted edit IS work, and re-dispatching over it risks the agent duplicating or fighting its
+    own prior changes. The honest cost is that a turn which did a little and then died is NOT retried;
+    that is the safe direction.
+    """
+
+    facts: dict[str, Any] = {
+        "disposition": disposition,
+        "isolated": turn_ran_in_a_lane(attempt),
+        "outcome_written": outcome_written,
+    }
+    truncation = host_truncation_of_attempt(attempt)
+    truncated = truncation is not None
+    facts["host_truncation"] = truncated
+
+    def refuse(reason: str) -> ZeroWorkVerdict:
+        return ZeroWorkVerdict(
+            attempted_nothing=False,
+            proven=True,
+            reason=reason,
+            facts=facts,
+            truncated=truncated,
+        )
+
+    def cannot_prove(reason: str) -> ZeroWorkVerdict:
+        return ZeroWorkVerdict(
+            attempted_nothing=False,
+            proven=False,
+            reason=reason,
+            facts=facts,
+            truncated=truncated,
+        )
+
+    # ---- E-02: refuse every non-attempt status and every deliberate outcome, FIRST ----------------
+    # Reuse the EXISTING refusal predicates rather than restating their conditions, so the two routes
+    # cannot disagree - the same reasoning the `--retry-incomplete` gate gives for sharing
+    # `requeue_interrupted`'s predicate.
+    from agent_workflows import runner_stop as _runner_stop
+
+    if _runner_stop.is_indeterminate(item):
+        return refuse(
+            "the item's outcome is INDETERMINATE (a forced stop), which spec `c4gd2h` R19 forbids "
+            "re-running and which `requeue_interrupted` already refuses"
+        )
+    stopped = item.get("stopped")
+    if isinstance(stopped, Mapping) and stopped.get("stopped_deliberately"):
+        return refuse(
+            "the turn ended in a DELIBERATE OPERATOR STOP, which is an intent and not a failure; "
+            "retrying it would spend paid model turns fighting the operator"
+        )
+    if item.get("action") == "review":
+        return refuse(
+            "this is a REVIEW action, whose scoring reads the plan's `- Status:` and whose zero-work "
+            "case is a different question"
+        )
+    status = (disposition or "").strip()
+    if status in ZERO_WORK_REFUSED_STATUSES or status == INTEGRATION_DEFERRED_STATUS:
+        return refuse(
+            f"disposition {status!r} describes an intent or a non-attempt rather than a turn that "
+            f"ran and produced nothing, so it is refused"
+        )
+
+    # ---- E-01: the evidence conjunction ----------------------------------------------------------
+    if outcome_written is None:
+        return cannot_prove(
+            "the attempt's outcome file could not be located or read, so whether the turn wrote one "
+            "cannot be established; refusing FAIL-CLOSED"
+        )
+    if outcome_written:
+        return refuse(
+            "an outcome file WAS written for this attempt, which is evidence the turn did something"
+        )
+
+    isolated = bool(facts["isolated"])
+    if isolated:
+        if not isinstance(lane, Mapping):
+            return cannot_prove(
+                "the turn ran in an ISOLATED lane but the lane's own reading is unavailable, so "
+                "whether it committed anything cannot be established; refusing FAIL-CLOSED"
+            )
+        commits_ahead = lane.get("commits_ahead")
+        dirty = lane.get("dirty")
+        facts["lane_state"] = lane.get("state")
+        facts["lane_commits_ahead"] = commits_ahead
+        facts["lane_dirty"] = dirty
+        facts["lane_branch"] = lane.get("branch")
+        if not isinstance(commits_ahead, int) or isinstance(commits_ahead, bool):
+            return cannot_prove(
+                "the lane's `commits_ahead` is missing or not an integer, so whether it committed "
+                "anything cannot be established; refusing FAIL-CLOSED"
+            )
+        if not isinstance(dirty, bool):
+            return cannot_prove(
+                "the lane's `dirty` flag is missing, so whether it holds uncommitted work cannot be "
+                "established; refusing FAIL-CLOSED"
+            )
+        if commits_ahead > 0:
+            return refuse(
+                f"the lane holds {commits_ahead} commit(s) beyond its base, which is work"
+            )
+        if dirty:
+            return refuse(
+                "the lane's tree is DIRTY, and an uncommitted edit is work; re-dispatching over it "
+                "risks the agent fighting its own prior changes"
+            )
+    else:
+        starting = attempt.get("starting_head")
+        ending = attempt.get("ending_head")
+        ending_status = attempt.get("ending_status")
+        facts["starting_head"] = starting
+        facts["ending_head"] = ending
+        facts["ending_status_empty"] = (
+            None if ending_status is None else not str(ending_status).strip()
+        )
+        if not starting or not ending:
+            return cannot_prove(
+                "the attempt records no starting or ending head for a SHARED-TREE turn, so whether "
+                "it committed anything cannot be established; refusing FAIL-CLOSED"
+            )
+        if str(starting) != str(ending):
+            return refuse(
+                "the shared checkout's HEAD MOVED during this turn, so it committed something"
+            )
+        if ending_status is None:
+            return cannot_prove(
+                "the attempt records no ending status for a SHARED-TREE turn, so whether it left "
+                "uncommitted work cannot be established; refusing FAIL-CLOSED"
+            )
+        if str(ending_status).strip():
+            return refuse(
+                "the shared checkout's tree is DIRTY, and an uncommitted edit is work; "
+                "re-dispatching over it risks the agent fighting its own prior changes"
+            )
+
+    corroboration = (
+        "; the HOST ITSELF admitted it cut this turn's work, which corroborates the verdict "
+        "(SUPPORTING evidence, never required)"
+        if truncated
+        else "; no host-truncation record accompanied it, which does not weaken the verdict because "
+        "the evidence conditions are what prove it (the truncation signal is SUPPORTING)"
+    )
+    where = (
+        "its lane holds no commit beyond its base and its tree is clean"
+        if isolated
+        else "the shared checkout's HEAD did not move and its tree is clean"
+    )
+    return ZeroWorkVerdict(
+        attempted_nothing=True,
+        proven=True,
+        reason=(
+            f"the turn PROVABLY attempted nothing: it wrote no outcome file and {where}"
+            f"{corroboration}"
+        ),
+        facts=facts,
+        truncated=truncated,
+    )
+
+
+def read_zero_work_evidence(
+    repo: Path,
+    run_dir: Path,
+    item: Mapping[str, Any],
+    attempt: Mapping[str, Any],
+) -> tuple[bool | None, Mapping[str, Any] | None]:
+    """Collect the two probed facts :func:`turn_attempted_nothing` needs: (outcome_written, lane).
+
+    THE ONE IMPURE COLLECTOR, which is what keeps the predicate pure and exhaustively testable.
+
+    `outcome_written` is THREE-VALUED on purpose: True (a file is there), False (the path is
+    determinable and nothing is there), or None (the item cannot even name its outcome path, so
+    nothing is established). :func:`read_recorded_outcome` cannot be reused because it collapses the
+    last two into one answer, and here they are opposites.
+
+    THE LANE READING IS `describe_lane`'s AND NOBODY ELSE'S (R6.1), reached through
+    :func:`resolve_prior_lane` so the lane identity comes from the DURABLE record rather than from a
+    branch name reconstructed out of the id6. None is returned for a shared-tree turn (correct: there
+    is no lane) and ALSO for a lane that cannot be read, which the predicate treats as "cannot prove".
+    """
+
+    outcome_written: bool | None
+    path = recorded_outcome_path(run_dir, item)
+    if path is None:
+        outcome_written = None
+    else:
+        try:
+            outcome_written = path.is_file()
+        except OSError:
+            outcome_written = None
+
+    if not turn_ran_in_a_lane(attempt):
+        return outcome_written, None
+
+    lane_id = attempt.get("worktree_lane_id") or resolve_prior_lane(dict(item))[0]
+    if not lane_id:
+        return outcome_written, None
+    base = attempt.get("worktree_base") or item.get("preserved_base") or "HEAD"
+    try:
+        lane = describe_lane(
+            repo,
+            {
+                "id6": item.get("id6"),
+                "lane_id": str(lane_id),
+                "base_commit": base,
+                "worktree": attempt.get("worktree"),
+            },
+        )
+    except Exception:
+        # A lane that cannot be inspected is NOT evidence of emptiness. Returning None routes the
+        # predicate to "cannot prove", which is the fail-closed direction.
+        return outcome_written, None
+    return outcome_written, lane
+
+
+def zero_work_retry_attempts(item: Mapping[str, Any]) -> int:
+    """How many zero-work re-dispatches this item has already consumed. Never negative."""
+
+    raw = item.get(ZERO_WORK_RETRY_COUNT_KEY)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return max(0, raw)
+
+
+class ZeroWorkRetryDecision(NamedTuple):
+    """What to do about ONE provably-zero-work turn. DECIDES ONLY: no state write, no print.
+
+    retry:     re-dispatch this item (the verdict fired and budget remains).
+    exhausted: the verdict fired but the frozen budget is spent, so the terminal status STANDS.
+    reason:    the human sentence, recorded on the item and rendered in the report.
+    attempts:  zero-work retries consumed BEFORE this decision.
+    budget:    the run's frozen `--retry-budget`, for the message and for tests.
+    verdict:   the evidence verdict this decision rests on.
+    """
+
+    retry: bool
+    exhausted: bool
+    reason: str
+    attempts: int
+    budget: int
+    verdict: ZeroWorkVerdict
+
+
+def zero_work_retry_decision(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    verdict: ZeroWorkVerdict,
+) -> ZeroWorkRetryDecision:
+    """Decide RETRY / LEAVE-TERMINAL for one zero-work verdict, bounded by the FROZEN budget.
+
+    Spec `25kzda` 5.5 governs: the budget is `--retry-budget` (0..10, default 2), it "counts
+    correction attempts after the initial attempt", it cannot be raised on resume, and `0` MUST mean
+    no retry at all. A turn that provably created NO side effect is the cleanest possible member of
+    5.5's retryable class ("host nonzero exit that did not create an ambiguous side effect").
+
+    BOUNDED BY CONSTRUCTION, which matters because nothing else bounds it: the selection loop re-picks
+    any `queued` item whose dependencies are satisfied, so an item returned to `queued` without a
+    decrement would be dispatched forever (the in-tree precedent is a measured 201-dispatch
+    orchestrator spin). The counter is incremented by the performer on every re-dispatch and compared
+    against the frozen budget here, so total dispatches for one item can never exceed `budget + 1`.
+
+    WHEN THE BUDGET IS EXHAUSTED THE TERMINAL `partial` STANDS, which is the honest outcome: a
+    deterministically-zero-work item must not loop, since "a retry cannot turn failure into success by
+    mere repetition" (`run_recovery`'s own guarantee 3).
+    """
+
+    used = zero_work_retry_attempts(item)
+    budget = frozen_retry_budget(state)
+    if not verdict.attempted_nothing:
+        return ZeroWorkRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=verdict.reason,
+            attempts=used,
+            budget=budget,
+            verdict=verdict,
+        )
+    if used >= budget:
+        return ZeroWorkRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=(
+                f"the turn provably attempted nothing, but the run's correction budget is exhausted "
+                f"({used} of {budget} zero-work retr{'y' if budget == 1 else 'ies'} spent), so the "
+                f"terminal status stands rather than being re-dispatched forever"
+            ),
+            attempts=used,
+            budget=budget,
+            verdict=verdict,
+        )
+    return ZeroWorkRetryDecision(
+        retry=True,
+        exhausted=False,
+        reason=(
+            f"{verdict.reason}; re-dispatching it rather than letting one item block its whole Set "
+            f"(zero-work retry {used + 1} of {budget})"
+        ),
+        attempts=used,
+        budget=budget,
+        verdict=verdict,
+    )
+
+
+def zero_work_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) -> str:
+    """What a reader should DO about a spent or exhausted zero-work retry."""
+
+    command = getattr(labels, "command", None) or "aw oc run"
+    if retry:
+        return (
+            "no action needed: the run is re-dispatching this item in this same run because it "
+            "provably did nothing, so its dependents are NOT blocked. Nothing was forced and no work "
+            "was overwritten (there was none)"
+        )
+    return (
+        f"the item provably attempted nothing and the correction budget is spent, so look at WHY the "
+        f"turns produced nothing (a host that cuts the turn's work is the measured cause) before "
+        f"paying for another: inspect the attempts with `aw runs show <run-id>`, then re-run with "
+        f"`{command} {id6}` or resume with `{command} resume <run-id> --retry-incomplete`"
+    )
+
+
+def handle_zero_work_retry(
+    *,
+    repo: Path,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    host_labels: "HostLabels | None",
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> str:
+    """PERFORM the outcome of one finished turn's zero-work verdict. Returns the item's status.
+
+    ONE implementation for BOTH hosts; each driver contributes only the seam that calls it.
+
+    WHERE IT MUST BE CALLED FROM, and this is the half a reader is most likely to get wrong: INSIDE
+    the dispatch loop, immediately after `execute_item` RETURNS. The `--retry-incomplete` block that
+    carries the requeue SHAPE this copies sits BEFORE `while True:` and inspects statuses left by a
+    PREVIOUS invocation, so a check placed there would never observe a turn that happened during THIS
+    run. The window is generous rather than tight: `cascade_dependency_blocked` runs at the TOP of the
+    loop, so it first observes this turn's terminal status on the NEXT iteration, and anything between
+    `execute_item`'s return and that iteration is early enough. Ordering against the cascade IS
+    load-bearing: after the cascade has seen the `partial`, the siblings are already
+    `dependency-blocked` and a retry rescues nothing.
+
+    IT IS A NO-OP FOR EVERY ITEM THAT DID NOT END `partial`, so no other path changes behavior.
+    `partial` is the ONLY status this considers, because it is the terminal verdict the measured
+    defect produces and because `TURN_RETRY_CLASSIFICATION` deliberately reserves it for this
+    predicate.
+
+    IT EMITS AN EVENT ONLY WHEN IT ACTUALLY RETRIES, so the event's presence means "a turn was
+    re-dispatched because it provably did nothing" and never "the check ran". A REFUSAL is still
+    recorded on the item (and rendered in the run report), because "we looked and could not prove it"
+    is what a human needs in order to judge whether the predicate is too strict.
+    """
+
+    status = str(item.get("status") or "")
+    if status != "partial":
+        return status
+    attempts = item.get("attempts") or []
+    if not attempts or not isinstance(attempts[-1], MutableMapping):
+        return status
+    attempt = attempts[-1]
+    attempt_no = int(attempt.get("number") or len(attempts))
+
+    outcome_written, lane = read_zero_work_evidence(repo, run_dir, item, attempt)
+    verdict = turn_attempted_nothing(
+        item,
+        attempt,
+        disposition=status,
+        outcome_written=outcome_written,
+        lane=lane,
+    )
+    decision = zero_work_retry_decision(item, state, verdict)
+    pal = Palette(should_color(sys.stdout))
+
+    if not decision.retry:
+        # REFUSED (or exhausted). Record WHY on the item so the run report can name it; emit NO event
+        # and change NO status. This is today's exact behavior plus a reason.
+        item[ZERO_WORK_REFUSAL_KEY] = {
+            "at": utc_now(),
+            "attempt": attempt_no,
+            "reason": decision.reason,
+            "proven": verdict.proven,
+            "attempted_nothing": verdict.attempted_nothing,
+            "exhausted": decision.exhausted,
+            "retries_used": decision.attempts,
+            "retry_budget": decision.budget,
+            "facts": dict(verdict.facts),
+        }
+        if decision.exhausted:
+            record_refusal(
+                item,
+                code="zero-work-retry",
+                reason=decision.reason,
+                remedy=zero_work_retry_remedy(
+                    host_labels, str(item.get("id6") or "?"), retry=False
+                ),
+            )
+            print(
+                pal(
+                    f"  ! IPD {item['id6']} provably attempted nothing but the zero-work retry "
+                    f"budget is exhausted ({decision.attempts} of {decision.budget} spent); it "
+                    f"stays {status}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+        save_state(run_dir, state)
+        return status
+
+    # SPEND ONE UNIT AND RE-DISPATCH. The counter is written BEFORE the state is saved, so a crash
+    # between here and the next dispatch cannot yield a free retry.
+    item[ZERO_WORK_RETRY_COUNT_KEY] = decision.attempts + 1
+    item[ZERO_WORK_RETRY_KEY] = {
+        "at": utc_now(),
+        "attempt": attempt_no,
+        "reason": decision.reason,
+        "retries_used": decision.attempts + 1,
+        "retry_budget": decision.budget,
+        "host_truncation": verdict.truncated,
+        "facts": dict(verdict.facts),
+    }
+    item.pop(ZERO_WORK_REFUSAL_KEY, None)
+    attempt["zero_work_retry"] = decision.reason
+    # `queued` + `recovery_next` is the ESTABLISHED re-dispatch pattern (`requeue_interrupted`),
+    # consumed by both hosts' `run_queue`. NO second dispatch path is invented.
+    item["requeue_from_status"] = status
+    item["status"] = "queued"
+    item["recovery_next"] = True
+    record_refusal(
+        item,
+        code="zero-work-retry",
+        reason=decision.reason,
+        remedy=zero_work_retry_remedy(
+            host_labels, str(item.get("id6") or "?"), retry=True
+        ),
+    )
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "zero-work-retry",
+            "id6": item.get("id6", ""),
+            "attempt": attempt_no,
+            "from_status": status,
+            "reason": decision.reason,
+            "facts": dict(verdict.facts),
+            "retry_attempts_used": decision.attempts + 1,
+            "retry_budget": decision.budget,
+            "budget_remaining": max(0, decision.budget - (decision.attempts + 1)),
+            "host_truncation": verdict.truncated,
+        },
+    )
+    print(
+        pal(
+            f"  -> IPD {item.get('id6', '?')} provably attempted nothing (no outcome, no commit, "
+            f"clean tree); re-dispatching instead of blocking its Set "
+            f"(zero-work retry {decision.attempts + 1} of {decision.budget})",
+            "cyan",
+        ),
+        file=sys.stderr,
+    )
+    return "queued"
+
+
+def render_zero_work_notes(state: Mapping[str, Any]) -> list[str]:
+    """The zero-work section of the run report: every retry spent, and every refusal's REASON.
+
+    REQUIRED RATHER THAN SYMMETRY (`dy9ymn` OQ-03, resolved): a predicate this strict will refuse in
+    cases a human believes it should have fired, and the only way to tell "too strict" from "correctly
+    cautious" is to see WHICH condition failed. Returns [] when nothing applies, so an unaffected
+    run's report is byte-identical to before."""
+
+    retried: list[dict[str, Any]] = []
+    refused: list[dict[str, Any]] = []
+    for item in state.get("queue", []) or []:
+        if not isinstance(item, Mapping):
+            continue
+        record = item.get(ZERO_WORK_RETRY_KEY)
+        if isinstance(record, Mapping):
+            retried.append({"item": item, "record": record})
+        refusal = item.get(ZERO_WORK_REFUSAL_KEY)
+        if isinstance(refusal, Mapping):
+            refused.append({"item": item, "record": refusal})
+    if not retried and not refused:
+        return []
+    lines = ["", "## Zero-work turns (attempted nothing)", ""]
+    for entry in retried:
+        item = entry["item"]
+        record = entry["record"]
+        lines.append(
+            f"- `{item.get('id6', '?')}` RE-DISPATCHED (zero-work retry "
+            f"{record.get('retries_used')} of {record.get('retry_budget')}): "
+            f"{record.get('reason')}"
+        )
+    for entry in refused:
+        item = entry["item"]
+        record = entry["record"]
+        label = "budget exhausted" if record.get("exhausted") else "not retried"
+        lines.append(
+            f"- `{item.get('id6', '?')}` {label} (status `{item.get('status')}`): "
+            f"{record.get('reason')}"
+        )
+    return lines
+
+
+# ==================================================================================================
 # integpath-03 (`51vw4y`): THE INTEGRATION DEFERRAL LADDER
 # ==================================================================================================
 #
@@ -21067,6 +21750,11 @@ def write_report(
     # disagree about which items are waiting, which is the same reason `format_preserved_lanes` below
     # is shared, and it returns [] when nothing waited so an unaffected report is byte-identical.
     lines.extend(render_transient_dependency_waits(state))
+    # reaskscore-03 (`dy9ymn`) E-05: a zero-work RETRY spends money and a zero-work REFUSAL is the only
+    # way to tell "the predicate is too strict" from "it was correctly cautious", so BOTH are named in
+    # the report a human actually reads rather than only in events.jsonl. Returns [] when neither
+    # happened, so an unaffected run's report is byte-identical to before.
+    lines.extend(render_zero_work_notes(state))
     # lanectn xdr83v E-03 (spec R5.6a): NAME EVERY PRESERVED LANE AND ITS REASON IN THE SUMMARY A HUMAN
     # READS, not only in events.jsonl. Measured basis for making this a requirement rather than polish:
     # run `run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times here, five
