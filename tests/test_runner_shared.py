@@ -147,8 +147,18 @@ RELOCATED_RUN_CHECKED_CALLERS: dict[str, int] = {
 # dirtygates-03 (`9iq461`): `collect_lane_earned_paths` makes ONE call (`git diff --name-only` over
 # the lane branch's `base..branch` range). It is defined in this module from the start precisely so
 # BOTH hosts reach it here instead of one importing it from the other (backlog `cnwy8g`).
+# runconcur-01 (`vddpml`): `_resolved_main_tip` makes ONE call (`git rev-parse HEAD`), and it exists so
+# that `main`'s tip is read INSIDE the repository integration lock rather than before acquiring it (a tip
+# read while waiting is exactly the stale read that plan exists to stop). Natively shared: it was never a
+# call site in either runner, and both hosts reach it through the one shared serializer.
+#
+# IT TAKES `run_checked` AS AN INJECTED PARAMETER rather than reaching `_run_git` directly, for the
+# reason this table's own message states: rewriting a `run_checked` caller onto `_run_git` would be a
+# BEHAVIOR CHANGE. It falls back to `_run_git` only when no runner injected one (the out-of-band verb
+# path, which has no host `run_checked` to pass), and the tip is a RECORD rather than a gate either way.
 NATIVE_SHARED_RUN_CHECKED_CALLERS: dict[str, int] = {
     "collect_lane_earned_paths": 1,
+    "_resolved_main_tip": 1,
 }
 
 #: Every shared function that calls `run_checked`, however it arrived. The injection test reads this.

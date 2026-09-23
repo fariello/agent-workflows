@@ -152,7 +152,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Container, Mapping, MutableMapping, Sequence
+from collections.abc import Container, Iterator, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import (
     Any,
@@ -2897,6 +2897,666 @@ def build_lane_outcome(
     )
 
 
+# ---- runconcur: the REPOSITORY-scoped concurrency question -----------------------------------------
+#
+# runconcur Order 01 (`vddpml`). WHAT THIS SECTION EXISTS FOR, measured rather than reasoned. On
+# 2026-09-22 two unattended drivers ran in ONE working tree for hours, each integrating verified lanes
+# to `main`. Nothing arbitrated between them, and the cost was paid twice in one session: while a human
+# hand-integrated the first run's stranded lanes, the second driver advanced `main` by five commits
+# (landing `fduoj4`), invalidating an ALREADY-COMPLETED full-suite validation; after the rebuild it
+# landed `vhbvwz` and a prepared `--ff-only` publish refused with "Not possible to fast-forward",
+# forcing a third rebuild.
+#
+# THE HARM IS WASTED VALIDATION AND A REFUSED PUBLISH, NOT CORRUPTION, and stating that precisely is
+# what keeps this code honest. A stale merge CANNOT silently revert a peer's `pending/` -> `executed/`
+# transition: measured in three throwaway repositories, an editing stale side produces `CONFLICT
+# (modify/delete)` (or, under rename detection, `CONFLICT (content)`), and a non-editing stale side
+# leaves the plan in `executed/` because a side that changed nothing about a file cannot revert it. So
+# git already refuses loudly; what it does NOT do is stop the operator and machine time being spent on
+# a validation a peer is about to invalidate.
+#
+# WHY THE EXISTING LOCK DOES NOT COVER IT. Each run holds `driver.lock` in ITS OWN run directory, so
+# two runs are two different lock files and neither contends with the other: the lock makes a RUN
+# singular while leaving the REPOSITORY unprotected. This section adds the repository-scoped lock
+# beside it and changes nothing about the run-scoped one (spec `c4gd2h` R2 is untouched).
+#
+# POLICY B, resolved by the maintainer 2026-09-22: SERIALIZE THE INTEGRATION STEP, do not refuse a
+# start. Executing in parallel was never what caused harm; concurrent publishing was, and refusing a
+# start would have removed a working practice (two runs over disjoint Sets).
+
+#: The repository-scoped integration lock's file NAME, under the resolved runs root.
+#:
+#: DELIBERATELY NOT IN A RUN DIRECTORY, which is precisely the scoping defect this section exists to
+#: fix: a per-run path makes two runs hold two different locks. It sits at the runs root so every run
+#: in the checkout contends over ONE path, and it is resolved through :func:`runs_repo_root` so a lane
+#: worktree and the main checkout agree on it.
+INTEGRATION_LOCK_FILENAME = "integration.lock"
+
+#: WHERE THE HOLDER LINE LIVES, and it is deliberately NOT inside the lock file itself.
+#:
+#: MEASURED WHILE BUILDING THIS (2026-09-22), and the reason matters because the obvious design is
+#: wrong. `driver.lock` records `pid=<n>` INSIDE the lock file and gets away with it because exactly one
+#: process ever ACQUIRES it and every observer uses `platform_lock.probe_free`, which opens without
+#: `O_CREAT`/`O_TRUNC`. This lock is different in kind: MANY processes attempt to acquire it, and
+#: `filelock`'s POSIX backend opens with `O_CREAT | O_TRUNC`, so a FAILED acquire TRUNCATES the file and
+#: destroys the live holder's record - exactly the hazard `platform_lock`'s own docstring warns about for
+#: probes. Observed directly: a waiter reported "an unrecorded holder" one second after the holder wrote
+#: its line, because the waiter's own failed acquire had blanked it.
+#:
+#: So the record goes in a SIDECAR that `filelock` never opens. The sidecar is advisory diagnostics only;
+#: the authority on "is it held" remains the lock itself.
+INTEGRATION_LOCK_HOLDER_FILENAME = "integration.lock.holder"
+
+#: How long :func:`integration_lock` waits for a peer before giving up, in seconds.
+#:
+#: BOUNDED ON PURPOSE. `platform_lock`'s own docstring warns that "an accidental block would HANG a
+#: driver rather than fail it", and an integration runs a full suite, so an UNBOUNDED wait is
+#: indistinguishable from that hang and can silently consume a night. 30 minutes is chosen to exceed a
+#: normal suite-plus-merge integration comfortably while still expiring inside one operator's
+#: attention span; on expiry the caller DEFERS the integration (the lane is preserved and re-attempted)
+#: rather than failing it, because a lane failed on a lock timeout would discard a completed
+#: validation, which is the exact cost this section exists to avoid.
+INTEGRATION_LOCK_TIMEOUT_SECONDS = 1800.0
+
+#: How often the bounded wait reports that it is still waiting, in seconds. Progress output is required
+#: (V-03): a silent block is operationally identical to a hang, which is the failure mode of this
+#: design and the one the plan's approval gate names.
+INTEGRATION_LOCK_PROGRESS_SECONDS = 30.0
+
+#: :func:`peer_drivers`'s three-valued liveness vocabulary, mirroring `run_viewer`'s rather than
+#: inventing a second one. UNKNOWN is a REAL answer and must never be collapsed into NONE: failing to
+#: prove a holder is alive is not proof that it is dead.
+PEER_LIVE = "live"
+PEER_NONE = "none"
+PEER_UNKNOWN = "unknown"
+
+
+class PeerDriver(NamedTuple):
+    """One OTHER run in this repository whose `driver.lock` a live process holds (or may hold).
+
+    `state` is :data:`PEER_LIVE` or :data:`PEER_UNKNOWN`; a run proven to have NO holder is not a peer
+    and is never reported. `pid` and `selectors` are best-effort diagnostics read from the run's own
+    records, so a peer whose `state.json` is unreadable still reports its identity rather than being
+    dropped.
+    """
+
+    run_id: str
+    run_dir: Path
+    state: str
+    pid: int | None
+    selectors: tuple[str, ...]
+
+
+def runs_repo_root(repo: Path) -> Path:
+    """The repository root that OWNS the runs tree, resolved as `attention` already resolves it.
+
+    THE ONE RESOLVER, and using it is a correctness requirement rather than tidiness. A LANE WORKTREE
+    resolves :func:`state_root` to its OWN `.aw/records/runs`, which does not exist, so a bare
+    `run_viewer.discover_run_dirs(lane)` returns ZERO run directories: measured from lane `vddpml`,
+    `discover_run_dirs(Path("."))` returned 0 while the resolved root returned 246. Since every execute
+    item runs in a lane by default, a peer query built the obvious way would report NO PEER from
+    exactly the place the guard matters most, and the integration lock would be taken at two different
+    paths by the same repository's runs.
+
+    Delegates to `attention._resolve_runs_repo_root` rather than reimplementing it, so there is one
+    answer to this question in the package and not a third.
+    """
+
+    from agent_workflows import attention
+
+    return attention._resolve_runs_repo_root(Path(repo))
+
+
+def integration_lock_path(repo: Path) -> Path:
+    """The repository-scoped integration lock file for `repo`, resolved through :func:`runs_repo_root`.
+
+    ONE function, consumed by BOTH the driver's integration seam and the operator-facing
+    `aw integration-lock` verb. Two string literals that happen to agree today would let the two
+    mechanisms contend over nothing, which would make the verb theatre; a test pins that they derive
+    the path from this function.
+    """
+
+    return state_root(runs_repo_root(Path(repo))) / INTEGRATION_LOCK_FILENAME
+
+
+def peer_drivers(
+    repo: Path, *, exclude_run_dir: Path | None = None
+) -> list[PeerDriver]:
+    """Every OTHER run in this repository whose `driver.lock` is held, or unprobeable. READ-ONLY.
+
+    It creates, truncates and modifies NOTHING: the liveness answer comes from
+    `run_viewer.driver_holder_state`, which wraps `platform_lock.probe_free` (no `O_CREAT`, no
+    `O_TRUNC`), and the identity fields are read from files already on disk. That matters beyond
+    hygiene: the drivers record `pid=<n> started=<t>` INSIDE `driver.lock` for diagnostics, so a probe
+    that truncated would destroy a live driver's own record.
+
+    THE THREE-VALUED ANSWER IS PRESERVED. A run whose probe cannot be answered is reported with
+    `state=`:data:`PEER_UNKNOWN`, never as "no peer" and never as a confirmed peer. A run proven to
+    have no holder is omitted entirely, which is what makes a CRASHED run (a leftover lock file whose
+    holder is gone) report as no peer: the OS drops an `flock` when its holder dies, so the file alone
+    can never block this repository.
+
+    `exclude_run_dir` is THIS run's own directory, so a driver does not report itself as its own peer.
+    """
+
+    from agent_workflows import run_viewer
+
+    try:
+        root = runs_repo_root(Path(repo))
+        run_dirs = run_viewer.discover_run_dirs(root)
+    except Exception:
+        # An unreadable runs tree is not evidence of solitude, but it is also not a peer we can name.
+        # Returning empty here is the same conservative shape `get_active_runs_map` uses, and the
+        # caller never REFUSES on this query, so a failure costs a missing report line and never a run.
+        return []
+
+    mine = None
+    if exclude_run_dir is not None:
+        try:
+            mine = Path(exclude_run_dir).resolve()
+        except Exception:
+            mine = Path(exclude_run_dir)
+
+    peers: list[PeerDriver] = []
+    for run_dir in run_dirs:
+        try:
+            if mine is not None and run_dir.resolve() == mine:
+                continue
+        except Exception:
+            if mine is not None and str(run_dir) == str(mine):
+                continue
+        holder = run_viewer.driver_holder_state(run_dir)
+        if holder == run_viewer.HOLDER_NONE:
+            continue
+        state = PEER_LIVE if holder == run_viewer.HOLDER_LIVE else PEER_UNKNOWN
+        peers.append(
+            PeerDriver(
+                run_id=run_dir.name,
+                run_dir=run_dir,
+                state=state,
+                pid=_peer_pid(run_dir),
+                selectors=_peer_selectors(run_dir),
+            )
+        )
+    return peers
+
+
+def _peer_pid(run_dir: Path) -> int | None:
+    """The `pid=` a run recorded inside its own `driver.lock`, or None. Read-only, best-effort.
+
+    DIAGNOSTIC ONLY, never a liveness signal: a recorded PID can be REUSED by an unrelated process, so
+    `run_viewer.driver_holder_state`'s `flock` acquirability remains the authority (its docstring
+    records the same reasoning).
+    """
+
+    lock_path = Path(run_dir) / "driver.lock"
+    try:
+        text = lock_path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    match = re.search(r"pid=(\d+)", text)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _peer_selectors(run_dir: Path) -> tuple[str, ...]:
+    """The selectors a peer run froze, read from its `state.json`. Read-only, best-effort.
+
+    This is the fact the motivating incident could not get without opening both runs' `state.json` by
+    hand: knowing a peer exists is much less useful than knowing WHAT it is working on, because that is
+    what decides whether its queue overlaps yours.
+    """
+
+    try:
+        data = json.loads((Path(run_dir) / "state.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ()
+    selectors = data.get("selectors")
+    if not isinstance(selectors, list):
+        return ()
+    return tuple(str(s) for s in selectors if str(s).strip())
+
+
+def format_peer_driver_report(peers: "Sequence[PeerDriver]") -> list[str]:
+    """The operator-facing lines naming live/unprobeable peer drivers; `[]` when there are none.
+
+    UNKNOWN IS RENDERED DISTINCTLY FROM NONE, which is the whole reason the query is three-valued. "No
+    peer" prints nothing (there is nothing to say), while "I could not tell" prints a named line,
+    because those two states licence different operator decisions and rendering them identically is
+    what made the peer invisible in the first place.
+    """
+
+    if not peers:
+        return []
+    lines: list[str] = []
+    live = [p for p in peers if p.state == PEER_LIVE]
+    unknown = [p for p in peers if p.state == PEER_UNKNOWN]
+    for peer in live:
+        detail = ", ".join(peer.selectors) if peer.selectors else "selectors unrecorded"
+        pid = f"pid {peer.pid}" if peer.pid is not None else "pid unrecorded"
+        lines.append(
+            f"PEER DRIVER LIVE in this checkout: {peer.run_id} ({pid}) on: {detail}"
+        )
+    for peer in unknown:
+        detail = ", ".join(peer.selectors) if peer.selectors else "selectors unrecorded"
+        lines.append(
+            f"PEER DRIVER UNKNOWN (its driver.lock could not be probed, which is NOT proof it is "
+            f"absent): {peer.run_id} on: {detail}"
+        )
+    if live or unknown:
+        lines.append(
+            "Integration to main is serialized behind the repository integration lock "
+            f"({INTEGRATION_LOCK_FILENAME}); parallel EXECUTION is unaffected."
+        )
+    return lines
+
+
+class IntegrationLockOutcome(NamedTuple):
+    """What :func:`integration_lock` did: acquired, or waited out its bound and gave up.
+
+    `acquired=False` means the bounded wait EXPIRED, and the caller must DEFER (preserve the lane and
+    re-attempt) rather than fail it. `handle` is the held lock when acquired and None otherwise.
+    `waited_seconds` and `holder` are for the record, so an operator reading afterwards can see whether
+    a serialization actually cost anything.
+    """
+
+    acquired: bool
+    handle: Any
+    waited_seconds: float
+    holder: str
+    detail: str
+
+
+def integration_lock_holder_path(repo: Path) -> Path:
+    """The SIDECAR carrying the integration lock's holder line. See
+    :data:`INTEGRATION_LOCK_HOLDER_FILENAME` for why it is not the lock file itself."""
+
+    return integration_lock_path(repo).with_name(INTEGRATION_LOCK_HOLDER_FILENAME)
+
+
+def read_integration_lock_holder(repo: Path) -> str:
+    """WHO holds the integration lock right now, as recorded text; `""` when unrecorded.
+
+    Read-only and best-effort, and it never decides liveness: the recorded line is diagnostic exactly as
+    `driver.lock`'s `pid=` line is. A caller that needs "is it held" asks `platform_lock.probe_free`.
+
+    Reads the SIDECAR, never the lock file, because a competing FAILED `filelock` acquire truncates the
+    lock file and would blank the very record a waiter is trying to read (measured; see
+    :data:`INTEGRATION_LOCK_HOLDER_FILENAME`).
+    """
+
+    try:
+        text = integration_lock_holder_path(repo).read_text(
+            encoding="utf-8", errors="ignore"
+        )
+    except OSError:
+        return ""
+    return text.strip().splitlines()[0].strip() if text.strip() else ""
+
+
+@contextlib.contextmanager
+def integration_lock(
+    repo: Path,
+    *,
+    holder_label: str,
+    timeout: float | None = None,
+    progress: Callable[[str], None] | None = None,
+    sleep: Callable[[float], None] | None = None,
+    now: Callable[[], float] | None = None,
+) -> "Iterator[IntegrationLockOutcome]":
+    """Hold the REPOSITORY-scoped integration lock for the duration of the block, or report expiry.
+
+    POLICY B's mechanism (OQ-01, maintainer 2026-09-22). Two drivers may EXECUTE in parallel; they may
+    not PUBLISH concurrently. The lock is repository-scoped (see :data:`INTEGRATION_LOCK_FILENAME`), so
+    unlike `driver.lock` two runs in one checkout genuinely contend.
+
+    THE WAIT IS BOUNDED AND LOUD, and both properties are required rather than nice. `platform_lock`
+    reserves `blocking=True` to one caller because "an accidental block would HANG a driver rather than
+    fail it"; this function therefore does NOT use it. It polls a NON-BLOCKING acquire, reports progress
+    while waiting, and on expiry yields `acquired=False` so the caller can DEFER. That keeps
+    `platform_lock`'s sole-blocking-caller rule intact (nothing here passes `blocking=True`) while still
+    waiting, which is what policy B needs.
+
+    AN UNPROBEABLE PLATFORM MUST NOT REFUSE. There is no `probe_free` consultation on the acquire path
+    at all: the acquire itself either succeeds or reports busy, so a platform whose locks cannot be
+    PROBED is never made unstartable by this function. The peer REPORT (:func:`peer_drivers`) is where
+    the three-valued answer is surfaced, and it refuses nothing.
+
+    `sleep`/`now` are injected so a test can exercise the expiry arm deterministically without spending
+    the real timeout; production passes neither.
+    """
+
+    from agent_workflows import platform_lock
+
+    limit = (
+        INTEGRATION_LOCK_TIMEOUT_SECONDS
+        if timeout is None
+        else max(0.0, float(timeout))
+    )
+    _sleep = sleep if sleep is not None else time.sleep
+    _now = now if now is not None else time.monotonic
+    _say = progress if progress is not None else (lambda _message: None)
+
+    lock_path = integration_lock_path(repo)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+    started = _now()
+    last_report = started
+    holder = ""
+    handle = None
+    while True:
+        try:
+            handle = platform_lock.acquire(lock_path)
+            break
+        except platform_lock.LockBusy:
+            holder = read_integration_lock_holder(repo) or "an unrecorded holder"
+            elapsed = _now() - started
+            if elapsed >= limit:
+                detail = (
+                    f"the repository integration lock at {lock_path} is held by {holder}; waited "
+                    f"{elapsed:.0f}s (bound {limit:.0f}s) and gave up. The integration is DEFERRED "
+                    f"with its lane preserved, not failed."
+                )
+                _say(detail)
+                yield IntegrationLockOutcome(
+                    acquired=False,
+                    handle=None,
+                    waited_seconds=elapsed,
+                    holder=holder,
+                    detail=detail,
+                )
+                return
+            if (_now() - last_report) >= INTEGRATION_LOCK_PROGRESS_SECONDS:
+                last_report = _now()
+                _say(
+                    f"waiting for the repository integration lock held by {holder} "
+                    f"({elapsed:.0f}s of {limit:.0f}s)"
+                )
+            elif elapsed == 0.0:
+                _say(
+                    f"waiting for the repository integration lock held by {holder} "
+                    f"(bound {limit:.0f}s)"
+                )
+            _sleep(min(1.0, max(0.05, INTEGRATION_LOCK_PROGRESS_SECONDS / 30.0)))
+
+    waited = _now() - started
+    # THE HOLDER LINE GOES IN THE SIDECAR, not in the lock file. Writing it into the lock file was
+    # MEASURED to be useless: a competing failed `filelock` acquire opens with `O_TRUNC` and blanks it,
+    # so a waiter one second later reported "an unrecorded holder" while the holder was live. See
+    # `INTEGRATION_LOCK_HOLDER_FILENAME`. Written under the HELD lock, so two holders cannot interleave.
+    holder_file = integration_lock_holder_path(repo)
+    try:
+        holder_file.write_text(
+            f"{holder_label} pid={os.getpid()} started={utc_now()}\n", encoding="utf-8"
+        )
+    except OSError:
+        # Advisory only: failing to RECORD who holds the lock must never prevent HOLDING it, or a
+        # read-only records tree would make integration impossible rather than merely less diagnosable.
+        pass
+    try:
+        yield IntegrationLockOutcome(
+            acquired=True,
+            handle=handle,
+            waited_seconds=waited,
+            holder=holder,
+            detail=(
+                f"held the repository integration lock at {lock_path}"
+                + (f" after waiting {waited:.0f}s for {holder}" if holder else "")
+            ),
+        )
+    finally:
+        # THE LOCK FILE IS NEVER UNLINKED, and that is the opposite of what `driver.lock` does. The
+        # difference is not style, it is measured: unlinking a HELD `flock` path lets the NEXT process
+        # create a fresh inode at the same name and acquire it while the first holder still holds the
+        # orphaned one, so both believe they hold the lock. Reproduced directly with `filelock` 3.29.7
+        # (`race.lock`): a second acquire was correctly REFUSED before the unlink and SUCCEEDED after it,
+        # with the first holder still holding. That is a total mutual-exclusion failure, which for THIS
+        # lock means exactly the concurrent publish it exists to prevent.
+        #
+        # WHY `runner_shutdown.RunLockHandle` MAY unlink and this may not: `driver.lock` has exactly ONE
+        # acquirer (its own driver) and every other party merely PROBES it, so there is no second
+        # acquirer for a replaced inode to fool. This lock is contended by construction.
+        #
+        # SO WHAT DOES A CRASH LEAVE? Only the FILE, zero-length or carrying a stale sidecar line, and
+        # that CANNOT wedge the repository: the OS drops an `flock` when its holder dies, so the next
+        # acquire succeeds immediately. The sidecar is cleared here so a stale holder name does not
+        # outlive the hold; a crash leaves it stale, and the next holder overwrites it.
+        with contextlib.suppress(OSError):
+            integration_lock_holder_path(repo).unlink()
+        handle.release()
+
+
+INTEGRATION_LOCK_VERB_HELP = (
+    "Hold the repository integration lock while you publish to main by hand "
+    "(the SAME lock the drivers take, so a hand merge cannot race one)"
+)
+
+INTEGRATION_LOCK_VERB_DESCRIPTION = """Hold the repository integration lock around a command that publishes to `main`.
+
+WHAT IT IS FOR. `aw oc run` / `aw agy run` serialize their own publishes behind a repository-scoped
+lock, so two drivers in one checkout never merge to `main` at the same time. A HUMAN or a non-runner
+agent merging by hand holds nothing, so it can still race a live driver. That is not hypothetical: it
+is exactly what happened on 2026-09-22, when a hand integration and a driver each advanced `main`
+under the other, discarding two completed full-suite validations and refusing a prepared
+`--ff-only` publish. This verb puts the hand path on the same lock.
+
+HOW TO USE IT. Wrap the whole publish, not just the merge:
+
+    aw integration-lock -- git merge --ff-only aw/lane/abc123
+
+With no command it acquires, prints the resolved lock path, and releases immediately, which is only
+useful for checking that the lock is free. Use `--status` to ASK who holds it without taking it.
+
+WHAT IT GUARANTEES AND WHAT IT DOES NOT. It guarantees that anyone who USES it cannot publish
+concurrently with a driver or with another user of it. It cannot stop a raw `git merge` typed by
+someone who does not use it: this is a PROTOCOL backed by a real lock, not an enforcement boundary,
+and an enforcing `pre-merge-commit` hook is deliberately not part of it (it would also miss the
+driver's own fast-forward happy path, since that creates no commit for the hook to run on).
+"""
+
+#: The run-state option key carrying `--allow-concurrent-driver`'s justification. Empty or absent means
+#: NO consent, which is the serializing (safe) direction.
+CONCURRENT_DRIVER_CONSENT_KEY = "allow_concurrent_driver"
+
+
+def concurrent_driver_consent(state: "Mapping[str, Any] | None") -> str:
+    """The operator's recorded justification for permitting CONCURRENT integration, or `""`.
+
+    ONE reader, so the runners and the report cannot disagree about whether consent was given. The
+    value is the operator's TEXT, never a bool: a bare boolean would record that somebody clicked past
+    the gate and nothing about whether they should have, which is the same reasoning
+    `--allow-uncovered-orchestrator-work` is registered `kind="str"` for.
+    """
+
+    if not state:
+        return ""
+    options = state.get("options") or {}
+    return str(options.get(CONCURRENT_DRIVER_CONSENT_KEY) or "").strip()
+
+
+def integration_lock_holder_label(state: "Mapping[str, Any] | None") -> str:
+    """WHO to record as the integration lock's holder: the run id when known, else the process.
+
+    Recorded so a waiting peer's progress line can NAME the holder rather than saying "somebody", which
+    is the difference between a wait an operator can act on and one they can only stare at.
+    """
+
+    run_id = str((state or {}).get("run_id") or "").strip()
+    return f"run={run_id}" if run_id else "an unnamed driver"
+
+
+def integration_lock_progress_reporter() -> Callable[[str], None]:
+    """The default progress sink for the bounded wait: one prefixed line to stderr.
+
+    stderr rather than stdout because it is operational narration beside a run's output, and because
+    the runners' other gate narration already goes there.
+    """
+
+    def _report(message: str) -> None:
+        print(f"  [integration-lock] {message}", file=sys.stderr)
+
+    return _report
+
+
+def integrate_under_repository_lock(
+    repo: Path,
+    item: "MutableMapping[str, Any]",
+    handle: Any,
+    *,
+    state: "Mapping[str, Any] | None",
+    holder_label: str,
+    integrate: Callable[[Any, Any], tuple[bool, str, str]],
+    progress: Callable[[str], None] | None = None,
+    run_checked: Callable[..., str] | None = None,
+    timeout: float | None = None,
+    sleep: Callable[[float], None] | None = None,
+    now: Callable[[], float] | None = None,
+) -> tuple[bool, str, str]:
+    """Perform ONE integration attempt with the repository serialized against a peer driver.
+
+    THE ONE PLACE POLICY B IS ENFORCED, and every shared integration path routes through it: the
+    first-attempt publish in :func:`run_queue`, the deferral ladder's re-attempts in
+    :func:`reattempt_deferred_integrations`, and the out-of-band `integrate` verb through
+    :func:`reintegrate_lane`. `tests/test_concurrent_driver_guard.py` pins that no other site calls an
+    integration callable directly, which is what makes the guard unbypassable rather than merely
+    present. It is SHARED rather than per-host for the reason the whole `runner_shared` module exists:
+    a one-sided guard would leave `aw agy run` able to race `aw oc run`.
+
+    MAIN'S TIP IS RE-RESOLVED INSIDE THE LOCK, and reported. A tip read BEFORE acquiring is exactly the
+    stale read this exists to stop, and the whole attempt - the merge-and-revalidate gate AND the real
+    `git merge` - happens inside the held lock, so the tip the merge sees cannot move under it. The
+    re-resolved value is recorded on the item so a reader afterwards can see which base the publish
+    actually used.
+
+    EXPIRY DEFERS, IT DOES NOT FAIL. A bounded wait has two outcomes and the timeout arm is the one that
+    matters: it returns :data:`INTEGRATION_REFUSAL_TRANSIENT`, the kind
+    :func:`classify_integration_refusal` already treats as deferrable, so the lane is PRESERVED and
+    re-attempted. Failing the lane on a lock timeout would discard a completed validation, which is the
+    very cost this serialization exists to avoid.
+
+    CONSENT SKIPS THE LOCK AND IS RECORDED. With `--allow-concurrent-driver <justification>` the
+    attempt proceeds unserialized and the justification is written onto the item, so the run record
+    answers WHY the risk was accepted rather than merely that it was.
+
+    `sleep`/`now`/`run_checked` are injected so a test can exercise the expiry and tip-recording arms
+    deterministically; production passes the real ones (or nothing).
+    """
+
+    consent = concurrent_driver_consent(state)
+    _say = progress if progress is not None else (lambda _message: None)
+
+    if consent:
+        item["integration_serialization"] = {
+            "serialized": False,
+            "consent": consent,
+            "detail": (
+                "concurrent integration PERMITTED by --allow-concurrent-driver; the repository "
+                "integration lock was not taken"
+            ),
+        }
+        _say(
+            "concurrent integration permitted by --allow-concurrent-driver: " + consent
+        )
+        return integrate(item, handle)
+
+    with integration_lock(
+        repo,
+        holder_label=holder_label,
+        timeout=timeout,
+        progress=_say,
+        sleep=sleep,
+        now=now,
+    ) as lock_outcome:
+        if not lock_outcome.acquired:
+            item["integration_serialization"] = {
+                "serialized": True,
+                "acquired": False,
+                "holder": lock_outcome.holder,
+                "waited_seconds": round(lock_outcome.waited_seconds, 3),
+                "detail": lock_outcome.detail,
+            }
+            return (
+                False,
+                "integration deferred: " + lock_outcome.detail,
+                INTEGRATION_REFUSAL_TRANSIENT,
+            )
+        tip = _resolved_main_tip(repo, run_checked=run_checked)
+        item["integration_serialization"] = {
+            "serialized": True,
+            "acquired": True,
+            "holder": lock_outcome.holder,
+            "waited_seconds": round(lock_outcome.waited_seconds, 3),
+            "main_tip_in_lock": tip,
+            "detail": lock_outcome.detail,
+        }
+        if lock_outcome.waited_seconds > 0 and lock_outcome.holder:
+            _say(
+                "acquired the repository integration lock after waiting "
+                f"{lock_outcome.waited_seconds:.0f}s for {lock_outcome.holder}; main is at "
+                f"{tip or 'an unresolvable tip'}"
+            )
+        return integrate(item, handle)
+
+
+def describe_integration_lock_status(repo: Path) -> str:
+    """One line answering "who holds the repository integration lock right now?". READ-ONLY.
+
+    THREE-VALUED, PRESERVED, because the probe is: FREE, HELD (naming the holder), or UNKNOWN. Saying
+    FREE for an unanswerable probe would be a claim `platform_lock.probe_free` did not make, and the
+    driver never refuses on that answer either.
+
+    Used by `aw integration-lock --status`. The wait/acquire half of that verb lives at the CLI layer,
+    because a signal handler must be registered to release observably on interrupt and THIS MODULE MAY
+    NOT TOUCH `signal`: four executed plans' guards assert the seam imports no signal module at all
+    (`runner_stop` owns SIGINT/SIGTERM registration). The LOCK ITSELF is still shared - the verb calls
+    :func:`integration_lock` and :func:`integration_lock_path`, the very functions the drivers call - so
+    the two paths genuinely contend, which is the property that matters.
+    """
+
+    from agent_workflows import platform_lock
+
+    lock_path = integration_lock_path(repo)
+    free = platform_lock.probe_free(lock_path)
+    holder = read_integration_lock_holder(repo)
+    if free is True:
+        return f"integration lock FREE at {lock_path}"
+    if free is False:
+        return (
+            f"integration lock HELD at {lock_path} by "
+            f"{holder or 'an unrecorded holder'}"
+        )
+    return (
+        f"integration lock UNKNOWN at {lock_path} (this platform cannot probe a lock; that is NOT "
+        f"proof it is free)" + (f"; last recorded holder: {holder}" if holder else "")
+    )
+
+
+def _resolved_main_tip(repo: Path, *, run_checked: Callable[..., str] | None) -> str:
+    """`HEAD`'s commit in `repo`, resolved HERE so it is read INSIDE the integration lock; `""` if not.
+
+    Best-effort and never fatal: this value is a RECORD of which base the publish used, not a gate. The
+    gate on a contaminated or stale base is `integrate_lane_branch`'s and is not duplicated here.
+
+    `run_checked` IS KEYWORD-ONLY AND INJECTED, which is this module's standing contract for every
+    shared caller of it (`tests/test_runner_shared.py::WrapperTests` asserts both the census and the
+    keyword-only form, so a caller closing over a global would fail). It falls back to `_run_git` ONLY
+    when no runner injected one, which is the out-of-band `integrate` verb's case: that path has no host
+    `run_checked` to pass, and the value is a record rather than a gate either way.
+    """
+
+    try:
+        if run_checked is not None:
+            return str(run_checked(["git", "rev-parse", "HEAD"], cwd=repo)).strip()
+        _rc, out, _err = _run_git(repo, ["rev-parse", "HEAD"])
+        return out.strip()
+    except Exception:
+        return ""
+
+
 #: dirtygates Order 05 (`ajxr5d`) E-03, OQ-01 (resolved by the maintainer: WIDEN the shared function
 #: rather than fork a second merge path). THE ACTION KIND vocabulary `integrate_lane_branch` accepts.
 #:
@@ -5142,7 +5802,18 @@ def reattempt_deferred_integrations(
                 },
             )
 
-        integrated, reason, kind = do_integrate(item, handle)
+        # runconcur-01 (`vddpml`) E-03: EVERY re-attempt publishes behind the repository integration
+        # lock, exactly as the first attempt does. A ladder that skipped it would leave the measured
+        # race wide open on the retry path, which is where a lane that already lost one race lands.
+        integrated, reason, kind = integrate_under_repository_lock(
+            repo,
+            item,
+            handle,
+            state=state,
+            holder_label=integration_lock_holder_label(state),
+            integrate=do_integrate,
+            progress=integration_lock_progress_reporter(),
+        )
         if integrated:
             do_finish(item, handle, reason)
             records.append(
@@ -5182,7 +5853,17 @@ def reattempt_deferred_integrations(
                 # One more attempt, still through the full gate and still through the ACTION-CORRECT
                 # adapter. It does NOT reopen the budget: on refusal the decision below re-derives from
                 # the same exhausted count and goes terminal.
-                integrated, reason, kind = do_integrate(item, handle)
+                # runconcur-01 (`vddpml`) E-03: and still behind the repository integration lock. An
+                # operator-approved retry is not a reason to publish concurrently with a peer.
+                integrated, reason, kind = integrate_under_repository_lock(
+                    repo,
+                    item,
+                    handle,
+                    state=state,
+                    holder_label=integration_lock_holder_label(state),
+                    integrate=do_integrate,
+                    progress=integration_lock_progress_reporter(),
+                )
                 if integrated:
                     do_finish(item, handle, reason)
                     records.append(
@@ -5765,8 +6446,23 @@ def reintegrate_lane(
         return bool(getattr(result, "passing", False))
 
     try:
-        integrated, reason, kind = integrate(
-            repo, handle, candidate.id6, _validation_runner
+        # runconcur-01 (`vddpml`) E-03: the OUT-OF-BAND route publishes behind the SAME repository
+        # integration lock the in-run path takes. This is the path `aw <host> integrate <id6>` and a
+        # `--retry-incomplete` resume reach, and it is precisely the shape of the measured incident (a
+        # hand-invoked recovery racing a live driver's publish), so leaving it unserialized would leave
+        # the motivating case unfixed. `state=None`: this route has no frozen run options, so it can
+        # carry no `--allow-concurrent-driver` consent and therefore always serializes.
+        serialization: dict[str, Any] = {}
+        integrated, reason, kind = integrate_under_repository_lock(
+            repo,
+            serialization,
+            handle,
+            state=None,
+            holder_label=f"integrate-verb pid={os.getpid()}",
+            integrate=lambda _item, _handle: integrate(
+                repo, _handle, candidate.id6, _validation_runner
+            ),
+            progress=integration_lock_progress_reporter(),
         )
     except Exception as exc:  # noqa: BLE001
         # DELIBERATE blind catch: an exception from git or from the suite must be an honest REFUSAL
@@ -7973,6 +8669,33 @@ RUN_POLICY_FLAGS: tuple = (
             "runner retires an orchestrator without the pre-transition E/V checkpoint). The "
             "non-destructive fix is to ADD A CHILD that owns the work, never to delete the parent's "
             "checklist. It waives no other gate"
+        ),
+    ),
+    # runconcur-01 (`vddpml`) E-04: the integration-serialization ESCAPE HATCH. Spec `25kzda` 2.1 is
+    # amended in the SAME change that registers it, because `tests/test_run_flag_surface.py` reads that
+    # section as a FILE in BOTH directions and a row here the spec does not declare fails the suite
+    # (proven at review by construction: injecting one undeclared flag turned
+    # `test_the_spec_and_the_owned_table_agree_in_both_directions` RED).
+    #
+    # IT TAKES A JUSTIFICATION, the table's second `"str"` row, for the same reason
+    # `--allow-uncovered-orchestrator-work` does: the risk it accepts is that two drivers publish to
+    # `main` concurrently, which measurably wasted two full-suite validations and a prepared `--ff-only`
+    # publish on 2026-09-22, so the record must say WHY that was accepted and not merely that somebody
+    # accepted it. argparse requiring an argument is what makes the recorded justification unavoidable.
+    RunPolicyFlag(
+        flag="--allow-concurrent-driver",
+        dest="allow_concurrent_driver",
+        kind="str",
+        implemented=True,
+        owner="runner_shared.integrate_under_repository_lock",
+        help=(
+            "Permit this run to integrate to main WITHOUT taking the repository integration lock, "
+            "and RECORD THE SUPPLIED JUSTIFICATION for having done so. Takes a reason string; it "
+            "cannot be passed bare, because the risk accepted is that a peer driver advances main "
+            "between this run's validation and its publish, which discards a completed full-suite "
+            "validation and can refuse a prepared fast-forward. WITHOUT it, integration WAITS for a "
+            "peer (bounded, naming the holder) and DEFERS on expiry with the lane preserved; "
+            "parallel EXECUTION is never serialized either way. It waives no other gate"
         ),
     ),
     RunPolicyFlag(
@@ -21583,8 +22306,24 @@ def execute_item_core(
                     )
                 save_state(run_dir, state)
 
+            # runconcur-01 (`vddpml`) E-03: a REVIEW's publish is serialized too. It skips the
+            # revalidation gate (a review produces nothing to revalidate), but it still runs a real
+            # `git merge` onto `main`, which is the only thing this lock arbitrates over. Leaving it
+            # unserialized would let a review sweep advance main under an executing peer's validation,
+            # which is the same measured harm with a cheaper turn behind it.
             review_integrated, review_reason, review_kind = (
-                integrate_review_lane_branch(repo, wt_handle, item["id6"])
+                integrate_under_repository_lock(
+                    repo,
+                    item,
+                    wt_handle,
+                    state=state,
+                    holder_label=integration_lock_holder_label(state),
+                    integrate=lambda _item, _handle: integrate_review_lane_branch(
+                        repo, _handle, _item["id6"]
+                    ),
+                    progress=integration_lock_progress_reporter(),
+                    run_checked=globals()["run_checked"],
+                )
             )
             attempt["review_integrated"] = review_integrated
             attempt["review_integration_reason"] = review_reason
@@ -21726,20 +22465,41 @@ def execute_item_core(
                     val_runner = make_integration_validation_runner(
                         state, run_dir, item, suite_check=run_suite_check
                     )
-                    try:
-                        integrated, integ_reason, integ_kind = integrate_lane_branch(
-                            repo, wt_handle, item["id6"], val_runner
-                        )
-                    except TypeError:
-                        integrated, integ_reason, integ_kind = integrate_lane_branch(
+
+                    # runconcur-01 (`vddpml`) E-03: THE FIRST-ATTEMPT PUBLISH, serialized behind the
+                    # repository integration lock. This is the site that produced the measured harm on
+                    # 2026-09-22: a peer driver advanced `main` between one run's completed validation
+                    # and its publish, twice. The gate and the real `git merge` both run INSIDE the
+                    # held lock, and main's tip is re-resolved there, so the tip the merge sees cannot
+                    # move under it.
+                    def _publish(_item: Any, _handle: Any) -> tuple[bool, str, str]:
+                        try:
+                            return integrate_lane_branch(
+                                repo, _handle, _item["id6"], val_runner
+                            )
+                        except TypeError:
+                            return integrate_lane_branch(
+                                repo,
+                                _handle,
+                                _item["id6"],
+                                val_runner,
+                                host_label=host_labels.command,
+                                run_checked=globals()["run_checked"],
+                                action_kind="execute",
+                            )
+
+                    integrated, integ_reason, integ_kind = (
+                        integrate_under_repository_lock(
                             repo,
+                            item,
                             wt_handle,
-                            item["id6"],
-                            val_runner,
-                            host_label=host_labels.command,
+                            state=state,
+                            holder_label=integration_lock_holder_label(state),
+                            integrate=_publish,
+                            progress=integration_lock_progress_reporter(),
                             run_checked=globals()["run_checked"],
-                            action_kind="execute",
                         )
+                    )
                     if not integrated:
                         with contextlib.suppress(Exception):
                             item["integration_changed_files"] = list(

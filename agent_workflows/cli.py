@@ -71,6 +71,25 @@ _DESCRIPTIONS = {
         "`source <(aw completion bash)`. Static generation only; dynamic id/enum completion and "
         "drop-in install arrive in later tabcomp children."
     ),
+    # runconcur-01 (`vddpml`) E-07, OQ-04 option (ii). The verb exists because a driver-side lock does
+    # not touch the hand path, and the incident that motivated it WAS a hand integration racing a
+    # driver. Its honest limit is stated in the text rather than left for a reader to discover: it binds
+    # whoever uses it, and a raw `git merge` typed by someone who does not is unaffected.
+    "integration-lock": (
+        "Hold the REPOSITORY integration lock around a command that publishes to main, so a hand "
+        "merge cannot race a driver's publish. It is the SAME lock `aw oc run` / `aw agy run` take "
+        "before integrating a verified lane, resolved through the same function, so the two "
+        "genuinely contend. Wrap the whole publish: `aw integration-lock -- git merge --ff-only "
+        "aw/lane/<id6>`. A live holder makes this WAIT, naming the holder and reporting progress, up "
+        "to a bounded timeout after which it gives up and exits 1 without merging anything. "
+        "`--status` asks who holds it and acquires nothing; it answers FREE, HELD, or UNKNOWN, and "
+        "UNKNOWN means this platform cannot probe a lock rather than that the lock is free. HONEST "
+        "LIMIT: this is a PROTOCOL backed by a real lock, not an enforcement boundary. It binds "
+        "whoever uses it; it cannot stop a raw `git merge` typed by someone who does not. Publishing "
+        "with `--ff-only` is a useful backstop because a diverged tip then refuses instead of "
+        "merging, but it is NOT a substitute for holding the lock: it is blind to a peer that "
+        "advanced main in a way your branch can still fast-forward over."
+    ),
     "install": (
         "Install or update the agent-workflows framework in one or more target repos "
         "(idempotent: safe to re-run). With no target, acts on the current directory; "
@@ -1105,6 +1124,41 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser(
         "status", parents=[common], help="Show environment + currency summary."
+    )
+
+    # runconcur-01 (`vddpml`) E-07, OQ-04 option (ii): the repository integration lock, made reachable
+    # by a HUMAN or a non-runner agent publishing to `main` by hand. Declared at the `aw` layer rather
+    # than under a host noun deliberately: the lock is a REPOSITORY fact and the actor it exists for has
+    # no host at all, so putting it under `aw oc`/`aw agy` would make a host-neutral protocol look like
+    # a driver detail and force a hand integrator to pick an arbitrary host.
+    p_integ_lock = sub.add_parser(
+        "integration-lock",
+        parents=[common],
+        help="Hold the repository integration lock while publishing to main by hand (the SAME lock the drivers take).",
+        description=_DESCRIPTIONS["integration-lock"],
+    )
+    p_integ_lock.add_argument(
+        "--status",
+        action="store_true",
+        help="Report who holds the lock and exit WITHOUT acquiring it (read-only).",
+    )
+    p_integ_lock.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_integ_lock.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Seconds to wait for a holder before giving up (default: the shared bound).",
+    )
+    # `dest="locked_command"` and NOT `command`: the top-level subparsers action already owns `command`
+    # on the namespace, so a positional of that name SILENTLY OVERWRITES the resolved subcommand with
+    # the REMAINDER list, and dispatch then falls through to top-level help. Measured while building
+    # this verb; the failure is invisible (exit 2 plus a help page, no error naming the collision).
+    p_integ_lock.add_argument(
+        "locked_command",
+        nargs=argparse.REMAINDER,
+        help="The command to run while holding the lock, after `--` (e.g. -- git merge --ff-only <branch>).",
     )
 
     # awuntrackedfix Order 01: rename local/ quarantine lanes to untracked/ (retroactive, tools-free).
@@ -12944,6 +12998,90 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_include(args, term)
     if args.command == "status":
         return _run_status(args, term, context=context)
+
+    # runconcur-01 (`vddpml`) E-07: the hand-integration side of policy B.
+    #
+    # THE SIGNAL HANDLING LIVES HERE AND NOT IN `runner_shared`, and that placement is a shipped
+    # constraint rather than a preference: four executed plans' guards assert `runner_shared` imports no
+    # `signal` module at all, because `runner_stop` owns SIGINT/SIGTERM registration. The LOCK is still
+    # entirely shared - `integration_lock` and `integration_lock_path` are the very functions the
+    # drivers call - so the hand path and the driver path contend over ONE lock file derived from ONE
+    # resolver, which is the property that makes this verb real instead of theatre.
+    if args.command == "integration-lock":
+        import contextlib as _contextlib
+        import os as _os
+        import signal as _signal
+        import subprocess as _subprocess
+
+        from agent_workflows import runner_shared as _rs
+
+        repo_root = Path(getattr(args, "dir", None) or _os.getcwd())
+        if getattr(args, "status", False):
+            print(_rs.describe_integration_lock_status(repo_root))
+            return 0
+
+        forwarded = [
+            a for a in (getattr(args, "locked_command", None) or []) if a != "--"
+        ]
+        lock_path = _rs.integration_lock_path(repo_root)
+        with _rs.integration_lock(
+            repo_root,
+            # `integration_lock` appends `pid=<n> started=<t>` itself, so the label carries only WHO.
+            holder_label="aw integration-lock",
+            timeout=getattr(args, "timeout", None),
+            progress=lambda message: print(
+                f"aw integration-lock: {message}", file=sys.stderr
+            ),
+        ) as outcome:
+            if not outcome.acquired:
+                print(f"aw integration-lock: {outcome.detail}", file=sys.stderr)
+                return 1
+            print(f"aw integration-lock: holding {lock_path}", file=sys.stderr)
+            if not forwarded:
+                return 0
+            dropped = {"done": False}
+
+            def _drop_lock_on_signal(signum, _frame):
+                """Release OBSERVABLY on interrupt, then take the default disposition.
+
+                A hand integration is the invocation most likely to be interrupted (the motivating
+                incident involved a signal-stopped run), so the lock is dropped rather than left to
+                process teardown. Idempotent, so this and the contextmanager's own `finally` cannot
+                double-release.
+
+                WHAT THE OS ALREADY DOES: it drops an `flock` when the holder dies, so a killed process
+                never strands the LOCK itself. What a kill can strand is the HOLDER SIDECAR's stale line,
+                which is what is cleared here.
+
+                IT DOES NOT UNLINK THE LOCK FILE, for the measured reason `integration_lock`'s own
+                release path records: removing a HELD lock path lets the next process acquire a fresh
+                inode at the same name while an existing holder still holds the old one, which is a
+                mutual-exclusion failure and exactly the concurrent publish this lock prevents.
+                """
+                if not dropped["done"]:
+                    dropped["done"] = True
+                    with _contextlib.suppress(Exception):
+                        print(
+                            f"aw integration-lock: releasing {lock_path} on signal {signum}",
+                            file=sys.stderr,
+                        )
+                    with _contextlib.suppress(OSError):
+                        _rs.integration_lock_holder_path(repo_root).unlink()
+                    with _contextlib.suppress(Exception):
+                        outcome.handle.release()
+                _signal.signal(signum, _signal.SIG_DFL)
+                _os.kill(_os.getpid(), signum)
+
+            restore = {}
+            for _sig in (_signal.SIGINT, _signal.SIGTERM):
+                with _contextlib.suppress(Exception):
+                    restore[_sig] = _signal.signal(_sig, _drop_lock_on_signal)
+            try:
+                return int(_subprocess.run(forwarded, cwd=str(repo_root)).returncode)
+            finally:
+                for _sig, _handler in restore.items():
+                    with _contextlib.suppress(Exception):
+                        _signal.signal(_sig, _handler)
 
     if args.command == "normalize-lanes":
         import os as _os

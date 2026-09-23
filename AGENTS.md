@@ -58,6 +58,20 @@ Path-scoping the command is NOT by itself sufficient: `git commit -- <paths>` st
 
 RE-VERIFY AFTER A FAILED RAW COMMIT. When you commit with raw `git commit`, `pre-commit` stashes unstaged changes and restores them when a hook rejects the commit, and that restore can leave paths you never staged sitting in the index. So a hook failure INVALIDATES the check you did before it: re-run `git diff --cached --name-only` after EVERY failed raw commit attempt, before retrying. A MUTATING hook (whitespace or eof fixer, formatter) also REWRITES your file and then rejects, so your retry must re-stage the rewritten path. Never 'fix' a polluted index with a bare `git reset` or `git stash` (that discards or unstages a co-worker's work); unstage precisely, path by path, with `git restore --staged <path>`.
 
+### Before you publish to main by hand, hold the integration lock
+A driver in this checkout serializes its own publishes to `main` behind a repository-scoped integration lock, so two drivers never merge at the same time. You hold nothing, so a hand merge can still race one. That is not hypothetical: it was measured on 2026-09-22, when a hand integration and a live driver each advanced `main` under the other, discarding two completed full-suite validations and refusing a prepared fast-forward publish.
+
+So, before you touch `main`:
+
+```sh
+aw integration-lock --status                 # who holds it right now (read-only, acquires nothing)
+aw integration-lock -- git merge --ff-only <branch>   # hold it across the WHOLE publish
+```
+
+Wrap the whole publish, not just the merge, and re-read `main`'s tip INSIDE the lock rather than before acquiring it: a tip you read while waiting is exactly the stale read this exists to prevent. A live holder makes the command WAIT and name the holder, and it gives up (exit 1, nothing merged) rather than waiting forever.
+
+THIS IS A PROTOCOL, NOT AN ENFORCEMENT BOUNDARY, and the distinction decides what you may trust. The lock is real and it binds every party that USES it; it cannot stop a raw `git merge` typed by someone who does not. A merge-blocking git hook is DELIBERATELY not part of this: it would be local-only and skippable, and it would also miss the driver's own happy path, because a fast-forward creates no commit for such a hook to run on. Publishing with `--ff-only` is a useful BACKSTOP, since a diverged tip then refuses instead of merging, but it is NOT a substitute for holding the lock: it is blind to a peer that advanced `main` in a way your branch can still fast-forward over. Hold the lock; let `--ff-only` catch what the lock cannot.
+
 USE THE TOOLED COMMIT PATH. You MUST commit through `aw commit`, not raw `git commit`. It snapshots the index BEFORE staging, stages only your explicit paths, commits only the intersection of those paths with what it itself staged, and on any failure resets ONLY its own paths, so a co-worker's restored path can never enter your commit. When a MUTATING hook rewrites one of your own paths and rejects, it re-stages that path and retries ONCE, so whitespace or format churn costs you no round trip and no re-verify. If no form of `aw commit` fits your case, you MUST say so explicitly in your report, naming what you ran and why, and re-verify the staged set as above.
 
 ### Agent execution contract

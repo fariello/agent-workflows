@@ -290,6 +290,29 @@ from agent_workflows.runner_shared import (
     format_slated_artifacts_table as format_slated_artifacts_table,
 )
 
+# runconcur-01 (`vddpml`) E-01/E-02/E-05: the REPOSITORY-scoped concurrency layer. Bound in the
+# `as <same-name>` re-export form, so these ARE the shared objects (object identity holds, and
+# `tests/test_concurrent_driver_guard.py` asserts it) rather than per-host wrappers. A one-sided guard
+# would leave `aw agy run` able to race `aw oc run`, which is precisely the failure being fixed.
+from agent_workflows.runner_shared import (
+    peer_drivers as peer_drivers,
+)
+from agent_workflows.runner_shared import (
+    format_peer_driver_report as format_peer_driver_report,
+)
+from agent_workflows.runner_shared import (
+    integration_lock as integration_lock,
+)
+from agent_workflows.runner_shared import (
+    integration_lock_path as integration_lock_path,
+)
+from agent_workflows.runner_shared import (
+    integrate_under_repository_lock as integrate_under_repository_lock,
+)
+from agent_workflows.runner_shared import (
+    runs_repo_root as runs_repo_root,
+)
+
 # retrywire (`xipfy1`) E-07: the TURN-FAILURE CORRECTION layer, bound in the same `as <same-name>`
 # form and pinned by OBJECT IDENTITY in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`. Bound
 # here rather than reached as `runner_shared.<name>` at the call site because that table's identity
@@ -4837,6 +4860,45 @@ def announce_run_order(
         # it from this single edit (`agy_runipd` imports and calls this very object).
         for line in format_spec_impact_failure(exc, pal=pal):
             print(line, file=out)
+    # runconcur-01 (`vddpml`) E-02: SURFACE A PEER DRIVER before anything is dispatched. Measured on
+    # 2026-09-22: two unattended drivers ran in one checkout for hours and NOTHING in any command's
+    # output revealed the second one, so deciding what was safe to merge required reading both runs'
+    # `state.json` by hand. Reported from the shared function, so both hosts get it from one edit.
+    #
+    # UNKNOWN IS RENDERED DISTINCTLY FROM NONE (`format_peer_driver_report`): no peer prints nothing,
+    # an unprobeable one prints a named line. It REFUSES NOTHING - policy B serializes the integration
+    # step instead - so an advisory failure here must never stop a run, hence the catch.
+    try:
+        _peers = peer_drivers(Path(state["repo"]), exclude_run_dir=run_dir)
+        _peer_lines = format_peer_driver_report(_peers)
+        if _peer_lines:
+            print(file=out)
+            for line in _peer_lines:
+                print(pal(line, "yellow"), file=out)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "peer-drivers",
+                "run_id": state.get("run_id"),
+                "peers": [
+                    {
+                        "run_id": p.run_id,
+                        "state": p.state,
+                        "pid": p.pid,
+                        "selectors": list(p.selectors),
+                    }
+                    for p in _peers
+                ],
+            },
+        )
+    except Exception as exc:
+        # Named rather than silent, for the reason the spec-impact announcer above records: "no peer"
+        # and "the peer query crashed" must not render identically.
+        print(
+            pal(f"  ! the peer-driver query could not be computed: {exc}", "yellow"),
+            file=out,
+        )
     try:
         from agent_workflows import term as T
 

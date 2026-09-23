@@ -237,6 +237,21 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent", "--include-untracked", "--include-executed", "--all"),
         exit_contract=(0, 1, 2),
     ),
+    # runconcur-01 (`vddpml`) E-07: the repository integration lock, reachable by a human or a
+    # non-runner agent. Declared a MUTATION rather than a read: with a wrapped command it runs that
+    # command (typically a `git merge` onto main), so classing it read-only would be false even though
+    # the lock itself writes only a holder line. `--status` is the read-only half and acquires nothing.
+    # `exit_contract` includes 1 for the bounded-wait expiry, which merges nothing.
+    CommandDeclaration(
+        command="integration-lock",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
     # worksequence i6015i E-01/E-04: the canonical cross-tree view. Renamed from `attention` (kept as
     # an alias above, together with `att` and `todo`) and given `--order-by`, which is what makes the
     # name `next` true rather than aspirational.
