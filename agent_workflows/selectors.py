@@ -8,27 +8,38 @@ so the SAME selector resolves to the SAME file for every verb (or yields one uni
 ambiguous-match result). Per the orchestrator's module-placement principle, this resolver MAY import
 the Order 01 naming authority (for bare-stem parsing); the naming authority never imports this.
 
-FRONT-MATTER DIALECT: WHY THE RESEARCH INDEX IS DELIBERATELY NOT WIRED IN HERE (IPD e32j35 E-06).
-Two of the ten artifact types ship a generated manifest (`plans/INDEX.json`, `research/INDEX.json`)
-whose columns look like exactly what the id6/setid/status rules need. For RESEARCH that appearance
-is false, and reading it would CHANGE what `aw find research` matches:
+FRONT-MATTER DIALECT: THE CONTENT READERS SPEAK BOTH DIALECTS, BULLET FIRST (IPD `xo3244`, which
+REVERSED the deliberate exclusion IPD e32j35 E-06 had documented here). The corpus holds two
+declaration shapes, and the id6/setid/status rules now read either:
 
-  * this resolver only understands the BULLET dialect (`- Id:`, `- Status:`, `- Set:`), which is what
-    plans, specs, backlog and the rest use;
-  * research docs use YAML front matter instead (`id:`, `status:`, `set:` between `---` fences,
-    parsed by `research_contract.parse_frontmatter` via `research_index._scan_docs`);
-  * measured 2026-09-01: 0 of 103 research files carry a `- Id:` bullet while 101 carry a YAML `id:`.
-    So `aw find research <id6>` does NOT resolve via MATCH_ID6 today - it succeeds only because the
-    id6 also appears in the FILENAME, i.e. via MATCH_SUBSTRING;
-  * consequently a status query is filename-shaped too: `aw find research reference` matches 5 files
-    by filename, whereas `research/INDEX.json` holds 52 entries with `status: reference`. Feeding the
-    index into these rules would turn that 5 into 52.
+  * BULLET front matter (`- Id:`, `- Status:`, `- Set:`), used by plans, specs, backlog, releases,
+    reviews, prompts and walkthroughs; matched by `_ID_RE`/`_STATUS_RE`/`_SET_RE`;
+  * YAML front matter (`id:`, `status:`, `set:` between `---` fences), used by research and roadmaps;
+    read via `research_contract.parse_frontmatter`, the repository's ONE parser for that block.
 
-That order-of-magnitude shift is a SEMANTIC change (which dialects a selector understands), not a
-performance one, so it does not belong to a resolver-cost change. Research therefore stays on the
-filesystem scan, and the underlying dialect gap is tracked as its own backlog item rather than being
-silently "fixed" here. The same caution applies to the plans index: see the parity note on
-`_STATUS_RE` below, where the two readers provably disagree on 24 records.
+Each reader tries its BULLET pattern first and consults the YAML fence only ON A MISS, so no record
+that matches today changes its answer, and the fallback only supplies a value where there previously
+was `None`.
+
+WHY THE EXCLUSION WAS REVERSED, since the prose it replaced argued the opposite at length. Speaking
+only the bullet dialect did not make research resolution CONSERVATIVE, it made it SILENTLY WRONG:
+the three content rules could never fire for a research document, so every research query fell
+through to `MATCH_SUBSTRING`, the explicit LAST-RESORT FILENAME rule, and returned a plausible short
+list with nothing signalling that metadata was never consulted. Measured before the change,
+`aw find research reference` returned 5 records while 64 documents carried `status: reference`; two
+records with identical metadata resolved differently based only on which dialect their TYPE happens
+to use. The order-of-magnitude widening this fixes is real and was accepted deliberately by the
+maintainer, INCLUDING on the mutating `aw archive` verb (see `CHANGELOG.md`); it is a semantic
+change, which is why it took its own plan rather than riding along with a resolver-cost change.
+
+THE YAML READER IS DELIBERATELY NARROW IN TWO WAYS, and both are load-bearing. The key lookup is
+CASE-SENSITIVE, which is what leaves the `---`-fenced records outside research (the `handoff`
+workflow writes `Kind:`/`Status:` CAPITALIZED) completely unperturbed. And the PUBLIC runner-facing
+readers below (`read_front_matter_id`/`read_front_matter_status`) stay bullet-only. See the notes at
+each site.
+
+Note the separate, still-standing caution about the PLANS index, which this change does not touch:
+see the parity note on `_STATUS_RE` below, where the two readers provably disagree on 24 records.
 
 THE CONTENT RULES READ THE METADATA REGION, NOT THE WHOLE BODY (IPD `76w6mq`). The `id6`, `setid`
 and `status` rules match only within a record's leading metadata region - the bullet block before
@@ -318,20 +329,105 @@ def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
 # which is the same defect producing a wrong `aw find <status>`/`aw find <setid>` answer rather than
 # a visible collision.
 #
-# WHAT "FIXED" LOOKS LIKE FOR A YAML-FENCED RECORD IS `None`, NOT THE DOCUMENT'S OWN VALUE, and an
-# executor expecting the latter will think this regressed. These patterns speak only the BULLET
-# dialect, and a YAML region contains no `^- Id:`/`^- Status:`/`^- Set:` lines at all, so a research
-# doc's three readers now return None. That stops the false claim without inventing a true one;
-# teaching the readers the YAML dialect is a separate change (plan `xo3244`), deliberately not made
-# here. See the FRONT-MATTER DIALECT note in the module docstring.
+# --- THE YAML DIALECT READER (IPD `xo3244`) ----------------------------------------------------
+#
+# The three readers below speak TWO dialects, because the corpus holds two. Plans, specs, backlog,
+# releases, reviews, prompts and walkthroughs declare `- Key: value` BULLETS; research and roadmaps
+# declare `key: value` inside a leading `---` fence. Before this, the readers spoke only the bullet
+# dialect, so for research the id6/setid/status rules could never fire and EVERY research query fell
+# through to the last-resort FILENAME rule - silently, with a plausible short answer rather than an
+# error (measured: `aw find research reference` returned 5 while 64 documents carry
+# `status: reference`).
+#
+# THE PARSE IS DELEGATED, NEVER REIMPLEMENTED. `research_contract.parse_frontmatter` is the
+# repository's one YAML-front-matter reader (`research_index._scan_docs` is its other consumer), and
+# a second reader here would drift from it about what counts as valid front matter. The import is
+# LAZY: this module is imported by many surfaces and `research_contract` is a heavier module that
+# only this fallback needs, so the cost is paid by the records that actually take the branch.
+#
+# THE KEY LOOKUP IS CASE-SENSITIVE, AND THAT IS THE LOAD-BEARING SAFETY PROPERTY OF THIS CHANGE, NOT
+# A STYLISTIC RESTRICTION. `parse_frontmatter` preserves keys VERBATIM (`key.strip()`, no case
+# folding), and the `---`-fenced records that exist OUTSIDE research are written by the `handoff`
+# workflow with CAPITALIZED keys (`Kind:`, `Status:`, `Date:`). Looking up exactly `id`/`status`/`set`
+# therefore returns None for them, leaving every non-research type's resolution untouched. A
+# tolerant lookup (`.title()`, case folding, or trying variants) would silently make
+# `aw find prompts draft` start matching session-handoff drafts, so DO NOT "robustify" this: the
+# no-perturbation proof for the other nine record types rests on it.
+_YAML_KEYS = ("id", "status", "set")
+
+
+def _normalize_yaml_scalar(value: str) -> str:
+    """Strip surrounding backticks / matching quote pairs from a YAML scalar before comparing.
+
+    A DEFENSIVE GUARD, HONESTLY LABELLED: a `set:` value written `` `awoptimize` `` was observed in
+    this corpus during an earlier session and would compare as a phantom mismatch, but re-measured
+    over all 119 parsable research documents at execution time, ZERO front-matter values carry a
+    backtick or a stray quote. So this fixes no live defect; it keeps one from reappearing.
+
+    It applies ONLY to the YAML dialect. The BULLET `_read_setid` deliberately returns a backticked
+    value VERBATIM, which `tests/test_cli_find.py::BacktickSetValueIsPinnedTests` pins because
+    normalizing there flips a real query's winning KIND (4 substring hits become 1 setid hit).
+    """
+
+    out = value.strip()
+    while len(out) >= 2 and out[0] == out[-1] and out[0] in "`\"'":
+        out = out[1:-1].strip()
+    return out
+
+
+def _read_yaml_scalar(text: str, key: str) -> str | None:
+    """Return the normalized scalar for `key` from `text`'s leading YAML fence, or ``None``.
+
+    `text` is normally a BOUNDED header read (`_read_header`), and that bound is safe for this
+    dialect: `parse_frontmatter` returns None when it never sees the CLOSING `---`, so a front-matter
+    block straddling the read window would read as no-metadata (the exact silent-miss class this
+    change removes). Measured at execution over all 126 research `.md` files, the 119 that parse from
+    the full text parse IDENTICALLY from `_read_header`'s window, and the largest closing fence sits
+    at byte 602 - two orders of magnitude inside `_HEADER_CHUNK_BYTES` (4096). The window is also
+    STRUCTURAL rather than a cap (it grows until the metadata block provably ends), so a future
+    front-matter growth spurt cannot silently truncate a fence. `_HEADER_BYTES` is deliberately NOT
+    enlarged by this change.
+    """
+
+    if not text.startswith("---"):
+        # Cheap pre-filter: a document with no leading fence cannot have YAML front matter, and this
+        # keeps the import and the parse off the path of every bullet-dialect record.
+        return None
+    from agent_workflows import research_contract as _rc  # lazy: see the note above
+
+    data = _rc.parse_frontmatter(text)
+    if not data:
+        return None
+    val = data.get(key)  # CASE-SENSITIVE BY CONTRACT - see the note above
+    if not isinstance(val, str):
+        return None
+    out = _normalize_yaml_scalar(val)
+    return out or None
+
+
+# BOTH DIALECTS ARE READ, BULLET FIRST AND YAML ONLY ON A MISS (IPD `xo3244`). Each of the three
+# readers below tries its BULLET pattern against the metadata region first and, only when that finds
+# nothing, consults the leading YAML fence via `_read_yaml_scalar`. The bullet path is therefore
+# byte-for-byte unchanged for every record that matches it today, and the fallback exists purely to
+# give a value where the bullet dialect previously produced `None`.
+#
+# THE COMPOSITION WITH `76w6mq` IS WHY BULLET-FIRST IS CORRECT RATHER THAN MERELY CONSERVATIVE. The
+# region bound above is what makes the bullet path MISS on a YAML-fenced document that quotes an
+# example `- Id:` block in its body (unbounded, such a quotation returned a FOREIGN id6 and the
+# fallback below would never have run). Region-bounding plus YAML fallback together yield the
+# document's OWN declared id; either alone does not.
 def _read_id(text: str) -> str | None:
     m = _ID_RE.search(metadata_region(text))
-    return m.group(1) if m else None
+    if m:
+        return m.group(1)
+    return _read_yaml_scalar(text, "id")
 
 
 def _read_status(text: str) -> str | None:
     m = _STATUS_RE.search(metadata_region(text))
-    return m.group(1) if m else None
+    if m:
+        return m.group(1)
+    return _read_yaml_scalar(text, "status")
 
 
 # --- Public front-matter readers (rununify 01, `2r306y`) --------------------------------------
@@ -372,6 +468,15 @@ def _read_status(text: str) -> str | None:
 # The header-exhaustion rule in `metadata_region` matters HERE in particular: a driver reading a
 # long plan whose metadata block outruns one read chunk must not lose its region to a missing `##`,
 # which is why exhaustion means "the region continues" and never an empty region.
+#
+# THIS PAIR IS DELIBERATELY LEFT BULLET-ONLY, AND ITS OMISSION FROM THE YAML DIALECT IS A DECISION
+# RATHER THAN AN OVERSIGHT (IPD `xo3244` E-03). The three INTERNAL readers above now fall back to the
+# YAML dialect; these two do not. Two reasons. FIRST, no caller can produce the input: a host runner
+# reads PLAN front matter, which is bullet-dialect by construction, so a YAML branch here would widen
+# a surface nothing exercises. SECOND, and decisively, this is the ONE reader pair whose failure mode
+# is documented as SILENTLY DEGRADING a runner to a directory-derived status, so its surface is kept
+# as narrow as its callers need. If a driver ever has to read a YAML-fenced record, add the fallback
+# HERE explicitly with its own evidence; do not infer it from the internal readers having one.
 _FRONT_MATTER_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _FRONT_MATTER_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 
@@ -411,9 +516,17 @@ def read_front_matter_status(text: str) -> str | None:
 def _read_setid(text: str) -> str | None:
     m = _SET_RE.search(metadata_region(text))
     if not m:
-        return None
+        # YAML dialect fallback (IPD `xo3244`); the same first-token rule applies to its value.
+        yaml_val = _read_yaml_scalar(text, "set")
+        return _first_set_token(yaml_val) if yaml_val else None
     # The set-id is the first whitespace token before any '(' (mirrors plans_index.set_terse_id).
-    return m.group(1).split("(")[0].strip().split()[0] if m.group(1).strip() else None
+    return _first_set_token(m.group(1))
+
+
+def _first_set_token(value: str) -> str | None:
+    """The terse set-id: the first whitespace token before any '(' (mirrors plans_index)."""
+
+    return value.split("(")[0].strip().split()[0] if value.strip() else None
 
 
 # PERF (awfindperf): selector matching only ever consults the front-matter bullets

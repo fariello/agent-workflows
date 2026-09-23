@@ -109,7 +109,12 @@ class MetadataRegionShapeTests(unittest.TestCase):
         doc = "---\nid: ccc333\nset: awoptimize\n---\n\n# Title\n\n- Set: `awoptimize`\n- Plans: nine\n\n## Body\n"
         region = selectors.metadata_region(doc)
         self.assertNotIn("`awoptimize`", region)
-        self.assertIsNone(selectors._read_setid(doc))
+        # UPDATED BY IPD `xo3244`: the assertion about the REGION above is this test's subject and is
+        # unchanged. `_read_setid` now also reads the YAML dialect, so it returns the value declared
+        # IN THE FENCE (`awoptimize`) rather than None - and crucially NOT the narrative body bullet's
+        # backticked `` `awoptimize` ``, which the region bound still excludes. That is the same
+        # property this test exists to pin, now observable through a value instead of through absence.
+        self.assertEqual(selectors._read_setid(doc), "awoptimize")
 
     def test_a_file_with_no_h2_heading_at_all_still_has_a_region(self) -> None:
         """Header EXHAUSTION means "the region continues", never empty and never an error.
@@ -158,17 +163,28 @@ class BoundedReaderTests(unittest.TestCase):
         self.assertIsNone(selectors._read_status(doc))
         self.assertIsNone(selectors._read_setid(doc))
 
-    def test_a_yaml_doc_reads_as_ABSENT_rather_than_as_the_quoted_values(self) -> None:
-        """`None` is the CORRECT post-fix answer for a YAML record, not its own YAML values.
+    def test_a_yaml_doc_reads_its_OWN_values_never_the_quoted_ones(self) -> None:
+        """UPDATED BY IPD `xo3244`, which is the successor this test's old form named explicitly.
 
-        These patterns speak only the BULLET dialect and a YAML region contains no `^- Id:` line at
-        all, so the fix stops the FALSE claim without inventing a true one. Teaching the readers the
-        YAML dialect is a separate change (plan `xo3244`); an executor who expects `ccc333` here will
-        wrongly think this regressed.
+        ITS OLD FORM ASSERTED `None` for all three readers, and said so provisionally: "Teaching the
+        readers the YAML dialect is a separate change (plan `xo3244`)". That change has now landed, so
+        `None` is no longer the correct answer - the document's OWN declared values are.
+
+        WHAT THIS TEST IS ACTUALLY FOR IS UNCHANGED, and is why the update is a strengthening rather
+        than a weakening: the point was never that a YAML record reads as absent, it was that it must
+        not read as the values QUOTED IN ITS BODY (`bbb222`/`reviewed`/`runflags`). Asserting the
+        document's own `ccc333`/`reference`/`awmetastore` pins that MORE tightly than asserting
+        absence did, because absence was also satisfied by a reader that simply could not see the
+        fence, and a reader that could see the fence but was unbounded would have returned the quoted
+        values.
         """
-        self.assertIsNone(selectors._read_id(YAML_DOC))
-        self.assertIsNone(selectors._read_status(YAML_DOC))
-        self.assertIsNone(selectors._read_setid(YAML_DOC))
+        self.assertEqual(selectors._read_id(YAML_DOC), "ccc333")
+        self.assertEqual(selectors._read_status(YAML_DOC), "reference")
+        self.assertEqual(selectors._read_setid(YAML_DOC), "awmetastore")
+        # The negative half, stated explicitly: the BODY-quoted block must never win.
+        self.assertNotEqual(selectors._read_id(YAML_DOC), "bbb222")
+        self.assertNotEqual(selectors._read_status(YAML_DOC), "reviewed")
+        self.assertNotEqual(selectors._read_setid(YAML_DOC), "runflags")
 
 
 class PublicReaderTests(unittest.TestCase):
@@ -255,15 +271,21 @@ class ResolutionTests(unittest.TestCase):
         """Removing an id6 match must not silently narrow the LATER rules.
 
         Asserted on a token that CAN still match, deliberately: the quoted id6 appears in no
-        filename, so demanding a substring fallback for it would assert something false. `ccc333` IS
-        in a filename, so it must still resolve - by `substring`, not `id6`, because this plan does
-        not teach the reader the YAML dialect.
+        filename, so demanding a fallback for it would assert something false. `ccc333` IS in a
+        filename AND is now also declared in the document's YAML fence.
+
+        UPDATED BY IPD `xo3244`: the WINNING KIND changed from `substring` to `id6`, which this test's
+        old form named as the marker of that very change ("by `substring`, not `id6`, because this
+        plan does not teach the reader the YAML dialect"). The SUBJECT of the test is unchanged and
+        still holds: the token resolves to exactly ONE file, and the body-quoted `bbb222` resolves to
+        none. What moved is which rule earned the match - it is now the record's own declaration
+        rather than an incidental filename fragment, which is the stronger of the two answers.
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = self._tree(Path(tmp))
             res = selectors.resolve(root, "research", "ccc333")
             self.assertEqual(1, len(res.paths))
-            self.assertEqual(selectors.MATCH_SUBSTRING, res.kind)
+            self.assertEqual(selectors.MATCH_ID6, res.kind)
             self.assertEqual(
                 [], list(selectors.resolve(root, "research", "bbb222").paths)
             )
