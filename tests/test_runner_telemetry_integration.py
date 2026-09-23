@@ -821,7 +821,28 @@ class SamplerTeardownTests(unittest.TestCase):
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
         self.assertNotIn("signal", imported, "the seam imports no signal module at all")
-        self.assertNotIn("signal", names)
+        # NOT A BARE `"signal" not in names` CHECK, and the refinement is a real correction rather
+        # than an accommodation (runnerlayer Order 02 `1f7xno`). The bare form conflated the MODULE
+        # with any identifier spelled `signal`, and it went red when `IntegrationVerdict` was re-homed
+        # into this module carrying a FIELD named `signal` ("WHICH signal earned or refused it"). A
+        # NamedTuple field is not a signal handler, and the property this test defends is that the seam
+        # never REGISTERS one.
+        #
+        # THE CHECK IS NARROWED TO WHAT IT MEANT, NOT WEAKENED: `signal` may not be IMPORTED (asserted
+        # above, which is the only way the module becomes reachable at all), and the three
+        # registration identifiers below remain forbidden outright. With no import there is no module
+        # object to call, so a bare name cannot register anything; the guarantee is intact and the
+        # false positive is gone.
+        annotation_fields = {
+            node.target.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+        }
+        self.assertNotIn(
+            "signal",
+            names - annotation_fields,
+            "no bare `signal` reference outside a type-annotated field name",
+        )
         self.assertNotIn("atexit", imported)
         for forbidden in ("SIGINT", "SIGTERM", "setitimer"):
             with self.subTest(identifier=forbidden):

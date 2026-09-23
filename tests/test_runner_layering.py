@@ -142,232 +142,31 @@ CLASSIFICATION: tuple[Name, ...] = (
     # queued plan may run, and both hosts must answer it identically. `dependency_status_detailed`
     # is the cautionary tale of the whole Set: agy carried its own BROKEN copy for months because
     # the symmetry guard's name list omitted it.
-    Name(
-        "edge_satisfied",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "decides whether one typed dependency edge is satisfied; pure record/state logic",
-    ),
-    Name(
-        "dependency_status",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "aggregates edge verdicts for one plan; no host concept in the body",
-    ),
-    Name(
-        "dependency_status_detailed",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "the `_detailed` sibling adding a root-cause map; mentions `aw oc run` in PROSE only",
-        closes_over=("EXECUTION_SUCCESS_STATES", "TERMINAL_STATES"),
-        move_note=(
-            "the name whose ABSENCE from `_SHARED_NAMES` let the symmetry guard pass over "
-            "agy's real broken copy for months (`03ie04` E-04 added it)"
-        ),
-    ),
-    Name(
-        "dependency_depth",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "longest in-queue prerequisite chain; the FIRST queue sort key, host-independent",
-    ),
-    Name(
-        "dependency_reasons",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "renders why an edge is unsatisfied; reporting text, no gating decision",
-    ),
-    Name(
-        "dependency_target_id6",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "parses an id6 out of a dependency token; string handling",
-    ),
-    Name(
-        "queue_sort_key",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "deterministic ready-node ordering (spec 25kzda 5.4); `aw oc run` appears in a COMMENT",
-    ),
-    Name(
-        "cascade_dependency_blocked",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "propagates dependency-blocked over reverse edges to a fixed point",
-        closes_over=("EXECUTION_SUCCESS_STATES", "SUCCESS_STATES", "TERMINAL_STATES"),
-    ),
-    Name(
-        "parse_dependency_token",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "resolves one token to a shared `ipd_schema.ItemDependency`; delegates to a non-runner module",
-    ),
-    Name(
-        "preflight_dependency_findings",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "runs the SHARED evaluator over selected plans; already a thin call into `check_engine`",
-        closes_over=("_consuming_actions_for",),
-    ),
-    Name(
-        "enforce_dependency_preflight",
-        "dependency-graph",
-        NEUTRAL,
-        LAZY_WRAPPER,
-        "raises `DriverError` on an invalid selected graph; `DriverError` is ALREADY shared",
-        move_note=(
-            "the behavioral defect the backlog item filed (two DriverError classes) was fixed "
-            "by `818uru`, so this is now a pure layering move"
-        ),
-    ),
-    Name(
-        "DEPENDENCY_FATAL_RULES",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "a frozenset of check-rule ids; data, and not host data",
-    ),
-    Name(
-        "_artifact_owners",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "looks owners up in the shared identity index; body is a `check_engine` call",
-    ),
     # --- backlog closing (11) ----------------------------------------------------------------
     # The rule set deciding whether a run may close a backlog item. Its in-tree comment already
     # states the intent this Set is finishing: every rule "lives ONCE in `oc_runipd` and this
     # module binds the SAME objects", which is the right instinct wired to the wrong module.
-    Name(
-        "BacklogCloseVerdict",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "the verdict record for one item; a data class",
-    ),
-    Name(
-        "CARRIER_KIND_IPD",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "carrier-kind constant; a records-vocabulary string",
-    ),
-    Name(
-        "CARRIER_KIND_OTHER",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "carrier-kind constant; a records-vocabulary string",
-    ),
-    Name(
-        "close_backlog_item",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "closes an item through the lifecycle-owned setter, never by editing the file",
-        closes_over=("run_checked",),
-        move_note="`run_checked` is already a `runner_shared` symbol each host wraps (injection precedent)",
-    ),
-    Name(
-        "commit_backlog_close",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "path-scoped-commits the moved item file via the shared tooled commit path",
-        closes_over=("run_checked",),
-    ),
-    Name(
-        "evaluate_backlog_close",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "decides whether THIS run may close the item, and why not if it may not",
-        closes_over=("_carrier_kind",),
-    ),
-    Name(
-        "process_backlog_close",
-        "backlog-closing",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "orchestrates the close after a plan reaches executed; the ONE body with an `oc` token in CODE",
-        closes_over=("collect_lane_earned_paths",),
-        move_note=(
-            "LIVE DEFECT: its commit message hardcodes `closed by aw oc run:` while agy calls this "
-            "same function, so agy-driven runs record a false provenance today. A host LABEL is a "
-            "parameter, not an opencode concept, so the verdict stays neutral; filed as a bug, NOT "
-            "fixed by `9kmbr0`, which moves and changes nothing"
-        ),
-    ),
-    Name(
-        "resolve_backlog_item",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "finds the item file whose `- Id:` matches; filesystem lookup",
-    ),
-    Name(
-        "record_unclosed_backlog_items",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "appends the unclosed-item ledger record before anything is printed",
-    ),
-    Name(
-        "unclosed_backlog_items",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "lists items this run touched but did not close, with reasons; reads run state",
-    ),
-    Name(
-        "render_unclosed_report",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "formats that ledger for a human; text assembly",
-    ),
     # --- run ordering (4) ---------------------------------------------------------------------
-    Name(
-        "announce_run_order",
-        "run-ordering",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "prints the execution order through the SHARED `render_stream` formatter",
-        move_note="the plan's worked example of a name that sounds host-specific and is not",
-    ),
-    Name(
-        "run_order_rationale",
-        "run-ordering",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "compares requested against actual order and explains the difference; `aw oc run` in PROSE only",
-    ),
-    Name(
-        "simulate_dispatch_order",
-        "run-ordering",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "simulates the dispatch order `run_queue` will take; operates on the queue structure",
-    ),
-    Name(
-        "update_execution_order",
-        "run-ordering",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "records actual dispatch order into run state; state bookkeeping",
-    ),
     # --- recovery routing (3) -----------------------------------------------------------------
     # All three are the lazy-wrapper tier, which is the tier an identity audit cannot see.
+    Name(
+        "route_recovery_turn",
+        "recovery-routing",
+        NEUTRAL,
+        LAZY_WRAPPER,
+        "records the routing verdict durably and dispatches; writes run state and events",
+        move_note=(
+            "TRIED AND REVERTED BY `1f7xno`, and the reason is the sharpest lesson in that plan: the "
+            "shared copy of this function is AST-IDENTICAL, so it passed the pure-move fingerprint, "
+            "but its body resolves `classify_recovery_disposition` in the SHARED namespace, and THAT "
+            "sibling is dead on arrival (it reads `st.path`/`st.base_commit` off a `LaneState` whose "
+            "real fields are `worktree_path`/`base_sha`, so it raises `AttributeError` on any live "
+            "lane). Consolidating this one name made four `tests/test_resumedupe.py` tests fail with "
+            "exactly that error. An AST-identical function is only safely movable if everything it "
+            "RESOLVES is also safely movable, so all three recovery-routing names defer together. "
+            "Filed as `zt2b16`"
+        ),
+    ),
     Name(
         "classify_recovery_disposition",
         "recovery-routing",
@@ -384,19 +183,6 @@ CLASSIFICATION: tuple[Name, ...] = (
         move_note="cannot move alone: the `RecoveryDisposition` record and three DISPOSITION_* constants must move with it",
     ),
     Name(
-        "route_recovery_turn",
-        "recovery-routing",
-        NEUTRAL,
-        LAZY_WRAPPER,
-        "records the routing verdict durably and dispatches; writes run state and events",
-        closes_over=(
-            "DISPOSITION_FRESH_EXECUTION",
-            "DISPOSITION_UNDETERMINED",
-            "RecoveryDisposition",
-            "save_state",
-        ),
-    ),
-    Name(
         "build_verify_and_continue_notice",
         "recovery-routing",
         NEUTRAL,
@@ -409,166 +195,21 @@ CLASSIFICATION: tuple[Name, ...] = (
         ),
     ),
     # --- shutdown reporting (4) ---------------------------------------------------------------
-    Name(
-        "register_signal_report",
-        "shutdown-reporting",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "publishes run state for the signal handlers to report from",
-        closes_over=("_SIGNAL_REPORT_STATE",),
-        move_note="MODULE-LEVEL MUTABLE STATE: the `_SIGNAL_REPORT_*` globals must move WITH this group or the two hosts would keep separate registries",
-    ),
-    Name(
-        "emit_shutdown_report",
-        "shutdown-reporting",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "idempotently writes then prints the unclosed-item record on shutdown",
-        closes_over=("_SIGNAL_REPORT_DONE", "_SIGNAL_REPORT_STATE"),
-    ),
-    Name(
-        "signal_report_callback",
-        "shutdown-reporting",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "returns the callable the SIGINT/SIGTERM handlers invoke; a closure factory",
-    ),
-    Name(
-        "render_runs_pointer",
-        "shutdown-reporting",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "formats the trailing `aw runs <run-id>` pointer; its docstring notes `aw oc runs` does NOT exist",
-        move_note=(
-            "DESTINATION CONTESTED like `build_verify_and_continue_notice`: a one-line wording "
-            "function may belong to `render_stream`"
-        ),
-    ),
     # --- suite checking (5) -------------------------------------------------------------------
-    Name(
-        "run_suite_check",
-        "suite-checking",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "runs the repository suite in the PRIMARY checkout and reads the result; runs pytest, not opencode",
-        closes_over=("SUITE_CHECK_TIMEOUT_SECONDS",),
-        move_note=(
-            "MOVE MAY COLLIDE: three `integpath` plans are still pending and two declare both "
-            "drivers in Scope-Paths (`rl67b0`'s F-15 discusses this name directly). Neutral by the "
-            "criterion; sequencing is Order 02's problem (see MOVE_UNSETTLED)"
-        ),
-    ),
-    Name(
-        "SuiteCheckResult",
-        "suite-checking",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "the record of what the driver observed running the suite; a data class",
-        move_note="same `integpath` collision risk as `run_suite_check` (see MOVE_UNSETTLED)",
-    ),
-    Name(
-        "SUITE_CHECK_ARGV",
-        "suite-checking",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "the argv of the repository suite, `(python, -m, pytest)`; nothing to do with a host driver",
-    ),
-    Name(
-        "parse_suite_summary",
-        "suite-checking",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "extracts the suite COUNT LINE; exists because `runner_shared` may not import a host driver",
-        closes_over=("_SUITE_SUMMARY_RE",),
-        move_note=(
-            "ALREADY HALF-SHARED, and the reason is this very layering: it was created as an "
-            "injectable reader so `runner_shared` could parse the count line WITHOUT importing a "
-            "runner. Re-homing it removes the need for the injection"
-        ),
-    ),
-    Name(
-        "extract_suite_failures",
-        "suite-checking",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "pulls FAILED/ERROR node ids out of suite output; regex over pytest text",
-        closes_over=("SUITE_FAILURE_LINE_LIMIT", "_SUITE_FAILURE_LINE_RE"),
-    ),
     # --- earned integration (3) ---------------------------------------------------------------
-    Name(
-        "integration_is_earned",
-        "earned-integration",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "decides whether a completed turn earned automatic integration; verifier/suite logic",
-        closes_over=(
-            "INTEGRATION_EARNED_BY_SUITE",
-            "INTEGRATION_EARNED_BY_VERIFIER",
-            "INTEGRATION_REFUSED_NO_SIGNAL",
-            "INTEGRATION_REFUSED_SUITE_FAILED",
-            "INTEGRATION_REFUSED_VERIFIER_DECLINED",
-            "IntegrationVerdict",
-        ),
-        move_note=(
-            "MOVE MAY COLLIDE with the pending `integpath` Set, and it also cannot move without "
-            "its verdict record and five reason constants (see MOVE_UNSETTLED)"
-        ),
-    ),
-    Name(
-        "collect_earned_paths",
-        "earned-integration",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "diffs an attempt's head range to list the paths it produced; a git diff",
-        closes_over=("run_checked",),
-        move_note="same `integpath` collision risk (see MOVE_UNSETTLED)",
-    ),
-    Name(
-        "run_earned_paths",
-        "earned-integration",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "unions the per-attempt earned paths across a run; reads run state",
-        move_note="same `integpath` collision risk (see MOVE_UNSETTLED)",
-    ),
-    # --- declared spec-edit visibility (9) ----------------------------------------------------
-    # The newest group, and the clearest evidence of accretion: all nine arrived in the thirteen
-    # days between this plan's review and its execution.
-    Name(
-        "SPEC_RECONCILED",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "reconciliation-state constant; a string",
-    ),
-    Name(
-        "SPEC_RECONCILE_REFUSED",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "reconciliation-state constant; a string",
-    ),
-    Name(
-        "SPEC_NOT_FINALIZED",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "reconciliation-state constant; a string",
-    ),
-    Name(
-        "spec_edit_record",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "the spec-filtered view of one item's two-way scope reconciliation; record shaping",
-    ),
-    Name(
-        "spec_edit_summary",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "aggregates per-item spec records into the per-run view; reads durable state only",
-    ),
+    # --- declared spec-edit visibility (1 of an original 9) -----------------------------------
+    # THE GROUP THAT ALREADY MOVED, and the clearest evidence of both the accretion and the fix.
+    # All nine arrived in the thirteen days between Order 01's review and its execution; EIGHT were
+    # re-homed into `runner_shared` by Order 02 (`1f7xno`) as the first batch, which is why their
+    # rows are gone. That is the SANCTIONED SHRINK the frozen-set comment below describes, not
+    # tampering.
+    #
+    # `record_item_spec_edits` IS THE ONE THAT STAYED, and the reason is a live defect rather than a
+    # scruple: `runner_shared` ALREADY carries its own copy of this name whose body DIVERGES from
+    # oc's (measured by docstring-stripped AST), and the two write DIFFERENT keys
+    # (`spec_edits_reconciliation` versus `spec_edits`) in different record shapes. So re-homing it
+    # would be a RECONCILIATION of two behaviors, not a pure move, and `1f7xno` is a pure-move plan.
+    # Filed as backlog `tm5vnx`; do not "finish the group" by lifting this row without resolving it.
     Name(
         "record_item_spec_edits",
         "spec-edit-visibility",
@@ -576,77 +217,17 @@ CLASSIFICATION: tuple[Name, ...] = (
         PURE_REEXPORT,
         "stores one item's reconciliation on its queue entry; takes `reconcile` as a PARAMETER",
         move_note=(
+            "DEFERRED BY `1f7xno`: `runner_shared` already holds a DIVERGED copy writing a "
+            "different key in a different shape (backlog `tm5vnx`), so the move is a "
+            "reconciliation. "
             "ALREADY BUILT FOR SHARING: its docstring records that `_compute_scope_reconciliation` "
             "is forked per driver and is therefore INJECTED, 'the same explicit-injection form "
             "`runner_shared` uses'. The fork itself is out of this Set's scope"
         ),
     ),
-    Name(
-        "report_run_spec_edits",
-        "spec-edit-visibility",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "prints the end-of-run declared-spec-edit report; wired at three summary sites per host",
-    ),
-    Name(
-        "queue_plan_path",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "resolves the plan FILE a queue entry refers to; names BOTH drivers' freeze keys in its docstring",
-    ),
-    Name(
-        "queue_with_plan_paths",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "re-expresses the queue in the shape the shared spec helper documents; an adapter",
-    ),
     # --- nested-`aw` tool identity (4) --------------------------------------------------------
     # The group whose neutrality is load-bearing rather than incidental: agy imports these
     # BECAUSE a second copy already diverged once. See the in-tree comment above the import.
-    Name(
-        "pinned_child_env",
-        "tool-identity",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "pins a nested `aw` child's PYTHONPATH to the runner's own package root; about `aw`, not opencode",
-        closes_over=("runner_package_root",),
-        move_note="the plan's worked example: sounds host-specific, is documented as requiring symmetry",
-    ),
-    Name(
-        "pinned_module_argv",
-        "tool-identity",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "builds argv invoking the runner's OWN `agent_workflows` CLI; the suppressing half of the pin",
-        closes_over=("_AW_PIN_BOOTSTRAP",),
-    ),
-    Name(
-        "assert_child_tool_identity",
-        "tool-identity",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "verifies a pinned child resolves this package to the runner's own copy; fails closed",
-        closes_over=("_AW_PIN_PROBE", "_TOOL_IDENTITY_VERIFIED"),
-        move_note=(
-            "memoized through a module-level `_TOOL_IDENTITY_VERIFIED`, so a move must not leave "
-            "two caches; also counted by the ttywedge launcher-symmetry guard, which asserts the "
-            "hosts expose an EQUAL number of nested-`aw` launchers"
-        ),
-    ),
-    Name(
-        "ToolIdentityError",
-        "tool-identity",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "the run-fatal identity mismatch exception; nothing in it is about opencode",
-        move_note=(
-            "MOVE SHAPE IS AN EXCEPTION BINDING, not a function relocation: both hosts' `except` "
-            "clauses bind it, and its sibling `StallTimeout` is DELIBERATELY defined in both "
-            "drivers with an in-tree note saying so. Order 02 needs it in its callee map"
-        ),
-    ),
 )
 
 #: Names whose VERDICT is settled but whose MOVE Order 02 must resolve or defer, with the axis
@@ -654,14 +235,16 @@ CLASSIFICATION: tuple[Name, ...] = (
 #: the list the plan's OQ-01 asked for, expressed on the axis the question actually lives on.
 MOVE_UNSETTLED: tuple[str, ...] = (
     # Destination contested: `render_stream` may own a wording function rather than `runner_shared`.
+    #
+    # `render_runs_pointer` LEFT THIS LIST BY MOVING, resolved rather than dropped (runnerlayer
+    # Order 02 `1f7xno`). This list means "names whose MOVE Order 02 must resolve or defer", so a
+    # moved name has had its move RESOLVED and an entry naming a row that no longer exists is what
+    # `test_the_classification_is_internally_consistent` correctly refuses. It went to
+    # `runner_shared` and not to `render_stream` because it could not be split from the closure it
+    # belongs to: `emit_shutdown_report` prints it, and that reporter shares the
+    # `_SIGNAL_REPORT_STATE` registry with `register_signal_report`, so the whole shutdown graph had
+    # to land in one module or the two hosts would have kept separate signal registries.
     "build_verify_and_continue_notice",
-    "render_runs_pointer",
-    # Sequencing: the pending `integpath` Set declares both drivers and discusses these names.
-    "run_suite_check",
-    "SuiteCheckResult",
-    "integration_is_earned",
-    "collect_earned_paths",
-    "run_earned_paths",
 )
 
 #: Verdicts the criterion genuinely could not settle. EMPTY, and that is a MEASUREMENT: every

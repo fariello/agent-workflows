@@ -19,9 +19,8 @@ import re
 import select
 import subprocess
 import sys
-import threading
 import time
-from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+from collections.abc import Iterable, Mapping, MutableMapping
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
@@ -95,9 +94,6 @@ from agent_workflows.plan_readiness import (
 from agent_workflows.render_stream import (
     activity_for_item,
     resolve_item_lifecycle,
-    format_spec_impact_announcement,
-    format_spec_impact_failure,
-    format_spec_edit_report,
     _ANSI_CODES,
     _ANSI_RESET,
     _ANSI_STRIP_RE,
@@ -119,7 +115,6 @@ from agent_workflows.render_stream import (
     execution_index,
     format_compact_tokens,
     format_progress_bar,
-    format_run_order_announcement,
     format_stall_countdown,
     format_statusline,
     format_statusline_lines,
@@ -128,6 +123,16 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
+    # RE-EXPORTED IN THE `as <same-name>` FORM BECAUSE THIS MODULE NO LONGER CALLS IT, and that is a
+    # measured `ruff` deletion rather than a precaution (runnerlayer Order 02 `1f7xno`). This entry was
+    # a PLAIN import while `announce_run_order` was defined here and called it; the moment that
+    # function moved to `runner_shared`, the name became unused in this file and `ruff --fix` DELETED
+    # it on the batch's first commit. `tests/test_run_order_announcement.py` then failed with
+    # `AttributeError: module 'agent_workflows.oc_runipd' has no attribute
+    # 'format_run_order_announcement'`, because that test asserts both drivers bind the SAME formatter
+    # object. The redundant alias is what marks the import as an intentional re-export and is the only
+    # form the formatter leaves alone.
+    format_run_order_announcement as format_run_order_announcement,
 )
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
 
@@ -255,6 +260,227 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     conflicted_paths as conflicted_paths,
+)
+
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the RE-HOMED host-neutral names. Each of these
+# used to be DEFINED here and imported BY `agy_runipd`, which made this module a library for the
+# other host driver; they now have ONE definition in `runner_shared` and BOTH drivers bind it. The
+# moves are PURE (byte-identical bodies, proven by AST fingerprint in
+# `tests/test_runner_shared.py::ReHomedHostNeutralNameTests`), so no call site in this module
+# changed.
+#
+# THE `as <same-name>` FORM IS LOAD-BEARING HERE, not cosmetic. `ruff --fix` is a pre-commit hook in
+# this repository and DELETES a plain unused import while LEAVING a redundant alias; it removed six
+# of exactly these re-exports on one previous commit attempt, caught only by a cross-driver symmetry
+# test. Do NOT "clean up" a name this module does not itself call.
+from agent_workflows.runner_shared import (
+    SPEC_NOT_FINALIZED as SPEC_NOT_FINALIZED,
+)
+from agent_workflows.runner_shared import (
+    SPEC_RECONCILED as SPEC_RECONCILED,
+)
+from agent_workflows.runner_shared import (
+    SPEC_RECONCILE_REFUSED as SPEC_RECONCILE_REFUSED,
+)
+from agent_workflows.runner_shared import (
+    queue_plan_path as queue_plan_path,
+)
+from agent_workflows.runner_shared import (
+    queue_with_plan_paths as queue_with_plan_paths,
+)
+from agent_workflows.runner_shared import (
+    report_run_spec_edits as report_run_spec_edits,
+)
+from agent_workflows.runner_shared import (
+    spec_edit_record as spec_edit_record,
+)
+from agent_workflows.runner_shared import (
+    spec_edit_summary as spec_edit_summary,
+)
+from agent_workflows.runner_shared import (
+    announce_run_order as announce_run_order,
+)
+from agent_workflows.runner_shared import (
+    run_order_rationale as run_order_rationale,
+)
+from agent_workflows.runner_shared import (
+    simulate_dispatch_order as simulate_dispatch_order,
+)
+from agent_workflows.runner_shared import (
+    update_execution_order as update_execution_order,
+)
+from agent_workflows.runner_shared import (
+    dependency_depth as dependency_depth,
+)
+from agent_workflows.runner_shared import (
+    dependency_target_id6 as dependency_target_id6,
+)
+from agent_workflows.runner_shared import (
+    parse_dependency_token as parse_dependency_token,
+)
+from agent_workflows.runner_shared import (
+    queue_sort_key as queue_sort_key,
+)
+
+from agent_workflows.runner_shared import (
+    enforce_dependency_preflight as enforce_dependency_preflight,
+)
+
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE NESTED-`aw` TOOL-IDENTITY PIN, consolidated
+# rather than moved, and the distinction matters. `runner_shared` ALREADY held a definition of each of
+# these, byte-identical to this module's (verified by docstring-stripped AST comparison of all nine
+# before deleting anything), so there were TWO live definitions and the hosts did not agree on which
+# they held: measured before this change, `oc.ToolIdentityError is runner_shared.ToolIdentityError` was
+# FALSE.
+#
+# THAT DIVERGENCE WAS A REAL DEFECT AND IS FILED AS `232wcg`. `runner_shared.assert_child_tool_identity`
+# raises `runner_shared.ToolIdentityError`, which is NOT the class either host's `except
+# ToolIdentityError` names, so a run-fatal tool-identity mismatch raised through the shared path was
+# caught only by the broader `except DriverError` - which both hosts document as ITEM-LOCAL. The
+# ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class was therefore lost, and the
+# run would have continued under tooling the runner is not. This is exactly the two-distinct-classes
+# defect `818uru` fixed for `DriverError`, reintroduced one subclass down; deleting this module's copy
+# is what makes the two agree.
+#
+# THE PRIVATE NAMES COME TOO, and not for tidiness: `assert_child_tool_identity` closes over
+# `_AW_PIN_PROBE` and `_TOOL_IDENTITY_VERIFIED` (its memo), `pinned_child_env` over
+# `runner_package_root`, and `pinned_module_argv` over `_AW_PIN_BOOTSTRAP`. Leaving a duplicate memo
+# behind would have given the two paths SEPARATE caches, so the probe could pass in one and never run
+# in the other.
+from agent_workflows.runner_shared import (
+    ToolIdentityError as ToolIdentityError,
+)
+from agent_workflows.runner_shared import (
+    _AW_PIN_BOOTSTRAP as _AW_PIN_BOOTSTRAP,
+)
+from agent_workflows.runner_shared import (
+    _AW_PIN_PROBE as _AW_PIN_PROBE,
+)
+from agent_workflows.runner_shared import (
+    _AW_PIN_STRIP as _AW_PIN_STRIP,
+)
+from agent_workflows.runner_shared import (
+    _TOOL_IDENTITY_VERIFIED as _TOOL_IDENTITY_VERIFIED,
+)
+from agent_workflows.runner_shared import (
+    assert_child_tool_identity as assert_child_tool_identity,
+)
+from agent_workflows.runner_shared import (
+    pinned_child_env as pinned_child_env,
+)
+from agent_workflows.runner_shared import (
+    pinned_module_argv as pinned_module_argv,
+)
+from agent_workflows.runner_shared import (
+    runner_package_root as runner_package_root,
+)
+from agent_workflows.runner_shared import (
+    IntegrationVerdict as IntegrationVerdict,
+)
+from agent_workflows.runner_shared import (
+    SUITE_CHECK_ARGV as SUITE_CHECK_ARGV,
+)
+from agent_workflows.runner_shared import (
+    SUITE_CHECK_TIMEOUT_SECONDS as SUITE_CHECK_TIMEOUT_SECONDS,
+)
+from agent_workflows.runner_shared import (
+    SUITE_FAILURE_LINE_LIMIT as SUITE_FAILURE_LINE_LIMIT,
+)
+from agent_workflows.runner_shared import (
+    SuiteCheckResult as SuiteCheckResult,
+)
+from agent_workflows.runner_shared import (
+    _SUITE_FAILURE_LINE_RE as _SUITE_FAILURE_LINE_RE,
+)
+from agent_workflows.runner_shared import (
+    _SUITE_SUMMARY_RE as _SUITE_SUMMARY_RE,
+)
+from agent_workflows.runner_shared import (
+    extract_suite_failures as extract_suite_failures,
+)
+from agent_workflows.runner_shared import (
+    integration_is_earned as integration_is_earned,
+)
+from agent_workflows.runner_shared import (
+    parse_suite_summary as parse_suite_summary,
+)
+from agent_workflows.runner_shared import (
+    run_suite_check as run_suite_check,
+)
+from agent_workflows.runner_shared import (
+    DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
+)
+from agent_workflows.runner_shared import (
+    _artifact_owners as _artifact_owners,
+)
+from agent_workflows.runner_shared import (
+    _consuming_actions_for as _consuming_actions_for,
+)
+from agent_workflows.runner_shared import (
+    cascade_dependency_blocked as cascade_dependency_blocked,
+)
+from agent_workflows.runner_shared import (
+    dependency_reasons as dependency_reasons,
+)
+from agent_workflows.runner_shared import (
+    dependency_status as dependency_status,
+)
+from agent_workflows.runner_shared import (
+    dependency_status_detailed as dependency_status_detailed,
+)
+from agent_workflows.runner_shared import (
+    edge_satisfied as edge_satisfied,
+)
+from agent_workflows.runner_shared import (
+    preflight_dependency_findings as preflight_dependency_findings,
+)
+from agent_workflows.runner_shared import (
+    BacklogCloseVerdict as BacklogCloseVerdict,
+)
+from agent_workflows.runner_shared import (
+    CARRIER_KIND_IPD as CARRIER_KIND_IPD,
+)
+from agent_workflows.runner_shared import (
+    CARRIER_KIND_OTHER as CARRIER_KIND_OTHER,
+)
+from agent_workflows.runner_shared import (
+    _SIGNAL_REPORT_DONE as _SIGNAL_REPORT_DONE,
+)
+from agent_workflows.runner_shared import (
+    _SIGNAL_REPORT_STATE as _SIGNAL_REPORT_STATE,
+)
+from agent_workflows.runner_shared import (
+    _carrier_kind as _carrier_kind,
+)
+from agent_workflows.runner_shared import (
+    emit_shutdown_report as emit_shutdown_report,
+)
+from agent_workflows.runner_shared import (
+    evaluate_backlog_close as evaluate_backlog_close,
+)
+from agent_workflows.runner_shared import (
+    record_unclosed_backlog_items as record_unclosed_backlog_items,
+)
+from agent_workflows.runner_shared import (
+    register_signal_report as register_signal_report,
+)
+from agent_workflows.runner_shared import (
+    render_runs_pointer as render_runs_pointer,
+)
+from agent_workflows.runner_shared import (
+    render_unclosed_report as render_unclosed_report,
+)
+from agent_workflows.runner_shared import (
+    resolve_backlog_item as resolve_backlog_item,
+)
+from agent_workflows.runner_shared import (
+    run_earned_paths as run_earned_paths,
+)
+from agent_workflows.runner_shared import (
+    signal_report_callback as signal_report_callback,
+)
+from agent_workflows.runner_shared import (
+    unclosed_backlog_items as unclosed_backlog_items,
 )
 
 # runnoop zz5yxq (E-02/E-04): the ACTION-AWARE SUCCESS BAR. ONE definition in `runner_shared`, bound
@@ -610,7 +836,11 @@ TERMINAL_STATES = {
 # rununify 04 (`tx6q0h`): relocated to `runner_shared` (byte-identical in both hosts);
 # re-exported so this module's other call sites are untouched.
 SUCCESS_STATES = runner_shared.SUCCESS_STATES
-EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: ONE object, not a second set literal.
+# Each host used to declare its own, so the two were EQUAL BUT NOT IDENTICAL and a one-sided
+# edit was silent. `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests` named this
+# unification as `cnwy8g`'s work; see the constant's own note in `runner_shared`.
+EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
 LANE_PROMPT_TIMEOUT: float = 10.0
@@ -683,16 +913,6 @@ OUTPUT_MODES = ("clean", "quiet", "raw")
 # generic one absorbs it and an empty status selection exits 2 instead of 0.
 
 
-class ToolIdentityError(DriverError):
-    """Raised when a nested ``aw`` would run code OTHER than the runner's own installation.
-
-    lanetruth Order 01 (af7i6p) / OQ-02: this is RUN-FATAL, not item-local. A tool-identity
-    mismatch means the control plane executing EVERY item's lifecycle transition is not the
-    code the runner believes it is, so the fault is not attributable to whichever item merely
-    happened to trigger the probe. Contrast ``dependency-blocked``, which is correctly
-    item-scoped. Spec 25kzda 1.4/A1 reserves ABORT RUN for exactly this identity class."""
-
-
 # --- lanetruth Order 01 (af7i6p): pin nested `aw` to the RUNNER's OWN tooling -----------------
 #
 # THE DEFECT. Under worktree isolation the runner invokes a nested `aw` with `cwd` set to the
@@ -741,85 +961,10 @@ class ToolIdentityError(DriverError):
 # kept. See the plan's OQ-01 and decision 02-af7i6p-D1.
 
 # The suppressing half: drop the cwd entry BEFORE `agent_workflows` is ever imported.
-_AW_PIN_STRIP = (
-    "import os,sys\n"
-    "_cwd=os.getcwd()\n"
-    "_drop={'',os.curdir,_cwd,os.path.realpath(_cwd)}\n"
-    # KEEP the runner's own root even when it IS the cwd. Without this exception the two halves of
-    # the pin defeat each other: `pinned_child_env` PREPENDS the runner root to PYTHONPATH, and this
-    # filter then removes that very entry whenever the runner is launched from its own checkout (the
-    # normal case), so the child fell through to the site-packages copy and the identity probe
-    # reported a MISMATCH that aborted every run. Measured: sys.path lost the runner's own checkout
-    # root and `agent_workflows` resolved under site-packages as a
-    # namespace package. The lane-shadowing defect this pin exists to close is a DIFFERENT cwd (a
-    # lane worktree carrying its own unreviewed copy), which is still dropped.
-    "_keep=os.environ.get('AW_PIN_KEEP_ROOT') or ''\n"
-    "_drop-={_keep,os.path.realpath(_keep)} if _keep else set()\n"
-    "sys.path[:]=[p for p in sys.path if p not in _drop]\n"
-)
 
 # Full bootstrap: strip the cwd, then do exactly what `-m agent_workflows` would do.
-_AW_PIN_BOOTSTRAP = (
-    _AW_PIN_STRIP
-    + "import runpy\n"
-    + 'runpy.run_module("agent_workflows",run_name="__main__",alter_sys=True)\n'
-)
 
 # Identity probe: same suppression, but report WHICH copy was selected instead of running the CLI.
-_AW_PIN_PROBE = _AW_PIN_STRIP + (
-    "import agent_workflows as _a\n"
-    # Use __file__ when present, else fall back to __path__[0]. With the cwd stripped, an
-    # installed agent_workflows can resolve as a NAMESPACE package whose __file__ is None
-    # (measured: site-packages/agent_workflows with __file__ None and a valid __path__),
-    # which made os.path.realpath() raise TypeError and the probe report a false MISMATCH,
-    # aborting every run as tool-identity-mismatch.
-    "_f=getattr(_a,'__file__',None) or (list(getattr(_a,'__path__',[]))+[None])[0]\n"
-    "print(os.path.realpath(_f) if _f else 'UNRESOLVED')\n"
-    "print(getattr(_a,'__version__',''))\n"
-)
-
-
-def runner_package_root() -> str:
-    """Absolute path of the directory CONTAINING the runner's own ``agent_workflows`` package.
-
-    This is the SELECTING half of the pin. Derived from this module's own location, so it names
-    the tooling the runner IS, not whatever a cwd or the default path happens to offer."""
-    return str(Path(__file__).resolve().parent.parent)
-
-
-def pinned_child_env(env: dict[str, str] | None = None) -> dict[str, str]:
-    """Child environment with the runner's own package root PREPENDED to ``PYTHONPATH``.
-
-    The SELECTING half of the two-part pin (see the block comment above). Inert on its own,
-    because the cwd entry precedes ``PYTHONPATH`` in ``sys.path``; it must be paired with the
-    suppressing half from :func:`pinned_module_argv` (or, for the console-script fallback, with
-    that script's own inherent cwd-independence)."""
-    merged = os.environ.copy()
-    root = runner_package_root()
-    current = merged.get("PYTHONPATH", "")
-    if root not in current.split(os.pathsep):
-        merged["PYTHONPATH"] = f"{root}{os.pathsep}{current}".rstrip(os.pathsep)
-    # Tell the suppressing half which root is the RUNNER's, so it is never dropped as "the cwd".
-    merged["AW_PIN_KEEP_ROOT"] = root
-    if env:
-        merged.update(env)
-    return merged
-
-
-def pinned_module_argv(args: Sequence[str]) -> list[str]:
-    """argv invoking the RUNNER's OWN ``agent_workflows`` CLI with ``args``.
-
-    Replaces a bare ``[sys.executable, "-m", "agent_workflows", *args]``. Supplies the
-    SUPPRESSING half of the pin; pair it with :func:`pinned_child_env` for the selecting half.
-    Both halves are required (see the block comment above)."""
-    argv = [sys.executable]
-    # 3.11+ only: also blocks a cwd `sitecustomize.py`, which the bootstrap cannot. Correctness
-    # does not depend on it, so 3.9/3.10 behave identically via the bootstrap alone.
-    if sys.version_info >= (3, 11):
-        argv.append("-P")
-    argv.extend(["-c", _AW_PIN_BOOTSTRAP])
-    argv.extend(args)
-    return argv
 
 
 def run_checked(
@@ -857,82 +1002,6 @@ def git_status(repo: Path) -> str:
 
 def git_common_dir(repo: Path) -> Path:
     return runner_shared.git_common_dir(repo, run_checked=run_checked)
-
-
-_TOOL_IDENTITY_VERIFIED: dict[str, Any] = {}
-
-
-def assert_child_tool_identity(
-    events_path: Path | None = None, cwd: Path | None = None
-) -> dict[str, Any]:
-    """Verify a pinned child resolves ``agent_workflows`` to the RUNNER's OWN copy; fail closed.
-
-    lanetruth Order 01 (af7i6p) E-04. Memoized per process, so it runs on the FIRST nested
-    invocation whatever that happens to be (``set_plan_approved`` or ``driver_begin`` depending
-    on the item's status) and costs nothing thereafter -- it does NOT add a subprocess per
-    nested call. Raises :class:`ToolIdentityError` on mismatch, which is RUN-FATAL per OQ-02.
-
-    The PRIMARY signal is the resolved module PATH, not the version string: the version is
-    derived from ``git describe`` and so can COLLIDE for two trees on the same commit that
-    differ in uncommitted content. The version is recorded as secondary context only."""
-    if _TOOL_IDENTITY_VERIFIED:
-        return _TOOL_IDENTITY_VERIFIED
-    parent_file = str(Path(__file__).resolve().parent / "__init__.py")
-    # Deliberately named `probe_argv`, NOT `argv`/`cmd`: this is a READ-ONLY identity probe that
-    # imports the package and prints a path, not a nested `aw` CLI invocation. The ttywedge guard
-    # (g40w37, tests/test_nested_tty_noninteractive.py) enumerates nested-`aw` launchers by that
-    # first-argument name and asserts the two drivers expose an EQUAL number of them; this probe
-    # is defined once here and merely IMPORTED by agy, so counting it as a launcher would create a
-    # false 4-vs-3 asymmetry. It still denies the child a terminal below, so the TTY guarantee is
-    # honored on the merits rather than by naming.
-    probe_argv = [sys.executable]
-    if sys.version_info >= (3, 11):
-        probe_argv.append("-P")
-    probe_argv.extend(["-c", _AW_PIN_PROBE])
-    # Probe from the most adversarial cwd available: the tree a nested call would use.
-    result = subprocess.run(
-        probe_argv,
-        cwd=str(cwd) if cwd else None,
-        env=pinned_child_env(),
-        text=True,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    lines = [ln.strip() for ln in (result.stdout or "").splitlines() if ln.strip()]
-    child_file = lines[0] if lines else ""
-    child_version = lines[1] if len(lines) > 1 else ""
-    expected = os.path.realpath(parent_file)
-    record: dict[str, Any] = {
-        "at": utc_now(),
-        "event": "tool-identity-verified",
-        "expected_module": expected,
-        "child_module": child_file,
-        "child_version": child_version,
-        "parent_version": globals().get("__version__", ""),
-        "probe_cwd": str(cwd) if cwd else os.getcwd(),
-    }
-    if child_file != expected:
-        record["event"] = "tool-identity-mismatch"
-        record["detail"] = (result.stderr or "").strip()[:500]
-        if events_path is not None:
-            append_jsonl(events_path, record)
-        raise ToolIdentityError(
-            "ABORTING RUN: nested `aw` tool-identity mismatch. A nested `aw` would execute "
-            "code OTHER than this runner's own installation, so every lifecycle transition "
-            "this run performs would be gated by tooling the runner is not.\n"
-            f"  expected module: {expected}\n"
-            f"  child resolved : {child_file or '<no output>'}\n"
-            f"  probe cwd      : {record['probe_cwd']}\n"
-            f"  child version  : {child_version or '<unknown>'}\n"
-            "This is run-fatal by design (plan af7i6p OQ-02; spec 25kzda 1.4/A1 reserves "
-            "ABORT RUN for the identity/integrity class). Marking a single item blocked would "
-            "be misleading, since the remaining items would run under the same wrong tooling."
-        )
-    if events_path is not None:
-        append_jsonl(events_path, record)
-    _TOOL_IDENTITY_VERIFIED.update(record)
-    return record
 
 
 class StallWatchdog(runner_shared.StallWatchdog):
@@ -1106,133 +1175,6 @@ def driver_begin(
     )
 
 
-# --- specvis (st5klo): declared-spec-edit VISIBILITY, at run start AND at run end -----------------
-#
-# A plan MAY amend a spec (maintainer ruling 2026-09-07), so the safeguard is not a gate but
-# VISIBILITY: whenever a run will rewrite a `.spec.md`, the operator must be told, BEFORE the run
-# spends anything and AGAIN when it ends. Nothing here refuses a run or gates an edit.
-#
-# Everything in this block is defined ONCE and IMPORTED by `agy_runipd` (the `as <same-name>`
-# re-export form documented at `agy_runipd.py:84-88`), for the reason that module records: a second
-# copy in the other driver is precisely how `Heartbeat` and `_read_deps` came to disagree.
-
-
-def queue_plan_path(repo: Path, item: "Mapping[str, Any]") -> Path | None:
-    """The plan FILE a runner queue entry refers to, or None when it cannot be located.
-
-    WHY THIS EXISTS, because it is a defect fix and not a convenience. `spec_impacts_for_queue`
-    documents its input as carrying `"path"` or `"plan_path"`, and that is what every test hand-built.
-    But a REAL runner queue entry carries NEITHER: both drivers freeze the plan location under
-    `"configured_file"` (`oc_runipd.py:2979`, `agy_runipd.py:2094`) and nothing ever assigns `"path"`.
-    So the pre-run spec announcement read an empty path from every item, computed an empty impact set,
-    and printed NOTHING - on BOTH hosts, for every real run, while a green suite asserted otherwise
-    because its fixtures supplied the key production never writes. Measured 2026-09-14 by driving both
-    entry points on a fixture repo whose approved plan declares a `.spec.md`: no `SPEC CHANGES:` line
-    on either host, and the same queue rebuilt with a `"path"` key yields the impact.
-
-    Resolution order, each rung there for a reason:
-      1. `path` / `plan_path` - an explicit override, and the shape the shared helper documents.
-      2. `last_plan_path` - written after a successful finalize MOVED the plan (pending/ -> executed/),
-         so it is the only rung that is still correct at RUN END for an executed item.
-      3. `configured_file` - the frozen location, correct for every item that has not moved.
-      4. `resolve_plan_path` - the authoritative shared resolver, which finds a plan by id6 wherever it
-         now lives. Last because it globs, and a cheap hit above is both faster and more specific.
-
-    Returns None rather than raising: every caller is an ADVISORY reporting surface, and refusing a run
-    because a report could not name a file would be a worse failure than the unnamed file.
-    """
-    for key in ("path", "plan_path", "last_plan_path", "configured_file"):
-        raw = item.get(key)
-        if not raw:
-            continue
-        candidate = Path(str(raw))
-        if not candidate.is_absolute():
-            candidate = repo / candidate
-        if candidate.is_file():
-            return candidate
-    id6 = str(item.get("id6") or "").strip()
-    if not id6:
-        return None
-    try:
-        return resolve_plan_path(repo, str(item.get("configured_file") or ""), id6)
-    except (DriverError, OSError):
-        return None
-
-
-def queue_with_plan_paths(
-    repo: Path, queue: "Sequence[Mapping[str, Any]]"
-) -> list[dict[str, Any]]:
-    """``queue`` re-expressed in the shape `spec_impacts_for_queue` DOCUMENTS it consumes.
-
-    Adapts at the CALL SITE rather than widening the shared helper's input contract, which keeps that
-    helper's documented shape ("reads each item's plan file from disk at dispatch") intact and keeps
-    this fix inside the plan's declared scope. An item whose plan cannot be located is DROPPED, which
-    matches the helper's own posture: an unreadable plan is skipped rather than failing the run.
-    """
-    out: list[dict[str, Any]] = []
-    for item in queue or ():
-        resolved = queue_plan_path(repo, item)
-        if resolved is None:
-            continue
-        out.append(
-            {
-                "id6": item.get("id6"),
-                "setid": item.get("setid"),
-                "path": str(resolved),
-            }
-        )
-    return out
-
-
-# The three states a per-item spec reconciliation can be in at run end. Named constants because the
-# end-of-run renderer branches on them and a typo'd string literal would silently render an item as
-# the wrong thing - and the WRONG thing here is specifically "clean", which is the one reading that
-# must never be manufactured (F-9).
-SPEC_RECONCILED = (
-    "reconciled"  # finalize precheck PASSED; the delta below is authoritative.
-)
-SPEC_RECONCILE_REFUSED = "refused"  # precheck REFUSED, so its empty pair means nothing.
-SPEC_NOT_FINALIZED = (
-    "not-finalized"  # the item never reached finalize; there is no delta at all.
-)
-
-
-def spec_edit_record(
-    plan_path: Path,
-    reasons: "Mapping[str, str]",
-    acks: "Mapping[str, str]",
-    *,
-    state: str,
-) -> dict[str, Any]:
-    """The durable, spec-FILTERED view of one item's two-way scope reconciliation (E-03).
-
-    ``reasons`` are the out-of-scope CHANGED paths and ``acks`` the declared-but-UNMODIFIED ones, i.e.
-    exactly what `_compute_scope_reconciliation` returns. This narrows both to `.spec.md` files and
-    keeps the item's DECLARED spec set beside them, so the end report can name the two asymmetries
-    that matter:
-
-      * `modified_not_declared` - a spec this item changed WITHOUT declaring it. THE important case: an
-        undeclared contract change is the thing declared-scope visibility exists to catch.
-      * `declared_not_modified` - a spec the item promised to change and did not. Worth a line because
-        it usually means the amendment half of a plan was skipped while its code half landed.
-
-    ``state`` must be one of the three constants above and is stored verbatim, because the renderer's
-    honesty depends on distinguishing "reconciled and clean" from "we could not tell".
-    """
-    try:
-        declared = declared_spec_paths(plan_path.read_text(encoding="utf-8"))
-    except OSError:
-        declared = []
-    modified_not_declared = sorted(p for p in (reasons or {}) if p.endswith(".spec.md"))
-    declared_not_modified = sorted(p for p in (acks or {}) if p.endswith(".spec.md"))
-    return {
-        "state": state,
-        "declared": list(declared),
-        "modified_not_declared": modified_not_declared,
-        "declared_not_modified": declared_not_modified,
-    }
-
-
 def record_item_spec_edits(
     repo: Path,
     plan_path: Path,
@@ -1293,101 +1235,6 @@ def record_item_spec_edits(
     return record
 
 
-def spec_edit_summary(repo: Path, state: "Mapping[str, Any]") -> dict[str, Any]:
-    """Aggregate the per-ITEM spec records into the per-RUN view the end report renders (E-03).
-
-    THE AGGREGATION IS THE POINT (F-9). The start announcement is per-QUEUE (it reads every plan's
-    declared scope in one pass), while the reconciliation is per-ITEM and only exists for an item that
-    reached finalize. So this must report BOTH sides and never let one stand in for the other:
-    `declared` is what the whole queue said it would change, and `reconciled`/`refused`/`not_finalized`
-    say how much of that the run could actually vouch for.
-
-    Reads ONLY durable state, so it renders identically from `print_status` on a finished run
-    directory, from a normal exit, and from a signal path mid-run. An older run directory carrying no
-    `spec_edits` key degrades to `not_finalized`, which is the honest reading rather than a clean one.
-    """
-    declared: dict[str, list[str]] = {}
-    reconciled: list[dict[str, Any]] = []
-    refused: list[str] = []
-    not_finalized: list[str] = []
-    for item in state.get("queue", []) or ():
-        id6 = str(item.get("id6") or "?")
-        plan_path = queue_plan_path(repo, item)
-        if plan_path is not None:
-            try:
-                specs = declared_spec_paths(plan_path.read_text(encoding="utf-8"))
-            except OSError:
-                specs = []
-            if specs:
-                declared[id6] = specs
-        record = item.get("spec_edits") or None
-        if not record:
-            # Only an item that could have finalized is interesting here. A queued/never-dispatched
-            # item is reported as not-finalized too, which is correct: nothing vouched for its scope.
-            not_finalized.append(id6)
-            continue
-        rec_state = record.get("state")
-        if rec_state == SPEC_RECONCILE_REFUSED:
-            refused.append(id6)
-            continue
-        if rec_state == SPEC_NOT_FINALIZED:
-            not_finalized.append(id6)
-            continue
-        reconciled.append(
-            {
-                "id6": id6,
-                "setid": item.get("setid"),
-                "declared": list(record.get("declared") or []),
-                "modified_not_declared": list(
-                    record.get("modified_not_declared") or []
-                ),
-                "declared_not_modified": list(
-                    record.get("declared_not_modified") or []
-                ),
-            }
-        )
-    return {
-        "declared": declared,
-        "reconciled": reconciled,
-        "refused": refused,
-        "not_finalized": not_finalized,
-    }
-
-
-def report_run_spec_edits(
-    state: "Mapping[str, Any]",
-    *,
-    stream: Any = None,
-    partial: bool = False,
-) -> list[str]:
-    """Print the END-OF-RUN declared-spec-edit report; return the lines printed (E-03).
-
-    THE PRIMARY DELIVERABLE of specvis st5klo. Before this, the ONLY spec-impact surface in the package
-    was pre-dispatch, so on a long run the operator's one chance to notice a rewritten contract was the
-    top of a scrollback the run had since buried. This re-states it where the run summary is read.
-
-    ``partial`` is the label the maintainer required (OQ-01, 2026-09-08) for the non-primary summary
-    sites - the interrupt/SIGTERM path and the DriverError path. Those fire when the run did NOT
-    complete, which is exactly when an operator most needs to know a spec was rewritten, so they are
-    wired; but their reconciliation is by definition half-computed, so they say so rather than
-    presenting a partial contract change as authoritative.
-
-    Advisory like its start-of-run twin, and for the same reason: this runs at EXIT, so an exception
-    escaping here would replace a completed run's summary with a traceback. It reports its own failure
-    instead of vanishing (the E-01 lesson applied to the new surface).
-    """
-    out = stream if stream is not None else sys.stdout
-    pal = Palette(should_color(out))
-    try:
-        summary = spec_edit_summary(Path(state["repo"]), state)
-        lines = format_spec_edit_report(summary, pal=pal, partial=partial)
-    except Exception as exc:
-        lines = format_spec_impact_failure(exc, pal=pal)
-    for line in lines:
-        print(line, file=out)
-    return lines
-
-
 # rununify 04 (`tx6q0h`): one-line wrapper over the shared definition, binding THIS host's labels.
 # The two copies differed ONLY by the `aw oc run` / `aw agy run` string they write into a plan's
 # PERMANENT finalize record, which is why the shared version takes no default for it.
@@ -1421,304 +1268,76 @@ def driver_finalize(
     )
 
 
-# --- bkclose (zhr6mc): close a backlog item when the run executes its last carrier ----------------
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: FOUR ONE-LINE WRAPPERS, in the shape `818uru`
+# E-05 established and for the identical MEASURED reason. Each shared body calls the shared
+# `run_checked`, which takes a host-specific `env_builder` a shared body cannot resolve, so the
+# dependency is passed EXPLICITLY at exactly one visible site per runner with no mutable module state.
+# Lifting them without the injection raised `TypeError: run_checked() missing 1 required keyword-only
+# argument: 'env_builder'` on ten tests in `tests/test_runner_backlog_close.py`.
 #
-# `graduated` means "design handed off, code not yet written" and `done` means "written and
-# validated", but until now NOTHING advanced an item across that boundary: no automation, no
-# workflow instruction, no `aw check` rule, and the one warning that would nag inspects `open/`
-# only. Measured at authoring: ZERO items in `done/` carry a graduation record, so the transition
-# had never once occurred.
+# EACH WRAPPER KEEPS THE ORIGINAL NAME AND SIGNATURE, so every call site in this module and in the
+# peer driver is untouched and both hosts run ONE implementation.
+# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts that structurally (a single delegating
+# statement naming `runner_shared.<same name>`), which is a STRONGER claim than the object identity it
+# replaces for these four: identity cannot hold when each host must bind its own `run_checked`, while
+# the structural check additionally forbids a wrapper that grew a body.
 #
-# The runner is the right owner because it is the only actor that knows the MOMENT the last carrier
-# lands. Everything below is defined ONCE here and IMPORTED by `agy_runipd` (which does not
-# re-declare it), for the same reason the dependency API is shared: a duplicated copy is exactly how
-# the deleted `_read_deps` pair came to be identically wrong in both drivers.
-
-# The carrier-kind partition. The closing rule turns on whether the item's requested output INCLUDES
-# AN IPD, not on the carrier's type per se (zhr6mc OQ-01, resolved by the maintainer):
-#   * carriers include >= 1 IPD -> the item promised CODE, so it closes only when every IPD carrier
-#     is in a terminal `executed` state;
-#   * carriers include NO IPD   -> the item asked for the ARTIFACT, so it is done as soon as that
-#     artifact EXISTS. Spec status is deliberately NOT consulted: an unreviewed, unapproved spec
-#     still satisfies "create a spec", and approval is the spec's own lifecycle (`aw specs`).
-CARRIER_KIND_IPD = "ipd"
-CARRIER_KIND_OTHER = "other"
+# `process_backlog_close` ALSO TAKES ITS TWO CLOSERS INJECTED, and that is not symmetry for its own
+# sake: four in-tree tests patch `oc_runipd.close_backlog_item` to spy on the argv the gated setter
+# receives and to induce a setter failure. A shared body resolving those names in its OWN globals would
+# bypass every such patch, turning a fail-closed test green while the gate it guards went unexercised.
+def collect_earned_paths(repo: Path, item: dict[str, Any]) -> list[str]:
+    """The paths one item's turn produced. See `runner_shared.collect_earned_paths`."""
+    return runner_shared.collect_earned_paths(repo, item, run_checked=run_checked)
 
 
-def _carrier_kind(path: Path) -> str:
-    """`ipd` for a plan IPD, `other` for any non-IPD carrier (spec, or a later artifact type)."""
-    return CARRIER_KIND_IPD if path.name.endswith(".ipd.md") else CARRIER_KIND_OTHER
-
-
-class BacklogCloseVerdict(NamedTuple):
-    """The decision about ONE backlog item, and why.
-
-    close:    may the run close this item `done` now?
-    reason:   the human-readable justification, reported verbatim either as the close message or as
-              the E-06 unclosed-item reason. Never a bare boolean, because "we did not close it" is
-              useless to the operator without the cause.
-    evidence: the repo-relative carrier path to cite as `--evidence` when closing, else None.
-    rule:     `ipd` (every IPD carrier executed) | `other` (the artifact exists) | None (no close).
-    """
-
-    close: bool
-    reason: str
-    evidence: str | None
-    rule: str | None
-
-
-# rununify 06 (`sy7uwh`) E-03: `_read_from_backlog` is IMPORTED from `runner_shared`, not defined here.
-# It is one of the six module-level readers `parse_plan_file` closes over, so it had to become resolvable
-# in the shared module for that function to move at all; leaving a SECOND copy behind would reproduce
-# exactly the defect this Set exists to end (a fix reaching one caller and not the other), one layer
-# down from the record itself. `agy_runipd` already bound this by name FROM this module, and
-# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts object identity between the two hosts;
-# a shared definition re-exported here under the same name satisfies that assertion, because both hosts
-# now name the SAME object rather than one naming the other's.
-# (The import itself is hoisted to the top-of-file shared-import block, per E402.)
-
-
-def resolve_backlog_item(repo: Path, item_id6: str) -> Path | None:
-    """The backlog item file whose `- Id:` is ``item_id6``, or None.
-
-    Reuses `backlog._iter_items` + `backlog.parse_item` (the tree walker and metadata reader the
-    backlog verbs themselves use) rather than globbing for the id6, so a renamed file or a
-    filename/`Id:` mismatch cannot make the runner miss an item the setter would find."""
-    from agent_workflows import backlog as _backlog
-
-    for path in _backlog._iter_items(Path(repo)):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _backlog.parse_item(text).id == item_id6:
-            return path
-    return None
-
-
-def evaluate_backlog_close(
-    repo: Path,
-    item_id6: str,
-    earned_paths: Iterable[str],
-    *,
-    executed_overrides: Mapping[str, str] | None = None,
-) -> BacklogCloseVerdict:
-    """Decide whether THIS run may now close backlog item ``item_id6``, and why not if it may not.
-
-    ``earned_paths`` are the repo-relative paths this run actually produced (see
-    `run_earned_paths`). It is the E-04 gate: a run may not close an item whose carriers it merely
-    OBSERVED as already executed, because closing is a state change it did not earn.
-
-    FAIL CLOSED (E-04). Every lookup below is wrapped: a missing item, an unreadable tree, or a
-    raising helper yields `close=False` plus a recorded reason, never an escaping exception and never
-    an optimistic close.
-
-    ``executed_overrides`` (dirtygates-03 `9iq461` E-03) maps ONE carrier's path AS ``repo`` SEES IT
-    to the path it ALREADY occupies in the caller's lane worktree, and asserts that this single
-    carrier is terminal `executed` even though ``repo`` still shows it in `pending/`.
-
-    WHY THIS NARROW ESCAPE HATCH EXISTS, and why it is not a hole. OQ-01 resolved that eligibility is
-    evaluated in MAIN, because the question "have ALL carriers of this item proved the work?" is a
-    claim about SEVERAL plans and carrier discovery scans the FILESYSTEM (F-6), so only main's view
-    sees every sibling's true bucket. But the runner now performs the item's MOVE inside the lane,
-    BEFORE the merge, and at that instant main legitimately still shows THIS run's own plan in
-    `pending/` -- so a literal main-only evaluation would refuse EVERY close, forever, and would do so
-    silently (the run summary would simply list the item as left open). Measured pre-fix, the close
-    ran AFTER the merge, which is exactly how main came to show the plan executed; moving the write
-    earlier means that one fact must now be supplied explicitly rather than read.
-    A WORKER MAY ASSERT FACTS ABOUT ITS OWN ITEM, which is the same role rule `retire_orchestrator`
-    enforces from the other side. So the override is deliberately limited to the caller's OWN
-    just-finalized plan, and it is a MAPPING rather than a set so the verdict can cite the path the
-    carrier REALLY occupies (its `executed/` path) instead of main's stale `pending/` one, which would
-    be a false citation. SIBLING carriers are still read from ``repo`` with no override, so the
-    multi-carrier protection F-5/F-12 measured (21 of 108 carried items have more than one carrier,
-    the tail running 9, 6, 5) is untouched: an item whose sibling has not run still does not close.
-    Defaults to None, so every caller that does not pass it behaves exactly as before.
-    """
-    from agent_workflows import check_engine as _ce
-
-    overrides = dict(executed_overrides or {})
-    earned = {p for p in earned_paths if p}
-
-    try:
-        item_path = resolve_backlog_item(repo, item_id6)
-    except Exception as exc:  # fail closed: an unreadable backlog tree closes nothing
-        return BacklogCloseVerdict(
-            False, f"backlog item lookup failed: {exc}", None, None
-        )
-    if item_path is None:
-        return BacklogCloseVerdict(
-            False, f"no backlog item resolves to id6 {item_id6}", None, None
-        )
-    status = item_path.parent.name
-    if status == "done":
-        return BacklogCloseVerdict(False, "item is already done", None, None)
-
-    # THE ONE SHARED LOOKUP (E-02). `find_from_backlog_artifacts` already returns every PLAN and
-    # SPEC carrying the link, plans first. A second implementation here would be the same divergence
-    # defect this repository keeps hitting, so there is deliberately no local scan.
-    try:
-        carriers = [
-            Path(p) for p, _br in _ce.find_from_backlog_artifacts(repo, item_id6)
-        ]
-    except Exception as exc:  # fail closed
-        return BacklogCloseVerdict(False, f"carrier lookup failed: {exc}", None, None)
-    if not carriers:
-        return BacklogCloseVerdict(
-            False,
-            f"no plan or spec carries From-Backlog: {item_id6}, so no carrier proves the work",
-            None,
-            None,
-        )
-
-    def _rel(path: Path) -> str:
-        try:
-            return str(path.resolve().relative_to(Path(repo).resolve()))
-        except ValueError:
-            return str(path)
-
-    def _cited(path: Path) -> str:
-        """The path to CITE for a carrier: its overridden (real) location if one was supplied.
-
-        The distinction matters because the citation becomes the `--evidence` argument, and
-        `check_engine.resolve_evidence_artifact` must be able to RESOLVE it (F-11). Citing main's
-        stale `pending/` path for a plan that actually sits in `executed/` would be a false citation
-        of a file that does not exist where the claim says it does.
-        """
-        return overrides.get(_rel(path), _rel(path))
-
-    ipds = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_IPD]
-    others = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_OTHER]
-
-    if ipds:
-        # THE IPD RULE (E-02). The item promised code, so every IPD carrier must be terminal
-        # `executed`; one unexecuted sibling is enough to hold the item open. This is why closing on
-        # "my plan executed" is wrong: measured at authoring, `dh0uno` has TWO carriers, so that rule
-        # would have closed it while half its work was unwritten.
-        unexecuted: list[str] = []
-        for plan in ipds:
-            # dirtygates-03 (`9iq461`) E-03: the caller's OWN just-finalized plan is asserted
-            # executed, because at this point in the run its move exists only on the lane branch and
-            # `repo` still shows it in `pending/`. EVERY OTHER CARRIER IS READ FROM `repo` WITH NO
-            # OVERRIDE, which is the whole point: main's view is the only one that sees a sibling's
-            # true bucket, and a lane-side scan would see this plan executed and answer more
-            # permissively than main would.
-            if _rel(plan) in overrides:
-                continue
-            try:
-                bucket = plan_bucket(plan)
-            except Exception as exc:  # fail closed
-                return BacklogCloseVerdict(
-                    False,
-                    f"terminal-state read failed for {_rel(plan)}: {exc}",
-                    None,
-                    None,
-                )
-            if bucket != "executed":
-                unexecuted.append(_rel(plan))
-        if unexecuted:
-            return BacklogCloseVerdict(
-                False,
-                "IPD carrier(s) not executed: " + ", ".join(sorted(unexecuted)),
-                None,
-                None,
-            )
-        # E-04: the run must have EARNED it. The deciding carrier has to be one this run produced,
-        # not one it found already finished. BOTH spellings of an overridden carrier's path count as
-        # earned: `collect_earned_paths` derives its set from `git diff`, which reports the LANE's
-        # post-move `executed/` path, while the carrier scan found the same plan at main's `pending/`
-        # path. Testing only one spelling would refuse a close the run demonstrably earned.
-        earned_ipds = [p for p in ipds if _rel(p) in earned or _cited(p) in earned]
-        if not earned_ipds:
-            return BacklogCloseVerdict(
-                False,
-                "this run executed none of its carriers, so the close was not earned "
-                "(all carriers were already executed before this run)",
-                None,
-                None,
-            )
-        return BacklogCloseVerdict(
-            True,
-            "every IPD carrier is executed and this run executed "
-            + ", ".join(sorted(_cited(p) for p in earned_ipds)),
-            _cited(earned_ipds[0]),
-            CARRIER_KIND_IPD,
-        )
-
-    # THE NON-IPD RULE (E-03). No IPD carrier means the item's requested output IS the artifact, so
-    # existence is the whole test. Spec STATUS is not read here on purpose: a `draft`/`to-review`
-    # spec still satisfies "create the spec", and its approval belongs to `aw specs`.
-    existing = [p for p in others if p.is_file()]
-    if not existing:
-        return BacklogCloseVerdict(
-            False, "no non-IPD carrier artifact exists on disk", None, None
-        )
-    earned_others = [p for p in existing if _rel(p) in earned]
-    if not earned_others:
-        return BacklogCloseVerdict(
-            False,
-            "this run created none of its carriers, so the close was not earned "
-            "(all carrier artifacts existed before this run)",
-            None,
-            None,
-        )
-    return BacklogCloseVerdict(
-        True,
-        "the requested artifact(s) exist and this run created "
-        + ", ".join(sorted(_rel(p) for p in earned_others))
-        + " (no IPD carrier, so approval is not required)",
-        _rel(earned_others[0]),
-        CARRIER_KIND_OTHER,
+def close_backlog_item(
+    repo: Path, item_path: Path, item_id6: str, evidence: str, message: str
+) -> tuple[int, str]:
+    """Close an item through the gated setter. See `runner_shared.close_backlog_item`."""
+    return runner_shared.close_backlog_item(
+        repo, item_path, item_id6, evidence, message, run_checked=run_checked
     )
 
 
-def run_earned_paths(state: dict[str, Any]) -> list[str]:
-    """Every repo-relative path THIS run actually produced, across all attempts (E-04).
+def commit_backlog_close(
+    repo: Path,
+    item_id6: str,
+    message: str,
+    *,
+    run_id: str | None = None,
+    plan_id6: str | None = None,
+) -> str | None:
+    """Path-scoped-commit the moved item file. See `runner_shared.commit_backlog_close`."""
+    return runner_shared.commit_backlog_close(
+        repo,
+        item_id6,
+        message,
+        run_id=run_id,
+        plan_id6=plan_id6,
+        run_checked=run_checked,
+    )
 
-    Two sources, both derived from git or from the lifecycle rather than from a model claim:
-    the per-attempt `changed_paths` (`git diff --name-only <starting_head>..<ending_head>`) and the
-    executed plan's own post-finalize path. An older run directory carrying neither simply earns
-    nothing, which fails closed."""
-    earned: list[str] = []
-    for item in state.get("queue", []) or []:
-        for key in ("earned_paths",):
-            for path in item.get(key) or []:
-                if path and path not in earned:
-                    earned.append(path)
-    return earned
 
-
-def collect_earned_paths(repo: Path, item: dict[str, Any]) -> list[str]:
-    """The repo-relative paths one item's turn produced: its diff plus its finalized plan path.
-
-    Best-effort by design (E-04 fails closed): a git failure yields fewer earned paths, which can
-    only ever WITHHOLD a close, never manufacture one."""
-    earned: list[str] = []
-    attempts = item.get("attempts") or []
-    for attempt in attempts:
-        start = attempt.get("starting_head")
-        end = attempt.get("ending_head")
-        if not start or not end or start == end:
-            continue
-        try:
-            out = run_checked(
-                ["git", "diff", "--name-only", f"{start}..{end}"], cwd=repo
-            )
-        except (DriverError, OSError):
-            continue
-        for line in out.splitlines():
-            path = line.strip()
-            if path and path not in earned:
-                earned.append(path)
-    last_plan = item.get("last_plan_path")
-    if last_plan:
-        try:
-            rel = str(Path(last_plan).resolve().relative_to(Path(repo).resolve()))
-        except ValueError:
-            rel = str(last_plan)
-        if rel not in earned:
-            earned.append(rel)
-    return earned
+def process_backlog_close(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    *,
+    lane_repo: Path | None = None,
+    lane_handle: Any = None,
+) -> None:
+    """Close this item's carrier if the run earned it. See `runner_shared` for the contract."""
+    return runner_shared.process_backlog_close(
+        run_dir,
+        state,
+        item,
+        lane_repo=lane_repo,
+        lane_handle=lane_handle,
+        run_checked=run_checked,
+        close_backlog_item=close_backlog_item,
+        commit_backlog_close=commit_backlog_close,
+    )
 
 
 def collect_lane_earned_paths(repo: Path, handle: Any) -> list[str]:
@@ -1733,562 +1352,6 @@ def collect_lane_earned_paths(repo: Path, handle: Any) -> list[str]:
     return runner_shared.collect_lane_earned_paths(
         repo, handle, run_checked=run_checked
     )
-
-
-def close_backlog_item(
-    repo: Path, item_path: Path, item_id6: str, evidence: str, message: str
-) -> tuple[int, str]:
-    """Close a backlog item `done` through the LIFECYCLE-OWNED setter, never by editing the file.
-
-    ``repo`` is the tree the setter operates on: it is where the item file MOVES and, inseparably,
-    the ``repo_root`` the release-gate predicate evaluates against (see the warning below).
-
-    THE `--status` SPELLING IS DELIBERATE AND LOAD-BEARING (zhr6mc D1). `aw backlog set <status>
-    <selector>` (positional) dispatches to `status_set.run_set_command`, which does NOT run the
-    shared release-gate close predicate and cannot even accept `--evidence`; `aw backlog set
-    <selector> --status done` dispatches to `backlog.run_set`, which DOES call
-    `check_engine.evaluate_blocking_close` and REFUSES an illegitimate blocking close. Verified live:
-    a `graduated` item carrying `Blocks-Release: next` closed with NO evidence via the positional
-    form (exit 0) and was REFUSED via this one. The runner must be gated, so it uses this form; do
-    not "simplify" it back to the positional spelling.
-
-    `--dir` IS NOT MERELY "WHERE THE FILE MOVES" (dirtygates-03 `9iq461` F-10/F-11). Because the
-    gated route runs `check_engine.evaluate_blocking_close`, this ONE argument also chooses the tree
-    that predicate scans for release-gate carriers (`check_engine.py`'s `done` branch calls
-    `find_from_backlog_artifacts(repo_root, item_id6)`) and the tree its `--evidence` citation is
-    resolved against (`resolve_evidence_artifact(repo_root, evidence)`). `backlog.run_set` derives
-    both from the same `resolve_verb_repo_root(args.dir)`, so THE TWO CANNOT BE SPLIT FROM HERE: one
-    `--dir` is one tree for the move AND the gate. That is why `process_backlog_close` performs the
-    MOVE in the lane but takes the ELIGIBILITY decision against main BEFORE calling this, and why the
-    evidence it cites is a path that resolves in the lane. Do not "simplify" this to a lane-only
-    evaluation: in the lane this run's own plan already sits in `executed/`, so a lane-side carrier
-    scan is MORE likely to find a satisfying carrier than main's, and the error direction is the
-    permissive one -- a release-gated item could close `done` that main's view would refuse.
-    """
-    cmd = pinned_module_argv(
-        [
-            "backlog",
-            "set",
-            item_id6,
-            "--status",
-            "done",
-            "--evidence",
-            evidence,
-            "--message",
-            message,
-            "--dir",
-            str(repo),
-            "--no-commit",
-        ]
-    )
-    # Launched through the SHARED `run_checked` rather than a fresh `subprocess.run`: it already
-    # carries the af7i6p tooling pin AND the ttywedge (g40w37) `stdin=DEVNULL` terminal denial, so this
-    # close cannot become the one nested-`aw` site that wedges on a prompt nobody can answer. Its
-    # nonzero contract is an exception, which is converted back to the (rc, message) pair the
-    # fail-closed caller needs.
-    try:
-        return 0, run_checked(cmd, cwd=repo)
-    except (DriverError, FileNotFoundError, OSError) as exc:
-        return 1, str(exc).strip()
-
-
-def commit_backlog_close(
-    repo: Path,
-    item_id6: str,
-    message: str,
-    *,
-    run_id: str | None = None,
-    plan_id6: str | None = None,
-) -> str | None:
-    """Path-scoped-commit the item file the setter just MOVED, via the shared tooled commit path.
-
-    Returns the new commit sha, or None when nothing was committed.
-
-    RUN OWNERSHIP TRAILERS (runtrailwire-01 `wao266` E-02/E-03). ``run_id`` is the live run's own id
-    and ``plan_id6`` the queue item (plan) whose execution earned the close; both are threaded from
-    the caller's `state`/`item` and formatted by the canonical `git_commit_helper.run_item_trailers`,
-    never hand-built, so the `AW-Run`/`AW-Item` key spelling is single-sourced and cannot drift.
-    KEYWORD-ONLY AND OPTIONAL BY DESIGN: `agy_runipd` imports this function BY NAME and both drivers
-    must keep resolving the same object, so the existing three-positional call form stays valid.
-
-    WITH NO RUN ID THE TRAILER IS OMITTED, NEVER SYNTHESIZED (E-03). `run_item_trailers` already
-    skips an absent value and returns `[]` when both are absent, which `offer_commit` composes into a
-    BYTE-IDENTICAL message, so the safe behavior is the default and needs no special case here. The
-    tempting "improvement" is to synthesize an id from a timestamp or the plan id; do not. The whole
-    value of an immutable trailer is that a later reader can TRUST it, so a trailer asserting run
-    ownership it cannot substantiate is strictly worse than no trailer at all (the same discipline
-    `h9cn0y` E-03 applies when it refuses to name a responsible sha it cannot substantiate).
-
-    WHICH PATH STILL CALLS THIS (dirtygates-03 `9iq461` E-02): the NON-ISOLATED one only
-    (`--no-isolate-worktree`), where the setter genuinely wrote into the shared checkout and leaving
-    the move uncommitted would hand the next turn a dirty tree. AN ISOLATED TURN NO LONGER CALLS IT:
-    its move happens in the lane and is swept up by the lane's own finalize commit, so it rides the
-    merge and arrives on main as part of one ref update. Making a SECOND commit on main there would be
-    the exact mid-run write to the shared checkout this plan removes. Kept, not deleted, because the
-    non-isolated path is a supported escape hatch (orchestrator `8lfoum` OQ-01 resolved to keep it).
-
-    WHY COMMIT AT ALL ON THAT PATH (zhr6mc D2): `aw backlog set` moves the file (graduated/ -> done/)
-    and does not commit, so leaving it would hand the next turn a dirty main tree -- which the
-    `z2isfg` begin-dirty gate and the `driverfin-03` dirty-overlap gate both consume, and which is
-    precisely the contamination those gates exist to stop.
-
-    WHY THIS HELPER: `git_commit_helper.offer_commit` snapshots the index BEFORE staging, stages only
-    the explicit paths, commits only the intersection of those paths with what it itself staged, and
-    on failure resets ONLY its own paths. That is the shared-checkout-safe path AGENTS.md prescribes;
-    a raw `git add` here could sweep in a co-worker's staged work.
-
-    The path set is filtered to entries whose BASENAME contains this item's id6, so a co-worker's
-    concurrent edit to a DIFFERENT backlog item can never be swept into the runner's commit.
-    """
-    from agent_workflows import git_commit_helper as _gch
-
-    # Only EXISTING backlog roots may be named. A pathspec that matches nothing makes `git status`
-    # exit nonzero ("did not match any files"), which `run_checked` turns into a DriverError, which
-    # this function suppresses -- so naming both layouts unconditionally made the commit silently
-    # never happen in any repo with only one of them (i.e. every real repo). Measured live.
-    roots = [
-        rel
-        for rel in (".aw/records/backlog", ".agents/backlog")
-        if (Path(repo) / rel).exists()
-    ]
-    if not roots:
-        return None
-    try:
-        # `-uall` is LOAD-BEARING. Git's default `--porcelain` collapses an untracked directory to the
-        # DIRECTORY entry (`?? .aw/records/backlog/done/`), whose basename carries no id6, so the
-        # id6 filter below silently matched nothing and the newly written item was never staged -- the
-        # move committed as a bare deletion, or not at all. Measured live before this flag was added.
-        # `-uall` lists the individual untracked FILE instead.
-        porcelain = run_checked(
-            ["git", "status", "--porcelain", "-uall", "--", *roots],
-            cwd=repo,
-        )
-    except (DriverError, OSError):
-        return None
-    paths: list[str] = []
-    for line in porcelain.splitlines():
-        # PARSE THE STATUS FIELD, DO NOT SLICE A FIXED WIDTH. `run_checked` returns a `.strip()`ed
-        # blob, so porcelain's leading space for an unstaged change is already gone: `" D <path>"`
-        # arrives as `"D <path>"`, and a blind `line[3:]` then ate the path's own first character,
-        # producing `aw/records/...` and a `git add` pathspec failure. Measured live. Splitting on the
-        # first run of whitespace after the 1-2 char status code is width-independent.
-        parts = line.strip().split(None, 1)
-        if len(parts) != 2:
-            continue
-        raw = parts[1].strip()
-        if not raw:
-            continue
-        # A rename/copy entry is `old -> new`; both sides belong to the same move.
-        for candidate in raw.split(" -> "):
-            candidate = candidate.strip().strip('"')
-            if (
-                candidate
-                and item_id6 in Path(candidate).name
-                and candidate not in paths
-            ):
-                paths.append(candidate)
-    if not paths:
-        return None
-    # FAIL CLOSED on a partial view: the setter MOVES the file, so a legitimate close always yields
-    # both sides (the deletion and the addition). Seeing only one means the porcelain view is not what
-    # this function assumes, and committing half a move would leave the tree worse than not committing
-    # at all. The item is already `done` on disk either way; the operator commits it.
-    if len(paths) < 2:
-        return None
-    try:
-        outcome = _gch.offer_commit(
-            repo,
-            paths,
-            message=message,
-            assume_yes=True,
-            interactive=False,
-            # RUN OWNERSHIP, MACHINE-READABLE AND IMMUTABLE (E-02/E-03). The canonical formatter, not
-            # a hand-built string, so the key spelling lives in ONE place. Values come from the LIVE
-            # run threaded in by the caller; when a caller has no run id (a hand-driven or test
-            # invocation) this returns `[]` and the message composes BYTE-IDENTICALLY to today's.
-            # NOTHING IS SYNTHESIZED to fill the gap: an absent trailer means UNKNOWN ownership, while
-            # a fabricated one would be a false ownership claim in permanent history.
-            trailers=_gch.run_item_trailers(run_id, plan_id6),
-        )
-    except Exception:
-        return None
-    return getattr(outcome, "commit", None)
-
-
-def process_backlog_close(
-    run_dir: Path,
-    state: dict[str, Any],
-    item: dict[str, Any],
-    *,
-    lane_repo: Path | None = None,
-    lane_handle: Any = None,
-) -> None:
-    """After a plan reaches `executed`, close its backlog item if this run earned it (E-02/E-03/E-04).
-
-    Records the verdict on the queue item either way, so E-06 can report every item left open WITH
-    ITS REASON rather than merely noting that something did not happen.
-
-    THE DECISION AND THE WRITE HAPPEN IN DIFFERENT TREES, DELIBERATELY (dirtygates-03 `9iq461`).
-    ``lane_repo`` is the isolated turn's lane worktree, passed BEFORE the merge, and ``lane_handle``
-    its `WorktreeHandle` (whose `base_commit..branch` range is where the turn's commits actually are).
-    When both are None (a `--no-isolate-worktree` turn, or a post-merge caller) everything behaves
-    exactly as it did before.
-
-    WHY SPLIT THEM. The write must be in the LANE so the item's move rides the lane's finalize commit
-    and reaches main through the SAME merge as the code: a merge is atomic, so the bookkeeping lands
-    if and only if the work lands, and NOTHING is written to the shared checkout while the run is
-    still going. That mid-run write is not a theoretical tidiness point -- measured 2026-09-13, one
-    item's uncommitted close left main dirty and a whole-tree gate then refused 27 of 42, 23 of 41 and
-    18 of 43 remaining queue items across three consecutive runs.
-    The DECISION must be taken against MAIN (OQ-01, resolved) because it asks whether ALL carriers of
-    the item prove the work. That is a claim about several plans, carrier discovery scans the
-    FILESYSTEM (`find_from_backlog_artifacts`), and 21 of 108 carried items have more than one carrier
-    (one has nine), so a lane-side evaluation could close an item whose sibling carrier never ran.
-    The single fact the lane legitimately contributes -- "my own plan is executed" -- is passed
-    explicitly as `executed_overrides`, which is a worker asserting a fact about its OWN item.
-    """
-    item_id6 = item.get("from_backlog")
-    if not item_id6:
-        return
-    repo = Path(state["repo"])
-    # THE TREE THE MOVE HAPPENS IN. `repo` for a non-isolated turn (unchanged behavior); the lane for
-    # an isolated one, so the move is swept into the lane's commit and arrives via the merge.
-    write_repo = Path(lane_repo) if lane_repo is not None else repo
-    isolated = write_repo.resolve() != repo.resolve()
-    # THE EARNED SET, AND THE TRAP IN IT (E-03; the plan's F-7, corrected by measurement).
-    # `collect_earned_paths` diffs the ATTEMPT's `starting_head..ending_head`, and both of those are
-    # MAIN's HEAD sampled around the turn. For an ISOLATED turn main's HEAD never moves, so that range
-    # is `X..X` and yields NOTHING -- and because the earned gate can only ever WITHHOLD a close, the
-    # visible symptom would not be an error but a close that silently never happens again. So the lane
-    # branch's own range is added, which is where the work actually is. It is read with `cwd=repo`
-    # deliberately: a linked worktree shares the object database and refs with its parent, so the range
-    # resolves identically from either cwd (measured; the cwd was never the issue, the RANGE was).
-    earned_paths = collect_earned_paths(repo, item)
-    if isolated and lane_handle is not None:
-        for path in collect_lane_earned_paths(repo, lane_handle):
-            if path not in earned_paths:
-                earned_paths.append(path)
-    item["earned_paths"] = earned_paths
-    overrides: dict[str, str] = {}
-    if isolated:
-        with contextlib.suppress(Exception):  # fail closed: no override = fewer closes
-            overrides = lane_executed_carrier_override(repo, write_repo, item)
-    try:
-        # ELIGIBILITY AGAINST MAIN. `repo`, never `write_repo`.
-        verdict = evaluate_backlog_close(
-            repo,
-            item_id6,
-            run_earned_paths(state),
-            executed_overrides=overrides,
-        )
-    except Exception as exc:  # fail closed: never let a close attempt break the run
-        item["backlog_close"] = {
-            "item": item_id6,
-            "closed": False,
-            "reason": f"close evaluation failed: {exc}",
-        }
-        return
-    record: dict[str, Any] = {
-        "item": item_id6,
-        "closed": False,
-        "reason": verdict.reason,
-        "rule": verdict.rule,
-        "evidence": verdict.evidence,
-        # Recorded so an operator (and V-01) can tell from the run's own state WHICH tree performed
-        # the write, rather than inferring it from the absence of a commit.
-        "wrote_in": "lane" if isolated else "main",
-    }
-    if not verdict.close:
-        item["backlog_close"] = record
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "backlog-item-left-open",
-                "id6": item["id6"],
-                "backlog_item": item_id6,
-                "reason": verdict.reason,
-            },
-        )
-        return
-    # RESOLVE THE ITEM IN THE TREE THE MOVE WILL HAPPEN IN. A lane-side move driven by a main-side
-    # path is exactly the half-state this plan removes.
-    item_path = resolve_backlog_item(write_repo, item_id6)
-    if item_path is None:  # fail closed (raced away between evaluation and close)
-        record["reason"] = f"backlog item {item_id6} disappeared before the close"
-        item["backlog_close"] = record
-        return
-    message = (
-        f"closed by aw oc run: IPD {item['id6']} executed "
-        f"({verdict.reason}); evidence {verdict.evidence}"
-    )
-    rc, out = close_backlog_item(
-        write_repo, item_path, item_id6, verdict.evidence or "", message
-    )
-    if rc != 0:
-        # E-04 fail-closed: a refused setter leaves the item ALONE and the refusal is the reason.
-        record["reason"] = f"setter refused the close: {out or f'exit {rc}'}"
-        item["backlog_close"] = record
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "backlog-close-refused",
-                "id6": item["id6"],
-                "backlog_item": item_id6,
-                "detail": record["reason"],
-            },
-        )
-        return
-    record["closed"] = True
-    # E-02: COMMIT IN THE TREE THE MOVE HAPPENED IN, WHICH IS THE WHOLE OF THE FIX.
-    #
-    # For an ISOLATED turn that is the LANE, so this commit lands on the lane BRANCH and reaches main
-    # through the same merge as the code: no commit is made on main, which is what E-02 asked for. It
-    # is a SEPARATE lane commit rather than part of the finalize commit, necessarily so -- the close
-    # can only be evaluated once the plan IS `executed`, which is what finalize makes true, so it
-    # cannot precede it. That costs nothing: both commits are on the lane branch, and a merge takes the
-    # branch or nothing, so the maintainer's stated property holds exactly ("the move lands if and only
-    # if the merge lands").
-    #
-    # AND THE COMMIT IS NOT OPTIONAL HERE. Leaving the move uncommitted in the lane would be worse than
-    # the bug being fixed: `integrate_lane_branch` merges the BRANCH (`git diff base..branch`), so an
-    # uncommitted change is not in the merge at all, and `teardown_lane_if_classified` then refuses to
-    # tear down a lane holding a dirty tracked file -- so the close would be silently dropped AND the
-    # lane stranded. For a NON-ISOLATED turn this is the pre-existing behavior, unchanged.
-    #
-    # AND IT CARRIES RUN OWNERSHIP (runtrailwire-01 `wao266` E-02). The ids come from the LIVE run's
-    # own state and the queue item in hand -- `state["run_id"]` and `item["id6"]` -- never from a
-    # global and never from a read of `.aw/records/runs/`, which is gitignored and absent from a lane
-    # worktree. `state.get` rather than `state[...]` because a hand-built or legacy state may carry no
-    # run id, and the correct answer there is an omitted trailer, not a KeyError mid-close.
-    record["commit"] = commit_backlog_close(
-        write_repo,
-        item_id6,
-        message,
-        run_id=state.get("run_id"),
-        plan_id6=item.get("id6"),
-    )
-    # SCOPED INTEGRITY SELF-CHECK, IMMEDIATELY AFTER OUR OWN WRITE (2026-09-22).
-    #
-    # WHY HERE AND NOT ONLY IN CI. A `_staged_paths` bug committed this very relocation as a bare
-    # ADDITION, so the pre-move copy survived in HEAD beside its destination and the item held two
-    # contradictory lifecycle states at once. 36 items were corrupted over two days. The CI gate that
-    # catches it is correct and fired, but it speaks only after a push, and 143 commits landed on
-    # `origin/main` while it was red. The runner KNOWS which id6 it just wrote, so checking that one
-    # id6 costs one tree walk and reports at the moment of creation rather than two days later.
-    #
-    # IT REPORTS AND NEVER RAISES. The close is already committed by this point, so refusing would
-    # leave the tree in exactly the same state while additionally killing the run; the useful act is to
-    # make the corruption impossible to MISS. The fact lands in three places a later reader actually
-    # consults: the item's own `backlog_close` record, the run's `events.jsonl`, and stderr.
-    with contextlib.suppress(Exception):  # never let a self-check break a run
-        claimants = backlog_item_paths_for_id(write_repo, item_id6)
-        if len(claimants) > 1:
-            record["integrity"] = {
-                "rule": "attention.duplicate-id",
-                "id6": item_id6,
-                "paths": claimants,
-                "detail": (
-                    f"backlog item {item_id6} now exists at {len(claimants)} paths, so its lifecycle "
-                    "state is contradictory; a relocation committed only half of its move"
-                ),
-            }
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "backlog-close-integrity-violation",
-                    "id6": item["id6"],
-                    "backlog_item": item_id6,
-                    "rule": "attention.duplicate-id",
-                    "paths": claimants,
-                },
-            )
-            sys.stderr.write(
-                f"warning: backlog item {item_id6} exists at {len(claimants)} paths after its close "
-                f"({', '.join(claimants)}); `aw attention` will report attention.duplicate-id and its "
-                "board is NOT authoritative until this is repaired\n"
-            )
-    item["backlog_close"] = record
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "backlog-item-closed",
-            "id6": item["id6"],
-            "backlog_item": item_id6,
-            "evidence": verdict.evidence,
-            "rule": verdict.rule,
-            "commit": record["commit"],
-            "wrote_in": record["wrote_in"],
-        },
-    )
-    print(
-        Palette(should_color(sys.stdout))(
-            f"  \u2713 backlog item {item_id6} closed done (evidence {verdict.evidence})",
-            "green",
-        )
-    )
-
-
-def unclosed_backlog_items(state: dict[str, Any]) -> list[tuple[str, str]]:
-    """Every backlog item this run TOUCHED but did not close, as (item_id6, reason) pairs (E-06).
-
-    Scope is deliberately this run's own work, not the whole repository (zhr6mc OQ-02): a run
-    reporting on every open item would duplicate `aw attention`, which owns the cross-tree view. An
-    item whose plan never reached the close evaluation is reported with that as its reason, so a
-    linked item is never silently absent from the report.
-    """
-    out: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for item in state.get("queue", []) or []:
-        item_id6 = item.get("from_backlog")
-        if not item_id6 or item_id6 in seen:
-            continue
-        record = item.get("backlog_close") or {}
-        if record.get("closed"):
-            seen.add(item_id6)
-            continue
-        reason = record.get("reason") or (
-            f"IPD {item.get('id6')} ended {item.get('status', 'unknown')}, so the close was "
-            f"never evaluated"
-        )
-        seen.add(item_id6)
-        out.append((item_id6, reason))
-    return out
-
-
-def render_unclosed_report(state: dict[str, Any]) -> str:
-    """The human-readable E-06 section, or '' when nothing is outstanding (print nothing then)."""
-    outstanding = unclosed_backlog_items(state)
-    if not outstanding:
-        return ""
-    pal = Palette(should_color(sys.stdout))
-    lines = ["", pal("--- Backlog items left open ---", "bold")]
-    for item_id6, reason in outstanding:
-        lines.append(f"  - {pal(item_id6, 'yellow')}: {reason}")
-    lines.append(
-        pal(
-            "  (this run's own items only; `aw attention` owns the cross-tree view)",
-            "dim",
-        )
-    )
-    return "\n".join(lines)
-
-
-def render_runs_pointer(state: dict[str, Any]) -> str:
-    """The E-07 trailing pointer. `aw runs <run-id>` is the real verb; `aw oc runs` does not exist."""
-    return f"Run `aw runs {state.get('run_id', 'run-...')}` for more info."
-
-
-def record_unclosed_backlog_items(run_dir: Path, state: dict[str, Any]) -> None:
-    """LEDGER FIRST (E-06): append the unclosed-item record BEFORE anything is printed.
-
-    Ordering is the whole point. A print can be truncated, redirected, or lost to an uncatchable
-    kill; the ledger append survives all three, so `aw runs <run-id>` can still answer "what did it
-    leave open?" when the terminal output cannot. Best-effort and never raising: this runs on the
-    shutdown path, where an exception would be worse than a missing line."""
-    outstanding = unclosed_backlog_items(state)
-    if not outstanding:
-        return
-    with contextlib.suppress(Exception):
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "backlog-items-left-open",
-                "items": [
-                    {"item": item_id6, "reason": reason}
-                    for item_id6, reason in outstanding
-                ],
-            },
-        )
-
-
-# --- bkclose (zhr6mc) E-05/E-06: the handler-safe shutdown report ---------------------------------
-#
-# WHY THIS IS A CALLABLE AND NOT A REGISTERED HANDLER (zhr6mc DEFERRED Q1).
-#
-# E-05 as authored asked this plan to install `signal.signal` handlers for SIGINT and SIGTERM in both
-# runner modules. It may not, and the reason is recorded rather than worked around: FOUR executed
-# plans installed guards that explicitly FORBID registering a handler (a `signal` `.signal(...)`
-# call) in these two files
-# (`tests/test_lane_allocation_idempotent.py`, `tests/test_runner_stop.py`,
-# `tests/test_runner_stop_level3.py`, `tests/test_runner_stop_level4.py`), reserving that
-# registration for `runstop` Phase 5 (`71vjbn`). One of those guards states the division of labor
-# verbatim: "`runstop` Phase 5 (`71vjbn`, approved) OWNS SIGINT/SIGTERM registration in these same
-# two files ... whichever plan registered last would silently win. This plan supplies the callable
-# those handlers will invoke, and installs none itself."
-#
-# The designs are also incompatible, not merely double-registered: `71vjbn` E-01/E-02 require SIGINT
-# to ESCALATE level 1 -> 3 -> 4 through `runner_stop.request_stop_nowait` and SIGTERM to REQUEST
-# LEVEL 3, whereas E-05 here wanted both to report and let the process die of the signal. Seizing the
-# registration would have deleted measured anti-deadlock protections (a handler deadlock plus a ~50%
-# lost-escalation race) and pre-empted the next plan in the very same run queue.
-#
-# So this plan supplies exactly the callable the guard describes, and reaches SIGINT through the
-# funnel that ALREADY exists (`except KeyboardInterrupt`), which needs no registration at all. When
-# `71vjbn` lands its handlers, each must call `emit_shutdown_report()` before recording its stop
-# request; that is a one-line addition inside handlers it is already writing.
-#
-# This is a SEPARATE mechanism from the escalating child-process kill sequence (the
-# `(signal.SIGINT, _SIGINT_GRACE_SECONDS)` / `(signal.SIGTERM, _SIGTERM_GRACE_SECONDS)` loop in the
-# shared reaper). That path signals CHILDREN and works; nothing about it is changed here.
-#
-# HANDLER DISCIPLINE, honored so `71vjbn` can call this from a real handler unchanged. Handlers run at
-# arbitrary points between bytecodes, so this routine does not acquire the run lock, does not call
-# `save_state`, and performs no blocking I/O beyond one ledger append and one print. It reads only
-# state already in memory, and it is idempotent so a repeated signal neither double-prints nor hangs.
-
-_SIGNAL_REPORT_STATE: dict[str, Any] = {}
-_SIGNAL_REPORT_DONE = threading.Event()
-
-
-def register_signal_report(run_dir: Path, state: dict[str, Any]) -> None:
-    """Publish the run's in-memory state for the signal handlers to report from."""
-    _SIGNAL_REPORT_STATE["run_dir"] = run_dir
-    _SIGNAL_REPORT_STATE["state"] = state
-
-
-def emit_shutdown_report(*, to_stderr: bool = False) -> None:
-    """Write the unclosed-item record, then print it and the `aw runs` pointer. IDEMPOTENT.
-
-    Idempotence is what makes a SECOND signal arriving mid-report safe: it neither double-prints nor
-    deadlocks, it simply returns. `threading.Event` is used rather than a lock precisely because a
-    handler must never block."""
-    if _SIGNAL_REPORT_DONE.is_set():
-        return
-    _SIGNAL_REPORT_DONE.set()
-    state = _SIGNAL_REPORT_STATE.get("state")
-    run_dir = _SIGNAL_REPORT_STATE.get("run_dir")
-    if not isinstance(state, dict) or run_dir is None:
-        return
-    stream = sys.stderr if to_stderr else sys.stdout
-    with contextlib.suppress(Exception):
-        record_unclosed_backlog_items(Path(run_dir), state)
-    with contextlib.suppress(Exception):
-        report = render_unclosed_report(state)
-        if report:
-            print(report, file=stream)
-        print(render_runs_pointer(state), file=stream)
-
-
-def signal_report_callback() -> Callable[[], None]:
-    """THE callable `runstop` Phase 5 (`71vjbn`) must invoke from its SIGINT/SIGTERM handlers.
-
-    Returned rather than registered, for the ownership reason recorded above: this plan may not call
-    `signal.signal` in these modules. The returned function is handler-safe (no lock, no
-    `save_state`, one ledger append plus one print) and idempotent, so `71vjbn` can call it first
-    thing in each handler and then proceed to record its stop request.
-
-    Prints to stderr, because a handler fires mid-run when stdout may be carrying streamed child
-    output."""
-
-    def _report() -> None:
-        emit_shutdown_report(to_stderr=True)
-
-    return _report
 
 
 # --- driverfin-02 (emus4n): per-run worktree isolation + integrate-back ---------------------------
@@ -2838,35 +1901,6 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     )
 
 
-def parse_dependency_token(token: str) -> Any:
-    """Resolve ONE frozen dependency token to a shared `ipd_schema.ItemDependency`, or None.
-
-    The token grammar is the SHARED one (`parse_item_dependencies`); nothing is parsed here. The one
-    accommodation is a BARE id6, which a hand-written manifest JSON may still carry (the shipped
-    `tools/ipdrunner/*-driver-manifest.json` does): it is normalized to the `executed:<id6>` edge,
-    which is what the pre-8guhs0 driver's bare deps already MEANT (`dependency_status` required the
-    target to be in `executed/`). Plan FILES never take this path; their statements are read by
-    `_read_item_dependencies` and are already canonical typed tokens.
-    """
-    from agent_workflows import ipd_schema as _schema
-
-    tok = str(token).strip()
-    if not tok:
-        return None
-    edges, _ready, err = _schema.parse_item_dependencies(tok)
-    if not err and len(edges) == 1:
-        return edges[0]
-    if ID6_RE.fullmatch(tok):
-        return _schema.ItemDependency("executed", "ipd", None, tok)
-    return None
-
-
-def dependency_target_id6(token: str) -> str | None:
-    """The target id6 of a dependency token (None when the token is not a legal edge)."""
-    edge = parse_dependency_token(token)
-    return edge.id6 if edge is not None else None
-
-
 # rununify 06 (`sy7uwh`) E-03: `build_dynamic_manifest` is IMPORTED from `runner_shared` (see the
 # import block beside `PlanRecord` above), not defined here. The two hosts' versions differed in
 # exactly ONE expression - `'kind': rec.kind` here versus `'kind': _plan_kind(rec.path)` there - so
@@ -3113,119 +2147,6 @@ def enforce_requested_action(
 ) -> None:
     runner_shared.enforce_requested_action(
         requested, items, labels=runner_shared.OC_HOST_LABELS
-    )
-
-
-# Dependency findings that ABORT the whole run rather than failing one component. Spec 25kzda 2.10
-# maps `check.ipd-dependency-ambiguous` to the `fatal` identity/type-ambiguity class, and 5.4 rule 1
-# says "identity/type ambiguity aborts the run"; every other dependency finding fails only the
-# affected graph component.
-DEPENDENCY_FATAL_RULES = frozenset(("check.ipd-dependency-ambiguous",))
-
-
-def _consuming_actions_for(plans: list[tuple[Path, str]]) -> dict[str, str]:
-    """Map each selected plan's path to the action THIS run would take on it (`runner_shared.action_for`).
-
-    Spec 25kzda 2.9 makes `executed:` satisfaction ACTION-DEPENDENT, so the shared evaluator needs to
-    know which turn consumes each edge. Derived from the SAME `action_for(kind, status)` the queue
-    builder uses, rather than a second local rule, so preflight and dispatch cannot disagree about
-    what a plan's next action is. A plan whose kind/status cannot be read is simply OMITTED, which
-    leaves the evaluator on its strict (execute) default: unreadable must never mean permissive.
-    """
-    from agent_workflows import ipd_lint as _lint
-
-    out: dict[str, str] = {}
-    for path, text in plans:
-        try:
-            fields = _lint.parse(text).meta_fields
-            kind = (fields.get("Kind") or "").strip()
-            status = (fields.get("Status") or "").strip()
-        except Exception:
-            continue
-        # FAIL CLOSED, EXPLICITLY. Only a plan whose `- Status:` we actually READ may claim the
-        # relaxed `review` reading. `action_for` happens to return `execute` for an empty status
-        # today, but relying on that would make the safety of this gate depend on an unrelated
-        # function's default; omitting the entry instead leaves the evaluator on its own strict
-        # default, which is the behavior the tests pin.
-        if not status:
-            continue
-        try:
-            action = runner_shared.action_for(kind, status)
-        except Exception:
-            continue
-        if action:
-            out[str(path)] = action
-    return out
-
-
-def preflight_dependency_findings(
-    repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
-) -> list[tuple[str, str, str]]:
-    """Run the SHARED dependency evaluator over the selected plans. Returns [(location, rule, msg)].
-
-    E-02 DELEGATES ENTIRELY: this calls `check_engine.evaluate_ipd_dependencies` with a BLOCKING
-    phase and surfaces whatever it returns, naming the shared `check.ipd-*dependency*` rules. There
-    is deliberately NO runner-local dependency policy here, and in particular NO runner-local branch
-    for the MISSING-statement case.
-
-    IT DOES pass the per-plan CONSUMING ACTION (`_consuming_actions_for`), which is an INPUT to the
-    shared rules rather than a local policy: spec 25kzda 2.9 makes `executed:` satisfaction
-    action-dependent, and the runner is the only caller that knows which turn it is about to take.
-    The judgement still belongs entirely to the evaluator.
-
-    WHY NO MISSING-STATEMENT BRANCH (8guhs0 OQ-02, resolved from repository evidence; see orchestrator
-    y0gg8o OQ-03): the decision is the evaluator's plus the cutover marker's, not the runner's. The
-    marker gates it (`config.dependency_cutover_date`), an ABSENT marker grandfathers every existing
-    plan, and spec 2.10's severity column for `check.ipd-missing-dependency-statement` is itself
-    phase-and-provenance conditional, so severity belongs to the evaluator. `ipd_lint` already encodes
-    exactly this deferral. A runner that refused a fieldless plan on its own authority would be
-    STRICTER than `aw check` and `aw ipd lint`, recreating the very divergence 8guhs0 exists to
-    remove and violating 2.10's "none reimplement the rules". If a maintainer later SETS the cutover
-    marker, fieldless plans begin failing preflight automatically, with no change here.
-    """
-    from agent_workflows import check_engine as _ce
-
-    plans: list[tuple[Path, str]] = []
-    for path in plan_paths:
-        try:
-            plans.append((path, path.read_text(encoding="utf-8")))
-        except OSError:
-            continue
-    if not plans:
-        return []
-    drift = _ce.evaluate_ipd_dependencies(
-        repo, phase=phase, plans=plans, actions=_consuming_actions_for(plans)
-    )
-    return [(d.location, d.rule, d.detail) for d in drift]
-
-
-def enforce_dependency_preflight(
-    repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
-) -> list[tuple[str, str, str]]:
-    """Fail CLOSED on an invalid selected dependency graph BEFORE any host session starts.
-
-    Raises `DriverError` when the shared evaluator reports any finding for the selected plans, so a
-    malformed/dangling/ambiguous/cyclic/self-edge statement (and the `unresolved` scaffold sentinel)
-    refuses the run at freeze time rather than after a session has already mutated the repository.
-    Returns the findings list (empty) when the graph is valid, so a caller can record "checked, clean".
-    """
-    findings = preflight_dependency_findings(repo, plan_paths, phase=phase)
-    if not findings:
-        return findings
-    fatal = [f for f in findings if f[1] in DEPENDENCY_FATAL_RULES]
-    lines = [f"  {rule}: {msg} [{loc}]" for loc, rule, msg in findings]
-    label = (
-        "run ABORTED (identity/type ambiguity is fatal)"
-        if fatal
-        else "run refused before any session started"
-    )
-    raise DriverError(
-        "dependency preflight failed: "
-        + label
-        + " - the selected IPDs' `- Item-Dependencies:` statements did not pass the shared "
-        f"evaluator at phase {phase!r}:\n"
-        + "\n".join(lines)
-        + "\nFix with `aw ipd dependencies set <id6> none|<edge>...`, then re-run."
     )
 
 
@@ -3627,536 +2548,6 @@ def _event_session_id(raw_line: str) -> str | None:
     return None
 
 
-# `_findings_block_reason` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
-
-
-def _artifact_owners(repo: Path, record_type: str, id6: str) -> list[tuple[str, str]]:
-    """Owners of ``id6`` of ``record_type`` as ``[(status, path)]`` via the SHARED identity index.
-
-    Reuses `check_engine.build_dependency_index` (the same index the shared evaluator resolves edges
-    with), so the runner and `aw check` cannot disagree about what an id6 names. Empty list = the
-    target does not exist (dangling); more than one = ambiguous.
-    """
-    try:
-        from agent_workflows import check_engine as _ce
-
-        index = _ce.build_dependency_index(repo)
-    except Exception:
-        return []
-    return [
-        (st or "", path)
-        for rt, st, path in index.owners.get(id6, [])
-        if rt == record_type
-    ]
-
-
-def edge_satisfied(
-    edge: Any,
-    item: dict[str, Any],
-    state: dict[str, Any],
-    by_id: dict[str, dict[str, Any]],
-) -> tuple[bool, str]:
-    """Is ONE typed edge satisfied? Returns ``(satisfied, reason)``; ``reason`` is "" when satisfied.
-
-    ``by_id`` IS DELIBERATELY UNREAD and is kept only so the two call sites and their tests need no
-    edit. It used to carry the IN-RUN status shortcut for an `executed:` edge, which the maintainer
-    removed on 2026-09-19 in favour of ONE authority: the plan's directory on disk. See the
-    `edge.kind == "executed"` branch for the measured incident that shortcut caused. Do not
-    reintroduce a read of it without that ruling being revisited.
-
-    WHY THIS LIVES IN THE RUNNER AND NOT IN THE SHARED EVALUATOR (8guhs0 F7; spec 25kzda 2.9 vs
-    2.10). Spec 2.10's "All surfaces call this evaluator; none reimplement the rules" governs the
-    STATIC rules: malformed, dangling, ambiguous, cyclic, missing-at-phase. Those are delegated
-    wholesale to `check_engine.evaluate_ipd_dependencies` in `preflight_dependency_findings`, and
-    NOTHING of them is re-implemented here. What follows is spec 2.9's RUNTIME wait/release
-    semantics, which that evaluator structurally CANNOT answer: its signature is
-    `evaluate_ipd_dependencies(repo_root, *, phase, plans, overlay) -> List[Drift]` and it has no
-    notion of a run, a queue, an item's outcome, or `verified` (verified by inspection: those words
-    do not appear in its body). "Is this prerequisite verified IN THIS RUN yet?" is a question about
-    run state, and run state lives here. So this is NOT a second implementation of the shared rules,
-    and it must not be "consolidated" into the static evaluator: doing so would break both, because
-    the static evaluator is called from `aw check`/lint/hook contexts that have no run at all. The
-    IDENTITY index is still shared (`_artifact_owners` -> `check_engine.build_dependency_index`), so
-    only the run-state judgement is local.
-    """
-    repo = Path(state["repo"])
-    is_exec = item.get("action") != "review"
-    tok = edge.canonical()
-
-    if edge.kind == "executed":
-        # spec 2.9: the target must be terminally executed with valid finalization evidence.
-        #
-        # THE DISK IS THE ONLY AUTHORITY, AND THE IN-RUN SHORTCUT THAT USED TO SIT HERE IS GONE
-        # (maintainer ruling 2026-09-19: one check, not gates in depth). It read the dependency's
-        # IN-MEMORY run status and accepted any member of `EXECUTION_SUCCESS_STATES`, which admits
-        # `substantially-complete`. That status means finalize did NOT happen, so the plan is still in
-        # `pending/` and - measured - its lane was never merged. The shortcut therefore reported an
-        # edge SATISFIED at the same moment the runner recorded the dependency's work as unintegrated.
-        #
-        # MEASURED COST, run `run-20260919T194413Z-2056285`: `yaxr4i` finished
-        # `substantially-complete` with its two commits living only on `aw/lane/yaxr4i`. `n4xq3l`
-        # declares `executed:yaxr4i`, was told the edge was met, and was dispatched into a tree with
-        # NONE of that work (`grep -c -- '--color' agent_workflows/cli.py` -> 0 in its lane). It
-        # correctly refused and went `blocked`, cascading `dependency-blocked` to eight more items:
-        # 2h 10m and $55.02 for nothing integrated.
-        #
-        # WHY DELETING IT LOSES NOTHING: the branch below already answers this question for every
-        # target, in-queue or not, and its own reasoning is the one the ruling adopted - an execute
-        # turn consumes its prerequisite's WORK, so the terminal directory is the right authority,
-        # because `executed/` is exactly where `aw ipd finalize` puts a plan and a directory move is
-        # harder to forge than a status field. An in-run dependency that genuinely finalized reaches
-        # `executed/` on disk and satisfies the edge through that branch on the next dispatch check,
-        # which the runner performs per item rather than once at queue build.
-        #
-        # THE REVIEW RELAXATION IS UNAFFECTED because it lives in the branch below, not here: a
-        # review turn still accepts a `reviewed`/`approved` `- Status:` field, since reviewing plan B
-        # against plan A needs A's TEXT and not A's code.
-        #
-        # Evaluated from frozen repository state, and that is UNCHANGED by the arrival of
-        # `--with-dependencies` (depclosure 01, `dhycim`). The flag now ships
-        # (`runner_shared.expand_dependency_closure`), but spec 25kzda :351 is explicit that it
-        # "changes selection, not satisfaction semantics": it can put the target IN the queue before
-        # freezing, which is a different run, and it grants no relaxation to the rule below. Without
-        # the flag an unsatisfied external target still simply cannot be met in this run.
-        try:
-            dep_path = resolve_plan_path(repo, "", edge.id6)
-        except DriverError as exc:
-            return False, f"{tok}: {exc}"
-        bucket = plan_bucket(dep_path)
-        allowed = ("executed",) if is_exec else ("executed", "reviewed", "approved")
-        # PRECEDENCE (depreview 03ie04 E-01, OQ-01): A TERMINAL DIRECTORY IS AUTHORITATIVE; for a
-        # NON-TERMINAL directory the `- Status:` FIELD carries the readiness. The two signals answer
-        # different halves of one question and only one of them carries information in each case.
-        #
-        # WHY THE DIRECTORY MUST WIN IN `executed/`, measured and not hypothetical: 24 of the 455
-        # plans in `executed/` carry a `- Status:` that `read_front_matter_status` returns None for
-        # (all 24 the MULTI-WORD `EXECUTED (approved ...)` form the reader documents as yielding
-        # None). Every one of them satisfies an `executed:` edge today because the directory decides.
-        # Making the field authoritative EVERYWHERE, or letting a None field override a terminal
-        # directory, silently breaks all 24 at once. `aw ipd finalize` is what moves a plan into
-        # `executed/`, so the move is the harder-to-forge signal, which is the same anti-fabrication
-        # posture `reconcile_disposition` takes when it trusts the directory over an agent's outcome.
-        # (The plan's review recorded "24 absent, 1 multi-word"; re-measured at execution the corpus
-        # is 24 multi-word and 0 absent. The conclusion is unchanged, the census is not.)
-        #
-        # WHY THE FIELD MUST WIN IN `pending/`: readiness in this layout is a FIELD, not a directory.
-        # A plan sits in `pending/` from `draft` through `to-review`, `reviewed` and `approved`, and
-        # only a TERMINAL state moves it, so there are no `reviewed/` or `approved/` directories to
-        # find. Reading the bucket alone therefore made the review-action relaxation above
-        # UNREACHABLE: every non-terminal plan buckets as `pending`, which is in neither `allowed`
-        # tuple, so a review turn refused exactly as an execute turn would (spec 25kzda 2.9's
-        # review-action row, which requires no terminal execution evidence).
-        #
-        # `_read_status` is the reader the module ALREADY imports and ALREADY uses for this exact
-        # comparison in `reconcile_disposition`'s review branch; do not substitute another. It
-        # returns None for an ABSENT and for a MULTI-WORD status alike, and in a NON-TERMINAL
-        # directory both must FAIL CLOSED, exactly as an unrecognized bucket does.
-        #
-        # THE ASYMMETRY BETWEEN THE TWO `allowed` TUPLES IS THE POINT AND MUST STAY VISIBLE. Only the
-        # REVIEW tuple gains anything from reading the field, because only it accepts a non-terminal
-        # state. An EXECUTE turn consumes its prerequisite's WORK, so a merely `reviewed` or
-        # `approved` plan has produced nothing to consume and satisfying its edge would dispatch a
-        # dependent against a base lacking the commits it depends on; for an execute edge the
-        # terminal directory IS the right authority, since `executed/` is exactly where finalize puts
-        # a plan, and the precedence rule above already yields that answer with no special case.
-        # Spec 25kzda 2.9 makes this normative: the two rows "must stay distinguishable by the
-        # consuming action and by nothing else: not by queue membership, not by which host is
-        # running, and not by whether the target happens to be in the current run".
-        #
-        # The terminal-directory set is NOT re-listed here: it is the shared
-        # `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` predicate, so a layout change lands in
-        # one place. Lazily imported for the same reason `ipd_schema` is below.
-        from agent_workflows import run_selection_policy as _policy
-
-        effective = bucket
-        if bucket is not None and not _policy.is_in_terminal_directory(str(dep_path)):
-            try:
-                field = _read_status(dep_path.read_text(encoding="utf-8"))
-            except Exception:
-                field = None
-            effective = field
-        if effective not in allowed:
-            return False, (
-                f"{tok}: external target {edge.id6} is {effective!r} "
-                f"(directory {bucket!r}), needs one of {list(allowed)} "
-                "(it is not in this run, so it cannot become satisfied here)"
-            )
-        return True, ""
-
-    from agent_workflows import ipd_schema as _schema
-
-    record_type = _schema.ITEM_DEP_TYPE_TO_RECORD_TYPE.get(edge.target_type)
-    owners = _artifact_owners(repo, record_type or "", edge.id6)
-    if not owners:
-        return False, f"{tok}: no {edge.target_type} artifact has id6 {edge.id6}"
-    if len(owners) > 1:
-        return False, (
-            f"{tok}: id6 {edge.id6} matches multiple {edge.target_type} artifacts "
-            f"({', '.join(p for _s, p in owners)})"
-        )
-    status = owners[0][0]
-
-    if edge.kind == "exists":
-        # spec 2.9: evaluated immediately from current repository state; NEVER waits for the target
-        # to run, whatever its status.
-        return True, ""
-
-    # `state:` - the EXACT status is required. An already-satisfied `state:` edge is immediately
-    # releasable (this returns True right away, no waiting); the scheduler's obligation is to run the
-    # dependent BEFORE advancing the target away from that status, which holds here because the
-    # runner never mutates a `spec`/`backlog` target, and an in-queue IPD target that would advance
-    # is ordered AFTER its dependent by `queue_sort_key` (dependency depth).
-    if status != edge.status:
-        return False, (
-            f"{tok}: {edge.target_type} {edge.id6} is {status!r}, needs exactly {edge.status!r}"
-        )
-    return True, ""
-
-
-def dependency_status(
-    item: dict[str, Any], state: dict[str, Any]
-) -> tuple[bool, list[str]]:
-    """(satisfied, unsatisfied-dep-tokens). Shape UNCHANGED: `unsatisfied` stays a flat list[str].
-
-    See :func:`dependency_status_detailed` for the additional per-dependency REASON map, which is a
-    strictly additive companion so every existing consumer of the flat list keeps working.
-    """
-    satisfied, unsatisfied, _reasons = dependency_status_detailed(item, state)
-    return satisfied, unsatisfied
-
-
-def dependency_status_detailed(
-    item: dict[str, Any], state: dict[str, Any]
-) -> tuple[bool, list[str], dict[str, str]]:
-    """As :func:`dependency_status`, plus a ``{dep_token: reason}`` map naming each ROOT CAUSE.
-
-    COMBINES revgate Order 03 (7nkcgp) with 8guhs0 (lanetruth-03), which both rewrote this function.
-    Resolved at merge time on the maintainer's decision to keep BOTH behaviors rather than pick a
-    side: 8guhs0's typed-token parsing runs FIRST and its per-edge verdict is delegated to
-    `edge_satisfied`, then revgate's findings gate and reason map are layered on the result.
-
-    From 8guhs0: each dependency is a CANONICAL TYPED token, resolved through the shared grammar
-    before use. This closes its finding F8 - the pre-8guhs0 code used each `dep` BOTH as a queue dict
-    key and as a bare id6, so an unconverted `"executed:af7i6p"` matched neither and landed in
-    `unsatisfied`, BLOCKING a dependent that was actually ready. Failure direction was over-blocking,
-    not wrongly admitting.
-
-    From revgate 7nkcgp: an `executed:`-style (execute-action) dependency is satisfied by reaching
-    `executed` ONLY IF it also carries no recorded unresolved gating findings, applied to BOTH the
-    in-queue and out-of-queue resolution paths so the gate is not evadable by queue membership; and
-    every unsatisfied dependency gets a reason string so `dependency-blocked` can say WHY.
-
-    A `review`-action item is deliberately NOT findings-gated: only an `executed:` edge asserts that
-    work was completed and verified.
-    """
-    by_id = {entry["id6"]: entry for entry in state["queue"]}
-    repo = Path(state["repo"])
-    unsatisfied: list[str] = []
-    reasons: dict[str, str] = {}
-    is_exec = item.get("action") != "review"
-
-    def _block(dep: str, reason: str) -> None:
-        unsatisfied.append(dep)
-        reasons[dep] = reason
-
-    if item.get("action") == "orchestrate":
-        # orchretire-03 (`pgq326`) E-01: THE SELECTION GATE IS PART OF THE WIRING, and missing it would
-        # have left this Set's whole mechanism unreachable from the run shape it was built for.
-        #
-        # MEASURED, not reasoned: this clause used to call the queue-scoped `_set_children_all_executed`,
-        # and `initialize_run` derives an already-`executed` child's RUN status as `reviewed` (only
-        # to-review/draft/approved/auto-approved become `queued`). So for the PRIMARY case spec R-1
-        # names -- `aw oc run <setid>` on a Set whose children executed in EARLIER runs -- the gate
-        # reported `satisfied=False, missing=['executed:<child>']` while the on-disk verdict was
-        # `eligible=True`. The orchestrator was never selected, so the dispatch branch was NEVER
-        # REACHED, and wiring only the dispatch branch would have fixed nothing for that run.
-        #
-        # It now asks the SAME shared decision the dispatch branch acts on, so the gate and the dispatch
-        # cannot disagree about one plan. That equivalence is the point: two predicates answering one
-        # question is how this function and `cascade_dependency_blocked` once gave OPPOSITE verdicts
-        # (runorder F-7).
-        #
-        # WHY BLOCK ONLY ON RECONSIDER. A gate exists to make an item WAIT. So:
-        #   * RETIRE     -> admit it; the dispatch branch retires it.
-        #   * RECONSIDER -> block, because this run WILL still act on the named children; the item is
-        #                   re-tested on a later iteration, which IS the reconsideration R-7 requires.
-        #   * TERMINATE  -> ADMIT it, deliberately, so it reaches the dispatch branch and receives its
-        #                   SPECIFIC reason. Blocking instead would leave it to the drain path, which
-        #                   labels it `dependency-blocked` with whatever this function reported -- and
-        #                   for the no-children case that list is EMPTY, which is exactly the `5e4sb6`
-        #                   record that claimed an unmet dependency while naming none.
-        decision = decide_orchestrator_dispatch(
-            repo,
-            str(item.get("setid") or ""),
-            str(item["id6"]),
-            state.get("queue") or [],
-            terminal_states=TERMINAL_STATES,
-            success_states=EXECUTION_SUCCESS_STATES,
-        )
-        if decision.outcome == ORCH_DISPATCH_RECONSIDER:
-            for child_id, child_status in decision.unfinished:
-                _block(
-                    f"executed:{child_id}",
-                    f"orchestrator waits for child {child_id} of set "
-                    f"'{item.get('setid')}' to execute (currently {child_status or 'unfinished'})",
-                )
-
-    for dep in item.get("dependencies", []):
-        dep = str(dep)
-        # 8guhs0: parse the typed token FIRST, so the id6 and the queue key both come from the
-        # parsed edge and never from the raw string.
-        edge = parse_dependency_token(dep)
-        if edge is None:
-            # Fail closed: an unparseable token is never "no dependency". Preflight refuses such a
-            # run before any session starts; this is the belt-and-braces path for a hand-edited
-            # state.json.
-            _block(dep, f"{dep}: unparseable dependency token")
-            continue
-        ok, reason = edge_satisfied(edge, item, state, by_id)
-        if not ok:
-            # Report the token AS DECLARED, not its canonical rewrite: `unsatisfied_dependencies` is
-            # written into durable run records.
-            _block(dep, reason or f"{dep}: dependency not satisfied")
-            continue
-        # revgate: the edge is satisfied structurally; for an execute-action dependency ALSO refuse
-        # on unresolved gating findings. Uses the parsed edge's target id6, not the raw token.
-        if is_exec:
-            target = dependency_target_id6(edge) or dep
-            why = _findings_block_reason(repo, target)
-            if why:
-                _block(dep, why)
-    return not unsatisfied, unsatisfied, reasons
-
-
-#: novalnomerge-01 (evgi9n) E-01: the gating suite must never inherit `run_evidence.capture_command`'s
-#: 60s default. MEASURED at review: the bare suite runs ~37s on the reference host, so the default
-#: leaves ~23s of headroom, and because E-02 treats a timeout as a FAILURE an under-set timeout would
-#: silently degrade to "never integrate" -- recreating the very bug this module's gate change fixes.
-SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
-
-#: The repository's own test command, run BARE. `pyproject.toml` `addopts` already supplies
-#: `-q -n auto --dist=worksteal -m 'not slow'`, so adding `-n0` (4-6x slower), a second `-q`
-#: (suppresses the summary line this check parses) or `-p no:randomly` is forbidden by the repo
-#: contract and would also change what the gate measures.
-SUITE_CHECK_ARGV: tuple[str, ...] = (sys.executable or "python3", "-m", "pytest")
-
-_SUITE_SUMMARY_RE = re.compile(
-    r"^(?:=+\s*)?(\d+ (?:passed|failed).*?)(?:\s*=+)?$", re.MULTILINE
-)
-
-
-def parse_suite_summary(text: str) -> str:
-    """The suite's COUNT LINE out of its output, or `""` when none is present.
-
-    integearn-05 (`9lyg5h`) E-03: a NAMED, injectable reader for the one pattern `run_suite_check`
-    already applies inline, so the concurrent pre-work baseline in `runner_shared` can report the same
-    count line the post-work check reports. It exists ONLY because `runner_shared` may not import a
-    host driver (a shipped AST test enforces that), so every host specific must be handed over as a
-    name; this is the `run_checked`/`host_label` injection precedent applied to one regex.
-
-    IT IS THE SAME PATTERN, DELIBERATELY NOT A SECOND ONE. `run_suite_check` keeps its inline use, and
-    both now resolve `_SUITE_SUMMARY_RE`, because a second spelling of a parser is how a producer and
-    a reader drift apart (the render_stream F-4 defect class, measured twice in this package).
-    """
-
-    match = _SUITE_SUMMARY_RE.search(text or "")
-    return match.group(1).strip() if match else ""
-
-
-#: gatewire-01 (`h5pyqa`) E-02: the lines naming WHICH tests failed, which `_SUITE_SUMMARY_RE`
-#: deliberately does not capture.
-#:
-#: WHY A SECOND PATTERN RATHER THAN WIDENING THE FIRST. `_SUITE_SUMMARY_RE` answers "did it pass and
-#: by how much", and its single capture group feeds `SuiteCheckResult.summary`, which the integration
-#: refusal reason embeds. Widening it to also span the failure list would change that one-line reason
-#: into a paragraph on every refusal. These are two different questions with two different readers, so
-#: they get two patterns.
-#:
-#: BOTH `FAILED` AND `ERROR` ARE MATCHED, and the second is not padding. MEASURED on 2026-09-20 with a
-#: deliberately broken import under this repository's own `-n auto --dist=worksteal` addopts: a module
-#: that cannot be collected yields `ERROR test_broken.py` and NO `FAILED` line at all, while the count
-#: line reads `1 failed, 1 passed, 1 error`. Matching only `FAILED` would therefore show an agent
-#: nothing for the whole collection-error class, which is exactly the class most likely to be somebody
-#: else's fault and so most likely to be a true `not-mine`.
-_SUITE_FAILURE_LINE_RE = re.compile(r"^(?:FAILED|ERROR)\s+\S.*$", re.MULTILINE)
-
-#: How many failing-test lines are carried. A pathological run can redden hundreds of tests, and this
-#: text goes into a PROMPT; the cap keeps one bad suite from crowding out the rest of the question.
-#: Generous on purpose: attribution gets harder, not easier, as the list is truncated.
-SUITE_FAILURE_LINE_LIMIT: int = 40
-
-
-def extract_suite_failures(stdout: str, stderr: str = "") -> tuple[str, ...]:
-    """The `FAILED`/`ERROR` lines from a suite run, deduplicated, in first-seen order.
-
-    gatewire-01 (`h5pyqa`) E-02. SEPARATE FROM THE COUNT LINE BY DESIGN: a count ("1 failed") tells an
-    agent nothing it can attribute to its own diff, and attribution is the entire judgement the
-    integration-refusal answer turns on.
-
-    Deduplicated because xdist can report the same node twice across the short summary and a rerun
-    section, and a question that lists one failure three times reads as three failures.
-    """
-
-    seen: dict[str, None] = {}
-    for haystack in (stdout or "", stderr or ""):
-        for match in _SUITE_FAILURE_LINE_RE.finditer(haystack):
-            line = match.group(0).strip()
-            if line and line not in seen:
-                seen[line] = None
-            if len(seen) >= SUITE_FAILURE_LINE_LIMIT:
-                return tuple(seen)
-    return tuple(seen)
-
-
-class SuiteCheckResult(NamedTuple):
-    """What the DRIVER observed when it ran the suite itself.
-
-    novalnomerge-01 (evgi9n) E-01/E-02. This is an OBSERVED FACT, not a claim: the executor's outcome
-    JSON has a ``"tests"`` field, but nothing reads it, so it is the agent's own prose about work it
-    says it did. `passing` is True only on an observed exit 0.
-
-    `failures` ADDED BY gatewire-01 (`h5pyqa`) E-02, and it is DEFAULTED so that every existing
-    construction site and every test double that builds this tuple positionally keeps working. It
-    carries the `FAILED`/`ERROR` lines naming WHICH tests failed, because `summary` carries only the
-    count line and a count cannot be attributed to a diff.
-    """
-
-    passing: bool
-    exit_code: int
-    summary: str
-    reason: str
-    cwd: str
-    timeout_seconds: float
-    elapsed_seconds: float
-    failures: tuple[str, ...] = ()
-
-    @property
-    def failing_text(self) -> str:
-        """The failing tests as the QUESTION should show them, or an honest statement of absence.
-
-        NEVER RETURNS AN EMPTY STRING, because this lands in a prompt: an empty section reads as "no
-        failures" and would invite a false `not-mine`. When the names could not be recovered the agent
-        is told so, and given the count line instead, so it can answer from the evidence that exists
-        rather than from a blank.
-        """
-
-        if self.failures:
-            return "\n".join(self.failures)
-        if self.summary:
-            return (
-                f"{self.summary}\n"
-                "(the individual failing test names could not be recovered from this run's output; "
-                "re-run the suite yourself if you need them to answer)"
-            )
-        return (
-            "the suite did not pass and produced no parseable summary "
-            f"(exit {self.exit_code}): {self.reason}"
-        )
-
-
-def run_suite_check(
-    repo_dir: Path,
-    run_id: str,
-    *,
-    timeout: float = SUITE_CHECK_TIMEOUT_SECONDS,
-) -> SuiteCheckResult:
-    """Run the repository's suite in the PRIMARY checkout and report what actually happened.
-
-    novalnomerge-01 (evgi9n) E-01/E-02.
-
-    WHY THE PRIMARY CHECKOUT AND NOT THE LANE (PR-001, found at review as a BLOCKER): a linked
-    worktree resolves `.aw/state` relative to cwd (backlog `dh0uno`), so a lane sees a DIFFERENT state
-    tree. MEASURED: `tests/test_run_viewer.py` gives `36 passed` in the primary checkout and
-    `15 failed, 20 passed` in a lane, every failure being the `run_viewer`/state-resolution family. A
-    lane-run suite is therefore permanently red for reasons unrelated to the executing plan, which
-    would leave the integration gate closed forever -- the same symptom this change removes, with a new
-    cause. Callers MUST pass the primary repo, never `work_dir`.
-
-    HONEST LIMIT: this proves THE TREE is green, not that the lane's uncommitted state is. That is the
-    right trade (a green primary tree is what integration endangers) but it is not lane validation.
-
-    FAIL CLOSED (E-02): a suite that cannot be run is a FAILURE, never a pass.
-    `run_evidence.capture_command` already converts a timeout into exit 124 and any other exception
-    into exit 127 instead of raising, so this is an honest reading of a nonzero exit rather than new
-    machinery. Neither code is special-cased into a pass.
-
-    THE OUTPUT READ HERE ONLY STARTED WORKING AT gatewire-01 (`h5pyqa`), and the repair is in
-    `run_evidence.capture_command` rather than here. This function read
-    `tool_event["stdout_excerpt"]`, and `build_tool_event` NEVER WROTE THAT KEY: a `tool_event` is a
-    LEDGER record carrying `stdout_sha256`/`stdout_len` and deliberately not the text. Measured
-    2026-09-20 by calling `capture_command` directly - `sorted(tool_event)` contained no
-    `stdout_excerpt` - so this read yielded `""`, `summary` was ALWAYS empty, and every refusal reason
-    said `no summary line parsed`. The existing tests could not see it because every one of them mocks
-    `capture_command` and fabricates the key production never produced. `capture_command` now returns
-    the text on the mapping it hands back, so this read means what it always claimed to.
-    """
-    from agent_workflows import run_evidence
-
-    started = time.monotonic()
-    try:
-        tool_event, _envelope = run_evidence.capture_command(
-            run_id,
-            list(SUITE_CHECK_ARGV),
-            cwd=repo_dir,
-            evidence_kind="tests",
-            actor="driver",
-            timeout=timeout,
-            max_output_bytes=512_000,
-        )
-        exit_code = int(tool_event.get("exit_code", 127))
-        stdout = str(tool_event.get("stdout_excerpt") or "")
-        stderr = str(tool_event.get("stderr_excerpt") or "")
-    except Exception as exc:  # noqa: BLE001  # pragma: no cover
-        # DELIBERATE blind catch, and not redundant: `capture_command` guards its own subprocess call
-        # (timeout -> 124, other -> 127) but the lines BEFORE it are unguarded -- `Path(cwd).resolve()`
-        # and the `get_git_head`/`get_git_dirty_digest`/`get_worktree_path` probes all run first and can
-        # raise on a vanished cwd or a broken git dir. A gate that crashes is a gate that is OFF, so an
-        # unexpected exception here must still be a REFUSAL, never an escape from the gate.
-        elapsed = time.monotonic() - started
-        return SuiteCheckResult(
-            passing=False,
-            exit_code=127,
-            summary="",
-            reason=f"suite check could not run (fail-closed): {exc}",
-            cwd=str(repo_dir),
-            timeout_seconds=timeout,
-            elapsed_seconds=elapsed,
-        )
-
-    elapsed = time.monotonic() - started
-    summary = parse_suite_summary(stdout) or parse_suite_summary(stderr)
-    # gatewire-01 (`h5pyqa`) E-02: capture WHICH tests failed, not merely how many. `stdout` is
-    # discarded after this function returns, so a failure name not taken here is gone for good.
-    failures = extract_suite_failures(stdout, stderr)
-    if exit_code == 0:
-        reason = f"suite passed in {repo_dir} ({summary or 'no summary line parsed'})"
-    elif exit_code == 124:
-        reason = (
-            f"suite TIMED OUT after {timeout:.0f}s (ran {elapsed:.0f}s) in {repo_dir}; "
-            "treated as a failure (fail-closed)"
-        )
-    elif exit_code == 127:
-        reason = (
-            f"suite could not be executed in {repo_dir} (exit 127); "
-            "treated as a failure (fail-closed)"
-        )
-    else:
-        reason = (
-            f"suite FAILED with exit {exit_code} in {repo_dir} "
-            f"({summary or 'no summary line parsed'})"
-        )
-    return SuiteCheckResult(
-        passing=exit_code == 0,
-        exit_code=exit_code,
-        summary=summary,
-        reason=reason,
-        cwd=str(repo_dir),
-        timeout_seconds=timeout,
-        elapsed_seconds=elapsed,
-        failures=failures,
-    )
-
-
 #: Why an item did NOT reach the integration gate, or how it did. novalnomerge-01 (evgi9n) E-05:
 #: `verify_disp` alone conflates "no verifier ran" (None, because validation is off) with "the
 #: verifier declined" ("unverified"), and both previously landed the item in `substantially-complete`
@@ -4179,666 +2570,6 @@ INTEGRATION_REFUSED_VERIFIER_DECLINED = (
 )
 INTEGRATION_REFUSED_SUITE_FAILED = runner_shared.INTEGRATION_REFUSED_SUITE_FAILED
 INTEGRATION_REFUSED_NO_SIGNAL = runner_shared.INTEGRATION_REFUSED_NO_SIGNAL
-
-
-class IntegrationVerdict(NamedTuple):
-    """Whether an item earned automatic integration, and WHICH signal earned or refused it."""
-
-    earned: bool
-    signal: str
-    detail: str
-
-
-def integration_is_earned(
-    *,
-    validate: bool,
-    verify_disp: str | None,
-    suite_result: SuiteCheckResult | None,
-) -> IntegrationVerdict:
-    """Decide whether a completed execute turn has earned automatic integration.
-
-    novalnomerge-01 (evgi9n) E-03/E-04. ONE predicate, consumed by BOTH drivers, so a one-runner fix
-    cannot leave the other silently broken.
-
-    THE BUG THIS FIXES: the gate used to require `verify_disp == "verified"`, but `verify_disp` is only
-    ever assigned inside the validate-guarded block. `--validate` defaults FALSE while
-    `--no-self-finalize` defaults TRUE, so in the SHIPPED DEFAULT configuration self-finalize was
-    switched on and could never fire: every item ended `substantially-complete` with its lane
-    preserved and nothing integrated. Measured cost before the fix: ~$528 across five overnight runs,
-    21 plans stranded in lanes, then a full session hand-merging 24 lanes.
-
-    THE TWO MODES ARE ALTERNATIVES, NOT AN OR ACROSS BOTH SIGNALS:
-
-    * validation ON  -> the verifier's verdict decides, exactly as before. A verifier that DECLINED is
-      a stronger and more specific signal than a green suite, so a passing suite must NOT override it;
-      otherwise `--validate` would be weaker than the default, which is absurd.
-    * validation OFF -> the DRIVER-RUN SUITE decides. This is an observed fact, unlike the executor's
-      unread ``"tests"`` self-report. `aw ipd finalize` still applies its own independent fail-closed
-      gate afterwards (`ipd_lifecycle.finalize_precheck`: a current begin receipt, the
-      before-marking-executed lint requiring every `E-*` performed and every `V-*` passing with
-      non-empty `Observed evidence`, and a scope comparison), so this lowers the bar less than it
-      appears. Honest limit: that gate proves completeness and scope, NOT correctness, which is why a
-      real suite run supplies the correctness signal it lacks.
-    """
-    if validate:
-        if verify_disp == "verified":
-            return IntegrationVerdict(
-                True, INTEGRATION_EARNED_BY_VERIFIER, "verifier reported verified"
-            )
-        return IntegrationVerdict(
-            False,
-            INTEGRATION_REFUSED_VERIFIER_DECLINED,
-            f"validation is ON and the verifier did not verify (verification={verify_disp!r}); "
-            "a green suite deliberately does NOT override an explicit verifier verdict",
-        )
-    if suite_result is None:
-        return IntegrationVerdict(
-            False,
-            INTEGRATION_REFUSED_NO_SIGNAL,
-            "validation is OFF and no driver-run suite result is available; refusing to integrate "
-            "without any trust signal (fail-closed)",
-        )
-    if suite_result.passing:
-        return IntegrationVerdict(
-            True,
-            INTEGRATION_EARNED_BY_SUITE,
-            f"no verifier ran (validation off); driver-run suite PASSED: {suite_result.reason}",
-        )
-    return IntegrationVerdict(
-        False,
-        INTEGRATION_REFUSED_SUITE_FAILED,
-        f"no verifier ran (validation off) and the driver-run suite did not pass: "
-        f"{suite_result.reason}",
-    )
-
-
-def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
-    """Longest declared in-queue prerequisite chain ending at ``id6`` (0 = no in-queue prerequisite).
-
-    Only IPD-typed edges whose target is IN THE QUEUE contribute: an external target or a
-    `spec`/`backlog` leaf is not a queue node and cannot order the queue. Cycle-safe (a cycle is
-    already refused by preflight, but a hand-edited state.json must not hang the scheduler here).
-    """
-
-    def _depth(node: str, seen: frozenset[str]) -> int:
-        if node in seen:
-            return 0
-        entry = by_id.get(node)
-        if entry is None:
-            return 0
-        best = 0
-        for dep in entry.get("dependencies", []):
-            edge = parse_dependency_token(dep)
-            if edge is None or edge.target_type != "ipd" or edge.id6 not in by_id:
-                continue
-            best = max(best, 1 + _depth(edge.id6, seen | {node}))
-        if entry.get("action") == "orchestrate":
-            setid = entry.get("setid")
-            for other_id, other in by_id.items():
-                if (
-                    other_id != node
-                    and other.get("setid") == setid
-                    and other.get("action") != "orchestrate"
-                    and other_id not in seen
-                ):
-                    best = max(best, 1 + _depth(other_id, seen | {node}))
-        return best
-
-    return _depth(id6, frozenset())
-
-
-def queue_sort_key(item: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tuple:
-    """Deterministic ordering key for READY nodes (spec 25kzda 5.4 rules 4-5).
-
-    DECLARED EDGES WIN, and that is why `dependency_depth` stays FIRST: a depth-0 node always
-    precedes a node that declares an in-queue prerequisite, whatever the request order or the Order
-    numbers say. So Set/Order/request-order can never act as evidence that a dependency is satisfied
-    (rule 3), which is what Set/Order silently did while `dependencies` was always `[]`.
-
-    `position` IS A PRIORITY (runorder prpipy; maintainer ruling 2026-09-01), ranked immediately
-    after dependency depth and therefore ABOVE Set, Order, and id6. It carries the order the
-    operator REQUESTED, so among equally-ready independent nodes the run executes them in the order
-    they were asked for. The previous key ranked `position` LAST, which recorded the request and then
-    discarded it: measured in run `run-20260901T042331Z-118022`, `aw oc run m73aet 6lu3rq` froze
-    `position 1 m73aet` / `position 2 6lu3rq` and then dispatched `6lu3rq` first, purely because
-    `"runmixed" < "runtrail"`, with nothing announcing the inversion.
-
-    HONEST LIMITS OF THIS KEY, both of which the pre-prpipy docstring got wrong:
-
-    * The sort is NO LONGER a function of artifact content alone. `position` comes from the
-      INVOCATION (`expand_selectors` -> `initialize_run`), so the same plans selected in a different
-      order legitimately execute in a different order. That is the intended contract, not drift.
-    * `position` is a priority AND STILL A FROZEN IDENTITY. Outcome/prompt/session filenames and this
-      run's decision ids all key on it, so it is assigned exactly once at queue-build time and is
-      never renumbered by sorting. Reading it here must not make it mutable.
-
-    `position` only equals the operator's TYPED order when the selectors were literal id6 tokens. A
-    setid, `all`, `reviews`, or a file-path selector expands to many positions whose order comes from
-    the MANIFEST, so callers that report ordering to a human must say "requested order" rather than
-    claim a typed one (see `run_order_rationale`).
-
-    Spec 5.4 rule 4 also lists a TYPE RANK (`spec`, `backlog`, `ipd`, `prompt`) ahead of Set. It is
-    deliberately NOT implemented: this runner's queue is homogeneous (IPDs only), so a rank over types
-    that cannot appear would be untestable dead code. Recorded rather than silently skipped.
-
-    THE HOMOGENEITY SURVIVED `--with-dependencies` SHIPPING (depclosure 01, `dhycim`), which is worth
-    stating because this note previously rested on the closure not existing. The closure now exists,
-    and it REFUSES a `spec` or `backlog` dependency target precisely because the manifest cannot carry
-    one, so every id it can add is still an IPD. A later plan that admits non-plan targets is what
-    would make this rank reachable, and it must revisit this note.
-    """
-    return (
-        dependency_depth(item["id6"], by_id),
-        item.get("position", 0),
-        str(item.get("setid") or ""),
-        item.get("order") if isinstance(item.get("order"), int) else 999,
-        item["id6"],
-    )
-
-
-def simulate_dispatch_order(
-    queue: list[dict[str, Any]], initial_completed: Iterable[str] | None = None
-) -> list[str]:
-    """Simulate the order in which items in `queue` will actually be dispatched by `run_queue`.
-
-    Accounts for:
-    - In-queue declared dependencies: a dependent waits until all its in-queue prerequisites have run.
-    - Orchestrator deferral: an orchestrator plan (action == 'orchestrate') waits until all child
-      plans in its Set have completed.
-    - Tiebreaking: among ready items, ordered by `queue_sort_key`.
-    """
-    if not queue:
-        return []
-
-    by_id = {str(item.get("id6")): item for item in queue}
-
-    set_children: dict[str, set[str]] = {}
-    for item in queue:
-        id6 = str(item.get("id6"))
-        setid = str(item.get("setid") or "")
-        if item.get("action") != "orchestrate":
-            set_children.setdefault(setid, set()).add(id6)
-
-    in_queue_deps: dict[str, set[str]] = {}
-    for item in queue:
-        id6 = str(item.get("id6"))
-        deps: set[str] = set()
-        for dep in item.get("dependencies", []) or []:
-            edge = parse_dependency_token(str(dep))
-            if edge is not None and getattr(edge, "target_type", None) == "ipd":
-                target = dependency_target_id6(str(dep))
-                if target and target in by_id and target != id6:
-                    deps.add(target)
-        in_queue_deps[id6] = deps
-
-    remaining = list(queue)
-    completed: set[str] = set(initial_completed or ())
-    executed: list[str] = []
-
-    while remaining:
-        ready: list[dict[str, Any]] = []
-        for item in remaining:
-            id6 = str(item.get("id6"))
-            if not in_queue_deps.get(id6, set()).issubset(completed):
-                continue
-            if item.get("action") == "orchestrate":
-                setid = str(item.get("setid") or "")
-                children = set_children.get(setid, set())
-                if not children.issubset(completed):
-                    continue
-            ready.append(item)
-
-        if ready:
-            chosen = min(ready, key=lambda it: queue_sort_key(it, by_id))
-        else:
-            chosen = min(remaining, key=lambda it: queue_sort_key(it, by_id))
-
-        chosen_id = str(chosen.get("id6"))
-        remaining.remove(chosen)
-        completed.add(chosen_id)
-        executed.append(chosen_id)
-
-    return executed
-
-
-def update_execution_order(
-    state: dict[str, Any], runnable: dict[str, Any]
-) -> list[str]:
-    """Dynamically update `state["run_order"]["executed"]` to reflect actual dispatch order.
-
-    Ensures that:
-    1. Items that have already run/been dispatched form the prefix in their dispatch order.
-    2. The current `runnable` item is placed next at index `len(already_dispatched)`.
-    3. Remaining items in the queue follow in their simulated dispatch order.
-    """
-    run_order = state.setdefault("run_order", {})
-    prev_executed: list[str] = list(run_order.get("executed") or [])
-    dispatched: list[str] = list(run_order.get("dispatched") or [])
-    dispatched_set = set(dispatched)
-
-    queue = state.get("queue") or []
-
-    # If dispatched list wasn't tracked yet, reconstruct from queue terminal/attempted states:
-    if not dispatched:
-        terminal_dispositions = {
-            "executed",
-            "reviewed",
-            "approved",
-            "substantially-complete",
-            "partial",
-            "blocked",
-            "failed-safely",
-            "integration-blocked",
-            "merge-conflict",
-        }
-        for id6 in prev_executed:
-            for it in queue:
-                if str(it.get("id6")) == id6 and (
-                    it.get("status") in terminal_dispositions or it.get("attempts")
-                ):
-                    if id6 not in dispatched_set:
-                        dispatched.append(id6)
-                        dispatched_set.add(id6)
-        for it in queue:
-            id6 = str(it.get("id6"))
-            if (
-                it.get("status") in terminal_dispositions or it.get("attempts")
-            ) and id6 not in dispatched_set:
-                dispatched.append(id6)
-                dispatched_set.add(id6)
-
-    runnable_id6 = str(runnable.get("id6"))
-    if runnable_id6 not in dispatched_set:
-        dispatched.append(runnable_id6)
-        dispatched_set.add(runnable_id6)
-
-    run_order["dispatched"] = dispatched
-
-    # Remaining items that have not been dispatched yet
-    remaining = [it for it in queue if str(it.get("id6")) not in dispatched_set]
-    predicted_remaining = simulate_dispatch_order(
-        remaining, initial_completed=dispatched_set
-    )
-
-    new_executed = list(dispatched) + [
-        id6 for id6 in predicted_remaining if id6 not in dispatched_set
-    ]
-    run_order["executed"] = new_executed
-    if "requested" in run_order:
-        run_order["reordered"] = run_order["requested"] != new_executed
-
-    return new_executed
-
-
-def run_order_rationale(
-    queue: list[dict[str, Any]], selectors: Iterable[str] | None = None
-) -> dict[str, Any]:
-    """Compare the REQUESTED order with the order the run will EXECUTE in, and say why they differ.
-
-    runorder (prpipy) E-04. Ordering used to be silent: `position` recorded the request, the sort
-    discarded it, and the only way to discover an inversion was to diff `events.jsonl` timestamps
-    against `state.json` positions after the fact. This computes the comparison once, at queue build,
-    so the driver can print it and freeze it into durable run state.
-
-    Returns a JSON-safe dict (it is written verbatim into `state.json` and `events.jsonl`):
-
-    * ``requested``   - id6s in the order the queue was FROZEN in, i.e. `position` order.
-    * ``executed``    - the same id6s re-sorted by :func:`queue_sort_key`, i.e. dispatch order.
-    * ``reordered``   - True iff those two differ.
-    * ``causes``      - ``{id6: reason}`` for each item whose index MOVED. A reason begins with
-                        ``declared dependency:`` when a real `Item-Dependencies` edge forces the move
-                        (correct and expected) or ``tiebreak:`` when nothing but the comparator's
-                        lower-ranked fields decided it (the case that bit the maintainer). Telling
-                        those two apart is the operator-facing point, so a bare "reordered" is not
-                        enough.
-    * ``request_kind``- ``typed`` only when the selectors were LITERAL id6 tokens naming exactly this
-                        queue; otherwise ``expanded``, because a setid / `all` / `reviews` / path
-                        selector expands to many positions ordered by the MANIFEST, not by the
-                        operator's typing. Callers must not claim a typed order for an expansion.
-    * ``selectors``   - the raw selector tokens, so the message can name the expansion.
-
-    Pure: no I/O, no printing. The message TEXT lives in `render_stream`, not here.
-    """
-    sel_list = [str(s).strip() for s in (selectors or [])]
-    requested = [str(item.get("id6")) for item in queue]
-    by_id = {str(item.get("id6")): item for item in queue}
-    executed = simulate_dispatch_order(queue)
-
-    req_index = {id6: idx for idx, id6 in enumerate(requested)}
-    exec_index = {id6: idx for idx, id6 in enumerate(executed)}
-
-    def _in_queue_edges(id6: str) -> list[tuple[str, str]]:
-        """(target_id6, declared token) for each edge of ``id6`` pointing at another QUEUE node."""
-        out: list[tuple[str, str]] = []
-        for dep in by_id.get(id6, {}).get("dependencies", []) or []:
-            edge = parse_dependency_token(str(dep))
-            if edge is None or getattr(edge, "target_type", None) != "ipd":
-                continue
-            # NOTE: `dependency_target_id6` takes the raw TOKEN, not the parsed edge (verified by
-            # signature); passing the edge silently returns None and would erase every cause.
-            target = dependency_target_id6(str(dep))
-            if target and target in by_id and target != id6:
-                out.append((target, str(dep)))
-        return out
-
-    causes: dict[str, str] = {}
-    for id6 in requested:
-        if req_index[id6] == exec_index[id6]:
-            continue
-        reason = ""
-        # Moved EARLIER because something requested before it declares it as a prerequisite.
-        for other in requested:
-            if req_index[other] >= req_index[id6]:
-                continue
-            for target, token in _in_queue_edges(other):
-                if target == id6:
-                    reason = (
-                        f"declared dependency: {other} declares `{token}`, "
-                        f"so {id6} must run first"
-                    )
-                    break
-            if reason:
-                break
-        # Moved LATER because it declares a prerequisite that was requested after it.
-        if not reason:
-            for target, token in _in_queue_edges(id6):
-                if req_index.get(target, -1) > req_index[id6]:
-                    reason = (
-                        f"declared dependency: {id6} declares `{token}`, "
-                        f"so it waits for {target}"
-                    )
-                    break
-        # Moved because of orchestrator deferral
-        if not reason:
-            item = by_id.get(id6, {})
-            if item.get("action") == "orchestrate":
-                reason = (
-                    f"orchestrator: waits for children of set '{item.get('setid')}' "
-                    f"to execute first"
-                )
-            else:
-                for other in requested:
-                    if req_index[other] >= req_index[id6]:
-                        continue
-                    other_item = by_id.get(other, {})
-                    if other_item.get("action") == "orchestrate" and other_item.get(
-                        "setid"
-                    ) == item.get("setid"):
-                        reason = (
-                            f"orchestrator child: {other} is the orchestrator for set "
-                            f"'{other_item.get('setid')}', so {id6} executes first"
-                        )
-                        break
-        # Moved because DEPENDENCY DEPTH differs from the item it swapped with. The two loops above
-        # only see a DIRECT edge between the mover and something requested before/after it, which
-        # misses the commonest real case: `dependency_depth` is the FIRST element of
-        # `queue_sort_key`, so a depth-1 node yields to every depth-0 node in the queue even when
-        # there is no edge between those two at all. Measured live in `aw oc run revsweep`: `6ypimw`
-        # (depth 1, via `executed:76gsmv`) and `eyh1fu` (depth 0, no edges) swapped, and BOTH were
-        # reported as `tiebreak: no declared dependency explains this move` while a declared
-        # dependency was the entire explanation. Attributing an edge-driven move to the tiebreak is
-        # the specific lie this branch exists to stop: the tiebreak label is the operator's signal
-        # that the runner reordered them on lower-ranked fields, so it must never absorb a move the
-        # dependency graph forced.
-        if not reason:
-            depth = dependency_depth(id6, by_id)
-            moved_later = exec_index[id6] > req_index[id6]
-            # The counterpart that displaced it: among the items that crossed this one, the one whose
-            # depth differs in the direction that explains the move. Naming it keeps the message
-            # actionable rather than a bare "depth differs".
-            for other in requested:
-                if other == id6:
-                    continue
-                crossed = (req_index[other] > req_index[id6]) != (
-                    exec_index[other] > exec_index[id6]
-                )
-                if not crossed:
-                    continue
-                other_depth = dependency_depth(other, by_id)
-                if moved_later and other_depth < depth:
-                    reason = (
-                        f"declared dependency: {id6} has {depth} declared prerequisite level(s) "
-                        f"in this queue and {other} has {other_depth}, so {other} runs first"
-                    )
-                    break
-                if not moved_later and other_depth > depth:
-                    reason = (
-                        f"declared dependency: {other} has {other_depth} declared prerequisite "
-                        f"level(s) in this queue and {id6} has {depth}, so {id6} runs first"
-                    )
-                    break
-        if not reason:
-            item = by_id.get(id6, {})
-            pos = item.get("position")
-            pos_txt = "unset" if not isinstance(pos, int) else str(pos)
-            order = item.get("order")
-            order_txt = "unset" if not isinstance(order, int) else str(order)
-            reason = (
-                "tiebreak: no declared dependency explains this move; ranked by "
-                f"requested position {pos_txt}, Set '{item.get('setid') or ''}', "
-                f"Order {order_txt}, id6"
-            )
-        causes[id6] = reason
-
-    literal = bool(sel_list) and all(ID6_RE.fullmatch(s.lower()) for s in sel_list)
-    typed = literal and [s.lower() for s in sel_list] == requested
-    return {
-        "requested": requested,
-        "executed": executed,
-        "reordered": requested != executed,
-        "causes": causes,
-        "request_kind": "typed" if typed else "expanded",
-        "selectors": sel_list,
-    }
-
-
-def announce_run_order(
-    run_dir: Path,
-    state: dict[str, Any],
-    *,
-    stream: Any = None,
-) -> dict[str, Any]:
-    """Print the execution order and append it to `events.jsonl`; return the rationale.
-
-    runorder (prpipy) E-04/E-07. ONE function so both host drivers announce identically and record
-    identically; the wording comes from the shared `render_stream` formatter, never from a driver.
-    The announcement is UNCONDITIONAL (the order must be auditable in the log even when nothing was
-    reordered) and the durable record is what makes it readable after the terminal scrollback is gone.
-    """
-    rationale = state.get("run_order") or run_order_rationale(
-        state.get("queue", []), state.get("selectors", [])
-    )
-    out = stream if stream is not None else sys.stdout
-    pal = Palette(should_color(out))
-    for line in format_run_order_announcement(rationale, pal=pal):
-        print(line, file=out)
-    # specvis: surface DECLARED spec edits before the run starts. A spec is the contract other plans
-    # are reviewed against, so a run that rewrites one is the highest-leverage thing it can do and was
-    # previously invisible unless the operator opened every plan.
-    #
-    # specvis st5klo E-01: the announcement is made ONCE HERE, for the WHOLE QUEUE, BEFORE any item is
-    # dispatched (maintainer requirement 2026-09-08). `spec_impacts_for_queue` reads `state["queue"]`
-    # entire, and this function's sole callers are the two drivers' queue-freeze points, which run
-    # before the first child session. Do NOT move this into per-item dispatch: that would turn the one
-    # pre-spend warning into a line buried mid-run, which is the surface the operator scrolls past.
-    try:
-        _repo = Path(state["repo"])
-        # specvis st5klo E-01/E-02: `queue_with_plan_paths` is REQUIRED, not decoration. A real runner
-        # queue entry carries its plan location under `configured_file`, while `spec_impacts_for_queue`
-        # reads `path`/`plan_path`, so passing the raw queue made this announcement compute an empty
-        # impact set and print nothing on EVERY real run, on BOTH hosts. See `queue_plan_path`.
-        _impacts = spec_impacts_for_queue(
-            _repo, queue_with_plan_paths(_repo, state.get("queue", []))
-        )
-        for line in format_spec_impact_announcement(_impacts, pal=pal):
-            print(line, file=out)
-    except Exception as exc:
-        # specvis st5klo E-01: STILL advisory (a broken announcement must never stop a run from
-        # starting, which is why this catches everything and does not re-raise), but no longer SILENT.
-        # The old `pass` made two very different states render identically: "this run declares no spec
-        # edits" and "the spec-impact computation crashed" both printed nothing, so an operator could
-        # not tell a clean run from a broken announcer. One named line resolves that ambiguity without
-        # changing what the run is permitted to do. Emitted from the SHARED function, so both hosts get
-        # it from this single edit (`agy_runipd` imports and calls this very object).
-        for line in format_spec_impact_failure(exc, pal=pal):
-            print(line, file=out)
-    # runconcur-01 (`vddpml`) E-02: SURFACE A PEER DRIVER before anything is dispatched. Measured on
-    # 2026-09-22: two unattended drivers ran in one checkout for hours and NOTHING in any command's
-    # output revealed the second one, so deciding what was safe to merge required reading both runs'
-    # `state.json` by hand. Reported from the shared function, so both hosts get it from one edit.
-    #
-    # UNKNOWN IS RENDERED DISTINCTLY FROM NONE (`format_peer_driver_report`): no peer prints nothing,
-    # an unprobeable one prints a named line. It REFUSES NOTHING - policy B serializes the integration
-    # step instead - so an advisory failure here must never stop a run, hence the catch.
-    try:
-        _peers = peer_drivers(Path(state["repo"]), exclude_run_dir=run_dir)
-        _peer_lines = format_peer_driver_report(_peers)
-        if _peer_lines:
-            print(file=out)
-            for line in _peer_lines:
-                print(pal(line, "yellow"), file=out)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "peer-drivers",
-                "run_id": state.get("run_id"),
-                "peers": [
-                    {
-                        "run_id": p.run_id,
-                        "state": p.state,
-                        "pid": p.pid,
-                        "selectors": list(p.selectors),
-                    }
-                    for p in _peers
-                ],
-            },
-        )
-    except Exception as exc:
-        # Named rather than silent, for the reason the spec-impact announcer above records: "no peer"
-        # and "the peer query crashed" must not render identically.
-        print(
-            pal(f"  ! the peer-driver query could not be computed: {exc}", "yellow"),
-            file=out,
-        )
-    try:
-        from agent_workflows import term as T
-
-        _repo = Path(state["repo"])
-        _term = T.Term(color=should_color(out))
-        _slated_table = format_slated_artifacts_table(
-            _repo, state.get("queue", []), term=_term
-        )
-        if _slated_table:
-            print(file=out)
-            print(_slated_table, file=out, end="")
-    except Exception:
-        pass
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "run-order",
-            "run_id": state.get("run_id"),
-            "requested": rationale["requested"],
-            "executed": rationale["executed"],
-            "reordered": rationale["reordered"],
-            "causes": rationale["causes"],
-            "request_kind": rationale["request_kind"],
-        },
-    )
-    return rationale
-
-
-def cascade_dependency_blocked(
-    state: dict[str, Any], run_dir: Path | None = None
-) -> list[dict[str, Any]]:
-    """Propagate `dependency-blocked` over reverse edges to a fixed point (spec 25kzda 5.4 rule 7).
-
-    A queued item whose prerequisite reached a NON-success terminal state can never become runnable,
-    so it is marked blocked immediately instead of stalling the queue, and its own dependents follow
-    transitively. Independent items are untouched and keep running.
-
-    Uses the EXISTING `dependency-blocked` disposition (already in `TERMINAL_STATES` and already
-    written by the orchestrator-deferral path). It does NOT introduce `dependency-not-met`, which is
-    the spec's vocabulary but does not exist anywhere in this runner; inventing a parallel state
-    would split the run records already on disk.
-
-    THE SUCCESS BAR IS ACTION-DEPENDENT, and it MUST match `edge_satisfied`'s (runorder F-7). A
-    REVIEW pass does not require its prerequisite to have been EXECUTED: reviewing a child that
-    imports a module the previous child creates needs only that the previous child was reviewed,
-    because no code is written or imported during a review. `edge_satisfied` has always encoded this
-    (`is_exec = item.get("action") != "review"`, then `EXECUTION_SUCCESS_STATES if is_exec else
-    SUCCESS_STATES`), so this function reuses the SAME predicate rather than a second one.
-
-    MEASURED FAILURE this fixes (run `run-20260904T042705Z-1025943`): a 6-item all-`review` run of
-    the `wslayout` Set reviewed Orders 00 and 01, and the instant Order 01 reached `reviewed` this
-    cascade declared it a dead prerequisite and killed Orders 02-05 with "prerequisite reached a
-    non-success terminal state". It hardcoded `EXECUTION_SUCCESS_STATES`, and `reviewed` is in
-    `TERMINAL_STATES` but not in that set. Meanwhile `dependency_status_detailed` returned
-    `satisfied: True` for those same items, so TWO functions gave opposite answers to one question
-    and the cascade won because it runs after each item completes. The Set was well-formed and its
-    edges were correct; a review-mode Set run was simply impossible to complete.
-    """
-    blocked: list[dict[str, Any]] = []
-    while True:
-        by_id = {entry["id6"]: entry for entry in state["queue"]}
-        progressed = False
-        for item in state["queue"]:
-            if item.get("status") != "queued":
-                continue
-            dead: list[str] = []
-            for dep in item.get("dependencies", []):
-                edge = parse_dependency_token(dep)
-                if edge is None or edge.target_type != "ipd":
-                    continue
-                entry = by_id.get(edge.id6)
-                if entry is None:
-                    continue
-                st = entry.get("status")
-                # SAME action-aware bar as `edge_satisfied`; do NOT hardcode
-                # EXECUTION_SUCCESS_STATES here (that made a review-mode Set run impossible).
-                required = (
-                    EXECUTION_SUCCESS_STATES
-                    if item.get("action") != "review"
-                    else SUCCESS_STATES
-                )
-                if st in TERMINAL_STATES and st not in required:
-                    dead.append(f"{edge.canonical()} (target {st})")
-            if not dead:
-                continue
-            item["status"] = "dependency-blocked"
-            item["unsatisfied_dependencies"] = dead
-            blocked.append(item)
-            progressed = True
-            if run_dir is not None:
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "dependency-blocked",
-                        "id6": item["id6"],
-                        "dependencies": dead,
-                        "reason": "prerequisite reached a non-success terminal state",
-                    },
-                )
-        if not progressed:
-            return blocked
-
-
-def dependency_reasons(item: dict[str, Any], state: dict[str, Any]) -> list[str]:
-    """Human-readable reasons for each unsatisfied edge (for events/report; no gating decision)."""
-    by_id = {entry["id6"]: entry for entry in state["queue"]}
-    reasons: list[str] = []
-    for dep in item.get("dependencies", []):
-        edge = parse_dependency_token(dep)
-        if edge is None:
-            reasons.append(f"{dep}: not a legal Item-Dependencies edge")
-            continue
-        ok, reason = edge_satisfied(edge, item, state, by_id)
-        if not ok:
-            reasons.append(reason)
-    return reasons
 
 
 # `build_review_prompt` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
@@ -4931,6 +2662,107 @@ def _lane_commit_subjects(
         sha, subject = line.split("\x1f", 1)
         commits.append((sha.strip(), subject.strip()))
     return commits
+
+
+# runnerlayer Order 02 (`1f7xno`) TRIED TO CONSOLIDATE THIS ONTO `runner_shared` AND REVERTED, and the
+# reason is worth the paragraph because the consolidation LOOKED safe by every check that plan applies.
+# `runner_shared` holds a copy of this function whose docstring-stripped AST is IDENTICAL to this one,
+# so it passed the pure-move fingerprint test; deleting this definition and re-exporting the shared one
+# gave object identity on both hosts and a green targeted suite.
+#
+# IT IS STILL WRONG, because this body resolves `classify_recovery_disposition` in its OWN module's
+# namespace, and the shared sibling of THAT function is not merely diverged, it is DEAD ON ARRIVAL: it
+# reads `st.path` and `st.base_commit` off a `worktree_lease.LaneState` that has neither field (its
+# real names are `worktree_path` and `base_sha`), so it raises `AttributeError` on every lane that
+# exists. Measured 2026-09-23: consolidating this one function made four tests in
+# `tests/test_resumedupe.py` fail with exactly that error, because they finally REACHED the shared
+# classifier that nothing had ever called.
+#
+# SO THE THREE RECOVERY-ROUTING NAMES ARE DEFERRED AS ONE UNIT, which is the correct granularity: an
+# AST-identical function is only safely movable if everything it resolves is also safely movable.
+# Filed as `zt2b16`, which now carries the measurement. Do NOT re-attempt this consolidation on the
+# strength of the fingerprint alone.
+
+
+def route_recovery_turn(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    recovery: bool,
+) -> RecoveryDisposition | None:
+    """Decide how a recovery turn is dispatched and RECORD the decision durably (E-03, E-05).
+
+    Returns None for a first attempt, so first-attempt behavior is untouched.
+
+    E-03, THE FAIL-TOWARD-DOING-THE-WORK CHOICE, AND IT IS DELIBERATELY THE OPPOSITE OF A LIFECYCLE
+    GATE. An `undetermined` reading is dispatched as a FRESH EXECUTION, never as a skip. Do not "fix"
+    this into a refusal: the lifecycle gates fail CLOSED because their failure mode is falsely claiming
+    work is done, whereas the failure mode HERE is leaving a plan UNIMPLEMENTED while reporting a turn
+    was spent, which is strictly worse than paying for a duplicate turn. Wasted spend is recoverable;
+    a silently skipped implementation is what a human discovers much later.
+
+    CALL THIS BEFORE THE TURN'S OWN LANE IS ALLOCATED. Allocation writes `worktree_lane_id` onto the
+    CURRENT attempt, and `resolve_prior_lane` would then resolve that fresh, always-empty lane as the
+    "prior" one and answer `fresh-execution` on every resume - the inert-feature regression. Classify
+    once, early, and reuse the returned decision for any later prompt rebuild rather than recomputing.
+    """
+    if not recovery:
+        return None
+    repo = Path(state["repo"])
+    decision = classify_recovery_disposition(repo, item, state)
+    effective = (
+        DISPOSITION_FRESH_EXECUTION
+        if decision.disposition == DISPOSITION_UNDETERMINED
+        else decision.disposition
+    )
+    # E-05: record the verdict AND its inputs, so an operator can see WHY a turn was routed as it was
+    # without re-deriving it. `inspected_lane_id` is what tells a future reader which lane the decision
+    # was based on, which is the one fact a silently-inert regression would get wrong.
+    record = {
+        "disposition": decision.disposition,
+        "dispatched_as": effective,
+        "reason": decision.reason,
+        "inspected_lane_id": decision.inspected_lane_id,
+        "inspected_branch": decision.inspected_branch,
+        "inspected_worktree": decision.inspected_worktree,
+        "lane_state": decision.lane_state,
+        "commits_ahead": decision.commits_ahead,
+        "dirty": decision.dirty,
+        "snapshot_only": decision.snapshot_only,
+        "real_commits": [
+            {"sha": sha, "subject": subject} for sha, subject in decision.real_commits
+        ],
+        "at": utc_now(),
+    }
+    item["recovery_routing"] = record
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "recovery-routed",
+            "id6": item.get("id6"),
+            **{k: v for k, v in record.items() if k != "at"},
+        },
+    )
+    pal = Palette(should_color(sys.stdout))
+    if decision.verify_and_continue:
+        print(
+            pal(
+                f"  \u21ba recovery routed VERIFY-AND-CONTINUE: {decision.reason}",
+                "cyan",
+            )
+        )
+    elif decision.disposition == DISPOSITION_UNDETERMINED:
+        print(
+            pal(
+                f"  ! recovery routing undetermined; dispatching a FRESH EXECUTION "
+                f"(never a skip): {decision.reason}",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+    return decision
 
 
 def classify_recovery_disposition(
@@ -5148,87 +2980,6 @@ def build_verify_and_continue_notice(repo: Path, decision: RecoveryDisposition) 
         ]
     )
     return "\n".join(lines)
-
-
-def route_recovery_turn(
-    run_dir: Path,
-    state: dict[str, Any],
-    item: dict[str, Any],
-    recovery: bool,
-) -> RecoveryDisposition | None:
-    """Decide how a recovery turn is dispatched and RECORD the decision durably (E-03, E-05).
-
-    Returns None for a first attempt, so first-attempt behavior is untouched.
-
-    E-03, THE FAIL-TOWARD-DOING-THE-WORK CHOICE, AND IT IS DELIBERATELY THE OPPOSITE OF A LIFECYCLE
-    GATE. An `undetermined` reading is dispatched as a FRESH EXECUTION, never as a skip. Do not "fix"
-    this into a refusal: the lifecycle gates fail CLOSED because their failure mode is falsely claiming
-    work is done, whereas the failure mode HERE is leaving a plan UNIMPLEMENTED while reporting a turn
-    was spent, which is strictly worse than paying for a duplicate turn. Wasted spend is recoverable;
-    a silently skipped implementation is what a human discovers much later.
-
-    CALL THIS BEFORE THE TURN'S OWN LANE IS ALLOCATED. Allocation writes `worktree_lane_id` onto the
-    CURRENT attempt, and `resolve_prior_lane` would then resolve that fresh, always-empty lane as the
-    "prior" one and answer `fresh-execution` on every resume - the inert-feature regression. Classify
-    once, early, and reuse the returned decision for any later prompt rebuild rather than recomputing.
-    """
-    if not recovery:
-        return None
-    repo = Path(state["repo"])
-    decision = classify_recovery_disposition(repo, item, state)
-    effective = (
-        DISPOSITION_FRESH_EXECUTION
-        if decision.disposition == DISPOSITION_UNDETERMINED
-        else decision.disposition
-    )
-    # E-05: record the verdict AND its inputs, so an operator can see WHY a turn was routed as it was
-    # without re-deriving it. `inspected_lane_id` is what tells a future reader which lane the decision
-    # was based on, which is the one fact a silently-inert regression would get wrong.
-    record = {
-        "disposition": decision.disposition,
-        "dispatched_as": effective,
-        "reason": decision.reason,
-        "inspected_lane_id": decision.inspected_lane_id,
-        "inspected_branch": decision.inspected_branch,
-        "inspected_worktree": decision.inspected_worktree,
-        "lane_state": decision.lane_state,
-        "commits_ahead": decision.commits_ahead,
-        "dirty": decision.dirty,
-        "snapshot_only": decision.snapshot_only,
-        "real_commits": [
-            {"sha": sha, "subject": subject} for sha, subject in decision.real_commits
-        ],
-        "at": utc_now(),
-    }
-    item["recovery_routing"] = record
-    save_state(run_dir, state)
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "recovery-routed",
-            "id6": item.get("id6"),
-            **{k: v for k, v in record.items() if k != "at"},
-        },
-    )
-    pal = Palette(should_color(sys.stdout))
-    if decision.verify_and_continue:
-        print(
-            pal(
-                f"  \u21ba recovery routed VERIFY-AND-CONTINUE: {decision.reason}",
-                "cyan",
-            )
-        )
-    elif decision.disposition == DISPOSITION_UNDETERMINED:
-        print(
-            pal(
-                f"  ! recovery routing undetermined; dispatching a FRESH EXECUTION "
-                f"(never a skip): {decision.reason}",
-                "yellow",
-            ),
-            file=sys.stderr,
-        )
-    return decision
 
 
 def build_isolation_notice(lane_root: Path | None) -> str:

@@ -305,6 +305,41 @@ REFORK_TABLE: tuple[Owned, ...] = (
     # later correction reach only one driver - which is exactly how `render_stream`'s ANSI constants
     # came to be re-forked and how agy carried a broken `dependency_status_detailed` for months.
     # `assertIs` distinguishes a shared object from a copy; reading the source cannot.
+    # --- runner_shared: THE DEPENDENCY API, moved here from `_SHARED_NAMES` by runnerlayer Order 02 -----
+    # (`1f7xno`, backlog `cnwy8g`)
+    #
+    # WHY THESE ROWS EXIST AND WHY THEY ARE NOT DUPLICATES. Until this plan, every one of these fourteen
+    # names was pinned in `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests._SHARED_NAMES`
+    # instead, and that was CORRECT: they were `oc_runipd`-OWNED symbols that agy had to BIND rather than
+    # copy, and this table structurally cannot host one (its `Owned` contract forbids the listed runners
+    # from DEFINING the symbol, so naming a runner as `owner` would forbid that runner's own definition).
+    # That list's own header comment says it "IS THE ONLY AVAILABLE HOME FOR A RUNNER-OWNED SHARED
+    # SYMBOL" for exactly this reason.
+    #
+    # `1f7xno` RE-HOMED THEM INTO `runner_shared`, so they stopped being runner-owned and became
+    # precisely what this table is for. The move is one-way and the two guards remain DISJOINT: each name
+    # was ADDED here and REMOVED there in the same change, never held in both.
+    #
+    # AND THE ROW IS A STRONGER GUARANTEE THAN THE LIST IT REPLACES, which is the reason to prefer it
+    # rather than a matter of filing. `_SHARED_NAMES` asserts only `agy.<name> is oc.<name>`, which stays
+    # TRUE if both hosts bind the same COPY; this table's AST half additionally FORBIDS either runner
+    # from re-defining the symbol at all. A re-homed name needs exactly that second property, because
+    # the failure it protects against is a host growing its own definition back - which is what agy did
+    # to `dependency_status_detailed` for months while every suite was green.
+    Owned("DEPENDENCY_FATAL_RULES", "runner_shared", BOTH),
+    Owned("_read_item_dependencies", "runner_shared", BOTH),
+    Owned("parse_dependency_token", "runner_shared", BOTH),
+    Owned("dependency_target_id6", "runner_shared", BOTH),
+    Owned("edge_satisfied", "runner_shared", BOTH),
+    Owned("dependency_status", "runner_shared", BOTH),
+    Owned("dependency_status_detailed", "runner_shared", BOTH),
+    Owned("dependency_reasons", "runner_shared", BOTH),
+    Owned("dependency_depth", "runner_shared", BOTH),
+    Owned("queue_sort_key", "runner_shared", BOTH),
+    Owned("cascade_dependency_blocked", "runner_shared", BOTH),
+    Owned("classify_drain_block", "runner_shared", BOTH),
+    Owned("record_transient_dependency_wait", "runner_shared", BOTH),
+    Owned("preflight_dependency_findings", "runner_shared", BOTH),
     Owned("verify_absence_text", "runner_shared", BOTH),
     Owned("VERIFY_ABSENCE_CODES", "runner_shared", BOTH),
     Owned("VERIFY_ABSENCE_NO_OUTCOME_FILE", "runner_shared", BOTH),

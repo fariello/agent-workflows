@@ -49,7 +49,7 @@ import unittest
 from typing import Any
 from unittest import mock
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from agent_workflows import agy_runipd, oc_runipd, runner_shared, selectors
 
 FIXTURE = (
     pathlib.Path(__file__).parent
@@ -164,6 +164,33 @@ RELOCATED_RUN_CHECKED_CALLERS: dict[str, int] = {
     # `run_checked_fn(...)` because this module may not import a runner; that is the same mechanism
     # `driver_begin` next door already uses.
     "set_plan_approved": 2,
+    # runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the backlog-close and earned-paths trio, the
+    # LAST group of `run_checked` callers `oc_runipd` still owned. ONE call each, counted by walking the
+    # three bodies rather than estimated: `collect_earned_paths` diffs the attempt's head range,
+    # `close_backlog_item` invokes the pinned nested `aw backlog set --status done`, and
+    # `commit_backlog_close` reaches the tooled commit path once.
+    #
+    # THE SUBTRACTION IS ASYMMETRIC HERE, WHICH IS WHY THE COUNT IS STATED PER HOST BELOW RATHER THAN
+    # IN THIS TABLE. Every other row subtracts from BOTH runners because both DEFINED the moved
+    # function. These three were defined only in `oc_runipd`; `agy_runipd` IMPORTED them, so agy's
+    # pre-move `run_checked` census never counted them (measured: 0 at the pre-move HEAD) and
+    # subtracting from agy would drive its expectation negative. See
+    # `REHOMED_BACKLOG_CLOSE_CALL_SITES` and its use in the census test.
+    #
+    # WHY THEY HAD TO BE INJECTED AT ALL rather than lifted plainly: the shared `run_checked` takes a
+    # host-specific `env_builder`, so a shared body cannot resolve one. Measured when the lift was first
+    # attempted without the injection: `TypeError: run_checked() missing 1 required keyword-only
+    # argument: 'env_builder'` on ten tests in `tests/test_runner_backlog_close.py`.
+    "collect_earned_paths": 1,
+    "close_backlog_item": 1,
+    "commit_backlog_close": 1,
+}
+
+#: The three rows above, subtracted from `oc_runipd` ONLY. They were oc-owned and agy-imported, so agy
+#: never had these call sites to lose; a symmetric subtraction would make agy's expected census
+#: negative, which is how this was caught (`0 != -5`).
+REHOMED_BACKLOG_CLOSE_CALL_SITES: dict[tuple[str, str], int] = {
+    ("oc_runipd", "run_checked"): 3,
 }
 
 # Shared `run_checked` callers that were BORN HERE rather than relocated from a runner, mapped the
@@ -1660,7 +1687,16 @@ class WrapperTests(unittest.TestCase):
         relocated_reconcile_callers = {
             "save_state": 1,
         }
-        moved_callers_of_run_checked = sum(RELOCATED_RUN_CHECKED_CALLERS.values())
+        # The three `1f7xno` rows are excluded from the SYMMETRIC subtraction and applied per host
+        # below, for the reason recorded on `REHOMED_BACKLOG_CLOSE_CALL_SITES`.
+        _asymmetric = {
+            "collect_earned_paths",
+            "close_backlog_item",
+            "commit_backlog_close",
+        }
+        moved_callers_of_run_checked = sum(
+            v for k, v in RELOCATED_RUN_CHECKED_CALLERS.items() if k not in _asymmetric
+        )
         for (runner, name), premove in sorted(self.PREMOVE_CALL_SITES.items()):
             with self.subTest(runner=runner, symbol=name):
                 expected = premove
@@ -1677,6 +1713,7 @@ class WrapperTests(unittest.TestCase):
                 expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
                 expected += self.LANE_BACKLOG_CLOSE_CALL_SITES.get((runner, name), 0)
                 expected += self.REVIEW_SWEEP_LANE_CALL_SITES.get((runner, name), 0)
+                expected -= REHOMED_BACKLOG_CLOSE_CALL_SITES.get((runner, name), 0)
                 self.assertEqual(
                     self.call_sites(runner, name),
                     expected,
@@ -1821,27 +1858,35 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
         self.assertIs(oc_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
         self.assertIs(agy_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
 
-    def test_EXECUTION_SUCCESS_STATES_is_EQUAL_on_both_hosts_even_though_duplicated(
-        self,
-    ):
-        """FAILS if either host's set literal is edited alone, which is the whole point.
+    def test_EXECUTION_SUCCESS_STATES_is_ONE_OBJECT_across_both_hosts(self):
+        """SIMPLIFIED EXACTLY AS THE PREVIOUS VERSION INSTRUCTED, and the instruction is worth quoting.
 
-        The `assertIsNot` is deliberate and is NOT a wish for divergence: it RECORDS the measured
-        present state, so if a later plan unifies the objects this test fails loudly and is updated
-        together with the change, rather than silently continuing to assert something weaker than the
-        truth.
+        This method used to assert the two hosts' sets were EQUAL BUT NOT IDENTICAL, with an
+        `assertIsNot` whose own failure message read: "the two are now ONE object; unify the constant
+        and simplify this test, do not delete the equality pin". runnerlayer Order 02 (`1f7xno`) is the
+        unification that message anticipated, and this is the simplification it asked for; the equality
+        pin is NOT deleted, it is subsumed, because one object is trivially equal to itself.
+
+        WHY THE CONSTANT MOVED, since it was not a target of that plan by name: `cascade_dependency_blocked`
+        and `dependency_status_detailed` both close over it and both were re-homed, so the constant had to
+        become resolvable in `runner_shared` or those bodies would have raised `NameError`. The class
+        docstring above already named this work: "Unifying the objects is `rununify`'s extraction and
+        `cnwy8g`'s layering correction, deliberately NOT done here."
+
+        WHAT IS STRONGER NOW. The old pin could only catch a one-sided edit AFTER the fact, by value; a
+        single object cannot be edited one-sidedly at all, so the defect class is gone rather than
+        watched. `tests/test_runner_refork_guard.py` additionally forbids either host re-DEFINING it.
         """
-        self.assertEqual(
-            oc_runipd.EXECUTION_SUCCESS_STATES, agy_runipd.EXECUTION_SUCCESS_STATES
+        self.assertIs(
+            oc_runipd.EXECUTION_SUCCESS_STATES, runner_shared.EXECUTION_SUCCESS_STATES
+        )
+        self.assertIs(
+            agy_runipd.EXECUTION_SUCCESS_STATES, runner_shared.EXECUTION_SUCCESS_STATES
         )
         self.assertEqual(
-            oc_runipd.EXECUTION_SUCCESS_STATES, {"executed", "substantially-complete"}
-        )
-        self.assertIsNot(
-            oc_runipd.EXECUTION_SUCCESS_STATES,
-            agy_runipd.EXECUTION_SUCCESS_STATES,
-            "the two are now ONE object; unify the constant and simplify this test, do not "
-            "delete the equality pin",
+            runner_shared.EXECUTION_SUCCESS_STATES,
+            {"executed", "substantially-complete"},
+            "the VALUE is pinned too: unifying the object must not have changed the bar",
         )
 
     def test_the_action_aware_bar_is_the_SAME_OBJECT_from_every_module_that_exposes_it(
@@ -7558,6 +7603,404 @@ class GateAnswerQuestionWordingTests(unittest.TestCase):
         )
         self.assertTrue(q.startswith("YOUR PREVIOUS ANSWER COULD NOT BE USED:"))
         self.assertIn("probably-fine", q)
+
+
+# ==================================================================================================
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE RE-HOMED HOST-NEUTRAL NAMES
+# ==================================================================================================
+
+REHOMED_FIXTURE = (
+    pathlib.Path(__file__).parent
+    / "fixtures"
+    / "runnerlayer_rehomed_premove_fingerprints.json"
+)
+
+
+class ReHomedHostNeutralNameTests(unittest.TestCase):
+    """The PURE-MOVE proof for every name `1f7xno` re-homed out of `oc_runipd`.
+
+    WHY A SECOND HARNESS RATHER THAN EXTENDING THE ONE ABOVE. The class at the top of this file is
+    pinned against `runner_shared_premove_fingerprints.json`, a capture of the source at HEAD
+    `1ecc5891`. The names below did not exist in `oc_runipd` in their current form at that commit,
+    so they have no entry in that fixture and adding them to `INJECTED` or `MOVED` would make the
+    fixture-backed tests raise `KeyError` rather than prove anything. This class supplies its own
+    capture (taken at the commit the move started from) and asserts the SAME properties.
+
+    THE FOUR PROPERTIES, none of which implies another:
+
+      1. FINGERPRINT EQUALITY against the PRE-MOVE capture. This is what makes "pure move"
+         falsifiable: edit one moved line and this fails. Docstrings are stripped before comparing,
+         for the reason `_without_docstring` above records (a docstring is not behavior), so a
+         reworded docstring is permitted while a changed statement is not.
+      2. NO REMAINING DEFINITION IN EITHER RUNNER. Identity alone would pass while a stale duplicate
+         sat in a host file shadowed by a later import, which is a trap rather than a fix.
+      3. OBJECT IDENTITY from all THREE modules. Fingerprint equality alone would pass while a host
+         kept its own copy that merely looks the same, which is precisely the state being ended:
+         `agy` carried its own broken `dependency_status_detailed` for months while every suite was
+         green.
+      4. THE RE-EXPORT SURVIVES IN BOTH DRIVERS. `ruff --fix` is a pre-commit hook here and DELETES
+         an unused plain import while LEAVING a redundant `as <same-name>` alias; it removed six of
+         exactly these re-exports on one previous commit attempt. Asserting the attribute exists is
+         what turns that silent deletion into a failing test.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.payload = json.loads(REHOMED_FIXTURE.read_text(encoding="utf-8"))
+        cls.pre = cls.payload["fingerprints"]
+
+    def test_the_fixture_is_not_empty_and_agrees_with_its_own_count(self):
+        """A harness whose input silently emptied would pass every test below vacuously."""
+        self.assertGreater(
+            len(self.pre), 0, "the pre-move fixture holds no fingerprints"
+        )
+        self.assertEqual(len(self.pre), self.payload["symbol_count"])
+
+    #: The ONLY bodies permitted to differ from their pre-move capture, each mapped to the single
+    #: statement that changed and WHY. Enumerated rather than tolerated, because a blanket exemption on
+    #: the riskiest names is how a move harness becomes decorative (the same rule `INJECTED` and
+    #: `DOCUMENTED_SINCE_MOVE` above follow).
+    #:
+    #: BOTH ARE A RESOLUTION FIX, NOT A BEHAVIOR CHANGE, and both were FORCED by the move rather than
+    #: chosen. A body that resolved a name in `oc_runipd`'s namespace cannot resolve it in
+    #: `runner_shared`'s, so leaving the statement byte-identical would have left a function that raises
+    #: at call time. Each is the minimum edit that preserves the original behavior:
+    #:
+    #:   `_consuming_actions_for`  `runner_shared.action_for(...)` -> `action_for(...)`. The qualified
+    #:       prefix named an IMPORTED MODULE in oc; inside the module itself there is no such global, so
+    #:       the attribute access raised `NameError` which the body's own `except Exception: continue`
+    #:       SWALLOWED, making the function return an empty map and silently switching the dependency
+    #:       evaluator to its strict default. It broke fourteen tests. Same callee, same object.
+    #:   `edge_satisfied`  gained a FUNCTION-LOCAL
+    #:       `from agent_workflows.selectors import read_front_matter_status as _read_status`. In oc that
+    #:       reader was a module global; `runner_shared` has none, and a module-level first-party import
+    #:       here is REFUSED by a shipped guard that pins this module's module-level first-party imports
+    #:       to `render_stream` plus `runner_profiles`. The function-local form is this module's own
+    #:       documented route and is used identically by two sibling functions. Same reader object,
+    #:       which `tests/test_runner_refork_guard.py` tables as `selectors`-owned.
+    RESOLUTION_FIXED_SINCE_MOVE = {
+        "_consuming_actions_for": "unqualified `runner_shared.action_for` -> `action_for`",
+        "edge_satisfied": "function-local import of the shared `_read_status` reader",
+    }
+
+    #: Names whose shared body took an INJECTED dependency, so each host keeps a one-line delegating
+    #: `def` at the original name. Their bodies therefore DIFFER from the pre-move capture (a gained
+    #: keyword-only parameter is not byte-identical) and their host attributes are NOT the shared
+    #: object, both by construction. This is `818uru`'s `INJECTED` case, and the same enumerate-rather-
+    #: than-exempt rule applies: each is listed with what it needs and why it could not be resolved.
+    #:
+    #: ALL SIX NEED A HOST-SPECIFIC CALLABLE A SHARED BODY CANNOT RESOLVE. Four call the shared
+    #: `run_checked`, which itself takes a host `env_builder`; `process_backlog_close` additionally
+    #: takes its two closers so an in-tree test patching `oc_runipd.close_backlog_item` still
+    #: intercepts; `enforce_dependency_preflight` and `route_recovery_turn` keep a host wrapper that
+    #: predates this plan and was left in place rather than rewritten.
+    #:
+    #: WHAT REPLACES THE TWO CHECKS THEY CANNOT PASS, so this is not a hole:
+    #:   * `tests/test_runner_backlog_close.py::SharedNotCopied` asserts each host's `def` is a SINGLE
+    #:     delegating statement naming `runner_shared.<same name>`, which FORBIDS a wrapper that grew a
+    #:     body - a stronger property than the object identity it replaces.
+    #:   * `test_runner_shared_OWNS_every_wrapped_implementation` below asserts the shared module holds
+    #:     exactly one definition of each, so "one implementation" is measured and not assumed.
+    WRAPPED_SINCE_MOVE = (
+        "close_backlog_item",
+        "collect_earned_paths",
+        "commit_backlog_close",
+        "process_backlog_close",
+        "enforce_dependency_preflight",
+    )
+
+    def test_runner_shared_OWNS_every_wrapped_implementation(self):
+        """The half a wrapper cannot express: exactly ONE body, and it is in the shared module."""
+        shared_defs = _top_level_definitions_by_node(runner_shared)
+        for name in self.WRAPPED_SINCE_MOVE:
+            with self.subTest(symbol=name):
+                self.assertIn(
+                    name,
+                    shared_defs,
+                    f"{name} is declared WRAPPED, so `runner_shared` must own its implementation; a "
+                    "wrapper delegating to nothing is a broken binding, not a share",
+                )
+                sites = []
+                for path in sorted(
+                    pathlib.Path(runner_shared.__file__).parent.glob("*.py")
+                ):
+                    try:
+                        tree = ast.parse(path.read_text(encoding="utf-8"))
+                    except SyntaxError:  # pragma: no cover
+                        continue
+                    for node in tree.body:
+                        if (
+                            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                            and node.name == name
+                        ):
+                            sites.append(path.name)
+                self.assertEqual(
+                    sorted(s for s in sites if s == "runner_shared.py"),
+                    ["runner_shared.py"],
+                    f"{name} must have EXACTLY ONE implementation, in runner_shared; sites {sites}",
+                )
+
+    def test_every_rehomed_body_is_BYTE_IDENTICAL_to_its_pre_move_capture(self):
+        """The falsifiable half of the pure-move claim: edit one moved line and this fails.
+
+        `RESOLUTION_FIXED_SINCE_MOVE` is subtracted, and the subtraction is itself asserted below by
+        `test_every_resolution_fix_is_a_resolution_fix_and_not_a_behavior_change`, so an entry cannot be
+        added to that map to wave a real edit through.
+        """
+        shared_defs = _top_level_definitions_by_node(runner_shared)
+        wrong = []
+        for name, expected in sorted(self.pre.items()):
+            if (
+                name in self.RESOLUTION_FIXED_SINCE_MOVE
+                or name in self.WRAPPED_SINCE_MOVE
+            ):
+                continue
+            node = shared_defs.get(name)
+            if node is None:
+                wrong.append(f"  {name}: NOT DEFINED in runner_shared at all")
+                continue
+            # A CONSTANT has no docstring to strip, and `_without_docstring` asserts it was handed
+            # a def/class, so the two node shapes are normalized differently rather than forcing one
+            # helper to cover both. Three of the re-homed names are module-level string constants.
+            stripped = (
+                _without_docstring(node)
+                if isinstance(
+                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                )
+                else node
+            )
+            actual = ast.dump(
+                ast.parse(ast.unparse(stripped)),
+                include_attributes=False,
+            )
+            if actual != expected:
+                wrong.append(
+                    f"  {name}: body CHANGED during the move. `1f7xno` is a PURE-MOVE plan, so a "
+                    "body change here is either an accidental edit (revert it) or a deliberate "
+                    "improvement that belongs in its own plan with its own review"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(self.pre)} re-homed bodies are not byte-identical to the "
+            "pre-move capture, so the claim that the move changed no behavior is FALSE.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_every_resolution_fix_is_a_resolution_fix_and_not_a_behavior_change(self):
+        """The GUARD ON THE EXEMPTION, so `RESOLUTION_FIXED_SINCE_MOVE` cannot launder a real edit.
+
+        An enumerated exemption is only as good as the bound on what it admits. The claim each entry
+        makes is narrow: the body differs from its pre-move capture ONLY in how it RESOLVES a name, and
+        it still reaches the SAME object the pre-move body reached. So this asserts the consequence that
+        claim has, which a diff cannot: the function still WORKS, and it works through the shared object.
+
+        `_consuming_actions_for` must return the action the shared `action_for` gives for a real plan.
+        The pre-move body called `runner_shared.action_for`; if the unqualified call now resolved
+        something else, this disagrees. Crucially, the pre-move body's `except Exception: continue`
+        SWALLOWED the NameError, so an empty result is precisely the silent failure mode, and asserting
+        a NON-empty correct answer is what distinguishes a fixed body from a broken one.
+
+        `edge_satisfied` must read a target's status through the ONE shared permissive reader. Patching
+        `selectors.read_front_matter_status` must move its verdict; if the function-local import had been
+        written against some other reader, the patch would not bite and this fails.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = pathlib.Path(tmp) / "p.ipd.md"
+            text = "# IPD: x\n\n- Id: aaaaaa\n- Kind: child\n- Status: approved\n"
+            plan.write_text(text, encoding="utf-8")
+            derived = runner_shared._consuming_actions_for([(plan, text)])
+            self.assertEqual(
+                derived,
+                {str(plan): runner_shared.action_for("child", "approved")},
+                "the unqualified `action_for` call must reach the SAME shared decision the pre-move "
+                "`runner_shared.action_for` did. An EMPTY dict here is the exact silent failure the "
+                "body's own `except Exception: continue` produces when the name does not resolve",
+            )
+            self.assertNotEqual(
+                derived, {}, "an empty result means the name did not resolve at all"
+            )
+
+        # `edge_satisfied`'s half, asserted THROUGH THE MOVED BODY rather than on the reader alone.
+        # Its function-local import must have bound the ONE shared permissive reader, so replacing that
+        # reader on its OWNING module must FLIP the body's verdict. A body that had bound some other
+        # reader, or inlined a regex, would be unmoved by this patch and this assertion would fail -
+        # which is exactly how the missing resolution was caught when this batch landed.
+        #
+        # Driven through `dependency_status`, the entry point the dispatch site calls, because
+        # `edge_satisfied`'s own signature takes an internal `by_id` map this test has no business
+        # constructing.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp) / "repo"
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            (pending / "20260101-demo-01-depaaa-t.ipd.md").write_text(
+                "# IPD: t\n\n- Id: depaaa\n- Kind: child\n- Status: to-review\n",
+                encoding="utf-8",
+            )
+            item = {
+                "id6": "itemaa",
+                "status": "queued",
+                "action": "review",
+                "dependencies": ["executed:depaaa"],
+                "position": 1,
+                "configured_file": "",
+            }
+            state = {"repo": str(repo), "queue": [item]}
+            baseline, _why = runner_shared.dependency_status(item, state)
+            self.assertFalse(
+                baseline,
+                "baseline: a `to-review` target in `pending/` must not satisfy a review edge",
+            )
+            with mock.patch.object(
+                selectors, "read_front_matter_status", lambda _raw: "reviewed"
+            ):
+                flipped, _why2 = runner_shared.dependency_status(item, state)
+            self.assertTrue(
+                flipped,
+                "with the SHARED reader replaced, the moved `edge_satisfied` must flip. Still "
+                "refusing means its function-local import bound something other than "
+                "`selectors.read_front_matter_status`, so the resolution fix changed BEHAVIOR "
+                "rather than only resolution",
+            )
+
+    def test_neither_runner_still_DEFINES_a_rehomed_name(self):
+        wrong = []
+        for runner in BOTH:
+            defined = top_level_definitions(_MODULES[runner])
+            for name in sorted(self.pre):
+                if name in self.WRAPPED_SINCE_MOVE:
+                    # A WRAPPED name is REQUIRED to have a runner-local delegating def. That it is a
+                    # single statement rather than a second body is asserted elsewhere; see
+                    # `WRAPPED_SINCE_MOVE`.
+                    continue
+                if name in defined:
+                    wrong.append(
+                        f"  {runner} re-DEFINES {name} at line {defined[name]}; it must BIND "
+                        "`runner_shared`'s object instead. A duplicate definition shadowed by a "
+                        "later import is a trap, not a fix"
+                    )
+        self.assertEqual(wrong, [], "\n".join(wrong))
+
+    #: Names that moved as a CO-MOVE rather than because agy imported them, so agy is NOT expected to
+    #: expose them. Each is oc-PRIVATE and was reached only by a public name in the work list whose
+    #: body closes over it: `_SIGNAL_REPORT_STATE`/`_SIGNAL_REPORT_DONE` are the signal-report registry
+    #: `emit_shutdown_report` and `register_signal_report` share, and `_carrier_kind` is the partition
+    #: helper `evaluate_backlog_close` calls. They HAD to move, because leaving them behind would have
+    #: given the two hosts separate registries; demanding an agy re-export for them would FABRICATE an
+    #: API agy never had, which is the opposite of this plan's claim to have changed nothing.
+    #:
+    #: oc still re-exports all three, because in-tree tests clear the two registry objects through the
+    #: `oc_runipd` attribute at five sites. A private name is still a real API when a test names it.
+    CO_MOVED_PRIVATE = (
+        "_SIGNAL_REPORT_DONE",
+        "_SIGNAL_REPORT_STATE",
+        "_carrier_kind",
+        # The consuming-action derivation `preflight_dependency_findings` calls. Same shape as the
+        # three above: oc-private, reached only by a public name in the work list, never imported by
+        # agy. An in-tree mutation check neutralizes it through the `oc_runipd` attribute, which is why
+        # oc still re-exports it.
+        "_consuming_actions_for",
+        # The suite-check and earned-integration co-moves. `IntegrationVerdict` is the record
+        # `integration_is_earned` returns, the two SUITE_* constants and the two regexes are what
+        # `run_suite_check`/`parse_suite_summary`/`extract_suite_failures` close over. None was ever
+        # imported by agy; all had to move because a public name in the work list closes over them.
+        "IntegrationVerdict",
+        "SUITE_CHECK_TIMEOUT_SECONDS",
+        "SUITE_FAILURE_LINE_LIMIT",
+        "_SUITE_FAILURE_LINE_RE",
+        "_SUITE_SUMMARY_RE",
+    )
+
+    def test_every_rehomed_name_is_the_SAME_OBJECT_from_all_three_modules(self):
+        """`assertIs`, because grep cannot tell a shared object from a textually identical copy.
+
+        A CO-MOVED PRIVATE name is held to the oc half only; see `CO_MOVED_PRIVATE` for why that is a
+        requirement of the move rather than an exemption from it.
+        """
+        wrong = []
+        for name in sorted(self.pre):
+            if name in self.WRAPPED_SINCE_MOVE:
+                # Different objects BY CONSTRUCTION; see `WRAPPED_SINCE_MOVE` for what is asserted
+                # instead, and by which shipped tests.
+                continue
+            if name in self.CO_MOVED_PRIVATE:
+                shared = getattr(runner_shared, name, None)
+                self.assertIsNotNone(
+                    shared, f"{name}: ABSENT from runner_shared, which now OWNS it"
+                )
+                self.assertIs(
+                    getattr(oc_runipd, name, None),
+                    shared,
+                    f"{name}: oc must re-export runner_shared's object; in-tree tests clear this "
+                    "registry through the oc attribute",
+                )
+                continue
+            shared = getattr(runner_shared, name, None)
+            if shared is None:
+                wrong.append(f"  {name}: ABSENT from runner_shared, which now OWNS it")
+                continue
+            for runner in BOTH:
+                got = getattr(_MODULES[runner], name, _MISSING)
+                if got is _MISSING:
+                    wrong.append(
+                        f"  {name}: ABSENT from {runner}. The `as <same-name>` re-export was lost, "
+                        "which is exactly what `ruff --fix` did to six of these once; restore it "
+                        "rather than deleting this assertion"
+                    )
+                elif got is not shared:
+                    wrong.append(
+                        f"  {name}: {runner} holds a DIFFERENT object ({got!r} vs {shared!r}), "
+                        "which is a re-forked copy"
+                    )
+        self.assertEqual(wrong, [], "\n".join(wrong))
+
+    def test_no_rehomed_name_is_still_imported_from_a_HOST_DRIVER(self):
+        """The layering claim itself: the point of the move was to end the oc-to-agy edge.
+
+        `tests/test_runner_layering.py` freezes the whole import SET; this asserts the narrower
+        property for the specific names this fixture covers, sited with their move proof, so the
+        guarantee does not rest on one file.
+        """
+        agy_src = module_source(agy_runipd)
+        offenders = []
+        for node in ast.walk(ast.parse(agy_src)):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(
+                "oc_runipd"
+            ):
+                for alias in node.names:
+                    if alias.name in self.pre:
+                        offenders.append(
+                            f"  line {node.lineno}: agy still imports {alias.name} from oc_runipd, "
+                            "but it is defined in runner_shared now; import it from there"
+                        )
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+
+def _top_level_definitions_by_node(module) -> dict[str, ast.AST]:
+    """Every TOP-LEVEL definition in ``module``, mapped to its AST NODE (not its line).
+
+    A sibling of `top_level_definitions` above, which returns line numbers. Kept separate rather
+    than widening that one, because it is consumed by shipped assertions whose failure messages
+    quote the line.
+    """
+    found: dict[str, ast.AST] = {}
+    for node in ast.parse(module_source(module)).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            found.setdefault(node.name, node)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    found.setdefault(target.id, node)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            found.setdefault(node.target.id, node)
+    return found
+
+
+#: A sentinel distinguishing "attribute absent" from "attribute present and None", because the two
+#: have OPPOSITE fixes (restore a deleted re-export versus delete a copy) and `getattr(m, n, None)`
+#: cannot tell them apart.
+_MISSING = object()
 
 
 if __name__ == "__main__":

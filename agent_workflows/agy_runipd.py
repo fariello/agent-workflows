@@ -509,7 +509,70 @@ from agent_workflows.runner_shared import (
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
 # how the previous inert half-pin came to differ from what it looked like it did. `oc_runipd` does
 # not import this module, so there is no import cycle.
-from agent_workflows.oc_runipd import (
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE DEPENDENCY API, now bound from
+# `runner_shared` instead of from the OTHER HOST DRIVER. The objects are unchanged and so is every
+# call site; only the module this statement names is different. The long note that used to sit on the
+# oc-side import (about `dependency_status_detailed` having been re-forked here for months, and about
+# the `as <same-name>` form being load-bearing because `ruff` deleted six of these once) applies
+# verbatim and is preserved on the statement below.
+# depreview 03ie04 E-03: `dependency_status_detailed` is RE-EXPORTED here, not defined. This
+# module used to carry its own copy, and that copy was the reason a dependency fix could reach
+# only ONE of this driver's two paths: the dispatch path called the re-exported
+# `dependency_status` (whose body resolves `dependency_status_detailed` in OC's globals) while
+# the DRAIN path called the local copy. Measured before the deletion:
+# `agy.dependency_status_detailed is oc.dependency_status_detailed` -> False. The copy was also
+# BROKEN in three ways that the shared implementation is not: it never called `edge_satisfied`;
+# it never called `parse_dependency_token`, so it used the raw token as an id6 and reported
+# "no plan resolves to this id6 in the repo" for a perfectly valid `executed:<id6>`; and it had
+# no `orchestrate` clause, so an orchestrator item bypassed `decide_orchestrator_dispatch` on
+# that path. `tests/test_runner_item_dependencies.py`'s `_SHARED_NAMES` now pins this name, so
+# the copy cannot come back silently.
+from agent_workflows.runner_shared import (
+    DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
+    _artifact_owners as _artifact_owners,
+    cascade_dependency_blocked as cascade_dependency_blocked,
+    dependency_reasons as dependency_reasons,
+    dependency_status as dependency_status,
+    dependency_status_detailed as dependency_status_detailed,
+    edge_satisfied as edge_satisfied,
+    preflight_dependency_findings as preflight_dependency_findings,
+)
+
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE SUITE CHECK and the EARNED-INTEGRATION
+# predicate, now bound from `runner_shared` instead of from the OTHER HOST DRIVER. The objects and
+# every call site are unchanged; only the module differs.
+#
+# THE NOTE THIS REPLACES IS WORTH KEEPING, because it explains why these names had to be reachable on
+# BOTH hosts at all: `execute_item_core` resolves them off `driver_module`, so a name missing from one
+# host would silently give that host NO suite baseline while the other had one, making an audit's
+# answer depend on which runner executed the plan. That is still true; the names are simply no longer
+# borrowed from a peer driver to satisfy it.
+#
+# `parse_suite_summary` EXISTED ONLY BECAUSE OF THIS LAYERING, and its own docstring says so: it was
+# created as an injectable reader so `runner_shared` could parse the suite count line WITHOUT importing
+# a runner. Re-homing it removes the reason for the injection.
+from agent_workflows.runner_shared import (
+    SUITE_CHECK_ARGV as SUITE_CHECK_ARGV,
+    SuiteCheckResult as SuiteCheckResult,
+    extract_suite_failures as extract_suite_failures,
+    integration_is_earned as integration_is_earned,
+    parse_suite_summary as parse_suite_summary,
+    run_suite_check as run_suite_check,
+)
+
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE NESTED-`aw` TOOL-IDENTITY PIN, bound from
+# `runner_shared` instead of from the OTHER HOST DRIVER. The in-tree note this statement used to carry
+# said both drivers must stay symmetric and that "a second copy is exactly how the previous inert
+# half-pin came to differ from what it looked like it did"; that reasoning is why these are imported
+# rather than copied, and it is unchanged. What changed is WHERE the one definition lives.
+#
+# AND THE ONE DEFINITION REALLY IS ONE NOW, which it was not before. `runner_shared` already carried a
+# byte-identical copy of each, so `oc.ToolIdentityError is runner_shared.ToolIdentityError` measured
+# FALSE and a tool-identity mismatch raised through the shared path was caught only by the broader
+# `except DriverError` this module documents as ITEM-LOCAL, losing the ABORT-RUN escalation spec
+# 25kzda 1.4/A1 reserves for the identity class. Filed as `232wcg`; oc's duplicate is deleted in the
+# same commit, so the `except ToolIdentityError` below now catches a raise from either path.
+from agent_workflows.runner_shared import (
     ToolIdentityError,
     assert_child_tool_identity as assert_child_tool_identity,  # noqa: F401
     pinned_child_env,
@@ -561,104 +624,104 @@ from agent_workflows.runner_shared import (
 # Losing them would silently re-open the divergence this change exists to close, because a later fix
 # to, say, `edge_satisfied` would then be reachable through only ONE driver.
 
-# --- bkclose (zhr6mc): backlog-close + shutdown-report API, IMPORTED, never re-declared -----------
+# THE ONE DEFINITION IS NOW IN `runner_shared`, NOT IN THE OTHER HOST DRIVER (runnerlayer Order 02
+# `1f7xno`, backlog `cnwy8g`). The block below used to read "lives ONCE in `oc_runipd`", which was the
+# whole defect: this driver bound the right OBJECT through the wrong MODULE, so a fix reached it only
+# by way of a host driver it has no business depending on. The objects and every call site are
+# unchanged; only the module these statements name is different.
 #
-# Same division of labor as the dependency API above and for the same measured reason: a duplicated
-# copy is how the deleted `_read_deps` pair came to be identically wrong in both drivers. Every rule
-# (the IPD-vs-non-IPD carrier partition, the earned-close gate, the fail-closed lookups, the
-# `--status`-form gated setter, the ledger-before-print ordering, the signal handlers, and the
-# `aw runs` pointer) lives ONCE in `oc_runipd` and this module binds the SAME objects. The `as
-# <same-name>` form marks these as an intentional RE-EXPORT so an autoformatter cannot strip the ones
-# this module does not call itself; `tests/test_runner_backlog_close.py` asserts object identity, so
-# losing them re-opens the divergence this change exists to close.
-from agent_workflows.oc_runipd import (
-    # novalnomerge-01 (evgi9n) E-04: ONE shared integration predicate and ONE shared suite check, so a
-    # fix to the self-finalize gate cannot land in one driver and silently miss the other.
-    SuiteCheckResult as SuiteCheckResult,
-    integration_is_earned as integration_is_earned,
-    run_suite_check as run_suite_check,
-    # integearn-05 (`9lyg5h`) E-03/E-06: the three names the shared concurrent pre-work BASELINE is
-    # injected with. They are re-exported HERE, under the same `as <same-name>` discipline as the
-    # suite check above, because `execute_item_core` resolves them off `driver_module` and a name
-    # missing from one host would silently give that host NO baseline while the other had one - which
-    # is exactly the single-host divergence this whole re-export block exists to prevent, and it
-    # would make an audit's answer depend on which runner executed the plan.
-    #
-    # `extract_suite_failures` IS `daexj1`/`h5pyqa`'s FUNCTION AND IS NOT RE-IMPLEMENTED. Sharing the
-    # one extractor is what makes the pre-work and post-work id sets comparable at all.
-    SUITE_CHECK_ARGV as SUITE_CHECK_ARGV,
-    extract_suite_failures as extract_suite_failures,
-    parse_suite_summary as parse_suite_summary,
+# THE SHUTDOWN REPORTERS MOVED AS ONE CLOSURE WITH THE CLOSE API, because they cannot be split.
+# `emit_shutdown_report` and `register_signal_report` share the module-level
+# `_SIGNAL_REPORT_STATE`/`_SIGNAL_REPORT_DONE` registry, and `emit_shutdown_report` calls
+# `record_unclosed_backlog_items`/`render_unclosed_report`, which call the close evaluator. Splitting
+# that graph across two modules would have given the two hosts SEPARATE signal registries, so a SIGINT
+# would have reported from whichever half the handler happened to resolve.
+from agent_workflows.runner_shared import (
     BacklogCloseVerdict as BacklogCloseVerdict,
     CARRIER_KIND_IPD as CARRIER_KIND_IPD,
     CARRIER_KIND_OTHER as CARRIER_KIND_OTHER,
-    close_backlog_item as close_backlog_item,
-    collect_earned_paths as collect_earned_paths,
-    commit_backlog_close as commit_backlog_close,
     emit_shutdown_report as emit_shutdown_report,
     evaluate_backlog_close as evaluate_backlog_close,
-    signal_report_callback as signal_report_callback,
-    process_backlog_close as process_backlog_close,
     record_unclosed_backlog_items as record_unclosed_backlog_items,
     register_signal_report as register_signal_report,
     render_runs_pointer as render_runs_pointer,
     render_unclosed_report as render_unclosed_report,
     resolve_backlog_item as resolve_backlog_item,
     run_earned_paths as run_earned_paths,
+    signal_report_callback as signal_report_callback,
     unclosed_backlog_items as unclosed_backlog_items,
 )
-from agent_workflows.oc_runipd import (
-    DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
-    _artifact_owners as _artifact_owners,
-    cascade_dependency_blocked as cascade_dependency_blocked,
-    dependency_depth as dependency_depth,
-    dependency_reasons as dependency_reasons,
-    dependency_status as dependency_status,
-    # depreview 03ie04 E-03: `dependency_status_detailed` is RE-EXPORTED here, not defined. This
-    # module used to carry its own copy, and that copy was the reason a dependency fix could reach
-    # only ONE of this driver's two paths: the dispatch path called the re-exported
-    # `dependency_status` (whose body resolves `dependency_status_detailed` in OC's globals) while
-    # the DRAIN path called the local copy. Measured before the deletion:
-    # `agy.dependency_status_detailed is oc.dependency_status_detailed` -> False. The copy was also
-    # BROKEN in three ways that the shared implementation is not: it never called `edge_satisfied`;
-    # it never called `parse_dependency_token`, so it used the raw token as an id6 and reported
-    # "no plan resolves to this id6 in the repo" for a perfectly valid `executed:<id6>`; and it had
-    # no `orchestrate` clause, so an orchestrator item bypassed `decide_orchestrator_dispatch` on
-    # that path. `tests/test_runner_item_dependencies.py`'s `_SHARED_NAMES` now pins this name, so
-    # the copy cannot come back silently.
-    dependency_status_detailed as dependency_status_detailed,
-    dependency_target_id6 as dependency_target_id6,
-    edge_satisfied as edge_satisfied,
-    parse_dependency_token as parse_dependency_token,
-    preflight_dependency_findings as preflight_dependency_findings,
-    queue_sort_key as queue_sort_key,
-    # runorder (prpipy) E-07: the run-order comparison and its announcement, bound (never copied) for
-    # the same reason the key above is. `queue_sort_key` was ALREADY shared, so `prpipy`'s ordering
-    # change reached this driver automatically; the announcement's SITE (`initialize_run`) and the
-    # preview's site (`print_status`) are per-driver, which is exactly how `aw agy run` would have
-    # inherited the reordering with no warning. Binding the same two objects closes that.
+
+# --- bkclose (zhr6mc): backlog-close + shutdown-report API, IMPORTED, never re-declared -----------
+#
+# THIS STATEMENT IS GONE, AND ITS ABSENCE IS THE POINT (runnerlayer Order 02 `1f7xno`, backlog
+# `cnwy8g`). It used to import the whole backlog-close and shutdown-report API from `oc_runipd`,
+# because that is where those rules were DEFINED, and its own note explained the division of labor by
+# saying every rule "lives ONCE in `oc_runipd` and this module binds the SAME objects". That was the
+# defect the item tracked: the objects were right and the MODULE was a peer host driver, so a fix
+# reached this driver only by way of a program it has no business depending on.
+#
+# Every one of those names now has ONE definition in `runner_shared` and is bound from there by the
+# statement above. The four that need this host's `run_checked` (`close_backlog_item`,
+# `commit_backlog_close`, `collect_earned_paths`, `process_backlog_close`) are one-line wrappers
+# defined below instead, for the reason recorded at those wrappers.
+#
+# THE ORIGINAL REASONING STILL APPLIES AND IS KEPT: a duplicated copy is how the deleted `_read_deps`
+# pair came to be identically wrong in both drivers, and the `as <same-name>` form is what stops an
+# autoformatter stripping a re-export this module does not itself call.
+
+# runorder (prpipy) E-07: the run-order comparison and its announcement, bound (never copied) for
+# the same reason the dependency key above is. `queue_sort_key` was ALREADY shared, so `prpipy`'s
+# ordering change reached this driver automatically; the announcement's SITE (`initialize_run`) and
+# the preview's site (`print_status`) are per-driver, which is exactly how `aw agy run` would have
+# inherited the reordering with no warning. Binding the same objects closes that.
+#
+# THE SOURCE MODULE CHANGED, NOT THE BINDING (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`): all
+# four are now DEFINED ONCE in `runner_shared` instead of in the OTHER host driver, so the objects
+# and every call site below are unchanged and only this statement's module differs.
+from agent_workflows.runner_shared import (
     announce_run_order as announce_run_order,
     run_order_rationale as run_order_rationale,
     simulate_dispatch_order as simulate_dispatch_order,
     update_execution_order as update_execution_order,
+    # THE TRANSITIVE CO-MOVE, and the reason it is here rather than in the dependency block above.
+    # `simulate_dispatch_order`, `run_order_rationale` and `dependency_depth` call `queue_sort_key`,
+    # `parse_dependency_token` and `dependency_target_id6`, so lifting the run-ordering four WITHOUT
+    # these four would have left the shared bodies resolving names that no longer exist in their
+    # module: measured, that raised `NameError: name 'queue_sort_key' is not defined` from
+    # `runner_shared` on ten tests. A callee closure moves WITH its callers or not at all.
+    dependency_depth as dependency_depth,
+    dependency_target_id6 as dependency_target_id6,
+    parse_dependency_token as parse_dependency_token,
+    queue_sort_key as queue_sort_key,
 )
 
 # specvis st5klo (E-01/E-02/E-03): the declared-spec-edit visibility surfaces, BOUND rather than
 # copied, exactly as `announce_run_order` above is. This driver already reached the START announcement
 # through that shared object, so E-01's fix arrived here with NO edit to this module's call sites; what
 # is added here is the END-OF-RUN report, whose call sites ARE per-driver (three summary sites each) and
-# so must be wired in both. `report_run_spec_edits` and its helpers have ONE definition in `oc_runipd`;
-# a second copy here is the specific failure the module docstring above records for `Heartbeat`.
-from agent_workflows.oc_runipd import (
+# so must be wired in both. A second copy here is the specific failure the module docstring above
+# records for `Heartbeat`.
+#
+# THE SOURCE MODULE CHANGED, NOT THE BINDING (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`). These
+# eight names used to be DEFINED in `oc_runipd` and imported from there, which made the OTHER host
+# driver a library for this one. They now have ONE definition in `runner_shared` and both drivers bind
+# it from there, so the objects are unchanged and every call site below is untouched; only the module
+# this statement names is different. `record_item_spec_edits` deliberately stays on the `oc_runipd`
+# import below: `runner_shared` carries its OWN DIVERGED copy of that one name, so re-homing it would
+# be a reconciliation rather than a pure move (backlog `tm5vnx`).
+from agent_workflows.runner_shared import (
     SPEC_NOT_FINALIZED as SPEC_NOT_FINALIZED,
     SPEC_RECONCILED as SPEC_RECONCILED,
     SPEC_RECONCILE_REFUSED as SPEC_RECONCILE_REFUSED,
     queue_plan_path as queue_plan_path,
     queue_with_plan_paths as queue_with_plan_paths,
-    record_item_spec_edits as record_item_spec_edits,
     report_run_spec_edits as report_run_spec_edits,
     spec_edit_record as spec_edit_record,
     spec_edit_summary as spec_edit_summary,
+)
+from agent_workflows.oc_runipd import (
+    record_item_spec_edits as record_item_spec_edits,
 )
 
 DEFAULT_MODEL = "gemini-3.7-flash-high"
@@ -693,7 +756,11 @@ TERMINAL_STATES = {
 # rununify 04 (`tx6q0h`): relocated to `runner_shared` (byte-identical in both hosts);
 # re-exported so this module's other call sites are untouched.
 SUCCESS_STATES = runner_shared.SUCCESS_STATES
-EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: ONE object, not a second set literal.
+# Each host used to declare its own, so the two were EQUAL BUT NOT IDENTICAL and a one-sided
+# edit was silent. `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests` named this
+# unification as `cnwy8g`'s work; see the constant's own note in `runner_shared`.
+EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
 LANE_PROMPT_TIMEOUT: float = 10.0
@@ -1316,6 +1383,78 @@ def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
     return runner_shared.build_lane_outcome(repo, handle, id6, run_checked=run_checked)
 
 
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: FOUR ONE-LINE WRAPPERS, in the shape `818uru`
+# E-05 established and for the identical MEASURED reason. Each shared body calls the shared
+# `run_checked`, which takes a host-specific `env_builder` a shared body cannot resolve, so the
+# dependency is passed EXPLICITLY at exactly one visible site per runner with no mutable module state.
+# Lifting them without the injection raised `TypeError: run_checked() missing 1 required keyword-only
+# argument: 'env_builder'` on ten tests in `tests/test_runner_backlog_close.py`.
+#
+# EACH WRAPPER KEEPS THE ORIGINAL NAME AND SIGNATURE, so every call site in this module and in the
+# peer driver is untouched and both hosts run ONE implementation.
+# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts that structurally (a single delegating
+# statement naming `runner_shared.<same name>`), which is a STRONGER claim than the object identity it
+# replaces for these four: identity cannot hold when each host must bind its own `run_checked`, while
+# the structural check additionally forbids a wrapper that grew a body.
+#
+# `process_backlog_close` ALSO TAKES ITS TWO CLOSERS INJECTED, and that is not symmetry for its own
+# sake: four in-tree tests patch `oc_runipd.close_backlog_item` to spy on the argv the gated setter
+# receives and to induce a setter failure. A shared body resolving those names in its OWN globals would
+# bypass every such patch, turning a fail-closed test green while the gate it guards went unexercised.
+def collect_earned_paths(repo: Path, item: dict[str, Any]) -> list[str]:
+    """The paths one item's turn produced. See `runner_shared.collect_earned_paths`."""
+    return runner_shared.collect_earned_paths(repo, item, run_checked=run_checked)
+
+
+def close_backlog_item(
+    repo: Path, item_path: Path, item_id6: str, evidence: str, message: str
+) -> tuple[int, str]:
+    """Close an item through the gated setter. See `runner_shared.close_backlog_item`."""
+    return runner_shared.close_backlog_item(
+        repo, item_path, item_id6, evidence, message, run_checked=run_checked
+    )
+
+
+def commit_backlog_close(
+    repo: Path,
+    item_id6: str,
+    message: str,
+    *,
+    run_id: str | None = None,
+    plan_id6: str | None = None,
+) -> str | None:
+    """Path-scoped-commit the moved item file. See `runner_shared.commit_backlog_close`."""
+    return runner_shared.commit_backlog_close(
+        repo,
+        item_id6,
+        message,
+        run_id=run_id,
+        plan_id6=plan_id6,
+        run_checked=run_checked,
+    )
+
+
+def process_backlog_close(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    *,
+    lane_repo: Path | None = None,
+    lane_handle: Any = None,
+) -> None:
+    """Close this item's carrier if the run earned it. See `runner_shared` for the contract."""
+    return runner_shared.process_backlog_close(
+        run_dir,
+        state,
+        item,
+        lane_repo=lane_repo,
+        lane_handle=lane_handle,
+        run_checked=run_checked,
+        close_backlog_item=close_backlog_item,
+        commit_backlog_close=commit_backlog_close,
+    )
+
+
 def collect_lane_earned_paths(repo: Path, handle: Any) -> list[str]:
     """The repo-relative paths a LANE BRANCH produced (dirtygates-03 `9iq461` E-03).
 
@@ -1611,13 +1750,15 @@ def enforce_dependency_preflight(
     Delegates to the shared implementation. The `except`/re-raise below is now a NO-OP for the case
     it was written for, and it is KEPT DELIBERATELY; see the note inside.
     """
-    # NOTE the import FORM is deliberate: the symbol-level `from agent_workflows.oc_runipd import
-    # <name>` spelling, NOT the module-alias spelling. revgate's guard
-    # (tests/test_review_findings_cascade.py::test_no_runner_to_runner_import) rejects the
-    # module-alias substring anywhere in this file, and the alias form contains it while the
-    # symbol-level form does not. The coupling is identical either way; this spelling keeps the
-    # guard meaningful for the case it actually targets, a NEW blanket runner-to-runner dependency.
-    from agent_workflows.oc_runipd import (
+    # THERE IS NO LONGER A RUNNER-TO-RUNNER IMPORT HERE AT ALL (runnerlayer Order 02 `1f7xno`,
+    # backlog `cnwy8g`). This used to read `from agent_workflows.oc_runipd import
+    # enforce_dependency_preflight`, and it carried a long note explaining that the SYMBOL-LEVEL
+    # spelling was chosen over the module-alias spelling so revgate's substring guard
+    # (tests/test_review_findings_cascade.py::test_no_runner_to_runner_import) stayed meaningful for
+    # the blanket-dependency case it targets. That note was an accommodation to a coupling that no
+    # longer exists: the preflight is DEFINED in `runner_shared` now, so this import crosses no
+    # host-to-host boundary and the spelling carries no significance beyond style.
+    from agent_workflows.runner_shared import (
         enforce_dependency_preflight as _oc_enforce_dependency_preflight,
     )
 
@@ -2224,7 +2365,14 @@ def route_recovery_turn(
     item: dict[str, Any],
     recovery: bool,
 ) -> Any:
-    """Delegate to the ONE definition in `oc_runipd` (see its docstring)."""
+    """Delegate to the ONE definition in `oc_runipd` (see its docstring).
+
+    STILL `oc_runipd`, DELIBERATELY (runnerlayer Order 02 `1f7xno`). That plan re-homed this whole
+    surface EXCEPT the three recovery-routing names, and this one was tried and reverted: the shared
+    copy is AST-identical but resolves a `classify_recovery_disposition` sibling that reads fields
+    `worktree_lease.LaneState` does not have, so it raises `AttributeError` on any lane that exists.
+    See the paragraph above oc's definition. Filed as `zt2b16`.
+    """
     from agent_workflows.oc_runipd import route_recovery_turn as _shared
 
     return _shared(run_dir, state, item, recovery)

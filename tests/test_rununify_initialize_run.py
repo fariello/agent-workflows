@@ -231,14 +231,28 @@ LIVE_OPTION_KEY_UNION = 38  # 25 shared + 13 host-specific
 #:     and lands in a plan's PERMANENT `## Workflow history`, so a verbatim lift would have attributed
 #:     every Antigravity auto-approval to the OpenCode driver. The value now arrives through
 #:     `HostLabels.full_auto_actor`, which has no default.
-STILL_DOUBLE_DEFINED = (
-    "enforce_dependency_preflight",
-    "expand_selectors",
-)
+#: RECLASSIFIED 2026-09-23 by runnerlayer Order 02 (`1f7xno`, backlog `cnwy8g`):
+#: `enforce_dependency_preflight` moved OUT of this tuple and into
+#: `THIN_WRAPPERS_OVER_RUNNER_SHARED` below, which is the transition this table exists to record. It
+#: was never really a symmetric fork: oc DEFINED it and agy already held a delegating wrapper, so the
+#: "double definition" was the layering defect `cnwy8g` tracks rather than two independent bodies.
+#: That plan re-homed the implementation into `runner_shared`, leaving a one-line wrapper on each
+#: host, which is the sanctioned form. The fork count falls by one and the wrapper count rises by
+#: one, so the tables still partition the same population.
+STILL_DOUBLE_DEFINED = ("expand_selectors",)
 
 #: Imported FROM `runner_shared`, so they move with a relocated core for free.
+#:
+#: GAINED `enforce_dependency_preflight` 2026-09-23 by runnerlayer Order 02 (`1f7xno`, backlog
+#: `cnwy8g`), moved out of `STILL_DOUBLE_DEFINED`. It was never a symmetric fork: `oc_runipd` DEFINED
+#: it and `agy_runipd` already held a delegating wrapper, so the "double definition" was the layering
+#: defect `cnwy8g` tracks rather than two independent bodies. The implementation is in `runner_shared`
+#: now and oc RE-EXPORTS it (`initialize_run` calls the bare name), which is precisely what this table
+#: means. agy keeps its pre-existing wrapper, and it is covered by `AGY_ONLY_DELEGATING`'s sibling
+#: assertions rather than by the thin-wrapper table, which requires a def on BOTH hosts.
 RESOLVES_IN_RUNNER_SHARED = (
     "DriverError",
+    "enforce_dependency_preflight",
     "EmptyStatusSelection",
     "SCHEMA_VERSION",
     "action_for",
@@ -853,7 +867,12 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         # It MOVED to `THIN_WRAPPERS_OVER_RUNNER_SHARED`, which rose by one, so the partition assertion
         # immediately below is UNCHANGED against `CLOSURE_TOTAL` -- and that assertion, not this figure,
         # is what proves the re-base was a reclassification rather than a deletion.
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 2)
+        # 2 -> 1, RE-MEASURED by runnerlayer Order 02 (`1f7xno`) E-04, which re-homed
+        # `enforce_dependency_preflight` into `runner_shared`. It MOVED to
+        # `RESOLVES_IN_RUNNER_SHARED`, which rose by one, so the partition assertion immediately below
+        # is UNCHANGED against `CLOSURE_TOTAL` -- and that assertion, not this figure, is what proves
+        # the re-base was a reclassification rather than a deletion.
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 1)
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED)
             + len(RESOLVES_IN_RUNNER_SHARED)

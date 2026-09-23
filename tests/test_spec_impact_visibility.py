@@ -242,14 +242,19 @@ class StartAnnouncementFailureIsVisibleTests(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as t:
                     repo = _repo(Path(t))
                     _write_plan(repo, "sp0004", scope=_SPEC_REL)
-                    original = oc_runipd.spec_impacts_for_queue
-                    # Patch on `oc_runipd`, where `announce_run_order` RESOLVES the name. Both hosts
-                    # call that one function object, so this covers agy without patching agy.
-                    oc_runipd.spec_impacts_for_queue = self._raise
+                    # PATCH WHERE `announce_run_order` RESOLVES THE NAME, which is `runner_shared`
+                    # and no longer `oc_runipd` (runnerlayer Order 02 `1f7xno`): the announcer moved
+                    # out of the host driver into the shared module, so its body now resolves
+                    # `spec_impacts_for_queue` in `runner_shared`'s globals. Patching the host
+                    # attribute would no longer intercept anything, and this test would pass
+                    # VACUOUSLY on an announcer that never crashed. Both hosts call the one shared
+                    # object, so this still covers agy without patching agy.
+                    original = runner_shared.spec_impacts_for_queue
+                    runner_shared.spec_impacts_for_queue = self._raise
                     try:
                         run_dir, out = _initialize(mod, repo, ["sp0004"])
                     finally:
-                        oc_runipd.spec_impacts_for_queue = original
+                        runner_shared.spec_impacts_for_queue = original
                     self.assertIn("could not be computed", out)
                     self.assertIn("RuntimeError", out)
                     self.assertIn("UNREPORTED, not absent", out)
@@ -268,12 +273,14 @@ class StartAnnouncementFailureIsVisibleTests(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as t:
                     repo = _repo(Path(t))
                     _write_plan(repo, "sp0005", scope="agent_workflows/cli.py")
-                    original = oc_runipd.spec_impacts_for_queue
-                    oc_runipd.spec_impacts_for_queue = self._raise
+                    # Same relocation as the sibling test above: the announcer lives in
+                    # `runner_shared` now, so that is where the name resolves.
+                    original = runner_shared.spec_impacts_for_queue
+                    runner_shared.spec_impacts_for_queue = self._raise
                     try:
                         _run_dir, fail_out = _initialize(mod, repo, ["sp0005"])
                     finally:
-                        oc_runipd.spec_impacts_for_queue = original
+                        runner_shared.spec_impacts_for_queue = original
                 self.assertNotEqual(
                     empty_out,
                     fail_out,

@@ -1820,6 +1820,45 @@ class BothHostsShareEverySymbol(unittest.TestCase):
         re-exports for the identical reason. So this is not a NEW coupling: it is three more names on an
         EXISTING one, and moving the whole suite-check family into `runner_shared` is the outstanding
         work `cnwy8g` tracks, not this plan's. 56 remain outstanding.
+
+        RE-MEASURED 2026-09-23 from 56 DOWN to 4 by runnerlayer Order 02 (`1f7xno`), which is the plan
+        that DOES the work every re-measurement above called outstanding, and it closes `cnwy8g`. The
+        count is maintained here per this assertion's own instruction; the names are computed by
+        diffing the import list at `55a99b5c` (56) against this HEAD rather than assumed.
+
+        THE FOUR THAT REMAIN ARE NOT A SHORTFALL, THEY ARE A DIFFERENT DEFECT, and both are filed.
+        `classify_recovery_disposition`, `build_verify_and_continue_notice` and `record_item_spec_edits`
+        each ALREADY have a definition in `runner_shared` whose body DIVERGES from the host's (measured
+        by docstring-stripped AST), so re-homing one is a RECONCILIATION of two behaviors rather than a
+        pure move, and `1f7xno` is a pure-move plan whose scope explicitly excludes diverged symbols.
+        `route_recovery_turn` is the fourth and its story is the sharpest lesson of that plan: its
+        shared copy IS AST-identical, so the consolidation passed every fingerprint check and gave
+        object identity on both hosts - and it was still wrong, because the body resolves
+        `classify_recovery_disposition` in the SHARED namespace and that sibling is DEAD ON ARRIVAL
+        (it reads `st.path`/`st.base_commit` off a `worktree_lease.LaneState` whose real fields are
+        `worktree_path`/`base_sha`, so it raises `AttributeError` on any lane that exists). Measured:
+        consolidating that one name made four `tests/test_resumedupe.py` tests fail with exactly that
+        error, because they finally REACHED a shared classifier nothing had ever called. It was
+        reverted, and the lesson is that an AST-identical function is only safely movable if everything
+        it RESOLVES is also safely movable.
+        Filed as `zt2b16` (the recovery-routing trio, now carrying the dead-on-arrival measurement) and
+        `tm5vnx` (the spec-edit recorder, whose two copies write DIFFERENT KEYS in different record
+        shapes, so the end-of-run spec report reads a key no run writes).
+
+        WHY THIS EDIT IS DELIBERATE AND DISCLOSED. `tests/test_orchestrator_probe_cache.py` is NOT in
+        `1f7xno`'s declared `- Scope-Paths:`, so this is an out-of-fence edit made under the fence's
+        own escape clause ("if the work GENUINELY requires a path outside the fence, MAKE THE EDIT AND
+        JUSTIFY IT"). It is required rather than convenient: this file carries a SECOND pin on the same
+        number that `tests/test_runner_layering.py` freezes, so re-homing even one name turns this
+        assertion red, and the plan's declared surface cannot reach it. Following the instruction in the
+        failure message is what this paragraph does.
+
+        AND NOTE WHAT WAS *NOT* DONE, because the destructive fix was available and is wrong: the
+        assertion was not deleted, not loosened to an inequality, and not converted to a floor. It still
+        pins an EXACT count, so a future re-coupling fails here exactly as a growth always has. 0 remain
+        outstanding, and the sibling guard in `tests/test_runner_layering.py` is what keeps it at 0: its
+        frozen set is derived from a per-name classification, so a 1st new name cannot be admitted
+        without a verdict and a reason.
         """
 
         import ast
@@ -1840,7 +1879,7 @@ class BothHostsShareEverySymbol(unittest.TestCase):
             )
         self.assertEqual(
             len(imported),
-            56,
+            4,
             "the oc->agy import count moved. This test's job is to fail when THIS "
             "child's symbols deepen the coupling; if the change is unrelated work, "
             "re-measure and update the baseline with the new count and a note.",

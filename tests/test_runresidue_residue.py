@@ -281,15 +281,30 @@ class TheHostSpecificDecisionsArePinned(unittest.TestCase):
     def test_the_agy_to_oc_delegations_are_MIS_LAYERING_and_not_this_plans_to_move(
         self,
     ):
-        """Four symbols where agy delegates to a PEER HOST rather than to the shared library.
+        """Symbols where agy delegates to a PEER HOST rather than to the shared library.
 
         NOT DUPLICATION: there is one body and agy imports it, so "unifying" them is a re-homing
         question owned by `runnerlayer` Order 02 (`1f7xno`), whose `FROZEN_OC_TO_AGY_IMPORTS` table
         these names sit in. Asserted so that a reader of the residue table cannot mistake them for
         copied code, and so that the day they DO move, this test names the plan that owns the move.
+
+        THAT DAY CAME FOR ONE OF THEM (2026-09-23). `1f7xno` re-homed
+        `enforce_dependency_preflight` into `runner_shared`, so it is no longer an agy-to-oc
+        delegation and its row is REMOVED from this list and from `DECIDED` below - which is exactly
+        what `test_no_decision_is_recorded_for_a_symbol_that_LEFT_the_residue` demands, since a stale
+        decision would send the next executor to unify code that is already one implementation.
+
+        THE OTHER THREE REMAIN, and their reason is now sharper than "owned by another plan": each
+        ALREADY has a `runner_shared` definition whose body DIVERGES from the host's, so re-homing one
+        is a RECONCILIATION rather than a move. `1f7xno` measured this and deferred them, filing
+        `zt2b16` (the recovery-routing pair, where the shared `classify_recovery_disposition` is DEAD
+        ON ARRIVAL: it reads `st.path`/`st.base_commit` off a `LaneState` whose real fields are
+        `worktree_path`/`base_sha`) and `tm5vnx` (the spec-edit recorder, whose two copies write
+        different keys). `route_recovery_turn` is the instructive case: its shared copy is
+        AST-IDENTICAL, the consolidation passed every fingerprint check, and it was still REVERTED
+        because the body resolves the broken classifier in the shared namespace.
         """
         for name in (
-            "enforce_dependency_preflight",
             "route_recovery_turn",
             "classify_recovery_disposition",
             "build_verify_and_continue_notice",
@@ -322,7 +337,9 @@ class TheResidueIsFullyAccountedFor(unittest.TestCase):
         "_lane_reclaim_prompt": "HOST-SPECIFIC-BY-PIN",
         "_add_output_mode_flags": "HOST-SPECIFIC-BY-CAPABILITY",
         "_record_forced_stop": "THREE-WAY-FORK-FILED",
-        "enforce_dependency_preflight": "MIS-LAYERED-OWNED-BY-1f7xno",
+        # `enforce_dependency_preflight` WAS HERE AND IS REMOVED, not demoted: `1f7xno` re-homed it
+        # into `runner_shared` on 2026-09-23, so it left the strict residue and a row for it would be
+        # the stale OVER-reporting this class's docstring names as a live failure mode.
         "route_recovery_turn": "MIS-LAYERED-OWNED-BY-1f7xno",
         "classify_recovery_disposition": "MIS-LAYERED-OWNED-BY-1f7xno",
         "build_verify_and_continue_notice": "MIS-LAYERED-OWNED-BY-1f7xno",

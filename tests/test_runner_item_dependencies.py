@@ -2173,14 +2173,22 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
             "and both drivers must bind the SAME object, or one host accepts a status the other refuses",
         )
 
-        # THE PATCH TARGET IS `oc_runipd`, FOR BOTH DRIVERS, and that is the point rather than a
-        # convenience. `edge_satisfied` is an oc-OWNED object that agy BINDS (see
-        # `CrossDriverSymmetryTests._SHARED_NAMES`), so exactly one module global named `_read_status`
-        # is consulted no matter which driver's entry point is called. MEASURED while writing this: a
-        # first version patched `mod._read_status` per driver and FAILED on agy, because patching agy's
-        # alias changes nothing the shared function reads. That failure is the invariant, not a
-        # problem: if patching oc's global did NOT move agy's verdict, agy would be running its own
-        # copy - which is exactly what shipped once and survived for months.
+        # THE PATCH TARGET IS `selectors`, FOR BOTH DRIVERS, and that is the point rather than a
+        # convenience. `edge_satisfied` now LIVES in `runner_shared` (runnerlayer Order 02 `1f7xno`
+        # re-homed it; this comment used to name `oc_runipd` for exactly the same structural reason),
+        # and that module reaches the reader through a FUNCTION-LOCAL
+        # `from agent_workflows.selectors import read_front_matter_status as _read_status`, because a
+        # module-level first-party import there is refused by a shipped guard. A function-local import
+        # is re-executed on every call and resolves through `selectors`, so the OWNING module of the
+        # reader is the only patchable site - and it is the right one, since `selectors` is where the
+        # one shared permissive reader is DEFINED.
+        #
+        # THE INVARIANT IS UNCHANGED AND IS STILL WHAT THIS ASSERTS. Patching the OWNING module's
+        # global must move BOTH hosts' verdicts; if it did not, that host would be running its own
+        # COPY of `edge_satisfied`, which is exactly what shipped once and survived for months.
+        # MEASURED TWICE, once per home: patching the non-owning module's alias changes nothing the
+        # shared function reads, so a version that patched `mod._read_status` per driver FAILED on the
+        # binding host. That failure is the invariant, not a problem.
         for driver, mod in _DRIVERS:
             with self.subTest(driver=driver, half="delegation"):
                 with tempfile.TemporaryDirectory() as t:
@@ -2190,7 +2198,7 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
                         "baseline: a `to-review` target in `pending/` does not satisfy a review turn",
                     )
                     with mock.patch.object(
-                        oc_runipd, "_read_status", lambda _p: "reviewed"
+                        selectors, "read_front_matter_status", lambda _p: "reviewed"
                     ):
                         self.assertTrue(
                             self._ask(mod, "dependency_status", repo, "review")[0],
@@ -2231,7 +2239,9 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
                             return _real(path)
 
                         # Patched on oc for the same reason as above: one shared global backs both.
-                        with mock.patch.object(oc_runipd, "_read_status", spy):
+                        with mock.patch.object(
+                            selectors, "read_front_matter_status", spy
+                        ):
                             self._ask(mod, "dependency_status", repo, "review")
                         self.assertEqual(
                             bool(reads),
@@ -2558,16 +2568,22 @@ class ReviewQueuePreflightTests(unittest.TestCase):
             self.assertEqual(
                 oc_runipd.enforce_dependency_preflight(repo, [dependent]), []
             )
-            original = oc_runipd._consuming_actions_for
+            # NEUTRALIZED ON `runner_shared`, WHICH IS WHERE `preflight_dependency_findings` RESOLVES
+            # THE DERIVATION since runnerlayer Order 02 (`1f7xno`) re-homed both out of `oc_runipd`.
+            # Neutralizing the host attribute would no longer intercept anything, so the mutation
+            # would be a no-op and this check would report "DriverError not raised" - which is exactly
+            # how it failed when the move landed, and which would otherwise have left a MUTATION CHECK
+            # that can no longer mutate. The host attribute re-exports this same object.
+            original = runner_shared._consuming_actions_for
             try:
-                oc_runipd._consuming_actions_for = lambda plans: {}
+                runner_shared._consuming_actions_for = lambda plans: {}
                 with self.assertRaises(oc_runipd.DriverError) as caught:
                     oc_runipd.enforce_dependency_preflight(repo, [dependent])
                 self.assertIn(
                     "check.ipd-dependency-findings-blocked", str(caught.exception)
                 )
             finally:
-                oc_runipd._consuming_actions_for = original
+                runner_shared._consuming_actions_for = original
             self.assertEqual(
                 oc_runipd.enforce_dependency_preflight(repo, [dependent]),
                 [],
@@ -2843,13 +2859,26 @@ class AntiDivergenceGuardTests(unittest.TestCase):
                 )
 
     def test_drivers_reference_the_shared_dependency_api(self):
-        """Pre-fix BOTH drivers referenced the shared dependency API zero times."""
-        oc_text = (REPO_ROOT / "agent_workflows" / "oc_runipd.py").read_text(
+        """Pre-fix BOTH drivers referenced the shared dependency API zero times.
+
+        READS THE MODULE THAT NOW HOLDS THE BODIES (runnerlayer Order 02 `1f7xno`). These three names
+        appeared in `oc_runipd` because the dependency evaluator's bodies were DEFINED there; that
+        whole group has been re-homed into `runner_shared`, so the mentions moved with them and a
+        source scan of the host driver now measures nothing. Following the bodies keeps the assertion
+        pointed at real code instead of at a file the code left.
+
+        WHY THIS IS NOT A WEAKENING, and the file itself already says so: the sibling
+        `test_each_shared_api_is_actually_REACHED_on_both_drivers` calls this mention check "a weak
+        proxy" that "stays only because a mention is where the fix began", and it proves the stronger
+        property (each authority is CONSULTED, on both hosts, through a real call). That test is
+        untouched and still passes, so the guarantee does not rest on this grep.
+        """
+        shared_text = (REPO_ROOT / "agent_workflows" / "runner_shared.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn("parse_item_dependencies", oc_text)
-        self.assertIn("META_ITEM_DEPENDENCIES", oc_text)
-        self.assertIn("evaluate_ipd_dependencies", oc_text)
+        self.assertIn("parse_item_dependencies", shared_text)
+        self.assertIn("META_ITEM_DEPENDENCIES", shared_text)
+        self.assertIn("evaluate_ipd_dependencies", shared_text)
 
     def test_each_shared_api_is_actually_REACHED_on_both_drivers(self):
         """The behavioral counterpart to the reference sweep above: each shared API really RUNS.
@@ -2949,44 +2978,102 @@ class AntiDivergenceGuardTests(unittest.TestCase):
 class CrossDriverSymmetryTests(unittest.TestCase):
     """Both drivers are declared in this plan's Scope-Paths, so REAL symmetry is required."""
 
-    # THIS LIST IS THE ONLY AVAILABLE HOME FOR A RUNNER-OWNED SHARED SYMBOL, and the reason is
-    # structural rather than preference (depreview 03ie04 E-04). The sibling guard
-    # `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` cannot host one: its `Owned` contract is
-    # "a NON-RUNNER module owns this symbol; no runner may re-define it", every row's owner is
-    # `render_stream`, `runner_shared` or `selectors`, and naming `oc_runipd` as an owner would make
-    # its AST half forbid oc's own definition. So `oc_runipd`-owned names that agy must BIND rather
-    # than copy are pinned here, by OBJECT IDENTITY, in `test_the_implementation_is_shared_not_copied`.
+    # THIS LIST IS NOW EMPTY, AND THAT IS THE OUTCOME IT WAS WAITING FOR (runnerlayer Order 02
+    # `1f7xno`, backlog `cnwy8g`). Do NOT delete it and do NOT delete the test below: read on.
     #
-    # KNOW WHAT THIS CATCHES AND WHAT IT DOES NOT: identity catches a RE-DEFINED copy, which is what
-    # actually happened to `dependency_status_detailed` (agy carried its own broken copy for months
-    # BECAUSE this list did not name it, so the guard passed over a live divergence). It would NOT
-    # catch a copy assigned over the re-export at import time. That residual hole is accepted, not
-    # fixed here: no such pattern exists in either driver today.
-    _SHARED_NAMES = (
-        "_read_item_dependencies",
-        "parse_dependency_token",
-        "dependency_target_id6",
-        "edge_satisfied",
-        "dependency_status",
-        # depreview 03ie04 E-04: the `_detailed` sibling was MISSING from this list, which is exactly
-        # why the guard below passed over agy's real copy of it. Both names are required.
-        "dependency_status_detailed",
-        "dependency_reasons",
-        "dependency_depth",
-        "queue_sort_key",
-        "cascade_dependency_blocked",
-        # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification joins the guard. Registered for the
-        # precise reason the `dependency_status_detailed` entry above exists: the drain arm is the ONE
-        # dependency site each host still implements SEPARATELY (each has its own `run_queue` and its own
-        # copy of the labelling loop), so the RULE it applies must be one object or the two hosts will
-        # drift exactly as they did before. Both names, because writing the record is as host-neutral as
-        # deciding the verdict, and a host that re-forked only the writer would silently diverge on what
-        # a waiting item reports.
-        "classify_drain_block",
-        "record_transient_dependency_wait",
-        "preflight_dependency_findings",
-        "DEPENDENCY_FATAL_RULES",
-    )
+    # WHAT IT EXISTED FOR. It was the ONLY AVAILABLE HOME for an `oc_runipd`-OWNED shared symbol, and
+    # the reason was structural rather than preference (depreview `03ie04` E-04). The sibling guard
+    # `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` cannot host one: its `Owned` contract is "a
+    # NON-RUNNER module owns this symbol; no runner may re-define it", so naming `oc_runipd` as an owner
+    # would make its AST half forbid oc's OWN definition. So the fourteen names oc owned and agy had to
+    # BIND rather than copy were pinned here, by object identity.
+    #
+    # WHY IT IS EMPTY. `1f7xno` re-homed all fourteen into `runner_shared`. The moment a name stopped
+    # being runner-owned it became exactly what `REFORK_TABLE` is for, so each was ADDED there and
+    # REMOVED here in the same change. The two guards stay DISJOINT, which they always were, and the
+    # migration is one-way.
+    #
+    # THE ROWS THEY MOVED TO ARE A STRICTLY STRONGER GUARANTEE, which is why this is a promotion and not
+    # a loss of coverage. This list asserted only `agy.<name> is oc.<name>`, which stays TRUE if both
+    # hosts bind the same COPY. `REFORK_TABLE`'s AST half additionally FORBIDS either runner from
+    # re-defining the symbol, which is the property that actually protects a re-homed name: the failure
+    # mode is a host growing its own definition back, and that is precisely what agy did to
+    # `dependency_status_detailed` for months while every suite stayed green BECAUSE this list did not
+    # name it.
+    #
+    # WHY THE EMPTY TUPLE AND ITS TEST STAY. If a future change gives `oc_runipd` a new symbol agy must
+    # bind, this is still the only legal home for it, for the unchanged structural reason above. An empty
+    # list with a live test is a working socket; deleting it would mean the next such symbol has nowhere
+    # to be pinned and gets bound with nothing asserting it, which is the state that produced the
+    # measured defect. The test below is written to PASS on an empty tuple and to bite the moment one is
+    # added.
+    _SHARED_NAMES: tuple[str, ...] = ()
+
+    def test_the_empty_list_is_EMPTY_BECAUSE_EVERY_NAME_WAS_PROMOTED_not_deleted(self):
+        """The honest statement about a vacuous test: name where the coverage WENT.
+
+        The identity test below now loops zero names, so on its own it proves nothing. That is
+        acceptable ONLY because every name it used to cover is asserted somewhere STRONGER, and this
+        test is what makes that claim checkable instead of a comment nobody re-verifies.
+
+        For each of the fourteen names this list held before runnerlayer Order 02 (`1f7xno`), it
+        asserts the promotion really happened: `runner_shared` OWNS the symbol, `REFORK_TABLE` carries
+        a row naming it, and NEITHER runner defines it. If someone empties this list without moving a
+        name, or trims `REFORK_TABLE`, this fails and names the symbol.
+        """
+        from tests import test_runner_refork_guard as refork  # noqa: PLC0415
+
+        promoted = (
+            "DEPENDENCY_FATAL_RULES",
+            "_read_item_dependencies",
+            "parse_dependency_token",
+            "dependency_target_id6",
+            "edge_satisfied",
+            "dependency_status",
+            "dependency_status_detailed",
+            "dependency_reasons",
+            "dependency_depth",
+            "queue_sort_key",
+            "cascade_dependency_blocked",
+            "classify_drain_block",
+            "record_transient_dependency_wait",
+            "preflight_dependency_findings",
+        )
+        tabled = {row.symbol for row in refork.REFORK_TABLE}
+        for name in promoted:
+            with self.subTest(symbol=name):
+                self.assertTrue(
+                    hasattr(runner_shared, name),
+                    f"{name} was promoted out of _SHARED_NAMES, so `runner_shared` must OWN it",
+                )
+                self.assertIn(
+                    name,
+                    tabled,
+                    f"{name} left _SHARED_NAMES but has no REFORK_TABLE row, so NOTHING now guards "
+                    "it. Add the row rather than restoring the weaker identity pin",
+                )
+                for mod in (oc_runipd, agy_runipd):
+                    self.assertIs(
+                        getattr(mod, name),
+                        getattr(runner_shared, name),
+                        f"{mod.__name__}.{name} is not `runner_shared`'s object",
+                    )
+
+    def test_a_name_added_back_to_the_list_is_really_checked(self):
+        """The socket works: an entry added to the empty tuple IS asserted, not silently ignored.
+
+        Without this, "the empty list stays as a working socket for the next runner-owned symbol" is
+        an untested promise, and the next such symbol could be pinned here while the loop below
+        quietly did nothing. Driven with a temporary one-name tuple rather than by editing the class.
+        """
+        original = type(self)._SHARED_NAMES
+        try:
+            type(self)._SHARED_NAMES = ("a_name_no_module_defines",)
+            with self.assertRaises(AssertionError) as caught:
+                self.test_every_shared_name_is_present_on_both_drivers_and_is_the_SAME_object()
+            self.assertIn("a_name_no_module_defines", str(caught.exception))
+        finally:
+            type(self)._SHARED_NAMES = original
 
     def test_every_shared_name_is_present_on_both_drivers_and_is_the_SAME_object(self):
         """PRESENCE and IDENTITY for every shared name, in one report.

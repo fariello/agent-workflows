@@ -99,11 +99,23 @@ EXPECTED_CLOSURE = {
     # class 2: shared NAME, per-host wrapper object (2)
     "print_status": "shared-host-wrapper",
     "save_state": "shared-host-wrapper",
-    # class 3: one object, agy imports it from oc (6)
-    "emit_shutdown_report": "one-object-agy-imports-oc",
+    # class 3: one object, agy imports it from oc (5)
+    #
+    # RE-MEASURED 2026-09-23 by runnerlayer Order 02 (`1f7xno`): 5, DOWN from 6.
+    # `report_run_spec_edits` moved to `shared-same-object` because that plan re-homed it out of
+    # `oc_runipd` into `runner_shared`, which is the entire point of this class existing: it counts the
+    # names for which one host driver is still a LIBRARY for the other, so a fall here is the coupling
+    # being paid down rather than drift. A rise would be the thing to investigate.
+    #
+    # UPDATED AGAIN, one batch later: `emit_shutdown_report` and `render_runs_pointer` crossed over
+    # too, exactly as the note here anticipated. They moved as ONE CLOSURE with the backlog-close API,
+    # because `emit_shutdown_report` shares the `_SIGNAL_REPORT_STATE` registry with
+    # `register_signal_report` and calls `record_unclosed_backlog_items`, so splitting that graph
+    # across two modules would have given the hosts separate signal registries.
+    "emit_shutdown_report": "shared-same-object",
     "install_exit_signal_handler": "one-object-agy-imports-oc",
-    "render_runs_pointer": "one-object-agy-imports-oc",
-    "report_run_spec_edits": "one-object-agy-imports-oc",
+    "render_runs_pointer": "shared-same-object",
+    "report_run_spec_edits": "shared-same-object",
     "runner_shared": "one-object-agy-imports-oc",
     # ADDED 2026-09-21 by stopdisc-01 (`wqq8ua`): `main`'s interrupt/SIGTERM handler now prints the
     # graceful-stop hint, so `main` REFERENCES the `runner_stop` module it previously did not. NOTHING
@@ -168,7 +180,13 @@ EXPECTED_CLOSURE = {
 #: The class histogram the table above implies. Asserted separately from the per-name mapping so a
 #: failure says WHICH WAY the cost moved, not merely that something changed.
 EXPECTED_CLASS_COUNTS = {
-    "shared-same-object": 9,
+    # RE-MEASURED 2026-09-23 by runnerlayer Order 02 (`1f7xno`): 10, up from 9, with the
+    # `one-object-agy-imports-oc` count falling by the same one, so the histogram still partitions the
+    # same population. `report_run_spec_edits` crossed over when that plan re-homed it into
+    # `runner_shared`. A RISE IN THIS CLASS CANNOT BE A RE-FORK by construction: the class MEANS "the
+    # host attribute IS `runner_shared`'s object", so a name can only enter it by becoming a single
+    # shared definition, which is the direction backlog `cnwy8g` exists to push.
+    "shared-same-object": 12,
     # RE-MEASURED 2026-09-17: 4, up from 2. `render_continuation_hint` and `write_report` moved from
     # `still-defined-twice` when sibling `tx6q0h` lifted them behind the `HostLabels` descriptor; the
     # fork count falls by the same two, so the histogram still partitions the same population.
@@ -183,7 +201,10 @@ EXPECTED_CLASS_COUNTS = {
     # `runner_stop` module when printing the graceful-stop hint on the interrupt path. A rise in THIS
     # class is not a re-fork by construction: the class MEANS "already one object", so a name can only
     # enter it by being a single shared object both hosts see, which `runner_stop` already was.
-    "one-object-agy-imports-oc": 6,
+    # RE-MEASURED 2026-09-23 by runnerlayer Order 02 (`1f7xno`): 5, DOWN from 6, as
+    # `report_run_spec_edits` was re-homed into `runner_shared`. THIS CLASS FALLING IS THE GOAL: it
+    # counts exactly the coupling backlog `cnwy8g` tracks, one host driver importing from the other.
+    "one-object-agy-imports-oc": 3,
     # RE-MEASURED 2026-09-17: 7, up from 6. integpath-04 (`rl67b0`) added `handle_integrate_command`
     # per host. A RISE is normally a re-fork and therefore a defect, so the reason is stated: this is a
     # NEW verb whose per-host half binds host-specific values only (the `integrate_lane_branch` wrapper
