@@ -142,6 +142,7 @@ one exists. An invariant with no deterministic observable is labeled honestly.
 | I-14 | Authorship in a shared dirty worktree is attributable. | Guidance / Authority invariant (unverifiable locally) | NONE reliable locally: file timestamps and an agent's narrative do not prove who owns a change in a shared checkout. | Isolated worktrees + declared file scope (phase 3) make attribution possible by construction; without isolation it is unverifiable. | Do not infer authorship from timestamps or narrative; the honest fix is isolation, not inference (findings 5.5-relevant, 7.5, 10). |
 | I-15 | Local history / hash chains are not silently forged. | Guidance (locally forgeable) | A hash chain detects ACCIDENTAL corruption and makes an unsupported edit conspicuous; it does NOT prove authenticity against an actor who can edit the record, the keys, and the checker. | A local append-only-shaped log/hash chain is a consistency aid; non-forgeable provenance needs an external key/service (phase 8, deferred). | Locally forgeable with broad access; a "round"/inconsistent timestamp is a heuristic signal, not deterministic proof (findings 5.4, 6, 10). |
 | I-16 | Setid SEMANTICS: a setid is a SHARED cross-type TOPIC grouping label, NOT a unique identity. The same token MAY appear under any number of record types when the artifacts concern one topic; identity is the id6 (I-09 family / D140), and a setid-taking verb resolves within a known type. | Repository invariant | Deterministically detectable in BOTH directions: a setid used within ONE type with two DIFFERENT descriptives is a real inconsistency (`check.setid-collision`'s surviving half); a setid spanning types is NOT a defect and must not be reported as drift. Type-scoped resolution is testable against a token that genuinely spans types. | `check_engine.check_collisions` (the within-type descriptive comparison only) and the type-scoped resolution path in the setid-taking verbs. Spec `2lcqno` is the normative source. | No check can distinguish a DELIBERATE topic share from two unrelated efforts that happened to pick the same token; that judgement is human. A bare setid is therefore ambiguous by design, which is an accepted cost, not a defect to detect. |
+| I-17 | Setid SHAPE: a setid's LENGTH is bounded. A setid is strongly PREFERRED at <= 14 characters, a setid over 14 is a WARNING, and a setid over 24 is REFUSED on an artifact dated at or after the repository's `setid_length` enforcement boundary. Pre-boundary artifacts are grandfathered per ARTIFACT (not per setid). | Repository invariant | Deterministic: the declared `- Set:` token's length and the filename's setid segment, compared against the two thresholds, plus the artifact's own date compared against the per-repository boundary. No heuristic and no judgement. | `check.setid-length-warn` (`warning`) and `check.setid-length-error` (`error`) in `check_engine.check_setid_length`; the `IPD-M109` metadata error and its 15-24 advisory in `ipd_schema.validate_metadata`/`ipd_lint`; one shared authoring guard (`config.validate_setid_length_for_authoring`) on the four `--set`-taking verbs. Thresholds and the boundary come from `config.get_setid_policy`; spec `2lcqno` N8 is the normative source. | The thresholds are a LEGIBILITY policy, not a correctness property: no check can say a 15-character setid is worse than a 14-character one, so the warn tier is advice. The `> 24` refusal has ZERO MARGIN by construction (the longest setid in this repository is exactly 24), so it bounds the existing corpus rather than leaving room, and an off-by-one would refuse a live record. Per-ARTIFACT grandfathering means one long setid can be simultaneously accepted on an old artifact and refused on a new one, and a new artifact therefore may NOT join an existing long-setid topic; that is intended and is an accepted usability cost. |
 
 ### 3.1 Coverage note
 
@@ -202,6 +203,30 @@ Additional worked traces, to show the catalog covers the existing engine:
   DELETED (not relabelled, not flag-guarded; spec `2lcqno` OQ-01 rejected an `info` variant from
   measurement), and the surviving within-type comparison was re-keyed per `(type, setid)`, without
   which removing the cross-type branch would have turned a noisy miss into a SILENT one.
+
+- SETID LENGTH GOT A NEW INVARIANT (I-17) RATHER THAN A WIDENED I-16, 2026-09-23, and the choice is
+  recorded here because the alternative was live and had to be refused explicitly. Plan `x75obw`
+  (E-03) offered two homes for `check.setid-length-warn`/`check.setid-length-error`: widen I-16 to
+  cover shape as well as semantics, or add a new entry. **A NEW ENTRY WAS CHOSEN.** The reason is that
+  I-16 is a sentence about MEANING - "a setid is a SHARED cross-type TOPIC label, not a unique
+  identity" - and a 30-character setid violates nothing that sentence asserts: it is a perfectly good
+  shared topic label that is merely too long to read. Widening I-16 would have made it the union of
+  two unrelated claims, and a traceability catalog whose entries are unions is one where "which
+  invariant does this rule enforce?" stops having an answer. The narrower reading also keeps the
+  regression test that pins `check.setid-collision` to I-16 meaningful.
+  I-09 WAS REJECTED FOR THE SAME REASON IT WAS REJECTED FOR I-16, and the near-miss is worth naming
+  because a length rule looks even more like grammar than a reuse rule does. I-09 is "the on-disk
+  filename vs the type's grammar", and the setid segment in BOTH naming regexes
+  (`artifact_naming.parse_clustered`, `artifact_naming._UNIFORM_RE`) is deliberately UNBOUNDED. That
+  is not an oversight this plan closed: a grammar match is binary, so encoding length there could
+  express neither the two tiers (warn at 15, refuse at 25) nor the per-repository cutover that
+  grandfathers 36 existing setids. Length is therefore POLICY with an observable, which is what a
+  Repository invariant of its own is for.
+  THE ZERO-MARGIN FACT BELONGS IN THE CATALOG, not only in the plan, because it is what makes the
+  refusal tier verifiable: the longest setid in this repository is `research-prompt-pipeline` at
+  EXACTLY 24 characters (re-measured 2026-09-23 over 749 unique declared setids: 713 at <= 14, 36 in
+  the 15-24 band, 0 over 24). So `24` was chosen to sit AT the existing maximum rather than above it,
+  the comparison is strictly `> max_length`, and an off-by-one (`>=`) would hard-fail a live record.
 
 ## 5. Non-goals (this child)
 

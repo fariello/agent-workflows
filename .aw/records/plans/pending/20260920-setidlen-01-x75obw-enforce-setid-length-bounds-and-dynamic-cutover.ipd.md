@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Setids that exceed reasonable lengths degrade filename legibility, break terminal formatting, and obfuscate topic groupings.
 - Scope: Establish an enforced setid length contract across the repository (strongly prefer <= 14 chars, warn on > 14, error on > 24), with dynamic per-repo cutover on install/update to grandfather historical artifacts, complete CLI authoring guards, and unified documentation.
-- Scope-Paths: agent_workflows/config.py, agent_workflows/project_schema.py, agent_workflows/engine.py, agent_workflows/install_wizard.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_authoring.py, agent_workflows/backlog.py, agent_workflows/research_cmd.py, agent_workflows/artifact_rename.py, .aw/config/project.json, AGENTS.md, .aw/records/plans/README.md, .aw/records/specs/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md, .aw/records/specs/20260817-2147-01-uniform-artifact-naming-grammar.spec.md, .aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md, .aw/records/backlog/README.md, .aw/records/specs/README.md, .aw/records/research/README.md, .aw/records/walkthroughs/README.md, tests/test_config.py, tests/test_check_engine.py, tests/test_ipd_lint.py, tests/test_shared_checkout_contract.py, tests/test_awnaming_grammar_and_producers.py
+- Scope-Paths: agent_workflows/config.py, agent_workflows/project_schema.py, agent_workflows/engine.py, agent_workflows/install_wizard.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_authoring.py, agent_workflows/backlog.py, agent_workflows/research_cmd.py, agent_workflows/artifact_rename.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, .aw/config/project.json, AGENTS.md, .aw/records/plans/README.md, .aw/records/specs/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md, .aw/records/specs/20260817-2147-01-uniform-artifact-naming-grammar.spec.md, .aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md, .aw/records/backlog/README.md, .aw/records/specs/README.md, .aw/records/research/README.md, .aw/records/walkthroughs/README.md, tests/test_config.py, tests/test_check_engine.py, tests/test_ipd_lint.py, tests/test_shared_checkout_contract.py, tests/test_awnaming_grammar_and_producers.py
 - Item-Dependencies: executed:ogs6a2
 - Status: approved
 - Readiness: go-pending-approval
@@ -33,66 +33,66 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Configuration & dynamic cutover storage
 
-- [ ] E-01 Add setid policy schema and the setid cutover FEATURE REGISTRATION in `agent_workflows/config.py` and `agent_workflows/project_schema.py`. Do NOT write a second cutover reader or a second stamper: `ogs6a2` already shipped both and they are generic.
+- [x] E-01 Add setid policy schema and the setid cutover FEATURE REGISTRATION in `agent_workflows/config.py` and `agent_workflows/project_schema.py`. Do NOT write a second cutover reader or a second stamper: `ogs6a2` already shipped both and they are generic.
   MEASURED AT REVIEW, so the item builds on what exists instead of duplicating it: `config.resolve_cutover_date(repo_root, feature, compact=True)` (`config.py:1204`) already resolves an ARBITRARY feature key with the documented precedence (project.json `cutovers.<feature>` -> install history -> fail-open `None`), and it returns `None` for `setid_length` today, which is the correct fail-open. So the cutover READ is already built; the only thing missing is the feature's registration and the length thresholds.
   THEREFORE THE DELIVERABLE NARROWS TO: (a) an optional `setids` block in `ProjectPolicySchema`; (b) `get_setid_policy(repo_root)` returning `warn_length` (default 14), `max_length` (default 24) and `strict` (default False); and (c) the CUTOVER read DELEGATED to `resolve_cutover_date(repo_root, "setid_length")` rather than a new `cutover_date` key of its own. DROP the proposed `stamp_setid_cutover_if_missing(repo_root)` helper entirely: `config.sync_cutovers_on_install` (`config.py:1256`) already does exactly that job for every registered feature, already preserves an existing date, and already writes atomically. Adding a second writer to the same JSON file is how the two drift.
   ONE CONFIG KEY, NOT TWO. The plan's Expected outcome offered `setids.cutover_date` OR `cutovers.setid_length` as alternatives; they are NOT equivalent and only the SECOND is resolvable by the shipped resolver. Use `cutovers.setid_length` and keep `setids` for the thresholds only, so there is exactly one place a cutover date ever lives.
   - Depends on: none
   - Expected outcome: `get_setid_policy(repo_root)` returns the thresholds and `strict` from an optional `setids` block with the documented defaults, and reads the boundary via `resolve_cutover_date(repo_root, "setid_length")`; `ProjectPolicySchema` accepts the `setids` block; NO new cutover reader and NO new stamper are added.
-  - Execution state: pending
-- [ ] E-02 Register `setid_length` in `config.KNOWN_FEATURE_CUTOVERS` so the EXISTING install/update stamper covers it. THE HOOK THE PLAN PROPOSED TO ADD ALREADY EXISTS IN BOTH PLACES, and re-adding it would double-write.
+  - Execution state: performed
+- [x] E-02 Register `setid_length` in `config.KNOWN_FEATURE_CUTOVERS` so the EXISTING install/update stamper covers it. THE HOOK THE PLAN PROPOSED TO ADD ALREADY EXISTS IN BOTH PLACES, and re-adding it would double-write.
   MEASURED AT REVIEW: `_config.sync_cutovers_on_install(...)` is ALREADY CALLED at `engine.py:6566` (the `install_into_repo` path) and `install_wizard.py:921` (the `aw install` / `aw setup` path). The function loops `KNOWN_FEATURE_CUTOVERS` (`config.py:1141`) and stamps any feature missing from `project.json`, preserving existing values. PROVEN at review by adding `setid_length` to that dict in-process and running the stamper against a scratch `project.json`: it wrote `"setid_length": "2026-09-21"`, left the pre-existing `spec_id6: 2026-08-29` UNTOUCHED, and `resolve_cutover_date(..., "setid_length")` then returned `20260921`. So the ENTIRE install-side deliverable is one registry entry.
   THIS IS WHERE THE MAINTAINER DIRECTIVE BITES, AND OQ-03 MUST BE ANSWERED FIRST. `KNOWN_FEATURE_CUTOVERS` values are hardcoded calendar dates in Python, consumed by `_find_install_history_cutover` to locate the first install at/after introduction. Registering `setid_length` therefore writes a date into source, which is what the directive forbids in letter. Do not resolve this by inventing a parallel mechanism; resolve OQ-03 and record the choice.
   `engine.py` AND `install_wizard.py` MAY END UP UNMODIFIED, which is a legitimate outcome and not a missed step. They are declared in `Scope-Paths` because `engine.py` is also the AGENTS.md generator (E-07); if the install paths need no edit, acknowledge them at finalize with `--scope-ack` rather than manufacturing a change.
   - Depends on: E-01
   - Expected outcome: `setid_length` is registered in `KNOWN_FEATURE_CUTOVERS`; a test proves a clean target repo gets `cutovers.setid_length` stamped by the EXISTING install path and that a pre-existing value is preserved on re-install; no new call site is added to `engine.py` or `install_wizard.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Policy engine & repository checks
 
-- [ ] E-03 Register `check.setid-length-warn` and `check.setid-length-error` in `agent_workflows/check_engine.py`, AND amend the invariant catalog spec that defines `I-16`, because reusing that invariant for LENGTH is a contract change and not a free choice.
+- [x] E-03 Register `check.setid-length-warn` and `check.setid-length-error` in `agent_workflows/check_engine.py`, AND amend the invariant catalog spec that defines `I-16`, because reusing that invariant for LENGTH is a contract change and not a free choice.
   `I-16` EXISTS AND IS ALREADY IN USE, BUT IT MEANS SOMETHING ELSE. Measured at review: `I-16` is carried today by `check.setid-collision` (`check_engine.py:100-102`), and the catalog defines it normatively as "Setid SEMANTICS: a setid is a SHARED cross-type TOPIC grouping label, NOT a unique identity" (`.aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md:144`). LENGTH is not semantics: a 30-character setid violates nothing that sentence asserts. So either the length rules belong under a NEW invariant, or `I-16`'s definition must be WIDENED to cover shape as well as semantics.
   EITHER WAY THE CATALOG SPEC MUST BE AMENDED, AND IT WAS MISSING FROM `Scope-Paths` (now added). That spec is the normative source for the invariant vocabulary, and `pqsx96` Section 4 has previously been the thing that held a rule at the wrong invariant until it was re-scoped, with plan `216rgg` repointing `check.setid-collision` "in the same commit that re-scoped the rule". Follow that precedent: make the spec edit in the SAME change as the registration, and say which of the two options you took and why. Note the file's own history records that mis-homing a rule under an invariant that does not describe it is a defect it had to fix once already.
   - Depends on: none
   - Expected outcome: `RULE_REGISTRY` contains `check.setid-length-warn` (severity `warning`, deterministic) and `check.setid-length-error` (severity `error`, deterministic); the invariant they carry is either a NEW catalog entry or a deliberately WIDENED `I-16`, with the catalog spec amended in the same change and the choice justified in writing.
-  - Execution state: pending
-- [ ] E-04 Implement setid length validation in `agent_workflows/check_engine.py` and `agent_workflows/cli.py`.
+  - Execution state: performed
+- [x] E-04 Implement setid length validation in `agent_workflows/check_engine.py` and `agent_workflows/cli.py`.
   - Depends on: E-01, E-03
   - Expected outcome: `check_engine` inspects declared and filename setids across all tracked artifact types. Grandfathers artifacts dated prior to the repository's `cutover_date` unless `strict` is set. Wire `--strict-setid-length` CLI flag in `agent_workflows/cli.py`. Emits `check.setid-length-warn` for `14 < len(setid) <= 24` and `check.setid-length-error` for `len(setid) > 24` on post-cutover artifacts.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: IPD schema & linter integration
 
-- [ ] E-05 Enforce setid length limits and advisories in `agent_workflows/ipd_schema.py` and `agent_workflows/ipd_lint.py`.
+- [x] E-05 Enforce setid length limits and advisories in `agent_workflows/ipd_schema.py` and `agent_workflows/ipd_lint.py`.
   `IPD-M110` DOES NOT EXIST, AND THE NEXT FREE CODE IS `IPD-M109`. Measured at review: the allocated M-codes run `IPD-M101` through `IPD-M108` (`ipd_lint.py:48-52` and the later additions), with M109 and M110 both unused. Do NOT mint M110 and leave a hole at M109; allocate `IPD-M109` and define it beside its siblings as a named constant, the way `C_META_FIELD = "IPD-M104"` is defined. Also decide DELIBERATELY between reusing `IPD-M104` (the existing generic "metadata field invalid" code) and minting a new one: reuse is cheaper and keeps the code count down, a new code is more diagnosable. State the choice; do not emit both as the plan's "`IPD-M104` / `IPD-M110`" wording implies.
   THE ADVISORY MECHANISM IS REAL AND THE FIELD NAME IS `advisories`, ON A `LintResult` WHOSE DIAGNOSTIC FIELD IS `diagnostics` (not `diags` as this plan's conventions section says): `LintResult(disposition, diagnostics, advisories)` at `ipd_lint.py:1259-1262`, aggregated at `:1314`. Place the 15-24 advisory in `advisories` so the disposition stays `conforming`.
   BORROW THE SUPPRESSION PRECEDENT, NOT A SEVERITY DOWNGRADE, AND READ WHY. `ipd_lint.py:830-845` documents a rule that SUPPRESSES pre-cutover findings entirely rather than downgrading them, on the explicit reasoning that a downgrade would be a no-op for an already-advisory rule and "would reintroduce roughly a thousand advisories on plans nobody is editing, and a diagnostic that fires mostly on untouchable history is one every reader learns to skip". That applies verbatim here, since this advisory is non-blocking by design. Suppress pre-cutover; do not downgrade.
   MEASURED CONSEQUENCE AN EXECUTOR SHOULD EXPECT: **ZERO pending plans carry a setid over 14** (44 do repository-wide, 43 in `executed/` and 1 in `not-executed/`), so this advisory will fire on nothing in the live corpus and MUST be demonstrated against a fixture. That is the intended outcome, not a failure to find anything.
   - Depends on: E-01
   - Expected outcome: `ipd_schema.validate_metadata` errors on `len(setid) > max_length` under a single named diagnostic code (either the reused `IPD-M104` or a newly allocated `IPD-M109`, chosen and justified, never `IPD-M110`); `ipd_lint` emits the 15-24 case into `LintResult.advisories` leaving the disposition `conforming`; pre-cutover and terminal plans are SUPPRESSED rather than downgraded; the boundary is proven on a fixture at exactly 24 and 25.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Authoring & scaffolding guards
 
-- [ ] E-06 Add setid validation to creation and regrouping CLI verbs. THE VERB LIST AND THE MODULE LIST WERE BOTH WRONG AND WERE CORRECTED AT REVIEW.
+- [x] E-06 Add setid validation to creation and regrouping CLI verbs. THE VERB LIST AND THE MODULE LIST WERE BOTH WRONG AND WERE CORRECTED AT REVIEW.
   `aw specs new` HAS NO `--set` FLAG AND CANNOT VIOLATE THE BOUND, so it must be dropped from this item rather than "guarded". Measured at review: its flags are `--title/--slug/--summary/--date/--apply` only, and `specs.py:1018` passes `set_id=id6` with the comment "standalone spec: its own id6 is the setid". A spec's setid is therefore ALWAYS exactly 6 characters, generated not supplied. Adding a guard there would be unreachable code, and a test asserting it aborts on a 25-character `--set` would have to invent a flag that does not exist.
   THE FOUR VERBS THAT DO TAKE `--set`, verified by `--help`: `aw ipd scaffold`, `aw backlog new`, `aw research new`, and `aw group`. Guard exactly these.
   THREE DECLARED MODULE PATHS DO NOT EXIST (`Scope-Paths` corrected): there is no `agent_workflows/ipd_scaffold.py` (scaffold lives in `ipd_authoring.py`, `run_scaffold` at `:336`), no `agent_workflows/research.py` (the verb is `research_cmd.run_new` at `:641`), and no `agent_workflows/artifact_cli.py` at all (`aw group` lives in `artifact_rename.py`). Declaring a nonexistent path also creates an unsatisfiable declared-but-unmodified reconciliation at finalize.
   PREFER ONE SHARED VALIDATOR OVER FOUR COPIES. All four verbs must apply the SAME thresholds from `get_setid_policy`, so put the check in one helper and call it from each entry point; four independent length comparisons are four chances to disagree about the boundary that F-2 shows has zero margin.
   - Depends on: none
   - Expected outcome: `aw ipd scaffold`, `aw backlog new`, `aw research new` and `aw group` reject a `--set` longer than `max_length` with an explicit error naming the limit, and warn at 15-24 advising <= 14; `aw specs new` is explicitly EXCLUDED with the reason recorded; all four share one validator; the corrected module paths are the ones edited.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: Documentation & specification sync
 
-- [ ] E-07 Synchronize documentation, guides, and specifications across the repository.
+- [x] E-07 Synchronize documentation, guides, and specifications across the repository.
   **`AGENTS.md` LINE 26 IS INSIDE THE GENERATED MANAGED BLOCK AND MUST NOT BE HAND-EDITED.** Measured at review: the managed block ends at `AGENTS.md:109`, so the setid grammar sentence at `:26` is GENERATED FROM `engine.py` and a direct edit is reverted by the next regeneration (and would be caught by `tests/test_shared_checkout_contract.py::NoDriftTests::test_repo_agents_block_equals_generated`). Line `:118`, which the spec-sync section also names, is BELOW the block and is a normal hand-edited file. So: make the managed-block change in `engine.py` and REGENERATE, and edit `:118` directly. `engine.py` is already declared, but this item did not say why; that is the reason.
   THE SPEC-SYNC SECTION'S "lines 25 and 118" IS OFF BY ONE AT THE TOP: line 25 is the heading `### Browsing and regrouping plans`; the sentence carrying `<setid>` is line 26. Verify by content, not by line number, since the managed block's length moves whenever `engine.py` changes.
   PROVE THE REGENERATION, because a near-clean diff here is a FAILURE signal rather than idempotency: run `tests/test_shared_checkout_contract.py` and cite `NoDriftTests::test_repo_agents_block_equals_generated`, which compares the file's block against `engine.agents_managed_block(target_layout="aw")` directly. Do NOT prove it with a `merge_aw_block` round trip: that path runs through the per-section consent layer, which currently PRESERVES the on-disk `AGENTS.md#aw:pointer` body because the manifest's recorded hash disagrees with disk, so a hand edit survives a "refresh" and the round trip reports success either way.
   THE INVARIANT CATALOG SPEC IS ALSO IN SCOPE NOW (E-03): `.aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md`. It was missing from both this item and `Scope-Paths`.
   - Depends on: none
   - Expected outcome: the managed-block sentence is changed in `engine.py` and regenerated with the no-drift test cited; `AGENTS.md:118`, `.aw/records/plans/README.md`, the three named specs, the invariant catalog spec, and the four artifact READMEs document <= 14 preferred / > 14 warning / > 24 disallowed with no contradictory prose left.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -135,6 +135,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Over-scope: none.
 - Under-scope: avoided by checking both frontmatter `- Set:` and filename identity slots across all artifact types, guarding CLI authoring entrypoints, and syncing all documentation.
+- SCOPE WIDENED AT EXECUTION (2026-09-23) BY TWO PATHS: `agent_workflows/plans_refs.py` and `agent_workflows/research_refs.py`. This is a WIDENING (two entries added, no entry changed or removed, no `E-*`/`V-*` requirement text touched), which is the shape `ipd_lifecycle.frozen_region_comparison`'s substitution test is built to accept.
+  WHY IT WAS NECESSARY, i.e. why E-06 could not be completed inside the declared fence. E-06's declared home for `aw group` is `agent_workflows/artifact_rename.py`, which the review corrected it to after finding that `agent_workflows/artifact_cli.py` does not exist. That correction was RIGHT BUT INCOMPLETE: `agent_workflows/artifact_types.py` routes `aw group` PER TYPE, sending `plans` to `plans_refs.run_set_assign` (`artifact_types.py:79`) and `research` to `research_refs.run_set_assign` (`:86`), while only `specs`, `prompts`, `backlog`, `walkthroughs`, `roadmaps`, `releases` and `other` reach `artifact_rename.run_group_generic` (`:92`-`:118`).
+  SO GUARDING ONLY THE GENERIC ENGINE WOULD HAVE LEFT THE TWO MOST IMPORTANT TREES UNGUARDED: `aw group plans` and `aw group research` could still have written an over-length setid through the exact verb E-06 exists to guard, and the guard would have LOOKED complete because `aw group specs` refused. That is the under-scope failure this section is for, and it is the same "four chances to disagree" hazard E-06's own one-shared-validator rule addresses. Both added call sites delegate to `config.validate_setid_length_for_authoring` and add no second comparison.
+  PROVEN AFTER THE CHANGE, all three backends: `aw group plans`, `aw group specs` and `aw group backlog` each refuse a 25-character `--set` with exit 2 naming the length and the limit, and `tests/test_awnaming_grammar_and_producers.py::SetidLengthAuthoringGuardTests::test_every_set_taking_verb_refuses_an_over_max_setid` drives all four verbs as subprocesses. The two paths were committed SEPARATELY (commit `c8fe3464`, via `aw commit --no-plan`) before this plan's own path-scoped commit, so the out-of-scope edit is attributable on its own rather than hidden inside the in-scope set.
 
 ## Required tests / validation
 
@@ -199,34 +203,78 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `python3 -m pytest tests/test_config.py` passes, demonstrating correct loading of defaults, custom thresholds, strict mode, and cutover stamping into project.json.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m pytest tests/test_config.py` (PYTHONPATH pinned to this lane, because the repo is installed editable and an unpinned run imports the MAIN checkout):
+    ```
+    101 passed in 5.43s
+    ```
+    `SetidPolicyTests` covers the defaults (14/24/not-strict), custom thresholds, strict, the malformed-value and inverted-pair fallbacks, the absent-cutover fail-open to `None`, per-artifact grandfathering, and the boundary pinned at 24-conforms/25-errors. `SetidAuthoringGuardTests` covers E-06's shared validator. THE PLAN'S OWN CORRECTION HELD: there is no `stamp_setid_cutover_if_missing` to test, and `test_there_is_no_second_setid_cutover_stamper` asserts its ABSENCE so a later change cannot reintroduce a second writer. Measured in-process against a scratch repo before the tests were written: `get_setid_policy` returned `SetidPolicy(warn_length=14, max_length=24, strict=False, cutover_date=None)` on an unstamped repo and `cutover_date='20260923'` after stamping.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Automated test proving that running `install_into_repo` stamps `setids.cutover_date` into `.aw/config/project.json` on a clean repo, and leaves an existing date unchanged on re-installation.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: THE KEY IS `cutovers.setid_length`, NOT `setids.cutover_date`, per the review's PR-401 correction recorded in E-01: only `cutovers.<feature>` is resolvable by the shipped `resolve_cutover_date`, and `setids` holds thresholds ONLY. The test therefore asserts the resolvable key. `tests/test_config.py::SetidPolicyTests::test_the_existing_install_stamper_covers_setid_length_and_preserves_it` passes (in the 101 above) and proves all three claims: a clean target gets `cutovers.setid_length` stamped (`2026-09-23`), a pre-existing `spec_id6` (`2026-08-20`) is left UNTOUCHED, and a re-install at `2026-10-01` does NOT move the established boundary. Measured in-process on a scratch `project.json`:
+    ```
+    stamped: {'spec_id6': '2026-08-29', ..., 'setid_length': '2026-09-23'}
+    re-install preserved: 2026-09-23 spec_id6: 2026-08-29
+    after install: SetidPolicy(warn_length=14, max_length=24, strict=False, cutover_date='20260923')
+    ```
+    E-02'S DELIVERABLE WAS ONE REGISTRY ENTRY, exactly as the review measured: `sync_cutovers_on_install` is ALREADY called at the `install_into_repo` and `aw install`/`aw setup` paths and is generic over `KNOWN_FEATURE_CUTOVERS`, so NO new call site was added to `engine.py` or `install_wizard.py` (`engine.py` was edited only for E-07's managed block; `install_wizard.py` was NOT modified and is acknowledged at finalize). `test_setid_length_is_registered_so_the_error_tier_is_reachable` pins the registration, without which the error tier is unreachable and the rule ships as decoration.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Assertion that `check.setid-length-warn` and `check.setid-length-error` exist in `RULE_REGISTRY` with expected severities and invariant `I-16`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: THE INVARIANT IS `I-17`, NOT `I-16`, which is E-03's substantive decision and is recorded rather than quietly changed. `I-16` is already carried by `check.setid-collision` and is defined normatively as setid SEMANTICS ("a SHARED cross-type TOPIC grouping label, NOT a unique identity"); a 30-character setid violates nothing that sentence asserts, so LENGTH is not semantics. Widening `I-16` would make it the union of two unrelated claims. A NEW catalog entry `I-17` (Setid SHAPE) was added to `.aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md` in the SAME change as the registration, which is the precedent `216rgg` set, plus a Section 4 note recording why `I-16` was not widened and why `I-09` was refused. `tests/test_check_engine.py::CollisionTests::test_the_setid_length_rules_are_registered_under_their_own_invariant` passes and asserts `warn -> ("warning", deterministic, "I-17")`, `error -> ("error", deterministic, "I-17")`, and that the length invariant is NOT the same as `check.setid-collision`'s:
+    ```
+    16 passed, 8 deselected in 0.87s   (-k "SetidLength or invariant", tests/test_check_engine.py)
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: `python3 -m pytest tests/test_check_engine.py` passes with test cases for pre-cutover files, warning-tier post-cutover files, error-tier post-cutover files, and strict mode.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m pytest tests/test_check_engine.py`:
+    ```
+    24 passed in 4.91s
+    ```
+    `SetidLengthTests` covers every required case plus the ones the review demanded: 16-char post-cutover -> `check.setid-length-warn`; 26-char post-cutover -> `check.setid-length-error`; **THE BOUNDARY PINNED AT EXACTLY 24-CONFORMS / 25-ERRORS** (the mandatory zero-margin case: `research-prompt-pipeline` is exactly 24, so an off-by-one hard-fails a live record); 14-char -> nothing; 20-char PRE-cutover -> nothing (the grandfathering row that keeps the corpus green); an UNSTAMPED repository -> nothing at all (the resolver's documented fail-open tier); strict via the flag AND via `setids.strict` both flag a pre-cutover record; one artifact yields ONE finding rather than one per place the setid appears; a legacy `YYYYMMDD-HHMM-NN` name is not misread as a long setid; the full sweep reports it exactly once while a per-type run does not run the scan at all; and a repository raising `max_length` is honored. THE `--strict-setid-length` CLI FLAG was wired in `cli.py` and verified end to end: a non-strict `aw check all` added ZERO findings while `--strict-setid-length` surfaced 7 `check.setid-length-warn` findings on live artifacts, proving the tier is reachable and that grandfathering is what suppresses it.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `python3 -m pytest tests/test_ipd_lint.py` passes, verifying `IPD-M104`/`IPD-M110` error on > 24 chars and advisory on 15-24 chars.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: THE CODE IS `IPD-M109`, chosen and justified as E-05 required, and it is NEITHER of the two the authoring plan named. `IPD-M110` DOES NOT EXIST and minting it would leave a permanent hole at M109; the next free code was confirmed as `IPD-M109` by comparing the IMPORTED values of every `C_*` constant (three are multi-line assignments a grep misses). The generic `IPD-M104` was DELIBERATELY NOT REUSED: it is the catch-all metadata bucket already carrying `Kind`/`Status`/`Readiness`/`Id`/`Order` failures, so a dedicated code is what makes the refusal routable by a consumer and assertable by a test. `python3 -m pytest tests/test_ipd_lint.py`:
+    ```
+    54 passed in 3.68s
+    ```
+    `SetidLengthLintTests` (11 tests, FIXTURE-DRIVEN as required) proves: 25 chars -> disposition `error` carrying `IPD-M109`; 24/20/16/15 chars -> disposition `conforming` with `IPD-M109` in `LintResult.advisories` and NOTHING in `diagnostics`; 14 chars -> nothing; a PRE-cutover plan SUPPRESSED (not downgraded, borrowing the reasoning recorded at `CITATION_ANCHOR_CUTOVER_DATE`); an unstamped repo emits no advisory while the ERROR tier still fires (it comes from the PURE schema, which reads no cutover); the advisory is ABSENT from the pure `lint_text` path while the error IS visible there, pinning the purity contract; exactly one tier ever reports one setid; and a terminal plan never reaches the check. THE FIXTURE IS REQUIRED, NOT PREFERRED: re-measured at execution, ZERO pending plans carry a setid over 14 (44 do repository-wide, 43 in `executed/` and 1 in `not-executed/`), so a corpus-driven test would pass vacuously forever.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Tests demonstrating `aw ipd scaffold`, `aw specs new`, `aw backlog new`, and `aw group` abort when `--set` > 24 chars and output warning when 15-24 chars.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `aw specs new` IS EXCLUDED, per E-06's correction, and the exclusion is PINNED rather than skipped: it has no `--set` flag at all (`specs.py` passes `set_id=id6`, so a standalone spec's setid is always its own 6 characters), so `test_aw_specs_new_has_no_set_flag_so_it_cannot_violate_the_bound` asserts the parser REFUSES `--set` with `unrecognized arguments`. The FOUR verbs that do take `--set` are guarded: `aw ipd scaffold`, `aw backlog new`, `aw research new`, `aw group`. `tests/test_awnaming_grammar_and_producers.py::SetidLengthAuthoringGuardTests`:
+    ```
+    6 passed, 20 deselected in 4.27s
+    ```
+    `test_every_set_taking_verb_refuses_an_over_max_setid` drives all four through real subprocess CLI invocations (PYTHONPATH-pinned to this tree, using the pattern `e3hzyc` established) and requires each to exit nonzero AND to name both the length and the limit. Also pinned: a setid at EXACTLY 24 is ACCEPTED (the zero-margin case), the 15-24 band warns and still proceeds, a conformant setid draws no note at all, and the refusal does NOT require a stamped cutover (a setid being chosen now is post-cutover whatever the boundary says). ONE SHARED VALIDATOR, NOT FOUR COPIES: every call site delegates to `config.validate_setid_length_for_authoring`, so the boundary with zero margin has exactly one definition. `aw group` needed THREE call sites, not one, which the plan did not anticipate: `artifact_types` routes plans to `plans_refs.run_set_assign` and research to `research_refs.run_set_assign`, so guarding only `artifact_rename.run_group_generic` would have left the plans and research trees unguarded. Verified live for all three backends:
+    ```
+    aw group plans   -> error: aw group plans: --set '<25 a>' is 25 characters, over the 24-character maximum ... (exit 2)
+    aw group specs   -> error: aw group specs: ... (exit 2)
+    aw group backlog -> error: aw group backlog: ... (exit 2)
+    ```
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: Clean git diff across all specified documentation files and grep confirming all prose mentions `<= 14` preferred and `> 24` disallowed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE MANAGED-BLOCK EDIT WAS MADE IN `engine.py` AND REGENERATED, never hand-edited into `AGENTS.md`: the setid grammar sentence sits at `AGENTS.md:26`, INSIDE the managed block that ends at `:123`, so a direct edit would be reverted by the next regeneration. Proven by the no-drift test the review named, which compares the file's block against `engine.agents_managed_block(target_layout="aw")` directly (NOT by a `merge_aw_block` round trip, which the per-section consent layer makes blind):
+    ```
+    python3 -m pytest tests/test_shared_checkout_contract.py
+    10 passed in 1.98s
+    ```
+    (`NoDriftTests::test_repo_agents_block_equals_generated` is among them.) `AGENTS.md:129`, which is BELOW the block and hand-edited, was edited directly. Eight documents now state the contract with no contradictory prose left: the regenerated `AGENTS.md` managed block, hand-edited `AGENTS.md:129`, `.aw/records/plans/README.md`, the setid spec `2lcqno` (normative rule **N8** plus a new accepted-cost item 5 recording the zero-margin boundary and the closed-topic consequence), the naming-grammar spec `20260817-2147-01` (annotating `<setid>` and stating that length is deliberately NOT in the regex), the IPD-structure spec `20260802-1904-01` (the `IPD-M109` metadata rule and why the two tiers live in different places), the invariant catalog `pqsx96` (I-17 plus the Section 4 rationale), and the four artifact READMEs (`backlog`, `specs`, `research`, `walkthroughs`). A grep confirms all six prose surfaces carry both thresholds:
+    ```
+    AGENTS.md                                     14:2 24:2
+    .aw/records/plans/README.md                   14:1 24:1
+    .aw/records/backlog/README.md                 14:2 24:1
+    .aw/records/specs/README.md                   14:2 24:1
+    .aw/records/research/README.md                14:2 24:1
+    .aw/records/walkthroughs/README.md            14:3 24:1
+    ```
+    and a search for contradictory claims (`unbounded`, `any length`, `no limit`) over the same files returns nothing.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -8,6 +8,17 @@ Named `YYYYMMDD-HHMM-NN-<slug>.md` (local time).
 Specs describe intended design and rationale. When a spec is implemented, the implementation plan
 (IPD) and its walkthrough carry the execution record; the spec remains as the design reference.
 
+
+SETID LENGTH IS BOUNDED (catalog invariant I-17, spec `2lcqno` N8). A setid of 14 characters or
+fewer is strongly preferred, a setid over 14 characters is a WARNING, and a setid over 24 characters
+is REFUSED: the `--set`-taking verbs (`aw ipd scaffold`, `aw backlog new`, `aw research new`,
+`aw group`) reject an over-length value, and `aw check` reports `check.setid-length-warn` /
+`check.setid-length-error`. Grandfathering is PER ARTIFACT against the `cutovers.setid_length`
+boundary stamped into `.aw/config/project.json` on install or update, so an artifact older than that
+boundary keeps its long setid while a NEW artifact is judged. The intended consequence is that a new
+artifact may NOT join an existing long-setid topic after the cutover; regroup the topic under a
+shorter setid instead.
+
 ## Status and history (owned by `aw specs`)
 
 Every spec carries a machine-legible, single-line bare-enum `- Status:` front-matter bullet (no

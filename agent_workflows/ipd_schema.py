@@ -385,6 +385,33 @@ def validate_metadata(
     has_order = "Order" in fields
     if has_set != has_order:
         errors.append(MetaError("Set/Order", "Set and Order are required together"))
+    # setidlen x75obw E-05 (catalog I-17): the setid LENGTH refusal. Only the ERROR tier lives here,
+    # because this validator is PURE (no repo, so no cutover to read) and an error is the one tier
+    # that is unconditional: a setid over the maximum is refused on any plan a human is currently
+    # authoring, and a TERMINAL plan never reaches this check at all (`ipd_lint.lint_text` returns the
+    # `legacy` disposition for a terminal directory before calling `check_metadata`). The 15-24 WARNING
+    # tier is deliberately NOT here: it is a non-blocking authoring nudge and belongs in
+    # `LintResult.advisories`, where it cannot flip a disposition (see `ipd_lint.check_setid_length`).
+    #
+    # THE THRESHOLD IS THE SHIPPED DEFAULT, NOT A SECOND POLICY. `config.SETID_MAX_LENGTH_DEFAULT` is
+    # imported rather than re-spelled so this file cannot disagree with `config.get_setid_policy`
+    # about the boundary that has zero margin (the longest real setid is EXACTLY 24, so the comparison
+    # must be `>` and not `>=`). A repository that RAISES `setids.max_length` is honored by the
+    # repo-aware surfaces (`aw check`, the authoring guards); this pure check applies the default
+    # floor, which is the same compromise `carrier_severity_for_plan` makes with its own constant.
+    if has_set:
+        from agent_workflows import config as _config
+
+        setid = (fields.get("Set") or "").split("(")[0].strip().split(" ")[0].strip()
+        if setid and len(setid) > _config.SETID_MAX_LENGTH_DEFAULT:
+            errors.append(
+                MetaError(
+                    "Set",
+                    f"setid is {len(setid)} characters, over the "
+                    f"{_config.SETID_MAX_LENGTH_DEFAULT}-character maximum "
+                    f"(<= {_config.SETID_WARN_LENGTH_DEFAULT} preferred)",
+                )
+            )
     if has_order:
         order_raw = fields.get("Order", "").strip()
         try:

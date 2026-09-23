@@ -475,7 +475,20 @@ def run_new(args) -> int:
     # just this tree's ids. The backlog set is unioned in, so this is strictly stronger than before.
     item.id = core.mint_id6(repo_root, existing_ids)
     item.status = status
-    item.set = getattr(args, "set", None) or item.id  # singleton set defaults to the id
+    # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, called BEFORE the
+    # default is applied, so a supplied `--set` is judged and the id6 default (always 6 chars) is not.
+    from agent_workflows import config as _config
+
+    _setid_arg = getattr(args, "set", None)
+    _setid_err, _setid_warn = _config.validate_setid_length_for_authoring(
+        repo_root, _setid_arg, verb="aw backlog new"
+    )
+    if _setid_err:
+        sys.stderr.write(f"{_setid_err}\n")
+        return 2
+    if _setid_warn:
+        sys.stderr.write(f"note: {_setid_warn}\n")
+    item.set = _setid_arg or item.id  # singleton set defaults to the id
     item.priority = getattr(args, "priority", None) or "medium"
     # E-02 / OQ-01: `--work-kind` is the preferred CLI spelling and `--kind` is KEPT as an accepted
     # alias, so no existing script, habit, or agent instruction breaks. The preferred spelling wins

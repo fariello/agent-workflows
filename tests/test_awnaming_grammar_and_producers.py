@@ -636,5 +636,162 @@ class PlansGroupPreservesOrderTests(_RepoBackendCLIFixture):
         self.assertIn("IPD-H202", out, out)
 
 
+class SetidLengthAuthoringGuardTests(_RepoBackendCLIFixture):
+    """setidlen x75obw E-06 (catalog I-17): the FOUR `--set`-taking verbs refuse an over-length setid.
+
+    THE VERB LIST IS EXACTLY FOUR, verified by `--help`: `aw ipd scaffold`, `aw backlog new`,
+    `aw research new`, `aw group`. `aw specs new` is DELIBERATELY ABSENT and one row below pins why:
+    it takes no `--set` flag at all (`specs.run_new` passes `set_id=id6`, so a standalone spec's setid
+    is always its own 6-character id6), so a guard there would be unreachable code and a test asserting
+    it aborts on a 25-character `--set` would have to invent a flag that does not exist.
+
+    THE BOUNDARY ROWS MATTER MOST. 24 must PASS (with a note) and 25 must REFUSE, because the longest
+    setid in the real repository is exactly 24 characters; a single verb disagreeing by one would refuse
+    a live record. That is also why all four share ONE validator rather than four comparisons.
+    """
+
+    #: Exactly at the maximum, so it must be ACCEPTED. 25 of the same character must be refused.
+    AT_MAX = "a" * 24
+    OVER_MAX = "a" * 25
+    IN_WARN_BAND = "a" * 16
+
+    def _pin_cutover(self):
+        """Stamp a boundary, proving the guard does not depend on one (it must refuse either way)."""
+        cfg = self.repo / ".aw" / "config"
+        cfg.mkdir(parents=True, exist_ok=True)
+        (cfg / "project.json").write_text(
+            json.dumps(
+                {"schema_version": 2, "cutovers": {"setid_length": "2026-09-23"}}
+            ),
+            encoding="utf-8",
+        )
+
+    def _run_pinned(self, args, *, with_dir=True):
+        """`_run_cli`, but pinned to THIS tree so the assertion measures the code under test.
+
+        ``with_dir=False`` for a verb that takes no ``--dir`` (``aw ipd scaffold``), which resolves its
+        repository from the CWD instead; passing the flag there makes argparse refuse the whole
+        invocation and every assertion below it measures the parser rather than the guard.
+        """
+        env = dict(os.environ)
+        env["AW_IPD_AUTHOR"] = "tester"
+        env["AW_HOME"] = str(self.aw_home)
+        env["PYTHONPATH"] = os.pathsep.join(
+            [str(REPO_ROOT), *([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])]
+        )
+        cmd = [sys.executable, "-m", "agent_workflows", *args]
+        if with_dir:
+            cmd += ["--dir", str(self.repo)]
+        return subprocess.run(
+            cmd,
+            cwd=str(self.repo),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+    def _scaffold(self, setid):
+        return self._run_pinned(
+            [
+                "ipd",
+                "scaffold",
+                "--kind",
+                "child",
+                "--title",
+                "T",
+                "--set",
+                setid,
+                "--order",
+                "1",
+                "--author",
+                "tester",
+            ],
+            with_dir=False,
+        )
+
+    def _backlog_new(self, setid):
+        return self._run_pinned(["backlog", "new", "--set", setid, "--summary", "s"])
+
+    def _research_new(self, setid):
+        return self._run_pinned(
+            [
+                "research",
+                "new",
+                "--kind",
+                "research-prompt",
+                "--slug",
+                "sl",
+                "--summary",
+                "s",
+                "--set",
+                setid,
+            ],
+            with_dir=False,
+        )
+
+    def _group(self, setid):
+        return self._run_pinned(["group", "specs", "aaa111", "--set", setid])
+
+    def test_every_set_taking_verb_refuses_an_over_max_setid(self):
+        self._pin_cutover()
+        failures = []
+        for name, fn in (
+            ("aw ipd scaffold", self._scaffold),
+            ("aw backlog new", self._backlog_new),
+            ("aw research new", self._research_new),
+            ("aw group", self._group),
+        ):
+            r = fn(self.OVER_MAX)
+            out = r.stdout + r.stderr
+            if r.returncode == 0:
+                failures.append(f"{name}: exit 0, expected a refusal. output:\n{out}")
+            elif "25 characters" not in out or "24" not in out:
+                failures.append(
+                    f"{name}: refused but did not name the length and the limit:\n{out}"
+                )
+        self.assertEqual(
+            failures,
+            [],
+            "a verb that does not refuse an over-length setid is an unguarded authoring path; all "
+            "four must route through `config.validate_setid_length_for_authoring`.\n"
+            + "\n".join(failures),
+        )
+
+    def test_a_setid_at_exactly_the_maximum_is_accepted(self):
+        """ZERO MARGIN: the longest real setid is exactly this long, so refusing here breaks it."""
+        self._pin_cutover()
+        r = self._scaffold(self.AT_MAX)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_the_warn_band_warns_and_still_proceeds(self):
+        self._pin_cutover()
+        r = self._scaffold(self.IN_WARN_BAND)
+        out = r.stdout + r.stderr
+        self.assertEqual(r.returncode, 0, out)
+        self.assertIn("16 characters", out, out)
+        self.assertIn("preferred", out, out)
+
+    def test_a_conformant_setid_draws_no_note_at_all(self):
+        self._pin_cutover()
+        r = self._scaffold("a" * 14)
+        out = r.stdout + r.stderr
+        self.assertEqual(r.returncode, 0, out)
+        self.assertNotIn("characters", out, out)
+
+    def test_the_refusal_does_not_require_a_stamped_cutover(self):
+        """A setid being CHOSEN now is post-cutover whatever the boundary says."""
+        r = self._scaffold(self.OVER_MAX)
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_aw_specs_new_has_no_set_flag_so_it_cannot_violate_the_bound(self):
+        """Pins the EXCLUSION: `--set` is rejected by the parser, so no guard belongs there."""
+        r = self._run_pinned(
+            ["specs", "new", "--title", "T", "--slug", "sl", "--set", self.OVER_MAX]
+        )
+        out = r.stdout + r.stderr
+        self.assertNotEqual(r.returncode, 0, out)
+        self.assertIn("unrecognized arguments", out, out)
+
+
 if __name__ == "__main__":
     unittest.main()

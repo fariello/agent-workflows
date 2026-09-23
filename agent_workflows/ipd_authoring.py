@@ -333,6 +333,33 @@ def _existing_plan_ids(target_path: Path) -> set:
     return ids
 
 
+def _setid_length_guard(setid, *, verb: str, repo_root=None) -> int:
+    """Apply the shared setid-length guard, printing its error/warning. 0 to proceed, 2 to refuse.
+
+    setidlen `x75obw` E-06. The comparison itself lives in
+    :func:`config.validate_setid_length_for_authoring` and is NEVER re-spelled here; this wrapper only
+    decides how `aw ipd scaffold` reports it (stdout `error:`/`note:`, matching the messages around it).
+    """
+    from pathlib import Path as _Path
+
+    from agent_workflows import config as _config
+
+    if repo_root is None:
+        try:
+            from agent_workflows import project_context as _ctx
+
+            repo_root = _ctx.find_project_root(_Path.cwd()) or _Path.cwd()
+        except Exception:
+            repo_root = _Path.cwd()
+    err, warn = _config.validate_setid_length_for_authoring(repo_root, setid, verb=verb)
+    if err:
+        print(f"error: {err}")
+        return 2
+    if warn:
+        print(f"note: {warn}")
+    return 0
+
+
 def run_scaffold(args: argparse.Namespace) -> int:
     kind = getattr(args, "kind", None)
     if kind not in S.KINDS:
@@ -350,6 +377,10 @@ def run_scaffold(args: argparse.Namespace) -> int:
         return 2
     if order is None:
         print("error: --order is required")
+        return 2
+    # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, not a local comparison.
+    # Refuses over `max_length`; WARNS and proceeds over `warn_length`.
+    if _setid_length_guard(set_name, verb="aw ipd scaffold") != 0:
         return 2
     if kind == S.KIND_ORCHESTRATOR and order != 0:
         print("error: orchestrator Order must be 0")

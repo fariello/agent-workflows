@@ -28,7 +28,9 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import re
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -3011,6 +3013,136 @@ class SharedLifecycleRenderingTests(unittest.TestCase):
             l_line[0],
             "a quarantined plan and a legacy/not-evaluated one render identically, so the lint view "
             "can no longer tell an intentionally parked plan from an unevaluated one.",
+        )
+
+
+class SetidLengthLintTests(unittest.TestCase):
+    """setidlen x75obw E-05 (catalog I-17): `IPD-M109` as a blocking error and as an advisory.
+
+    FIXTURES, NOT THE LIVE CORPUS, AND THAT IS REQUIRED RATHER THAN CONVENIENT. Measured at execution
+    2026-09-23: ZERO pending plans carry a setid over 14 (44 do repository-wide, 43 in `executed/` and
+    1 in `not-executed/`), so the advisory fires on NOTHING currently editable. That is the intended
+    prospective outcome, and it means a corpus-driven test would pass vacuously forever.
+
+    THE TWO TIERS COME FROM DIFFERENT PLACES ON PURPOSE. The ERROR is `ipd_schema.validate_metadata`
+    and is therefore visible to the PURE `lint_text`. The ADVISORY needs the per-repository cutover
+    (I/O), so it is merged in `lint_file` exactly as the review-escalation and durable-carrier rules
+    are; a test that got the advisory out of `lint_text` would prove the read had leaked into the pure
+    path, so one row asserts that it does NOT.
+    """
+
+    def _plan_text(self, setid, date="2026-09-23"):
+        return (
+            _conforming_child()
+            .replace("- Set: x", f"- Set: {setid} (topic)")
+            .replace("- Date: 2026-08-03", f"- Date: {date}")
+        )
+
+    def _repo(self, d, cutover: "str | None" = "2026-09-23"):
+        root = Path(d)
+        cfg = root / ".aw" / "config"
+        cfg.mkdir(parents=True)
+        project: dict = {"schema_version": 2}
+        if cutover is not None:
+            project["cutovers"] = {"setid_length": cutover}
+        (cfg / "project.json").write_text(json.dumps(project), encoding="utf-8")
+        pend = root / ".aw" / "records" / "plans" / "pending"
+        pend.mkdir(parents=True)
+        return root, pend
+
+    def _lint_file(
+        self, setid, *, date="2026-09-23", cutover: "str | None" = "2026-09-23"
+    ):
+        with tempfile.TemporaryDirectory() as d:
+            _root, pend = self._repo(d, cutover=cutover)
+            p = pend / f"{date.replace('-', '')}-{setid}-01-abc123-x.ipd.md"
+            p.write_text(self._plan_text(setid, date), encoding="utf-8")
+            res = L.lint_file(p, checkpoint="author")
+            return (
+                res.disposition,
+                [x.code for x in res.diagnostics if x.code == L.C_SETID_LENGTH],
+                [a.code for a in res.advisories if a.code == L.C_SETID_LENGTH],
+            )
+
+    def test_the_code_is_M109_and_not_the_nonexistent_M110(self):
+        """The authoring plan named `IPD-M110`, which does not exist and would leave a hole at M109."""
+        self.assertEqual(L.C_SETID_LENGTH, "IPD-M109")
+
+    def test_it_is_a_dedicated_code_not_the_generic_M104_bucket(self):
+        self.assertNotEqual(L.C_SETID_LENGTH, L.C_META_FIELD)
+
+    def test_25_chars_is_a_blocking_error_and_24_is_not(self):
+        """THE ZERO-MARGIN BOUNDARY: the longest real setid is EXACTLY 24 characters."""
+        disp25, diag25, _ = self._lint_file("a" * 25)
+        self.assertEqual(disp25, L.S.DISPOSITION_ERROR)
+        self.assertEqual(diag25, [L.C_SETID_LENGTH])
+
+        disp24, diag24, adv24 = self._lint_file("a" * 24)
+        self.assertEqual(disp24, L.S.DISPOSITION_CONFORMING)
+        self.assertEqual(diag24, [])
+        self.assertEqual(adv24, [L.C_SETID_LENGTH])
+
+    def test_15_to_24_is_an_advisory_that_leaves_the_disposition_conforming(self):
+        for n in (15, 16, 20, 24):
+            disp, diag, adv = self._lint_file("a" * n)
+            self.assertEqual(disp, L.S.DISPOSITION_CONFORMING, f"len={n}")
+            self.assertEqual(diag, [], f"len={n}")
+            self.assertEqual(adv, [L.C_SETID_LENGTH], f"len={n}")
+
+    def test_14_or_fewer_draws_nothing(self):
+        disp, diag, adv = self._lint_file("a" * 14)
+        self.assertEqual(disp, L.S.DISPOSITION_CONFORMING)
+        self.assertEqual((diag, adv), ([], []))
+
+    def test_a_pre_cutover_plan_is_SUPPRESSED_not_downgraded(self):
+        """Borrowed from `CITATION_ANCHOR_CUTOVER_DATE`: a downgrade is a no-op for an already
+        advisory rule, and mass advisories on untouchable history destroy the one that matters."""
+        disp, diag, adv = self._lint_file("a" * 20, date="2026-08-01")
+        self.assertEqual(disp, L.S.DISPOSITION_CONFORMING)
+        self.assertEqual((diag, adv), ([], []))
+
+    def test_an_unstamped_repository_emits_no_advisory(self):
+        disp, diag, adv = self._lint_file("a" * 20, cutover=None)
+        self.assertEqual(disp, L.S.DISPOSITION_CONFORMING)
+        self.assertEqual((diag, adv), ([], []))
+
+    def test_the_error_tier_survives_an_unstamped_repository(self):
+        """The error is unconditional: it comes from the PURE schema, which reads no cutover."""
+        disp, diag, _ = self._lint_file("a" * 25, cutover=None)
+        self.assertEqual(disp, L.S.DISPOSITION_ERROR)
+        self.assertEqual(diag, [L.C_SETID_LENGTH])
+
+    def test_the_advisory_is_absent_from_the_PURE_lint_text_path(self):
+        """Purity contract: `lint_text` does no I/O, so it cannot know the cutover."""
+        res = L.lint_text(
+            self._plan_text("a" * 20), checkpoint="author", directory="pending"
+        )
+        self.assertEqual(
+            [a.code for a in res.advisories if a.code == L.C_SETID_LENGTH], []
+        )
+        # ...while the ERROR tier IS visible there, because the schema check is pure.
+        err = L.lint_text(
+            self._plan_text("a" * 25), checkpoint="author", directory="pending"
+        )
+        self.assertEqual(
+            [x.code for x in err.diagnostics if x.code == L.C_SETID_LENGTH],
+            [L.C_SETID_LENGTH],
+        )
+
+    def test_one_setid_is_never_reported_as_both_an_error_and_an_advisory(self):
+        _disp, diag, adv = self._lint_file("a" * 25)
+        self.assertTrue(
+            bool(diag) ^ bool(adv), "exactly one tier must report one setid"
+        )
+
+    def test_a_terminal_plan_never_reaches_the_check(self):
+        """`lint_text` returns the `legacy` disposition for a terminal directory first."""
+        res = L.lint_text(
+            self._plan_text("a" * 25), checkpoint="author", directory="executed"
+        )
+        self.assertEqual(res.disposition, L.S.DISPOSITION_LEGACY)
+        self.assertEqual(
+            [x.code for x in res.diagnostics if x.code == L.C_SETID_LENGTH], []
         )
 
 

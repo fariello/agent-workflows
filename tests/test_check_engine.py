@@ -42,6 +42,8 @@ NONCONFORMANT = "check.name-nonconformant"
 ID6_COLLISION = "check.id6-collision"
 SETID_COLLISION = "check.setid-collision"
 IDENTITY_SLOT = "check.id6-identity-slot"
+SETID_LEN_WARN = "check.setid-length-warn"
+SETID_LEN_ERROR = "check.setid-length-error"
 IDENTITY_ABSENT = "check.identity-absent-from-name"
 TYPE_UNSUPPORTED = "check.type-unsupported"
 COLLISIONS_NOT_CHECKED = "check.collisions-not-checked"
@@ -636,6 +638,193 @@ class CollisionTests(unittest.TestCase):
         self.assertEqual(ce.rule_spec(SETID_COLLISION).invariant, "I-16")
         self.assertEqual(ce.rule_spec(ID6_COLLISION).invariant, "I-09")
         self.assertEqual(ce.rule_spec(IDENTITY_SLOT).invariant, "I-09")
+
+    def test_the_setid_length_rules_are_registered_under_their_own_invariant(self):
+        """setidlen x75obw E-03/V-03. The two length rules are I-17, NOT I-16 and NOT I-09.
+
+        I-16 is setid SEMANTICS (a shared topic label, not an identity) and a 30-character setid
+        violates nothing that sentence says; I-09 is filename-grammar conformance, and the setid group
+        in both naming regexes is deliberately UNBOUNDED so length can be a POLICY with two tiers and a
+        cutover. Spec `pqsx96` Section 4 records the choice and why widening I-16 was refused.
+        """
+        warn = ce.rule_spec(SETID_LEN_WARN)
+        err = ce.rule_spec(SETID_LEN_ERROR)
+        self.assertEqual(warn.invariant, "I-17")
+        self.assertEqual(err.invariant, "I-17")
+        self.assertEqual(warn.severity, "warning")
+        self.assertEqual(err.severity, "error")
+        self.assertEqual(warn.determinism, ce.DET_DETERMINISTIC)
+        self.assertEqual(err.determinism, ce.DET_DETERMINISTIC)
+        # The length rules must NOT have been homed on the semantics invariant.
+        self.assertNotEqual(warn.invariant, ce.rule_spec(SETID_COLLISION).invariant)
+
+
+class SetidLengthTests(unittest.TestCase):
+    """setidlen x75obw E-04 (catalog I-17): `check_setid_length` over a small records tree.
+
+    THE BOUNDARY ROWS ARE THE POINT. The longest setid in the real repository is EXACTLY 24
+    characters (`research-prompt-pipeline`), so the error threshold has ZERO MARGIN and the table pins
+    24-conforms / 25-errors rather than testing a comfortable 26. An off-by-one (`>=` for `>`) would
+    hard-fail a live record, and only these two rows catch it.
+
+    THE CLEAN ROWS ARE LOAD-BEARING POLICY, not vacuity: a PRE-cutover artifact with a long setid must
+    report NOTHING (that is what keeps the 36 grandfathered setids from turning CI red), and an
+    unstamped repository must report nothing at all (the documented fail-open tier of the resolver).
+    """
+
+    def _tree(
+        self,
+        d,
+        *,
+        cutover: "str | None" = "2026-09-23",
+        files=(),
+        setids_policy=None,
+    ):
+        root = Path(d)
+        cfg = root / ".aw" / "config"
+        cfg.mkdir(parents=True)
+        project: dict = {"schema_version": 2}
+        if cutover is not None:
+            project["cutovers"] = {"setid_length": cutover}
+        if setids_policy is not None:
+            project["setids"] = setids_policy
+        (cfg / "project.json").write_text(json.dumps(project), encoding="utf-8")
+        pend = root / ".aw" / "records" / "plans" / "pending"
+        pend.mkdir(parents=True)
+        for name, text in files:
+            (pend / name).write_text(text, encoding="utf-8")
+        return root
+
+    def _plan(self, setid, date):
+        return (
+            f"{date.replace('-', '')}-{setid}-01-abc123-x.ipd.md",
+            f"# IPD: x\n\n- Date: {date}\n- Id: abc123\n- Set: {setid} (topic)\n- Order: 1\n",
+        )
+
+    def _rules(self, drift):
+        return sorted(d.rule for d in drift)
+
+    def test_the_boundary_is_pinned_at_exactly_24_conforms_and_25_errors(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 24, "2026-09-23")])
+            self.assertEqual(
+                self._rules(ce.check_setid_length(root)),
+                [SETID_LEN_WARN],
+                "a 24-character setid must WARN, never error: the longest real setid is exactly 24, "
+                "so an error here hard-fails a live record",
+            )
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 25, "2026-09-23")])
+            self.assertEqual(
+                self._rules(ce.check_setid_length(root)), [SETID_LEN_ERROR]
+            )
+
+    def test_a_post_cutover_16_char_setid_warns(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 16, "2026-09-23")])
+            drift = ce.check_setid_length(root)
+            self.assertEqual(self._rules(drift), [SETID_LEN_WARN])
+            self.assertIn("16 characters", drift[0].detail)
+
+    def test_a_post_cutover_26_char_setid_errors(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 26, "2026-09-23")])
+            self.assertEqual(
+                self._rules(ce.check_setid_length(root)), [SETID_LEN_ERROR]
+            )
+
+    def test_a_conformant_14_char_setid_reports_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 14, "2026-09-23")])
+            self.assertEqual(ce.check_setid_length(root), [])
+
+    def test_a_pre_cutover_20_char_setid_reports_nothing(self):
+        """The grandfathering row. This is what keeps the existing corpus green."""
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 20, "2026-08-01")])
+            self.assertEqual(ce.check_setid_length(root), [])
+
+    def test_an_unstamped_repository_reports_nothing_at_all(self):
+        """The documented fail-open tier: absent boundary -> everything grandfathered."""
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(
+                d, cutover=None, files=[self._plan("a" * 26, "2026-09-23")]
+            )
+            self.assertEqual(ce.check_setid_length(root), [])
+
+    def test_strict_flags_a_pre_cutover_record(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 20, "2026-08-01")])
+            self.assertEqual(
+                self._rules(ce.check_setid_length(root, strict=True)), [SETID_LEN_WARN]
+            )
+
+    def test_strict_via_project_policy_matches_the_flag(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(
+                d,
+                files=[self._plan("a" * 20, "2026-08-01")],
+                setids_policy={"strict": True},
+            )
+            self.assertEqual(self._rules(ce.check_setid_length(root)), [SETID_LEN_WARN])
+
+    def test_one_artifact_yields_ONE_finding_not_one_per_place_the_setid_appears(self):
+        """The declared `- Set:` and the filename setid are one defect about one file."""
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 25, "2026-09-23")])
+            drift = ce.check_setid_length(root)
+            self.assertEqual(len(drift), 1)
+
+    def test_a_legacy_hhmm_name_is_not_read_as_a_long_setid(self):
+        """`YYYYMMDD-HHMM-NN-<slug>` has no setid slot; reading `2147` as one invents findings."""
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[])
+            pend = root / ".aw" / "records" / "plans" / "pending"
+            (pend / "20260923-2147-01-a-legacy-plan.ipd.md").write_text(
+                "# IPD: x\n\n- Date: 2026-09-23\n- Id: abc124\n", encoding="utf-8"
+            )
+            self.assertEqual(ce.check_setid_length(root), [])
+
+    def test_the_full_sweep_surfaces_the_rule_exactly_once_per_artifact(self):
+        """It rides the once-per-full-sweep collisions seam, so a multi-type tree cannot double it."""
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 25, "2026-09-23")])
+            drift = ce.check_types(root, ["all"])
+            self.assertEqual(
+                [d_.rule for d_ in drift].count(SETID_LEN_ERROR),
+                1,
+                "the sweep must report the length rule once, not once per type enumerated",
+            )
+
+    def test_a_per_type_run_does_not_run_the_length_scan(self):
+        """Same contract as its `check.setid-collision` neighbour: it is a cross-tree scan."""
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 25, "2026-09-23")])
+            drift = ce.check_types(root, ["plans"])
+            self.assertNotIn(SETID_LEN_ERROR, [d_.rule for d_ in drift])
+
+    def test_a_repository_may_raise_max_length(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(
+                d,
+                files=[self._plan("a" * 26, "2026-09-23")],
+                setids_policy={"max_length": 30},
+            )
+            self.assertEqual(self._rules(ce.check_setid_length(root)), [SETID_LEN_WARN])
+
+    def test_the_warn_tier_does_not_fail_the_gate_but_the_error_tier_does(self):
+        from agent_workflows import artifact_core as core
+
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 16, "2026-09-23")])
+            warn_drift = ce.check_setid_length(root)
+        with tempfile.TemporaryDirectory() as d:
+            root = self._tree(d, files=[self._plan("a" * 25, "2026-09-23")])
+            err_drift = ce.check_setid_length(root)
+        # A `warning` is NOT `info`, so it does set the exit code; an `error` certainly does. This row
+        # exists so a later severity change is a deliberate, visible decision.
+        self.assertEqual(core.drift_exit_code(warn_drift), 1)
+        self.assertEqual(core.drift_exit_code(err_drift), 1)
 
 
 class EntryPointTests(unittest.TestCase):

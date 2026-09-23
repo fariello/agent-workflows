@@ -520,6 +520,12 @@ class ProjectPolicySchema:
     delivery_mode: Optional[str] = None
     records_backend: Optional[str] = None
     cutovers: Optional[Dict[str, str]] = None
+    # setidlen x75obw E-01: the OPTIONAL setid length THRESHOLDS
+    # (`warn_length`/`max_length`/`strict`). The enforcement BOUNDARY is deliberately NOT here: it is
+    # a cutover and lives under `cutovers.setid_length`, read through the one generic
+    # `config.resolve_cutover_date`. Recognized explicitly (rather than surviving via
+    # `unknown_fields`) so `config.get_setid_policy` reads a documented schema member.
+    setids: Optional[Dict[str, Any]] = None
     unknown_fields: Dict[str, Any] = None  # type: ignore
 
     def to_dict(self) -> Dict[str, Any]:
@@ -538,6 +544,8 @@ class ProjectPolicySchema:
             res["records_backend"] = self.records_backend
         if self.cutovers:
             res["cutovers"] = dict(self.cutovers)
+        if self.setids:
+            res["setids"] = dict(self.setids)
         if self.unknown_fields:
             for k, v in self.unknown_fields.items():
                 if k not in res:
@@ -604,6 +612,7 @@ def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
         "delivery_mode",
         "records_backend",
         "cutovers",
+        "setids",
     }
     unknown_fields = {k: v for k, v in data.items() if k not in known_keys}
 
@@ -611,6 +620,8 @@ def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
     git_policies = data.get("git_policies", {})
     cutovers_val = data.get("cutovers")
     cutovers = dict(cutovers_val) if isinstance(cutovers_val, dict) else None
+    setids_val = data.get("setids")
+    setids = dict(setids_val) if isinstance(setids_val, dict) else None
 
     return ProjectPolicySchema(
         schema_version=ver,
@@ -625,6 +636,7 @@ def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
         delivery_mode=data.get("delivery_mode"),
         records_backend=data.get("records_backend"),
         cutovers=cutovers,
+        setids=setids,
         unknown_fields=unknown_fields,
     )
 

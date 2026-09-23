@@ -75,6 +75,19 @@ C_READINESS_UNATTESTED = (
 C_GATE_HAND_ROLLED_MOVE = (
     "IPD-M108"  # gate prescribes hand-rolled terminal lifecycle move (dcri4s)
 )
+# setidlen `x75obw` E-05 (catalog I-17): the setid LENGTH refusal. `IPD-M109` is the NEXT FREE code in
+# the metadata family, confirmed by comparing the IMPORTED values of every `C_*` constant rather than
+# by grepping (three constants are multi-line assignments a single-line grep misses). Do NOT skip to
+# `IPD-M110`, which the authoring plan named and which would leave a permanent hole at M109.
+#
+# A NEW CODE RATHER THAN REUSING THE GENERIC `IPD-M104`, chosen deliberately and recorded because both
+# were defensible. Reuse is cheaper and keeps the code count down; a dedicated code is DIAGNOSABLE,
+# which decides it here: `IPD-M104` is the catch-all "metadata field invalid" bucket already carrying
+# `Kind`, `Status`, `Readiness`, `Id` and `Order` failures, so a reader seeing it learns only that
+# something in the front matter is wrong. A setid-length refusal has a specific, mechanical remedy
+# (pick a shorter Set, or regroup with `aw group`), and a rule with its own code is one a consumer can
+# route on and a test can assert without matching prose.
+C_SETID_LENGTH = "IPD-M109"  # setid over `max_length` (setidlen x75obw)
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
@@ -476,7 +489,13 @@ def check_metadata(doc: ParsedDoc, directory: Optional[str]) -> List[Diagnostic]
             else (
                 C_META_PATH
                 if me.field == "Status" and "directory" in me.message
-                else C_META_FIELD
+                # setidlen x75obw E-05: route the schema's setid-length refusal to its OWN code
+                # rather than letting it fall into the `IPD-M104` catch-all (see `C_SETID_LENGTH`).
+                else (
+                    C_SETID_LENGTH
+                    if me.field == "Set" and "characters, over the" in me.message
+                    else C_META_FIELD
+                )
             )
         )
         diags.append(Diagnostic(0, 0, code, f"{me.field}: {me.message}"))
@@ -1793,7 +1812,85 @@ def lint_file(
             pass
     result = _merge_review_escalation(path, result, text, checkpoint, doc)
     result = _merge_durable_carrier(path, result, text, checkpoint, doc)
+    result = _merge_setid_length_advisory(path, result, doc)
     return result
+
+
+def _merge_setid_length_advisory(
+    path: Path, result: LintResult, doc: ParsedDoc
+) -> LintResult:
+    """Merge the 15-24 setid-length ADVISORY into a LintResult (setidlen `x75obw` E-05, catalog I-17).
+
+    THIS LIVES IN ``lint_file`` FOR THE SAME CORRECTNESS REASON its two siblings above do, not as a
+    style choice: the pre-cutover boundary is per-repository, read from
+    ``.aw/config/project.json`` via ``config.get_setid_policy``, and that is I/O, while ``lint_text``
+    is PURE by documented contract. A text-only ``lint_text`` call therefore CANNOT report this
+    advisory, exactly as it cannot report the review-escalation or durable-carrier rules, and a test
+    that got this out of ``lint_text`` would prove the read had leaked into the pure path.
+
+    ADVISORY ONLY, NEVER GATING. It is appended to ``LintResult.advisories`` and never to
+    ``diagnostics``, so the disposition stays ``conforming`` and the exit status cannot move. The ERROR
+    tier is a different mechanism entirely (``ipd_schema.validate_metadata`` -> ``IPD-M109``), which is
+    why this function handles the warn band ALONE and returns untouched when the setid is over the
+    maximum: emitting both would report one setid twice for one fix.
+
+    A PRE-CUTOVER PLAN IS SUPPRESSED, NOT DOWNGRADED, borrowing the precedent recorded verbatim at
+    ``CITATION_ANCHOR_CUTOVER_DATE``: a downgrade is a NO-OP for a rule that is already advisory in
+    both tiers, and mass advisories on plans nobody is editing are ones every reader learns to skip.
+    MEASURED AT EXECUTION (2026-09-23): ZERO pending plans carry a setid over 14 (44 do
+    repository-wide, 43 in ``executed/`` and 1 in ``not-executed/``), so this advisory fires on NOTHING
+    in the live corpus today. That is the intended prospective outcome, not a failure to find anything,
+    and it is why its test must use a FIXTURE.
+    """
+    if result.disposition not in (S.DISPOSITION_CONFORMING, S.DISPOSITION_ERROR):
+        return result  # legacy / quarantined: leave the grandfathered disposition alone
+    raw = doc.meta_fields.get("Set")
+    if not raw:
+        return result
+    setid = str(raw).split("(")[0].strip().split(" ")[0].strip()
+    if not setid:
+        return result
+    try:
+        from agent_workflows import config as _config
+
+        repo_root = path.resolve().parent
+        for anc in path.resolve().parents:
+            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                repo_root = anc
+                break
+        policy = _config.get_setid_policy(repo_root)
+        if policy.tier_for(setid) != "warning":
+            # None -> conformant; "error" -> already reported as IPD-M109 by the schema.
+            return result
+        # The plan's OWN date decides grandfathering (plan `x75obw` OQ-04): a setid is a SHARED label
+        # spanning artifacts with different dates, so only the artifact carries a well-defined one.
+        # Mirrors `_citation_anchor_applies`: an unparseable date is treated as PRE-cutover, because
+        # `IPD-M101` already owns the missing-`Date` complaint and this rule must not invent a second
+        # consequence for it.
+        date_raw = doc.meta_fields.get("Date")
+        compact = None
+        if date_raw:
+            dm = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", str(date_raw).strip())
+            if dm is not None:
+                compact = "{0}{1}{2}".format(*dm.groups())
+        if not policy.applies_to_artifact_date(compact):
+            return result
+        advisory = Diagnostic(
+            0,
+            1,
+            C_SETID_LENGTH,
+            f"Set: setid {setid!r} is {len(setid)} characters; <= {policy.warn_length} is strongly "
+            f"preferred (over {policy.max_length} is refused)",
+        )
+        return LintResult(
+            result.disposition,
+            list(result.diagnostics),
+            list(result.advisories) + [advisory],
+        )
+    except Exception:
+        # Consistent with both sibling merge blocks: a repo/config read failure never masks the pure
+        # lint result.
+        return result
 
 
 # revgate Order 02 (plqjt7 E-02): the review-escalation rule at the two checkpoints where it matters.

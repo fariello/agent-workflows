@@ -1179,6 +1179,13 @@ KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
     "spec_id6": "2026-08-28",
     "dependency_schema": "2026-09-01",
     "carrier_obligations": "2026-09-19",
+    # setidlen `x75obw` E-02. Registered per OQ-03's maintainer resolution (option (a)): the value
+    # here is the FEATURE INTRODUCTION date (date 1 above), never the enforcement boundary, so the
+    # directive "the cutover must be stamped into project.json dynamically" is satisfied by this
+    # registration rather than violated by it. Leaving it OUT is the failure mode the block comment
+    # above names: `resolve_cutover_date` would fail open to `None` forever, the `error` tier would
+    # be unreachable, and the length rule would ship as decoration.
+    "setid_length": "2026-09-23",
 }
 
 
@@ -1589,3 +1596,201 @@ def policy_retry_budget(
         f"Fix the value in that file to make the repository policy take effect."
     )
     return None
+
+
+# --------------------------------------------------------------------------------------
+# setidlen Order 01 (x75obw) E-01: the ONE setid LENGTH policy.
+#
+# TWO SEPARATE THINGS LIVE IN TWO SEPARATE PLACES, and keeping them apart is the whole point of this
+# section. The THRESHOLDS (how long a setid may be) are POLICY and live under the optional `setids`
+# object in `.aw/config/project.json`. The ENFORCEMENT BOUNDARY (which artifacts the error tier may
+# refuse) is a CUTOVER and lives under `cutovers.setid_length`, resolved by the ONE generic
+# `resolve_cutover_date` above. There is deliberately NO `setids.cutover_date`: a second place for a
+# cutover date is how the two drift, and only `cutovers.<feature>` is resolvable by the shipped
+# resolver (plan `x75obw` review, finding PR-401).
+#
+# THERE IS ALSO NO SECOND STAMPER. `sync_cutovers_on_install` above already stamps every feature in
+# `KNOWN_FEATURE_CUTOVERS` (where `setid_length` is now registered), already preserves an existing
+# date, and already writes atomically, so a `stamp_setid_cutover_if_missing` helper would be a second
+# writer to one JSON file. Do not add one.
+#
+# THE ERROR THRESHOLD HAS ZERO MARGIN, which is the single most consequential fact about these
+# numbers. The longest setid in this repository is `research-prompt-pipeline` at EXACTLY 24
+# characters (re-measured at execution 2026-09-23 over 749 unique declared setids: 713 at <= 14, 36
+# in the 15-24 band, 0 over 24). So 24 was chosen to sit exactly AT the existing maximum, not with
+# room to spare, and the comparison must be `> max_length` rather than `>=`: an off-by-one hard-fails
+# a live record. The tests pin 24-conforms / 25-errors for that reason.
+#
+# Deliberately NOT registered in `CONFIG_SCHEMA` (the XDG user config), for the reason all three
+# precedents above record: this is COMMITTED, PORTABLE project policy, and
+# `project_schema.parse_portable_policy` round-trips the key through `unknown_fields` regardless.
+# `ProjectPolicySchema` does recognize `setids` explicitly (E-01), so a repository that sets it keeps
+# it through a policy rewrite rather than relying on the unknown-field path.
+# --------------------------------------------------------------------------------------
+
+SETID_POLICY_KEY = "setids"
+
+#: The setid length a Set id is strongly PREFERRED to stay within. Longer is a WARNING, not a refusal.
+SETID_WARN_LENGTH_DEFAULT = 14
+
+#: The setid length above which a post-cutover artifact is REFUSED (`error`). See the zero-margin
+#: paragraph above: this equals the longest setid that exists, so the comparison is strictly `>`.
+SETID_MAX_LENGTH_DEFAULT = 24
+
+#: Whether the length rules apply to PRE-cutover artifacts too. Default False (grandfather history).
+SETID_STRICT_DEFAULT = False
+
+
+@dataclass(frozen=True)
+class SetidPolicy:
+    """The effective setid length policy for one repository.
+
+    ``cutover_date`` is the compact ``YYYYMMDD`` ENFORCEMENT BOUNDARY resolved through the generic
+    :func:`resolve_cutover_date`, or None when this repository has none (fail-OPEN: every artifact is
+    grandfathered, so the `error` tier is unreachable until an install stamps the date). ``strict``
+    overrides that grandfathering.
+    """
+
+    warn_length: int = SETID_WARN_LENGTH_DEFAULT
+    max_length: int = SETID_MAX_LENGTH_DEFAULT
+    strict: bool = SETID_STRICT_DEFAULT
+    cutover_date: Optional[str] = None
+
+    def tier_for(self, setid: str) -> Optional[str]:
+        """The severity tier a setid's LENGTH alone earns: ``"error"``, ``"warning"``, or None.
+
+        Pure length judgement with NO date/grandfathering in it: the caller owns the cutover
+        decision, because a setid is a SHARED label spanning artifacts with different dates and only
+        the caller knows which ARTIFACT it is judging (plan `x75obw` OQ-04).
+        """
+        length = len(setid or "")
+        if length > self.max_length:
+            return "error"
+        if length > self.warn_length:
+            return "warning"
+        return None
+
+    def applies_to_artifact_date(self, artifact_date: Optional[str]) -> bool:
+        """True when the length rules apply to an artifact carrying this compact ``YYYYMMDD`` date.
+
+        ``strict`` applies them to EVERYTHING. Otherwise an absent cutover grandfathers everything
+        (fail-open), and an artifact with no parseable date is treated as PRE-cutover, which mirrors
+        `_spec_requires_id6` and `_citation_anchor_applies`: a missing date is its own defect owned by
+        another rule, never a second consequence invented here.
+        """
+        if self.strict:
+            return True
+        if not self.cutover_date:
+            return False
+        if not artifact_date:
+            return False
+        return str(artifact_date) >= str(self.cutover_date)
+
+
+def read_setid_policy_object(
+    repo_root: "os.PathLike[str] | str",
+) -> Optional[Dict[str, Any]]:
+    """Return the raw `setids` object from `.aw/config/project.json`, or None if unset.
+
+    Never raises: a missing file, unparseable JSON, a non-object document, or a missing key returns
+    None (the caller then applies the documented defaults). Pure read; never writes.
+    """
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    try:
+        data = json.loads(project_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    raw = data.get(SETID_POLICY_KEY)
+    return raw if isinstance(raw, dict) else None
+
+
+def get_setid_policy(repo_root: "os.PathLike[str] | str") -> SetidPolicy:
+    """The effective :class:`SetidPolicy` for a repository (thresholds + resolved cutover boundary).
+
+    Thresholds come from the optional `setids` object, defaulting to
+    (:data:`SETID_WARN_LENGTH_DEFAULT`, :data:`SETID_MAX_LENGTH_DEFAULT`,
+    :data:`SETID_STRICT_DEFAULT`). A malformed threshold falls back to its default SILENTLY, which
+    follows the cutover/`review_findings_gate` precedents rather than `policy_retry_budget`'s warning
+    posture: both fallbacks here land on the SAFE side (the shipped, documented contract), so there is
+    no override of a repository's intent to announce.
+
+    The cutover is DELEGATED to :func:`resolve_cutover_date` with the ``setid_length`` feature key.
+    This function adds NO second reader and the module adds NO second stamper.
+    """
+    raw = read_setid_policy_object(repo_root) or {}
+
+    def _int(key: str, default: int) -> int:
+        value = raw.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            return default
+        return value
+
+    strict_raw = raw.get("strict", SETID_STRICT_DEFAULT)
+    strict = strict_raw if isinstance(strict_raw, bool) else SETID_STRICT_DEFAULT
+
+    warn_length = _int("warn_length", SETID_WARN_LENGTH_DEFAULT)
+    max_length = _int("max_length", SETID_MAX_LENGTH_DEFAULT)
+    if max_length < warn_length:
+        # An inverted pair would make the WARNING band empty and the error tier fire inside it; the
+        # documented contract is warn <= max, so fall back to the shipped pair rather than enforcing
+        # a policy nobody can have meant.
+        warn_length, max_length = SETID_WARN_LENGTH_DEFAULT, SETID_MAX_LENGTH_DEFAULT
+
+    return SetidPolicy(
+        warn_length=warn_length,
+        max_length=max_length,
+        strict=strict,
+        cutover_date=resolve_cutover_date(repo_root, "setid_length", compact=True),
+    )
+
+
+def validate_setid_length_for_authoring(
+    repo_root: "os.PathLike[str] | str",
+    setid: Optional[str],
+    *,
+    verb: str,
+) -> Tuple[Optional[str], Optional[str]]:
+    """The ONE authoring-time setid length guard. Returns ``(error, warning)``, either may be None.
+
+    setidlen `x75obw` E-06. ONE validator, called by every `--set`-taking creation/regrouping verb
+    (`aw ipd scaffold`, `aw backlog new`, `aw research new`, `aw group`), rather than a length
+    comparison copied into each. That is not tidiness: the maximum has ZERO MARGIN (the longest real
+    setid is exactly 24), so four independent comparisons are four chances to disagree about whether
+    24 conforms, and only one of those four disagreements has to be wrong to refuse a live record.
+
+    NO CUTOVER IS CONSULTED, DELIBERATELY. A cutover exists to grandfather artifacts that ALREADY
+    EXIST; this guard runs when a human or agent is choosing a NEW setid, which is by definition
+    post-cutover whatever the boundary says. Applying the boundary here would let a repository with no
+    stamped date mint unbounded setids forever, which is the decoration failure mode
+    `KNOWN_FEATURE_CUTOVERS` documents.
+
+    ``error`` is a refusal (over `max_length`); ``warning`` is advice (over `warn_length`) and the verb
+    MUST still proceed. An empty/None setid returns `(None, None)`: whether `--set` is required is each
+    verb's own business, and several legitimately default it.
+
+    NOTE `aw specs new` is EXCLUDED and has no call site, which is correct rather than an omission: it
+    takes no `--set` flag at all (`specs.run_new` passes `set_id=id6`, so a standalone spec's setid is
+    ALWAYS its own 6-character id6) and a guard there would be unreachable code.
+    """
+    token = (setid or "").strip()
+    if not token:
+        return None, None
+    policy = get_setid_policy(repo_root)
+    length = len(token)
+    if length > policy.max_length:
+        return (
+            f"{verb}: --set {token!r} is {length} characters, over the "
+            f"{policy.max_length}-character maximum for a setid "
+            f"(<= {policy.warn_length} is strongly preferred); choose a shorter Set id",
+            None,
+        )
+    if length > policy.warn_length:
+        return (
+            None,
+            f"{verb}: --set {token!r} is {length} characters; a setid of "
+            f"<= {policy.warn_length} characters is strongly preferred "
+            f"(over {policy.max_length} is refused)",
+        )
+    return None, None

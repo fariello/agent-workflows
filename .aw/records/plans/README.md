@@ -78,7 +78,20 @@ DECISIONS D124).
 
 The plan FILENAME clusters by Set so members are adjacent in a name-sorted tree:
 `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md`. Do NOT hand-name plans or hand-maintain the manifest; use
-the `aw plans` verbs (below). Set membership/order changes on a plan already in a terminal directory
+the `aw plans` verbs (below).
+
+KEEP A SETID SHORT. A setid of 14 characters or fewer is strongly preferred, a setid over 14
+characters is a WARNING, and a setid over 24 characters is REFUSED: `aw ipd scaffold`, `aw backlog
+new`, `aw research new` and `aw group` all reject an over-length `--set`, and `aw check` reports
+`check.setid-length-warn` / `check.setid-length-error`. A long setid hurts filename legibility,
+breaks terminal formatting, and obscures the topic grouping the setid exists to express.
+GRANDFATHERING IS PER ARTIFACT, against the `cutovers.setid_length` boundary stamped into
+`.aw/config/project.json` when the toolkit is installed or updated. An artifact older than that
+boundary keeps its long setid and reports nothing; a NEW artifact is judged. The intended
+consequence, which is a real cost worth knowing before you hit it: a new artifact may NOT join an
+existing long-setid topic after the cutover, so regroup the topic under a shorter setid instead.
+Thresholds are configurable per repository under the optional `setids` key
+(`warn_length`/`max_length`/`strict`), and `aw check --strict-setid-length` judges history too. Set membership/order changes on a plan already in a terminal directory
 are a deliberate, tool-driven, citation-safe act (the plan BODY and workflow history stay immutable;
 only the name/grouping is mutable via the stable `Id`).
 

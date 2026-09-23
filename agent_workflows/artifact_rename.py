@@ -668,6 +668,20 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
         return MutationResult(2)
 
     set_k = _core.kebab(new_set)
+    # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard. Judged on the KEBABED
+    # token, deliberately, because that is what actually lands in the filename and in `- Set:`; judging
+    # the raw argument would let `Research Prompt Pipeline Extras` pass and then write a longer setid
+    # than the policy allows. Refuses over `max_length`; warns and proceeds over `warn_length`.
+    from agent_workflows import config as _config
+
+    _setid_err, _setid_warn = _config.validate_setid_length_for_authoring(
+        repo_root, set_k, verb=f"aw group {artifact_type}"
+    )
+    if _setid_err:
+        print(f"error: {_setid_err}")
+        return MutationResult(2)
+    if _setid_warn:
+        print(f"note: {_setid_warn}")
     start_order = getattr(args, "order", None)
     apply = bool(getattr(args, "apply", False))
     update_refs = not bool(getattr(args, "no_refs", False))
