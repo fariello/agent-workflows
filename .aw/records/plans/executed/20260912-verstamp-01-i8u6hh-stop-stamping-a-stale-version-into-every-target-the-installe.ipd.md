@@ -6,7 +6,7 @@
 - Scope: Make the VERSION written into a target reflect the framework actually being installed, by resolving the value on the write path instead of copying bytes. Decide and implement the dev-checkout policy, and record the manifest's `installed_version` consistently.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -16,10 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: i8u6hh
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: ygtykn
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: i8u6hh verified (set verstamp, attempt 1).
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item ygtykn (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (aw set): status set to reviewed
