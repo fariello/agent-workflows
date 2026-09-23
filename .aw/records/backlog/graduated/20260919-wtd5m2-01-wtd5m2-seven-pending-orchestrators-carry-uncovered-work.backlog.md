@@ -1,5 +1,6 @@
 - Id: wtd5m2
-- Status: open
+- Status: graduated
+- Graduated-To: orchretire
 - Blocks-Release: next
 - Set: wtd5m2
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: seven pending orchestrators carry parent-only work no child covers, so the new coverage gate refuses them until children are authored
 
 ## Workflow history
+- 2026-09-23 graduated (aw set): Graduated to IPD kjqqzf (orchretire Order 01), RE-AIMED because this item's census is stale and the defect it predicted has now HAPPENED TWICE MORE. RE-MEASURED all seven listed orchestrators at HEAD 22cf67d9. TWO HAVE RETIRED: y9s4vm (Set graduate) and lyo1tz (Set runnerlayer) are in executed/ with ALL SIX E-items and SIX V-items still reading 'Execution state: pending' / 'Result: pending', and their own retirement commits say 'Its own E-*/V-* items were NOT performed'. THE GATE DID NOT FAIL TO RUN, IT RETURNED A CACHED PASS: probe_cache_digest over each plan text hits .aw/state/runtime/orchestrator-probe-verdicts.json with verdict 'pass' recorded 2026-09-21T11:01:06Z and 2026-09-21T02:25:46Z respectively, i.e. BEFORE last night's run. THE AUTHORING DEBT THIS ITEM TRACKS IS ESSENTIALLY DISCHARGED: all five surviving parents now have a dedicated coverage child (wfjsp4 -> ingpvc, a5wdne -> 04vf1h, tb63qv -> k311gw, ao1rb7 -> 2s0iym, 5e4sb6 -> i3d6ml/tx6q0h/ct4w0a already executed). What survives is the MECHANISM defect. THE SHARPEST FINDING: the verdict is keyed on the parent's TEXT, so it cannot express whether the covering child has EXECUTED. a5wdne caches 'pass' while its coverage child 04vf1h is merely 'approved' and has never run, which is exactly how a parent retires with its items unperformed. HONEST ON BLAST RADIUS: no work was actually lost this time. I checked both retired parents' E-03 claims by hand and they hold (6h7y2y is graduated, cnwy8g is done). The defect is the UNVERIFIED assertion and the record that overstates what happened, which is the rh5tt6 failure with a luckier draw.
 - 2026-09-19 created (aw backlog): seven pending orchestrators carry parent-only work no child covers, so the new coverage gate refuses them until children are authored
 
 MEASURED 2026-09-19 at HEAD b5208b0e, by reading every pending Kind: orchestrator plan's FULL item action text (not its first line):
