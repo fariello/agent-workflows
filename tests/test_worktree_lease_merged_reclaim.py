@@ -699,6 +699,36 @@ class TheInterruptBehaviorTests(_FixtureCase):
 # ======================================================================================================
 
 
+def _find_merged_branch(node: ast.FunctionDef) -> ast.If | None:
+    """The `lane_is_recovered_and_reclaimable(lane)` branch of a reclaimer body, or None.
+
+    MATCHES BOTH CALL FORMS, which became necessary when `gqo6if` E-03 gave the two hosts one shared
+    implementation: in a host body the call was `runner_shared.lane_is_recovered_and_reclaimable(...)`
+    (an `ast.Attribute`), while inside `runner_shared` itself the same call is the bare
+    `lane_is_recovered_and_reclaimable(...)` (an `ast.Name`). An attribute-only matcher would report the
+    branch as MISSING from the very module that now contains it.
+    """
+    for child in ast.walk(node):
+        if not isinstance(child, ast.If):
+            continue
+        test = child.test
+        if not isinstance(test, ast.Call):
+            continue
+        func = test.func
+        name = (
+            func.attr
+            if isinstance(func, ast.Attribute)
+            else (func.id if isinstance(func, ast.Name) else "")
+        )
+        if name == "lane_is_recovered_and_reclaimable":
+            return child
+    return None
+
+
+def _has_merged_branch(node: ast.FunctionDef) -> bool:
+    return _find_merged_branch(node) is not None
+
+
 class TheNoDirectForceTeardownTests(unittest.TestCase):
     """The merged branch reaches the shared gate, never a direct force teardown.
 
@@ -719,27 +749,49 @@ class TheNoDirectForceTeardownTests(unittest.TestCase):
 
     @staticmethod
     def _reclaimer_ast(driver: Any) -> ast.FunctionDef:
-        tree = ast.parse(inspect.getsource(driver.reclaim_lanes_on_interrupt))
-        node = tree.body[0]
+        """The reclaimer's DECISION LOGIC, wherever it now lives.
+
+        RE-BASED BY runresidue 01 (`gqo6if`) E-03, which gave the two hosts ONE implementation in
+        `runner_shared` and left a one-line wrapper on each. Reading `driver.reclaim_lanes_on_interrupt`
+        after that lift returns the WRAPPER, which contains no decision at all, so every structural
+        assertion below would look for a merged-lane branch in a body that has none and fail with
+        "no merged-lane branch found" - a RED that would mean the opposite of what it says, since the
+        decision order it guards was never touched.
+        RESOLVED BY FOLLOWING THE LOGIC RATHER THAN BY WEAKENING THE ASSERTION: the wrapper is
+        unwrapped to the shared implementation, so the decision-order property is still asserted, now at
+        the single place it is implemented. Each host's own binding is separately proven to reach that
+        implementation by the delegation test in `tests/test_rununify_run_queue.py`, and the BEHAVIORAL
+        layer in this same file still drives each host end to end, which is what makes unwrapping safe:
+        structure is checked once because there IS one body, while behavior is still checked twice.
+        """
+        source = inspect.getsource(driver.reclaim_lanes_on_interrupt)
+        node = ast.parse(source).body[0]
         assert isinstance(node, ast.FunctionDef)
+        if not _has_merged_branch(node):
+            shared = ast.parse(
+                inspect.getsource(runner_shared.reclaim_lanes_on_interrupt)
+            ).body[0]
+            assert isinstance(shared, ast.FunctionDef)
+            # The wrapper must REALLY delegate to the body being read, or unwrapping would silently
+            # assert a property of code this host does not run.
+            assert "reclaim_lanes_on_interrupt" in TheNoDirectForceTeardownTests._calls(
+                node
+            ), (
+                f"{driver.__name__}.reclaim_lanes_on_interrupt has no merged-lane branch AND does "
+                "not delegate, so its decision logic cannot be located"
+            )
+            return shared
         return node
 
     @staticmethod
     def _merged_branch(node: ast.FunctionDef) -> ast.If:
-        """The `if runner_shared.lane_is_recovered_and_reclaimable(lane):` branch, found by AST."""
-        for child in ast.walk(node):
-            if not isinstance(child, ast.If):
-                continue
-            test = child.test
-            if (
-                isinstance(test, ast.Call)
-                and isinstance(test.func, ast.Attribute)
-                and test.func.attr == "lane_is_recovered_and_reclaimable"
-            ):
-                return child
-        raise AssertionError(
-            "no merged-lane branch found; the fix is INERT without the decision-order change"
-        )
+        """The `lane_is_recovered_and_reclaimable(lane)` branch, found by AST."""
+        branch = _find_merged_branch(node)
+        if branch is None:
+            raise AssertionError(
+                "no merged-lane branch found; the fix is INERT without the decision-order change"
+            )
+        return branch
 
     @staticmethod
     def _calls(node: ast.AST) -> list[str]:

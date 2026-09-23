@@ -55,6 +55,7 @@ from __future__ import annotations
 import argparse
 import ast
 import builtins
+import difflib
 import json
 import pathlib
 import re
@@ -268,6 +269,85 @@ def is_pure_delegation(node: ast.stmt) -> bool:
     )
 
 
+def references_module(node: ast.stmt, module: str) -> bool:
+    """Does `node` reach `module` ANYWHERE in its body, by attribute or by import?
+
+    THE BROAD QUESTION, deliberately, and it is a DIFFERENT question from
+    :func:`is_pure_delegation`'s. That predicate asks "is this body NOTHING BUT a delegation?"; this
+    one asks "does this body delegate AT ALL?". The two disagree on a body that computes host values
+    and then calls one shared helper, and that disagreement is the whole residue question `gqo6if`
+    exists to settle, so both are reported rather than one standing in for the other.
+
+    Matches an `ast.Attribute` on the module name (`runner_shared.x`), a `from ... import` naming it,
+    and a bare `ast.Name` load of it, because a lazily-imported delegation (`from
+    agent_workflows.oc_runipd import f as _shared; return _shared(...)`) is a real delegation that an
+    attribute-only scan cannot see. That form is not hypothetical: it is how `agy_runipd` binds
+    `route_recovery_turn`, `classify_recovery_disposition` and `build_verify_and_continue_notice`.
+    """
+    for sub in ast.walk(node):
+        if (
+            isinstance(sub, ast.Attribute)
+            and isinstance(sub.value, ast.Name)
+            and sub.value.id == module
+        ):
+            return True
+        if isinstance(sub, ast.ImportFrom) and (sub.module or "").endswith(module):
+            return True
+        if isinstance(sub, ast.Name) and sub.id == module:
+            return True
+    return False
+
+
+def residue_class(oc_node: ast.stmt, agy_node: ast.stmt) -> str:
+    """Which delegation class a co-defined symbol is in: the STRICT test, per side.
+
+    Three values, and the middle one is the finding rather than a rounding error:
+
+      * ``BOTH-DELEGATE``     - each side reaches `runner_shared` somewhere. There may still be
+        substantial per-host body around that call, which is why this is NOT the same as "shared".
+      * ``ONE-SIDE-DELEGATES``- exactly one side does. The other carries a real body.
+      * ``NEITHER-DELEGATES`` - no side does. This is the STRICT residue, and it is the class a
+        symbol must LEAVE to count as shared.
+    """
+    oc_delegates = references_module(oc_node, SHARED)
+    agy_delegates = references_module(agy_node, SHARED)
+    if oc_delegates and agy_delegates:
+        return "BOTH-DELEGATE"
+    if oc_delegates or agy_delegates:
+        return "ONE-SIDE-DELEGATES"
+    return "NEITHER-DELEGATES"
+
+
+def normalized_similarity(oc_node: ast.stmt, agy_node: ast.stmt) -> float:
+    """`difflib` ratio of the two normalized bodies AFTER host tokens are erased.
+
+    Normalizing the host tokens first is what makes the number mean "how much of this is the same
+    logic" rather than "how differently are the two hosts spelled". Without it, two byte-identical
+    bodies that merely name their own host score below 1.0 and look like a real divergence.
+
+    A SIMILARITY IS NOT A DECISION, and this scanner deliberately does not threshold it. `gqo6if`
+    E-02 records the measured counter-examples in both directions: a near-1.0 pair can be a genuine
+    per-host capability (nothing forces duplication to be spelled differently), and a low-scoring
+    pair can be pure duplication one side has merely reformatted.
+    """
+    return difflib.SequenceMatcher(
+        None,
+        _erase_host_tokens(normalize(oc_node)),
+        _erase_host_tokens(normalize(agy_node)),
+    ).ratio()
+
+
+def _erase_host_tokens(text: str) -> str:
+    """Replace every host token with one placeholder, on word boundaries.
+
+    Word-bounded for the reason `_mentions` gives: a substring replacement of the bare `oc` would
+    mangle most English words and make the similarity figure meaningless.
+    """
+    for token in HOST_TOKENS:
+        text = re.sub(rf"\b{re.escape(token)}\b", "HOST", text)
+    return text
+
+
 def line_metrics(node: ast.stmt) -> dict[str, int]:
     """All THREE line metrics for one symbol, each named.
 
@@ -360,6 +440,14 @@ def census(symbols: Iterable[str] | None = None) -> dict[str, Any]:
         records[name] = {
             "identical": oc_norm == agy_norm,
             "wrapper": wrapper,
+            # `gqo6if` E-01: the two defensible residue tests, reported SEPARATELY with the test that
+            # produced each named in the output, because the authoring measurement of this Set quoted
+            # one number without its test and it reproduced under neither.
+            "residue_class": residue_class(oc_node, agy_node),
+            "strict_residue": residue_class(oc_node, agy_node) == "NEITHER-DELEGATES",
+            "loose_residue": not wrapper,
+            "similarity": round(normalized_similarity(oc_node, agy_node), 3),
+            "agy_lines": line_metrics(agy_node),
             "large_function": name in LARGE_FUNCTIONS,
             "also_in_shared": name in defs[SHARED],
             "shared_identical": (
@@ -390,6 +478,30 @@ def census(symbols: Iterable[str] | None = None) -> dict[str, Any]:
             "identity: ast.unparse with docstrings stripped from every scope; "
             "a thin runner_shared delegation is NOT counted as a fork"
         ),
+        # `gqo6if` E-01/V-01: the two tests stated IN THE OUTPUT, so a figure can never be quoted
+        # without the test that produced it, and the LINE METRIC named beside them for the same
+        # reason (three metrics circulate here and differ by more than 2x on one symbol).
+        "strict_test": (
+            "STRICT: neither side references `runner_shared` ANYWHERE in its body "
+            "(residue_class == NEITHER-DELEGATES)"
+        ),
+        "loose_test": (
+            "LOOSE: neither side is a single-statement `runner_shared` delegation "
+            "(i.e. not a sanctioned thin wrapper)"
+        ),
+        "line_metric": "ast.unparse lines with docstrings stripped, measured on the AGY side",
+        "strict_residue": sorted(n for n, r in records.items() if r["strict_residue"]),
+        "loose_residue": sorted(n for n, r in records.items() if r["loose_residue"]),
+        "strict_residue_agy_lines": sum(
+            r["agy_lines"]["unparse"] for r in records.values() if r["strict_residue"]
+        ),
+        "loose_residue_agy_lines": sum(
+            r["agy_lines"]["unparse"] for r in records.values() if r["loose_residue"]
+        ),
+        "by_residue_class": {
+            cls: sorted(n for n, r in records.items() if r["residue_class"] == cls)
+            for cls in ("BOTH-DELEGATE", "ONE-SIDE-DELEGATES", "NEITHER-DELEGATES")
+        },
         "co_defined": len(records),
         "real_forks": sorted(identical + divergent),
         "identical_forks": sorted(identical),
@@ -462,6 +574,43 @@ def render(data: dict[str, Any], *, closure: bool, hazards: bool, triples: bool)
         f"{len(data['large_functions_still_forked'])} of {len(LARGE_FUNCTIONS)} "
         f"({', '.join(data['large_functions_still_forked']) or 'none'})"
     )
+    out.append("")
+    # `gqo6if` E-01: THE RESIDUE, under BOTH tests, each printed WITH ITS DEFINITION and the line
+    # metric named. Never print one of these counts alone: the two disagree by design, and the
+    # disagreement is the per-symbol question, not a rounding error to pick a winner from.
+    out.append("RESIDUE, UNDER TWO TESTS (both reported; neither is 'the' number)")
+    out.append(f"  line metric: {data['line_metric']}")
+    out.append(f"  {data['strict_test']}")
+    out.append(
+        f"    -> {len(data['strict_residue'])} symbols, "
+        f"{data['strict_residue_agy_lines']} lines"
+    )
+    out.append(f"  {data['loose_test']}")
+    out.append(
+        f"    -> {len(data['loose_residue'])} symbols, "
+        f"{data['loose_residue_agy_lines']} lines"
+    )
+    out.append("")
+    out.append("  by delegation class:")
+    for cls, names in data["by_residue_class"].items():
+        out.append(f"    {cls:20s} {len(names):3d}  {', '.join(names) or '-'}")
+    out.append("")
+    out.append(
+        "  PER-SYMBOL (loose residue only; similarity is host-token-normalised and is NOT a decision)"
+    )
+    out.append(
+        f"    {'symbol':42s} {'class':20s} {'S':>2s} {'oc':>4s} {'agy':>4s} {'sim':>6s}"
+    )
+    for name in sorted(
+        data["loose_residue"], key=lambda n: (-data["symbols"][n]["similarity"], n)
+    ):
+        rec = data["symbols"][name]
+        out.append(
+            f"    {name:42s} {rec['residue_class']:20s} "
+            f"{'Y' if rec['strict_residue'] else '.':>2s} "
+            f"{rec['lines']['unparse']:4d} {rec['agy_lines']['unparse']:4d} "
+            f"{rec['similarity']:6.3f}" + ("  LARGE" if rec["large_function"] else "")
+        )
     out.append("")
     for label, key in (
         ("IDENTICAL FORKS", "identical_forks"),
