@@ -3080,17 +3080,31 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         )
 
     def test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction(self):
-        """The three `kind` values are a CONTRACT read by callers and by run state.
+        """The `kind` values are a CONTRACT read by callers and by run state.
 
         Child 03 changes what the transient kind means for `TERMINAL_STATES`; this child must not,
         and asserting the vocabulary here is what keeps a "pure move" from smuggling that in.
 
-        RESOLVES NAMES AS WELL AS LITERALS (`l2mzxn`). The three kinds used to be spelled as bare
+        RESOLVES NAMES AS WELL AS LITERALS (`l2mzxn`). The kinds used to be spelled as bare
         strings inside the function; the rename moved them onto the module constants so a literal and
         the constant it duplicates can no longer drift. An AST walk that only accepted `ast.Constant`
         would therefore see an EMPTY set and pass vacuously against any vocabulary at all, which is
         strictly weaker than the contract this test exists to pin. So a returned `ast.Name` is resolved
         through the module, and a kind that is neither a literal nor a resolvable module constant fails.
+
+        WIDENED TO FOUR 2026-09-23 (`kl18sz`), and the widening is the point rather than an erosion.
+        The expected set is still EXACT, so an unreviewed fifth kind still fails here; what changed is
+        that `merge-rederived` was ADDED DELIBERATELY, as spec `25kzda` Section 2.1a requires. That
+        section's rule is that a positively classified records-only front-matter conflict is RE-DERIVED
+        rather than merged, and F-11 of that plan requires the result to carry its OWN reported outcome:
+        it is neither a plain `integrated` (the runner WROTE content rather than carrying the lane's
+        bytes, which is the one event an auditor most needs to see) nor `merge-refused` (documented
+        in-code as "the gate measured the work and REFUSED it", which did not happen). Reporting it as
+        either would hide the recomputation, so the vocabulary had to grow by exactly one.
+
+        NOTE THIS TEST'S OWN NAME IS NOW SLIGHTLY STALE and is kept anyway: it says "unchanged by the
+        EXTRACTION", and the extraction it names did indeed change nothing. Renaming it would break the
+        node id a future baseline comparison is taken against for no gain.
         """
         src = module_source(runner_shared)
         node = next(
@@ -3114,7 +3128,19 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     "constant on the module; the kind vocabulary must stay resolvable",
                 )
                 returned.add(resolved)
-        self.assertEqual(returned, {"integrated", "merge-retry", "merge-refused"})
+        self.assertEqual(
+            returned,
+            {"integrated", "merge-retry", "merge-refused", "merge-rederived"},
+        )
+        # AND THE NEW KIND IS A SUCCESS, NOT A REFUSAL, which is what keeps the ladder untouched by it:
+        # `classify_integration_refusal` is asked only about refusals, and answering True here would
+        # put a landed integration on a retry path.
+        self.assertFalse(
+            runner_shared.classify_integration_refusal(
+                runner_shared.INTEGRATION_REDERIVED
+            ),
+            "merge-rederived is a SUCCESS kind; the deferral ladder must never claim it",
+        )
 
 
 class CanonicalRunsRootTests(unittest.TestCase):
