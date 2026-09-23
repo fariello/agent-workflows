@@ -11,7 +11,7 @@
   THE SET SIZE IS "WHATEVER THE AST SAYS AT EXECUTION TIME", NOT A NUMBER FROM THIS PLAN. Stated in Scope because it changes what "all" means in child 01's obligation: the count was 40 at filing, 47 at authoring and 48 at review, so a child that classifies "the 47" and stops has left a name unclassified and child 02's residual check then cannot balance. Child 01 must classify the set it MEASURES, report the count it found, and note any delta against this Set's prose.
 - Scope-Paths: .aw/records/plans/pending/20260908-runnerlayer-01-9kmbr0-classify-all-47-oc-to-agy-imported-names-as-host-neutral-or.ipd.md, .aw/records/plans/pending/20260908-runnerlayer-02-1f7xno-re-home-the-host-neutral-names-into-runner-shared-in-reviewa.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - Readiness: go-pending-approval
@@ -20,10 +20,10 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: lyo1tz
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: cnwy8g
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set runnerlayer reached executed, so the runner (run run-20260923T023317Z-3622118) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 9kmbr0, 1f7xno.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item cnwy8g (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-B01..PR-B06 all FIXED; readiness go-pending-approval
