@@ -647,18 +647,28 @@ from agent_workflows.oc_runipd import (
 # copied, exactly as `announce_run_order` above is. This driver already reached the START announcement
 # through that shared object, so E-01's fix arrived here with NO edit to this module's call sites; what
 # is added here is the END-OF-RUN report, whose call sites ARE per-driver (three summary sites each) and
-# so must be wired in both. `report_run_spec_edits` and its helpers have ONE definition in `oc_runipd`;
-# a second copy here is the specific failure the module docstring above records for `Heartbeat`.
-from agent_workflows.oc_runipd import (
+# so must be wired in both. A second copy here is the specific failure the module docstring above
+# records for `Heartbeat`.
+#
+# THE SOURCE MODULE CHANGED, NOT THE BINDING (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`). These
+# eight names used to be DEFINED in `oc_runipd` and imported from there, which made the OTHER host
+# driver a library for this one. They now have ONE definition in `runner_shared` and both drivers bind
+# it from there, so the objects are unchanged and every call site below is untouched; only the module
+# this statement names is different. `record_item_spec_edits` deliberately stays on the `oc_runipd`
+# import below: `runner_shared` carries its OWN DIVERGED copy of that one name, so re-homing it would
+# be a reconciliation rather than a pure move (backlog `tm5vnx`).
+from agent_workflows.runner_shared import (
     SPEC_NOT_FINALIZED as SPEC_NOT_FINALIZED,
     SPEC_RECONCILED as SPEC_RECONCILED,
     SPEC_RECONCILE_REFUSED as SPEC_RECONCILE_REFUSED,
     queue_plan_path as queue_plan_path,
     queue_with_plan_paths as queue_with_plan_paths,
-    record_item_spec_edits as record_item_spec_edits,
     report_run_spec_edits as report_run_spec_edits,
     spec_edit_record as spec_edit_record,
     spec_edit_summary as spec_edit_summary,
+)
+from agent_workflows.oc_runipd import (
+    record_item_spec_edits as record_item_spec_edits,
 )
 
 DEFAULT_MODEL = "gemini-3.7-flash-high"

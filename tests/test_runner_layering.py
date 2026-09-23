@@ -531,44 +531,19 @@ CLASSIFICATION: tuple[Name, ...] = (
         "unions the per-attempt earned paths across a run; reads run state",
         move_note="same `integpath` collision risk (see MOVE_UNSETTLED)",
     ),
-    # --- declared spec-edit visibility (9) ----------------------------------------------------
-    # The newest group, and the clearest evidence of accretion: all nine arrived in the thirteen
-    # days between this plan's review and its execution.
-    Name(
-        "SPEC_RECONCILED",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "reconciliation-state constant; a string",
-    ),
-    Name(
-        "SPEC_RECONCILE_REFUSED",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "reconciliation-state constant; a string",
-    ),
-    Name(
-        "SPEC_NOT_FINALIZED",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "reconciliation-state constant; a string",
-    ),
-    Name(
-        "spec_edit_record",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "the spec-filtered view of one item's two-way scope reconciliation; record shaping",
-    ),
-    Name(
-        "spec_edit_summary",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "aggregates per-item spec records into the per-run view; reads durable state only",
-    ),
+    # --- declared spec-edit visibility (1 of an original 9) -----------------------------------
+    # THE GROUP THAT ALREADY MOVED, and the clearest evidence of both the accretion and the fix.
+    # All nine arrived in the thirteen days between Order 01's review and its execution; EIGHT were
+    # re-homed into `runner_shared` by Order 02 (`1f7xno`) as the first batch, which is why their
+    # rows are gone. That is the SANCTIONED SHRINK the frozen-set comment below describes, not
+    # tampering.
+    #
+    # `record_item_spec_edits` IS THE ONE THAT STAYED, and the reason is a live defect rather than a
+    # scruple: `runner_shared` ALREADY carries its own copy of this name whose body DIVERGES from
+    # oc's (measured by docstring-stripped AST), and the two write DIFFERENT keys
+    # (`spec_edits_reconciliation` versus `spec_edits`) in different record shapes. So re-homing it
+    # would be a RECONCILIATION of two behaviors, not a pure move, and `1f7xno` is a pure-move plan.
+    # Filed as backlog `tm5vnx`; do not "finish the group" by lifting this row without resolving it.
     Name(
         "record_item_spec_edits",
         "spec-edit-visibility",
@@ -576,31 +551,13 @@ CLASSIFICATION: tuple[Name, ...] = (
         PURE_REEXPORT,
         "stores one item's reconciliation on its queue entry; takes `reconcile` as a PARAMETER",
         move_note=(
+            "DEFERRED BY `1f7xno`: `runner_shared` already holds a DIVERGED copy writing a "
+            "different key in a different shape (backlog `tm5vnx`), so the move is a "
+            "reconciliation. "
             "ALREADY BUILT FOR SHARING: its docstring records that `_compute_scope_reconciliation` "
             "is forked per driver and is therefore INJECTED, 'the same explicit-injection form "
             "`runner_shared` uses'. The fork itself is out of this Set's scope"
         ),
-    ),
-    Name(
-        "report_run_spec_edits",
-        "spec-edit-visibility",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "prints the end-of-run declared-spec-edit report; wired at three summary sites per host",
-    ),
-    Name(
-        "queue_plan_path",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "resolves the plan FILE a queue entry refers to; names BOTH drivers' freeze keys in its docstring",
-    ),
-    Name(
-        "queue_with_plan_paths",
-        "spec-edit-visibility",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "re-expresses the queue in the shape the shared spec helper documents; an adapter",
     ),
     # --- nested-`aw` tool identity (4) --------------------------------------------------------
     # The group whose neutrality is load-bearing rather than incidental: agy imports these

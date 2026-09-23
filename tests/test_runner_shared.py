@@ -7560,5 +7560,176 @@ class GateAnswerQuestionWordingTests(unittest.TestCase):
         self.assertIn("probably-fine", q)
 
 
+# ==================================================================================================
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE RE-HOMED HOST-NEUTRAL NAMES
+# ==================================================================================================
+
+REHOMED_FIXTURE = (
+    pathlib.Path(__file__).parent
+    / "fixtures"
+    / "runnerlayer_rehomed_premove_fingerprints.json"
+)
+
+
+class ReHomedHostNeutralNameTests(unittest.TestCase):
+    """The PURE-MOVE proof for every name `1f7xno` re-homed out of `oc_runipd`.
+
+    WHY A SECOND HARNESS RATHER THAN EXTENDING THE ONE ABOVE. The class at the top of this file is
+    pinned against `runner_shared_premove_fingerprints.json`, a capture of the source at HEAD
+    `1ecc5891`. The names below did not exist in `oc_runipd` in their current form at that commit,
+    so they have no entry in that fixture and adding them to `INJECTED` or `MOVED` would make the
+    fixture-backed tests raise `KeyError` rather than prove anything. This class supplies its own
+    capture (taken at the commit the move started from) and asserts the SAME properties.
+
+    THE FOUR PROPERTIES, none of which implies another:
+
+      1. FINGERPRINT EQUALITY against the PRE-MOVE capture. This is what makes "pure move"
+         falsifiable: edit one moved line and this fails. Docstrings are stripped before comparing,
+         for the reason `_without_docstring` above records (a docstring is not behavior), so a
+         reworded docstring is permitted while a changed statement is not.
+      2. NO REMAINING DEFINITION IN EITHER RUNNER. Identity alone would pass while a stale duplicate
+         sat in a host file shadowed by a later import, which is a trap rather than a fix.
+      3. OBJECT IDENTITY from all THREE modules. Fingerprint equality alone would pass while a host
+         kept its own copy that merely looks the same, which is precisely the state being ended:
+         `agy` carried its own broken `dependency_status_detailed` for months while every suite was
+         green.
+      4. THE RE-EXPORT SURVIVES IN BOTH DRIVERS. `ruff --fix` is a pre-commit hook here and DELETES
+         an unused plain import while LEAVING a redundant `as <same-name>` alias; it removed six of
+         exactly these re-exports on one previous commit attempt. Asserting the attribute exists is
+         what turns that silent deletion into a failing test.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.payload = json.loads(REHOMED_FIXTURE.read_text(encoding="utf-8"))
+        cls.pre = cls.payload["fingerprints"]
+
+    def test_the_fixture_is_not_empty_and_agrees_with_its_own_count(self):
+        """A harness whose input silently emptied would pass every test below vacuously."""
+        self.assertGreater(
+            len(self.pre), 0, "the pre-move fixture holds no fingerprints"
+        )
+        self.assertEqual(len(self.pre), self.payload["symbol_count"])
+
+    def test_every_rehomed_body_is_BYTE_IDENTICAL_to_its_pre_move_capture(self):
+        shared_defs = _top_level_definitions_by_node(runner_shared)
+        wrong = []
+        for name, expected in sorted(self.pre.items()):
+            node = shared_defs.get(name)
+            if node is None:
+                wrong.append(f"  {name}: NOT DEFINED in runner_shared at all")
+                continue
+            # A CONSTANT has no docstring to strip, and `_without_docstring` asserts it was handed
+            # a def/class, so the two node shapes are normalized differently rather than forcing one
+            # helper to cover both. Three of the re-homed names are module-level string constants.
+            stripped = (
+                _without_docstring(node)
+                if isinstance(
+                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                )
+                else node
+            )
+            actual = ast.dump(
+                ast.parse(ast.unparse(stripped)),
+                include_attributes=False,
+            )
+            if actual != expected:
+                wrong.append(
+                    f"  {name}: body CHANGED during the move. `1f7xno` is a PURE-MOVE plan, so a "
+                    "body change here is either an accidental edit (revert it) or a deliberate "
+                    "improvement that belongs in its own plan with its own review"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(self.pre)} re-homed bodies are not byte-identical to the "
+            "pre-move capture, so the claim that the move changed no behavior is FALSE.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_neither_runner_still_DEFINES_a_rehomed_name(self):
+        wrong = []
+        for runner in BOTH:
+            defined = top_level_definitions(_MODULES[runner])
+            for name in sorted(self.pre):
+                if name in defined:
+                    wrong.append(
+                        f"  {runner} re-DEFINES {name} at line {defined[name]}; it must BIND "
+                        "`runner_shared`'s object instead. A duplicate definition shadowed by a "
+                        "later import is a trap, not a fix"
+                    )
+        self.assertEqual(wrong, [], "\n".join(wrong))
+
+    def test_every_rehomed_name_is_the_SAME_OBJECT_from_all_three_modules(self):
+        """`assertIs`, because grep cannot tell a shared object from a textually identical copy."""
+        wrong = []
+        for name in sorted(self.pre):
+            shared = getattr(runner_shared, name, None)
+            if shared is None:
+                wrong.append(f"  {name}: ABSENT from runner_shared, which now OWNS it")
+                continue
+            for runner in BOTH:
+                got = getattr(_MODULES[runner], name, _MISSING)
+                if got is _MISSING:
+                    wrong.append(
+                        f"  {name}: ABSENT from {runner}. The `as <same-name>` re-export was lost, "
+                        "which is exactly what `ruff --fix` did to six of these once; restore it "
+                        "rather than deleting this assertion"
+                    )
+                elif got is not shared:
+                    wrong.append(
+                        f"  {name}: {runner} holds a DIFFERENT object ({got!r} vs {shared!r}), "
+                        "which is a re-forked copy"
+                    )
+        self.assertEqual(wrong, [], "\n".join(wrong))
+
+    def test_no_rehomed_name_is_still_imported_from_a_HOST_DRIVER(self):
+        """The layering claim itself: the point of the move was to end the oc-to-agy edge.
+
+        `tests/test_runner_layering.py` freezes the whole import SET; this asserts the narrower
+        property for the specific names this fixture covers, sited with their move proof, so the
+        guarantee does not rest on one file.
+        """
+        agy_src = module_source(agy_runipd)
+        offenders = []
+        for node in ast.walk(ast.parse(agy_src)):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(
+                "oc_runipd"
+            ):
+                for alias in node.names:
+                    if alias.name in self.pre:
+                        offenders.append(
+                            f"  line {node.lineno}: agy still imports {alias.name} from oc_runipd, "
+                            "but it is defined in runner_shared now; import it from there"
+                        )
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+
+def _top_level_definitions_by_node(module) -> dict[str, ast.AST]:
+    """Every TOP-LEVEL definition in ``module``, mapped to its AST NODE (not its line).
+
+    A sibling of `top_level_definitions` above, which returns line numbers. Kept separate rather
+    than widening that one, because it is consumed by shipped assertions whose failure messages
+    quote the line.
+    """
+    found: dict[str, ast.AST] = {}
+    for node in ast.parse(module_source(module)).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            found.setdefault(node.name, node)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    found.setdefault(target.id, node)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            found.setdefault(node.target.id, node)
+    return found
+
+
+#: A sentinel distinguishing "attribute absent" from "attribute present and None", because the two
+#: have OPPOSITE fixes (restore a deleted re-export versus delete a copy) and `getattr(m, n, None)`
+#: cannot tell them apart.
+_MISSING = object()
+
+
 if __name__ == "__main__":
     unittest.main()

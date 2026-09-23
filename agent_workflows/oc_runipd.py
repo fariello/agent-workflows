@@ -97,7 +97,6 @@ from agent_workflows.render_stream import (
     resolve_item_lifecycle,
     format_spec_impact_announcement,
     format_spec_impact_failure,
-    format_spec_edit_report,
     _ANSI_CODES,
     _ANSI_RESET,
     _ANSI_STRIP_RE,
@@ -255,6 +254,42 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     conflicted_paths as conflicted_paths,
+)
+
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the RE-HOMED host-neutral names. Each of these
+# used to be DEFINED here and imported BY `agy_runipd`, which made this module a library for the
+# other host driver; they now have ONE definition in `runner_shared` and BOTH drivers bind it. The
+# moves are PURE (byte-identical bodies, proven by AST fingerprint in
+# `tests/test_runner_shared.py::ReHomedHostNeutralNameTests`), so no call site in this module
+# changed.
+#
+# THE `as <same-name>` FORM IS LOAD-BEARING HERE, not cosmetic. `ruff --fix` is a pre-commit hook in
+# this repository and DELETES a plain unused import while LEAVING a redundant alias; it removed six
+# of exactly these re-exports on one previous commit attempt, caught only by a cross-driver symmetry
+# test. Do NOT "clean up" a name this module does not itself call.
+from agent_workflows.runner_shared import (
+    SPEC_NOT_FINALIZED as SPEC_NOT_FINALIZED,
+)
+from agent_workflows.runner_shared import (
+    SPEC_RECONCILED as SPEC_RECONCILED,
+)
+from agent_workflows.runner_shared import (
+    SPEC_RECONCILE_REFUSED as SPEC_RECONCILE_REFUSED,
+)
+from agent_workflows.runner_shared import (
+    queue_plan_path as queue_plan_path,
+)
+from agent_workflows.runner_shared import (
+    queue_with_plan_paths as queue_with_plan_paths,
+)
+from agent_workflows.runner_shared import (
+    report_run_spec_edits as report_run_spec_edits,
+)
+from agent_workflows.runner_shared import (
+    spec_edit_record as spec_edit_record,
+)
+from agent_workflows.runner_shared import (
+    spec_edit_summary as spec_edit_summary,
 )
 
 # runnoop zz5yxq (E-02/E-04): the ACTION-AWARE SUCCESS BAR. ONE definition in `runner_shared`, bound
@@ -1106,133 +1141,6 @@ def driver_begin(
     )
 
 
-# --- specvis (st5klo): declared-spec-edit VISIBILITY, at run start AND at run end -----------------
-#
-# A plan MAY amend a spec (maintainer ruling 2026-09-07), so the safeguard is not a gate but
-# VISIBILITY: whenever a run will rewrite a `.spec.md`, the operator must be told, BEFORE the run
-# spends anything and AGAIN when it ends. Nothing here refuses a run or gates an edit.
-#
-# Everything in this block is defined ONCE and IMPORTED by `agy_runipd` (the `as <same-name>`
-# re-export form documented at `agy_runipd.py:84-88`), for the reason that module records: a second
-# copy in the other driver is precisely how `Heartbeat` and `_read_deps` came to disagree.
-
-
-def queue_plan_path(repo: Path, item: "Mapping[str, Any]") -> Path | None:
-    """The plan FILE a runner queue entry refers to, or None when it cannot be located.
-
-    WHY THIS EXISTS, because it is a defect fix and not a convenience. `spec_impacts_for_queue`
-    documents its input as carrying `"path"` or `"plan_path"`, and that is what every test hand-built.
-    But a REAL runner queue entry carries NEITHER: both drivers freeze the plan location under
-    `"configured_file"` (`oc_runipd.py:2979`, `agy_runipd.py:2094`) and nothing ever assigns `"path"`.
-    So the pre-run spec announcement read an empty path from every item, computed an empty impact set,
-    and printed NOTHING - on BOTH hosts, for every real run, while a green suite asserted otherwise
-    because its fixtures supplied the key production never writes. Measured 2026-09-14 by driving both
-    entry points on a fixture repo whose approved plan declares a `.spec.md`: no `SPEC CHANGES:` line
-    on either host, and the same queue rebuilt with a `"path"` key yields the impact.
-
-    Resolution order, each rung there for a reason:
-      1. `path` / `plan_path` - an explicit override, and the shape the shared helper documents.
-      2. `last_plan_path` - written after a successful finalize MOVED the plan (pending/ -> executed/),
-         so it is the only rung that is still correct at RUN END for an executed item.
-      3. `configured_file` - the frozen location, correct for every item that has not moved.
-      4. `resolve_plan_path` - the authoritative shared resolver, which finds a plan by id6 wherever it
-         now lives. Last because it globs, and a cheap hit above is both faster and more specific.
-
-    Returns None rather than raising: every caller is an ADVISORY reporting surface, and refusing a run
-    because a report could not name a file would be a worse failure than the unnamed file.
-    """
-    for key in ("path", "plan_path", "last_plan_path", "configured_file"):
-        raw = item.get(key)
-        if not raw:
-            continue
-        candidate = Path(str(raw))
-        if not candidate.is_absolute():
-            candidate = repo / candidate
-        if candidate.is_file():
-            return candidate
-    id6 = str(item.get("id6") or "").strip()
-    if not id6:
-        return None
-    try:
-        return resolve_plan_path(repo, str(item.get("configured_file") or ""), id6)
-    except (DriverError, OSError):
-        return None
-
-
-def queue_with_plan_paths(
-    repo: Path, queue: "Sequence[Mapping[str, Any]]"
-) -> list[dict[str, Any]]:
-    """``queue`` re-expressed in the shape `spec_impacts_for_queue` DOCUMENTS it consumes.
-
-    Adapts at the CALL SITE rather than widening the shared helper's input contract, which keeps that
-    helper's documented shape ("reads each item's plan file from disk at dispatch") intact and keeps
-    this fix inside the plan's declared scope. An item whose plan cannot be located is DROPPED, which
-    matches the helper's own posture: an unreadable plan is skipped rather than failing the run.
-    """
-    out: list[dict[str, Any]] = []
-    for item in queue or ():
-        resolved = queue_plan_path(repo, item)
-        if resolved is None:
-            continue
-        out.append(
-            {
-                "id6": item.get("id6"),
-                "setid": item.get("setid"),
-                "path": str(resolved),
-            }
-        )
-    return out
-
-
-# The three states a per-item spec reconciliation can be in at run end. Named constants because the
-# end-of-run renderer branches on them and a typo'd string literal would silently render an item as
-# the wrong thing - and the WRONG thing here is specifically "clean", which is the one reading that
-# must never be manufactured (F-9).
-SPEC_RECONCILED = (
-    "reconciled"  # finalize precheck PASSED; the delta below is authoritative.
-)
-SPEC_RECONCILE_REFUSED = "refused"  # precheck REFUSED, so its empty pair means nothing.
-SPEC_NOT_FINALIZED = (
-    "not-finalized"  # the item never reached finalize; there is no delta at all.
-)
-
-
-def spec_edit_record(
-    plan_path: Path,
-    reasons: "Mapping[str, str]",
-    acks: "Mapping[str, str]",
-    *,
-    state: str,
-) -> dict[str, Any]:
-    """The durable, spec-FILTERED view of one item's two-way scope reconciliation (E-03).
-
-    ``reasons`` are the out-of-scope CHANGED paths and ``acks`` the declared-but-UNMODIFIED ones, i.e.
-    exactly what `_compute_scope_reconciliation` returns. This narrows both to `.spec.md` files and
-    keeps the item's DECLARED spec set beside them, so the end report can name the two asymmetries
-    that matter:
-
-      * `modified_not_declared` - a spec this item changed WITHOUT declaring it. THE important case: an
-        undeclared contract change is the thing declared-scope visibility exists to catch.
-      * `declared_not_modified` - a spec the item promised to change and did not. Worth a line because
-        it usually means the amendment half of a plan was skipped while its code half landed.
-
-    ``state`` must be one of the three constants above and is stored verbatim, because the renderer's
-    honesty depends on distinguishing "reconciled and clean" from "we could not tell".
-    """
-    try:
-        declared = declared_spec_paths(plan_path.read_text(encoding="utf-8"))
-    except OSError:
-        declared = []
-    modified_not_declared = sorted(p for p in (reasons or {}) if p.endswith(".spec.md"))
-    declared_not_modified = sorted(p for p in (acks or {}) if p.endswith(".spec.md"))
-    return {
-        "state": state,
-        "declared": list(declared),
-        "modified_not_declared": modified_not_declared,
-        "declared_not_modified": declared_not_modified,
-    }
-
-
 def record_item_spec_edits(
     repo: Path,
     plan_path: Path,
@@ -1291,101 +1199,6 @@ def record_item_spec_edits(
     )
     item["spec_edits"] = record
     return record
-
-
-def spec_edit_summary(repo: Path, state: "Mapping[str, Any]") -> dict[str, Any]:
-    """Aggregate the per-ITEM spec records into the per-RUN view the end report renders (E-03).
-
-    THE AGGREGATION IS THE POINT (F-9). The start announcement is per-QUEUE (it reads every plan's
-    declared scope in one pass), while the reconciliation is per-ITEM and only exists for an item that
-    reached finalize. So this must report BOTH sides and never let one stand in for the other:
-    `declared` is what the whole queue said it would change, and `reconciled`/`refused`/`not_finalized`
-    say how much of that the run could actually vouch for.
-
-    Reads ONLY durable state, so it renders identically from `print_status` on a finished run
-    directory, from a normal exit, and from a signal path mid-run. An older run directory carrying no
-    `spec_edits` key degrades to `not_finalized`, which is the honest reading rather than a clean one.
-    """
-    declared: dict[str, list[str]] = {}
-    reconciled: list[dict[str, Any]] = []
-    refused: list[str] = []
-    not_finalized: list[str] = []
-    for item in state.get("queue", []) or ():
-        id6 = str(item.get("id6") or "?")
-        plan_path = queue_plan_path(repo, item)
-        if plan_path is not None:
-            try:
-                specs = declared_spec_paths(plan_path.read_text(encoding="utf-8"))
-            except OSError:
-                specs = []
-            if specs:
-                declared[id6] = specs
-        record = item.get("spec_edits") or None
-        if not record:
-            # Only an item that could have finalized is interesting here. A queued/never-dispatched
-            # item is reported as not-finalized too, which is correct: nothing vouched for its scope.
-            not_finalized.append(id6)
-            continue
-        rec_state = record.get("state")
-        if rec_state == SPEC_RECONCILE_REFUSED:
-            refused.append(id6)
-            continue
-        if rec_state == SPEC_NOT_FINALIZED:
-            not_finalized.append(id6)
-            continue
-        reconciled.append(
-            {
-                "id6": id6,
-                "setid": item.get("setid"),
-                "declared": list(record.get("declared") or []),
-                "modified_not_declared": list(
-                    record.get("modified_not_declared") or []
-                ),
-                "declared_not_modified": list(
-                    record.get("declared_not_modified") or []
-                ),
-            }
-        )
-    return {
-        "declared": declared,
-        "reconciled": reconciled,
-        "refused": refused,
-        "not_finalized": not_finalized,
-    }
-
-
-def report_run_spec_edits(
-    state: "Mapping[str, Any]",
-    *,
-    stream: Any = None,
-    partial: bool = False,
-) -> list[str]:
-    """Print the END-OF-RUN declared-spec-edit report; return the lines printed (E-03).
-
-    THE PRIMARY DELIVERABLE of specvis st5klo. Before this, the ONLY spec-impact surface in the package
-    was pre-dispatch, so on a long run the operator's one chance to notice a rewritten contract was the
-    top of a scrollback the run had since buried. This re-states it where the run summary is read.
-
-    ``partial`` is the label the maintainer required (OQ-01, 2026-09-08) for the non-primary summary
-    sites - the interrupt/SIGTERM path and the DriverError path. Those fire when the run did NOT
-    complete, which is exactly when an operator most needs to know a spec was rewritten, so they are
-    wired; but their reconciliation is by definition half-computed, so they say so rather than
-    presenting a partial contract change as authoritative.
-
-    Advisory like its start-of-run twin, and for the same reason: this runs at EXIT, so an exception
-    escaping here would replace a completed run's summary with a traceback. It reports its own failure
-    instead of vanishing (the E-01 lesson applied to the new surface).
-    """
-    out = stream if stream is not None else sys.stdout
-    pal = Palette(should_color(out))
-    try:
-        summary = spec_edit_summary(Path(state["repo"]), state)
-        lines = format_spec_edit_report(summary, pal=pal, partial=partial)
-    except Exception as exc:
-        lines = format_spec_impact_failure(exc, pal=pal)
-    for line in lines:
-        print(line, file=out)
-    return lines
 
 
 # rununify 04 (`tx6q0h`): one-line wrapper over the shared definition, binding THIS host's labels.

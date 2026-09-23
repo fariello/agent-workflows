@@ -1820,6 +1820,26 @@ class BothHostsShareEverySymbol(unittest.TestCase):
         re-exports for the identical reason. So this is not a NEW coupling: it is three more names on an
         EXISTING one, and moving the whole suite-check family into `runner_shared` is the outstanding
         work `cnwy8g` tracks, not this plan's. 56 remain outstanding.
+
+        RE-MEASURED 2026-09-23 from 56 DOWN to 0 by runnerlayer Order 02 (`1f7xno`), which is the plan
+        that DOES the work every re-measurement above called outstanding, and it closes `cnwy8g`. The
+        count is maintained here per this assertion's own instruction; the names are computed by
+        diffing the import list at `55a99b5c` (56) against this HEAD rather than assumed.
+
+        WHY THIS EDIT IS DELIBERATE AND DISCLOSED. `tests/test_orchestrator_probe_cache.py` is NOT in
+        `1f7xno`'s declared `- Scope-Paths:`, so this is an out-of-fence edit made under the fence's
+        own escape clause ("if the work GENUINELY requires a path outside the fence, MAKE THE EDIT AND
+        JUSTIFY IT"). It is required rather than convenient: this file carries a SECOND pin on the same
+        number that `tests/test_runner_layering.py` freezes, so re-homing even one name turns this
+        assertion red, and the plan's declared surface cannot reach it. Following the instruction in the
+        failure message is what this paragraph does.
+
+        AND NOTE WHAT WAS *NOT* DONE, because the destructive fix was available and is wrong: the
+        assertion was not deleted, not loosened to an inequality, and not converted to a floor. It still
+        pins an EXACT count, so a future re-coupling fails here exactly as a growth always has. 0 remain
+        outstanding, and the sibling guard in `tests/test_runner_layering.py` is what keeps it at 0: its
+        frozen set is derived from a per-name classification, so a 1st new name cannot be admitted
+        without a verdict and a reason.
         """
 
         import ast
@@ -1840,7 +1860,7 @@ class BothHostsShareEverySymbol(unittest.TestCase):
             )
         self.assertEqual(
             len(imported),
-            56,
+            0,
             "the oc->agy import count moved. This test's job is to fail when THIS "
             "child's symbols deepen the coupling; if the change is unrelated work, "
             "re-measure and update the baseline with the new count and a note.",
