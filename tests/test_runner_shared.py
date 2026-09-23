@@ -102,6 +102,36 @@ LANE_INTEGRATION_MOVED = (
     "integrate_lane_branch",
 )
 
+# stalemerge-01 (`87apfx`) E-05: the refusal CAUSE and conflict SHAPE machinery, pinned as a SEPARATE
+# list rather than appended to `LANE_INTEGRATION_MOVED`, and the reason is a scope decision worth stating
+# because appending was TRIED FIRST AND REVERTED.
+#
+# `LANE_INTEGRATION_MOVED` drives `test_an_unwrapped_symbol_is_the_SAME_OBJECT_in_both_runners`, which
+# demands that each host module carry the ATTRIBUTE. Satisfying it therefore requires adding ten
+# `as <same-name>` re-exports to BOTH `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`,
+# neither of which `87apfx` declares in its `Scope-Paths`, and the plan's Scope check explicitly forbids
+# widening into undeclared host files without reporting first. Measured: the append made all nine tests
+# in that class pass, at the cost of 36 added lines in each undeclared host module.
+#
+# THE PROPERTY E-05 ACTUALLY REQUIRES IS SINGLE-DEFINITION, NOT ATTRIBUTE IDENTITY. These symbols are
+# reached from INSIDE `integrate_lane_branch`, which is itself shared, so a host cannot use a different
+# implementation without first defining one - and that is exactly what
+# `test_neither_runner_carries_its_own_copy_of_the_ladder` (extended below) and
+# `test_the_cause_and_shape_machinery_has_EXACTLY_ONE_definition` forbid. Attribute identity would be a
+# stronger claim about a weaker property: it proves each host can NAME the symbol, which no caller needs.
+INTEGRATION_CAUSE_SHARED = (
+    "tag_integration_cause",
+    "read_integration_cause",
+    "integration_cause_for_gate_status",
+    "terminal_refusal_verdict",
+    "classify_conflict_hunk_shape",
+    "classify_conflict_shape_from_stages",
+    "peer_commit_for_conflict",
+    "build_conflict_resolver_detail",
+    "format_conflict_resolver_facts",
+    "conflict_resolver_remedy",
+)
+
 # Which of the three keep a runner-local WRAPPER (because they need a host-specific value) and which
 # is bound by plain re-export. `dirty_tree_overlap` needs nothing from its host, so it is the SAME
 # OBJECT in both runners; the other two are not, and asserting identity for them would be wrong.
@@ -4931,8 +4961,46 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
                     "resolve_exhausted_deferrals",
                     "reattempt_deferred_integrations",
                     "main_last_activity_age",
+                    # stalemerge-01 (`87apfx`) E-05: the CAUSE and SHAPE machinery joins THIS existing
+                    # pin rather than acquiring a parallel mechanism. A cause recorded by `aw oc run` and
+                    # not by `aw agy run` would make a run record's MEANING depend on which driver wrote
+                    # it, which is the drift this class exists for.
+                    *INTEGRATION_CAUSE_SHARED,
                 ):
                     self.assertNotIn(name, defined)
+
+    def test_the_cause_and_shape_machinery_has_EXACTLY_ONE_definition(self):
+        """stalemerge-01 (`87apfx`) E-05: package-wide, because pairwise passes while a third copy sits
+        elsewhere.
+
+        THE TWIN OF `SingleDefinitionTests::test_exactly_one_definition_package_wide`, scoped the same way
+        and for the same stated reason: an unrelated module may legitimately share a NAME with a different
+        body (a collision, not a re-fork), so only the runners and the shared module are in scope.
+
+        WHY SINGLE-DEFINITION IS THE RIGHT PROPERTY HERE rather than attribute identity: every one of
+        these symbols is reached from INSIDE `integrate_lane_branch` or `record_integration_refusal`, both
+        of which are already single-definition and shared. A host therefore cannot substitute its own
+        behavior without first DEFINING a copy, which this test and its sibling above both refuse. See
+        `INTEGRATION_CAUSE_SHARED`'s comment for why the identity route was measured and declined.
+        """
+        pkg = pathlib.Path(runner_shared.__file__).parent
+        in_scope = {"runner_shared.py", "oc_runipd.py", "agy_runipd.py"}
+        for name in INTEGRATION_CAUSE_SHARED:
+            sites = []
+            for path in sorted(pkg.glob("*.py")):
+                if path.name not in in_scope:
+                    continue
+                for node in ast.parse(path.read_text(encoding="utf-8")).body:
+                    if (
+                        isinstance(
+                            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                        )
+                        and node.name == name
+                    ):
+                        sites.append(f"{path.name}:{node.lineno}")
+            with self.subTest(symbol=name):
+                self.assertEqual(len(sites), 1, f"`{name}` sites: {sites}")
+                self.assertTrue(sites[0].startswith("runner_shared.py:"), sites)
 
     def test_both_hosts_reach_the_ladder_from_their_dispatch_loop(self):
         """A shared ladder nothing CALLS is the dead-gate failure this repository has already paid for.
