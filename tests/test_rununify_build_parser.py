@@ -123,7 +123,14 @@ LITERAL_PARTITION = {"shared": 17, "oc_only": 7, "agy_only": 10}
 #: valued flag gets no auto-generated `--no-X` the way every `bool` row does (the same asymmetry
 #: `--allow-uncovered-orchestrator-work` established). SYMMETRIC, because one table declares it and it
 #: therefore could not have landed on one host only, which is the property this table polices.
-LIVE_PARTITION = {"shared": 56, "oc_only": 8, "agy_only": 8}
+#: RE-MEASURED 2026-09-23 (56 -> 57 shared) by specsweep-01 (`ui8b9b`), which registered `--type`
+#: through the SHARED `RUN_POLICY_FLAGS` table. ONE new string, because it is the table's first
+#: `kind="multi-choice"` row: a VALUED flag, so argparse generates no `--no-type`, exactly as the two
+#: `kind="str"` rows before it. SYMMETRIC for the usual reason (one table, both hosts), and this rise is
+#: the direction the suite wants for a second reason specific to this flag: `--type` had been DECLARED
+#: by spec 2.1 and owned by neither host since `uyeko5`, so the shared count rising is a
+#: spec-declared-but-unreachable surface becoming reachable on both hosts at once rather than on one.
+LIVE_PARTITION = {"shared": 57, "oc_only": 8, "agy_only": 8}
 
 #: E-03: the residual de-duplication payoff, as a NUMBER rather than an impression. Identical
 #: normalized code lines between the two `build_parser` bodies. THIS IS THE CEILING on what
@@ -147,9 +154,14 @@ IDENTICAL_NORMALIZED_LINES = 24
 #: `--allow-concurrent-driver`, the table's SECOND `kind="str"` row, so it likewise adds exactly ONE
 #: option string. Registrations per host is UNCHANGED, which is the point of keeping it beside these
 #: two: a flag joining the shared table costs no new `add_argument` call site on either host.
-POLICY_FLAG_ROWS = 14
+#: RE-MEASURED 2026-09-23 (14 -> 15 rows, 23 -> 24 strings) by specsweep-01 (`ui8b9b`). The new row is
+#: `--type`, the table's first `kind="multi-choice"` row, and it too adds exactly ONE option string
+#: because a valued flag gets no auto-generated negative form. Registrations per host UNCHANGED again,
+#: which is what makes this row's arrival the cheap kind: `--type` was previously excluded from this
+#: table by name, and taking ownership of it cost zero new call sites on either host.
+POLICY_FLAG_ROWS = 15
 POLICY_REGISTRATIONS_PER_HOST = 2
-LIVE_STRINGS_FROM_POLICY_TABLE = 23
+LIVE_STRINGS_FROM_POLICY_TABLE = 24
 
 
 def module_body(name: str) -> list[ast.stmt]:
@@ -434,6 +446,14 @@ VERIFICATION_FLAGS = (
 #:
 #: `-h`/`--help` is included rather than filtered: argparse adds it, and a shared core that
 #: suppressed it on one host would be an operator-visible change this plan must catch.
+#:
+#: `--type` ADDED 2026-09-23 to all FOUR `start`/`resume` rows by specsweep-01 (`ui8b9b`), which
+#: registered it through the shared `RUN_POLICY_FLAGS` table. FOUR rows and not two is the property
+#: worth noting: spec 2.1 declares the flag for `run`, and it is registered on `resume` TOO because
+#: refusing it there requires argparse to accept it first - otherwise an operator who passes it to a
+#: resume is told the flag does not exist rather than that the frozen value cannot change (the same
+#: reason `--retry-budget` appears on every `resume` row). One string per row, with no `--no-type`,
+#: because a valued flag gets no auto-generated negative form.
 EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
     "oc": {
         # reverify-01 (`mp289j`): the `audit` verb, declared through the ONE shared
@@ -490,6 +510,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--retry-incomplete",
                 "--session",
                 "--stall-timeout",
+                "--type",
                 "--unattended",
                 "--unverifiable-ok",
                 "--validate",
@@ -548,6 +569,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--runbook",
                 "--session",
                 "--stall-timeout",
+                "--type",
                 "--unattended",
                 "--unverifiable-ok",
                 "--validate",
@@ -626,6 +648,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--retry-incomplete",
                 "--session",
                 "--stall-timeout",
+                "--type",
                 "--unattended",
                 "--unverifiable-ok",
                 "--verbose",
@@ -683,6 +706,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--session",
                 "--stall-timeout",
                 "--timeout",
+                "--type",
                 "--unattended",
                 "--unverifiable-ok",
                 "--validate",
