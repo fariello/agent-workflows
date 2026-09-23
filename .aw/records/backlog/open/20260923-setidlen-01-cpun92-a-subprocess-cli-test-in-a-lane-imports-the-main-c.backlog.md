@@ -6,6 +6,7 @@
 - Summary: a subprocess CLI test in a lane imports the main checkout unless it pins PYTHONPATH, and only one test file does
 
 ## Workflow history
+- 2026-09-23 note (aw backlog): Related to lcmz33 (filed 2026-09-23 while executing bwgyum): the INTERACTIVE half of this same root cause. The aw console script resolves the editable-install root, so aw check / aw ipd lint run by an agent inside a lane measure the main checkout. Measured there: a new check rule reported zero findings on a tree containing a deliberate violation via the console script, and fired correctly when invoked as a module.
 - 2026-09-23 created (aw backlog): a subprocess CLI test in a lane imports the main checkout unless it pins PYTHONPATH, and only one test file does
 
 ## What is wrong
