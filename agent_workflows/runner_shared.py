@@ -152,7 +152,14 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Container, Iterator, Mapping, MutableMapping, Sequence
+from collections.abc import (
+    Container,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableMapping,
+    Sequence,
+)
 from pathlib import Path
 from typing import (
     Any,
@@ -215,6 +222,11 @@ from agent_workflows.render_stream import (
     # leaving the definition in a host driver.
     format_spec_edit_report,
     format_spec_impact_failure,
+    # The two renderers `announce_run_order` closes over, added by the same batch and under the same
+    # rule: extending a statement that already names `render_stream` leaves the pinned MODULE SET
+    # unchanged.
+    format_run_order_announcement,
+    format_spec_impact_announcement,
 )
 
 # ---- module constants the moved bodies close over ------------------------------------------------
@@ -25131,6 +25143,533 @@ def execute_item_core(
 # cross-driver symmetry test. Preserve the form.
 # ==================================================================================================
 # ==== runnerlayer 02 (`1f7xno`): re-homed host-neutral names ====
+def parse_dependency_token(token: str) -> Any:
+    """Resolve ONE frozen dependency token to a shared `ipd_schema.ItemDependency`, or None.
+
+    The token grammar is the SHARED one (`parse_item_dependencies`); nothing is parsed here. The one
+    accommodation is a BARE id6, which a hand-written manifest JSON may still carry (the shipped
+    `tools/ipdrunner/*-driver-manifest.json` does): it is normalized to the `executed:<id6>` edge,
+    which is what the pre-8guhs0 driver's bare deps already MEANT (`dependency_status` required the
+    target to be in `executed/`). Plan FILES never take this path; their statements are read by
+    `_read_item_dependencies` and are already canonical typed tokens.
+    """
+    from agent_workflows import ipd_schema as _schema
+
+    tok = str(token).strip()
+    if not tok:
+        return None
+    edges, _ready, err = _schema.parse_item_dependencies(tok)
+    if not err and len(edges) == 1:
+        return edges[0]
+    if ID6_RE.fullmatch(tok):
+        return _schema.ItemDependency("executed", "ipd", None, tok)
+    return None
+
+
+def dependency_target_id6(token: str) -> str | None:
+    """The target id6 of a dependency token (None when the token is not a legal edge)."""
+    edge = parse_dependency_token(token)
+    return edge.id6 if edge is not None else None
+
+
+def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
+    """Longest declared in-queue prerequisite chain ending at ``id6`` (0 = no in-queue prerequisite).
+
+    Only IPD-typed edges whose target is IN THE QUEUE contribute: an external target or a
+    `spec`/`backlog` leaf is not a queue node and cannot order the queue. Cycle-safe (a cycle is
+    already refused by preflight, but a hand-edited state.json must not hang the scheduler here).
+    """
+
+    def _depth(node: str, seen: frozenset[str]) -> int:
+        if node in seen:
+            return 0
+        entry = by_id.get(node)
+        if entry is None:
+            return 0
+        best = 0
+        for dep in entry.get("dependencies", []):
+            edge = parse_dependency_token(dep)
+            if edge is None or edge.target_type != "ipd" or edge.id6 not in by_id:
+                continue
+            best = max(best, 1 + _depth(edge.id6, seen | {node}))
+        if entry.get("action") == "orchestrate":
+            setid = entry.get("setid")
+            for other_id, other in by_id.items():
+                if (
+                    other_id != node
+                    and other.get("setid") == setid
+                    and other.get("action") != "orchestrate"
+                    and other_id not in seen
+                ):
+                    best = max(best, 1 + _depth(other_id, seen | {node}))
+        return best
+
+    return _depth(id6, frozenset())
+
+
+def queue_sort_key(item: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tuple:
+    """Deterministic ordering key for READY nodes (spec 25kzda 5.4 rules 4-5).
+
+    DECLARED EDGES WIN, and that is why `dependency_depth` stays FIRST: a depth-0 node always
+    precedes a node that declares an in-queue prerequisite, whatever the request order or the Order
+    numbers say. So Set/Order/request-order can never act as evidence that a dependency is satisfied
+    (rule 3), which is what Set/Order silently did while `dependencies` was always `[]`.
+
+    `position` IS A PRIORITY (runorder prpipy; maintainer ruling 2026-09-01), ranked immediately
+    after dependency depth and therefore ABOVE Set, Order, and id6. It carries the order the
+    operator REQUESTED, so among equally-ready independent nodes the run executes them in the order
+    they were asked for. The previous key ranked `position` LAST, which recorded the request and then
+    discarded it: measured in run `run-20260901T042331Z-118022`, `aw oc run m73aet 6lu3rq` froze
+    `position 1 m73aet` / `position 2 6lu3rq` and then dispatched `6lu3rq` first, purely because
+    `"runmixed" < "runtrail"`, with nothing announcing the inversion.
+
+    HONEST LIMITS OF THIS KEY, both of which the pre-prpipy docstring got wrong:
+
+    * The sort is NO LONGER a function of artifact content alone. `position` comes from the
+      INVOCATION (`expand_selectors` -> `initialize_run`), so the same plans selected in a different
+      order legitimately execute in a different order. That is the intended contract, not drift.
+    * `position` is a priority AND STILL A FROZEN IDENTITY. Outcome/prompt/session filenames and this
+      run's decision ids all key on it, so it is assigned exactly once at queue-build time and is
+      never renumbered by sorting. Reading it here must not make it mutable.
+
+    `position` only equals the operator's TYPED order when the selectors were literal id6 tokens. A
+    setid, `all`, `reviews`, or a file-path selector expands to many positions whose order comes from
+    the MANIFEST, so callers that report ordering to a human must say "requested order" rather than
+    claim a typed one (see `run_order_rationale`).
+
+    Spec 5.4 rule 4 also lists a TYPE RANK (`spec`, `backlog`, `ipd`, `prompt`) ahead of Set. It is
+    deliberately NOT implemented: this runner's queue is homogeneous (IPDs only), so a rank over types
+    that cannot appear would be untestable dead code. Recorded rather than silently skipped.
+
+    THE HOMOGENEITY SURVIVED `--with-dependencies` SHIPPING (depclosure 01, `dhycim`), which is worth
+    stating because this note previously rested on the closure not existing. The closure now exists,
+    and it REFUSES a `spec` or `backlog` dependency target precisely because the manifest cannot carry
+    one, so every id it can add is still an IPD. A later plan that admits non-plan targets is what
+    would make this rank reachable, and it must revisit this note.
+    """
+    return (
+        dependency_depth(item["id6"], by_id),
+        item.get("position", 0),
+        str(item.get("setid") or ""),
+        item.get("order") if isinstance(item.get("order"), int) else 999,
+        item["id6"],
+    )
+
+
+def simulate_dispatch_order(
+    queue: list[dict[str, Any]], initial_completed: Iterable[str] | None = None
+) -> list[str]:
+    """Simulate the order in which items in `queue` will actually be dispatched by `run_queue`.
+
+    Accounts for:
+    - In-queue declared dependencies: a dependent waits until all its in-queue prerequisites have run.
+    - Orchestrator deferral: an orchestrator plan (action == 'orchestrate') waits until all child
+      plans in its Set have completed.
+    - Tiebreaking: among ready items, ordered by `queue_sort_key`.
+    """
+    if not queue:
+        return []
+
+    by_id = {str(item.get("id6")): item for item in queue}
+
+    set_children: dict[str, set[str]] = {}
+    for item in queue:
+        id6 = str(item.get("id6"))
+        setid = str(item.get("setid") or "")
+        if item.get("action") != "orchestrate":
+            set_children.setdefault(setid, set()).add(id6)
+
+    in_queue_deps: dict[str, set[str]] = {}
+    for item in queue:
+        id6 = str(item.get("id6"))
+        deps: set[str] = set()
+        for dep in item.get("dependencies", []) or []:
+            edge = parse_dependency_token(str(dep))
+            if edge is not None and getattr(edge, "target_type", None) == "ipd":
+                target = dependency_target_id6(str(dep))
+                if target and target in by_id and target != id6:
+                    deps.add(target)
+        in_queue_deps[id6] = deps
+
+    remaining = list(queue)
+    completed: set[str] = set(initial_completed or ())
+    executed: list[str] = []
+
+    while remaining:
+        ready: list[dict[str, Any]] = []
+        for item in remaining:
+            id6 = str(item.get("id6"))
+            if not in_queue_deps.get(id6, set()).issubset(completed):
+                continue
+            if item.get("action") == "orchestrate":
+                setid = str(item.get("setid") or "")
+                children = set_children.get(setid, set())
+                if not children.issubset(completed):
+                    continue
+            ready.append(item)
+
+        if ready:
+            chosen = min(ready, key=lambda it: queue_sort_key(it, by_id))
+        else:
+            chosen = min(remaining, key=lambda it: queue_sort_key(it, by_id))
+
+        chosen_id = str(chosen.get("id6"))
+        remaining.remove(chosen)
+        completed.add(chosen_id)
+        executed.append(chosen_id)
+
+    return executed
+
+
+def update_execution_order(
+    state: dict[str, Any], runnable: dict[str, Any]
+) -> list[str]:
+    """Dynamically update `state["run_order"]["executed"]` to reflect actual dispatch order.
+
+    Ensures that:
+    1. Items that have already run/been dispatched form the prefix in their dispatch order.
+    2. The current `runnable` item is placed next at index `len(already_dispatched)`.
+    3. Remaining items in the queue follow in their simulated dispatch order.
+    """
+    run_order = state.setdefault("run_order", {})
+    prev_executed: list[str] = list(run_order.get("executed") or [])
+    dispatched: list[str] = list(run_order.get("dispatched") or [])
+    dispatched_set = set(dispatched)
+
+    queue = state.get("queue") or []
+
+    # If dispatched list wasn't tracked yet, reconstruct from queue terminal/attempted states:
+    if not dispatched:
+        terminal_dispositions = {
+            "executed",
+            "reviewed",
+            "approved",
+            "substantially-complete",
+            "partial",
+            "blocked",
+            "failed-safely",
+            "integration-blocked",
+            "merge-conflict",
+        }
+        for id6 in prev_executed:
+            for it in queue:
+                if str(it.get("id6")) == id6 and (
+                    it.get("status") in terminal_dispositions or it.get("attempts")
+                ):
+                    if id6 not in dispatched_set:
+                        dispatched.append(id6)
+                        dispatched_set.add(id6)
+        for it in queue:
+            id6 = str(it.get("id6"))
+            if (
+                it.get("status") in terminal_dispositions or it.get("attempts")
+            ) and id6 not in dispatched_set:
+                dispatched.append(id6)
+                dispatched_set.add(id6)
+
+    runnable_id6 = str(runnable.get("id6"))
+    if runnable_id6 not in dispatched_set:
+        dispatched.append(runnable_id6)
+        dispatched_set.add(runnable_id6)
+
+    run_order["dispatched"] = dispatched
+
+    # Remaining items that have not been dispatched yet
+    remaining = [it for it in queue if str(it.get("id6")) not in dispatched_set]
+    predicted_remaining = simulate_dispatch_order(
+        remaining, initial_completed=dispatched_set
+    )
+
+    new_executed = list(dispatched) + [
+        id6 for id6 in predicted_remaining if id6 not in dispatched_set
+    ]
+    run_order["executed"] = new_executed
+    if "requested" in run_order:
+        run_order["reordered"] = run_order["requested"] != new_executed
+
+    return new_executed
+
+
+def run_order_rationale(
+    queue: list[dict[str, Any]], selectors: Iterable[str] | None = None
+) -> dict[str, Any]:
+    """Compare the REQUESTED order with the order the run will EXECUTE in, and say why they differ.
+
+    runorder (prpipy) E-04. Ordering used to be silent: `position` recorded the request, the sort
+    discarded it, and the only way to discover an inversion was to diff `events.jsonl` timestamps
+    against `state.json` positions after the fact. This computes the comparison once, at queue build,
+    so the driver can print it and freeze it into durable run state.
+
+    Returns a JSON-safe dict (it is written verbatim into `state.json` and `events.jsonl`):
+
+    * ``requested``   - id6s in the order the queue was FROZEN in, i.e. `position` order.
+    * ``executed``    - the same id6s re-sorted by :func:`queue_sort_key`, i.e. dispatch order.
+    * ``reordered``   - True iff those two differ.
+    * ``causes``      - ``{id6: reason}`` for each item whose index MOVED. A reason begins with
+                        ``declared dependency:`` when a real `Item-Dependencies` edge forces the move
+                        (correct and expected) or ``tiebreak:`` when nothing but the comparator's
+                        lower-ranked fields decided it (the case that bit the maintainer). Telling
+                        those two apart is the operator-facing point, so a bare "reordered" is not
+                        enough.
+    * ``request_kind``- ``typed`` only when the selectors were LITERAL id6 tokens naming exactly this
+                        queue; otherwise ``expanded``, because a setid / `all` / `reviews` / path
+                        selector expands to many positions ordered by the MANIFEST, not by the
+                        operator's typing. Callers must not claim a typed order for an expansion.
+    * ``selectors``   - the raw selector tokens, so the message can name the expansion.
+
+    Pure: no I/O, no printing. The message TEXT lives in `render_stream`, not here.
+    """
+    sel_list = [str(s).strip() for s in (selectors or [])]
+    requested = [str(item.get("id6")) for item in queue]
+    by_id = {str(item.get("id6")): item for item in queue}
+    executed = simulate_dispatch_order(queue)
+
+    req_index = {id6: idx for idx, id6 in enumerate(requested)}
+    exec_index = {id6: idx for idx, id6 in enumerate(executed)}
+
+    def _in_queue_edges(id6: str) -> list[tuple[str, str]]:
+        """(target_id6, declared token) for each edge of ``id6`` pointing at another QUEUE node."""
+        out: list[tuple[str, str]] = []
+        for dep in by_id.get(id6, {}).get("dependencies", []) or []:
+            edge = parse_dependency_token(str(dep))
+            if edge is None or getattr(edge, "target_type", None) != "ipd":
+                continue
+            # NOTE: `dependency_target_id6` takes the raw TOKEN, not the parsed edge (verified by
+            # signature); passing the edge silently returns None and would erase every cause.
+            target = dependency_target_id6(str(dep))
+            if target and target in by_id and target != id6:
+                out.append((target, str(dep)))
+        return out
+
+    causes: dict[str, str] = {}
+    for id6 in requested:
+        if req_index[id6] == exec_index[id6]:
+            continue
+        reason = ""
+        # Moved EARLIER because something requested before it declares it as a prerequisite.
+        for other in requested:
+            if req_index[other] >= req_index[id6]:
+                continue
+            for target, token in _in_queue_edges(other):
+                if target == id6:
+                    reason = (
+                        f"declared dependency: {other} declares `{token}`, "
+                        f"so {id6} must run first"
+                    )
+                    break
+            if reason:
+                break
+        # Moved LATER because it declares a prerequisite that was requested after it.
+        if not reason:
+            for target, token in _in_queue_edges(id6):
+                if req_index.get(target, -1) > req_index[id6]:
+                    reason = (
+                        f"declared dependency: {id6} declares `{token}`, "
+                        f"so it waits for {target}"
+                    )
+                    break
+        # Moved because of orchestrator deferral
+        if not reason:
+            item = by_id.get(id6, {})
+            if item.get("action") == "orchestrate":
+                reason = (
+                    f"orchestrator: waits for children of set '{item.get('setid')}' "
+                    f"to execute first"
+                )
+            else:
+                for other in requested:
+                    if req_index[other] >= req_index[id6]:
+                        continue
+                    other_item = by_id.get(other, {})
+                    if other_item.get("action") == "orchestrate" and other_item.get(
+                        "setid"
+                    ) == item.get("setid"):
+                        reason = (
+                            f"orchestrator child: {other} is the orchestrator for set "
+                            f"'{other_item.get('setid')}', so {id6} executes first"
+                        )
+                        break
+        # Moved because DEPENDENCY DEPTH differs from the item it swapped with. The two loops above
+        # only see a DIRECT edge between the mover and something requested before/after it, which
+        # misses the commonest real case: `dependency_depth` is the FIRST element of
+        # `queue_sort_key`, so a depth-1 node yields to every depth-0 node in the queue even when
+        # there is no edge between those two at all. Measured live in `aw oc run revsweep`: `6ypimw`
+        # (depth 1, via `executed:76gsmv`) and `eyh1fu` (depth 0, no edges) swapped, and BOTH were
+        # reported as `tiebreak: no declared dependency explains this move` while a declared
+        # dependency was the entire explanation. Attributing an edge-driven move to the tiebreak is
+        # the specific lie this branch exists to stop: the tiebreak label is the operator's signal
+        # that the runner reordered them on lower-ranked fields, so it must never absorb a move the
+        # dependency graph forced.
+        if not reason:
+            depth = dependency_depth(id6, by_id)
+            moved_later = exec_index[id6] > req_index[id6]
+            # The counterpart that displaced it: among the items that crossed this one, the one whose
+            # depth differs in the direction that explains the move. Naming it keeps the message
+            # actionable rather than a bare "depth differs".
+            for other in requested:
+                if other == id6:
+                    continue
+                crossed = (req_index[other] > req_index[id6]) != (
+                    exec_index[other] > exec_index[id6]
+                )
+                if not crossed:
+                    continue
+                other_depth = dependency_depth(other, by_id)
+                if moved_later and other_depth < depth:
+                    reason = (
+                        f"declared dependency: {id6} has {depth} declared prerequisite level(s) "
+                        f"in this queue and {other} has {other_depth}, so {other} runs first"
+                    )
+                    break
+                if not moved_later and other_depth > depth:
+                    reason = (
+                        f"declared dependency: {other} has {other_depth} declared prerequisite "
+                        f"level(s) in this queue and {id6} has {depth}, so {id6} runs first"
+                    )
+                    break
+        if not reason:
+            item = by_id.get(id6, {})
+            pos = item.get("position")
+            pos_txt = "unset" if not isinstance(pos, int) else str(pos)
+            order = item.get("order")
+            order_txt = "unset" if not isinstance(order, int) else str(order)
+            reason = (
+                "tiebreak: no declared dependency explains this move; ranked by "
+                f"requested position {pos_txt}, Set '{item.get('setid') or ''}', "
+                f"Order {order_txt}, id6"
+            )
+        causes[id6] = reason
+
+    literal = bool(sel_list) and all(ID6_RE.fullmatch(s.lower()) for s in sel_list)
+    typed = literal and [s.lower() for s in sel_list] == requested
+    return {
+        "requested": requested,
+        "executed": executed,
+        "reordered": requested != executed,
+        "causes": causes,
+        "request_kind": "typed" if typed else "expanded",
+        "selectors": sel_list,
+    }
+
+
+def announce_run_order(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    stream: Any = None,
+) -> dict[str, Any]:
+    """Print the execution order and append it to `events.jsonl`; return the rationale.
+
+    runorder (prpipy) E-04/E-07. ONE function so both host drivers announce identically and record
+    identically; the wording comes from the shared `render_stream` formatter, never from a driver.
+    The announcement is UNCONDITIONAL (the order must be auditable in the log even when nothing was
+    reordered) and the durable record is what makes it readable after the terminal scrollback is gone.
+    """
+    rationale = state.get("run_order") or run_order_rationale(
+        state.get("queue", []), state.get("selectors", [])
+    )
+    out = stream if stream is not None else sys.stdout
+    pal = Palette(should_color(out))
+    for line in format_run_order_announcement(rationale, pal=pal):
+        print(line, file=out)
+    # specvis: surface DECLARED spec edits before the run starts. A spec is the contract other plans
+    # are reviewed against, so a run that rewrites one is the highest-leverage thing it can do and was
+    # previously invisible unless the operator opened every plan.
+    #
+    # specvis st5klo E-01: the announcement is made ONCE HERE, for the WHOLE QUEUE, BEFORE any item is
+    # dispatched (maintainer requirement 2026-09-08). `spec_impacts_for_queue` reads `state["queue"]`
+    # entire, and this function's sole callers are the two drivers' queue-freeze points, which run
+    # before the first child session. Do NOT move this into per-item dispatch: that would turn the one
+    # pre-spend warning into a line buried mid-run, which is the surface the operator scrolls past.
+    try:
+        _repo = Path(state["repo"])
+        # specvis st5klo E-01/E-02: `queue_with_plan_paths` is REQUIRED, not decoration. A real runner
+        # queue entry carries its plan location under `configured_file`, while `spec_impacts_for_queue`
+        # reads `path`/`plan_path`, so passing the raw queue made this announcement compute an empty
+        # impact set and print nothing on EVERY real run, on BOTH hosts. See `queue_plan_path`.
+        _impacts = spec_impacts_for_queue(
+            _repo, queue_with_plan_paths(_repo, state.get("queue", []))
+        )
+        for line in format_spec_impact_announcement(_impacts, pal=pal):
+            print(line, file=out)
+    except Exception as exc:
+        # specvis st5klo E-01: STILL advisory (a broken announcement must never stop a run from
+        # starting, which is why this catches everything and does not re-raise), but no longer SILENT.
+        # The old `pass` made two very different states render identically: "this run declares no spec
+        # edits" and "the spec-impact computation crashed" both printed nothing, so an operator could
+        # not tell a clean run from a broken announcer. One named line resolves that ambiguity without
+        # changing what the run is permitted to do. Emitted from the SHARED function, so both hosts get
+        # it from this single edit (`agy_runipd` imports and calls this very object).
+        for line in format_spec_impact_failure(exc, pal=pal):
+            print(line, file=out)
+    # runconcur-01 (`vddpml`) E-02: SURFACE A PEER DRIVER before anything is dispatched. Measured on
+    # 2026-09-22: two unattended drivers ran in one checkout for hours and NOTHING in any command's
+    # output revealed the second one, so deciding what was safe to merge required reading both runs'
+    # `state.json` by hand. Reported from the shared function, so both hosts get it from one edit.
+    #
+    # UNKNOWN IS RENDERED DISTINCTLY FROM NONE (`format_peer_driver_report`): no peer prints nothing,
+    # an unprobeable one prints a named line. It REFUSES NOTHING - policy B serializes the integration
+    # step instead - so an advisory failure here must never stop a run, hence the catch.
+    try:
+        _peers = peer_drivers(Path(state["repo"]), exclude_run_dir=run_dir)
+        _peer_lines = format_peer_driver_report(_peers)
+        if _peer_lines:
+            print(file=out)
+            for line in _peer_lines:
+                print(pal(line, "yellow"), file=out)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "peer-drivers",
+                "run_id": state.get("run_id"),
+                "peers": [
+                    {
+                        "run_id": p.run_id,
+                        "state": p.state,
+                        "pid": p.pid,
+                        "selectors": list(p.selectors),
+                    }
+                    for p in _peers
+                ],
+            },
+        )
+    except Exception as exc:
+        # Named rather than silent, for the reason the spec-impact announcer above records: "no peer"
+        # and "the peer query crashed" must not render identically.
+        print(
+            pal(f"  ! the peer-driver query could not be computed: {exc}", "yellow"),
+            file=out,
+        )
+    try:
+        from agent_workflows import term as T
+
+        _repo = Path(state["repo"])
+        _term = T.Term(color=should_color(out))
+        _slated_table = format_slated_artifacts_table(
+            _repo, state.get("queue", []), term=_term
+        )
+        if _slated_table:
+            print(file=out)
+            print(_slated_table, file=out, end="")
+    except Exception:
+        pass
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "run-order",
+            "run_id": state.get("run_id"),
+            "requested": rationale["requested"],
+            "executed": rationale["executed"],
+            "reordered": rationale["reordered"],
+            "causes": rationale["causes"],
+            "request_kind": rationale["request_kind"],
+        },
+    )
+    return rationale
+
+
 # --- specvis (st5klo): declared-spec-edit VISIBILITY, at run start AND at run end -----------------
 #
 # A plan MAY amend a spec (maintainer ruling 2026-09-07), so the safeguard is not a gate but

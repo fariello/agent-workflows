@@ -611,7 +611,6 @@ from agent_workflows.oc_runipd import (
     DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
     _artifact_owners as _artifact_owners,
     cascade_dependency_blocked as cascade_dependency_blocked,
-    dependency_depth as dependency_depth,
     dependency_reasons as dependency_reasons,
     dependency_status as dependency_status,
     # depreview 03ie04 E-03: `dependency_status_detailed` is RE-EXPORTED here, not defined. This
@@ -627,20 +626,34 @@ from agent_workflows.oc_runipd import (
     # that path. `tests/test_runner_item_dependencies.py`'s `_SHARED_NAMES` now pins this name, so
     # the copy cannot come back silently.
     dependency_status_detailed as dependency_status_detailed,
-    dependency_target_id6 as dependency_target_id6,
     edge_satisfied as edge_satisfied,
-    parse_dependency_token as parse_dependency_token,
     preflight_dependency_findings as preflight_dependency_findings,
-    queue_sort_key as queue_sort_key,
-    # runorder (prpipy) E-07: the run-order comparison and its announcement, bound (never copied) for
-    # the same reason the key above is. `queue_sort_key` was ALREADY shared, so `prpipy`'s ordering
-    # change reached this driver automatically; the announcement's SITE (`initialize_run`) and the
-    # preview's site (`print_status`) are per-driver, which is exactly how `aw agy run` would have
-    # inherited the reordering with no warning. Binding the same two objects closes that.
+)
+
+# runorder (prpipy) E-07: the run-order comparison and its announcement, bound (never copied) for
+# the same reason the dependency key above is. `queue_sort_key` was ALREADY shared, so `prpipy`'s
+# ordering change reached this driver automatically; the announcement's SITE (`initialize_run`) and
+# the preview's site (`print_status`) are per-driver, which is exactly how `aw agy run` would have
+# inherited the reordering with no warning. Binding the same objects closes that.
+#
+# THE SOURCE MODULE CHANGED, NOT THE BINDING (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`): all
+# four are now DEFINED ONCE in `runner_shared` instead of in the OTHER host driver, so the objects
+# and every call site below are unchanged and only this statement's module differs.
+from agent_workflows.runner_shared import (
     announce_run_order as announce_run_order,
     run_order_rationale as run_order_rationale,
     simulate_dispatch_order as simulate_dispatch_order,
     update_execution_order as update_execution_order,
+    # THE TRANSITIVE CO-MOVE, and the reason it is here rather than in the dependency block above.
+    # `simulate_dispatch_order`, `run_order_rationale` and `dependency_depth` call `queue_sort_key`,
+    # `parse_dependency_token` and `dependency_target_id6`, so lifting the run-ordering four WITHOUT
+    # these four would have left the shared bodies resolving names that no longer exist in their
+    # module: measured, that raised `NameError: name 'queue_sort_key' is not defined` from
+    # `runner_shared` on ten tests. A callee closure moves WITH its callers or not at all.
+    dependency_depth as dependency_depth,
+    dependency_target_id6 as dependency_target_id6,
+    parse_dependency_token as parse_dependency_token,
+    queue_sort_key as queue_sort_key,
 )
 
 # specvis st5klo (E-01/E-02/E-03): the declared-spec-edit visibility surfaces, BOUND rather than

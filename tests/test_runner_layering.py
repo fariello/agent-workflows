@@ -169,32 +169,11 @@ CLASSIFICATION: tuple[Name, ...] = (
         ),
     ),
     Name(
-        "dependency_depth",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "longest in-queue prerequisite chain; the FIRST queue sort key, host-independent",
-    ),
-    Name(
         "dependency_reasons",
         "dependency-graph",
         NEUTRAL,
         PURE_REEXPORT,
         "renders why an edge is unsatisfied; reporting text, no gating decision",
-    ),
-    Name(
-        "dependency_target_id6",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "parses an id6 out of a dependency token; string handling",
-    ),
-    Name(
-        "queue_sort_key",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "deterministic ready-node ordering (spec 25kzda 5.4); `aw oc run` appears in a COMMENT",
     ),
     Name(
         "cascade_dependency_blocked",
@@ -203,13 +182,6 @@ CLASSIFICATION: tuple[Name, ...] = (
         MODULE_LEVEL,
         "propagates dependency-blocked over reverse edges to a fixed point",
         closes_over=("EXECUTION_SUCCESS_STATES", "SUCCESS_STATES", "TERMINAL_STATES"),
-    ),
-    Name(
-        "parse_dependency_token",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "resolves one token to a shared `ipd_schema.ItemDependency`; delegates to a non-runner module",
     ),
     Name(
         "preflight_dependency_findings",
@@ -337,35 +309,6 @@ CLASSIFICATION: tuple[Name, ...] = (
         "formats that ledger for a human; text assembly",
     ),
     # --- run ordering (4) ---------------------------------------------------------------------
-    Name(
-        "announce_run_order",
-        "run-ordering",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "prints the execution order through the SHARED `render_stream` formatter",
-        move_note="the plan's worked example of a name that sounds host-specific and is not",
-    ),
-    Name(
-        "run_order_rationale",
-        "run-ordering",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "compares requested against actual order and explains the difference; `aw oc run` in PROSE only",
-    ),
-    Name(
-        "simulate_dispatch_order",
-        "run-ordering",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "simulates the dispatch order `run_queue` will take; operates on the queue structure",
-    ),
-    Name(
-        "update_execution_order",
-        "run-ordering",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "records actual dispatch order into run state; state bookkeeping",
-    ),
     # --- recovery routing (3) -----------------------------------------------------------------
     # All three are the lazy-wrapper tier, which is the tier an identity audit cannot see.
     Name(
