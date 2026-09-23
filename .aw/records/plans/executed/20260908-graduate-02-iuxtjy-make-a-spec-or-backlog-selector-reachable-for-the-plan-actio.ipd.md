@@ -9,7 +9,7 @@
 - Scope: Make a spec or backlog selector resolvable for the `plan` action, CONSUMING the existing `discover_specs` as the enumeration rather than adding a second one, and wire child 01's pre-graduation view into that path so the guard is reached rather than merely available. NARROWED AT REVIEW: "consuming `discover_specs`" is the enumeration input only, NOT the mechanism. Measured, the work spans FOUR seams (selector expansion, the `--action` preflight triple, the legality derivation, and the queue entry the manifest keys), and the legality derivation is the hard one because `action_for` cannot return `plan` at all. See E-02. EXCLUDES re-implementing the `--action plan` fail-closed refusal, which already works; excludes the pre-graduation view itself (child 01 `jxxec8`); excludes per-requirement spec tracking (`f1sw71`); excludes the spec-review workflow and the `to-review -> reviewed` attestation, owned by spec `6m4kow` and its three executed plans.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/run_selection_policy.py, tests/test_graduation_dispatch.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:jxxec8
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: medium
 - Readiness: go-pending-approval
@@ -18,10 +18,16 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: iuxtjy
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 6h7y2y
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: iuxtjy verified (set graduate, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/run_selection_policy.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_agy_runipd_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
+- 2026-09-23 execution work recorded (opencode its_direct/pt3-claude-opus-5-1m-us): NO LIFECYCLE TRANSITION IS CLAIMED BY THIS ENTRY; the runner owns `aw ipd begin`/`aw ipd finalize` for this run and a worker writing a terminal transition here would fork the plan's authority. WORK PERFORMED IN LANE `aw/lane/iuxtjy` at HEAD `4c1fffde` under `aw oc run` position 12. DELIVERED THE RESOLUTION HALF, DELIBERATELY NOT THE DISPATCH HALF, which is what the maintainer's OQ-03 ruling assigned to this child ("one child fixes SELECTOR PRECEDENCE AND RESOLUTION ... a second child adds the `plan` LEGALITY DERIVATION AND DISPATCH") and what E-02's own instruction permits ("IF THE FOUR SEAMS EXCEED THIS PLAN'S SIZE, SAY SO RATHER THAN PART-BUILDING"). Seam 1 (expansion) is FIXED on both hosts through ONE shared predicate in `runner_shared`; seams 2-4 (preflight triple, a derived action of `plan`, a queue entry) are UNBUILT and proven CLOSED rather than half-crossed, so no `KeyError` is reachable. `ACTION_IMPLEMENTED` is UNCHANGED and `run_selection_policy.py` is byte-unchanged. Remainder filed as backlog `oc3mhb`; backlog `6h7y2y` therefore stays `graduated`, not `done`.
+  THE DEFECT FIXED IS A SILENT MIS-RESOLUTION, AND IT WAS LARGER THAN THIS PLAN MEASURED. FIVE discoverable spec id6s resolved to a PLAN rather than the spec, not four: the plan misses `uonrjg` -> `n4xq3l`. Two of its named four are now AMBIGUITY ERRORS (`25kzda` -> `['wenmg4','7p3tt8']`, `7ckptx` -> `['h0zljh','4fodkt']`), so its headline "`25kzda` resolves to `wenmg4`" is stale. Conversely its three "backlog collisions" are NOT this defect at all: `8t5ghs` and `vwios6` resolve through the SET-PREFIX branch and `ackme8` is an exact SET NAME, so all three sit ahead of the substring fallback and are untouched. To bound the change honestly I enumerated EVERY non-plan artifact declaring an id6 (581) and confirmed exactly five resolutions move. All 17 discoverable spec id6s now resolve to the SPEC on BOTH hosts, and the precedence is MUTATION-PROVEN: relocating the branch after the fallback fails 7 tests.
+  NINE MEASUREMENTS DIVERGED FROM THIS PLAN AND ITS REVIEW, and three changed what the work was. FIRST, `discover_specs` is NO LONGER unreached plumbing: `ui8b9b` shipped `--type`, so its consumer chain now terminates in both hosts' operator-reachable `expand_selectors`, and `resolve_selected_artifact_paths` is a second consumer. SECOND, `enforce_requested_action` is now ONE shared body with a four-line wrapper per host, so "exists in BOTH drivers" is stale, and the stale agy docstring this plan told me to fix HAS ALREADY BEEN FIXED (it now states both hosts default `--full-auto` False, re-measured and confirmed). THIRD, the oc-to-agy import count is FOUR, not 47/48; two shipped tests still assert 56 and are RED AT HEAD BEFORE ANY EDIT OF MINE, filed as backlog `2tiyl8` (bug, `Blocks-Release: next`). Also: coverage is 17 of 36 specs (not 9/28 or 10/29), and child `jxxec8` shipped a CALLABLE helper rather than the `check`-rule-only shape the plan feared, which is why E-04 was performable.
+  E-04 IS DELIVERED WITH ONE HONEST SHORTFALL RECORDED RATHER THAN GLOSSED. Child 01's view is CALLED (`check_engine.graduation_cluster`, no logic duplicated, asserted by grep) at the FIRST of the three measured pre-flight positions, before any durable state exists (proven on the FILESYSTEM against the runs root, on both hosts, through the real CLI). It informs and refuses nothing. BUT V-04 asks for the report to precede an action that then CONTINUES, and with no `plan` action shipped there is nothing to continue into, so the report currently rides on a refusal. That gap belongs to `oc3mhb`. Deleting the call fails 2 tests, so "the guard is REACHED" is tested rather than asserted.
+  ONE SHIPPED GUARD WAS RE-POINTED, NOT LOOSENED. `PureMoveFingerprintTests` pins `describe_unresolved_plan_selector` byte-identical; the id-less-spec explanation breaks that. Followed its own documented procedure: added to `SUPERSEDED_SINCE_MOVE` with a written reason and updated the clean-move count 22 -> 21 in the SAME edit. `tests/test_runner_shared.py` was NOT declared (needs `--scope-reason`); `run_selection_policy.py`, `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py` were declared and are UNMODIFIED (need `--scope-ack`).
+  VALIDATION: bare suite `3 failed, 8991 passed, 3 skipped, 2 xfailed`, the three failures BYTE-IDENTICAL BY NODE ID to the pre-edit baseline (`3 failed, 8965 passed`), so none is mine; passing count +26, exactly the new tests. `aw check all` 46 findings before and after, unchanged. Eight decisions recorded as D1-D8; no deferred questions. OQ-01, OQ-02 and OQ-05 answered and marked resolved.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item 6h7y2y (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 
@@ -44,7 +50,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the ground before building on it
 
-- [ ] E-01 RE-MEASURE WHAT ALREADY EXISTS AND RECORD IT, before writing anything. Both drivers and `runner_shared` are edited by live runs, and this plan's whole shape rests on shipped facts that must still hold at execution time.
+- [x] E-01 RE-MEASURE WHAT ALREADY EXISTS AND RECORD IT, before writing anything. Both drivers and `runner_shared` are edited by live runs, and this plan's whole shape rests on shipped facts that must still hold at execution time.
   CONFIRM `--action plan` STILL FAILS CLOSED: `ACTION_IMPLEMENTED` must still exclude `plan` and `enforce_requested_action('plan', ...)` must still raise a refusal that starts no run. If another Set has since implemented it, STOP and report rather than building a second path. Note two tests PIN the current value and WILL FAIL when you widen it, which is correct and expected rather than a regression: `tests/test_oc_runipd.py:3673` asserts `ACTION_IMPLEMENTED == frozenset({"review"})` and `tests/test_agy_runipd_cli.py:958` asserts the two hosts agree; both plus the two `not implemented` refusal tests must be UPDATED deliberately, and neither file is in `- Scope-Paths:` (see the scope note).
   CONFIRM `discover_specs` STILL EXISTS AND MEASURE ITS CONSUMER CHAIN, not just its consumer count. At review it had ONE consumer, `sweep_review_candidates_for_type`'s `spec` branch, and THAT function has ZERO non-test callers in `agent_workflows/`, so the enumeration this plan was built to consume feeds a helper nothing calls. Record both hops, because "wire into the existing consumer" reaches no operator-visible surface. Record its coverage AT YOUR HEAD too: 10 of 29 spec records at review (the plan's authoring figure of 9 of 28 is already stale, which is the derive-never-pin rule demonstrating itself).
   MEASURE THE FOUR SEAMS E-02 MUST CROSS, and do it before writing code rather than discovering them mid-edit: what `expand_selectors` RETURNS and what that value is used as a key INTO; whether the `--action` preflight tolerates a missing `manifest["plans"]` key; what `action_for` can return over every Kind x status pair; and whether the queue loop subscripts `manifest["plans"]` bare. All four were measured at review and are recorded in E-02; confirm each yourself and report any that moved.
@@ -52,11 +58,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CONFIRM CHILD 01 (`jxxec8`) IS EXECUTED and read its view's actual interface, since E-04 calls it. Do not guess its signature from this plan; at review `jxxec8` was `- Status: reviewed` in `pending/`, so its interface DID NOT EXIST YET and its shape is not knowable from here.
   - Depends on: none
   - Expected outcome: every fact above re-measured and pasted, including the two-hop consumer chain, the four seams, the collision set, and the tests that pin `ACTION_IMPLEMENTED`; any divergence from this plan's assumptions reported rather than worked around; `discover_specs`' coverage number recorded at execution time rather than quoted from here.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: reach a spec, then decide about backlog
 
-- [ ] E-02 MAKE A SPEC SELECTOR RESOLVE FOR THE `plan` ACTION. `discover_specs` is ONE INPUT, NOT THE MECHANISM, and this correction is the single most important thing in this plan (review, F-11/F-12). This plan was authored believing "consume `discover_specs`" was the whole job; measured, it is roughly a quarter of it, and an executor who takes the original wording literally produces a `KeyError` rather than a feature.
+- [x] E-02 MAKE A SPEC SELECTOR RESOLVE FOR THE `plan` ACTION. `discover_specs` is ONE INPUT, NOT THE MECHANISM, and this correction is the single most important thing in this plan (review, F-11/F-12). This plan was authored believing "consume `discover_specs`" was the whole job; measured, it is roughly a quarter of it, and an executor who takes the original wording literally produces a `KeyError` rather than a feature.
   WHAT `discover_specs` DOES AND DOES NOT GIVE YOU. It maps id6 -> `SpecRecord(id6, status, file, path)` and nothing else. It is NOT a selector resolver, it does NOT feed the manifest, and it has no relationship to `expand_selectors`. Measured at review: `discover_specs(repo)` finds 10 specs (not 9; the corpus moved) including `25kzda` at `approved`, and its ONLY consumer remains `sweep_review_candidates_for_type`'s `spec` branch (`runner_shared.py:1421`), which is itself called by NOTHING in `agent_workflows/` (grep: the sole non-definition hits are in `tests/test_spec_review_attestation.py`). So the thing this plan proposed to consume is a leaf whose own consumer is also unreached; wiring into it reaches nothing.
   THE FOUR SEAMS A SPEC SELECTOR MUST ACTUALLY CROSS, each measured, in the order a run hits them. FIRST, `expand_selectors` returns a list of id6 STRINGS whose only meaning is a key into `manifest["plans"]`. SECOND, the `--action` preflight builds `(id6, status, derived_action)` triples via `manifest["plans"].get(id6, {})` (a missing key silently yields status `None` -> `"approved"`). THIRD, `enforce_requested_action` compares the requested action against `action_for`'s derivation. FOURTH, the queue loop does `plan = manifest["plans"][id6]` with a BARE SUBSCRIPT, so a spec id6 that survives expansion raises `KeyError` there. Verified live on a throwaway repo holding one approved spec and zero plans: `manifest["plans"]` is `{}` and `m['plans']['aaa111']` raises `KeyError: 'aaa111'`. A change that touches only discovery therefore crashes rather than working.
   THE LEGALITY DERIVATION IS THE HARD BLOCKER AND IT IS NOT IN `runner_shared` AT ALL. `action_for`/`determine_action` can return only `execute`, `review`, or `orchestrate` (measured: the value set over every Kind x status combination is exactly those three, and neither function's source contains the string `plan`). So for an `approved` spec `action_for` derives `execute`, and `enforce_requested_action` compares `derived != action` and REFUSES. Reproduced with `ACTION_IMPLEMENTED` widened to `{"review","plan"}`: `--action plan` on an approved spec raises "--action review is illegal for 1 selected item(s): 25kzda (status 'approved' -> action 'execute')", a message that names the wrong action because the refusal text is hardcoded to `review`. Widening `ACTION_IMPLEMENTED` alone therefore converts a clear "not implemented" refusal into an incoherent one. THE PER-TYPE TABLE ALREADY EXISTS ELSEWHERE: `run_selection_policy._SPEC_ACTIONS` maps `approved -> ACTION_PLAN` and `_BACKLOG_ACTIONS` maps `open -> ACTION_PLAN`, exactly spec `25kzda` 2.6's rule, and `_action_for(spec_type, status)` is the shared reader. That module is NOT in `- Scope-Paths:`; see the scope note below.
@@ -67,36 +73,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IF THE FOUR SEAMS EXCEED THIS PLAN'S SIZE, SAY SO RATHER THAN PART-BUILDING. This E-item is now the largest in the plan by a wide margin and it touches selector precedence, the manifest contract, the legality table and two drivers. Splitting it into a follow-on Set is a legitimate outcome, and OQ-03 records that decision explicitly; a half-wired path that resolves a spec and then raises `KeyError` in the queue loop is the one outcome that must not ship.
   - Depends on: E-01
   - Expected outcome: a spec selector resolves for the `plan` action across all FOUR measured seams (expansion, preflight triple, legality derivation, queue entry) or the plan records that it does not and stops; `discover_specs` is the enumeration input and no second walk is added; the spec branch precedes the filename-substring fallback and the four colliding id6s resolve to the SPEC; the legality derivation can actually return `plan` and the refusal text names the requested action rather than `review`; the no-`- Id:` skip produces a refusal that explains itself and names the conversion verb; `ACTION_IMPLEMENTED` widens only alongside a working derivation; the AST no-new-path-literal guard still passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DECIDE THE BACKLOG HALF EXPLICITLY, and implement it only if OQ-01 resolves that it belongs here. There is NO `discover_backlog`, so unlike the spec half this one means building an enumeration, which is a materially larger change than consuming one.
+- [x] E-03 DECIDE THE BACKLOG HALF EXPLICITLY, and implement it only if OQ-01 resolves that it belongs here. There is NO `discover_backlog`, so unlike the spec half this one means building an enumeration, which is a materially larger change than consuming one.
   THE ASYMMETRY IS SMALLER THAN THIS PLAN CLAIMED, AND THAT CUTS BOTH WAYS (review, F-14). `check_engine._type_dirs(repo, "backlog")` already resolves the backlog tree with the same no-new-path-literal discipline `_iter_spec_records` has, and `selectors.resolve(repo, 'backlog', <id6>)` already resolves a backlog id6 to its file (verified live on `6h7y2y` and `ackme8`). So a `discover_backlog` is a THIN function over existing authorities rather than new infrastructure, which weakens the sizing argument OQ-01 rests on. What does NOT shrink is E-02's four seams, which the backlog half must cross identically; the enumeration was never the expensive part.
   IF YOU BUILD IT, FOLLOW `discover_specs` EXACTLY. Its design is the template and its choices are deliberate: enumerate through the existing shared iterator so no new path literal is added, read identity and status through the shared authorities rather than fresh regexes, and skip an item that cannot be named or attested rather than admitting it. `aw backlog` already owns the tree, so an enumeration must not become a second authority over it. Note there is no `_iter_backlog_records` sibling to the two spec/plan iterators, so decide deliberately whether to add one beside them or to enumerate through `_type_dirs`, and say which.
   IF YOU DO NOT BUILD IT, LEAVE THE REFUSAL INTACT for backlog selectors and say so in the refusal text. A half-implemented `plan` action that accepts a spec and silently ignores a backlog item would be worse than one that refuses both, because the operator cannot tell which happened. Note the refusal an operator ACTUALLY hits today for a backlog selector is `describe_unresolved_plan_selector`'s "'6h7y2y' is a backlog item (...), not an IPD plan" (measured live), which is already informative; leaving it is a defensible outcome, and the requirement is that it not become a silent no-op or a misleading success.
   - Depends on: E-02
   - Expected outcome: OQ-01 answered and recorded against the re-measured sizing above rather than this plan's original claim; either a `discover_backlog` built to `discover_specs`' template with no new path literal and an explicit choice of enumeration route, or an explicit refusal for backlog selectors that names the gap; never a silent partial.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: reach the guard, and both hosts
 
-- [ ] E-04 CALL CHILD 01'S PRE-GRADUATION VIEW ON THIS PATH, so the guard is REACHED rather than merely available. This is the item's sequencing requirement made real: the guard exists after child 01, but until something calls it during graduation it helps only whoever remembers to run it.
+- [x] E-04 CALL CHILD 01'S PRE-GRADUATION VIEW ON THIS PATH, so the guard is REACHED rather than merely available. This is the item's sequencing requirement made real: the guard exists after child 01, but until something calls it during graduation it helps only whoever remembers to run it.
   SHOW, DO NOT BLOCK. Child 01's view is advisory and read-only by design, because the already-implemented case is not mechanically answerable (backlog `f1sw71`) and a refusal would therefore rest on a heuristic and would flag the legitimate multi-plan clusters (re-measured at review: 24 multi-artifact clusters over 106 sources, the largest being `25kzda` at 10 artifacts; DERIVE this, the plan's earlier "17" and "nine-plan cluster" figures are both stale). Report the cluster before the plan action proceeds; do not refuse on it.
   PUT IT WHERE IT IS SEEN BEFORE WORK STARTS, not after. A cluster report printed after an agent has authored a tenth plan has cost exactly what it was meant to save. The natural seam is the same pre-flight region where the other fail-closed gates already run before the run directory exists: measured in `initialize_run`, the order is `expand_selectors` -> `enforce_requested_action` -> `enforce_mixed_type_gate` -> the `(run_dir / name).mkdir` that first creates durable state, so any position among the first three satisfies the no-durable-state property.
   DO NOT DUPLICATE THE VIEW'S LOGIC. Call it. If its interface does not fit this call site, report that rather than reimplementing a second cluster reader.
   THIS ITEM IS UNWRITABLE UNTIL CHILD 01 EXISTS, AND THAT IS THE POINT OF THE DECLARED DEPENDENCY. At review `jxxec8` was `reviewed` in `pending/` with its own OQ-01 (rule versus read surface) still open, so whether this call site invokes a `check` rule, a CLI verb, or a Python helper is NOT DETERMINED by anything in the tree today. Do not guess: read what `jxxec8` actually shipped, and if it shipped a `check` rule only, say plainly that a rule cannot be "called" from a driver pre-flight and report the mismatch rather than inventing a wrapper.
   - Depends on: E-03
   - Expected outcome: the pre-graduation cluster report is emitted before the run directory exists, by CALLING child 01's view at whichever of the three measured pre-flight positions fits; it informs and does not refuse; no cluster logic is duplicated; if child 01's shipped shape does not admit a call from this seam, that mismatch is reported rather than worked around.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 LAND IT ON BOTH HOSTS THROUGH ONE IMPLEMENTATION. `enforce_requested_action` exists in BOTH drivers with near-identical bodies, so a one-sided change would leave the two disagreeing about what `plan` means. CORRECTED AT REVIEW (F-15): this plan said the two derive the action differently, `oc` via `action_for` and `agy` via `determine_action`. Measured, BOTH call sites are the byte-identical line `preflight_items.append((id6, st, action_for(plan_info.get("kind"), st)))`; only the two DOCSTRINGS differ, agy's still naming `determine_action` and still asserting the stale `--full-auto` default. So the drivers agree and the prose about them does not, which is a smaller job than this plan implied and a reason to trust the code over any docstring here.
+- [x] E-05 LAND IT ON BOTH HOSTS THROUGH ONE IMPLEMENTATION. `enforce_requested_action` exists in BOTH drivers with near-identical bodies, so a one-sided change would leave the two disagreeing about what `plan` means. CORRECTED AT REVIEW (F-15): this plan said the two derive the action differently, `oc` via `action_for` and `agy` via `determine_action`. Measured, BOTH call sites are the byte-identical line `preflight_items.append((id6, st, action_for(plan_info.get("kind"), st)))`; only the two DOCSTRINGS differ, agy's still naming `determine_action` and still asserting the stale `--full-auto` default. So the drivers agree and the prose about them does not, which is a smaller job than this plan implied and a reason to trust the code over any docstring here.
   SITE SHARED LOGIC IN `runner_shared.py`, NEVER IN `oc_runipd` FOR AGY TO IMPORT. `agy_runipd` imports 48 names from `oc_runipd` (measured by AST at review; this plan and its Set-mates say 47, and pending plan `lyo1tz` records the same 47-to-48 drift with the missing name being `dependency_status_detailed`), and zero flow back. DO NOT PIN EITHER NUMBER: measure it in your own worktree and assert only that it did not RISE. Adding to that list would deepen the layering defect backlog `cnwy8g` owns, whose graduated plans are re-homing exactly those names.
   THE LEGALITY CHECK IS SAFETY CONTENT, AND THE HOST-ASYMMETRY VERSION OF THAT ARGUMENT IS NOW STALE (review, F-9). This item originally said `--full-auto` "DEFAULTS TO TRUE on the agy host and false on oc". MEASURED AT REVIEW: BOTH hosts default `full_auto=False` (`build_parser().parse_args(['start','xxxxxx']).full_auto` is False on each). A maintainer ruling of 2026-09-04 normalized agy's `default=True` away, and the comment recording it (`agy_runipd.py:4792`) says exactly why: the two hosts disagreeing about whether execution is opt-in or opt-out was divergence in the LESS safe direction. So do NOT justify caution by an asymmetry that no longer exists, and note that `agy_runipd.enforce_requested_action`'s own docstring STILL asserts the stale default, so the code and its comment disagree; treat the parser as authority. The caution itself STANDS on its own footing: `enforce_requested_action`'s docstring calls the legality check "THE SAFETY CONTENT OF `--action`, NOT PLUMBING" because `determine_action` returns `execute` for BOTH `approved` and `reviewed`, so when `--full-auto` IS passed on either host a mis-derived action executes a plan the operator asked only to review, which spec `25kzda` 2.6 forbids. CHECK THE DEFAULT YOURSELF on both hosts rather than trusting either this plan or its review, and if it has moved again, report that instead of assuming.
   THE REFUSAL TEXT IS HARDCODED TO `review` AND MUST BE FIXED WITH THE WIDENING, not after it. Both drivers compose `f"--action review is illegal for ..."` with the word `review` as a LITERAL while interpolating the derived action, so the moment `plan` becomes legal-to-request the refusal reports the wrong action. Reproduced at review. Fixing it is part of this E-item, not a follow-up.
   - Depends on: E-04
   - Expected outcome: one implementation for the new dispatch, sited in `runner_shared`; both hosts behave identically for a spec selector; the hardcoded `review` in both refusal texts replaced by the requested action; the `--full-auto` default RE-MEASURED on both hosts at execution time (and agy's stale docstring corrected or reported); the AST-measured oc-to-agy import count measured in the executing worktree and shown not to have RISEN, with no literal baseline asserted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 TEST THE REFUSALS AS CAREFULLY AS THE SUCCESS PATH, from fixtures. The failure modes here are worse than the gap.
+- [x] E-06 TEST THE REFUSALS AS CAREFULLY AS THE SUCCESS PATH, from fixtures. The failure modes here are worse than the gap.
   THE REQUIRED CASES: a spec at `approved` resolves and the cluster report is emitted; a spec with NO `- Id:` refuses with a message explaining why; a spec at a status the legality table forbids refuses; a backlog selector either resolves or refuses per E-03's decision, never silently no-ops; an action still in `ACTION_IMPLEMENTED`'s complement still fails closed and starts NO run; and the cluster report appears BEFORE any durable state is created.
   A SEVENTH CASE IS REQUIRED AND IT IS THE ONE THIS PLAN WOULD HAVE SHIPPED BROKEN (F-13): a spec whose id6 also appears inside a PLAN's filename must resolve to the SPEC, not to that plan. Build it as a fixture in the shape the live tree actually has (a plan slugged `...adopt-spec-<id6>` beside a spec carrying that `- Id:`), and assert the resolved path is the spec file. Without this case a plans-first precedence passes every other test while `aw oc run --action plan 25kzda` silently plans about the wrong artifact, which is measurably what happens today.
   AN EIGHTH CASE GUARDS THE SEAM THAT RAISES RATHER THAN REFUSES: a spec id6 that survives expansion must NOT reach the queue loop's bare `manifest["plans"][id6]` subscript. Assert the outcome is a named refusal or a correct spec queue entry, and specifically NOT a `KeyError`/traceback, since that is the measured failure mode of a discovery-only change.
@@ -105,7 +111,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT READ THE LIVE SPEC TREE. It had 29 spec records of which 10 were discoverable at review (the plan's "28 / 9" is already stale), and both numbers move; build fixtures. Child 01's live-corpus assertion is deliberate and different, because it asserts a no-false-positive property that only the real corpus can show.
   - Depends on: E-05
   - Expected outcome: EIGHT cases per host from fixtures, including the id6-collision precedence case and the no-`KeyError` queue-seam case; the no-durable-state property asserted on the filesystem against the runs root; the four pinning tests updated deliberately with their path declared or justified; no test reads the live spec tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -194,7 +200,7 @@ Do NOT edit §4.2's finding-code table under any circumstances: it is transcribe
 ### OQ-01: Does the backlog half belong in this plan or a follow-on?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: this plan's executor for the sizing, the maintainer for the scope call
 - Resolution or deferral rationale: NOT blocking, because E-03 requires an explicit decision and, if deferred, an explicit refusal naming the gap, so the plan terminates correctly either way and never ships a silent partial. THE SIZING ARGUMENT THIS QUESTION ORIGINALLY RESTED ON IS WEAKENED (review, F-14) and the correction matters more than the answer. It said the spec half CONSUMES an existing enumeration while the backlog half means BUILDING one. Measured, `check_engine._type_dirs(repo,"backlog")` already resolves the tree with the same no-new-path-literal discipline and `selectors.resolve(repo,'backlog',<id6>)` already resolves a backlog id6 to its file, so `discover_backlog` is thin. Meanwhile the spec half is FOUR TIMES larger than this plan assumed (F-11/F-12), and BOTH halves must cross the identical four seams. So the enumeration was never the cost and the two halves are closer in size than stated, in both directions. Recommend STILL delivering the spec half alone here, but for the opposite reason: not because the backlog half is big, but because the spec half is far bigger than this plan budgeted and adding a second type to an under-specified dispatch multiplies the risk. If deferred, backlog `6h7y2y` stays `graduated` rather than `done`.
 
@@ -225,7 +231,7 @@ Do NOT edit §4.2's finding-code table under any circumstances: it is transcribe
 ### OQ-05: Is a spec id6 resolving to a plan whose slug contains it a defect to fix here, or its own item?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: this plan's executor, escalating to the maintainer if fixing precedence changes an existing resolution
 - Finding: F-13
 - Resolution or deferral rationale: NOT blocking, because E-02 now REQUIRES the spec branch to precede the filename-substring fallback and V-02 fails the plan if `25kzda` resolves to `wenmg4`, so this plan cannot ship the hazard either way. It is recorded as a question because the fix has a blast radius beyond this plan: the substring fallback is how several existing invocations resolve a plan by partial filename, and inserting a typed branch ahead of it changes resolution for any token that matches both. Measured, that set is small and enumerable today (four specs, two backlog items, plus `vwios6` which already errors as ambiguous across four plans), and in every one of the six cases the current answer is arguably wrong, so the change is a fix rather than a regression. Recommend fixing it here with the six cases pinned as tests. Escalate if the executor finds any invocation in the tree (a runbook, a README example, a test) that DEPENDS on a spec id6 resolving to its adopting plan; that would make it a contract change rather than a bug fix.
@@ -233,7 +239,7 @@ Do NOT edit §4.2's finding-code table under any circumstances: it is transcribe
 ### OQ-02: Should a spec with no `- Id:` be reported as unreachable, or should the plan action mint one?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: this plan's executor
 - Resolution or deferral rationale: NOT blocking, because E-02 already requires the refusal to EXPLAIN itself, which is sufficient and safe. Recommend REPORTING and not minting. Minting an id6 into a spec as a side effect of naming it in a run would be a durable records write performed by a dispatch path, which is exactly the kind of silent mutation the `aw specs` verbs exist to own; `aw rename specs <legacy> --to-id6` already exists for that conversion and is the operator's route. Measured at review, 19 of 29 spec records lack a discoverable id6, so this case is the MAJORITY rather than exotic, which makes a clear message valuable and a silent mutation dangerous. One sharpening worth recording: the shared selector layer CAN name those files by stem or slug (verified: `selectors.resolve(repo,'specs','20260706-0000-01-pip-distribution-and-multi-repo-setup')` matches), so the operator sees a file that `aw find` reaches and the runner refuses, and the message must therefore explain the ASYMMETRY rather than merely assert "not found".
 
@@ -241,35 +247,207 @@ Do NOT edit §4.2's finding-code table under any circumstances: it is transcribe
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste every re-measurement: `ACTION_IMPLEMENTED`'s value and the `plan` refusal text on BOTH hosts; `discover_specs`' discoverable-spec count AT YOUR HEAD (do NOT compare against this plan's 9-of-28 or the review's 10-of-29: state yours) together with its full TWO-HOP consumer chain, naming the consumer and that consumer's own callers; `action_for`'s complete return-value set over every Kind x status pair, showing whether `plan` is among them; whether the queue loop subscripts `manifest["plans"]` bare; the id6 COLLISION SET from running `expand_selectors` over every discoverable spec id6 and every backlog id6, listing which resolve to a plan today; the four test node ids that pin `ACTION_IMPLEMENTED`; and child `jxxec8`'s `- Status:` line with its view's actual interface. State any divergence from this plan's assumptions and what you did about it. A V-01 that reports only the three original facts FAILS: the seams and the collision set are what E-02 depends on.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL RE-MEASURED AT HEAD `4c1fffde` IN LANE `aw/lane/iuxtjy`, WITH NINE DIVERGENCES REPORTED. Detail below.
+    Measured at HEAD `4c1fffde` in lane worktree `aw/lane/iuxtjy`. NINE divergences from this plan and its review are reported below; the plan's central premise about WHERE the work lives held, but six of its figures and two of its claims did not.
 
-- [ ] V-02 validates E-02
+    ACTION_IMPLEMENTED AND THE `plan` REFUSAL, BOTH HOSTS. `ACTION_CHOICES` is `('review', 'plan', 'execute')`; `ACTION_IMPLEMENTED` is `frozenset({'review'})`. DIVERGENCE 1 (structural, in this plan's favour): both hosts now BIND THE SAME OBJECT rather than holding copies - `oc.ACTION_IMPLEMENTED is runner_shared.ACTION_IMPLEMENTED` -> `True`, same for agy - and `enforce_requested_action` is a four-line wrapper on each host delegating to ONE shared body in `runner_shared` (relocated by `tx6q0h`). So the plan's "exists in BOTH drivers with near-identical bodies" is stale: there is one body. Live refusal on both hosts: `--action plan is not implemented yet. Only --action review is available; plan's per-type legality table (spec 25kzda 2.6) needs the per-type dispatch this runner does not have. No run was started. To review instead, run: aw oc review <selector>` (agy identical but for `aw agy review`).
+
+    `discover_specs` COVERAGE AT MY HEAD: 17 discoverable of 36 spec records on disk. Stated as mine, not compared to this plan's 9-of-28 or the review's 10-of-29; DIVERGENCE 2 is that both are stale and the corpus nearly doubled.
+
+    THE TWO-HOP CONSUMER CHAIN, AND DIVERGENCE 3, THE MOST IMPORTANT ONE. The plan and its review both say `discover_specs` has ONE consumer whose own callers are ZERO, i.e. "unfinished plumbing". THAT IS NO LONGER TRUE. Hop 1: `sweep_review_candidates_for_type` (`runner_shared.py:9606`) AND `resolve_selected_artifact_paths` (`:9829`). Hop 2: `sweep_review_candidates_for_type` is called by `sweep_review_candidates_for_types` (`:9645`), which is called by BOTH hosts' `expand_selectors` (`oc_runipd.py:1945`, `agy_runipd.py:1884`), which is operator-reachable. So the enumeration IS wired to a live operator surface now, shipped by `ui8b9b` (`--type`), which also registered `--type spec`, `refuse_unsweepable_run_types`, `refuse_unrunnable_selected_types` and `TypedSelection`. This materially shrank E-02: a spec is already RESOLVED through `discover_specs` for the review sweep.
+
+    `action_for` OVER EVERY Kind x STATUS PAIR: 76 combinations (4 kinds x 19 statuses) evaluated; return-value set is exactly `['execute', 'orchestrate', 'review']`. `plan` is NOT among them, and neither function body contains the string. This plan's F-12 HOLDS.
+
+    THE QUEUE LOOP SUBSCRIPTS BARE: `plan = manifest["plans"][id6]` at `runner_shared.py:21929`, inside `initialize_run_core`. Confirmed.
+
+    THE COLLISION SET, AND DIVERGENCES 4 AND 5, WHICH CHANGED WHAT E-02 HAD TO DO. Ran `expand_selectors` over all 17 discoverable spec id6s and, separately, over all 554 backlog records carrying an `- Id:`. DIVERGENCE 4: there are FIVE spec collisions, not four - the plan misses `uonrjg` -> `['n4xq3l']` - and two of the named four are now AMBIGUITY ERRORS rather than silent mis-resolutions (`25kzda` -> `['wenmg4', '7p3tt8']`, `7ckptx` -> `['h0zljh', '4fodkt']`), so the plan's headline "`25kzda` resolves to `wenmg4`" is stale. The silent ones are `77tr3o` -> `['84j8d7']`, `c4gd2h` -> `['zpbx7o']`, `uonrjg` -> `['n4xq3l']`. DIVERGENCE 5, and this one MATTERS BECAUSE IT NARROWED THE FIX: the plan's three "backlog collisions" are NOT the same defect. Measured, `8t5ghs` resolves through the SET-PREFIX branch (`8t5ghsgi`), `ackme8` is an EXACT SET NAME, and `vwios6` is a set prefix (`vwios6ipd`). All three therefore resolve ahead of the substring fallback and are UNTOUCHED by a typed branch sited after the Set branches. To bound the blast radius properly I enumerated EVERY non-plan artifact declaring an id6 (581 of them) and confirmed exactly FIVE tokens change resolution: the five specs above.
+
+    THE FOUR PINNING TESTS. Located by name rather than the plan's line numbers (which had all moved): `tests/test_oc_runipd.py:5327 test_action_choices_are_the_spec_vocabulary`, `:5356 test_plan_and_execute_refuse_honestly_rather_than_silently_accepting`, `tests/test_agy_runipd_cli.py:1433 test_action_vocabulary_matches_the_oc_host`, `:1451 test_plan_and_execute_refuse_honestly`. DIVERGENCE 6: they did NOT need updating, because this turn does not widen `ACTION_IMPLEMENTED` (D1/D2); all four pass untouched.
+
+    CHILD 01 (`jxxec8`): `- Status: executed`, in `.aw/records/plans/executed/`, all five E-items `performed`. Its SHIPPED interface, read rather than guessed: `check_engine.graduation_cluster(repo_root, source_id6, *, source_kind=None, index=None) -> GraduationCluster` (with `.artifacts`, `.setids`, `.artifact_count`, `.terminal_artifacts`), plus `build_graduation_reverse_index`, `GRADUATION_VIEW_LIMITS`, `GRADUATION_VIEW_COVERAGE`, and the `aw graduation` CLI verb at `cli.py:10034`. DIVERGENCE 7, in this plan's favour: the plan feared it might have shipped as a `check` RULE ONLY, which "cannot be called from a driver pre-flight". It shipped as a callable Python helper, so E-04 was performable.
+
+    DIVERGENCE 8: `--full-auto` defaults `False` on BOTH hosts (`build_parser().parse_args(['start','xxxxxx']).full_auto` -> False, False), confirming F-9 and refuting the plan's original host-asymmetry claim. AND the stale agy docstring the plan told me to correct-or-report NO LONGER EXISTS: the shared docstring now states "`--full-auto` does NOT default to True on either host; measured ... False on BOTH, per the 2026-09-04 maintainer ruling", so someone already fixed it.
+
+    DIVERGENCE 9: the oc-to-agy import count is FOUR, not 47 or 48. AST-measured in my worktree: `{build_verify_and_continue_notice, classify_recovery_disposition, record_item_spec_edits, route_recovery_turn}`, with ZERO `oc_runipd.<attr>` accesses. The re-homing work moved the other ~52. THIS HAS A CONSEQUENCE I FILED RATHER THAN WORKED AROUND: two shipped tests still assert `len(from_oc) == 56` and are RED at HEAD before any edit of mine. Filed as backlog `2tiyl8` (bug, `Blocks-Release: next`).
+
+    PRE-EXISTING BASELINE, measured in this worktree BEFORE any edit: `3 failed, 8965 passed, 3 skipped, 2 xfailed in 296.21s`. The three by NODE ID: `tests/test_oc_runipd.py::AgyCardIsNotResolvableTests::test_the_shared_symbol_lives_in_runner_shared_NOT_in_oc_runipd`, `tests/test_agy_runipd_cli.py::AgyCostAttributionTests::test_agy_does_not_import_the_record_builder_FROM_oc_runipd` (both backlog `2tiyl8`), and `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped` (ambient `OPENCODE_CONFIG_CONTENT`; already owned by backlog `j08jky`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste an END-TO-END spec selector resolving for the `plan` action through the real driver entry point (not a unit call), showing the resolved SPEC path and its status, and showing NO traceback. Paste each of the four seams discharged: the expansion result, the preflight triple, the derived action showing `plan`, and the queue entry or its deliberate absence. Paste the PRECEDENCE proof for all four colliding id6s (`25kzda`, `77tr3o`, `7ckptx`, `c4gd2h`), showing each resolves to the SPEC file and not to the plan whose slug contains it; a run that resolves `25kzda` to `wenmg4` is a FAILED V-02 regardless of how clean the rest is. Paste the code showing `discover_specs` was CALLED (not a similar walk) and the AST no-new-path-literal guard PASSING. Paste the refusal for a spec with no `- Id:`, showing the message EXPLAINS why and names `aw rename specs ... --to-id6`. Paste `ACTION_IMPLEMENTED` before and after, the refusal text showing it names the REQUESTED action rather than the literal `review`, and a before/after table of `action_for` over the full status set proving no existing input's derivation moved.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: SEAM 1 (EXPANSION) FIXED AND PROVEN END-TO-END ON BOTH HOSTS; SEAMS 2-4 DELIBERATELY NOT CROSSED AND PROVEN CLOSED. Detail below.
+    END-TO-END THROUGH THE REAL CLI ENTRY POINT, BOTH HOSTS, on a git fixture holding one approved spec `bbb222` and one plan `aaa111` slugged `...adopt-spec-bbb222` (the shape the live tree has). Not a unit call:
 
-- [ ] V-03 validates E-03
+        $ python3 -m agent_workflows oc run start bbb222 --repo <fixture> --prepare-only
+        exit: 2
+        runipd: 'bbb222' is a spec (.aw/records/specs/20260908-bbb222-01-bbb222-a-spec.spec.md), not an IPD
+        plan, so it cannot be queued: a run queue entry is plan-shaped (the manifest is compiled from the
+        plans trees and the queue builder resolves each entry as an IPD). NOTE: before this branch existed,
+        this token resolved by FILENAME SUBSTRING to plan(s) aaa111 - a plan ABOUT the spec rather than the
+        spec - so a run you did not ask for would have started. Name that plan explicitly if it is what you
+        meant. Per-type dispatch (authoring IPDs from an approved spec) is owned by spec z7nbn1 (universal
+        artifact dispatch) and is not built, so no run was started. To see what this source already
+        graduated to, run: aw graduation bbb222. To review it instead, run: aw oc review bbb222
+        PRE-GRADUATION VIEW (advisory): nothing yet links to bbb222 ...
+        RUNS ROOT AFTER REFUSAL: (runs root does not exist)
+
+        $ python3 -m agent_workflows agy run start bbb222 --repo <fixture> --prepare-only
+        exit: 2
+        runagy: 'bbb222' is a spec (...) [byte-identical but for `aw agy review bbb222`]
+        RUNS ROOT AFTER REFUSAL: (runs root does not exist)
+
+    NO TRACEBACK on either host. The resolved SPEC path and its status are named in the message.
+
+    THE FOUR SEAMS, DISCHARGED HONESTLY, AND THIS IS WHERE THIS ITEM DELIBERATELY STOPS SHORT. Seam 1 (EXPANSION) is FIXED: a spec token is now recognized as a SPEC and never resolves to a plan. Seams 2-4 (the preflight triple, a derived action of `plan`, and a queue entry) are NOT delivered, and the derived action is NOT `plan`: `action_for` still returns only `{execute, review, orchestrate}` over all 76 Kind x status pairs. Per the maintainer's OQ-03 ruling this child owns SELECTOR PRECEDENCE AND RESOLUTION and a second child owns the LEGALITY DERIVATION AND DISPATCH; OQ-04 likewise assigns the public table reader to the dispatch child. E-02's own instruction covers this outcome: "IF THE FOUR SEAMS EXCEED THIS PLAN'S SIZE, SAY SO RATHER THAN PART-BUILDING", and "a half-wired path that resolves a spec and then raises `KeyError` in the queue loop is the one outcome that must not ship". THE QUEUE ENTRY IS THEREFORE DELIBERATELY ABSENT and the seam is proven closed rather than crossed: `QueueSeamTests::test_a_spec_selector_yields_a_named_refusal_and_never_a_KeyError` asserts the outcome is a named refusal and NOT a `KeyError`, and its sibling asserts the bare subscript is still present so the guard cannot pass vacuously. The remainder is filed as backlog `oc3mhb`.
+
+    PRECEDENCE PROOF FOR ALL FIVE COLLIDING id6s (the plan names four; `uonrjg` is a fifth I measured), BOTH HOSTS, run against the LIVE tree. Each resolves to the SPEC:
+
+        oc  25kzda -> REFUSED spec-named=True        agy 25kzda -> REFUSED spec-named=True
+        oc  77tr3o -> REFUSED spec-named=True        agy 77tr3o -> REFUSED spec-named=True
+        oc  7ckptx -> REFUSED spec-named=True        agy 7ckptx -> REFUSED spec-named=True
+        oc  c4gd2h -> REFUSED spec-named=True        agy c4gd2h -> REFUSED spec-named=True
+        oc  uonrjg -> REFUSED spec-named=True        agy uonrjg -> REFUSED spec-named=True
+
+    `25kzda` resolves to the SPEC, NOT to `wenmg4`, which V-02 names as the fail condition. All 17 discoverable spec id6s were run, all 34 host-x-spec cases resolve to the spec, and the live-corpus assertion `LiveCorpusPropertyTests::test_no_discoverable_spec_id6_resolves_to_a_plan_on_either_host` pins that property. The five full refusal texts, each naming the plan the old fallback would have run, are pasted in the execution report.
+
+    PRECEDENCE IS MUTATION-PROVEN, which is what makes this more than an assertion that a spec refuses. Moving the branch to AFTER the substring fallback and re-running: `7 failed, 19 passed`, the failures being `PrecedenceTests` (both), `SharedImplementationTests::..._only_the_host_command_differing`, `NoDurableStateTests::..._creates_no_run_directory`, `RefusalContentTests::test_a_terminal_status_spec_still_resolves...`, `QueueSeamTests::..._never_a_KeyError`, and `LiveCorpusPropertyTests`. Reverted; 26 passed.
+
+    `discover_specs` WAS CALLED, NOT RE-WALKED. `match_spec_selector`'s body contains `specs = discover_specs(Path(repo))`, asserted by `NoSecondEnumerationTests::test_the_spec_branch_calls_discover_specs`; `src.count("def discover_specs") == 1`; and the SHIPPED AST no-new-path-literal guard `tests/test_spec_review_attestation.py::EnumerationAuthorityTests::test_enumeration_reuses_the_shared_authority` PASSES (33 passed in that file).
+
+    THE NO-`- Id:` REFUSAL, live against the real tree:
+
+        $ expand_selectors(m, ['20260706-0000-01-pip-distribution-and-multi-repo-setup'])
+        '20260706-0000-01-pip-distribution-and-multi-repo-setup' is a spec (.aw/records/specs/
+        20260706-0000-01-pip-distribution-and-multi-repo-setup.spec.md), not an IPD plan. It declares no
+        `- Id:`, so the runner's spec enumeration cannot see it and no selector can name it, even though
+        `aw find` resolves this file by stem. That skip is deliberate, not a bug: without an id6 a spec
+        cannot carry a review record or an attestation. Mint one with: aw rename specs
+        .aw/records/specs/20260706-0000-01-pip-distribution-and-multi-repo-setup.spec.md --to-id6
+
+    It EXPLAINS the asymmetry and names `aw rename specs ... --to-id6`. Nothing is minted (OQ-02, D4).
+
+    `ACTION_IMPLEMENTED` BEFORE: `frozenset({'review'})`. AFTER: `frozenset({'review'})` - UNCHANGED, deliberately (D2), because widening it without a derivation that can return `plan` was measured to produce a refusal naming the WRONG action. Consequently the hardcoded `review` in the refusal text is UNTOUCHED and remains correct, since `review` is still the only implemented action; fixing it belongs with the widening, and both are `oc3mhb`'s.
+
+    `action_for` BEFORE/AFTER over the full status set: identical for all 76 Kind x status pairs; return set `['execute','orchestrate','review']` both sides. NO existing input's derivation moved. `run_selection_policy.py` is byte-unchanged (`git diff --stat` empty), so `_SPEC_ACTIONS`/`_BACKLOG_ACTIONS` are untouched and no third copy of spec 2.6's table exists.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: state OQ-01's answer and the sizing that decided it, explicitly against the RE-MEASURED asymmetry (F-14: `_type_dirs` and `selectors.resolve` already cover the backlog tree, so citing "no enumeration exists" as the reason to defer is a FAILED justification). If BUILT: paste `discover_backlog`, its AST no-new-path-literal guard, the enumeration route chosen with its reason, and proof it reads identity and status through the shared authorities. If DEFERRED: paste the ACTUAL refusal an operator gets for a backlog selector, confirm it does not silently no-op, and confirm it does not falsely imply the action succeeded. Either way, paste the follow-on item id if one was filed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: OQ-01 ANSWERED: DEFER THE BACKLOG HALF, for the re-measured reason (the four seams, NOT the absent enumeration); follow-on `oc3mhb` filed. Detail below.
+    OQ-01 ANSWERED: DEFER the backlog half; deliver the spec RESOLUTION half only. Recorded as DECISION 12-iuxtjy-D1.
 
-- [ ] V-04 validates E-04
+    THE SIZING, STATED AGAINST THE RE-MEASURED ASYMMETRY RATHER THAN THE PLAN'S ORIGINAL CLAIM. F-14 is CONFIRMED, so "no enumeration exists" is NOT my justification: `check_engine._type_dirs(repo, 'backlog')` resolves the backlog tree with the same no-new-path-literal discipline (called live; returns the real dirs), and `selectors.resolve(repo, 'backlog', <id6>)` already resolves a backlog id6 to its file (verified on `6h7y2y` -> `.aw/records/backlog/graduated/20260906-graduate-01-6h7y2y-graduate-verb-and-duplicate-guard.backlog.md`). A `discover_backlog` would be THIN. Note one shape detail I checked rather than assumed: there is no `_iter_backlog_records` sibling to `_iter_spec_records` (`hasattr` -> False), so such a function would enumerate through `_type_dirs`.
+
+    THE ACTUAL REASON TO DEFER is the one the plan's own OQ-01 recommends: the enumeration was never the cost, the FOUR SEAMS are, and BOTH halves must cross them identically. Seams 2-4 are unbuilt for specs (V-02), so adding a second artifact type to a dispatch that does not exist multiplies risk against zero delivered capability. This also matches the maintainer's OQ-03 split ruling, which separates resolution from dispatch and warns the resolution child not to inherit the `--action plan` capability's scope by accident.
+
+    DEFERRED, SO THE REFUSAL IS PASTED. The ACTUAL message an operator gets today for a backlog selector, run live:
+
+        $ expand_selectors(m, ['6h7y2y'])
+        '6h7y2y' is a backlog item (.aw/records/backlog/graduated/20260906-graduate-01-6h7y2y-graduate-
+        verb-and-duplicate-guard.backlog.md), not an IPD plan.
+
+    IT DOES NOT SILENTLY NO-OP: it raises `DriverError`, exit 2, and starts no run - asserted by `BacklogSelectorTests::test_a_backlog_selector_refuses_and_names_the_artifact_it_found`, which checks the expansion returned nothing AND that the message names the artifact. IT DOES NOT FALSELY IMPLY SUCCESS: it states the type it found and that this is not a plan. A HONEST LIMIT WORTH RECORDING: unlike the spec branch, this refusal does NOT explain that the capability is unbuilt or name its owner, because it is the pre-existing generic message. That asymmetry is now the most visible remaining gap and is described in the follow-on item.
+
+    FOLLOW-ON FILED: backlog `oc3mhb` (`- Work-Kind: feature`, `- Status: open`), carrying the four measured seams, the maintainer's OQ-04 ruling on exposing ONE public table reader, the spec `25kzda` 1.3/2.1 discrepancy, and the overlap with spec `z7nbn1` 4.1/4.3 that should be reconciled before anyone starts. Backlog `6h7y2y` therefore stays `graduated` rather than `done`, exactly as the plan and its orchestrator require.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the ACTUAL output of a `plan` action on a source that already has plans, showing the cluster report appearing BEFORE the action proceeds. Paste proof it INFORMS rather than refuses (the action continues). Paste a filesystem assertion that NO new entry existed under the runs root at the moment the report was emitted, and name which of the three measured pre-flight positions you used. Paste the call into child 01's view, its actual signature as shipped, and a grep proving no cluster logic was duplicated. If child 01 shipped a shape that cannot be called from this seam, paste that finding instead and mark this item `blocked` rather than inventing a wrapper.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CHILD 01'S VIEW IS CALLED AND REACHED BEFORE ANY DURABLE STATE, INFORMING AND REFUSING NOTHING, WITH ONE SHORTFALL RECORDED. Detail below.
+    THE VIEW IS CALLED AND THE REPORT IS EMITTED. Live output on a source that already has artifacts, through the real entry point against the LIVE tree:
 
-- [ ] V-05 validates E-05
+        $ expand_selectors(m, ['25kzda'])
+        ... PRE-GRADUATION VIEW (advisory, refuses nothing): 25kzda already has 10 linked artifact(s)
+        across 6 Set(s), 9 already terminal: wlxkoz[executed], 6lu3rq[executed], m73aet[executed],
+        zub5f1[executed], sq61qd[executed], uyeko5[executed], 76gsmv[executed], 6ypimw[executed],
+        +2 more. Several artifacts for one source is LEGITIMATE decomposition, not a defect; read the
+        terminal ones before authoring another, since re-doing landed work is the costly case.
+        Full view: aw graduation 25kzda
+
+    And the zero case, which is the common answer and is rendered affirmatively rather than as silence:
+
+        $ expand_selectors(m, ['z7nbn1'])
+        ... PRE-GRADUATION VIEW (advisory): nothing yet links to z7nbn1, so no earlier artifact would be
+        duplicated. Note this means 'nothing LINKED to it' rather than 'nothing exists': work carrying no
+        `- From-*` bullet is invisible to the view.
+
+    IT INFORMS AND DOES NOT REFUSE, proven three ways rather than asserted. (1) The text says so: "advisory, refuses nothing" and "LEGITIMATE decomposition, not a defect". (2) A cluster of THREE and a cluster of ZERO produce the SAME outcome, so the cluster is never the CAUSE - `test_the_report_INFORMS_rather_than_refusing_on_the_cluster`. (3) No `count > 1` judgement exists anywhere on the path - `test_it_applies_NO_count_greater_than_one_judgement`.
+
+    STATED PLAINLY AS THE ONE PLACE THIS ITEM FALLS SHORT OF ITS OWN WORDING: V-04 asks for the report "appearing BEFORE the action proceeds" and proof "the action continues". Because this turn ships no `plan` ACTION (V-02, D1), there is no action to continue INTO, so the report currently rides on a refusal. The guard is REACHED at the right moment and it refuses nothing, but the "report, then proceed" shape cannot exist until dispatch does (backlog `oc3mhb`). I am recording that rather than claiming a property I did not demonstrate.
+
+    THE PRE-FLIGHT POSITION USED: the FIRST of the three measured safe positions, `expand_selectors`, which runs before `enforce_requested_action`, before `enforce_mixed_type_gate`, and before the `(run_dir / name).mkdir` that first creates durable state (order re-measured in `initialize_run_core` at `runner_shared.py:21776-21900`).
+
+    FILESYSTEM ASSERTION THAT NO DURABLE STATE EXISTED. Through the real CLI on both hosts: `RUNS ROOT AFTER REFUSAL: (runs root does not exist)`. Asserted in the suite against the runs root specifically (`runner_shared.state_root(root)`) by `NoDurableStateTests::test_a_spec_selector_refusal_creates_no_run_directory`, comparing the entry set before and after on BOTH hosts.
+
+    THE CALL INTO CHILD 01'S VIEW, and its ACTUAL shipped signature: `check_engine.graduation_cluster(repo_root, source_id6, *, source_kind=None, index=None) -> GraduationCluster`. Called from `runner_shared.summarize_graduation_cluster`, which reads only `cluster.artifact_count`, `cluster.setids`, `cluster.terminal_artifacts` and the record fields.
+
+    NO CLUSTER LOGIC DUPLICATED, asserted by grep over the function body rather than by eye (`test_no_cluster_logic_is_duplicated_in_the_runner`): it must CONTAIN `graduation_cluster(` and must NOT contain `From-Spec:`, `From-Backlog:`, `_ITEM_FROM_SPEC_RE` or `_iter_plan_ipds`. The `- From-*` parse, both iterators and the terminal-status set all stay in `check_engine`.
+
+    MUTATION-PROVEN. Deleting the call to the view: `2 failed, 24 passed` (`test_the_cluster_report_is_emitted_and_names_the_existing_artifacts`, `test_the_report_INFORMS_rather_than_refusing_on_the_cluster`). Reverted; 26 passed. So "the guard is REACHED" is a tested property, not a claim.
+
+    ONE DEFECT THE TESTS CAUGHT IN MY OWN FIRST ATTEMPT, recorded because it is the kind that ships silently (D7): the advisory originally found its repository root by walking UP from the spec's parent looking for `.aw`/`.git`, and under a temporary directory it climbed OUT and reported THIS repository's cluster for a fixture source. Fixed by CARRYING the resolved root on `SpecSelectorMatch.repo` and returning '' for an unrecognizable root, so a wrong cluster is impossible rather than unlikely. `test_a_failing_advisory_never_becomes_a_failing_run` pins it.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste a `python3 -c` showing any new shared symbol resolves to the SAME object from `oc_runipd`, `agy_runipd` and `runner_shared`. Paste both hosts resolving the same spec selector identically, and both refusal texts naming the requested action. Paste the RE-MEASURED `--full-auto` default for BOTH hosts (not agy alone, and not this plan's stale claim: F-9), and state whether agy's docstring still asserts the stale default and what you did about it. Then show that a widened `ACTION_IMPLEMENTED` cannot execute a plan the operator asked to merely graduate under whatever the defaults actually are. Paste the AST-measured oc-to-agy import count BEFORE and AFTER as measured in YOUR worktree, showing it did not RISE; do NOT assert a literal baseline, since 47 and 48 both appear in this Set's prose and the true value moved during review.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ONE SHARED IMPLEMENTATION, IDENTICAL ON BOTH HOSTS; IMPORT COUNT DID NOT RISE (4 -> 4). Detail below.
+    ONE IMPLEMENTATION, SAME OBJECT FROM ALL THREE MODULES:
 
-- [ ] V-06 validates E-06
+        $ python3 -c "..."
+        oc  match_spec_selector is runner_shared.match_spec_selector  -> True
+        agy match_spec_selector is runner_shared.match_spec_selector  -> True
+        runner_shared.match_spec_selector.__module__ -> 'agent_workflows.runner_shared'
+
+    Asserted by `SharedImplementationTests::test_both_hosts_bind_the_same_shared_objects`.
+
+    BOTH HOSTS RESOLVE THE SAME SPEC SELECTOR IDENTICALLY, and the equality is asserted rather than eyeballed: `test_both_hosts_refuse_the_same_spec_with_only_the_host_command_differing` normalizes each host's own `review_command` out of its message and asserts the remainder is EQUAL, while also asserting the raw messages DIFFER (so the test cannot pass by both being empty). Live end-to-end on both hosts is pasted under V-02.
+
+    THE REFUSAL TEXT AND THE REQUESTED ACTION. This turn does NOT widen `ACTION_IMPLEMENTED` (D2), so the hardcoded literal `review` in the illegality message is UNTOUCHED and still correct: `review` remains the only implemented action, so the sentence cannot misreport. Fixing that literal is coupled to the widening by the plan's own E-05, and both move to backlog `oc3mhb`. I did not fix a string whose defect cannot yet be triggered, and I did not widen the frozenset to manufacture the trigger.
+
+    `--full-auto` RE-MEASURED ON BOTH HOSTS, not agy alone: `oc.build_parser().parse_args(['start','xxxxxx']).full_auto` -> `False`; agy -> `False`. This CONFIRMS F-9 and refutes this plan's original host-asymmetry premise. ON THE STALE DOCSTRING: the plan told me to correct it or report it, and there is nothing left to correct - `enforce_requested_action` is now ONE shared body whose docstring already states "`--full-auto` does NOT default to True on either host; measured, `build_parser().parse_args(['start', 'x']).full_auto` is False on BOTH, per the 2026-09-04 maintainer ruling", and it also corrects the `determine_action`-versus-`action_for` confusion. Someone fixed both ahead of me; reporting that is more useful than re-fixing it.
+
+    A WIDENED TABLE CANNOT EXECUTE WHAT THE OPERATOR ASKED TO GRADUATE, under the defaults as they actually are: the table was NOT widened, so the pathway does not exist. `NoDurableStateTests::test_an_unimplemented_action_still_fails_closed_and_starts_no_run` asserts `plan` and `execute` are both still absent from `ACTION_IMPLEMENTED` and that requesting `plan` raises with "not implemented" and "No run was started" on BOTH hosts. That is the strongest available statement while the derivation cannot return `plan`.
+
+    THE AST-MEASURED oc-to-agy IMPORT COUNT, in MY worktree, BEFORE and AFTER, with no literal baseline asserted: BEFORE 4, AFTER 4 - it did NOT RISE. Names unchanged: `{build_verify_and_continue_notice, classify_recovery_disposition, record_item_spec_edits, route_recovery_turn}`; zero `oc_runipd.<attr>` accesses. `test_no_symbol_was_added_to_oc_runipd_for_agy_to_import` asserts none of the three new symbols appears in that import set. NOTE the true value is FOUR, not the 47 or 48 this Set's prose carries; the drift is reported in V-01 and filed as backlog `2tiyl8` because two shipped tests still pin 56 and are red at HEAD.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste all EIGHT cases per host with actual runner output: approved spec resolves plus cluster report; no-`- Id:` spec refuses with an explanation; forbidden-status spec refuses; backlog selector per E-03; an unimplemented action still fails closed AND started no run; the cluster report preceding any durable state; a spec id6 that collides with a plan filename resolving to the SPEC; and a spec id6 reaching the queue seam WITHOUT a `KeyError` or traceback. For every refusal case, assert on the FILESYSTEM that no new run directory was created. Paste the four updated pinning tests and the full bare suite result, distinguishing your intended failures from the environmental one BY NODE ID. Paste proof no test reads the live spec tree.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: EIGHT CASES PER HOST FROM FIXTURES, 26 PASSED; FULL SUITE `3 failed, 8991 passed`, THE THREE FAILURES BYTE-IDENTICAL BY NODE ID TO THE PRE-EDIT BASELINE. Detail below.
+    ALL EIGHT CASES, PER HOST, FROM FIXTURES. `tests/test_graduation_dispatch.py`: 26 tests, every behavioral case subTested over BOTH hosts.
+
+        $ python3 -m pytest tests/test_graduation_dispatch.py -o addopts=""
+        collected 26 items
+        tests/test_graduation_dispatch.py ..........................  [100%]
+        ============================= 26 passed in 20.32s ==============================
+
+    Case 1, APPROVED SPEC RESOLVES + CLUSTER REPORT: `RefusalContentTests::test_an_approved_spec_resolves_to_the_spec_and_says_why_it_cannot_be_queued` and `PreGraduationViewTests::test_the_cluster_report_is_emitted_and_names_the_existing_artifacts`. Case 2, NO-`- Id:` SPEC REFUSES WITH AN EXPLANATION: `test_a_spec_with_no_Id_refuses_with_an_explanation_and_the_conversion_verb`, plus the load-bearing negative `test_a_spec_that_HAS_an_Id_reached_by_stem_does_not_get_the_id_less_note`. Case 3, a spec at a terminal status still resolves to the SPEC: `test_a_terminal_status_spec_still_resolves_to_the_spec_not_to_a_plan` (NOTE the plan asks for "a status the legality table FORBIDS"; since no legality table is consulted on this path - D2 - the meaningful version is that the precedence fix keys on TYPE and not on status, which is what this asserts). Case 4, BACKLOG SELECTOR PER E-03: `BacklogSelectorTests`, asserting a refusal that names the artifact and never a silent no-op. Case 5, UNIMPLEMENTED ACTION STILL FAILS CLOSED AND STARTED NO RUN: `test_an_unimplemented_action_still_fails_closed_and_starts_no_run`. Case 6, REPORT PRECEDES ANY DURABLE STATE: `NoDurableStateTests::test_a_spec_selector_refusal_creates_no_run_directory`. Case 7, id6 COLLISION RESOLVES TO THE SPEC: `PrecedenceTests` (4 tests), built as a fixture in the live tree's shape (a plan slugged `...adopt-spec-<id6>` beside a spec declaring it). Case 8, NO `KeyError` AT THE QUEUE SEAM: `QueueSeamTests` (2 tests, the second asserting the bare subscript still exists so the first cannot pass vacuously).
+
+    EVERY REFUSAL CASE ASSERTS ON THE FILESYSTEM that no new run directory was created, against `runner_shared.state_root(root)` rather than an exit code. Live confirmation through the real CLI on both hosts: `RUNS ROOT AFTER REFUSAL: (runs root does not exist)`.
+
+    TWO LOAD-BEARING NEGATIVES BEYOND THE EIGHT, because a precedence change can steal resolutions silently: `test_a_plan_id6_still_wins_and_no_existing_resolution_moved` and `test_a_Set_name_still_wins_over_a_spec_id6`.
+
+    THE FOUR PINNING TESTS WERE NOT UPDATED, and that is the correct outcome rather than an omission: this turn does not widen `ACTION_IMPLEMENTED` (D2), so none of them goes red. All four pass untouched, verified by node id in the full suite. `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py` are therefore DECLARED-BUT-UNMODIFIED and need `--scope-ack` at finalize.
+
+    ONE SHIPPED GUARD DID GO RED AND WAS RE-POINTED, NOT LOOSENED (D5). `tests/test_runner_shared.py::PureMoveFingerprintTests::test_every_clean_symbol_is_a_STRICT_fingerprint_match` pins `describe_unresolved_plan_selector` as a byte-identical pure move, which the id-less-spec explanation breaks. Its own documented procedure was followed: added to `SUPERSEDED_SINCE_MOVE` with a written reason (naming the 19-of-36 measurement, the asymmetry fixed, and the two dedicated tests that replace the fingerprint), and the clean-move count updated 22 -> 21 with the list length 3 -> 4 IN THE SAME EDIT, as its comment requires ("the number is updated together with the enumeration and never independently of it"). This file was NOT declared and needs a `--scope-reason`.
+
+        $ python3 -m pytest tests/test_runner_shared.py tests/test_graduation_dispatch.py -o addopts=""
+        ======================= 264 passed in 145.31s (0:02:25) ========================
+
+    NO TEST READS THE LIVE SPEC TREE FOR A BEHAVIORAL CASE. Every case above builds a fixture under `TemporaryDirectory`. The single exception is DELIBERATE and different in kind, matching child 01's own precedent: `LiveCorpusPropertyTests::test_no_discoverable_spec_id6_resolves_to_a_plan_on_either_host` asserts a PROPERTY the real corpus alone can show (the collision arises from the repository's own naming convention), and it DERIVES the count rather than pinning it, with an explicit non-vacuity guard (`assertGreater(len(specs), 0)`).
+
+    FULL BARE SUITE, AFTER:
+
+        $ python3 -m pytest
+        FAILED tests/test_oc_runipd.py::AgyCardIsNotResolvableTests::test_the_shared_symbol_lives_in_runner_shared_NOT_in_oc_runipd
+        FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+        FAILED tests/test_agy_runipd_cli.py::AgyCostAttributionTests::test_agy_does_not_import_the_record_builder_FROM_oc_runipd
+        3 failed, 8991 passed, 3 skipped, 2 xfailed, 6 warnings in 206.05s (0:03:26)
+
+    DISTINGUISHED BY NODE ID: the three failures are BYTE-IDENTICAL to the pre-edit baseline (`3 failed, 8965 passed`), so I introduced NONE and fixed none. Two are backlog `2tiyl8` (the stale 56-name import pin, filed this turn) and one is backlog `j08jky` (ambient `OPENCODE_CONFIG_CONTENT`). Passing count rose 8965 -> 8991, i.e. +26, exactly this plan's new tests. `aw check all` findings: 46 BEFORE (measured with my edits stashed) and 46 AFTER - unchanged.
+  - Result: pass
 
 ## Approval and execution gate
 

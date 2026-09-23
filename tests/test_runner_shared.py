@@ -324,7 +324,33 @@ REDOCUMENTED_SINCE_MOVE = ("describe_lane",)
 # (`ShouldColorGridTests` pins all 16 `NO_COLOR` x `FORCE_COLOR` cells against both a TTY and a pipe
 # plus the four `TERM` values; `OneOriginatingDefinitionTests` forbids a fourth implementation), and
 # the delegation itself is pinned by `SharedColorDecisionTests` in this file.
-SUPERSEDED_SINCE_MOVE = ("state_root", "_run_git", "should_color")
+# `describe_unresolved_plan_selector` GAINED THE ID-LESS-SPEC EXPLANATION (graduate-02 `iuxtjy` E-02),
+# and the exemption is recorded here rather than absorbed. WHY IT IS LEGITIMATE: the pre-move body ends
+# every non-plan branch with the bare sentence "'<sel>' is a <type>, not an IPD plan.", which is exactly
+# right for eight of the nine types and MISLEADING for a spec that declares no `- Id:`. Measured at
+# execution time, 19 of 36 spec records carry no `- Id:`, so this is the MAJORITY case, and the two
+# surfaces disagree about it by design: the shared `selectors` layer RESOLVES such a file by stem (so
+# `aw find` shows it) while `runner_shared.discover_specs` deliberately SKIPS it (without an id6 it
+# cannot be named by a selector, cannot carry a review record, and cannot be attested). An operator
+# therefore sees a file one tool finds and the runner declines, told only "not a plan", which reads as a
+# bug in a deliberate skip. The added branch states the asymmetry and names the conversion verb
+# (`aw rename specs <path> --to-id6`); it mints NOTHING, because a durable records write belongs to the
+# `aw specs` verbs that own the tree and never to a dispatch path.
+#
+# Holding this symbol to its pre-move AST would mean the runner can never explain a refusal it is
+# uniquely placed to explain, which is the same freeze-the-defect trap recorded above for `state_root`
+# and `should_color`. Every OTHER branch of the function is byte-unchanged, and the new one has its own
+# dedicated coverage in `tests/test_graduation_dispatch.py::RefusalContentTests`
+# (`test_a_spec_with_no_Id_refuses_with_an_explanation_and_the_conversion_verb` asserts the message and
+# the verb; `test_a_spec_that_HAS_an_Id_reached_by_stem_does_not_get_the_id_less_note` is the
+# load-bearing negative proving the branch keys on the ACTUAL absence of `- Id:` rather than on the
+# selector spelling, so it cannot assert something false about a conformant spec).
+SUPERSEDED_SINCE_MOVE = (
+    "state_root",
+    "_run_git",
+    "should_color",
+    "describe_unresolved_plan_selector",
+)
 
 
 def load_fixture() -> dict[str, Any]:
@@ -587,20 +613,22 @@ class PureMoveFingerprintTests(unittest.TestCase):
             and n not in HOST_NAMING_ONLY
             and n not in SUPERSEDED_SINCE_MOVE
         ]
-        # 22, DOWN FROM 23 BY EXACTLY ONE: `should_color` moved to `SUPERSEDED_SINCE_MOVE` when it
-        # became a delegation to `term.should_color` (IPD `z8ddk0` E-02/E-03; see that list for why the
-        # exemption is legitimate). It was 23 for the same reason one step earlier, when `_run_git`
-        # gained an optional `timeout` (IPD `zexed1` E-02), and 24 before that.
+        # 21, DOWN FROM 22 BY EXACTLY ONE: `describe_unresolved_plan_selector` moved to
+        # `SUPERSEDED_SINCE_MOVE` when it gained the id-less-spec explanation (IPD `iuxtjy` E-02; see
+        # that list for why the exemption is legitimate). It was 22 for the same reason one step
+        # earlier, when `should_color` became a delegation to `term.should_color` (IPD `z8ddk0`
+        # E-02/E-03), 23 when `_run_git` gained an optional `timeout` (IPD `zexed1` E-02), and 24
+        # before that.
         # This assertion exists so such a move cannot happen silently, so the number is updated
         # together with the enumeration and never independently of it.
         self.assertEqual(
             len(clean),
-            22,
+            21,
             "the clean-move count must not drift silently",
         )
         self.assertEqual(
             len(SUPERSEDED_SINCE_MOVE),
-            3,
+            4,
             "a name added to SUPERSEDED_SINCE_MOVE must be accounted for in the clean count above",
         )
         for name in clean:
