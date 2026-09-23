@@ -38,44 +38,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the predicate
 
-- [ ] E-01 ADD A PURE, HOST-NEUTRAL PREDICATE `turn_attempted_nothing(...)` TO `runner_shared.py`, RETURNING A REASONED VERDICT (not a bare bool) OVER FACTS THE ATTEMPT ALREADY RECORDS. It must require ALL of these to hold, so that any single sign of work refuses the verdict: no outcome file was written for the attempt; `starting_head == ending_head`; the lane branch holds NO commits beyond its base (or, for a shared-tree turn, no commit was made); and the working tree is CLEAN (`attempt["ending_status"]` empty). It MUST be CONJUNCTIVE and FAIL CLOSED: if any input is missing or unreadable, the verdict is "cannot prove nothing was attempted", which means NO retry and today's behavior. The verdict must carry the reason and the facts it read, because this predicate authorizes spending a full turn's tokens and a human must be able to audit why. DO NOT reuse `worktree_lease.holds_work` as the commit test: `runner_shared` records that it stays True FOREVER after a `--no-ff` merge (the comment measuring `BEFORE MERGE`/`AFTER MERGE` both reporting `holds_work=True`), so it cannot answer "did THIS attempt commit anything". That warning is correct; only its line offset has drifted, so anchor it by that comment.
+- [x] E-01 ADD A PURE, HOST-NEUTRAL PREDICATE `turn_attempted_nothing(...)` TO `runner_shared.py`, RETURNING A REASONED VERDICT (not a bare bool) OVER FACTS THE ATTEMPT ALREADY RECORDS. It must require ALL of these to hold, so that any single sign of work refuses the verdict: no outcome file was written for the attempt; `starting_head == ending_head`; the lane branch holds NO commits beyond its base (or, for a shared-tree turn, no commit was made); and the working tree is CLEAN (`attempt["ending_status"]` empty). It MUST be CONJUNCTIVE and FAIL CLOSED: if any input is missing or unreadable, the verdict is "cannot prove nothing was attempted", which means NO retry and today's behavior. The verdict must carry the reason and the facts it read, because this predicate authorizes spending a full turn's tokens and a human must be able to audit why. DO NOT reuse `worktree_lease.holds_work` as the commit test: `runner_shared` records that it stays True FOREVER after a `--no-ff` merge (the comment measuring `BEFORE MERGE`/`AFTER MERGE` both reporting `holds_work=True`), so it cannot answer "did THIS attempt commit anything". That warning is correct; only its line offset has drifted, so anchor it by that comment.
   TWO OF THE FOUR CONDITIONS ARE VACUOUS FOR THE MEASURED SHAPE, AND THE PREDICATE MUST NOT REST ON THEM. Measured at review: `attempt["ending_head"]` and `attempt["ending_status"]` are both written as `git_head(repo)` / `git_status(repo)`, where `repo` is the MAIN CHECKOUT, while the lane is `work_dir`. The measured failure is an ISOLATED lane turn, and a lane agent never moves the main checkout's HEAD and never dirties its tree, so on an isolated turn `starting_head == ending_head` and an empty `ending_status` are TRUE BY CONSTRUCTION - true even for a lane that committed substantial real work. They are genuine signals only for a `--no-isolate-worktree` turn, where the agent works in `repo` directly.
   SO THE LOAD-BEARING CONDITIONS FOR THE MEASURED CASE ARE (1) NO OUTCOME FILE AND (3) NO LANE COMMIT, and condition (3) must be read from LANE FACTS rather than from the attempt's main-checkout fields. Use the shipped lane inspector: `runner_shared.describe_lane` returns `commits_ahead` and `dirty` from `worktree_lease.inspect_lane(repo, lane_id, base_commit=base)`, which is the only source that answers "did THIS lane commit anything" and which also gives the lane's own dirty state - the correct substitute for condition (4) on an isolated turn. Keep conditions (2) and (4) as written for the shared-tree case, but DOCUMENT AT THE PREDICATE which conditions carry weight in which mode, because a reader who believes all four are always load-bearing will over-trust the verdict on an isolated turn.
   - Depends on: none
   - Expected outcome: `runner_shared.turn_attempted_nothing` exists, is pure, returns a reasoned verdict, refuses on any missing input, reads the lane's own `commits_ahead`/`dirty` for an isolated turn rather than the main checkout's head and status, and documents which conditions are meaningful in which mode.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REQUIRE THE PREDICATE TO REFUSE ON EVERY NON-ATTEMPT STATUS AND EVERY DELIBERATE OUTCOME, so a retry can never override an intent. It MUST refuse for: a deliberately stopped or forced item (`runner_stop.is_indeterminate` and the stopped/forced dispositions), which spec `c4gd2h` R19 already forbids re-running and which `requeue_interrupted` already refuses (`oc_runipd.py:6290-6296`); a `merge-retry` item (renamed from `integration-deferred` on 2026-09-21; prefer the constant `runner_shared.INTEGRATION_DEFERRED_STATUS`), which is non-terminal and owned by the integration ladder; a `dependency-blocked` or `not-attempted` item, which never ran; and a `review` action, whose scoring reads the plan's `- Status:` and whose zero-work case is a different question. Reuse the EXISTING refusal predicates rather than restating their conditions, so the two routes cannot disagree - the same reasoning `oc_runipd.py:6436-6441` gives for gating `--retry-incomplete` on the same predicate as `requeue_interrupted`.
+- [x] E-02 REQUIRE THE PREDICATE TO REFUSE ON EVERY NON-ATTEMPT STATUS AND EVERY DELIBERATE OUTCOME, so a retry can never override an intent. It MUST refuse for: a deliberately stopped or forced item (`runner_stop.is_indeterminate` and the stopped/forced dispositions), which spec `c4gd2h` R19 already forbids re-running and which `requeue_interrupted` already refuses (`oc_runipd.py:6290-6296`); a `merge-retry` item (renamed from `integration-deferred` on 2026-09-21; prefer the constant `runner_shared.INTEGRATION_DEFERRED_STATUS`), which is non-terminal and owned by the integration ladder; a `dependency-blocked` or `not-attempted` item, which never ran; and a `review` action, whose scoring reads the plan's `- Status:` and whose zero-work case is a different question. Reuse the EXISTING refusal predicates rather than restating their conditions, so the two routes cannot disagree - the same reasoning `oc_runipd.py:6436-6441` gives for gating `--retry-incomplete` on the same predicate as `requeue_interrupted`.
   MOST OF THESE REFUSALS ARE DEFENCE IN DEPTH, NOT LIVE PATHS, and saying so keeps an implementer's attention on the condition that actually protects the change. Measured at review: the zero-work branch is entered only for an item whose disposition is the terminal `partial`, and each protected class carries a DIFFERENT status at that point - a stopped item `interrupted`, a forced one `unknown_outcome`, a deferred one `merge-retry`, an unrun one `dependency-blocked` or `not-attempted` - so the branch is not reached for any of them. A `review` action likewise cannot present as `partial`: its scorer returns `reviewed`, `approved` or `failed-safely`. KEEP EVERY REFUSAL ANYWAY (a later change to the disposition vocabulary, or a caller that invokes the predicate from a different seam, would make them live, and fail-closed redundancy is cheap here), but do not treat them as the safety property: the EVIDENCE CONJUNCTION in E-01 is what prevents a retry over real work.
   - Depends on: E-01
   - Expected outcome: each refused class is covered by a test that fails if the refusal is removed, and the code records which refusals are currently unreachable so a later reader does not mistake them for the live guard.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 TREAT `ty7w6o`'s HOST-TRUNCATION RECORD AS CORROBORATION, AND DECIDE AND DOCUMENT ITS EXACT ROLE. The natural reading is that `attempt["host_truncation"]` STRENGTHENS the verdict (the host itself admits it killed the work), and the design decision to make is whether it is REQUIRED or merely SUPPORTING. Requiring it would confine the retry to the one measured cause and refuse a future zero-work turn with another cause; treating it as supporting makes the predicate cause-agnostic. Choose ONE, implement it, and RECORD THE CHOICE WITH ITS REASON where a later reader will find it, because a reader who assumes the other reading will mis-predict when a retry fires. Whichever is chosen, a truncation record MUST NOT by itself authorize a retry: the four evidence conditions in E-01 still all have to hold, since a host may truncate a turn that had already done real work.
+- [x] E-03 TREAT `ty7w6o`'s HOST-TRUNCATION RECORD AS CORROBORATION, AND DECIDE AND DOCUMENT ITS EXACT ROLE. The natural reading is that `attempt["host_truncation"]` STRENGTHENS the verdict (the host itself admits it killed the work), and the design decision to make is whether it is REQUIRED or merely SUPPORTING. Requiring it would confine the retry to the one measured cause and refuse a future zero-work turn with another cause; treating it as supporting makes the predicate cause-agnostic. Choose ONE, implement it, and RECORD THE CHOICE WITH ITS REASON where a later reader will find it, because a reader who assumes the other reading will mis-predict when a retry fires. Whichever is chosen, a truncation record MUST NOT by itself authorize a retry: the four evidence conditions in E-01 still all have to hold, since a host may truncate a turn that had already done real work.
   - Depends on: E-01
   - Expected outcome: the role of the truncation signal is implemented and documented at the predicate, with a test for both a truncated and a non-truncated zero-work turn.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: act on it, bounded
 
-- [ ] E-04 RE-QUEUE THE ITEM FOR ONE MORE ATTEMPT INSTEAD OF RECORDING THE TERMINAL `partial`, BOUNDED BY THE EXISTING RETRY BUDGET AND BY NO NEW KNOB. Spec `25kzda` 5.5 governs this: the budget is `--retry-budget` (0..10, default 2), it "counts correction attempts after the initial attempt", it "cannot be raised on resume", and `0` MUST mean no retry at all. A zero-work turn is a legitimate charge against this budget: spec 5.5 lists "host spawn failure" and "host nonzero exit that did not create an ambiguous side effect" as retryable, and a turn that provably created NO side effect is the cleanest possible member of that class. When the budget is exhausted the terminal `partial` stands, which is the honest outcome.
+- [x] E-04 RE-QUEUE THE ITEM FOR ONE MORE ATTEMPT INSTEAD OF RECORDING THE TERMINAL `partial`, BOUNDED BY THE EXISTING RETRY BUDGET AND BY NO NEW KNOB. Spec `25kzda` 5.5 governs this: the budget is `--retry-budget` (0..10, default 2), it "counts correction attempts after the initial attempt", it "cannot be raised on resume", and `0` MUST mean no retry at all. A zero-work turn is a legitimate charge against this budget: spec 5.5 lists "host spawn failure" and "host nonzero exit that did not create an ambiguous side effect" as retryable, and a turn that provably created NO side effect is the cleanest possible member of that class. When the budget is exhausted the terminal `partial` stands, which is the honest outcome.
   THE LIMIT IS READABLE BUT NO SPEND COUNTER EXISTS, AND THIS IS THE ONE THING THAT MAKES E-04 MORE WORK THAN IT LOOKS. Measured at review, precisely: `freeze_run_policy_flags` resolves `--retry-budget` through `resolve_retry_budget` and the effective integer lands in `state["options"]["retry_budget"]` at queue build, so READING the limit is a one-liner, exactly as `integration_retry_limit` is read (`int(options.get("integration_retry_limit", DEFAULT_INTEGRATION_RETRY_LIMIT))` in `runner_shared`). What does NOT exist is any per-item accounting of budget already spent: `grep` finds NO read of the frozen `retry_budget` anywhere in `agent_workflows/`, and `run_recovery.plan_retry` / `retry_budget_remaining` have zero callers outside their own module because both require a `RunEngine` over a hash-chained `ledger.jsonl` that no driver run writes. So "one retry within budget", "budget exhausted" and "`--retry-budget 0`" - all three demanded by this item and by `V-04` - have nothing to read today.
   COUNT IT ON THE ITEM, MIRRORING THE SHIPPED PRECEDENT, and do NOT reach for `plan_retry`. `runner_shared` already solves this exact problem for the sibling budget: it reads the frozen limit from options, computes `attempts_used = int(item.get("integration_attempts", 0)) + 1`, writes that back onto the item, and passes both to a pure decision function. Copy that shape with a distinct per-item key (e.g. `item["zero_work_retries"]`), which keeps the counter durable in `state.json` across a resume, needs no ledger, and introduces NO SECOND KNOB - the frozen `--retry-budget` remains the only limit, so the category error `runner_shared` warns of (conflating it with `--integration-retry-limit`) is not committed. Note that `xipfy1` (`approved`, release-blocking) owns wiring the budget generally through `plan_retry`; this item deliberately does NOT do that work, and `OQ-04` records the relationship so the two do not collide.
   THE MECHANISM must reuse the existing requeue shape (`item["status"] = "queued"` with `item["recovery_next"] = True`, remembering `item["requeue_from_status"]`) rather than inventing a second dispatch path. BUT SEE THE SEAM WARNING IN E-06 BELOW: the site this plan originally cited for that shape is the wrong PLACE to put the new call, even though it is the right SHAPE to copy.
   - Depends on: E-02, E-03
   - Expected outcome: a provably-zero-work item is re-dispatched once within budget and reaches a real terminal state; with `--retry-budget 0` it is `partial` immediately; with the budget exhausted it is `partial`; the count lives on the item mirroring `integration_attempts`, and no new flag is added.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PUT THE REQUEUE WHERE IT CAN ACTUALLY FIRE: AFTER `execute_item` RETURNS, INSIDE THE DISPATCH LOOP. This is a separate item because the plan originally named a seam that CANNOT work, and an executor who copied the shape into the cited location would ship a retry that never runs. MEASURED at review by locating `run_queue`'s own structure: the `--retry-incomplete` block the plan cites (`oc_runipd.py:6455-6468`) sits at function-relative lines 56 to 69, which is BEFORE `while True:` at function-relative 131 - it is a resume-time, run-once block that inspects statuses left by a PREVIOUS invocation. A zero-work turn happens DURING the run, at the `execute_item(...)` call at function-relative 298, so a check placed in the pre-loop block would never observe it.
+- [x] E-06 PUT THE REQUEUE WHERE IT CAN ACTUALLY FIRE: AFTER `execute_item` RETURNS, INSIDE THE DISPATCH LOOP. This is a separate item because the plan originally named a seam that CANNOT work, and an executor who copied the shape into the cited location would ship a retry that never runs. MEASURED at review by locating `run_queue`'s own structure: the `--retry-incomplete` block the plan cites (`oc_runipd.py:6455-6468`) sits at function-relative lines 56 to 69, which is BEFORE `while True:` at function-relative 131 - it is a resume-time, run-once block that inspects statuses left by a PREVIOUS invocation. A zero-work turn happens DURING the run, at the `execute_item(...)` call at function-relative 298, so a check placed in the pre-loop block would never observe it.
   THE CORRECT WINDOW IS GENEROUS, WHICH IS WORTH KNOWING BECAUSE THE PLAN PRESENTS IT AS TIGHT: `cascade_dependency_blocked` runs at the TOP of the loop (function-relative 147), so it first observes this turn's `partial` on the NEXT iteration. Anything between `execute_item`'s return and that next iteration is early enough. Place the verdict-and-requeue immediately after the `execute_item` call's own error handling, before the loop continues, on BOTH hosts (`agy_runipd`'s `run_queue` mirrors this structure). The plan's ordering CLAIM is correct and its stated reason is correct; only the cited location was wrong.
   - Depends on: E-04
   - Expected outcome: the requeue is reached from inside the dispatch loop after `execute_item` returns on both hosts, and a test demonstrates it fires for a turn that happened during the run (not only for a resumed one).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 MAKE THE RETRY AUDITABLE AND LOUD, because it spends money. Append a `zero-work-retry` event naming `id6`, `attempt`, the verdict's reason, the facts it read, the budget remaining, and whether a host truncation corroborated it; print one short line at the time; and record the decision on the item so `aw runs` can report it afterwards. Emit NOTHING when the predicate refuses, so the event's presence means "a turn was re-dispatched because it provably did nothing" and never "the check ran". A refused verdict on an item that ends `partial` SHOULD still be visible in the run report as the reason it was not retried, since "we looked and could not prove it" is exactly what a human needs to see to judge whether the predicate is too strict.
+- [x] E-05 MAKE THE RETRY AUDITABLE AND LOUD, because it spends money. Append a `zero-work-retry` event naming `id6`, `attempt`, the verdict's reason, the facts it read, the budget remaining, and whether a host truncation corroborated it; print one short line at the time; and record the decision on the item so `aw runs` can report it afterwards. Emit NOTHING when the predicate refuses, so the event's presence means "a turn was re-dispatched because it provably did nothing" and never "the check ran". A refused verdict on an item that ends `partial` SHOULD still be visible in the run report as the reason it was not retried, since "we looked and could not prove it" is exactly what a human needs to see to judge whether the predicate is too strict.
   - Depends on: E-04
   - Expected outcome: `events.jsonl` carries `zero-work-retry` for each retry and none for a refusal; the run report names both the retry and the refusal reason.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -115,7 +115,16 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Deferred / out of scope (with reason)
 
 - TELLING THE AGENT ITS REMAINING TURN BUDGET (`x7wfyx` item A) is NOT done here. It is a change to the shared execute prompt, which has its own regression surface (`tests/test_turn_bounds.py:875-931` asserts three properties, and `tests/test_defect_report.py:188` hard-codes a per-host prompt-length BASELINE that any prompt edit re-bases). Bundling a prompt change with a dispatch change would put two unrelated review surfaces in one plan. It also no longer addresses the measured cause: per F-7 the agent was not choosing when to stop.
-  - Carrier: x7wfyx
+  - Carrier: 4bhxni
+  - CARRIER REPOINTED AT EXECUTION, from `x7wfyx` to the newly filed `4bhxni`, because `x7wfyx` was
+    closed `done` on 2026-09-22 under the HANDOFF rule (citing THIS plan's `From-Backlog` plus its
+    matching `Blocks-Release`) while this plan's scope excludes item A in terms. So item A had no live
+    carrier and `aw ipd lint` reported `check.ipd-uncarried-obligation` for exactly this obligation
+    and for `OQ-04`. `x7wfyx` is NOT reopened or edited: its close was legitimate on the rule as
+    written, and the honest repair is a live successor rather than rewriting a correct history.
+    `4bhxni` is filed `followup` rather than `bug` and carries NO release gate, because per F-7 the
+    measured cause was a HOST truncation and not the agent choosing when to stop, so the prompt half
+    no longer addresses the measured defect.
 - NO DEPENDENCY, SUCCESS-BAR, OR RETIREMENT PREDICATE IS TOUCHED (F-4). The whole design of this plan is to fix the trigger and leave the propagation alone.
   - Carrier-Declined: A rejected alternative, recorded so it is not re-proposed. All four measured cascades were correct behavior on a wrong input, so there is no future state in which loosening them becomes right.
 - NO NEW RETRY KNOB (F-5). Spec `25kzda` 5.5's budget governs, and `runner_shared.py:2544-2545` names conflating it with `--integration-retry-limit` as a category error.
@@ -180,7 +189,7 @@ amending a spec must declare it.
 - Status: open
 - Owner: reviewer
 - Resolution or deferral rationale: NON-BLOCKING because the two can coexist and this plan's counter is the smaller, safer change, but a reviewer should confirm the division rather than discover it later. MEASURED at review: the frozen `--retry-budget` is readable from `state["options"]["retry_budget"]`, and NOTHING reads it - there is no per-item spend accounting anywhere, and `run_recovery.plan_retry` / `retry_budget_remaining` have zero callers outside their module because both require a `RunEngine` over a hash-chained `ledger.jsonl` that no driver run writes. `xipfy1` (`approved`, `Blocks-Release: next`, sharing three of this plan's four `Scope-Paths`) exists precisely to wire that consumption, and its own review escalated a BLOCKER that the ledger substrate is absent, so it may not land as written. THIS PLAN THEREFORE DOES NOT USE `plan_retry`: E-04 counts on the item, mirroring the shipped `integration_attempts` pattern, which needs no ledger and cannot conflict with a later general wiring (a second counter for a different failure class is exactly what `integration_retry_limit` already is, and `runner_shared` treats the two budgets as separate quantities by design). THE RESIDUAL QUESTION for the reviewer: if `xipfy1` later routes all retries through `plan_retry`, should this plan's counter be migrated or left as the zero-work-specific tally? Either is defensible; leaving it is the lower-risk default and needs no action now. Recorded so the two plans' authors do not each assume the other owns the accounting.
-- Carrier: x7wfyx
+- Carrier: 4bhxni
 
 ### OQ-05: Should the `x7wfyx` backlog item be added to `- Scope-Paths:`, or justified with `--scope-reason` at finalize?
 
@@ -201,38 +210,345 @@ amending a spec must declare it.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `pytest` output showing the verdict is POSITIVE for a reconstruction of the measured case (no outcome file, `starting_head == ending_head`, zero lane commits, clean `ending_status`) and that the returned verdict carries its reason and the facts it read. Plus a case per missing input (absent `ending_status`, unreadable lane, absent attempt record) showing the verdict is "cannot prove" and NOT a retry, demonstrating fail-closed behavior.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      All commands run BARE except where per-test counts were needed, in which case the configured
+      defaults were cleared explicitly with `-o addopts=""` (never by fighting individual flags).
+      NOTE ON THE ENVIRONMENT: this lane's own shell exports `OPENCODE_CONFIG_CONTENT`, which an
+      unrelated PRE-EXISTING assertion in this same file reads
+      (`TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`,
+      asserting a non-isolated turn carries NO denial policy). That test fails on THIS MACHINE at
+      HEAD with or without this change, so every run below is `env -u OPENCODE_CONFIG_CONTENT`, which
+      is the clean-environment condition CI runs in. Reported as a finding rather than worked around
+      silently.
 
-- [ ] V-02 validates E-02
+      POSITIVE: the measured shape is recognized, with its reason and facts.
+
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py \
+              -o addopts="" -q -k "TestTheZeroWorkVerdictIsEvidenceBased"
+          ..........                                                               [100%]
+          10 passed, 134 deselected in 0.25s
+
+      The ten cases are: the reconstruction of `zqs0px`'s shape (no outcome file, `starting_head ==
+      ending_head == 7c233993`, zero lane commits, clean tree) verdict POSITIVE carrying
+      `facts == {'disposition': 'partial', 'isolated': True, 'outcome_written': False,
+      'host_truncation': False, 'lane_state': 'EMPTY', 'lane_commits_ahead': 0,
+      'lane_dirty': False, 'lane_branch': 'aw/lane/zqs0px'}`; and FIVE fail-closed cases, each
+      asserting `(attempted_nothing, proven) == (False, False)` and a reason containing
+      `FAIL-CLOSED`: an unreadable lane reading, an ABSENT lane for an isolated turn, an
+      unanswerable outcome question (`outcome_written=None`), a shared-tree attempt missing
+      `ending_status`, a shared-tree attempt missing `ending_head`, and a lane whose `commits_ahead`
+      is not an integer. Plus the purity assertion (the body calls no `run_checked`/`describe_lane`/
+      `open`/`read_text`/`is_file` and names no `subprocess`), the mode documentation assertion, and
+      the assertion that `holds_work` is NAMED as a refusal but never READ as the commit test.
+
+      Verdict text as produced (pasted verbatim from an interpreter run of the shipped predicate):
+
+          the turn PROVABLY attempted nothing: it wrote no outcome file and its lane holds no commit
+          beyond its base and its tree is clean; no host-truncation record accompanied it, which does
+          not weaken the verdict because the evidence conditions are what prove it (the truncation
+          signal is SUPPORTING)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted output of FOUR negative controls, each flipping ONE condition of the conjunction independently and each showing NO retry: an outcome file exists; `ending_head != starting_head`; the lane holds a commit; the tree is dirty.
     STATE THE MODE FOR EACH CONTROL, because two of them cannot fail in the mode the defect was measured in. Per E-01's measurement, on an ISOLATED turn `ending_head` and `ending_status` read the MAIN checkout and so are fixed regardless of what the lane did; the `ending_head != starting_head` and `dirty tree` controls are therefore only meaningful for a SHARED-TREE (`--no-isolate-worktree`) fixture, while the `outcome file exists` and `lane holds a commit` controls are the ones that bite on an isolated fixture. Build each control in the mode where it can actually fail and SAY WHICH, rather than asserting four controls in one mode where two are vacuously satisfied. A control that cannot fail is not a control, and presenting one as passing would misreport the predicate's strictness.
     Plus a refusal case per protected class: stopped, forced/indeterminate, `merge-retry`, `dependency-blocked`, `not-attempted`, and a `review` action. NOTE, established at review, that most of these are DEFENCE IN DEPTH rather than live paths: the zero-work branch is entered only for an item whose disposition is the terminal `partial`, and a stopped item carries `interrupted`, a forced one `unknown_outcome`, a deferred one `merge-retry`, and an unrun one `dependency-blocked`/`not-attempted` - none of which is `partial` - while a `review` turn's scorer returns `reviewed`/`approved`/`failed-safely` and never `partial`. Keep every refusal (a future change to the disposition vocabulary would make them live) but do not describe them as the property that makes this change safe; the evidence conjunction is that property. Plus evidence that the existing refusal predicates are REUSED rather than restated (name them: `runner_stop.is_indeterminate`, and the same gate `requeue_interrupted` applies).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py \
+              -o addopts="" -q -k "TestTheNegativeControls"
+          ................                                                         [100%]
+          16 passed, 128 deselected in 0.30s
 
-- [ ] V-03 validates E-03
+      THE FOUR CONTROLS, EACH IN THE MODE WHERE IT CAN ACTUALLY FAIL, and the mode is in each test
+      name and docstring rather than left to a reader:
+
+        1. `outcome file exists`  -> ISOLATED mode
+           (`test_an_outcome_file_refuses_the_verdict_isolated_mode`); refusal reason contains
+           `outcome file WAS written`.
+        2. `the lane holds a commit` -> ISOLATED mode
+           (`test_a_lane_commit_refuses_the_verdict_isolated_mode`); reason contains `3 commit(s)`.
+        3. `ending_head != starting_head` -> SHARED-TREE mode
+           (`test_a_moved_head_refuses_the_verdict_SHARED_TREE_mode`); reason contains `HEAD MOVED`.
+        4. `dirty tree` -> SHARED-TREE mode
+           (`test_a_dirty_shared_tree_refuses_the_verdict_SHARED_TREE_mode`); reason contains
+           `DIRTY`. A fifth control, a DIRTY LANE, covers condition 4 in isolated mode.
+
+      AND THE VACUITY CLAIM IS ITSELF ASSERTED rather than merely asserted in prose:
+      `test_the_isolated_fixture_really_is_vacuous_for_those_two_conditions` builds an ISOLATED
+      attempt whose lane holds FIVE commits, shows `starting_head == ending_head` and
+      `ending_status == ""` are STILL both true (they read the MAIN checkout), and shows the verdict
+      is refused on the LANE's commits. That is the measurement behind the mode split: a control
+      flipping those two fields on an isolated fixture cannot fail, and presenting it as passing
+      would misreport the predicate's strictness.
+
+      REFUSAL PER PROTECTED CLASS: `interrupted`, `unknown_outcome`, `dependency-blocked`,
+      `not-attempted` and `merge-retry` are parametrized in
+      `test_every_protected_disposition_is_refused` (5 cases, each `proven=True`,
+      `attempted_nothing=False`); plus `test_a_review_action_is_refused` (reason contains `REVIEW`),
+      `test_a_deliberately_stopped_item_is_refused` (reason contains `DELIBERATE OPERATOR STOP`),
+      and `test_an_indeterminate_item_is_refused_through_the_EXISTING_predicate`.
+
+      THE EXISTING PREDICATES ARE REUSED, NOT RESTATED, and that is asserted mechanically rather
+      than by reading: the indeterminate test PATCHES `runner_stop.is_indeterminate` and asserts
+      `gate.called`, so the refusal genuinely routes through the same predicate `requeue_interrupted`
+      applies (`oc_runipd.py` gates `--retry-incomplete` on it for the stated reason that "the two
+      routes cannot disagree"). `test_the_merge_retry_refusal_uses_the_CONSTANT_not_a_bare_string`
+      asserts the `merge-retry` refusal reads `INTEGRATION_DEFERRED_STATUS` rather than a literal.
+
+      AND THE UNREACHABILITY IS RECORDED IN THE CODE so a later reader does not mistake defence in
+      depth for the live guard: `test_the_unreachable_refusals_are_RECORDED_as_such` asserts the
+      section header carries `DEFENCE IN DEPTH` and `EVIDENCE CONJUNCTION`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output for both a zero-work turn WITH `attempt["host_truncation"]` and one WITHOUT, showing behavior consistent with the chosen reading; plus a case proving a truncation record ALONE (with work evidence present) does NOT authorize a retry. Quote the recorded rationale from the code showing the choice and its reason are documented.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py \
+              -o addopts="" -q -k "TestTheHostTruncationSignalIsSupportingNotRequired"
+          ....                                                                     [100%]
+          4 passed, 140 deselected in 0.23s
 
-- [ ] V-04 validates E-04
+      THE CHOICE IS **SUPPORTING**, NOT REQUIRED (OQ-02 discharged), and all three demanded cases
+      pass:
+
+        * WITHOUT a truncation record the verdict STILL FIRES
+          (`test_a_zero_work_turn_WITHOUT_a_truncation_record_still_fires`): `attempted_nothing=True`,
+          `truncated=False`, reason contains `SUPPORTING`.
+        * WITH `attempt["host_truncation"]` it fires and SAYS SO
+          (`test_a_zero_work_turn_WITH_a_truncation_record_fires_and_says_so`): `truncated=True`,
+          reason contains `HOST ITSELF admitted`.
+        * A TRUNCATION RECORD ALONE DOES NOT AUTHORIZE A RETRY
+          (`test_a_truncation_record_ALONE_does_NOT_authorize_a_retry`): with
+          `host_truncation` present AND `commits_ahead=1`, `attempted_nothing=False` while
+          `truncated` is still True, proving the record is READ but is not sufficient.
+
+      THE RECORDED RATIONALE, quoted from `runner_shared.turn_attempted_nothing`'s docstring (which
+      `test_the_choice_and_its_reason_are_RECORDED_in_the_code` asserts on):
+
+          THE HOST-TRUNCATION SIGNAL IS **SUPPORTING**, NOT REQUIRED (`dy9ymn` OQ-02, decided here).
+          WHY: the four evidence conditions are what PROVE nothing was attempted; the host's
+          admission merely explains WHY, so requiring it would confine the retry to the one measured
+          cause and let a future zero-work turn with a different cause block a Set again. The cost of
+          this choice, stated so it is not discovered later: the predicate is CAUSE-AGNOSTIC and so
+          also fires on causes nobody has measured. That is judged acceptable precisely because the
+          conjunction, not the cause, is the safety property. A truncation record therefore NEVER
+          authorizes a retry by itself - a host may truncate a turn that had already done real work,
+          and such a turn fails condition 1, 3 or 4.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted output of an END-TO-END multi-item fixture: a zero-work item plus a dependent plus an orchestrator, showing the item is re-dispatched and the SIBLINGS ARE NOT `dependency-blocked` - this is the actual user-visible defect and a unit test on the predicate alone does not prove it. The fixture must exercise a turn that happens DURING the run, not a resumed one, since that is the case E-06 exists to make reachable. Plus the ordering property asserted directly (the requeue precedes the cascade's observation of the terminal status), and an assertion that the requeue site is inside the dispatch loop rather than in the pre-loop `--retry-incomplete` block.
     Plus budget behavior on all three points: `--retry-budget 0` gives immediate `partial` with no retry; budget available gives exactly ONE retry; budget exhausted gives `partial`. EACH OF THESE REQUIRES THE PER-ITEM COUNTER E-04 ADDS, so paste the counter's value alongside each outcome (as `integration_attempts` is observable today) rather than inferring the budget was respected from the final status alone: a retry that fired once because the code hardcoded one attempt, and a retry that fired once because the budget allowed one, are indistinguishable from the status and only the former breaks at `--retry-budget 3`. Also paste a case at a budget ABOVE one, showing the second and subsequent retries are still bounded by the frozen value and that the counter persists across a resume. Plus confirmation that no new retry knob was added (the frozen `--retry-budget` remains the only limit) and that `plan_retry` was NOT called (it requires a `RunEngine` over a `ledger.jsonl` no driver run writes).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py \
+              -o addopts="" -q \
+              -k "TestTheZeroWorkRetryIsBoundedByTheFrozenBudget or TestTheSiblingsAreNotBlockedEndToEnd"
+          ......................                                                   [100%]
+          22 passed, 122 deselected in 1.76s
 
-- [ ] V-05 validates E-05
+      THE END-TO-END MULTI-ITEM FIXTURE (`TestTheSiblingsAreNotBlockedEndToEnd`) drives each host's
+      REAL `run_queue` over a real `git init` repo with THREE members: the zero-work item `zqs0px`, a
+      DEPENDENT `qmgn12` declaring `executed:zqs0px`, and an ORCHESTRATOR `s0gnha`. Only
+      `execute_item` is stubbed; nothing about the loop, the cascade, the dependency resolver or the
+      orchestrator performer is mocked, and `retry_incomplete=False` throughout so nothing here can
+      be satisfied by the pre-loop requeue block.
+
+      THE USER-VISIBLE DEFECT IS FIXED, on BOTH hosts
+      (`test_the_zero_work_item_is_re_dispatched_and_its_dependent_still_executes`):
+      `turns == ["zqs0px", "zqs0px", "qmgn12"]`, statuses `zqs0px=executed` and `qmgn12=executed`,
+      and ZERO `dependency-blocked` events. The item's counter reads
+      `zero_work_retries == 1` and exactly ONE `zero-work-retry` event was emitted.
+
+      AND THE FIXTURE GENUINELY REACHES THE CASCADE, which is what makes the above meaningful rather
+      than tautological (`test_without_the_fix_the_cascade_would_fire_which_is_what_this_prevents`):
+      with the shared seam neutralized, `turns == ["zqs0px"]`, `zqs0px=partial`,
+      `qmgn12=dependency-blocked`, a `dependency-blocked` event naming `qmgn12`, and a nonzero exit.
+      That is the MEASURED 2026-09-18 shape reproduced, then shown repaired.
+
+      TWO HONEST LIMITS OF THIS FIXTURE, stated rather than papered over. (1) The ORCHESTRATOR is
+      still TERMINATED, for a FIXTURE-LOCAL reason and NOT the cascade: the synthetic repo holds no
+      orchestrator plan, so Set membership cannot be resolved and `dispatch_orchestrator_item`
+      terminates with `reason == "no-orchestrator"` and `unfinished_children == []`. Both facts are
+      ASSERTED, so the parent is provably not refused because of the zero-work child. (2) Exit code 0
+      is consequently NOT asserted on the happy case, because the fixture cannot earn it for reasons
+      unrelated to this plan; the budget cases below DO assert nonzero. (3) The end-to-end mode is
+      SHARED-TREE with no mock of the evidence collector; the isolated-lane reading is unit-covered
+      above.
+
+      THE RETRY IS DISPATCHED IN RECOVERY MODE (`test_the_retry_is_dispatched_in_RECOVERY_mode`):
+      the item's two attempt records read `[recovery=False, recovery=True]`, i.e. the ESTABLISHED
+      `queued` + `recovery_next` pattern reaches the dispatch as the `recovery=` keyword.
+
+      BUDGET BEHAVIOR ON ALL FOUR POINTS, WITH THE COUNTER'S VALUE PASTED RATHER THAN INFERRED:
+
+        * `--retry-budget 0` -> `turns == ["zqs0px"]`, status `partial`, ZERO `zero-work-retry`
+          events, stderr contains `budget is exhausted`, exit nonzero
+          (`test_budget_zero_gives_no_retry_at_all_end_to_end`).
+        * budget 2, transient zero-work -> exactly ONE retry, `zero_work_retries == 1` (above).
+        * budget 2, PERMANENTLY zero-work -> `turns == ["zqs0px"] * 3` (budget + 1 dispatches, never
+          more), final `partial`, `zero_work_retries == 2`, TWO `zero-work-retry` events, and
+          `zero_work_refusal["exhausted"] is True`
+          (`test_a_permanently_zero_work_item_cannot_loop_past_the_budget`).
+        * budget 3 -> `turns == ["zqs0px"] * 4` and `zero_work_retries == 3`
+          (`test_a_budget_above_one_bounds_the_same_way`). This is the case that distinguishes "the
+          code hardcoded one attempt" from "the budget allowed one": a hardcoded single retry fails
+          here.
+
+      THE COUNTER PERSISTS ACROSS A RESUME (`test_the_counter_PERSISTS_across_a_resume`): the spend
+      is written into `state.json` on the ITEM, re-read from disk as `2`, and
+      `zero_work_retry_decision` on the re-read state returns `(retry=False, exhausted=True)` with
+      `attempts == 2`, so a resume buys no fresh retries.
+
+      THE UNIT MATRIX over the pure decision (`TestTheZeroWorkRetryIsBoundedByTheFrozenBudget`):
+      budget 0 -> exhausted immediately; budget 1 -> exactly one then exhausted; budget 3 ->
+      retries at used=0,1,2 then exhausted at 3; a REFUSED verdict never retries even at budget 10.
+
+      NO NEW KNOB AND NO `plan_retry`, both asserted mechanically:
+      `test_no_new_retry_knob_was_added` greps this plan's own section of `runner_shared.py` for
+      `add_argument`/`zero_work_budget`/`zero-work-budget` and finds none, so the frozen
+      `--retry-budget` remains the only limit; `test_plan_retry_is_NOT_called` asserts neither
+      `zero_work_retry_decision` nor `handle_zero_work_retry` mentions `plan_retry` (it needs a
+      `RunEngine` over a `ledger.jsonl` no driver run writes).
+      `test_the_frozen_budget_is_READ_and_never_re_resolved` asserts the decision reads
+      `frozen_retry_budget` and never `resolve_retry_budget`, and
+      `test_the_counter_is_SEPARATE_from_the_other_two_budgets` asserts the three per-item counter
+      keys are distinct (spec 5.5 counts corrections separately per action).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted output showing one `zero-work-retry` event per retry carrying the reason, the facts, the remaining budget and the truncation flag; ZERO such events on every refusal path; and the refusal reason present in the run report for an item that ended `partial` unretried. Plus the full bare `python3 -m pytest` summary line for the whole plan, and confirmation that the pre-existing tests in `tests/test_turn_bounds.py` (including the three FOREGROUND assertions at `:875-931` and the source-grep at `:357-368`, both verified accurate at review) still pass unweakened.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py \
+              -o addopts="" -q -k "TestTheZeroWorkRetryIsAuditable"
+          .......                                                                  [100%]
+          7 passed, 137 deselected in 0.25s
 
-- [ ] V-06 validates E-06
+      ONE EVENT PER RETRY, CARRYING EVERYTHING DEMANDED
+      (`test_a_retry_emits_exactly_one_event_carrying_the_facts_and_the_budget`): exactly one
+      `zero-work-retry` event, with `id6`, `attempt == 1`, `from_status == "partial"`, a `reason`
+      containing `PROVABLY attempted nothing`, the `facts` it read
+      (`facts["lane_commits_ahead"] == 0`), `retry_attempts_used == 1`, `retry_budget == 2`,
+      `budget_remaining == 1`, and `host_truncation == False`. The item afterwards carries
+      `zero_work_retries == 1`, `status == "queued"`, `recovery_next is True`,
+      `requeue_from_status == "partial"`.
+
+      THE PRINTED LINE, captured from stderr during that test:
+
+            -> IPD zqs0px provably attempted nothing (no outcome, no commit, clean tree);
+               re-dispatching instead of blocking its Set (zero-work retry 1 of 2)
+
+      ZERO EVENTS ON EVERY REFUSAL PATH:
+      `test_a_REFUSAL_emits_no_event_and_changes_no_status` (lane holds 2 commits) -> no
+      `zero-work-retry` event, `status` still `partial`, no counter written, and the refusal RECORD
+      present with `attempted_nothing=False` and a reason containing `2 commit(s)`.
+      `test_an_item_that_did_not_end_partial_is_untouched` -> NO events at all and no refusal record.
+      `test_the_exhausted_case_stands_terminal_and_records_a_refusal` (budget 0) -> no event, and
+      `zero_work_refusal["exhausted"] is True` with a reason containing `budget is exhausted`.
+      So the event's presence means "a turn was re-dispatched because it provably did nothing" and
+      never "the check ran".
+
+      THE REFUSAL REASON REACHES THE RUN REPORT (`test_the_report_names_BOTH_a_retry_and_a_refusal`):
+      `render_zero_work_notes` emits a `## Zero-work turns (attempted nothing)` section containing
+      `aaa111` RE-DISPATCHED (zero-work retry 1 of 2)` and
+      `bbb222` not retried (status `partial`)` with the condition that failed. The section is ABSENT
+      when nothing happened (`test_the_report_section_is_absent_when_nothing_happened` -> `[]`), so
+      an unaffected run's report is byte-identical, and
+      `test_the_renderer_is_reached_from_the_SHARED_report_writer` asserts the shared
+      `write_report` actually calls it (so both hosts' reports carry it, and neither carries a copy).
+
+      THE PRE-EXISTING TESTS IN THIS FILE STILL PASS UNWEAKENED. The whole file:
+
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py \
+              -o addopts="" -q
+          ........................................................................ [ 50%]
+          ........................................................................ [100%]
+          144 passed in 7.77s
+
+      The three FOREGROUND assertions and the source-grep the plan names are inside that 144 and were
+      NOT edited: the only edits to this file are two added imports (`contextlib`, `io`) and appended
+      classes. THE FULL BARE SUITE:
+
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest
+          9025 passed, 3 skipped, 2 xfailed, 6 warnings in 286.75s (0:04:46)
+
+      Plus the highest-risk pinned invariants run together (the call-site census, the cross-host
+      run_queue characterization, the sibling retry-consumption suite, the re-fork guard, and the
+      defect-report family that pins `partial` as terminal):
+
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_runner_shared.py \
+              tests/test_rununify_run_queue.py tests/test_retry_consumption.py \
+              tests/test_runner_refork_guard.py tests/test_defect_report.py -o addopts="" -q
+          431 passed in 114.25s (0:01:54)
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted evidence that the requeue call site is INSIDE the dispatch loop on BOTH hosts, after `execute_item` returns - asserted on the call graph or by locating the site relative to `while True:` and to the `cascade_dependency_blocked` call, NOT by a byte offset. Must explicitly demonstrate the property the original wording would have lost: a zero-work turn occurring DURING a run (not a resumed one) is re-dispatched. State the measured relationship that makes this necessary: the `--retry-incomplete` block the plan originally cited runs BEFORE the loop and inspects statuses left by a previous invocation, so a check placed there never observes an in-run turn. Also paste the negative control proving the test can fail: with the call moved into the pre-loop block, the in-run fixture is NOT retried (name the assertion that fires).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py \
+              -o addopts="" -q -k "TestTheRequeueFiresFromInsideTheDispatchLoop"
+          .........                                                                [100%]
+          9 passed, 135 deselected in 0.26s
+
+      THE CALL SITE IS ASSERTED ON STRUCTURE, NEVER ON A BYTE OFFSET, and on BOTH hosts (each test is
+      parametrized over `oc_runipd` and `agy_runipd` through the file's existing `DRIVERS` mark):
+
+        * `test_the_call_is_inside_the_dispatch_loop` parses `run_queue`, collects every `ast.Call`
+          reachable from its `ast.While` nodes, and asserts the single
+          `handle_zero_work_retry` call is in that set.
+        * `test_the_call_follows_execute_item_in_the_same_try_statement` locates the `ast.Try` whose
+          BODY calls `execute_item` and asserts `handle_zero_work_retry` is on that statement's
+          `orelse`, so it runs when and only when the turn RETURNED (never after a deliberate stop,
+          an interrupt, or a `DriverError`, each of which breaks or re-raises).
+        * `test_the_call_precedes_the_cascade_on_the_next_iteration` asserts
+          `cascade_dependency_blocked` appears BEFORE the seam in `run_queue`'s source, i.e. the
+          cascade is at the TOP of the loop and first observes this turn's terminal status on the
+          NEXT iteration, so the seam sits inside the window.
+        * `test_the_rule_is_not_reimplemented_per_host` asserts neither driver defines
+          `turn_attempted_nothing`, `zero_work_retry_decision` or `handle_zero_work_retry`.
+
+      THE IN-RUN PROPERTY (not a resumed one) is demonstrated by V-04's end-to-end fixture, which
+      runs with `retry_incomplete=False` and still produces
+      `turns == ["zqs0px", "zqs0px", "qmgn12"]`.
+
+      THE MEASURED RELATIONSHIP THAT MAKES THIS NECESSARY, re-verified at execution: the
+      `--retry-incomplete` block is at function-relative lines 36-78 of `run_queue` while
+      `while True:` is at function-relative 152 and the `execute_item` call at 340. The block is
+      therefore a resume-time, run-once pass over statuses left by a PREVIOUS invocation and can
+      never observe an in-run turn. `test_the_reason_the_pre_loop_block_is_wrong_is_RECORDED` asserts
+      that reason is written at `handle_zero_work_retry` so nobody "tidies" the seam into the block
+      whose SHAPE it copies.
+
+      THE NEGATIVE CONTROL, RUN RATHER THAN ARGUED. The in-loop seam was DELETED from
+      `agent_workflows/oc_runipd.py` and an equivalent call injected into the pre-loop
+      `--retry-incomplete` block instead (a scratch copy of the file was kept and restored
+      afterwards; the restore was confirmed by re-running the file green at 144 passed):
+
+          $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py \
+              -o addopts="" -q -k "oc_runipd and (TestTheRequeueFiresFromInsideTheDispatchLoop \
+              or TestTheSiblingsAreNotBlockedEndToEnd)"
+          8 failed, 3 passed, 133 deselected in 1.10s
+
+          FAILED ...TestTheRequeueFiresFromInsideTheDispatchLoop::test_the_call_is_inside_the_dispatch_loop[oc_runipd]
+          FAILED ...TestTheRequeueFiresFromInsideTheDispatchLoop::test_the_call_precedes_the_cascade_on_the_next_iteration[oc_runipd]
+          FAILED ...TestTheRequeueFiresFromInsideTheDispatchLoop::test_the_call_follows_execute_item_in_the_same_try_statement[oc_runipd]
+          FAILED ...TestTheSiblingsAreNotBlockedEndToEnd::test_a_permanently_zero_work_item_cannot_loop_past_the_budget[oc_runipd]
+          FAILED ...TestTheSiblingsAreNotBlockedEndToEnd::test_a_budget_above_one_bounds_the_same_way[oc_runipd]
+          FAILED ...TestTheSiblingsAreNotBlockedEndToEnd::test_budget_zero_gives_no_retry_at_all_end_to_end[oc_runipd]
+          FAILED ...TestTheSiblingsAreNotBlockedEndToEnd::test_the_zero_work_item_is_re_dispatched_and_its_dependent_still_executes[oc_runipd]
+          FAILED ...TestTheSiblingsAreNotBlockedEndToEnd::test_the_retry_is_dispatched_in_RECOVERY_mode[oc_runipd]
+
+      THE ASSERTION THAT FIRES on the in-run fixture, named as required, is in
+      `test_the_retry_is_dispatched_in_RECOVERY_mode`:
+
+          >       assert [a["recovery"] for a in item["attempts"]] == [False, True]
+          E       assert [False] == [False, True]
+          E         Right contains one more item: True
+
+      i.e. with the call in the pre-loop block the in-run zero-work turn is NOT retried at all, which
+      is exactly the property the original wording would have lost.
+  - Result: pass
 
 ## Approval and execution gate
 
