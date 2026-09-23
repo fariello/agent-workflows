@@ -10,20 +10,20 @@
 - Scope: Give the recorded gate answer a channel to the post-merge revalidation gate, so failing ids the agent ATTRIBUTED AWAY with a usable `not-mine` answer do not drive a post-merge refusal. EXCLUDES the baseline-subtraction fix (sibling plan `tgyfs2`, backlog `fuk1mr`), which handles ids that were ALREADY red; this plan handles ids no baseline can catch (a failure that landed on main mid-turn, a flake, an order-dependence). EXCLUDES ask-reachability, whose premise was measured FALSE at review (see the Concern). Adds no new refusal kind, no new status, and no new answer token.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_gate_answer_propagation.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:tgyfs2
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: gateinert
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: n9na1c
-- Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
 - From-Backlog: c74dm7
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: n9na1c verified (set gateinert, attempt 1).
 - 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 reviewed (aw set): status set to reviewed
 
