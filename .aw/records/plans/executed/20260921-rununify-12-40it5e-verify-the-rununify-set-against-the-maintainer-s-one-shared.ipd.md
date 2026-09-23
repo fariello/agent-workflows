@@ -6,7 +6,7 @@
 - Scope: Perform `5e4sb6`'s E-02 and E-03 as real agent turns, and report the Set's true state against the directive. IN: an AST-level, REPO-WIDE single-implementation measurement whose classification is of each symbol's BODY (delegating or not), never of its NAME; a per-symbol disposition of every symbol in the RESIDUE (genuinely host-specific versus still-redundant); the characterization baseline E-02 requires, authored now with its LATENESS STATED and aimed at symbols that are STILL FORKED at execution HEAD; and an honest verdict on whether the Set is done. OUT: performing the unification of any remaining symbol - if the measurement shows redundancy remains, this plan REPORTS it and `runresidue` (`gqo6if`) owns the work, because unifying a forked function is not a verification task. ALSO OUT: pinning a symbol that has ALREADY been unified. A characterization test over `agy_runipd.build_prompt` (a one-line delegation at review HEAD) tests `runner_shared` through two aliases while claiming to test two hosts, which is worse than no test because it reports coverage that does not exist.
 - Scope-Paths: .aw/records/plans/pending, tests/test_rununify_characterization.py, .aw/records/research, tools, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: chore
 - Priority: medium
 - Readiness: go-pending-approval
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 40it5e
-- Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 40it5e verified (set rununify, attempt 1).
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item dhuape (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 reviewed (aw set): Release gate and graduation link recorded through the setter rather than hand-written (PR-005): this Set descends from backlog dhuape, which carries Blocks-Release: next, and the gate is inherited rather than re-decided per child.
