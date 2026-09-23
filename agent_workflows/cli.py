@@ -1016,6 +1016,20 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Keep updating a detected legacy .agents/ layout in place with deprecation notice without migrating.",
     )
+    # migleftover Order 01 (z1yefm) E-01: make a CLEANUP disposition reachable from an
+    # install-driven migration. Before this, every install-time migration hardcoded `defer`, so it
+    # could never sweep the empty legacy directories it left behind, and a fully migrated repo kept
+    # reporting a split-brain layout. The DEFAULT stays `defer` so no existing invocation changes
+    # meaning and nothing becomes destructive without an explicit choice (OQ-01).
+    p_install.add_argument(
+        "--leftovers",
+        choices=["keep", "remove", "defer"],
+        default=None,
+        help="Disposition for legacy material an install-time migration does NOT move: keep "
+        "(leave in place), remove (delete tracked orphans and stale-tool litter, then prune the "
+        "emptied legacy dirs), or defer (record for a later cleanup; the default). Never deletes "
+        "without an explicit 'remove'.",
+    )
     # tabcomp Order 03 (jolfpj) E-04: opt-in shell-completion setup during install. Default `none`
     # keeps a non-interactive/batch install non-destructive toward the user's completion dirs.
     p_install.add_argument(
@@ -6061,6 +6075,23 @@ def _exclude_remove(cfg, repo_root: Path) -> None:
     config.save(cfg)
 
 
+def _install_leftover_disposition(args) -> str:
+    """Resolve the leftover disposition an install-driven layout migration must use.
+
+    migleftover Order 01 (z1yefm) E-01. Every install-time migration used to pass a HARDCODED
+    `defer`, which made a cleanup disposition unreachable from `aw install`, so a migration could
+    never sweep the empty legacy directories it left behind. This is the single resolver all three
+    install-time migration call sites read, so they cannot drift apart. It DEFAULTS to `defer`
+    (today's behavior), which is why a bare `--to-aw` is unchanged and why nothing becomes
+    destructive without an explicit `--leftovers remove`. `args` may lack the attribute entirely
+    (the `setup` verb does not declare the flag), hence the getattr fallback.
+    """
+    value = getattr(args, "leftovers", None)
+    if value in ("keep", "remove", "defer"):
+        return value
+    return "defer"
+
+
 def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
     """Guard against split-brain layout (.aw/system + live .agents/workflows).
 
@@ -6093,7 +6124,10 @@ def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
         from agent_workflows.layout_migration import MigrationManager
 
         mgr = MigrationManager(target_repo=str(repo_root))
-        mgr.execute_migration(target_backend="repository", leftover_disposition="defer")
+        mgr.execute_migration(
+            target_backend="repository",
+            leftover_disposition=_install_leftover_disposition(args),
+        )
         if not engine.detect_split_brain_layout(repo_root):
             term.status("ok", f"{repo_root}: consolidated split-brain layout into .aw/")
             return "proceed"
@@ -6334,7 +6368,10 @@ def _handle_legacy_migration(
         from agent_workflows.layout_migration import MigrationManager
 
         mgr = MigrationManager(target_repo=str(repo_root))
-        mgr.execute_migration(target_backend="repository", leftover_disposition="defer")
+        mgr.execute_migration(
+            target_backend="repository",
+            leftover_disposition=_install_leftover_disposition(args),
+        )
         term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
         return False
 
@@ -6359,7 +6396,8 @@ def _handle_legacy_migration(
 
             mgr = MigrationManager(target_repo=str(repo_root))
             mgr.execute_migration(
-                target_backend="repository", leftover_disposition="defer"
+                target_backend="repository",
+                leftover_disposition=_install_leftover_disposition(args),
             )
             term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
             return False

@@ -1469,5 +1469,214 @@ class StaleToolLitterSweepTests(unittest.TestCase):
         )
 
 
+class InstallMigrationResidueSweepTests(unittest.TestCase):
+    """IPD migleftover Order 01 (z1yefm) E-05: the MEASURED real-repo residue shape.
+
+    Reproduced on nine real 1.2.1 repos (F-01/F-02): after a successful `aw install --to-aw`
+    migration, 4 to 9 EMPTY directories remained under `.agents/workflows/` along with a
+    tracked `.agents/README.md`, which was enough to make a fully migrated repo report a
+    permanent split-brain layout and be advised to run a migration that had already run.
+
+    This class pins the whole outcome: the empty-dir residue is swept under `remove`, the
+    repo stops being classified dual-layout, and `.agents/skills` SURVIVES. That last
+    assertion is the load-bearing one: `.agents/skills` is the INTENDED skills location for
+    BOTH layouts (engine.SKILLS_DIR / resolve_skills_dir), it is git-TRACKED, and tracked
+    material is exactly what `_is_removable_leftover` reads as removable - so before the
+    z1yefm guard, `remove` DELETED every installed skill package.
+    """
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.repo = Path(self.tmp_dir) / "repo"
+        self.repo.mkdir()
+        for a in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "T"],
+            ["config", "commit.gpgsign", "false"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(self.repo), *a], check=True, capture_output=True
+            )
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+        os.makedirs(self.aw_home, exist_ok=True)
+        os.environ["AW_HOME"] = self.aw_home
+
+        # --- The measured residue shape (F-02) ---------------------------------------------
+        # A populated, already-migrated `.aw/system`.
+        (self.repo / ".aw" / "system" / "workflows").mkdir(parents=True)
+        (self.repo / ".aw" / "system" / "VERSION").write_text(
+            "1.3.0\n", encoding="utf-8"
+        )
+        (self.repo / ".aw" / "system" / "workflows" / "index.md").write_text(
+            "# index\n", encoding="utf-8"
+        )
+        # The residue itself: EMPTY per-workflow tools dirs the migration left behind.
+        self.empty_tool_dirs = []
+        for wf in ("assess", "verify", "benchmark", "setup-repo"):
+            d = self.repo / ".agents" / "workflows" / wf / "tools"
+            d.mkdir(parents=True)
+            self.empty_tool_dirs.append(d)
+        # The tracked framework-authored README left behind.
+        self.agents_readme = self.repo / ".agents" / "README.md"
+        self.agents_readme.write_text(
+            "# .agents\nframework-authored\n", encoding="utf-8"
+        )
+        # A populated skills package: the INTENDED location for both layouts; must SURVIVE.
+        self.skill_file = self.repo / ".agents" / "skills" / "assess" / "SKILL.md"
+        self.skill_file.parent.mkdir(parents=True)
+        self.skill_file.write_text("# assess skill\n", encoding="utf-8")
+
+        subprocess.run(
+            ["git", "-C", str(self.repo), "add", ".agents", ".aw"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "commit", "-q", "-m", "seed residue shape"],
+            check=True,
+            capture_output=True,
+        )
+
+    def tearDown(self):
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def _empty_dirs(self):
+        agents = self.repo / ".agents"
+        if not agents.is_dir():
+            return []
+        return sorted(
+            p.relative_to(self.repo).as_posix()
+            for p in agents.rglob("*")
+            if p.is_dir() and not any(p.iterdir())
+        )
+
+    def _sweep(self, disposition):
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        return mgr._handle_leftovers({}, leftover_disposition=disposition)
+
+    def test_remove_sweeps_the_measured_empty_dir_residue(self):
+        """E-03/V-03: the empty `.agents/workflows/*/tools` dirs are gone after `remove`."""
+        self.assertNotEqual(
+            self._empty_dirs(), [], "fixture must START with empty-dir residue"
+        )
+        self._sweep("remove")
+        self.assertEqual(
+            self._empty_dirs(),
+            [],
+            "empty-dir residue survived a `remove` disposition",
+        )
+
+    def test_remove_stops_the_repo_being_classified_dual_layout(self):
+        """E-05: after the sweep, neither detector calls the migrated repo split-brain."""
+        from agent_workflows import engine
+        from agent_workflows.doctor import probe_environment
+
+        self._sweep("remove")
+        self.assertFalse(
+            engine.detect_split_brain_layout(self.repo),
+            "engine detector still reports split-brain after cleanup",
+        )
+        self.assertNotIn(
+            "split-brain",
+            probe_environment(self.repo).layout,
+            "doctor still reports split-brain on a fully migrated repo",
+        )
+
+    def test_remove_preserves_the_shared_skills_directory(self):
+        """E-04/E-05: `.agents/skills` is the intended location for BOTH layouts and MUST survive.
+
+        This test FAILS if a future change lets `remove` delete skills: it is tracked, and
+        tracked-orphan removal is exactly the branch that would claim it.
+        """
+        res = self._sweep("remove")
+        self.assertTrue(
+            self.skill_file.is_file(),
+            "`remove` deleted an installed skill package (breaks host skill discovery)",
+        )
+        self.assertTrue((self.repo / ".agents" / "skills").is_dir())
+        self.assertTrue(
+            any("skills/" in p for p in res.get("preserved", [])),
+            f"skills not recorded as preserved: {res.get('preserved')}",
+        )
+        self.assertTrue(
+            all("skills/" not in r for r in res.get("removed", [])),
+            f"a skills path was reported removed: {res.get('removed')}",
+        )
+
+    def test_skills_guard_is_load_bearing(self):
+        """Falsifiable: the tracked-orphan rule alone WOULD classify a skill file removable."""
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        self.assertFalse(
+            mgr._is_removable_leftover(".agents/skills/assess/SKILL.md"),
+            "the skills guard is not in effect",
+        )
+        # The file IS git-tracked, which is the signal the tracked-orphan rule reads as
+        # removable - so the guard, not the tracking state, is what saves it.
+        tracked = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.repo),
+                "ls-files",
+                "--error-unmatch",
+                "--",
+                ".agents/skills/assess/SKILL.md",
+            ],
+            capture_output=True,
+        )
+        self.assertEqual(
+            tracked.returncode,
+            0,
+            "fixture skill file must be TRACKED for this probe to mean anything",
+        )
+
+    def test_agents_readme_disposition_per_leftover_mode(self):
+        """E-04/V-04: `.agents/README.md` is removed ONLY under `remove`, never under keep/defer."""
+        for disposition, expect_present in (
+            ("keep", True),
+            ("defer", True),
+            ("remove", False),
+        ):
+            with self.subTest(disposition=disposition):
+                self.setUp()  # fresh fixture per disposition
+                try:
+                    res = self._sweep(disposition)
+                    self.assertEqual(
+                        self.agents_readme.exists(),
+                        expect_present,
+                        f".agents/README.md presence wrong under {disposition}",
+                    )
+                    if expect_present:
+                        self.assertIn(".agents/README.md", res.get("preserved", []))
+                    else:
+                        self.assertIn(".agents/README.md", res.get("removed", []))
+                finally:
+                    self.tearDown()
+
+    def test_keep_and_defer_delete_nothing_at_all(self):
+        """The default stays non-destructive: neither keep nor defer removes any residue."""
+        for disposition in ("keep", "defer"):
+            with self.subTest(disposition=disposition):
+                self.setUp()
+                try:
+                    res = self._sweep(disposition)
+                    self.assertEqual(res.get("removed", []), [])
+                    self.assertTrue(self.skill_file.is_file())
+                    self.assertTrue(self.agents_readme.is_file())
+                    self.assertNotEqual(
+                        self._empty_dirs(),
+                        [],
+                        f"{disposition} must leave the directory skeleton in place",
+                    )
+                finally:
+                    self.tearDown()
+
+
 if __name__ == "__main__":
     unittest.main()

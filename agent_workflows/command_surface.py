@@ -587,6 +587,9 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
             "--companion-dir",
             "--to-aw",
             "--keep-legacy",
+            # migleftover Order 01 (z1yefm) E-02: the install-time leftover disposition, which
+            # makes a cleanup reachable from `--to-aw` instead of being hardcoded to `defer`.
+            "--leftovers",
         ),
         exit_contract=(0, 1, 2),
     ),

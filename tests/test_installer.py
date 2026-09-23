@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import pytest
 
+import argparse
 import io
 import os
 import re
@@ -4412,6 +4413,170 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
                 os.environ.pop("XDG_CONFIG_HOME", None)
             else:
                 os.environ["XDG_CONFIG_HOME"] = old_xdg
+
+
+class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
+    """migleftover Order 01 (z1yefm) E-01/E-02: `aw install --leftovers` must REACH the migration.
+
+    Every install-time migration used to pass a HARDCODED `leftover_disposition="defer"`, so an
+    install-driven migration could never sweep the residue it left behind and a migrated repo
+    reported a permanent split-brain layout. THREE call sites carried that literal: the `--to-aw`
+    path, the interactive-confirm path in `_handle_legacy_migration`, and the migrate-now branch
+    inside `_split_brain_guard`. Each is asserted here, because fixing only some of them leaves
+    the path a real repo actually takes unable to clean up.
+
+    The DEFAULT must stay `defer`: this change makes a cleanup REACHABLE, it does not make any
+    existing invocation destructive (plan OQ-01).
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.term = Term(color=False)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _legacy_repo(self, name) -> Path:
+        repo = init_repo(self.base / name)
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "index.md").write_text(
+            "# Manifest\n", encoding="utf-8"
+        )
+        return repo
+
+    def _split_brain_repo(self, name) -> Path:
+        repo = init_repo(self.base / name)
+        (repo / ".aw" / "system" / "workflows").mkdir(parents=True)
+        (repo / ".aw" / "system" / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "index.md").write_text(
+            "# Manifest\n", encoding="utf-8"
+        )
+        return repo
+
+    def _args(self, **kw):
+        ns = argparse.Namespace(
+            to_aw=False, keep_legacy=False, yes=False, leftovers=None
+        )
+        for k, v in kw.items():
+            setattr(ns, k, v)
+        return ns
+
+    def test_flag_is_declared_and_parses_with_a_defer_default(self):
+        """E-01/E-02: the flag exists on the `install` verb, and a bare `--to-aw` still means defer."""
+        parser = CLI._build_parser()
+        self.assertIsNone(parser.parse_args(["install", ".", "--to-aw"]).leftovers)
+        for value in ("keep", "remove", "defer"):
+            self.assertEqual(
+                parser.parse_args(
+                    ["install", ".", "--to-aw", "--leftovers", value]
+                ).leftovers,
+                value,
+            )
+        # Declared in the command surface inventory, which the conformance tests read.
+        from agent_workflows.command_surface import COMMAND_INVENTORY
+
+        install_decl = next(d for d in COMMAND_INVENTORY if d.command == "install")
+        self.assertIn("--leftovers", install_decl.legacy_flags)
+
+    def test_resolver_defaults_to_defer_and_rejects_junk(self):
+        """The ONE resolver all three call sites read fails SAFE toward `defer`."""
+        self.assertEqual(CLI._install_leftover_disposition(self._args()), "defer")
+        self.assertEqual(
+            CLI._install_leftover_disposition(self._args(leftovers="remove")), "remove"
+        )
+        self.assertEqual(
+            CLI._install_leftover_disposition(self._args(leftovers="keep")), "keep"
+        )
+        # A namespace without the attribute at all (e.g. the `setup` verb) still resolves.
+        self.assertEqual(
+            CLI._install_leftover_disposition(argparse.Namespace()), "defer"
+        )
+        # Anything not in the enum is NOT trusted through to a destructive disposition.
+        self.assertEqual(
+            CLI._install_leftover_disposition(self._args(leftovers="rm -rf")), "defer"
+        )
+
+    def test_to_aw_path_threads_the_requested_disposition(self):
+        """Call site 1: `_handle_legacy_migration`'s `--to-aw` branch."""
+        for requested, expected in (
+            ("remove", "remove"),
+            ("keep", "keep"),
+            (None, "defer"),
+        ):
+            with self.subTest(leftovers=requested):
+                repo = self._legacy_repo(f"to-aw-{requested}")
+                with mock.patch(
+                    "agent_workflows.layout_migration.MigrationManager"
+                ) as MockMgr:
+                    CLI._handle_legacy_migration(
+                        repo, self._args(to_aw=True, leftovers=requested), self.term
+                    )
+                MockMgr.return_value.execute_migration.assert_called_once_with(
+                    target_backend="repository", leftover_disposition=expected
+                )
+
+    def test_interactive_confirm_path_threads_the_requested_disposition(self):
+        """Call site 2: `_handle_legacy_migration`'s interactive-confirm branch."""
+        for requested, expected in (("remove", "remove"), (None, "defer")):
+            with self.subTest(leftovers=requested):
+                repo = self._legacy_repo(f"interactive-{requested}")
+                with mock.patch("sys.stdin.isatty", return_value=True):
+                    with mock.patch("agent_workflows.cli._confirm", return_value=True):
+                        with mock.patch(
+                            "agent_workflows.layout_migration.MigrationManager"
+                        ) as MockMgr:
+                            CLI._handle_legacy_migration(
+                                repo, self._args(leftovers=requested), self.term
+                            )
+                MockMgr.return_value.execute_migration.assert_called_once_with(
+                    target_backend="repository", leftover_disposition=expected
+                )
+
+    def test_split_brain_migrate_now_threads_the_requested_disposition(self):
+        """Call site 3: the migrate-now branch in `_split_brain_guard`.
+
+        This is the site the original plan MISSED (F-09) and it is the path a genuinely
+        split-brain repo actually takes, so leaving it hardcoded would leave the consolidation
+        path unable to clean up.
+        """
+        for requested, expected in (("remove", "remove"), (None, "defer")):
+            with self.subTest(leftovers=requested):
+                repo = self._split_brain_repo(f"sb-{requested}")
+                with mock.patch("sys.stdin.isatty", return_value=True):
+                    with mock.patch(
+                        "agent_workflows.cli._prompt_yes_no", side_effect=[True]
+                    ):
+                        with mock.patch(
+                            "agent_workflows.layout_migration.MigrationManager"
+                        ) as MockMgr:
+
+                            def fake_migrate(**kwargs):
+                                for p in list(
+                                    (repo / ".agents" / "workflows").glob("*")
+                                ):
+                                    p.unlink()
+                                (repo / ".agents" / "workflows").rmdir()
+
+                            MockMgr.return_value.execute_migration.side_effect = (
+                                fake_migrate
+                            )
+                            CLI._split_brain_guard(
+                                self.term, repo, self._args(leftovers=requested)
+                            )
+                MockMgr.return_value.execute_migration.assert_called_once_with(
+                    target_backend="repository", leftover_disposition=expected
+                )
+
+    def test_no_hardcoded_leftover_disposition_literal_remains_in_cli(self):
+        """E-01's own acceptance check: no call site re-hardcodes the value."""
+        source = Path(CLI.__file__).read_text(encoding="utf-8")
+        self.assertNotIn(
+            'leftover_disposition="',
+            source,
+            "a hardcoded leftover_disposition literal is back in cli.py",
+        )
 
 
 class UninstallCompletenessTests(unittest.TestCase):

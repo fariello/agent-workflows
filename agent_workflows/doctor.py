@@ -328,16 +328,31 @@ def probe_environment(
             except OSError:
                 pass
 
-        # Layout & config
+        # Layout & config. The split-brain question is answered by the ONE shared CONTENT-AWARE
+        # detector `cli._split_brain_guard` already consumes (migleftover Order 01, z1yefm E-06),
+        # not by a bare `.agents/`-exists test. Two reasons, both measured:
+        #   1. `.agents/skills` is the INTENDED skills location for BOTH layouts
+        #      (engine.SKILLS_DIR / resolve_skills_dir), so `.agents/` is a PERMANENT resident of a
+        #      fully migrated repo. An existence test therefore reports split-brain FOREVER after a
+        #      perfectly clean migration, and no amount of leftover cleanup can ever fix it.
+        #   2. The two detectors DISAGREED. On a residue-only fixture (empty
+        #      `.agents/workflows/*/tools` dirs plus `.agents/README.md`),
+        #      `engine.detect_split_brain_layout` returned False while this probe reported
+        #      `.aw + .agents (dual layout / split-brain)` and advised `aw migrate-layout`, a
+        #      migration that had already run and that re-running clears nothing.
+        # `detect_split_brain_layout` walks `.agents/workflows` and is True only for a non-empty,
+        # non-cruft FILE, so a GENUINE split-brain is still reported. Reusing it means `aw doctor`,
+        # `aw check`, and the install guard cannot report this condition differently.
         has_aw = (repo_root / ".aw").is_dir()
         has_agents = (repo_root / ".agents").is_dir()
-        if has_aw and has_agents:
+        if has_aw and engine.detect_split_brain_layout(repo_root):
             res.layout = ".aw + .agents (dual layout / split-brain)"
             res.drift.append(
                 core.Drift(
                     "<layout>",
                     "doctor.layout-split-brain",
-                    "both .aw/ and .agents/ exist simultaneously; run 'aw migrate-layout' or remove stale directory",
+                    "both .aw/system and LIVE .agents/workflows content exist simultaneously; "
+                    "run 'aw migrate-layout' to consolidate",
                 )
             )
         elif has_aw:

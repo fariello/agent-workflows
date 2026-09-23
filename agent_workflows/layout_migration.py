@@ -186,6 +186,20 @@ def _run_git(repo_path: Path, args: List[str]) -> subprocess.CompletedProcess[st
     )
 
 
+def _skills_prefix() -> str:
+    """Return the shared skills directory prefix, from its ONE authority in `engine`.
+
+    Imported lazily (inside the function) rather than at module import time to keep this
+    module's import graph unchanged: `engine` is a large module and the leftover predicate is
+    the only thing here that needs the constant. Read from `engine.SKILLS_DIR` rather than
+    re-spelling `.agents/skills`, so a future relocation of the skills directory moves this
+    guard with it instead of silently unprotecting the new location.
+    """
+    from agent_workflows import engine as _engine
+
+    return _engine.SKILLS_DIR.strip("/").replace("\\", "/")
+
+
 def is_stale_tool_litter(repo_path: Path | str, rel: Path | str) -> bool:
     """Pure predicate: True iff `rel` is untracked stale-tool litter under `.agents/workflows/` (IPD plt26j).
 
@@ -508,6 +522,19 @@ class MigrationManager:
         # Never remove the deliberately-local lanes or the untracked-safety convention, even if
         # some future .gitignore change made git's own state ambiguous.
         if "/local/" in f"/{norm}" or norm.endswith("/local") or "untracked" in norm:
+            return False
+        # NEVER remove the shared skills directory (migleftover Order 01, z1yefm E-04). It lives
+        # under `.agents/` but it is NOT legacy residue: `engine.SKILLS_DIR` is the INTENDED
+        # skills location for BOTH the `aw` and the legacy layout, because a skill package is
+        # discovered by a host tool scanning a fixed directory, exactly like the `.opencode/` and
+        # `.claude/` command shims (engine.py SKILLS_DIR / resolve_skills_dir rationale). It is
+        # also git-TRACKED, which is precisely the signal the tracked-orphan rule below reads as
+        # "removable", so without this guard `remove` DELETES every installed skill package and
+        # breaks host skill discovery. Measured on a residue-shape fixture before this guard
+        # existed: `remove` reported `.agents/skills/assess/SKILL.md` in its `removed` list and
+        # left no `.agents/skills` directory at all.
+        skills_prefix = _skills_prefix()
+        if norm == skills_prefix or norm.startswith(skills_prefix + "/"):
             return False
         # IGNORED -> preserve (belt): check-ignore returns 0 when the path is ignored.
         if _run_git(repo_path, ["check-ignore", "-q", "--", rel]).returncode == 0:
