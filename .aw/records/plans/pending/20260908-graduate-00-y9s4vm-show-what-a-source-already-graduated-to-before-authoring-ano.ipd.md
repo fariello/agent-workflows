@@ -11,6 +11,8 @@
 - Scope-Paths: .aw/records/plans/pending/20260908-graduate-01-jxxec8-report-every-existing-plan-for-a-source-before-a-tenth-is-au.ipd.md, .aw/records/plans/pending/20260908-graduate-02-iuxtjy-make-a-spec-or-backlog-selector-reachable-for-the-plan-actio.ipd.md
 - Item-Dependencies: none
 - Status: approved
+- Work-Kind: feature
+- Priority: medium
 - Readiness: go-pending-approval
 - Set: graduate
 - Order: 0
@@ -21,6 +23,7 @@
 - From-Backlog: 6h7y2y
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item 6h7y2y (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-909 all FIXED; readiness go-pending-approval
 

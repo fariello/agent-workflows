@@ -7,6 +7,8 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_hostdedup_identical_lift.py, tests/test_rununify_initialize_run.py, tests/test_rununify_execute_item.py, tests/test_rununify_run_queue.py, tests/test_rununify_main.py, tests/test_runner_shutdown.py, tests/test_runner_shared.py, tests/test_runner_stop.py, tests/test_lane_tool_identity.py, tests/test_lane_clean_base.py, tests/test_lane_allocation_idempotent.py, tests/test_dirty_base_gate.py, tests/test_nested_tty_noninteractive.py, tools/runner_fork_scan.py
 - Item-Dependencies: none
 - Status: approved
+- Work-Kind: followup
+- Priority: high
 - Readiness: go-pending-approval
 - From-Backlog: dstnso
 - Set: hostdedup
@@ -17,6 +19,7 @@
 - Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item dstnso (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (/plan-review Antigravity): approve with revisions applied; PR-001 resolved by maintainer decision on OQ-03 (Route a); readiness go-pending-approval
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 12 findings, 11 FIXED, PR-001 left OPEN at BLOCKER (nine symbols close over module-level names, FULL_AUTO_ACTOR differs per host and reaches permanent workflow history) and escalated as blocking OQ-03; readiness no-go

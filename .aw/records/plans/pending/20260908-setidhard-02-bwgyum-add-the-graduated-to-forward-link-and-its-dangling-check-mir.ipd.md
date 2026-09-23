@@ -12,6 +12,8 @@
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/ipd_schema.py, agent_workflows/cli.py, .aw/records/backlog/README.md, .aw/records/specs/README.md, tests/test_graduated_to_link.py, tests/test_releases.py
 - Item-Dependencies: none
 - Status: approved
+- Work-Kind: feature
+- Priority: high
 - Readiness: go-pending-approval
 - Set: setidhard
 - Order: 2
@@ -22,6 +24,7 @@
 - From-Backlog: sjsoqq
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item sjsoqq (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-801..PR-810 all FIXED; readiness go-pending-approval
 

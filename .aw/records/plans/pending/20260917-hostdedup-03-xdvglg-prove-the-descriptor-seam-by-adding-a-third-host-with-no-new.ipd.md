@@ -7,6 +7,8 @@
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_hostdedup_third_host.py, .aw/records/research, agent_workflows/run_analytics_sources.py, agent_workflows/run_viewer.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/host_cmd.py, tests/test_rununify_initialize_run_characterization.py
 - Item-Dependencies: executed:nmlx47
 - Status: approved
+- Work-Kind: followup
+- Priority: high
 - Readiness: go-pending-approval
 - From-Backlog: dstnso
 - Set: hostdedup
@@ -17,6 +19,7 @@
 - Approval: 2026-09-18, human ("approved"): Approved by maintainer: initialize_run unified into runner_shared.py; OQ-03 resolved and PR-001 discharged
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item dstnso (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-18 approved (aw set, --by-human): Approved by maintainer: initialize_run unified into runner_shared.py; OQ-03 resolved and PR-001 discharged
 - 2026-09-18 reviewed (antigravity pair with maintainer): /plan-review ROUND 3: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. OQ-03 RESOLVED by maintainer direction and execution: initialize_run was unified into runner_shared.initialize_run_core (commit 7a28ed11), so the identity write is unified in runner_shared.py and parameterized by caller. PR-001 dispositioned FIXED. All blocking questions resolved; readiness promoted to go-pending-approval.
 - 2026-09-18 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review ROUND 2 (audit of round 1): REVIEWED - OPEN QUESTIONS; readiness stays `no-go`; PR-001 CARRIED FORWARD still OPEN at BLOCKER, plus PR-101..PR-105 all FIXED. OQ-03 IS STILL UNANSWERED (no commit since round 1's own hardening touches it), so the plan remains correctly blocked by both gates (`IPD-Q501` and the typed finding gate). I RE-DERIVED EVERY LOAD-BEARING MEASUREMENT ROUND 1 WROTE INTO THIS PLAN AND ALL OF THEM HOLD (8 `HostLabels` fields with no defaults; 10 shared / 7 oc-only / 6 agy-only options with all 13 names exact; 9 binding sites per runner; both identity writes; `initialize_run` 446/353; argv divergence at the cited lines; the two consumers' differing mechanisms; `DEFAULT_HOSTS`; the three `25kzda` N-host citations). THREE ROUND-1 DEFECTS FOUND: a NINTH file is affected and was undeclared (`tests/test_rununify_initialize_run_characterization.py` pins `driver.path == __file__` and `driver.sha256` in three places, exactly what E-02 changes, now fenced with a deliberate re-base specified); round 1 mandated pre-cutover evidence from `.aw/records/runs/`, which is GITIGNORED and absent from every lane, re-pointed at tracked fixtures in `tests/test_run_analytics_sources.py`; and the `HostLabels` anchor round 1 corrected has drifted again 9425 -> 9509. Also closed round 1's open question about `driver.sha256`: exactly ONE reader exists and it is that characterization test, no product consumer. A TRAP WORTH NAMING: advancing to round 2 silently released round 1's BLOCKER from the typed gate (current-round semantics, `check_engine.py:3161-3162`), measured going from one gating block to none, so PR-001 is deliberately restated in round 2 to keep it gating.

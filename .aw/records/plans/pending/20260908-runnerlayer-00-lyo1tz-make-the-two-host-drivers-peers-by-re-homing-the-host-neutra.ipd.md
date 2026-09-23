@@ -12,6 +12,8 @@
 - Scope-Paths: .aw/records/plans/pending/20260908-runnerlayer-01-9kmbr0-classify-all-47-oc-to-agy-imported-names-as-host-neutral-or.ipd.md, .aw/records/plans/pending/20260908-runnerlayer-02-1f7xno-re-home-the-host-neutral-names-into-runner-shared-in-reviewa.ipd.md
 - Item-Dependencies: none
 - Status: approved
+- Work-Kind: bug
+- Priority: medium
 - Readiness: go-pending-approval
 - Set: runnerlayer
 - Order: 0
@@ -22,6 +24,7 @@
 - From-Backlog: cnwy8g
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item cnwy8g (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-B01..PR-B06 all FIXED; readiness go-pending-approval
 

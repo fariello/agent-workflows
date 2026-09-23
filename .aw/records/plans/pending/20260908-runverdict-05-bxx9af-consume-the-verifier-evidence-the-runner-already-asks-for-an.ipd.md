@@ -8,6 +8,8 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, tests/test_verifier_evidence.py
 - Item-Dependencies: executed:1bfppy
 - Status: approved
+- Work-Kind: bug
+- Priority: medium
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 5
@@ -19,6 +21,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item rbftpl (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-E01..PR-E10 all FIXED; OQ-01 resolved and encoded as Item-Dependencies: executed:1bfppy; readiness go-pending-approval
 

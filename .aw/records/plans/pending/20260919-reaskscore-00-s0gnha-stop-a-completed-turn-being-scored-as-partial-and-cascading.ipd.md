@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending/20260919-reaskscore-00-s0gnha-stop-a-completed-turn-being-scored-as-partial-and-cascading.ipd.md
 - Item-Dependencies: none
 - Status: approved
+- Priority: high
 - Readiness: go-pending-approval
 - Set: reaskscore
 - Order: 0
@@ -19,6 +20,7 @@
 - Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority by inheritance from source backlog item yxfw4k (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-19 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /askme: OQ-03 RESOLVED FROM THE REPOSITORY WITHOUT ASKING, because there was no live decision left to ask about, clearing this plan's only blocking question and with it its `no-go`. BOTH PREMISES HAD EXPIRED BETWEEN THE TWO REVIEWS, and the timestamps make that checkable rather than asserted: this parent was reviewed at `24a3c262` with its lane merged at 12:53, while `dy9ymn`'s own round 1 landed at `27d399ed` 13:35, 42 minutes LATER. Measured at both commits: at `24a3c262` `dy9ymn` E-04 read "Use the run's already-resolved value ... introduce NO second retry knob" with `grep -c integration_attempts` = 0, exactly the unbuildable instruction this question reports; at HEAD that wording is gone and the count is 7, E-04 now telling its executor to count on the item mirroring the shipped `integration_attempts` precedent, which needs no ledger and adds no knob. That IS shape (b), already taken. SECOND PREMISE ALSO FALSE, AND ALREADY FALSE WHEN THE QUESTION WAS WRITTEN: `xipfy1` OQ-03 reads `- Status: resolved` at HEAD AND at `24a3c262` itself, the maintainer having settled the substrate on 2026-09-10 in favor of the drivers' own `state.json`/`events.jsonl`, so shape (a)'s stated cost never applied and the two answers coincide. THE CODE FACT THE FINDING MEASURED REMAINS TRUE and is preserved rather than waved away: re-measured at HEAD, no read of the frozen `retry_budget` exists anywhere in `agent_workflows/`, `plan_retry`/`retry_budget_remaining` still have zero callers outside `run_recovery.py`, `run_engine`/`RunEngine` appear 0 times in both drivers, and 0 of 214 run directories contain a `ledger.jsonl`; only the inference that this leaves `dy9ymn` unexecutable was falsified. NO EDIT TO `dy9ymn` WAS MADE: it is `go-pending-approval` with no gating finding, and adding an `executed:xipfy1` edge would block a ready plan on a preference, the same reasoning by which `xipfy1`'s own OQ-01 declined a hard edge. PR-005 recorded FIXED; `aw ipd lint --phase review-finalize` now `conforming`; `subject_gating_blocks` `()`. Readiness `no-go` -> `go-pending-approval`; HUMAN APPROVAL IS STILL REQUIRED and no agent may write it.
