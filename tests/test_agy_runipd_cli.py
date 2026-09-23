@@ -2565,5 +2565,89 @@ class AgyVerificationAbsenceTests(unittest.TestCase):
         self.assertNotIn("FAILURE", killed)
 
 
+class AgyCostAttributionTests(unittest.TestCase):
+    """runverdict Order 07 (`w33lrl`) E-04: agy freezes a cost snapshot whose CARD is a named inability.
+
+    THE PLAN'S AUTHORED AGY PREMISE WAS BACKWARDS and the corrected one is what is asserted: this host
+    already resolves a CONCRETE model, so it needed no model work. What it cannot resolve is a CARD,
+    and it says so rather than guessing or borrowing OpenCode's prices for a model OpenCode never
+    declared.
+    """
+
+    def test_an_agy_run_freezes_the_snapshot_with_its_real_model(self):
+        from agent_workflows import runner_shared
+
+        record = runner_shared.cost_attribution_record(
+            host="agy",
+            model=agy_runipd.DEFAULT_MODEL,
+            model_source="host-default-constant",
+            resolve_card=False,
+        )
+        self.assertEqual(record["host"], "agy")
+        self.assertEqual(record["model"], "gemini-3.7-flash-high")
+        self.assertEqual(record["kind"], "launch-time-snapshot")
+        self.assertEqual(record["unit"], "$/Mtok")
+
+    def test_the_card_is_a_NAMED_inability_and_carries_NO_guessed_rate(self):
+        from agent_workflows import runner_shared
+
+        record = runner_shared.cost_attribution_record(
+            host="agy",
+            model=agy_runipd.DEFAULT_MODEL,
+            model_source="host-default-constant",
+            resolve_card=False,
+        )
+        self.assertEqual(record["card"], {})
+        self.assertEqual(record["card_reason"], "host-card-not-in-any-readable-config")
+        # No digest and no config name either: nothing was read, so claiming either would be false.
+        self.assertEqual(record["card_config"], "")
+        self.assertEqual(record["card_config_digest"], "")
+        # And no number anywhere that could be mistaken for a rate.
+        for value in record.values():
+            self.assertNotIsInstance(value, float)
+
+    def test_NO_antigravity_config_reader_was_invented(self):
+        """A new config reader in a plan about cost attribution would be a new security surface. The
+        only config reader remains `oc_models`', reached through `resolve_config_path`."""
+        text = open(agy_runipd.__file__, encoding="utf-8").read()
+        # No Antigravity config surface was invented.
+        for forbidden in ("antigravity.json", "ANTIGRAVITY_CONFIG", "apiKey"):
+            self.assertNotIn(forbidden, text, forbidden)
+        # And this module CALLS no config reader. Asserted against the parsed CALL sites rather than
+        # by substring, because the prose above legitimately NAMES `resolve_config_path` when
+        # explaining why agy must not use it, and a substring scan cannot tell a mention from a call.
+        called = {
+            node.func.attr
+            for node in ast.walk(ast.parse(text))
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        } | {
+            node.func.id
+            for node in ast.walk(ast.parse(text))
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        for forbidden in (
+            "resolve_config_path",
+            "card_from_config",
+            "resolve_host_default_model",
+            "resolve_api_key",
+        ):
+            self.assertNotIn(forbidden, called, forbidden)
+
+    def test_agy_does_not_import_the_record_builder_FROM_oc_runipd(self):
+        """Layering: the shared symbol is sited in `runner_shared`, never added to `oc_runipd` for agy
+        to import, which would deepen the one-way import defect backlog `cnwy8g` owns."""
+        tree = ast.parse(open(agy_runipd.__file__, encoding="utf-8").read())
+        from_oc = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            and node.module
+            and "oc_runipd" in node.module
+            for alias in node.names
+        }
+        self.assertEqual(len(from_oc), 56, sorted(from_oc))
+        self.assertNotIn("cost_attribution_record", from_oc)
+
+
 if __name__ == "__main__":
     unittest.main()

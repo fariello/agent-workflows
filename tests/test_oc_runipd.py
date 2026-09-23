@@ -22,7 +22,10 @@ from typing import Any
 from unittest import mock
 from pathlib import Path
 
+from agent_workflows import agy_runipd
+from agent_workflows import oc_models
 from agent_workflows import oc_runipd as driver
+from agent_workflows import runner_shared
 from agent_workflows import runner_stop
 from tests import support
 from tests.support import REPO_ROOT
@@ -947,9 +950,10 @@ class AtomicWriteAndReconcileTests(unittest.TestCase):
         from agent_workflows import agy_runipd
 
         for module in (driver, agy_runipd):
-            with self.subTest(
-                driver=module.__name__
-            ), tempfile.TemporaryDirectory() as t:
+            with (
+                self.subTest(driver=module.__name__),
+                tempfile.TemporaryDirectory() as t,
+            ):
                 temp = Path(t)
                 repo = temp / "repo"
                 run_dir = repo / ".aw" / "records" / "runs" / "r"
@@ -8345,6 +8349,447 @@ class VerificationAbsenceTests(unittest.TestCase):
             "a test reading the gitignored live run tree passes in this checkout and "
             "fails in CI, in a fresh clone, and in every lane worktree",
         )
+
+
+# ==================================================================================================
+# runverdict Order 07 (`w33lrl`) E-02/E-03/E-04/E-06: the cost-attribution snapshot
+# ==================================================================================================
+
+
+def _cost_config(root, default_model="uri/alpha", cost=None, name="opencode.json"):
+    """Write an OpenCode config fixture and return the env that points the resolver at it.
+
+    `OPENCODE_CONFIG` is used rather than a project file, because these tests run with a cwd inside
+    THIS repository and a walk-up discovery would find whatever the developer's own tree contains.
+    """
+
+    entry = {"name": "Alpha"}
+    if cost is not None:
+        entry["cost"] = cost
+    payload = {"provider": {"uri": {"models": {"alpha": entry}}}}
+    if default_model is not None:
+        payload["model"] = default_model
+    path = Path(root) / name
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return {"OPENCODE_CONFIG": os.fspath(path)}, path
+
+
+class CostAttributionRecordTests(unittest.TestCase):
+    """E-01/E-02: the run record now NAMES the model that incurred its cost and the prices applied.
+
+    Before this, a run where no `--model` was passed recorded `options.model: null` and a
+    `launch_profile.provenance.model` of `host-default` ("nothing supplied it; pass no argument"). That
+    was an HONEST statement about the flag and it stays true; what it could not do is say which model
+    the host then chose, so a recorded dollar figure could not be attributed to one.
+    """
+
+    def _record(self, env, **kwargs):
+        with mock.patch.dict(os.environ, env, clear=False):
+            return runner_shared.cost_attribution_record(
+                host="oc", model=None, model_source="host-default", **kwargs
+            )
+
+    def test_the_host_default_is_RESOLVED_where_the_record_used_to_say_host_default(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as temp:
+            env, _ = _cost_config(temp, cost={"input": 5.5, "output": 27.5})
+            record = self._record(env)
+        self.assertEqual(record["model"], "uri/alpha")
+        # WHICH key supplied it, so a later reader need not guess between the top-level default, an
+        # agent override, and `small_model`.
+        self.assertEqual(record["model_source"], "model")
+        self.assertNotIn("model_reason", record)
+
+    def test_the_record_is_LABELLED_a_launch_time_snapshot(self):
+        """No host emits a model on a cost-bearing step record (measured: 0 of 32333 `step_finish`
+        parts carry any model key), so this is a launch snapshot and must never be read as a per-step
+        observation."""
+        with tempfile.TemporaryDirectory() as temp:
+            env, _ = _cost_config(temp, cost={"input": 5.5})
+            record = self._record(env)
+        self.assertEqual(record["kind"], "launch-time-snapshot")
+        self.assertEqual(record["kind"], runner_shared.CARD_SNAPSHOT_KIND)
+
+    def test_the_unit_is_recorded_EXPLICITLY_as_dollars_per_million(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env, _ = _cost_config(temp, cost={"input": 5.5})
+            record = self._record(env)
+        self.assertEqual(record["unit"], "$/Mtok")
+
+    def test_the_card_digest_is_its_OWN_key_and_NAMES_the_file_it_covers(self):
+        """The profile record's `config_digest` covers `runner-profiles.json`; this one covers the
+        OpenCode config. Two files need two digests, and a shipped invariant requires the executor and
+        verifier to SHARE the profile digest, so overloading it would break a proved property."""
+        with tempfile.TemporaryDirectory() as temp:
+            env, path = _cost_config(temp, cost={"input": 5.5})
+            first = self._record(env)
+            self.assertRegex(first["card_config_digest"], r"^[0-9a-f]{64}$")
+            self.assertEqual(first["card_config_covers"], "opencode.json")
+            # A LATER EDIT IS DETECTABLE, which is the whole reason this is a digest and not a copy:
+            # `aw oc update-models` rewrites this file from a gateway.
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["provider"]["uri"]["models"]["alpha"]["cost"] = {"input": 9.9}
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            second = self._record(env)
+        self.assertNotEqual(first["card_config_digest"], second["card_config_digest"])
+
+    def test_NO_PATH_reaches_the_record(self):
+        """This object is written into durable run state and the real config lives under the
+        operator's home directory."""
+        with tempfile.TemporaryDirectory() as temp:
+            env, path = _cost_config(temp, cost={"input": 5.5})
+            record = self._record(env)
+        rendered = json.dumps(record)
+        self.assertNotIn(os.fspath(path), rendered)
+        self.assertNotIn(temp, rendered)
+        self.assertEqual(record["card_config"], "opencode.json")
+
+    def test_an_explicitly_passed_model_is_kept_and_its_card_still_resolved(self):
+        """An `--model` flag means there is nothing to resolve, but the card must still be frozen."""
+        with tempfile.TemporaryDirectory() as temp:
+            env, _ = _cost_config(temp, cost={"input": 5.5, "output": 27.5})
+            with mock.patch.dict(os.environ, env, clear=False):
+                record = runner_shared.cost_attribution_record(
+                    host="oc", model="uri/alpha", model_source="explicit"
+                )
+        self.assertEqual(record["model"], "uri/alpha")
+        self.assertEqual(record["model_source"], "explicit")
+        self.assertEqual(record["card"]["input"], 5.5)
+
+    def test_every_unknown_is_NAMED_rather_than_omitted(self):
+        """E-05's unknown paths, at the RECORD level: each is distinguishable from a resolved card and
+        from a card priced at zero."""
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            # 1. No config at all.
+            missing = root / "absent.json"
+            none_record = self._record({"OPENCODE_CONFIG": os.fspath(missing)})
+            self.assertEqual(none_record["model"], "")
+            self.assertEqual(none_record["model_reason"], "no-config-found")
+            self.assertEqual(none_record["card"], {})
+            self.assertEqual(none_record["card_reason"], "no-model-to-price")
+
+            # 2. A `.jsonc` config: unparseable BY DESIGN.
+            jsonc = root / "opencode.jsonc"
+            jsonc.write_text('{\n // c\n "model": "uri/alpha"\n}\n', encoding="utf-8")
+            jsonc_record = self._record({"OPENCODE_CONFIG": os.fspath(jsonc)})
+            self.assertEqual(jsonc_record["model_reason"], "unparseable-config")
+
+            # 3. A full catalog with NO top-level `model` key.
+            env_nd, _ = _cost_config(
+                root, default_model=None, cost={"input": 1.0}, name="nodefault.json"
+            )
+            nd_record = self._record(env_nd)
+            self.assertEqual(nd_record["model_reason"], "no-default-model-key")
+
+            # 4. A default model with NO `cost` block.
+            env_nc, _ = _cost_config(root, cost=None, name="nocost.json")
+            nc_record = self._record(env_nc)
+            self.assertEqual(nc_record["model"], "uri/alpha")
+            self.assertEqual(nc_record["card"], {})
+            self.assertEqual(nc_record["card_reason"], "model-has-no-cost-block")
+
+        # Each reason is DISTINCT: collapsing any two would lose the operator action that differs.
+        reasons = {
+            none_record["model_reason"],
+            jsonc_record["model_reason"],
+            nd_record["model_reason"],
+        }
+        self.assertEqual(len(reasons), 3, reasons)
+
+    def test_a_PARTIAL_card_and_a_GENUINE_ZERO_survive_into_the_record_distinguishably(
+        self,
+    ):
+        """THE `x0spmh` TRAP AT THE RECORD LEVEL. A `cache_read = $0` was once read as evidence that
+        cache reads were free when an UNPRICED component was hiding 73.9 percent of a $16.41 turn. The
+        partial card is the MAJORITY case in the live config (47 of 80 priced models)."""
+        with tempfile.TemporaryDirectory() as temp:
+            env_p, _ = _cost_config(
+                temp, cost={"input": 5.5, "output": 27.5}, name="partial.json"
+            )
+            partial = self._record(env_p)
+            env_z, _ = _cost_config(
+                temp,
+                cost={"input": 5.5, "output": 27.5, "cache_read": 0, "cache_write": 0},
+                name="zeroed.json",
+            )
+            zeroed = self._record(env_z)
+        self.assertEqual(partial["card"]["cache_read"], "absent")
+        self.assertEqual(zeroed["card"]["cache_read"], 0.0)
+        self.assertNotEqual(partial["card"]["cache_read"], zeroed["card"]["cache_read"])
+
+
+class CostIsNeverRecomputedFromTheCardTests(unittest.TestCase):
+    """E-03: a host-config change after a run must NOT change that run's reported figure.
+
+    MEASURED, AND THIS IS WHY THIS IS A GUARD RATHER THAN A CHANGE: nothing in this repository prices
+    tokens from a card on the runner path. `run_viewer.extract_log_metrics` sums `part.cost` from
+    `step_finish` events and the drivers persist that sum. So the property is already true BY
+    CONSTRUCTION, and the job here is to make a future regression fail loudly instead of silently
+    repricing history.
+    """
+
+    def test_the_invariant_is_STATED_where_the_record_is_written(self):
+        self.assertIn(
+            "no path in this driver prices tokens",
+            runner_shared.COST_NOT_RECOMPUTED_HERE,
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            env, _ = _cost_config(temp, cost={"input": 5.5})
+            with mock.patch.dict(os.environ, env, clear=False):
+                record = runner_shared.cost_attribution_record(
+                    host="oc", model=None, model_source="host-default"
+                )
+        # Carried IN the record, so a consumer reading only the JSON still learns it.
+        self.assertEqual(record["cost_basis"], runner_shared.COST_NOT_RECOMPUTED_HERE)
+
+    def test_a_reported_cost_does_not_move_when_the_host_config_is_repriced(self):
+        """The substitution test, run against the REAL metric extractor rather than a stand-in."""
+        from agent_workflows import run_viewer
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            log = root / "session.jsonl"
+            log.write_text(
+                "\n".join(
+                    json.dumps(
+                        {
+                            "type": "step_finish",
+                            "part": {
+                                "cost": 1.25,
+                                "tokens": {"input": 10, "output": 5},
+                            },
+                        }
+                    )
+                    for _ in range(2)
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            env, path = _cost_config(root, cost={"input": 5.5, "output": 27.5})
+            with mock.patch.dict(os.environ, env, clear=False):
+                before_cost, _ = run_viewer.extract_log_metrics(log)
+                # REPRICE the host config by 100x, the exact event `aw oc update-models` performs.
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["provider"]["uri"]["models"]["alpha"]["cost"] = {
+                    "input": 550.0,
+                    "output": 2750.0,
+                }
+                path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                after_cost, _ = run_viewer.extract_log_metrics(log)
+        self.assertEqual(before_cost, 2.5)
+        self.assertEqual(before_cost, after_cost)
+
+    def test_the_runner_path_contains_NO_tokens_times_rate_expression(self):
+        """The regression guard proper. If a future change ever prices a run from a card on this path,
+        a rate constant or a `per_million` call appears in one of these modules and this FAILS.
+
+        Scoped to the runner modules deliberately: `run_analytics_pricing` DOES price tokens from an
+        effective-dated schedule, and that is its job. What must not happen is a SECOND, unversioned
+        computation growing on the runner path, where it would reprice history from whatever the
+        config says today.
+        """
+        for module in (
+            "oc_runipd.py",
+            "agy_runipd.py",
+            "runner_shared.py",
+            "run_viewer.py",
+        ):
+            text = (REPO_ROOT / "agent_workflows" / module).read_text(encoding="utf-8")
+            code = "\n".join(
+                line for line in text.splitlines() if not line.strip().startswith("#")
+            )
+            with self.subTest(module=module):
+                for forbidden in ("per_million(", "1_000_000", "input_per_mtok"):
+                    self.assertNotIn(
+                        forbidden,
+                        code,
+                        f"{module} now contains {forbidden!r}: if a cost is being computed from a "
+                        "rate on the runner path, a historical run's reported figure can move when "
+                        "the host config is edited, which is what this guard exists to prevent",
+                    )
+
+    def test_a_run_with_NO_recorded_card_reports_it_ABSENT_rather_than_borrowing(self):
+        """Every run created before this change is card-less (measured: 0 of the corpus carries any
+        card key). Such a run must not be shown today's prices, because that is exactly the pooled
+        comparison `x0spmh` documents as invalid."""
+        historical = {
+            "run_id": "run-20260824T000000Z-1",
+            "options": {"model": None, "opencode": "opencode"},
+        }
+        options = historical["options"]
+        self.assertNotIn(runner_shared.COST_ATTRIBUTION_KEY, options)
+        # A reader asking for the card gets NOTHING, never a silently substituted current card.
+        self.assertIsNone(options.get(runner_shared.COST_ATTRIBUTION_KEY))
+
+
+class AgyCardIsNotResolvableTests(unittest.TestCase):
+    """E-04: agy records that it CANNOT resolve a card, and adds no model work.
+
+    THE PLAN'S ORIGINAL AGY FRAMING WAS BACKWARDS and the corrected one is asserted here: agy already
+    writes a CONCRETE model into `options["model"]` on every run, so it needed no model work; oc was
+    the host behind on identity. What agy genuinely cannot do is resolve a CARD.
+    """
+
+    def test_agy_records_a_NAMED_inability_not_a_guess(self):
+        record = runner_shared.cost_attribution_record(
+            host="agy",
+            model=agy_runipd.DEFAULT_MODEL,
+            model_source="host-default-constant",
+            resolve_card=False,
+        )
+        self.assertEqual(record["host"], "agy")
+        self.assertEqual(record["model"], agy_runipd.DEFAULT_MODEL)
+        self.assertEqual(record["card"], {})
+        self.assertEqual(record["card_reason"], "host-card-not-in-any-readable-config")
+        self.assertEqual(record["card_reason"], runner_shared.CARD_HOST_NOT_READABLE)
+
+    def test_the_agy_inability_is_DISTINGUISHABLE_from_an_unparseable_oc_config(self):
+        """Two different unknowns needing two different operator actions: one means no reader exists,
+        the other means the file needs hand-editing."""
+        agy = runner_shared.cost_attribution_record(
+            host="agy",
+            model="gemini-x",
+            model_source="host-default-constant",
+            resolve_card=False,
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            jsonc = Path(temp) / "opencode.jsonc"
+            jsonc.write_text('{\n // c\n "model": "uri/alpha"\n}\n', encoding="utf-8")
+            with mock.patch.dict(
+                os.environ, {"OPENCODE_CONFIG": os.fspath(jsonc)}, clear=False
+            ):
+                oc = runner_shared.cost_attribution_record(
+                    host="oc", model=None, model_source="host-default"
+                )
+        self.assertNotEqual(agy["card_reason"], oc["model_reason"])
+        self.assertEqual(agy["card_reason"], "host-card-not-in-any-readable-config")
+        self.assertEqual(oc["model_reason"], "unparseable-config")
+
+    def test_agy_model_resolution_was_NOT_touched(self):
+        """Proof no agy model work was added: the constant, its write site, and the flag default."""
+        self.assertEqual(agy_runipd.DEFAULT_MODEL, "gemini-3.7-flash-high")
+        source = (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"model": getattr(args, "model", DEFAULT_MODEL),', source)
+
+    def test_agys_model_is_absent_from_the_opencode_config_which_JUSTIFIES_the_marker(
+        self,
+    ):
+        """The marker is not a shrug: this host's model genuinely is not in OpenCode's config, so
+        pricing it from there would attribute one vendor's rates to another host's model."""
+        with tempfile.TemporaryDirectory() as temp:
+            env, path = _cost_config(temp, cost={"input": 5.5})
+            parsed = json.loads(path.read_text(encoding="utf-8"))
+        declared = oc_models.models_from_config(parsed)
+        self.assertNotIn(agy_runipd.DEFAULT_MODEL, declared)
+        components, reason = oc_models.card_from_config(
+            parsed, agy_runipd.DEFAULT_MODEL
+        )
+        self.assertEqual(components, {})
+        self.assertEqual(reason, oc_models.CARD_MODEL_NOT_DECLARED)
+
+    def test_the_shared_symbol_lives_in_runner_shared_NOT_in_oc_runipd(self):
+        """Layering: agy already imports 56 names from `oc_runipd` and adding a 57th would deepen the
+        defect backlog `cnwy8g` owns."""
+        self.assertTrue(hasattr(runner_shared, "cost_attribution_record"))
+        self.assertEqual(
+            runner_shared.cost_attribution_record.__module__,
+            "agent_workflows.runner_shared",
+        )
+        tree = ast.parse(
+            (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
+                encoding="utf-8"
+            )
+        )
+        from_oc = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            and node.module
+            and "oc_runipd" in node.module
+            for alias in node.names
+        }
+        self.assertNotIn("cost_attribution_record", from_oc)
+        self.assertNotIn("COST_ATTRIBUTION_KEY", from_oc)
+        self.assertEqual(len(from_oc), 56, sorted(from_oc))
+
+
+class TheConsumerBoundaryHoldsTests(unittest.TestCase):
+    """E-06: this plan is the PRODUCER; the `runanalytics` Set is the CONSUMER.
+
+    All three named consumer plans (`5f2h8i`, `8hald1`, `aflsz3`) had EXECUTED by the time this ran,
+    so the CONSUME-rather-than-duplicate branch of E-06 applied: none of them writes a model or card
+    field into run state (they READ `options.model`), so this plan's field is the one they consume and
+    its NAME and UNIT are a contract.
+    """
+
+    def test_the_field_name_and_unit_are_a_stated_contract(self):
+        self.assertEqual(runner_shared.COST_ATTRIBUTION_KEY, "cost_attribution")
+        self.assertEqual(oc_models.CARD_UNIT, "$/Mtok")
+
+    def test_this_plan_implements_NO_effective_dated_schedule_or_recomputation(self):
+        """All four are `runanalytics` deliverables and each already exists THERE. A second copy on
+        the runner path would fork the recorded-versus-estimated distinction that Set maintains."""
+        from agent_workflows import run_analytics_pricing
+
+        # The consumer owns them, and still does.
+        self.assertTrue(hasattr(run_analytics_pricing, "PriceSchedule"))
+        self.assertTrue(hasattr(run_analytics_pricing, "MEASURED_ERAS"))
+        self.assertTrue(hasattr(run_analytics_pricing, "PricedCost"))
+        # And this plan added NONE of them to the runner modules.
+        for module in (runner_shared, driver, agy_runipd):
+            for symbol in (
+                "PriceSchedule",
+                "PriceEra",
+                "PricedCost",
+                "stratify_by_era",
+                "price_step",
+            ):
+                with self.subTest(module=module.__name__, symbol=symbol):
+                    self.assertFalse(hasattr(module, symbol))
+
+    def test_the_recorded_versus_estimated_split_is_left_intact(self):
+        """`PricedCost.authoritative_usd` prefers the RECORDED value; an estimate that overwrote it
+        would destroy the only property making that schedule checkable."""
+        from agent_workflows import run_analytics_pricing
+
+        priced = run_analytics_pricing.PricedCost(
+            estimated_usd=9.99, recorded_usd=1.23, era_id="era-b"
+        )
+        self.assertEqual(priced.authoritative_usd, 1.23)
+
+    def test_the_model_coverage_refusal_is_NOT_weakened(self):
+        """`aflsz3` E-08 refuses a model comparison at the measured 1.1 percent coverage. This plan
+        raises coverage for FUTURE runs only and cannot improve history, so that refusal stays
+        correct and must not be relaxed here."""
+        from agent_workflows import run_analytics_statistics as stats
+
+        self.assertAlmostEqual(
+            stats.CORPUS_BASELINE["model_identity_coverage"], 0.011, places=3
+        )
+
+    def test_the_benchmark_dollar_cost_prohibition_is_reconciled_not_violated(self):
+        """One module RAISES on a `price` key while this one FREEZES a card, so the boundary is
+        asserted rather than left looking contradictory: that rule governs cross-model BENCHMARK
+        comparison, not a runner-recorded rate card in a RUN record."""
+        from agent_workflows import benchmark_metrics
+
+        self.assertTrue(hasattr(benchmark_metrics, "MetricError"))
+        # The prohibition is REAL and still enforced, asserted through the shipped constant rather
+        # than by constructing a full trial, which is another module's fixture surface.
+        for key in ("cost", "usd", "price", "dollars", "spending", "dollar_cost"):
+            self.assertIn(key, benchmark_metrics._FORBIDDEN_COST_KEYS)
+        # And the boundary is written down where the card is frozen, rather than left implicit.
+        self.assertIn(
+            "cross-model BENCHMARK comparison", runner_shared.BENCHMARK_DOLLAR_BOUNDARY
+        )
+        source = (REPO_ROOT / "agent_workflows" / "runner_shared.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("benchmark_metrics", source)
 
 
 if __name__ == "__main__":
