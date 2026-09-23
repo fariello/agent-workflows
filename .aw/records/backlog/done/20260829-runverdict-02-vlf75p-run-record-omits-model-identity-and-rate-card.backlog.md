@@ -1,5 +1,5 @@
 - Id: vlf75p
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: runverdict
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Run records cannot attribute a turn to a model or price it: state.json records model=null and 0 of 9757 cost-bearing steps carry a modelID, while the rate card that produced the recorded costs lives only in the user's opencode.json outside the repo
 
 ## Workflow history
+- 2026-09-23 set (aw backlog): closed by aw oc run: IPD w33lrl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md); evidence .aw/records/plans/executed/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md
 - 2026-09-08 graduated (aw set): PARTIALLY graduated to plan w33lrl (runverdict-07); see the PARTIAL OBSOLESCENCE AND SCOPE HANDOFF section appended to this item. NOT graduated as ALREADY SHIPPED: the record-a-provenance-object half of gap 1, delivered by executed plan 3cm15q (launch_profile_record, present in 33 of 135 runs). NOT graduated as OWNED BY THE PENDING runanalytics SET, owner named per clause: per-turn model capture (5f2h8i E-01/E-02), effective-dated pricing and the recorded-versus-estimated split (aflsz3 E-02), normalized pricing-key facts (8hald1 E-02), the aw runs query surface (mm5p3v), and tests (b), (d), (e). GRADUATED: the producer those plans consume and that does not exist today, namely the resolved host-default model and the four-component rate card frozen per run with a digest, unknowns named rather than omitted, and the recorded card made authoritative. Gaps 2 and 3 held in full on re-measurement (28158 cost-bearing steps, 0 with a model id). Inherits Blocks-Release: next.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
