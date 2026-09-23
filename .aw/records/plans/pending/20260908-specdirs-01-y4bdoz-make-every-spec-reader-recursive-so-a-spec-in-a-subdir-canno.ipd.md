@@ -13,6 +13,8 @@
 - Scope-Paths: agent_workflows/specs.py, tests/test_specs_recursive_read.py
 - Item-Dependencies: none
 - Status: approved
+- Work-Kind: chore
+- Priority: medium
 - Readiness: go-pending-approval
 - Set: specdirs
 - Order: 1
@@ -23,6 +25,7 @@
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item qzhfk2 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL; PR-101..PR-107, all FIXED, no open questions. Reviewed at HEAD `b929ad31`; `aw ipd lint` conformed at `--phase author` before semantic review and at `--phase review-finalize` after. THE DIAGNOSIS IS CORRECT AND I RE-PROVED IT rather than trusting it: a spec in `.aw/records/specs/approved/` yields `all specs conform` (unpiped exit 0) while `specs._spec_files` returns 0 and `check_engine._iter_type_files` returns 1, and a NON-CONFORMING subdir spec is silently passed too. PR-101 (HIGH) is the substantive change: `rglob` ALONE SHIPS A NEW BUG, because `_spec_files` has no ignored-path filter and non-recursion is masking that; measured, the naive fix returned a GITIGNORED spec that `check_engine` excluded, breaking E-04's own set equality, and the shipped `.aw/.gitignore:6` `records/*/untracked/` pattern already matches a specs lane nobody has created yet. PR-102 (HIGH): E-04's set equality could NOT pass as written, since it used default arguments that drop retired records (29 versus 13 on the live flat tree; 29 versus 29 with `include_retired=True`), so an executor would have misdiagnosed a correct fix. PR-103 (MEDIUM): the examined-count assertion was unverifiable on `--agent`, which omits `checked` at zero. PR-104 (MEDIUM): the suite baseline was wrong in count AND in its named failing test, and the real failure invites deleting another party's untracked files. PR-105/106/107 (LOW): a stale `check_engine` line citation, a stale spec count (29 not 28), and OQ-03 left open for a question the repository could answer. OQ-03 RESOLVED FROM EVIDENCE by running the audit it deferred: the adjacent readers are ALREADY recursive (`selectors._iter_paths` 1 on a subdir fixture; `aw find specs`/`aw attention`/`aw check specs`/`aw doctor` all correct end to end), exactly one non-recursive site exists in the package (`specs.py:89`), so scope NARROWS rather than widens and the declared `Scope-Paths` is sufficient. No open questions remain; human approval is the only remaining gate.

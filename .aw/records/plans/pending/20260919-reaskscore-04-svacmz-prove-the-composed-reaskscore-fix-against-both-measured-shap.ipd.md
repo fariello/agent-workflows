@@ -7,6 +7,7 @@
 - Scope-Paths: tests/test_rununify_execute_item_gates.py, tests/test_rununify_run_queue.py, tests/test_reaskscore_composed.py
 - Item-Dependencies: executed:skn8uk, executed:ty7w6o, executed:dy9ymn
 - Status: approved
+- Priority: high
 - Readiness: go-pending-approval
 - Set: reaskscore
 - Order: 4
@@ -19,6 +20,7 @@
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority by inheritance from source backlog item yxfw4k (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-19 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /askme: OQ-02 RESOLVED VIA THE RECOMMENDED SHAPE (a), clearing this plan's only blocking question and with it its `no-go`. `ty7w6o` PR-001 was resolved on its OWN plan (its blocking route question settled by the maintainer, who chose the body-prose edit), and this plan's refused dependency edge cleared as the side effect the question predicted. RE-MEASURED WITH THE SAME PREDICATES THE QUESTION CITED: `review_findings.subject_gating_blocks(repo,'ty7w6o')` now returns `()` where it returned one HIGH/open block for PR-001, and `check_engine.evaluate_ipd_dependencies(repo)` returns NO `check.ipd-dependency-findings-blocked` drift for this file where it previously returned one reading "dependency `executed:ty7w6o` resolves but does not satisfy the edge"; the parent's twin block cleared too (`s0gnha` PR-005 resolved from the repository, now `()`). Because the refusal runs through the SHARED predicate (`runner_shared._findings_block_reason` -> `subject_gating_blocks`), one resolution clears it on both hosts and in `aw check` alike. NEITHER NOT-RECOMMENDED SHAPE WAS TAKEN: the repository gate threshold is untouched and still the `high` default, and the `executed:ty7w6o` edge is untouched, so the merged-result property the edge exists for survives intact. The consequence the question warned of is averted: the Set's only end-to-end proof of the composed fix will now dispatch instead of being marked `dependency-blocked` and silently skipped. PR-001 recorded FIXED; `aw ipd lint --phase review-finalize` now `conforming`. Readiness `no-go` -> `go-pending-approval`; HUMAN APPROVAL IS STILL REQUIRED and no agent may write it.

@@ -7,6 +7,8 @@
 - Scope-Paths: agent_workflows/selectors.py, tests/test_selector_zero_open.py, CHANGELOG.md
 - Item-Dependencies: executed:76w6mq
 - Status: approved
+- Work-Kind: bug
+- Priority: medium
 - Readiness: go-pending-approval
 - Set: selfmdialect
 - Order: 1
@@ -18,6 +20,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item 05aqbj (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> None (not negative). Specifically, both blocking questions were answered on 2026-09-10 (dependency edge declared; both selector surfaces accepted) and the findings they escalated, PR-301 and PR-303, are now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`. NOTE ON THE VERDICT INPUT FOR THIS PLAN: `newest_verdict` returns polarity None here, NOT because the review is missing but because this session's tooled `aw ipd dependencies set` write appended a `reviewed (aw set)` history line that `is_review_history_entry` misclassifies as a review record, shadowing the real one. The actual review verdict is `REVIEWED - OPEN QUESTIONS` (confirmed in both the plan history and the typed review record's `- Verdict:` field), which is the NEUTRAL case and not a negative verdict, so the third condition is genuinely clear. That misclassification is a real defect and is filed as backlog `ycg597`; it is NOT a reason to withhold this re-check.
 - 2026-09-10 reviewed (aw set): set Item-Dependencies to executed:76w6mq

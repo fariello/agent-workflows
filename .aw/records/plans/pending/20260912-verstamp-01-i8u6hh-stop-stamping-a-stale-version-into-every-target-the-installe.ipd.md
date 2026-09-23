@@ -7,6 +7,8 @@
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py
 - Item-Dependencies: none
 - Status: approved
+- Work-Kind: bug
+- Priority: medium
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: verstamp
@@ -18,6 +20,7 @@
 - From-Backlog: ygtykn
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item ygtykn (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED

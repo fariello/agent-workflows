@@ -12,6 +12,8 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_runner_item_dependencies.py, tests/test_runner_layering.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: executed:9kmbr0
 - Status: approved
+- Work-Kind: bug
+- Priority: medium
 - Readiness: go-pending-approval
 - Set: runnerlayer
 - Order: 2
@@ -22,6 +24,7 @@
 - From-Backlog: cnwy8g
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item cnwy8g (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1 (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-508 all FIXED, all three OQs resolved from evidence. Record: .aw/records/reviews/20260908-runnerlayer-02-1f7xno-...review.md. PR-501 (HIGH): E-05 registered every re-homed name in the WRONG guard. _SHARED_NAMES is for oc_runipd-OWNED symbols and its own header comment explains it is the only home for one BECAUSE REFORK_TABLE's Owned rows all name a non-runner owner; the moment a name is re-homed it becomes runner_shared-owned, which is exactly REFORK_TABLE's domain (measured: 29 rows already carry owner=runner_shared, and the two guards have ZERO symbol overlap). It is also a weaker guarantee: _SHARED_NAMES only asserts agy.n is oc.n, true even if both bind a copy, while REFORK_TABLE's AST half FORBIDS a re-definition, which is the property a moved name needs. E-05 now moves each name between the guards and V-05 requires a mutation proof that the new row bites. PR-502: re-measured 48 names not 47, with all eight anchors drifted in one day. PR-503: the baseline was wrong in both halves (1 failed 5919 passed; the named retirement failure is GONE at 112 passed, the real one is the environmental reporting-contract case), which matters here because E-04 compares node ids after every batch. PR-504/505: OQ-02 and OQ-01 were already answered by child 01's review (zero pass-throughs; the _read_* destination is selectors), and following the latter would have walked the executor OUT of this plan's fence since selectors.py is not declared, so those three names are now deferred entirely and _read_item_dependencies stays in _SHARED_NAMES. PR-506: Size assessment exception was factually wrong (3 task groups, 7 E-leaves against thresholds of 5 and 18), corrected to standard with the cohesion argument preserved as prose. PR-507: _SHARED_NAMES holds TWELVE names not eleven. PR-508: tests/test_runner_layering.py does not exist yet (child 01 creates it), so an absent file is an unmet dependency and a STOP, not a file to invent. VERIFIED SOUND: zero reverse imports, runner_shared imports neither runner, DriverError identity holds, and the ruff hazard is CONFIRMED (ruff --fix deletes a plain import and preserves 'as same-name'). Lint conforming at author and review-finalize; four decisions recorded, all reversible.
 

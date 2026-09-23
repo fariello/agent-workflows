@@ -7,6 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
 - Status: approved
+- Work-Kind: followup
+- Priority: high
 - Readiness: go-pending-approval
 - From-Backlog: dstnso
 - Set: hostdedup
@@ -17,6 +19,7 @@
 - Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item dstnso (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 /plan-review (antigravity): APPROVE WITH REVISIONS APPLIED; Round 2 review complete. OQ-03 (PR-001) resolved with maintainer authority: child plans li44r9 and nmlx47 have pin files declared in Scope-Paths; readiness promoted to go-pending-approval.
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 11 findings, 10 FIXED, PR-001 left OPEN at BLOCKER and escalated as blocking OQ-03; readiness no-go; typed review record under .aw/records/reviews/

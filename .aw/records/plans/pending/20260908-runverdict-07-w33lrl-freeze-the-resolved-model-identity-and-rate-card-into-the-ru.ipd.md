@@ -12,6 +12,8 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/oc_models.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_oc_models.py
 - Item-Dependencies: none
 - Status: approved
+- Work-Kind: bug
+- Priority: high
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 7
@@ -23,6 +25,7 @@
 - From-Backlog: vlf75p
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item vlf75p (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-001..PR-009, ALL NINE FIXED, no open findings. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` CONFORMING after every revision, so nothing here is structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-MEASURING rather than re-reading; nine of the plan's premises were re-run and FOUR of them inverted an instruction.

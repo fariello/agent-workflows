@@ -7,6 +7,8 @@
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/layout_migration.py, agent_workflows/doctor.py, tests/test_layout_migration.py, tests/test_installer.py, tests/test_doctor.py
 - Item-Dependencies: executed:h90ij1
 - Status: approved
+- Work-Kind: bug
+- Priority: high
 - Readiness: go-pending-approval
 - Set: migleftover
 - Order: 1
@@ -18,6 +20,7 @@
 - Blocks-Release: f33nrj
 
 ## Workflow history
+- 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item x15f0q (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED
 
