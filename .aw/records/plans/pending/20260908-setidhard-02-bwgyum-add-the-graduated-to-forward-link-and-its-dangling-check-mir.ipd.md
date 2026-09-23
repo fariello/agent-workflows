@@ -47,23 +47,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the field and its reader
 
-- [ ] E-01 DEFINE AND PARSE `Graduated-To` AS A MULTI-VALUED SETID LIST, and do not copy a single-value regex. Spec G3 requires `- Graduated-To: <setid>[, <setid>...]`.
+- [x] E-01 DEFINE AND PARSE `Graduated-To` AS A MULTI-VALUED SETID LIST, and do not copy a single-value regex. Spec G3 requires `- Graduated-To: <setid>[, <setid>...]`.
   DO NOT REUSE THE SINGLE-TOKEN PATTERN, AND THE FAILURE MODE IS WORSE THAN "captures only the first". MEASURED at review against both sibling patterns (`_ITEM_FROM_BACKLOG_RE`'s `(\S+)\s*$` and `_ITEM_FROM_SPEC_RE`'s `(\S+)[ \t]*$`): on `- Graduated-To: first, second` BOTH patterns MATCH NOTHING AT ALL, because `\S+` cannot span the space and the `$` anchor then fails. So a copied regex does not silently validate one of two entries; it treats a well-formed two-entry field as ABSENT, and the check reports the file as clean while the link is unvalidated. On `- Graduated-To: first,second` (no space) the same pattern captures the single junk token `first,second`, which then resolves to no Set and is reported as one confusing dangling entry. Write a list parser that matches the whole value with `(.+)`, splits on commas, strips whitespace, drops empties, and preserves order.
   DECIDE AND RECORD THE DUPLICATE AND EMPTY CASES rather than letting them fall out: a repeated setid in one field, and a `- Graduated-To:` line with no value. Both are author errors an agent will produce, and silently tolerating either makes the field untrustworthy. Prefer treating an empty field as absent and a duplicate as a finding, and say so in the docstring.
   VALIDATE THE TOKEN SHAPE AGAINST THE EXISTING AUTHORITY, WHICH IS `plans.is_set_id_valid` (`plans.py:70-76`, lowercase-kebab `^[a-z0-9]+(?:-[a-z0-9]+)*$` bounded by `MAX_SET_ID_LEN = 40`). Do NOT write a second setid pattern: that is the drift GUIDING_PRINCIPLES 8 forbids, and a malformed token must be reported as MALFORMED rather than as dangling, because "does not resolve to a real Set" sends a reader looking for a missing Set when the real defect is a typo in the token.
   - Depends on: none
   - Expected outcome: a list-aware reader that returns setids in order, with the duplicate and empty cases decided and documented; no single-token regex reused; token shape validated through `plans.is_set_id_valid` with no second setid pattern introduced.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MAKE THE FIELD SURVIVE A WRITE AND BE LEGAL WHERE THE CHECK LOOKS FOR IT, BEFORE anything writes it. This item exists because review MEASURED that the field is not merely absent but actively destroyed and actively rejected, so E-04's writer would otherwise produce a link the next transition deletes.
+- [x] E-02 MAKE THE FIELD SURVIVE A WRITE AND BE LEGAL WHERE THE CHECK LOOKS FOR IT, BEFORE anything writes it. This item exists because review MEASURED that the field is not merely absent but actively destroyed and actively rejected, so E-04's writer would otherwise produce a link the next transition deletes.
   FIX THE DESTRUCTIVE PATH. `backlog._render_item` (`backlog.py:317-337`) rebuilds the bullet block from a fixed six-field template, so `backlog.run_set` DROPS every field outside it. Measured: `- Graduated-To: somesetid, othersetid` vanished through `aw backlog set --status graduated <path>`, exit 0, silently. Preserve the field across that path the way `Blocks-Release` is already preserved there (`backlog.py:563-571` re-applies it after render via the shared `set_blocks_release_line` primitive) rather than by widening the template. Follow that precedent exactly; it is the in-tree answer to this exact problem.
   DO NOT ASSUME THE OTHER PATH IS BROKEN, BECAUSE IT IS NOT. The bare `aw backlog set <status> <selector>` form routes to `status_set.run_set_command` (`cli.py:11229-11245`), which rewrites lines surgically and PRESERVED the field when measured. So the defect is asymmetric between two paths of ONE verb. Fix the destructive one and add a test pinning BOTH, because a fix that only holds on the path you happened to test leaves the other free to regress.
   RECOGNIZE THE FIELD IN THE IPD SCHEMA. A plan carrying `- Graduated-To:` fails `aw ipd lint` with `IPD-M103` (measured, exit 1) because `ipd_schema.META_RECOGNIZED` omits it. Add it as recognized-but-OPTIONAL exactly as `META_FROM_SPEC` and `META_FROM_BACKLOG` are, and for the same stated reason: recognition only stops the unknown-field error, while value validation stays in the `aw check` surface. This is required by THIS plan's own design, since E-03's scan reads plans.
   - Depends on: E-01
   - Expected outcome: the field survives `aw backlog set` on BOTH routing paths with a test pinning each; `Graduated-To` is recognized-but-optional in `ipd_schema.META_RECOGNIZED` so a plan carrying it no longer fails `IPD-M103`; no metadata template widened where a shared line primitive is the established pattern.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 BUILD `check.graduated-to-dangling` AS THE DIRECT MIRROR OF `check_from_backlog`, in the same module, with the same traversal, registered at the same seam.
+- [x] E-03 BUILD `check.graduated-to-dangling` AS THE DIRECT MIRROR OF `check_from_backlog`, in the same module, with the same traversal, registered at the same seam.
   FOLLOW THE EXISTING FUNCTION EXACTLY where it is right: `rglob` over `plans`, `specs`, `backlog` under both `.aw/records/` and `.agents/`; skip `README.md`/`INDEX.md`/`STATUS.md` and ignored paths; tolerate the field anywhere for symmetry even though its primary home is the SOURCE (the mirror image of the twin's note that the back-link's primary home is the plan).
   THE RESOLUTION TARGET IS DIFFERENT AND IS THE ONLY REAL DESIGN CHOICE: the twin resolves an id6 against `backlog.existing_backlog_ids`; this must resolve a SETID against the set of setids that name a real PLAN Set. Derive it by reading each plan's `- Set:` bullet through the EXISTING `check_engine._parse_setid` (`check_engine.py:816-829`, which already handles the `<terse> (<descriptive>)` form) over the EXISTING `_iter_plan_ipds` iterator (`:1880`), so this function adds NO new setid parser and NO new plans-path literal. State in the docstring what counts as "a real plan Set" (OQ-01 answers it: any setid carried by at least one plan in ANY lifecycle directory).
   KNOW WHAT `_iter_plan_ipds` MISSES, since it decides whether a valid link can be called dangling: it globs `*.ipd.md` ONLY. Measured at HEAD, all 606 plan files match and the 8 non-matching `.md` files are exactly `README.md`/`INDEX.md`/`STATUS.md` files the skip list drops anyway, so nothing real is lost TODAY. Say so in the docstring rather than leaving it implicit, because a bare-`.md` plan (a form the naming grammar still permits) would become invisible to this scan and its Set would read as nonexistent.
@@ -72,11 +72,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   REGISTER THE RULE IN THE SEVERITY TABLE. `check_engine`'s `RuleSpec` table assigns severity, assurance class and determinism, and an unregistered code silently falls back to `_DEFAULT_RULESPEC` with an EMPTY invariant, so omitting the entry drops the trace rather than merely being untidy. Match the twin: `check.from-backlog-dangling` is `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07")` (`check_engine.py:114-116`), and I-07 (release-gate preservation) is the right invariant here for the same reason the `From-Spec` twin claims it: a graduation link is the carrier of a release-gate handoff.
   - Depends on: E-01
   - Expected outcome: a mirror check in the same module and seam, resolving setids against real plan Sets via `_parse_setid` + `_iter_plan_ipds` with no new parser or path literal, carrying the empty-corpus fail-safe, with its own try/except, a registered `error`/I-07 severity matching its twin, and the `aw check all`-only reach stated in the docstring.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the writer
 
-- [ ] E-04 WRITE THE LINK ON THE GRADUATION PATH, ATOMICALLY WITH THE CHILD'S BACK-LINK, per spec G6 ("mints the fresh setid (G1), writes the child back-links (G2), and updates the source's `Graduated-To` (G3) as one path-scoped change").
+- [x] E-04 WRITE THE LINK ON THE GRADUATION PATH, ATOMICALLY WITH THE CHILD'S BACK-LINK, per spec G6 ("mints the fresh setid (G1), writes the child back-links (G2), and updates the source's `Graduated-To` (G3) as one path-scoped change").
   THE HONEST DIFFICULTY, AND IT MUST BE FACED RATHER THAN ASSUMED AWAY: there is no single "graduation operation" in this repository today. Graduation is performed by an AGENT authoring plans and then running `aw backlog set graduated <item>`. So "the graduation path" in practice means the SETTER, which is the one tooled step every graduation passes through. Establish that by inspection before implementing, and if a dedicated graduation verb has appeared since, prefer it and say so. (Checked at review: backlog `6h7y2y` graduated a `graduate` Set that WOULD add such a verb, but its plans `y9s4vm`/`jxxec8`/`iuxtjy` are unexecuted, so no verb exists yet. Re-check rather than trust this.)
   THE WRITE SITE IS `status_set`, NOT A NEW FLAG BOLTED ONTO `backlog.run_set`, AND THIS IS THE ONE PLACE THIS PLAN'S ORIGINAL DESIGN WAS WRONG. `status_set.run_set_command` already carries FOUR precedents of exactly this field-write shape (`status_set.py:715-760`: `Blocks-Release`, `From-Backlog`, `Item-Dependencies`, `Priority`), each hoisted OUT of any status branch so the write persists even on a same-status no-op, and each funnelling through ONE shared `releases.set_*_line` primitive with the comment "no duplicate write path". Add `Graduated-To` as the fifth, with a `releases.set_graduated_to_line` primitive mirroring `set_from_backlog_line` (`releases.py:480-496`). WHY THIS MATTERS MECHANICALLY: `status_set` is record-type-AGNOSTIC and is the shared handler for `aw backlog set`, `aw specs set`, `aw ipd set` and the bare `aw set` (`cli.py:10927`, `:11233`, `:11274`), so ONE write here serves the backlog source AND the spec source AND the plan side, whereas a flag added to `backlog.run_set` serves one path of one verb and duplicates a primitive that already exists.
   THAT ALSO DISSOLVES THE SPEC-SIDE HEDGE. The plan previously allowed implementing the backlog half and recording the spec half as a finding. That escape is now WITHDRAWN: because `aw specs set` (bare form) routes through the SAME `status_set.run_set_command` (`cli.py:11269-11279`), the spec half is the same lines of code, not a second implementation. Do the whole thing. The `--graduated-to` flag must be registered on the backlog and specs `set` parsers alongside their existing `--blocks-release` flags (`cli.py:4081-4086` is the backlog precedent).
@@ -84,26 +84,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   VALIDATE THE FLAG VALUE AT THE SETTER, refusing a malformed setid with exit 2 the way `--blocks-release` already refuses an unresolvable release (`backlog.py:388-396`). A setter that accepts a typo writes a link the check will then report as dangling, which turns one clear refusal into two confusing findings. Accept `-` to clear, matching every sibling primitive.
   - Depends on: E-03
   - Expected outcome: `Graduated-To` written as the FIFTH hoisted field-write in `status_set.run_set_command` through a new shared `releases.set_graduated_to_line` primitive, so ONE change serves the backlog, spec and plan setters; `--graduated-to` registered on the backlog and specs `set` parsers; the value validated at the setter with `-` clearing; nothing made mandatory; no per-verb duplicate write path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it both ways
 
-- [ ] E-05 TEST THE LIST SEMANTICS AND THE DANGLING CHECK FROM FIXTURES, including the cases a copied single-value implementation would fail.
+- [x] E-05 TEST THE LIST SEMANTICS AND THE DANGLING CHECK FROM FIXTURES, including the cases a copied single-value implementation would fail.
   TEN ASSERTIONS MINIMUM. The original six: a single-entry field resolves; a MULTI-entry field resolves EVERY entry (the case that catches a single-token regex); one bad entry among three good ones is reported and names WHICH entry; an absent field is silent; an EMPTY field is treated as decided in E-01; a duplicate entry is treated as decided in E-01. Plus FOUR the measured defects require: a MALFORMED token (not lowercase-kebab) is reported as malformed and NOT as dangling; an EMPTY plan-Set corpus reports NOTHING (the E-03 fail-safe, and the assertion that separates this rule from its false-positive-prone backlog twin); the field SURVIVES `aw backlog set` on BOTH routing paths (`--status <s> <path>` and bare `<status> <selector>`), which is the regression pin for E-02's measured data loss; and a PLAN carrying the field passes `aw ipd lint` rather than failing `IPD-M103`.
   ASSERT THE MULTI-ENTRY CASE EXPLICITLY AND SEPARATELY, AND ASSERT THE SPACE-SEPARATED FORM SPECIFICALLY. Measured at review, `- Graduated-To: first, second` makes BOTH sibling regexes match NOTHING, so a copied pattern reports a two-entry field as absent and the file as clean. A test using only the no-space form `first,second` would NOT catch that, because the sibling pattern does match there (capturing the junk token `first,second`). So the multi-entry fixture MUST use a comma-and-space value, and the test must assert the parsed list equals `["first", "second"]`.
   BUILD FIXTURES, NOT LIVE-TREE ASSERTIONS. The tree is being modified by four concurrent agents and by Order 01's sweep, so a test pinned to a real item's setid would fail for reasons unrelated to this code. Measure the live tree only as evidence.
   - Depends on: E-04
   - Expected outcome: all ten cases asserted from fixtures, with the multi-entry case standing alone and using a comma-AND-SPACE value; the two write-path preservation cases and the lint-legality case pinned; no test depends on live records.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PROVE THE NEW RULE ADDS NO FINDINGS TO THE CURRENT TREE, AND THAT ITS TWIN IS UNAFFECTED. This is what makes the rule safe to land while other work is in flight.
+- [x] E-06 PROVE THE NEW RULE ADDS NO FINDINGS TO THE CURRENT TREE, AND THAT ITS TWIN IS UNAFFECTED. This is what makes the rule safe to land while other work is in flight.
   THE EXPECTED RESULT IS ZERO NEW FINDINGS, and the measurement behind that claim was TIGHTENED at review because the plan's original wording was imprecise. `Graduated-To` occurs ZERO times as an actual `- Graduated-To:` BULLET anywhere in `.aw/records/` (measured), which is what makes zero the right expectation. It does occur 138 times as PROSE across 18 files (the spec, the backlog item, and history lines saying the machine-readable field is "owed"), so a naive `grep -c Graduated-To` will return a large number and must not be mistaken for authored fields. If the sweep reports anything, that is either an authored field this plan does not know about or a bug in the traversal, and either way it must be explained rather than accepted.
   ASSERT `check.from-backlog-dangling` IS UNCHANGED. Both scans now run in the same seam over the same trees, and the twin reports exactly ONE finding at HEAD (measured; it is `.aw/records/plans/executed/20260830-hostcap-01-mjx7ne-...ipd.md`); a change in that count means the new code perturbed the existing scan.
   COMPARE PER RULE, NEVER BY TOTAL, and the plan's own total was STALE. Measured at review, `aw check all` reports 238 findings, not 98: 174 `check.scope-drift`, 40 `check.setid-collision`, 15 `check.lifecycle-transition-invalid`, 3 `check.name-nonconformant`, 2 `check.ipd-dependency-findings-blocked`, and one each of `check.review-finding-unescalated`, `check.review-decision-invalid`-class, `check.id6-collision` and `check.from-backlog-dangling`. Measure your own totals; do not quote either figure.
   RUN THE SUITE BARE and judge on the DELTA. Baseline re-measured at review on `main` at HEAD `643f1508`: `1 failed, 5919 passed, 3 skipped, 2 xfailed in 49.72s`. The plan's stated `1 failed, 5648 passed` and its attribution to `tests/test_orchestrator_retirement.py` are BOTH stale: the actual failure is `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, and it is ENVIRONMENTAL, caused by a gitignored local `opencode-recovery/` dump (1746 files) in this checkout, so it may be absent elsewhere. Criterion: AFTER minus BEFORE is EMPTY, compared by NODE ID and never by absolute count.
   - Depends on: E-05
   - Expected outcome: zero new findings on the current tree with any exception explained and the prose-versus-bullet distinction respected; `check.from-backlog-dangling`'s count unchanged at one; per-rule comparison stated against self-measured totals; bare-suite failure-set delta empty by node id.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -238,35 +238,403 @@ Spec `4w7d6s` is the authority for G3/G4/G5 and is `- Status: draft`. This plan 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the reader implementation and QUOTE the list-splitting logic, showing it is not a single-`(\S+)` match. Paste its ACTUAL output for a three-entry field written with commas AND spaces, proving all three parse in order. State the decided behavior for an EMPTY field and for a DUPLICATE entry, and paste the docstring text recording both decisions. Paste the call to `plans.is_set_id_valid` and NEGATIVE proof (a search) that no second setid pattern was added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE READER IS LIST-AWARE AND THE SPLIT IS QUOTED. `releases.parse_graduated_to`:
+    ```python
+    _ITEM_GRADUATED_TO_RE = re.compile(r"(?m)^-[ \t]*Graduated-To:[ \t]*(.+?)[ \t]*$")
+    ...
+        m = _ITEM_GRADUATED_TO_RE.search(text)
+        if m is None:
+            return []
+        return [part.strip() for part in m.group(1).split(",") if part.strip()]
+    ```
+    The value group is `(.+?)`, NOT `(\S+)`, and the list is produced by `.split(",")` with a per-entry
+    `.strip()`. ACTUAL OUTPUT for a three-entry field written with commas AND spaces (ragged on purpose):
+    ```
+    $ python3 -c "from agent_workflows import releases; print(releases.parse_graduated_to('- Graduated-To:   a ,b,   c  \n'))"
+    ['a', 'b', 'c']
+    ```
+    All three parse, in order, with no whitespace carried into a token. Order preservation is asserted
+    separately by the `order is preserved, not sorted` row (`zzz, aaa, mmm` -> `['zzz', 'aaa', 'mmm']`),
+    which a sorting implementation would fail.
+    THE TWO DECIDED CASES, with the docstring text that records them, pasted from the function:
+    * "AN EMPTY FIELD IS TREATED AS ABSENT. `- Graduated-To:` with no value (or only whitespace or only
+      commas) returns `[]`, exactly as a missing line does. It asserts nothing, so there is nothing to
+      resolve and nothing to report".
+    * "A DUPLICATE ENTRY IS A FINDING, NOT A SILENT DEDUPE. This reader RETURNS duplicates as written (so
+      the caller can see them at all); `check_graduated_to` reports them as `check.graduated-to-repeated`.
+      Deduping here would hide an author error while leaving the record saying something it does not mean".
+    Both are pinned by table rows (`an EMPTY field` / `a whitespace-only field` / `a commas-only field`
+    -> `[]`; `same, same` -> `['same', 'same']`).
+    THE TOKEN SHAPE GOES THROUGH THE EXISTING AUTHORITY, with no second pattern. The two call sites:
+    ```
+    agent_workflows/releases.py:653:    bad = [e for e in entries if not _plans.is_set_id_valid(e)]
+    agent_workflows/releases.py:861:                    if not _plans.is_set_id_valid(entry):
+    ```
+    NEGATIVE PROOF, the actual search over every line this plan added:
+    ```
+    $ git diff -- agent_workflows/ | grep -E "^\+" | grep -E "a-z0-9\]\+|MAX_SET_ID_LEN\s*="
+    (no output)
+    ```
+    No new setid regex and no second `MAX_SET_ID_LEN`; `plans.MAX_SET_ID_LEN` is READ (releases.py:657,
+    :868) and never redefined.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the BEFORE reproduction of the data loss (an item carrying the field, the `aw backlog set --status <s> <path>` command, and the resulting file with the line GONE) and then the AFTER run showing it PRESERVED. Paste the same round trip on the bare `aw backlog set <status> <selector>` path, proving both are pinned rather than one. Paste the mechanism and confirm in one sentence that it follows `Blocks-Release`'s existing re-apply-after-render pattern (`backlog.py:563-571`) rather than widening the `_render_item` template. Then paste `aw ipd lint --phase author` on a plan carrying the field, BEFORE (exit 1, `IPD-M103`) and AFTER (exit 0), plus the `META_RECOGNIZED` diff.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE DATA LOSS REPRODUCED AGAINST HEAD FIRST, WHICH IS WHAT MAKES THE FIX
+    MEANINGFUL. HEAD's package was extracted with `git archive HEAD agent_workflows` into a scratch
+    directory and invoked from there, because the ambient `aw` console script is an EDITABLE install
+    resolving to the main checkout and therefore runs neither HEAD nor this worktree (that mattered: an
+    earlier attempt at this evidence measured the wrong code, see the defect report).
+    BEFORE (HEAD code), the file carried the field, the verb ran, the line was GONE, exit 0, silent:
+    ```
+    === package under test ===
+    .../.aw/state/lane-scratch/bwgyum/head-pkg/agent_workflows/__init__.py
+    === BEFORE ===
+    7:- Graduated-To: somesetid, othersetid
+    === run: aw backlog set --status graduated <path>  (HEAD code) ===
+    aw backlog set: 20260101-demo-01-aaa111-x.backlog.md -> graduated
+    exit=0
+    === AFTER (HEAD code) ===
+    - Id: aaa111
+    - Status: graduated
+    - Set: demo
+    - Priority: high
+    - Work-Kind: chore
+    - Summary: a scratch item
+    ```
+    AFTER (this change), same fixture, same command, field PRESERVED:
+    ```
+    === run: aw backlog set --status graduated <path>  (FIXED code) ===
+    aw backlog set: 20260101-demo-01-aaa111-x.backlog.md -> graduated
+    exit=0
+    === AFTER (FIXED) ===
+    - Id: aaa111
+    - Status: graduated
+    - Graduated-To: somesetid, othersetid
+    - Set: demo
+    - Priority: high
+    - Work-Kind: chore
+    - Summary: a scratch item
+    ```
+    THE OTHER ROUTING PATH, pinned in the same session. The bare `aw backlog set <status> <selector>`
+    spelling routes to `status_set.run_set_command` and already preserved the field; measured again here
+    after the change, and it still does:
+    ```
+    === 2. --status path PRESERVES the field (the measured data-loss path) ===
+    aw backlog set: 20260101-demo-01-aaa111-x.backlog.md -> open
+    exit=0
+    3:- Graduated-To: realset
+    ```
+    Both paths are pinned by tests so the asymmetry cannot return:
+    `BacklogSetterPreservationTests.test_the_status_flag_path_preserves_an_existing_field` and
+    `...test_the_bare_path_preserves_an_existing_field`.
+    THE MECHANISM, and it FOLLOWS `Blocks-Release`'s EXISTING RE-APPLY-AFTER-RENDER PATTERN rather than
+    widening `_render_item`'s template: the new block sits immediately after the `set_blocks_release_line`
+    re-apply in `backlog.run_set` and calls the shared `releases.set_graduated_to_line` on the ALREADY
+    RENDERED text, so `_render_item`'s six-field template is byte-unchanged (confirmed: the diff of
+    `backlog.py` touches no line inside `_render_item`).
+    LINT LEGALITY, before and after, on a plan carrying the field:
+    ```
+    === BEFORE (HEAD code): aw ipd lint --phase author ===
+    -    o  draft        plan        20260803-fixture-00-fix000  error
+         ! IPD-M103: Graduated-To: unknown field
+    exit=1
+    === AFTER (FIXED code) ===
+    -    o  draft        plan        20260803-fixture-00-fix000  conforming
+    exit=0
+    ```
+    The `META_RECOGNIZED` diff is the single added member `META_GRADUATED_TO` beside `META_FROM_SPEC`,
+    declared recognized-but-OPTIONAL (it is NOT added to `META_REQUIRED`; asserted by
+    `SchemaRecognitionTests.test_field_is_recognized_but_optional`). The schema's own completeness guard
+    (`tests/test_ipd_schema.py::MetadataFieldVocabularyTests`) demanded a vocabulary row for the new
+    field and was failing until one was added, which is that guard working as designed.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the new check beside `check_from_backlog` and confirm by inspection that the traversal, skip list and dual-root handling match. Paste the `RuleSpec` table entry showing the registered severity and invariant equal the twin's (`error`, I-07). Paste the registration at the once-per-sweep seam showing it has its OWN `try/except`. Paste the docstring sentence defining what resolves as a real plan Set (OQ-01), the sentence recording the `aw check all`-only reach (F-17), and the sentence recording that the empty-corpus fail-safe was copied from the SPEC-side twin rather than the backlog one (F-15). Paste the ACTUAL empty-corpus run showing ZERO findings. Paste NEGATIVE proof (a search) that no new plans-path literal was introduced and that `_parse_setid`/`_iter_plan_ipds` are reused.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE MIRROR, BY INSPECTION AGAINST THE TWIN IT SITS BESIDE. `check_graduated_to`
+    is defined in `releases.py` DIRECTLY AFTER `check_from_backlog` and reuses its traversal verbatim:
+    the same `for sub in (...)` tuple over `plans`/`specs`/`backlog`, the same dual-root
+    `(repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub)`, the same
+    `_core.is_ignored_path` guards on both the base and the file, the same
+    `("README.md", "INDEX.md", "STATUS.md")` skip list, the same `rglob("*.md")`, and the same
+    `try/except OSError: continue` read. Only the resolution target differs, which is the one design
+    choice: an id6 set becomes a plan-Set setid set.
+    THE RULESPEC ENTRIES EQUAL THE TWIN'S, and are asserted against it rather than against literals:
+    ```python
+    "check.graduated-to-dangling": RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"),
+    "check.graduated-to-malformed": RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"),
+    "check.graduated-to-repeated": RuleSpec("warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"),
+    ```
+    `RuleRegistrationTests.test_dangling_and_malformed_match_the_backlog_twin` compares severity AND
+    invariant to `ce.rule_spec("check.from-backlog-dangling")`, so the two directions of one link cannot
+    drift apart. The third rule is deliberately `warning` (a repeated entry still resolves, so the handoff
+    is intact) and is named `-repeated` rather than `-duplicate`; see the defect report and the
+    RULE_REGISTRY comment for why (a sibling Set ships a structural prohibition on that word).
+    REGISTERED AT THE ONCE-PER-SWEEP SEAM IN ITS OWN try/except:
+    ```python
+        try:
+            from agent_workflows import releases as _releases_fwd
 
-- [ ] V-04 validates E-04
+            drift.extend(_releases_fwd.check_graduated_to(repo_root))
+        except Exception:
+            pass
+    ```
+    placed immediately after the `check_from_spec_dangling` guard inside the `if collisions:` branch, a
+    SEPARATE guard from its neighbours for the reason the existing code states ("so a failure in either
+    scan cannot suppress the other").
+    THE THREE REQUIRED DOCSTRING SENTENCES, pasted from the function:
+    * OQ-01: "WHAT COUNTS AS 'A REAL PLAN SET' (plan OQ-01): ANY setid carried by at least one plan file
+      in ANY lifecycle directory, INCLUDING the terminal ones (`executed/`, `superseded/`,
+      `not-executed/`)."
+    * F-17 reach: "REACH: this runs in the FULL cross-tree sweep only (`aw check all`), like every scan at
+      that seam, so `aw check backlog` does NOT validate the field."
+    * F-15 provenance: "THE EMPTY-CORPUS FAIL-SAFE IS COPIED FROM THE SPEC-SIDE TWIN, NOT FROM THE BACKLOG
+      ONE, and the two twins genuinely disagree (measured, see `check_from_backlog`'s docstring)".
+    THE EMPTY-CORPUS RUN, actual output, with a source carrying a two-entry field and NO plans tree:
+    ```
+    $ python3 -m pytest tests/test_graduated_to_link.py -o addopts="" -q -k empty_plan_set
+    .                                                                        [100%]
+    1 passed in 0.14s
+    ```
+    and the assertion it runs is `self.assertEqual(releases.check_graduated_to(root), [])`. The
+    end-to-end equivalent was also measured live: the clean tree reports ZERO (see V-06).
+    NEGATIVE PROOF that the existing authorities are REUSED and no new plans-path literal was added:
+    ```
+    $ git diff -- agent_workflows/ | grep -E "^\+" | grep -E '"plans"|/ "plans"'
+    +    for sub in ("backlog", "specs", "plans"):
+    $ grep -n "_iter_plan_ipds\|_parse_setid" agent_workflows/releases.py
+    829:    for _p, _t in _ce._iter_plan_ipds(repo_root):
+    830:        sid, _desc = _ce._parse_setid(_t)
+    ```
+    The single match is the TRAVERSAL TUPLE copied from the twin (a subdirectory NAME shared by the
+    mirror, not a path literal); the plans PATH itself is never spelled here, because discovery goes
+    through `check_engine._iter_plan_ipds`, and the setid is read by `check_engine._parse_setid`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the setter round trip: the ACTUAL command, the resulting front matter, and the history line, demonstrating both landed in ONE path-scoped commit. Paste the write site showing it is the FIFTH hoisted field-write in `status_set.run_set_command`, beside the four existing ones, and the new `releases.set_graduated_to_line` beside `set_from_backlog_line`. Paste the SPEC-side round trip through `aw specs set`, which is now REQUIRED rather than optional: a recorded finding in place of an implementation is a FAILED V-04, because F-14 measured it is the same code path. Paste NEGATIVE proof the flag is OPTIONAL by performing a graduation without it and showing it succeeds with no finding. Paste the setter REFUSING a malformed setid with exit 2.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE WRITE SITE IS THE FIFTH HOISTED FIELD-WRITE IN `status_set`, beside the four
+    existing ones. In `apply_status_change` the new block follows `Blocks-Release`, `From-Backlog`,
+    `Item-Dependencies`, `Priority` and `Work-Kind`, in the identical shape (keyed only on flag PRESENCE,
+    outside every status branch, so it persists on a same-status no-op):
+    ```python
+    graduated_to = getattr(args, "graduated_to", None)
+    if graduated_to is not None:
+        from agent_workflows import releases as _releases
 
-- [ ] V-05 validates E-05
+        tmp_text = "\n".join(new_lines)
+        tmp_text = _releases.set_graduated_to_line(tmp_text, graduated_to)
+        new_lines = tmp_text.splitlines()
+    ```
+    and the new `releases.set_graduated_to_line` sits beside `set_from_backlog_line`, mirroring its anchor
+    (`- Status:`, falling back to `- Id:`) and its `-`/None clearing. ONE shared primitive, no per-verb
+    duplicate write path.
+    THE BACKLOG ROUND TRIP, actual commands and the resulting front matter. The link and the history line
+    land in the SAME single-file write:
+    ```
+    $ aw backlog set graduated aaa111 --graduated-to realset --message "graduated into realset"
+    -    backlog     20260101-demo-01-aaa111  [high]  open -> graduated
+    $ cat .../backlog/graduated/20260101-demo-01-aaa111-x.backlog.md
+    - Id: aaa111
+    - Status: graduated
+    - Graduated-To: realset
+    - Set: demo
+    - Priority: high
+    - Work-Kind: chore
+    - Summary: a fixture item
+
+    ## Workflow history
+    - 2026-09-23 graduated (aw set): graduated into realset
+    - 2026-01-01 created (t): x
+    ```
+    MULTI-ENTRY, written and parsed back as a list:
+    ```
+    $ aw backlog set graduated aaa111 --graduated-to "realset, demo" --message "two sets"
+    exit=0
+    3:- Graduated-To: realset, demo
+    parsed: ['realset', 'demo']
+    ```
+    THE SPEC-SIDE ROUND TRIP, which is REQUIRED rather than optional. BOTH spellings write it. The bare
+    form shares `status_set` with every other setter:
+    ```
+    $ aw specs set to-review sp0001 --graduated-to realset --message "spec graduated"
+    exit=0
+    4:- Status: to-review
+    5:- Graduated-To: realset
+    ```
+    The `--status` form routes to the FORKED `specs.run_set`, so it needed its own call there, and it
+    writes the multi-entry value too:
+    ```
+    $ aw specs set --status to-review <path> --graduated-to "realset, demo" --message both
+    aw specs set: ... -> to-review
+    exit=0
+    4:- Status: to-review
+    5:- Graduated-To: realset, demo
+    ```
+    Pinned by `SpecSetterTests.test_the_bare_form_writes_the_field` and
+    `...test_the_status_form_writes_the_field_and_refuses_a_typo`.
+    THE FLAG IS OPTIONAL, negative proof: a graduation with no flag succeeds and produces no finding:
+    ```
+    $ aw backlog set graduated aaa111 --message "no forward link"   -> exit 0
+    parse_graduated_to(item) == []        check_graduated_to(root) == []
+    ```
+    (`BacklogSetterPreservationTests.test_the_flag_is_OPTIONAL`).
+    THE SETTER REFUSES A MALFORMED SETID WITH EXIT 2, on every surface, writing nothing:
+    ```
+    $ aw backlog set graduated aaa111 --graduated-to Not_A_Setid
+    FAIL     aw set: --graduated-to takes lowercase-kebab setids of at most 40 characters; malformed: 'Not_A_Setid'
+    exit=2
+    $ aw specs set --status to-review <path> --graduated-to "BAD Setid"
+    aw specs set: --graduated-to takes lowercase-kebab setids of at most 40 characters; malformed: 'BAD Setid'
+    exit=2
+    file UNCHANGED by the refusal
+    ```
+    `test_both_paths_refuse_a_malformed_setid_with_exit_2` additionally asserts the item text is
+    byte-identical after the refusal.
+    THE GRADUATION-VERB QUESTION WAS RE-ESTABLISHED BY INSPECTION, as E-04 requires rather than trusting
+    the plan's note: `aw graduate` still does not exist (the `graduate` Set's plans `y9s4vm`/`jxxec8`/
+    `iuxtjy` remain in `pending/`), so the setter is still the only tooled chokepoint every graduation
+    passes through.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the ACTUAL passing output of all TEN fixture cases. QUOTE the multi-entry assertion separately, show its fixture value uses a comma AND a space, and confirm in one sentence that both sibling regexes match NOTHING on that form (so the test would fail against a copied pattern rather than merely under-validate). Confirm no test reads live records, by pasting the fixture construction.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL TEN REQUIRED CASES PASS, from fixtures. Actual run:
+    ```
+    $ python3 -m pytest tests/test_graduated_to_link.py -o addopts="" -q
+    ........................                                                 [100%]
+    24 passed in 1.71s
+    ```
+    The ten required cases and where each lives: (1) single entry resolves and (2) EVERY entry of a
+    multi-entry field resolves - `CheckGraduatedToTests` rows 1 and 2; (3) one bad entry among three good
+    ones is reported and NAMES which entry - row 3, which asserts `"nosuchset"` appears in the finding's
+    detail; (4) an absent field is silent - row 4; (5) an EMPTY field behaves as decided in E-01 - row 5
+    plus three reader rows; (6) a duplicate is treated as decided - row 6 (`check.graduated-to-repeated`);
+    (7) a MALFORMED token reports as malformed and NOT as dangling - row 7, asserting the EXACT rule list;
+    (8) an EMPTY plan-Set corpus reports NOTHING - `test_an_empty_plan_set_corpus_reports_nothing`;
+    (9) the field SURVIVES `aw backlog set` on BOTH routing paths -
+    `test_the_status_flag_path_preserves_an_existing_field` and `test_the_bare_path_preserves_an_existing_field`;
+    (10) a PLAN carrying the field passes `aw ipd lint` - `test_a_plan_carrying_the_field_lints_clean`.
+    THE MULTI-ENTRY ASSERTION, QUOTED, standing alone and using a comma AND a space:
+    ```python
+    def test_the_multi_entry_case_alone_with_a_comma_and_a_space(self) -> None:
+        text = "- Id: aaa111\n- Status: open\n- Graduated-To: first, second\n\n## X\n"
+        self.assertEqual(releases.parse_graduated_to(text), ["first", "second"])
+    ```
+    IT WOULD FAIL AGAINST A COPIED PATTERN, and that is measured rather than asserted in prose.
+    `SiblingPatternRegressionTests` re-shapes each sibling pattern onto this field name and runs it:
+    ```
+    $ python3 -c "...both sibling patterns against '- Graduated-To: first, second'..."
+    'first, second' backlog-shaped: None | spec-shaped: None
+    'first,second'  backlog-shaped: first,second | spec-shaped: first,second
+    ```
+    Both match NOTHING on the comma-AND-SPACE form (so a copied regex reports a two-entry field as ABSENT
+    and the file as CLEAN, which is worse than under-validating), while on the no-space form they DO match
+    and capture the junk token. That is exactly why the fixture must carry the space: a test using only
+    `first,second` passes against the broken implementation.
+    NO TEST READS LIVE RECORDS. Every fixture is constructed in a `tempfile.TemporaryDirectory()` by the
+    module-level builders:
+    ```python
+    def _write_plan(root: Path, setid: str, id6: str) -> Path:
+        d = root / ".aw" / "records" / "plans" / "pending"
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / f"20260101-{setid}-01-{id6}-x.ipd.md"
+        p.write_text(_PLAN.format(setid=setid, id6=id6), encoding="utf-8")
+        return p
+    ```
+    The only classes that touch the real checkout are `CurrentRepositoryTests` and
+    `RuleRegistrationTests`, which deliberately assert PROPERTIES of the shipped corpus and registry (no
+    findings; severity equals the twin's) rather than pinning any item's setid, so a concurrent edit or a
+    regrouping sweep cannot fail them.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `aw check all --agent` PER-RULE counts before and after, showing `check.graduated-to-dangling` at ZERO on the current tree and `check.from-backlog-dangling` unchanged at exactly ONE. State the totals you MEASURED rather than quoting this plan's (review found 238, the plan originally said 98). If the new rule reported anything, explain it rather than accepting it, and confirm you counted `- Graduated-To:` BULLETS rather than substring mentions (138 prose occurrences exist). Paste NEGATIVE proof that `evaluate_blocking_close`'s ladder was not modified (show the searches). THEN paste the BARE `python3 -m pytest` summary lines before and after and state the failure-set delta by NODE ID, not by count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ZERO NEW FINDINGS ON THE CURRENT TREE, per rule, measured by me at this HEAD
+    rather than quoted from this plan. BEFORE is HEAD's package (extracted with `git archive HEAD
+    agent_workflows`, invoked from that directory) against the SAME working tree, so the only variable is
+    the code:
+    ```
+    BEFORE (HEAD code): 54   AFTER (this change): 54
+    rule                                            before  after
+    check.from-backlog-dangling                          1      1
+    check.from-backlog-gate-mismatch                     1      1
+    check.id6-outside-metadata-region                    2      2
+    check.identity-absent-from-name                      2      2
+    check.ipd-lint-diagnostic                            1      1
+    check.ipd-uncarried-obligation                      35     35
+    check.lifecycle-transition-invalid                   3      3
+    check.live-bug-ungated                               2      2
+    check.name-nonconformant                             5      5
+    check.scope-drift                                    1      1
+    check.system-layout-missing                          1      1
+
+    check.graduated-to-dangling  : 0
+    check.graduated-to-malformed : 0
+    check.graduated-to-repeated  : 0
+    check.from-backlog-dangling  : 1 (baseline 1)
+    ```
+    MY MEASURED TOTAL IS 54, not the 238 review found nor the 98 the plan originally claimed; the corpus
+    moved under both figures, which is why the plan instructs measuring your own. `check.from-backlog-dangling`
+    is UNCHANGED at exactly ONE, and it is the same artifact review named
+    (`plans/executed/20260830-hostcap-01-mjx7ne-...ipd.md`), so the shared seam and traversal did not
+    perturb the existing scan.
+    ZERO IS THE RIGHT EXPECTATION, AND I COUNTED BULLETS NOT SUBSTRINGS:
+    ```
+    $ grep -rE "^-[ \t]*Graduated-To:" .aw/records/ | wc -l
+    0
+    $ grep -ro "Graduated-To" .aw/records/ | wc -l
+    156
+    ```
+    No artifact carries an authored `- Graduated-To:` BULLET; the 156 occurrences are PROSE (the spec, the
+    backlog item, and history lines saying the field is owed), so a bare substring count is misleading and
+    must not be read as authored fields.
+    THE RULE IS NOT SILENTLY DEAD, WHICH A ZERO ALONE WOULD NOT PROVE. I injected one bullet naming a
+    nonexistent Set into a real backlog item, re-ran the full sweep through the CLI, and the total moved by
+    exactly one with the new rule present:
+    ```
+    2:- Graduated-To: definitelynotarealset
+    findings: 55
+      1 check.graduated-to-dangling
+      1 check.from-backlog-dangling
+      ... (all other counts unchanged)
+    ```
+    The item was then restored byte-identically (`git diff --name-only` on it is EMPTY) and the clean sweep
+    re-run to produce the 54/54 table above.
+    NEGATIVE PROOF THAT `evaluate_blocking_close`'s LADDER WAS NOT MODIFIED (G7 is deliberately not wired):
+    ```
+    $ git diff -- agent_workflows/check_engine.py | grep -n "evaluate_blocking_close"
+    (no output)
+    $ git diff --unified=0 -- agent_workflows/check_engine.py | grep "^@@"
+    @@ -168,0 +169,24 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
+    @@ -2966,0 +2991,12 @@ def check_types(
+    ```
+    Both hunks are pure INSERTIONS (`-N,0`) and neither is inside `evaluate_blocking_close`: one adds three
+    registry entries, the other adds the seam registration. `check_from_backlog`'s LOGIC is likewise
+    untouched; its only change is docstring lines (a cross-reference to the new mirror and the recorded
+    fail-safety difference), as the diff of that function shows no altered statement.
+    THE BARE SUITE, before and after, judged by NODE ID:
+    ```
+    BEFORE: 1 failed, 8780 passed, 3 skipped, 2 xfailed in 252.03s
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+
+    AFTER:  1 failed, 8804 passed, 3 skipped, 2 xfailed in 129.34s
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    ```
+    AFTER minus BEFORE is EMPTY: the same single node id fails in both, and it is ENVIRONMENTAL (it asserts
+    `OPENCODE_CONFIG_CONTENT` is absent from the environment, and this turn's runtime exports it), not
+    related to this change. The passed count rises by 24, which is this plan's new test module.
+    AN HONEST INTERMEDIATE RESULT, recorded because it was a real gate doing its job: the first post-change
+    run had THREE failures. Two were mine and both were correct objections rather than noise - the schema's
+    own vocabulary-completeness guard demanded a table row for the new field, and a sibling Set's structural
+    prohibition rejected a rule id containing `duplicate`. Both were fixed at the source (a row was added;
+    the rule was renamed `-repeated`) rather than by relaxing either guard, after which the delta became
+    empty as pasted above.
+  - Result: pass
 
 ## Approval and execution gate
 
