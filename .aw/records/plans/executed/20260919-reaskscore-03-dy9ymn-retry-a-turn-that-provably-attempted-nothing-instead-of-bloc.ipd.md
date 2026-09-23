@@ -6,7 +6,7 @@
 - Scope: Add a NARROW, evidence-based "provably attempted nothing" predicate over facts the attempt already records, and on that verdict re-queue the item for one more attempt inside the existing retry budget instead of recording a terminal `partial`. Consume `ty7w6o`'s host-truncation signal as corroborating evidence. EXCLUDES loosening any dependency, success-bar, or orchestrator-retirement predicate: the cascade is right. EXCLUDES retrying any item that produced ANY evidence of work. EXCLUDES the rescoring fix (`skn8uk`) and the truncation signal itself (`ty7w6o`). EXCLUDES telling the agent its remaining turn budget, which is `x7wfyx`'s other half and is a prompt change with its own review surface.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_turn_bounds.py
 - Item-Dependencies: executed:ty7w6o
-- Status: approved
+- Status: executed
 - Priority: medium
 - Readiness: go-pending-approval
 - Set: reaskscore
@@ -17,9 +17,9 @@
 - Blocks-Release: next
 - Work-Kind: bug
 - Id: dy9ymn
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: dy9ymn verified (set reaskscore, attempt 1).
 - 2026-09-23 approved (aw set): Backfilled Priority by inheritance from source backlog item x7wfyx (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 
