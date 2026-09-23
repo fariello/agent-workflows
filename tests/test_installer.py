@@ -3840,6 +3840,140 @@ class NestedSourceSiblingVersionTests(unittest.TestCase):
         )
 
 
+class ResolvedVersionStampTests(unittest.TestCase):
+    """Regression (i8u6hh E-04): an install stamps the RESOLVED version, not the baked file's bytes.
+
+    Left un-merged from `NestedSourceSiblingVersionTests` above, which asserts the OPPOSITE
+    equality (installed VERSION == the source sibling's content) and is still correct there: its
+    source is a NON-GIT temp tree, where the resolver's only answer IS the file. The divergence
+    this class needs can therefore only be built by making the source a real git work tree with a
+    release tag, which is a materially different harness and a contradictory-looking claim, so the
+    two cannot share a row. The property here is the one no existing test covered (F-06): when the
+    baked file and the resolver DISAGREE, the target must receive the resolver's answer, because
+    the baked file describes whatever `make version-file` last ran and not the code being shipped.
+    """
+
+    BAKED = "1.2.1\n"  # what a dev checkout's stale VERSION file holds
+    TAG = "v7.3.0"  # the tag the resolver will describe, deliberately unlike BAKED
+    RESOLVED = "7.3.0"
+
+    MANIFEST_ROW = "| plan-review | .agents/workflows/plan-review/plan-review.md | - | Test workflow. |"
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name) / "source"
+        self.system = self.root / ".aw" / "system"
+        self.bundle = self.system / "workflows"
+        (self.bundle / "plan-review").mkdir(parents=True)
+        (self.bundle / "templates").mkdir(parents=True)
+        (self.bundle / "index.md").write_text(
+            "# Workflows\n\n"
+            f"{INS.MANIFEST_BEGIN}\n"
+            "| command | body | lens | description |\n"
+            "|---|---|---|---|\n"
+            f"{self.MANIFEST_ROW}\n"
+            f"{INS.MANIFEST_END}\n",
+            encoding="utf-8",
+        )
+        (self.bundle / "plan-review" / "plan-review.md").write_text(
+            "# plan-review body\n", encoding="utf-8"
+        )
+        (self.bundle / "templates" / "shim-README.md").write_text(
+            "# shims\n", encoding="utf-8"
+        )
+        # The STALE baked file: the exact shape a dev checkout carries.
+        (self.system / "VERSION").write_text(self.BAKED, encoding="utf-8")
+        # Make the source a real git work tree with a release TAG, so the resolver has an answer
+        # of its own that DIFFERS from the baked file. This is the whole point of the fixture: in
+        # a non-git tree the two can never disagree and the test would pass vacuously.
+        init_repo(self.root)
+        git(self.root, "add", "-A")
+        git(self.root, "commit", "-q", "-m", "source")
+        git(self.root, "tag", self.TAG)
+        self.resolved_root = INS.resolve_source_root(self.root)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_the_fixture_actually_diverges(self):
+        """Guard the guard: if these agreed, every assertion below would be vacuous."""
+        self.assertEqual(
+            INS.read_version(self.resolved_root),
+            self.RESOLVED,
+            "the git resolver did not return the tagged version; the fixture's tag is not being "
+            "described, so the divergence this class tests does not exist",
+        )
+        self.assertNotEqual(
+            (self.system / "VERSION").read_text(encoding="utf-8").strip(),
+            self.RESOLVED,
+            "the baked VERSION file equals the resolved version, so this fixture cannot "
+            "distinguish a byte copy from a resolved stamp",
+        )
+
+    def test_install_stamps_the_resolved_version_and_the_manifest_follows(self):
+        """One test for both claims: the manifest value is READ BACK from the stamped file
+        (engine.py `manifest.installed_version = read_installed_version(...)`), so it is the same
+        claim observed one layer out, and asserting them apart would let a passing file test hide
+        a manifest that stalled (E-03 exists to confirm exactly that inheritance)."""
+        target = init_repo(Path(self._tmp.name) / "target")
+        INS.install_into_repo(target, self.resolved_root, yes=True, no_color=True)
+
+        stamped = (target / ".aw" / "system" / "VERSION").read_text(encoding="utf-8")
+        self.assertEqual(
+            stamped,
+            f"{self.RESOLVED}\n",
+            f"the target was stamped {stamped!r}; the source's baked file holds "
+            f"{self.BAKED!r} while the code being installed resolves to {self.RESOLVED!r}. FIX: "
+            "VERSION is the one DERIVED install member, so its content must come from "
+            "`read_version(source_root)` and not from a verbatim byte copy. A stale stamp makes "
+            "`versioning.status()` classify a freshly upgraded repo as STALE, which is what drove "
+            "every configured repo to report STALE right after being updated.",
+        )
+        # The trailing-newline shape of the source file is mirrored, so a re-install of an
+        # already-current target reports no spurious modification.
+        self.assertTrue(
+            stamped.endswith("\n") and not stamped.endswith("\n\n"),
+            f"stamped VERSION has the wrong newline shape: {stamped!r}",
+        )
+
+        from agent_workflows import manifest as MF
+
+        manifest = MF.load(MF.resolve_manifest_path(target))
+        self.assertEqual(
+            manifest.installed_version,
+            self.RESOLVED,
+            f"manifest installed_version is {manifest.installed_version!r} but the stamped file "
+            f"says {stamped.strip()!r}. These must agree because the manifest READS BACK the "
+            "just-written file; a divergence means a second, independent derivation crept in.",
+        )
+
+    def test_a_second_install_is_idempotent(self):
+        """Kept separate: the before/after half of an idempotence claim, which cannot be a row
+        with the stamping assertion (it needs the first install to have already happened)."""
+        target = init_repo(Path(self._tmp.name) / "target_twice")
+        INS.install_into_repo(target, self.resolved_root, yes=True, no_color=True)
+        first = (target / ".aw" / "system" / "VERSION").read_bytes()
+        result = INS.install_into_repo(
+            target, self.resolved_root, yes=True, no_color=True
+        )
+        self.assertEqual(
+            (target / ".aw" / "system" / "VERSION").read_bytes(),
+            first,
+            "a re-install rewrote VERSION, so the resolved stamp is not byte-stable",
+        )
+        version_lines = [
+            line
+            for line in result.get("installed", [])
+            if line.startswith(f"{INS.AW_SYSTEM_DIR}/{INS.VERSION_FILE} ")
+        ]
+        self.assertEqual(
+            version_lines,
+            [],
+            "the second install reported VERSION as written again, so a re-install of an "
+            f"already-current target looks modified: {version_lines}",
+        )
+
+
 class TargetLayoutResolutionTests(unittest.TestCase):
     """Order 15 (awphysical-15-7cvh9t): which layout a target repo gets, and what install then writes.
 

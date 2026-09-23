@@ -350,6 +350,40 @@ def _member_source_path(source_root: Path, source_relative: str) -> Path:
     return source_root / source_relative
 
 
+def _member_source_bytes(
+    source_root: Path, source_relative: str, source_path: Path
+) -> bytes:
+    """Return the BYTES to install for a member, resolving VERSION instead of copying it.
+
+    Every member but VERSION is a verbatim byte copy of its source file. VERSION is the one
+    DERIVED member: its on-disk bytes are whatever `make version-file` last baked, which in a
+    dev checkout is an older release number than the code being installed (measured: the file
+    read `1.2.1` while the tree was `1.3.0rc2.dev*`). Copying those bytes stamped a version that
+    misdescribed the installed framework, so `versioning.status()` classified freshly upgraded
+    repos as STALE across the whole fleet.
+
+    So the CONTENT comes from `read_version(source_root)`, the same resolver `aw --version` and
+    the install banner already use. Per IPD i8u6hh E-01/OQ-01 the resolved value is written
+    UNCONDITIONALLY, including the `.devN+g<sha>` string a dirty or ahead checkout produces:
+    `read_version`'s own contract is that such a string "cannot be mistaken for a release", and
+    `versioning.status()` has a dedicated `dev` class for it, so a dev stamp is a state the
+    consumers are built to handle. A tagged release tree is unaffected, because RELEASING.md
+    bakes VERSION before tagging, so there the resolver and the file already agree.
+
+    The source file's trailing-newline shape is mirrored so a re-install of an already-current
+    target is not reported as a spurious modification.
+    """
+
+    data = source_path.read_bytes()
+    if source_relative != VERSION_FILE:
+        return data
+    resolved = read_version(source_root)
+    for terminator in (b"\r\n", b"\n"):
+        if data.endswith(terminator):
+            return resolved.encode("utf-8") + terminator
+    return resolved.encode("utf-8")
+
+
 def read_version(source_root: Path) -> str:
     """Return the framework version for the source at ``source_root``.
 
@@ -2312,7 +2346,9 @@ def install_all(
         # member is e.g. ".aw/system/workflows/release-review/README.md" or ".agents/workflows/..."; map to source.
         source_relative = _member_to_source_relative(member)
         source_path = _member_source_path(plan.source_root, source_relative)
-        data = source_path.read_bytes()
+        # VERSION's content is RESOLVED, not byte-copied (i8u6hh E-02); every other member is
+        # a verbatim copy.
+        data = _member_source_bytes(plan.source_root, source_relative, source_path)
         # Sync the source's executable bit (tool scripts stay executable); write_file
         # applies it and re-stages even on a mode-only change.
         executable = _wants_executable(source_path.stat().st_mode)
@@ -3887,7 +3923,11 @@ def show_install_diffs(
         source_relative = _member_to_source_relative(member)
         source_path = _member_source_path(plan.source_root, source_relative)
         try:
-            proposed[member] = source_path.read_bytes()
+            # The SAME byte producer the install path uses, so the preview cannot advertise a
+            # VERSION the install would not actually write (i8u6hh E-02).
+            proposed[member] = _member_source_bytes(
+                plan.source_root, source_relative, source_path
+            )
         except OSError:
             pass
 
