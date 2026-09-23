@@ -3547,6 +3547,651 @@ def apply_records_only_rederivation(
     )
 
 
+# ==================================================================================================
+# stalemerge-01 (`87apfx`): TELL A CROSS-RUN ADJACENCY CONFLICT FROM A REAL FAILURE OF THE WORK
+# ==================================================================================================
+#
+# THE MEASURED DEFECT, on two lanes of `run-20260922T024054Z-2245533`. `92u0v9` and `xipfy1` each
+# finished their work, passed their own suite, finalized on their lane branch, and were then refused
+# with `merge-refused` carrying a verdict that reads "it asserts a real failure of the work". For both
+# that sentence was FALSE: the conflict was a cross-run race in which two branches each ADD at one
+# insertion point, and each was resolved by hand in minutes with the full suite green afterwards. The
+# refusal is terminal on its first attempt, and three further items in that run reached
+# `dependency-blocked` behind refused ones, so one mislabelled refusal multiplies.
+#
+# WHAT THIS SECTION DELIVERS AND WHAT IT DELIBERATELY DOES NOT. It records WHICH cause fired, stops
+# asserting a failure of the work for a conflict that is not one, and emits the facts a resolver needs
+# (paths, adjacency verdict, the peer commit). It does NOT resolve conflicts and does NOT refresh or
+# rebase the base, because that was TESTED AND REFUTED: `git merge-tree --write-tree` of `92u0v9`'s lane
+# tip against a base that ALREADY CONTAINS the peer commit still conflicts in
+# `agent_workflows/completion.py`, and so does the other direction; `xipfy1` likewise in this file. Two
+# insertions at ONE location conflict regardless of base or direction, because git has no basis to order
+# them. "Purely additive" describes the SEMANTICS (which is why a human resolution is trivial) and says
+# nothing about MERGEABILITY. Nor does it make a plain conflict DEFERRABLE: a retry recomputes the same
+# conflict from the same two commits, so promoting it would burn budget and change nothing.
+
+#: THE CAUSE-BEARING KEY on the `integration_ladder` record, written ADDITIVELY.
+#:
+#: An ABSENT key reads as :data:`INTEGRATION_CAUSE_UNKNOWN`, never as any particular cause, for the
+#: reason `LEGACY_INTEGRATION_STATUS_ALIASES` exists: run directories are DURABLE RECORDS, so every
+#: run already on disk lacks this key and must stay readable. No test asserts an exact key set on
+#: `integration_ladder` (verified), so adding it changes no reader.
+INTEGRATION_CAUSE_KEY = "cause"
+
+#: THE CAUSE SPACE FOR `merge-refused` IS EXACTLY THREE, AND THAT IS A MEASUREMENT, NOT A COUNT OF
+#: CONSTANTS. `orchestrate_isolation` defines SIX `INTEGRATION_FAILED_*` statuses, but
+#: :func:`integrate_lane_branch` calls the gate with `lane_outcomes=[lane]`, `merge_order=[id6]`,
+#: `integration_base_commit=handle.base_commit` and NO `declared_scope`, while `build_lane_outcome`
+#: hard-codes `status=STATUS_COMPLETED` and `per_lane_validation_passed=True`. So FOUR are UNREACHABLE
+#: on this path: `_MISSING_LANE` needs a `merge_order` id absent from the outcome map (the map is built
+#: FROM that id), `_STALE_BASE` needs `first_lane.base_commit != integration_base_commit` (both are the
+#: same `handle.base_commit`), `_SCOPE_VIOLATION` needs a truthy `declared_scope` (none is passed), and
+#: `_LANE_FAILURE` needs a non-completed or locally-failing lane (both are hard-coded true).
+#:
+#: DO NOT ADD A CONSTANT OR A VERDICT BRANCH FOR THE UNREACHABLE FOUR. A branch for a cause this call
+#: path cannot produce is dead code carrying an untestable claim, which is fabricated evidence wearing
+#: thoroughness's clothes. If a future change PASSES `declared_scope` or a non-completed lane, the
+#: honest move is to widen this taxonomy THEN, with the new reachability measured.
+INTEGRATION_CAUSE_GATE_CONFLICT_MARKERS = "gate-conflict-markers"
+INTEGRATION_CAUSE_GATE_COMBINED_RED = "gate-combined-red"
+INTEGRATION_CAUSE_GIT_CONFLICT = "git-merge-conflict"
+
+#: What an OLD record (or an unrecognized gate status) reads as. Routing an unknown cause to today's
+#: unchanged wording is the FAIL-CLOSED direction: it keeps the conservative sentence rather than
+#: asserting a conflict nobody measured.
+INTEGRATION_CAUSE_UNKNOWN = "unknown"
+
+#: Which gate status maps to which cause. READ-ONLY and additive: a status absent from this map reads
+#: as UNKNOWN rather than as the nearest match, so a new gate status cannot silently inherit a verdict
+#: sentence written for a different condition.
+GATE_STATUS_TO_INTEGRATION_CAUSE: dict[str, str] = {
+    "integration_failed_conflict": INTEGRATION_CAUSE_GATE_CONFLICT_MARKERS,
+    "integration_failed_combined_red": INTEGRATION_CAUSE_GATE_COMBINED_RED,
+}
+
+#: THE MACHINE-READABLE PREFIX carrying the cause inside the refusal REASON string.
+#:
+#: WHY THE REASON STRING AND NOT A WIDER RETURN TUPLE (E-01's channel choice, recorded in code as the
+#: item requires). :func:`integrate_lane_branch` receives NEITHER `item` NOR `state`, so it has no sink
+#: to write a durable record into; the `revalidation_was_unmeasured` precedent works only because
+#: `make_integration_validation_runner` CLOSES OVER `item`, and no such closure exists at the conflict
+#: arm. Three channels were considered:
+#:
+#: (a) A MODULE-LEVEL SIDE CHANNEL: REFUSED outright rather than priced. This module is driven
+#:     concurrently (two hosts, a deferral ladder, a lane per item), so a module global would
+#:     cross-attribute one item's cause to another - the worst possible failure for a field whose whole
+#:     job is to say which of three things happened.
+#: (b) THIS ONE, a prefixed token in the reason string, parsed at :func:`record_integration_refusal`,
+#:     which already receives `item`. CHOSEN: it touches no signature and no unpack site. The honest
+#:     cost is that the reason string becomes a PARSED INTERFACE, which is why the format is a named
+#:     constant with its own regression control rather than an ad-hoc regex at the read site, and why
+#:     the token is STRIPPED before the reason reaches an operator.
+#: (c) WIDENING THE RETURNED TUPLE: rejected on measured cost. ELEVEN sites unpack the 3-tuple
+#:     (`runner_shared.py` x2, `tests/test_runner_shared.py` x7, `tests/test_oc_runipd.py`,
+#:     `tests/test_agy_runipd_cli.py`), and both per-host wrappers are pinned to an EXACT signature by
+#:     `tests/test_runner_shared.py::LaneIntegrationExtractionTests
+#:     ::test_each_wrapper_keeps_the_ORIGINAL_signature` ("no wrapper may expose the injected
+#:     parameter"). Choosing it would have reached two test files this plan does not declare.
+INTEGRATION_CAUSE_TOKEN_PREFIX = "[aw-integration-cause="
+INTEGRATION_CAUSE_TOKEN_SUFFIX = "]"
+
+#: THE SHAPE RIDES ON THE SAME CHANNEL, for exactly the same reason and with no second mechanism. The
+#: adjacency verdict is computed where the merge stages still exist (inside
+#: :func:`integrate_lane_branch`) and is needed where the refusal is written
+#: (:func:`record_integration_refusal`), which is the same producer/consumer gap the cause has. Giving it
+#: its own transport - an extra item key, a wider return tuple, a second global - would be a second thing
+#: to keep in sync for no gain, so it is a second OPTIONAL token in the one string that already travels.
+INTEGRATION_SHAPE_TOKEN_PREFIX = "[aw-conflict-shape="
+INTEGRATION_SHAPE_TOKEN_SUFFIX = "]"
+
+#: Matches the tokens this module writes, and nothing else. Anchored at the string START because that is
+#: where every writer puts them, so a cause NAMED IN PROSE (e.g. an agent pasting a previous refusal into
+#: a report, or a test fixture quoting one) cannot be mistaken for the machine field.
+_INTEGRATION_CAUSE_TOKEN_RE = re.compile(
+    r"^"
+    + re.escape(INTEGRATION_CAUSE_TOKEN_PREFIX)
+    + r"([a-z0-9\-]+)"
+    + re.escape(INTEGRATION_CAUSE_TOKEN_SUFFIX)
+    + r"(?:"
+    + re.escape(INTEGRATION_SHAPE_TOKEN_PREFIX)
+    + r"([a-z0-9\-]+)"
+    + re.escape(INTEGRATION_SHAPE_TOKEN_SUFFIX)
+    + r")?\s*"
+)
+
+
+def tag_integration_cause(cause: str, reason: str, *, shape: str | None = None) -> str:
+    """Prefix ``reason`` with the machine-readable cause (and optional shape) token. The ONE writer.
+
+    DELIBERATELY A FUNCTION rather than an f-string at three call sites: the format is a parsed
+    interface (see :data:`INTEGRATION_CAUSE_TOKEN_PREFIX`), and a format spelled per call site is the
+    producer/reader drift this module has already paid for elsewhere.
+    """
+
+    shape_token = (
+        ""
+        if not shape
+        else f"{INTEGRATION_SHAPE_TOKEN_PREFIX}{shape}{INTEGRATION_SHAPE_TOKEN_SUFFIX}"
+    )
+    return (
+        f"{INTEGRATION_CAUSE_TOKEN_PREFIX}{cause}{INTEGRATION_CAUSE_TOKEN_SUFFIX}"
+        f"{shape_token} {reason}"
+    )
+
+
+def read_integration_cause(reason: Any) -> tuple[str, str, str]:
+    """Split a refusal reason into ``(cause, shape, operator_facing_reason)``. The ONE reader.
+
+    A reason with NO token yields :data:`INTEGRATION_CAUSE_UNKNOWN`, :data:`CONFLICT_SHAPE_UNKNOWN` and
+    the text unchanged, which is what makes every run directory already on disk readable: those records
+    were written before this channel existed, and reporting `unknown` for them is true where guessing a
+    cause would not be.
+
+    THE TOKENS ARE STRIPPED, so nothing an operator reads carries one. They exist for the verdict and the
+    resolver record; leaking one into the message would put an implementation detail into the most-copied
+    output in the product.
+    """
+
+    text = "" if reason is None else str(reason)
+    match = _INTEGRATION_CAUSE_TOKEN_RE.match(text)
+    if match is None:
+        return INTEGRATION_CAUSE_UNKNOWN, CONFLICT_SHAPE_UNKNOWN, text
+    return (
+        match.group(1),
+        match.group(2) or CONFLICT_SHAPE_UNKNOWN,
+        text[match.end() :],
+    )
+
+
+def integration_cause_for_gate_status(status: Any) -> str:
+    """The cause a non-passing gate status names, or UNKNOWN.
+
+    UNKNOWN for anything absent from :data:`GATE_STATUS_TO_INTEGRATION_CAUSE`, including the four gate
+    statuses this call path cannot produce: mapping one of those would assert that a verdict sentence
+    had been authored and tested for it, and none has been.
+    """
+
+    if not isinstance(status, str):
+        return INTEGRATION_CAUSE_UNKNOWN
+    return GATE_STATUS_TO_INTEGRATION_CAUSE.get(status, INTEGRATION_CAUSE_UNKNOWN)
+
+
+# ---- IS THE CONFLICT MERELY ADJACENT, OR DO THE TWO SIDES DISAGREE? ------------------------------
+
+#: Every side only ADDS at one location: neither modified nor deleted a line the other wrote. A human
+#: resolution is keep-both and is lossless. This is the verdict both measured cases carry.
+CONFLICT_SHAPE_ADJACENCY_ONLY = "adjacency-only"
+
+#: At least one side changed or removed a line the base carried, so the two sides genuinely disagree
+#: about content and a keep-both resolution could produce nonsense.
+CONFLICT_SHAPE_SEMANTIC = "semantic"
+
+#: THE SHAPE COULD NOT BE DECIDED, which is a verdict and not a failure. Reported rather than guessed
+#: because the failure direction is asymmetric: a wrong `adjacency-only` tells a resolver a SEMANTIC
+#: conflict is safe to keep-both, which is how bad code reaches main.
+CONFLICT_SHAPE_UNKNOWN = "unknown"
+
+
+class ConflictShapeVerdict(NamedTuple):
+    """One conflicted path's shape, with the reason and the hunk count the verdict rests on."""
+
+    verdict: str
+    reason: str
+    hunks: int
+
+
+def classify_conflict_hunk_shape(merged_text: Any) -> ConflictShapeVerdict:
+    """Is this conflict ADJACENCY-ONLY, SEMANTIC, or UNKNOWN? A pure predicate over the hunks.
+
+    ADJACENCY-ONLY means EVERY conflicting hunk has both sides ADDING with neither side modifying or
+    deleting a line the other wrote. Operationally that is the hunk's BASE SECTION being EMPTY: if the
+    base contributed no line to the conflicted region, neither side can have changed or removed one.
+
+    IT MUST BE FED A THREE-WAY (`diff3`) HUNK, AND THAT IS NOT WHAT GIT LEAVES BY DEFAULT. Measured on
+    `xipfy1`'s real stage blobs: with `--diff3` the conflict is one hunk of 7 ours / 0 base / 10 theirs
+    lines, which is exactly the evidence adjacency-only requires; with git's DEFAULT two-way style the
+    same conflict has NO base section at all, so "both sides only ADDED" is INDISTINGUISHABLE from
+    "both sides REPLACED the same base lines". `merge.conflictStyle` is unset both locally and globally
+    in this repository (verified), so a caller MUST obtain the base section explicitly (e.g.
+    `git merge-file --diff3`, or the three index stages through :func:`read_merge_stage`) and a hunk
+    carrying no base marker returns UNKNOWN rather than an inferred verdict.
+
+    THE `|||||||` MARKER IS REQUIRED PER HUNK, not merely somewhere in the text: a file whose first
+    hunk is three-way and whose second is not must not be judged from the first.
+    """
+
+    text = "" if merged_text is None else str(merged_text)
+    if not text:
+        return ConflictShapeVerdict(
+            CONFLICT_SHAPE_UNKNOWN,
+            "no merged text was supplied, so no hunk is visible",
+            0,
+        )
+
+    hunks: list[tuple[list[str], list[str] | None, list[str]]] = []
+    ours: list[str] = []
+    base: list[str] | None = None
+    theirs: list[str] = []
+    where = "outside"
+    for line in text.splitlines():
+        if line.startswith("<<<<<<<"):
+            if where != "outside":
+                return ConflictShapeVerdict(
+                    CONFLICT_SHAPE_UNKNOWN,
+                    "a nested or unterminated conflict hunk was found, so the marker structure "
+                    "cannot be parsed and no side's intent is provable",
+                    len(hunks),
+                )
+            ours, base, theirs, where = [], None, [], "ours"
+            continue
+        if where == "outside":
+            continue
+        if line.startswith("|||||||"):
+            if where != "ours":
+                return ConflictShapeVerdict(
+                    CONFLICT_SHAPE_UNKNOWN,
+                    "a `|||||||` base marker appeared out of order, so the hunk cannot be parsed",
+                    len(hunks),
+                )
+            base, where = [], "base"
+            continue
+        if line.startswith("======="):
+            if where not in ("ours", "base"):
+                return ConflictShapeVerdict(
+                    CONFLICT_SHAPE_UNKNOWN,
+                    "a `=======` marker appeared out of order, so the hunk cannot be parsed",
+                    len(hunks),
+                )
+            where = "theirs"
+            continue
+        if line.startswith(">>>>>>>"):
+            if where != "theirs":
+                return ConflictShapeVerdict(
+                    CONFLICT_SHAPE_UNKNOWN,
+                    "a `>>>>>>>` marker appeared out of order, so the hunk cannot be parsed",
+                    len(hunks),
+                )
+            hunks.append(
+                (list(ours), None if base is None else list(base), list(theirs))
+            )
+            where = "outside"
+            continue
+        if where == "ours":
+            ours.append(line)
+        elif where == "base":
+            assert base is not None
+            base.append(line)
+        else:
+            theirs.append(line)
+
+    if where != "outside":
+        return ConflictShapeVerdict(
+            CONFLICT_SHAPE_UNKNOWN,
+            "the last conflict hunk is unterminated, so its sides cannot be read",
+            len(hunks),
+        )
+    if not hunks:
+        return ConflictShapeVerdict(
+            CONFLICT_SHAPE_UNKNOWN,
+            "no conflict hunk was found in the supplied text",
+            0,
+        )
+
+    two_way = [i for i, (_o, b, _t) in enumerate(hunks, start=1) if b is None]
+    if two_way:
+        return ConflictShapeVerdict(
+            CONFLICT_SHAPE_UNKNOWN,
+            "hunk(s) {0} of {1} carry NO `|||||||` base section (git's DEFAULT two-way style), so "
+            "'both sides only ADDED' cannot be told from 'both sides REPLACED the same base lines'; "
+            "re-read the conflict with `--diff3` or from the three merge stages".format(
+                ", ".join(str(i) for i in two_way), len(hunks)
+            ),
+            len(hunks),
+        )
+
+    contested = [
+        i
+        for i, (_o, b, _t) in enumerate(hunks, start=1)
+        if b and any(ln.strip() for ln in b)
+    ]
+    if contested:
+        return ConflictShapeVerdict(
+            CONFLICT_SHAPE_SEMANTIC,
+            "hunk(s) {0} of {1} have a NON-EMPTY base section, so at least one side changed or "
+            "removed a line the base carried; the two sides disagree about content and a keep-both "
+            "resolution is NOT provably safe".format(
+                ", ".join(str(i) for i in contested), len(hunks)
+            ),
+            len(hunks),
+        )
+    return ConflictShapeVerdict(
+        CONFLICT_SHAPE_ADJACENCY_ONLY,
+        "all {0} hunk(s) have an EMPTY base section, so both sides only ADD at the same insertion "
+        "point and neither touched a line the other wrote".format(len(hunks)),
+        len(hunks),
+    )
+
+
+def classify_conflict_shape_from_stages(
+    repo: Path, paths: Sequence[str]
+) -> dict[str, ConflictShapeVerdict]:
+    """Classify each conflicted path's shape by RE-MERGING its three index stages with `--diff3`.
+
+    THE THIN IO SHELL over :func:`classify_conflict_hunk_shape`, kept separate for the reason
+    `classify_conflict_set_for_rederivation` is: every decision rule stays unit-testable with no live
+    repository, and the only job here is to supply a three-way hunk.
+
+    `git merge-file --diff3` IS USED RATHER THAN THE WORKING-TREE FILE, because the tree holds whatever
+    conflict style git was configured with, and that is unset here (so two-way, which this predicate
+    correctly refuses to judge). Re-merging the stages makes the base section present regardless of
+    configuration, which is what turns UNKNOWN into a real verdict.
+
+    MUST be called while the merge is in progress, for the same reason :func:`read_merge_stage` must.
+    """
+
+    out: dict[str, ConflictShapeVerdict] = {}
+    for path in paths:
+        stages = {n: read_merge_stage(repo, n, path) for n in (1, 2, 3)}
+        missing = [str(n) for n, text in stages.items() if text is None]
+        if missing:
+            out[path] = ConflictShapeVerdict(
+                CONFLICT_SHAPE_UNKNOWN,
+                "merge stage(s) {0} could not be read, so neither side's intent is provable (a "
+                "modify/delete conflict legitimately has no stage 2 or 3)".format(
+                    ", ".join(missing)
+                ),
+                0,
+            )
+            continue
+        rc, merged = _three_way_merge_text(repo, stages)
+        if rc < 0:
+            out[path] = ConflictShapeVerdict(
+                CONFLICT_SHAPE_UNKNOWN,
+                "`git merge-file --diff3` was killed, so no hunk could be read",
+                0,
+            )
+            continue
+        out[path] = classify_conflict_hunk_shape(merged)
+    return out
+
+
+def _three_way_merge_text(
+    repo: Path, stages: Mapping[int, str | None]
+) -> tuple[int, str]:
+    """Re-merge three stage texts with `--diff3`, returning ``(returncode, merged_text)``.
+
+    EXTRACTED so both readers share ONE invocation rather than spelling the temporary-file dance twice:
+    the shape classifier needs the merged text to COUNT base lines, and the peer derivation needs the
+    same text to read the target side's added lines. Two copies of this would be two places for the
+    `--diff3` flag to be forgotten, and forgetting it is precisely the unsoundness E-02 guards against.
+    """
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        names = {2: root / "ours", 1: root / "base", 3: root / "theirs"}
+        for stage, dest in names.items():
+            dest.write_text(stages.get(stage) or "", encoding="utf-8")
+        rc, merged, _err = _run_git(
+            repo,
+            [
+                "merge-file",
+                "--diff3",
+                "-p",
+                str(names[2]),
+                str(names[1]),
+                str(names[3]),
+            ],
+        )
+    return rc, merged
+
+
+def peer_commit_for_conflict(
+    repo: Path, *, path: str, merged_text: Any, base_commit: str, head: str = "HEAD"
+) -> tuple[str | None, str]:
+    """WHICH COMMIT on the target side wrote the conflicting hunk, or ``(None, why)``.
+
+    DERIVED FROM THE HUNK'S OWN CONTENT, NOT FROM THE FILE'S HISTORY, and that distinction is measured
+    rather than defensive. For `xipfy1` the most recent commit touching
+    `agent_workflows/runner_shared.py` between the lane base and the merge is `f2410f75` ("integrate:
+    merge verified lane 65cuw0"), while the commit that actually wrote the conflicting hunk is
+    `908db905`; NINE commits touched that path in the window. Naming the former would send a resolver
+    to read an unrelated lane's work, which is worse than saying nothing.
+
+    So each OURS line of the hunk is offered to `git log -S<line> base..head -- <path>`, and a commit is
+    reported only when the lines that resolve agree on exactly ONE. Otherwise `(None, reason)`: a
+    confidently-named wrong commit costs a resolver more than an honest UNKNOWN.
+    """
+
+    shape_lines: list[str] = []
+    where = "outside"
+    for line in str(merged_text or "").splitlines():
+        if line.startswith("<<<<<<<"):
+            where = "ours"
+            continue
+        if line.startswith("|||||||") or line.startswith("======="):
+            where = "other"
+            continue
+        if line.startswith(">>>>>>>"):
+            where = "outside"
+            continue
+        if where == "ours" and line.strip():
+            shape_lines.append(line)
+
+    if not shape_lines:
+        return None, "the conflict hunk contributed no target-side line to search on"
+
+    found: set[str] = set()
+    for line in shape_lines:
+        rc, out, _err = _run_git(
+            repo,
+            [
+                "log",
+                f"-S{line}",
+                "--format=%H",
+                f"{base_commit}..{head}",
+                "--",
+                path,
+            ],
+        )
+        if rc != 0:
+            continue
+        commits = [c.strip() for c in out.splitlines() if c.strip()]
+        if len(commits) == 1:
+            found.add(commits[0])
+    if len(found) == 1:
+        return (
+            found.pop(),
+            "the target side's hunk content resolves to exactly one commit",
+        )
+    if not found:
+        return (
+            None,
+            "no single commit in {0}..{1} could be pinned to the hunk's content".format(
+                base_commit[:8], head
+            ),
+        )
+    return (
+        None,
+        "the hunk's lines resolve to {0} different commits, so no single peer can be named".format(
+            len(found)
+        ),
+    )
+
+
+def build_conflict_resolver_detail(
+    repo: Path, *, paths: Sequence[str], base_commit: str, head: str = "HEAD"
+) -> dict[str, Any]:
+    """Gather the facts a human needs to resolve a merge-back conflict in minutes, not hours.
+
+    stalemerge-01 (`87apfx`) E-04. Called while the merge is IN PROGRESS (it reads the index stages), so
+    it must run before `git merge --abort` for the same reason :func:`conflicted_paths` must.
+
+    THE THREE FACTS, each chosen because its absence cost real time on the measured cases: the CONFLICTING
+    PATHS (so the reader knows where to look), the ADJACENCY VERDICT (so they know whether keep-both is
+    provably safe), and the PEER COMMIT that wrote the target side's hunk (so they learn this was a
+    CROSS-RUN RACE rather than their own lane's defect - both measured conflicts were races with commits
+    from two OTHER runs).
+
+    EVERYTHING RETURNED IS REPOSITORY-RELATIVE, A BRANCH NAME, OR A COMMIT HASH. No worktree path and no
+    absolute path is read or written, because `record_refusal` does not redact and this reaches the
+    product's most-copied output.
+    """
+
+    shapes = classify_conflict_shape_from_stages(repo, paths)
+    files: list[dict[str, Any]] = []
+    for path in paths:
+        shape = shapes.get(
+            path,
+            ConflictShapeVerdict(
+                CONFLICT_SHAPE_UNKNOWN, "the path was not classified", 0
+            ),
+        )
+        peer: str | None = None
+        peer_why = "not derived: the conflict's three-way hunk was unavailable"
+        stages = {n: read_merge_stage(repo, n, path) for n in (1, 2, 3)}
+        if all(stages[n] is not None for n in (1, 2, 3)):
+            rc, merged = _three_way_merge_text(repo, stages)
+            if rc >= 0:
+                peer, peer_why = peer_commit_for_conflict(
+                    repo,
+                    path=path,
+                    merged_text=merged,
+                    base_commit=base_commit,
+                    head=head,
+                )
+        files.append(
+            {
+                "path": path,
+                "shape": shape.verdict,
+                "shape_reason": shape.reason,
+                "hunks": shape.hunks,
+                "peer_commit": peer,
+                "peer_reason": peer_why,
+                "peer_subject": _commit_subject(repo, peer) if peer else None,
+            }
+        )
+    overall = CONFLICT_SHAPE_UNKNOWN
+    verdicts = {f["shape"] for f in files}
+    if files and verdicts == {CONFLICT_SHAPE_ADJACENCY_ONLY}:
+        overall = CONFLICT_SHAPE_ADJACENCY_ONLY
+    elif CONFLICT_SHAPE_SEMANTIC in verdicts:
+        # ANY semantic path makes the SET semantic, which is the fail-closed direction: a resolver told
+        # "adjacency-only" about a set containing one contested file would keep-both the contested one.
+        overall = CONFLICT_SHAPE_SEMANTIC
+    return {"base_commit": base_commit, "shape": overall, "files": files}
+
+
+def _commit_subject(repo: Path, commit: str) -> str | None:
+    """A commit's subject line, or None. Used only to make a peer hash readable in a refusal.
+
+    THE SUBJECT IS A COMMIT MESSAGE, which in this repository names a plan path under `.aw/records/` and
+    carries no absolute path (verified on both measured peers: `908db905` and `f9a37808` are each
+    `work: .aw/records/plans/pending/...`). Truncated so a long body cannot dominate the refusal.
+    """
+
+    rc, out, _err = _run_git(repo, ["log", "-1", "--format=%s", commit])
+    if rc != 0:
+        return None
+    subject = out.strip().splitlines()[0] if out.strip() else ""
+    return subject[:120] or None
+
+
+def format_conflict_resolver_facts(detail: Mapping[str, Any]) -> str:
+    """The refusal REASON for a conflict, stating what happened rather than judging the lane.
+
+    SAYS MAIN IS UNTOUCHED AND THE LANE IS PRESERVED, because the measured harm was a reader concluding
+    their verified lane was broken and writing it off. Names the paths, the adjacency verdict, and the
+    peer commit with its subject when one could be pinned.
+    """
+
+    files = list(detail.get("files") or ())
+    shape = str(detail.get("shape") or CONFLICT_SHAPE_UNKNOWN)
+    lines = [
+        "integration REFUSED by a merge conflict, NOT by a failure of this lane's work: git could not "
+        "combine the lane with main because both sides changed the same region. Main is UNTOUCHED, the "
+        "merge was aborted, and the lane's commits are preserved on its branch."
+    ]
+    if shape == CONFLICT_SHAPE_ADJACENCY_ONLY:
+        lines.append(
+            "SHAPE: ADJACENCY-ONLY - every conflicting hunk has both sides only ADDING at the same "
+            "insertion point, with neither side touching a line the other wrote, so a keep-both "
+            "resolution is lossless. NOTE a re-merge or a fresher base does NOT clear this (measured): "
+            "two insertions at one location conflict in either direction, because git has no basis to "
+            "order them."
+        )
+    elif shape == CONFLICT_SHAPE_SEMANTIC:
+        lines.append(
+            "SHAPE: SEMANTIC - at least one side changed or removed a line the base carried, so the "
+            "two sides disagree about content and keep-both is NOT provably safe; read both sides "
+            "before resolving."
+        )
+    else:
+        lines.append(
+            "SHAPE: UNKNOWN - the conflict's shape could not be decided, so no claim is made about "
+            "whether keep-both is safe."
+        )
+    for entry in files:
+        peer = entry.get("peer_commit")
+        subject = entry.get("peer_subject")
+        if peer:
+            peer_text = f"peer commit {str(peer)[:12]}" + (
+                f" ({subject})" if subject else ""
+            )
+        else:
+            peer_text = (
+                f"peer commit UNKNOWN ({entry.get('peer_reason') or 'not derived'})"
+            )
+        lines.append(
+            "  {0}: {1} ({2} hunk(s)); {3}".format(
+                entry.get("path"),
+                entry.get("shape"),
+                entry.get("hunks"),
+                peer_text,
+            )
+        )
+    if any(entry.get("peer_commit") for entry in files):
+        lines.append(
+            "THE PEER COMMIT IS DERIVED FROM THE CONFLICTING HUNK'S OWN CONTENT, not from the file's "
+            "recent history: the most recent commit touching a path is frequently an unrelated lane's "
+            "integration merge, and naming it would send you to read the wrong work."
+        )
+    return "\n".join(lines)
+
+
+def conflict_resolver_remedy(shape: str, *, branch: str | None = None) -> str:
+    """The refusal REMEDY for a conflict: the next action, named.
+
+    FOLLOWS THE EXISTING CONVENTION of `render_stream.record_integration_refusal`'s remedy (name the
+    branch, name the inspection command, and say that deleting the branch is the one irreversible move),
+    and adds the keep-both suggestion ONLY for a provably adjacency-only set. A semantic or unknown set
+    gets the same record WITHOUT that suggestion, because telling a resolver to keep both sides of a
+    contested hunk is how bad code reaches main.
+    """
+
+    where = f"branch {branch}" if branch else "its preserved lane branch"
+    steps = [
+        f"the lane's verified work is PRESERVED on {where} and main is untouched; inspect it with "
+        f"`git log main..{branch}`"
+        if branch
+        else "the lane's verified work is PRESERVED on its branch and main is untouched; find it "
+        "with `aw attention` (or `git worktree list`)"
+    ]
+    if shape == CONFLICT_SHAPE_ADJACENCY_ONLY:
+        steps.append(
+            "this set is ADJACENCY-ONLY, so the resolution is to KEEP BOTH SIDES of each hunk in the "
+            "order that reads correctly, then re-run the suite before publishing"
+        )
+    else:
+        steps.append(
+            "read BOTH sides of each hunk and resolve them on their merits; do not keep both blindly"
+        )
+    steps.append(
+        "then re-integrate with `aw <host> integrate <id6>` rather than re-running the item from "
+        "scratch. Do NOT delete the branch or discard the lane: that is the one irreversible move here"
+    )
+    return "; ".join(steps)
+
+
 def build_lane_outcome(
     repo: Path, handle: Any, id6: str, *, run_checked: Callable[..., str]
 ) -> Any:
@@ -4398,9 +5043,16 @@ def integrate_lane_branch(
                 f"{f.check_name}[{f.lane_id}]: {f.message}" for f in result.findings
             )
             detail = failing or result.message
+            # stalemerge-01 (`87apfx`) E-01: TAG THE GATE'S OWN STATUS as the cause. The status is
+            # already in the message text for a human, but a reader cannot depend on prose: measured on
+            # `run-20260922T024054Z-2245533`, `ld8lb3`'s record carried the token only because it came
+            # from this line, while the git-conflict arm below carried none at all.
             return (
                 False,
-                f"integration gate did not pass ({result.status}): {detail}",
+                tag_integration_cause(
+                    integration_cause_for_gate_status(result.status),
+                    f"integration gate did not pass ({result.status}): {detail}",
+                ),
                 INTEGRATION_REFUSAL_CONFLICT,
             )
 
@@ -4503,6 +5155,16 @@ def integrate_lane_branch(
                     )
                 # The commit failed (a hook, most likely). Fall through to the unchanged refusal after
                 # aborting, so main is left exactly as clean as it would have been without this path.
+                #
+                # stalemerge-01 (`87apfx`): THESE TWO RE-DERIVATION-FAILURE ARMS ARE DELIBERATELY LEFT
+                # UNTAGGED, so they read as cause UNKNOWN and keep today's verdict wording byte for byte.
+                # Two reasons, both fail-closed. FIRST, neither is the cross-run adjacency class this
+                # change exists for: the conflict was PROVEN to be the records-only front-matter shape and
+                # the re-derivation itself failed, which is a different condition with its own message.
+                # SECOND, and decisively, their reason text carries GIT HOOK OUTPUT (`err3`/`out3`), which
+                # can embed an absolute path, and the cause tag is what routes a refusal into
+                # `record_refusal` - a writer that does NOT redact. Tagging them would push unredacted
+                # hook output into the product's most-copied surface to gain a label nothing reads.
                 _run_git(repo, ["merge", "--abort"])
                 return (
                     False,
@@ -4525,6 +5187,16 @@ def integrate_lane_branch(
         # paths, say which side's `- Status:` is the stale snapshot and what the safe resolution is.
         # THIS CHANGES NO CONTRACT: the same terminal kind for the same condition, a better message.
         shape_detail = format_records_only_conflict_refusal_reason(verdicts)
+
+        # stalemerge-01 (`87apfx`) E-02/E-04: GATHER THE RESOLVER'S FACTS WHILE THE MERGE STAGES STILL
+        # EXIST. This must sit BEFORE the abort for the same reason `conflicted_paths` above does: the
+        # abort clears the index the three stages live in, and the adjacency verdict is decidable ONLY
+        # from a three-way hunk (git's default two-way markers carry no base section, so "both sides only
+        # ADDED" is indistinguishable from "both sides REPLACED the same base lines").
+        resolver = build_conflict_resolver_detail(
+            repo, paths=conflicted, base_commit=handle.base_commit
+        )
+
         _run_git(repo, ["merge", "--abort"])
         reason = format_merge_conflict_reason(
             repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
@@ -4533,7 +5205,15 @@ def integrate_lane_branch(
             reason = f"{reason}\n{shape_detail}\nNOT re-derived: {rederive_why}"
         return (
             False,
-            reason,
+            # E-01: THE CAUSE THIS ARM RECORDED NOWHERE BEFORE. `92u0v9`'s and `xipfy1`'s recorded
+            # refusals contain no `integration_failed_*` token at all, because this arm formats a human
+            # message and returns the bare kind; the gate's own arm above happened to leak its status
+            # into the prose. Now both say which cause fired, in a field rather than in prose.
+            tag_integration_cause(
+                INTEGRATION_CAUSE_GIT_CONFLICT,
+                f"{reason}\n{format_conflict_resolver_facts(resolver)}",
+                shape=str(resolver.get("shape") or CONFLICT_SHAPE_UNKNOWN),
+            ),
             INTEGRATION_REFUSAL_CONFLICT,
         )
 
@@ -5742,11 +6422,19 @@ INTEGRATION_REFUSAL_TRANSIENT = "merge-retry"
 #: measured the work and REFUSED it (a real conflict, a stale base, a scope violation, or a red
 #: combined suite).
 #:
-#: NAMED `merge-refused` RATHER THAN `merge-conflict` because a conflict is only ONE of the four things
-#: it reports (`orchestrate_isolation.py` returns `integration_failed_stale_base`,
-#: `integration_failed_conflict`, `integration_failed_scope_violation` and
-#: `integration_failed_combined_red`, all collapsing to this one kind). The old name asserted the
-#: rarest of the four and was actively misleading for the other three.
+#: NAMED `merge-refused` RATHER THAN `merge-conflict` because a conflict is only ONE of the things it
+#: reports: `orchestrate_isolation.py` returns six `integration_failed_*` statuses, all collapsing to
+#: this one kind. The old name asserted the rarest and was actively misleading for the others.
+#:
+#: AND THE KIND CARRIES A SEPARATE CAUSE (stalemerge-01 `87apfx`), recorded on
+#: `integration_ladder.cause` and read with :func:`read_integration_cause`, because the kind alone could
+#: not tell a verified lane's cross-run merge race from a measured red suite - and the terminal verdict
+#: asserted the latter for both. THE CAUSE SPACE IS THREE, NOT SIX, AND THAT IS A MEASUREMENT: FOUR of
+#: the six gate statuses are UNREACHABLE from `integrate_lane_branch`'s call (see
+#: :data:`INTEGRATION_CAUSE_GATE_CONFLICT_MARKERS` for the per-status proof), so what this kind actually
+#: reports is the gate's conflict-marker refusal, the gate's combined-red refusal, and
+#: `integrate_lane_branch`'s own post-`--ff-only` git conflict. Do NOT restate this as a count of
+#: constants: that framing is what made this plan's first draft over-scope its own taxonomy.
 #:
 #: AND A MEASURED RED WITH NO *NEW* FAILURES IS NOT A REFUSAL AT ALL (revalbase 01, `tgyfs2`), which is
 #: recorded here because this block is where a reader looks for the refusal taxonomy. The post-merge
@@ -5945,12 +6633,71 @@ class IntegrationDeferralDecision(NamedTuple):
     limit: int
 
 
+def terminal_refusal_verdict(integ_kind: str, cause: str) -> str:
+    """The TERMINAL verdict sentence for a refusal, SPECIFIC to the cause that actually fired.
+
+    stalemerge-01 (`87apfx`) E-03. THIS CHANGES WORDS, NEVER VERDICTS: every cause keeps exactly the
+    terminality it had, and this function is consulted only for the `reason` string.
+
+    WHY THE WORDING MATTERS ENOUGH TO BE ITS OWN FUNCTION. The single sentence today's terminal branch
+    writes says the refusal "asserts a real failure of the work", and for a cross-run adjacency conflict
+    that is FALSE: the work was verified, the lane's suite was green, and the conflict is two branches
+    inserting at one location. That sentence is what an operator (or an agent triaging a run) reads to
+    decide whether to look at the lane at all, so it told them the code was broken when it was not, and
+    a dependent-blocking terminal refusal multiplied the mistake.
+
+    ONLY THE THREE REACHABLE CAUSES GET THEIR OWN TEXT (see
+    :data:`INTEGRATION_CAUSE_GATE_CONFLICT_MARKERS` for the reachability proof). An UNKNOWN or
+    unrecognized cause falls back to TODAY'S WORDING, BYTE FOR BYTE, which is the fail-closed direction:
+    a record whose cause was never recorded (every run already on disk) reads exactly as it does today
+    rather than acquiring a claim nobody measured.
+    """
+
+    known = {
+        INTEGRATION_CAUSE_GIT_CONFLICT: (
+            f"integration refusal kind {integ_kind!r} is terminal on its first attempt: git could not "
+            "merge the lane because BOTH SIDES CHANGED THE SAME REGION, and no repetition of the same "
+            "two commits can order them. THIS IS NOT A STATEMENT ABOUT THE LANE'S CODE: the lane was "
+            "verified, main is UNTOUCHED, the merge was aborted, and the lane's work is preserved on "
+            "its branch. See the recorded integration_ladder.cause and the refusal's own conflicting "
+            "paths, adjacency verdict and peer commit to resolve it"
+        ),
+        INTEGRATION_CAUSE_GATE_CONFLICT_MARKERS: (
+            f"integration refusal kind {integ_kind!r} is terminal on its first attempt: the gate found "
+            "UNRESOLVED CONFLICT MARKERS in the lane's own diff, so the lane committed a half-resolved "
+            "merge and repetition cannot clear it. See the recorded integration_ladder.cause"
+        ),
+        INTEGRATION_CAUSE_GATE_COMBINED_RED: (
+            f"integration refusal kind {integ_kind!r} is terminal on its first attempt: the post-merge "
+            "revalidation MEASURED the merged tree and it was RED, so it asserts a real failure of the "
+            "work and repetition alone cannot clear it. See the recorded integration_ladder.cause and "
+            "integration_deferral for the gate's own finding"
+        ),
+    }
+    if cause in known:
+        return known[cause]
+    # TODAY'S WORDING, PRESERVED EXACTLY. Two shipped tests pin substrings of it
+    # (`test_the_terminal_verdict_NAMES_the_condition_instead_of_listing_four` requires
+    # `"terminal on its first attempt"` and the literal `"integration_deferral"` while forbidding
+    # `"stale base"` and `"scope violation"`; `test_merge_conflict_is_TERMINAL_ON_ITS_FIRST_ATTEMPT_
+    # and_consumes_no_budget` requires the first), and every branch above keeps
+    # `"terminal on its first attempt"` plus a pointer to the field carrying the cause, so no shipped
+    # assertion had to be weakened or deleted for this change.
+    return (
+        f"integration refusal kind {integ_kind!r} is terminal on its first attempt: it is "
+        "neither the transient dirty-overlap condition nor an unmeasured-gate refusal, so "
+        "it asserts a real failure of the work (see the recorded integration_deferral for "
+        "the gate's specific status) and repetition alone cannot clear it"
+    )
+
+
 def decide_integration_deferral(
     *,
     integ_kind: str,
     attempts_used: int,
     limit: int,
     policy: str = ON_INTEGRATION_BLOCKED_DEFER,
+    cause: str = INTEGRATION_CAUSE_UNKNOWN,
 ) -> IntegrationDeferralDecision:
     """RUNG 1's decision: does this refusal DEFER, or is it terminal?
 
@@ -5964,25 +6711,22 @@ def decide_integration_deferral(
     `attempts_used` is the count INCLUDING the attempt that just failed, so the first refusal arrives
     as 1. PURE: it writes no state, touches no file, and consults no clock, which is what lets every
     rung transition be pinned by a unit test with no live run.
+
+    ``cause`` (stalemerge-01 `87apfx` E-03) SELECTS THE TERMINAL VERDICT'S WORDING AND NOTHING ELSE. It
+    DEFAULTS to :data:`INTEGRATION_CAUSE_UNKNOWN`, which reproduces today's sentence byte for byte, so
+    every existing caller and every record already on disk is unaffected. It cannot change `status`,
+    `deferred`, `attempts_used` or `limit`: this parameter changes WORDS, not verdicts.
     """
 
     if not classify_integration_refusal(integ_kind):
         return IntegrationDeferralDecision(
             status=INTEGRATION_REFUSAL_CONFLICT,
             deferred=False,
-            reason=(
-                # NAMES WHAT THIS REFUSAL IS, NOT A MENU (`l2mzxn`). This sentence used to list all
-                # four causes - "a conflict, stale base, combined-red revalidation, or scope
-                # violation" - leaving the reader to guess which one fired, and in the measured
-                # incident it named none of them correctly: the actual cause was a harness fault that
-                # is now its own deferrable kind. The gate's specific status travels in
-                # `integration_deferral` beside this verdict, so the verdict states only the fact it
-                # actually knows: the kind, and why the kind is terminal.
-                f"integration refusal kind {integ_kind!r} is terminal on its first attempt: it is "
-                "neither the transient dirty-overlap condition nor an unmeasured-gate refusal, so "
-                "it asserts a real failure of the work (see the recorded integration_deferral for "
-                "the gate's specific status) and repetition alone cannot clear it"
-            ),
+            # NAMES WHAT THIS REFUSAL IS, NOT A MENU (`l2mzxn`), and since `87apfx` names WHICH of the
+            # three reachable causes fired rather than asserting the worst of them. The sentence used to
+            # list four causes, then named the kind alone; it now reads the recorded cause, because
+            # "the work failed" and "two branches touched one line" demand different human responses.
+            reason=terminal_refusal_verdict(integ_kind, cause),
             attempts_used=attempts_used,
             limit=limit,
         )
@@ -6289,11 +7033,19 @@ def record_integration_refusal(
             f"{record.get('reason') or 'no detail recorded'}"
         )
 
+    # stalemerge-01 (`87apfx`) E-01: READ THE CAUSE OFF THE REASON STRING, at the ONE site that has an
+    # `item` to record it on. This is the read half of the channel chosen in
+    # :data:`INTEGRATION_CAUSE_TOKEN_PREFIX` (whose comment records the two rejected alternatives and
+    # why). The TOKEN IS STRIPPED here, so nothing downstream - the item's `integration_deferral`, the
+    # event `detail`, the operator's console line, the refusal record - ever carries it.
+    cause, shape, integ_reason = read_integration_cause(integ_reason)
+
     decision = decide_integration_deferral(
         integ_kind=integ_kind,
         attempts_used=attempts_used,
         limit=limit,
         policy=policy,
+        cause=cause,
     )
 
     # The diagnostic reason string these two keys carried BEFORE this plan is preserved verbatim: it is
@@ -6314,9 +7066,40 @@ def record_integration_refusal(
         "limit": decision.limit,
         "policy": policy,
         "verdict": decision.reason,
+        # stalemerge-01 (`87apfx`) E-01: WHICH of the three reachable causes fired, written ADDITIVELY.
+        # Before this, `integrate_lane_branch`'s own git-conflict arm formatted a human message and
+        # returned the bare kind, so for exactly the class this plan is about the cause was recorded
+        # NOWHERE: measured on `run-20260922T024054Z-2245533`, where `ld8lb3`'s deferral contains
+        # `integration_failed_combined_red` (it came from the gate's status line) while `92u0v9`'s and
+        # `xipfy1`'s contain no `integration_failed_*` token at all.
+        INTEGRATION_CAUSE_KEY: cause,
     }
     item["integration_ladder"] = ladder
     attempt["integration_ladder"] = ladder
+
+    # stalemerge-01 (`87apfx`) E-04: THE RESOLVER-FACING RECORD, emitted through the ONE refusal writer
+    # so the shipped Diagnostics block renders it with no renderer change.
+    #
+    # WHY IT IS SITED HERE AND NOT AT THE EXECUTE ARM'S `render_record_integration_refusal` CALL. That
+    # call site exists on the EXECUTE path only (verified: exactly one call site, in the execute arm), so
+    # a refused REVIEW integration records the ladder verdict and NO `Refusal` at all. Writing from the
+    # shared ladder write site covers BOTH paths, which is the answer E-05 obliges this plan to state:
+    # the resolver facts ARE emitted for the review path too, because a reviewer whose lane lost a
+    # cross-run race needs the same three facts a code lane's resolver does.
+    #
+    # LEAK DISCIPLINE. `record_refusal` does NOT redact (verified: its `reason`/`remedy` reach the
+    # Diagnostics block verbatim, unlike `integration_refusal_detail`, which routes through
+    # `_redact_absolute_paths`), and this is the most-copied output in the product. So everything the
+    # conflict arm puts into `integ_reason` is a repository-relative path, a branch name or a commit hash
+    # BY CONSTRUCTION (see `build_conflict_resolver_detail`), and that is what reaches the record here.
+    if cause == INTEGRATION_CAUSE_GIT_CONFLICT:
+        record_refusal(
+            item,  # type: ignore[arg-type]  # same MutableMapping the other call sites pass
+            code=decision.status,
+            reason=integ_reason,
+            remedy=conflict_resolver_remedy(shape, branch=branch),
+        )
+
     save_state(run_dir, state)
     append_jsonl(
         run_dir / "events.jsonl",
