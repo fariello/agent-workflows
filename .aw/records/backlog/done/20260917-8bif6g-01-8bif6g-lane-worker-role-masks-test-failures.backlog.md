@@ -1,5 +1,5 @@
 - Id: 8bif6g
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: 8bif6g
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: a lane running with a worker AW_EXECUTION_ROLE silently masks test failures, so a bare suite run cannot validate a plan
 
 ## Workflow history
+- 2026-09-23 done (aw set): Already FIXED by the root conftest.py session scrub, which pops AW_EXECUTION_ROLE at import time before any test module is collected. VERIFIED at HEAD 22cf67d9 on the affected family: tests/test_ipd_lifecycle_cli.py gives '89 passed' BOTH with and without AW_EXECUTION_ROLE=worker in the ambient environment, so the marking no longer changes the result and a bare suite run means the same thing whether a human or a runner turn typed it. The conftest records why the fix is sited there rather than in the runners: the marking on the AGENT is deliberate and load-bearing (it is what makes AW-LIFECYCLE-ROLE-001 fire on a lane agent that tries to finalize its own plan, incident i452hf), so removing it there would restore a real defect to fix a reporting one. TWO HONEST LIMITS ARE CARRIED FORWARD RATHER THAN CLOSED HERE, both to IPD 8i0xa7 (rolevac): the scrub made the worker-role guard's own test VACUOUS (6z5yos), and because the fix lives in this repo's conftest rather than in the runner, a MANAGED TARGET REPO that does not ship it is still exposed to the same false-baseline harm. Closed via the SATISFIED path.
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): a lane running with a worker AW_EXECUTION_ROLE silently masks test failures, so a bare suite run cannot validate a plan
 

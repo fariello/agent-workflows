@@ -1,5 +1,6 @@
 - Id: 6z5yos
-- Status: open
+- Status: graduated
+- Graduated-To: rolevac
 - Blocks-Release: next
 - Set: rolevac
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: The root conftest scrub makes the worker-role guard's own test vacuous: test_driver_own_process_is_not_worker_role can no longer fail for any ambient value
 
 ## Workflow history
+- 2026-09-23 graduated (aw set): Graduated to IPD 8i0xa7 (rolevac Order 01). This is the LIVE member of the three-item role-masking family, and the fix for the other two is what created it: the root conftest pops AW_EXECUTION_ROLE at import time, so test_driver_own_process_is_not_worker_role (which reads os.environ) can no longer fail for ANY ambient value. PROVED at HEAD 22cf67d9: running that single test with AW_EXECUTION_ROLE=worker set on its own command line gives '1 passed'. It passes while holding the exact value it exists to forbid. The plan requires the fix be at the SEAM, not the assertion: conftest's own comment and backlog 1uq1cu both name relaxing the assertion as the wrong fix, and the conftest's stated escape hatch ('a test that needs the marking must set it ITSELF') does not cover this test, because its subject IS the ambient value. Also carried: nothing asserts the scrub itself, so deleting that one line would silently restore 31 masked failures.
 - 2026-09-22 created (aw backlog): Found while executing plan e4lkv5 in lane run-20260922T023434Z-2057475.
 
 MEASURED 2026-09-22 at HEAD 2815aa56, from inside a managed worker lane.
