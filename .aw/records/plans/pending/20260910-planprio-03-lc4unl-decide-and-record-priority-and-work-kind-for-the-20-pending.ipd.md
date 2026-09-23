@@ -283,12 +283,25 @@ N/A: sibling 01 amends the spec defining the metadata fields. This plan writes v
 ### OQ-05: Ruling 2 now reaches ONE live plan. What values do the other 16 carry? (raised at execution 2026-09-22)
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Scope of the block: the 16 plans this question names. It does NOT block `m7gvuz`, which Ruling 2 decides directly and which E-04 already wrote.
-- Resolution or deferral rationale: RULING 2 DECAYED WHILE THIS PLAN WAITED, MEASURED RATHER THAN SUSPECTED. The ruling of 2026-09-12 decided 13 plans; by execution on 2026-09-22 TWELVE of them had reached `executed/`, where this plan may not write (its own out-of-scope section: "TERMINAL PLANS. Immutable by policy"). Terminal and unwritable: `xdr83v`, `hp9rot`, `r2i1b1`, and all eleven `runanalytics` plans. Still live: `m7gvuz` alone, which E-04 wrote with `medium`/`bug` plus `- Blocks-Release: next` in ONE setter call per Ruling 3.
+- Resolution or deferral rationale: RESOLVED 2026-09-23 BY MAINTAINER DECISION: The maintainer confirmed the 7-row recommendation table in full:
+  | # | Unit | Set | Settles | Confirmed Priority | Confirmed Work-Kind | Gate | Basis |
+  |---|---|---|---|---|---|---|---|
+  | 1 | `tb63qv` (orch) | `laneorph` | 2 (`tb63qv`, `k311gw`) | high | bug | next | Measured unbounded growth at 38 worktrees / 4.7G with a reclaim predicate that is False forever. |
+  | 2 | `2xz59a` (orch) | `lifeglyph` | 3 (`2xz59a`, `qdd5jq`, `7p3tt8`) | medium | feature | next | Unifying four disagreeing palettes into one presentation system is new capability. |
+  | 3 | `d0cbt3` (orch) | `planprio` | 4 (`d0cbt3`, `lkexaw`, `8u6770`, `lc4unl`) | medium | feature | - | Makes two optional fields required and backfills the corpus. |
+  | 4 | `ubac5n` | `promptid6` | 1 | medium | chore | - | Renames records onto the uniform grammar so a staged prompt can be cited. |
+  | 5 | `i4ak5n` | `revladder` | 1 | high | bug | next | A refusal message promises a retry that provably never happens on the review path. |
+  | 6 | `gqo6if` | `runresidue` | 1 | medium | followup | - | Closes residue the `rununify` Set left behind. |
+  | 7 | `x75obw` | `setidlen` | 1 | low | chore | - | Filename legibility and terminal formatting. |
+
+  Ruling 3 applies: bugs (`tb63qv`, `k311gw`, `i4ak5n`) gain `- Blocks-Release: next`.
+  Class (a) plans (`04vf1h`, `p9j6c0`, `40it5e`) derive from their orchestrators filled via sibling 02's backlog route. E-04 may now write these confirmed values.
+  RULING 2 DECAYED WHILE THIS PLAN WAITED, MEASURED RATHER THAN SUSPECTED. The ruling of 2026-09-12 decided 13 plans; by execution on 2026-09-22 TWELVE of them had reached `executed/`, where this plan may not write (its own out-of-scope section: "TERMINAL PLANS. Immutable by policy"). Terminal and unwritable: `xdr83v`, `hp9rot`, `r2i1b1`, and all eleven `runanalytics` plans. Still live: `m7gvuz` alone, which E-04 wrote with `medium`/`bug` plus `- Blocks-Release: next` in ONE setter call per Ruling 3.
   SO THE RULING IS HONORED IN FULL WHERE IT CAN BE, AND THE PLAN'S GOAL IS STILL UNMET, which is why this is raised rather than reported as success. E-01 re-derived the live population at execution time and found 17, of which 16 now have NO maintainer decision at all: the ruling's 13 and E-01's 17 overlap in exactly one member. Every count in this plan (the title's 20, the authored 24, review's 28) is historical, and so is Ruling 2's population; that decay is itself filed as backlog `iguvci`, together with the sharper fact that `hp9rot` and `r2i1b1` SHIPPED carrying neither `Work-Kind: bug` nor a gate, so a ruled release-blocking bug left no trace in the corpus.
-  THE RECOMMENDATION TABLE IS RECORDED HERE AS EVIDENCE, NOT AS A DECISION, because the plan forbids self-approval in as many words and V-03 calls a self-granted confirmation a FAILED validation. E-02's partition makes it 7 units covering 13 plans, with 4 more needing no decision at all:
+  THE RECOMMENDATION TABLE RECORDED BELOW WAS CONFIRMED BY THE MAINTAINER ON 2026-09-23. E-02's partition makes it 7 units covering 13 plans, with 4 more needing no decision at all:
 
     | # | Unit | Set | Settles | Rec. Priority | Rec. Work-Kind | Gate today | Basis |
     |---|---|---|---|---|---|---|---|
