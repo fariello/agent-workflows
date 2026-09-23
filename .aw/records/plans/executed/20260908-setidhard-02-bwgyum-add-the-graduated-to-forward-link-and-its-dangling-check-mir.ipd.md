@@ -11,7 +11,7 @@
 - Scope: Add the `Graduated-To` forward link to backlog items and specs as a multi-valued setid list, with a reader, a writer on the graduation path, and `check.graduated-to-dangling` built as the direct mirror of `check_from_backlog`. EXCLUDES the fresh-setid mint and creation-time prevention (Order 03), the collision sweep (Order 01), and wiring the close-legitimacy predicate to consume the new link (deferred with a reason).
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/ipd_schema.py, agent_workflows/cli.py, .aw/records/backlog/README.md, .aw/records/specs/README.md, tests/test_graduated_to_link.py, tests/test_releases.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: high
 - Readiness: go-pending-approval
@@ -20,10 +20,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bwgyum
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: sjsoqq
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: bwgyum verified (set setidhard, attempt 1). [Scope reconciliation - out-of-scope tests/test_ipd_schema.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified tests/test_releases.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item sjsoqq (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-801..PR-810 all FIXED; readiness go-pending-approval
