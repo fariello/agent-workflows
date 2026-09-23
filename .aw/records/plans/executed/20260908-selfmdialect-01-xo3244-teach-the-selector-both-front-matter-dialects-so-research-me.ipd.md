@@ -6,7 +6,7 @@
 - Scope: Make the resolver's three front-matter readers understand the YAML dialect in addition to the bullet dialect, so research id6/setid/status become matchable, and ACCEPT the resulting contract change deliberately (`aw find research reference` goes from 5 results to 52). Reuse `research_contract.parse_frontmatter` rather than writing a second YAML reader. Preserve the documented precedence chain, the bounded header read, the artifacts-not-mentions rule, and byte-for-byte identical behavior for every non-research type. Replace the test that pins today's filename-only behavior with one that pins the new behavior, and record the change in the changelog because it is user-visible.
 - Scope-Paths: agent_workflows/selectors.py, tests/test_selector_zero_open.py, CHANGELOG.md, tests/test_id_metadata_region.py
 - Item-Dependencies: executed:76w6mq
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - Readiness: go-pending-approval
@@ -15,11 +15,11 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xo3244
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 05aqbj
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: xo3244 verified (set selfmdialect, attempt 1). [Scope reconciliation - widened-scope tests/test_id_metadata_region.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run)]
 - 2026-09-23 approved (opencode its_direct/pt3-claude-opus-5-1m-us): WORK PERFORMED, NOT A TERMINAL TRANSITION. This entry records execution of the plan's items only; the status stays `approved` and the terminal transition to `executed` belongs to `aw ipd finalize`, which the RUNNER performs for this lane (a worker-role process is refused with `AW-LIFECYCLE-ROLE-001`). Executed all 7 E-items and verified all 7 V-items with pasted evidence, in lane `aw/lane/xo3244` at base HEAD `0823163b`. Dependency `executed:76w6mq` was already satisfied (it is in `plans/executed/`), and the composition it gates was verified on the real `27rjro` document: the region bound makes the bullet path miss, the new YAML fallback then yields the document's own `27rjro` instead of the foreign `uyeko5` it once reported. Suite: `3 failed, 9097 passed, 3 skipped, 2 xfailed` against a self-measured baseline of `3 failed, 9069 passed, 3 skipped, 2 xfailed` on the same lane, i.e. +28 passed and the SAME 3 failures, each proven pre-existing by re-running with my changes stashed. THREE CORRECTIONS THIS EXECUTION MADE TO THE PLAN'S OWN CLAIMS, all re-measured rather than inherited. (1) The headline shift is 5 -> 64, not the authored 52 nor review's 58. (2) THE MUTATING-VERB EXPOSURE OQ-01 ACCEPTED DOES NOT OCCUR: `aw archive` (and `rename`/`group` for research) NEVER routes through this resolver, so their behavior is byte-identical before and after, verified for six command forms. The plan's F-13 and OQ-01 assumed otherwise. That bypass contradicts `selectors.py:4-9`'s single-resolver claim and is filed as backlog `mblu3p` (`bug`, gated `Blocks-Release: next`) rather than fixed here, because fixing it WOULD deliver the 0 -> 32 widening OQ-01 already approved and that deserves its own plan. (3) The fenced non-research population is 0 in this lane, not review's 2, because both `Kind: session-handoff` prompts live in the gitignored `records/*/untracked/` lane and are absent from an isolated worktree; that vindicates F-5c and is exactly why the case-sensitivity proof is a FIXTURE test rather than a corpus count. SCOPE: 3 declared paths changed, plus ONE UNDECLARED, `tests/test_id_metadata_region.py`, where three characterization tests pinned the old behavior and named this plan as the change that would flip them; each was updated to assert the new value while keeping its original subject intact (see the decisions register, decision 37-xo3244-D1).
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item 05aqbj (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
