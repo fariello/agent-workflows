@@ -569,18 +569,23 @@ class EarnedCloseGate(_RepoCase):
     def test_an_induced_terminal_state_read_failure_fails_closed(self):
         self.repo.add_item("bbbbbb")
         plan = self.repo.add_plan("aaaaaa", bucket="executed", from_backlog="bbbbbb")
-        original = oc_runipd.plan_bucket
+        # PATCH WHERE `evaluate_backlog_close` RESOLVES `plan_bucket`, which is `runner_shared` since
+        # runnerlayer Order 02 (`1f7xno`) re-homed that evaluator. Patching the `oc_runipd` attribute
+        # would no longer intercept, so the induced failure would never fire and this FAIL-CLOSED test
+        # would pass vacuously on a verdict that closed. The host attribute re-exports this same
+        # object, so what is asserted is unchanged.
+        original = runner_shared.plan_bucket
 
         def boom(*_a, **_k):
             raise RuntimeError("induced bucket read failure")
 
-        oc_runipd.plan_bucket = boom  # type: ignore[assignment]
+        runner_shared.plan_bucket = boom  # type: ignore[assignment]
         try:
             verdict = oc_runipd.evaluate_backlog_close(
                 self.repo.root, "bbbbbb", [self.repo.rel(plan)]
             )
         finally:
-            oc_runipd.plan_bucket = original  # type: ignore[assignment]
+            runner_shared.plan_bucket = original  # type: ignore[assignment]
         self.assertFalse(verdict.close)
         self.assertIn("terminal-state read failed", verdict.reason)
 
@@ -1076,7 +1081,7 @@ class UnclosedReport(unittest.TestCase):
             ledger = run_dir / "events.jsonl"
             observed: list[tuple[str, bool]] = []
             oc_runipd.register_signal_report(run_dir, _state_with_open_item())
-            real_record = oc_runipd.record_unclosed_backlog_items
+            real_record = runner_shared.record_unclosed_backlog_items
 
             def watched_record(*args, **kwargs):
                 observed.append(("ledger", ledger.exists()))
@@ -1085,11 +1090,17 @@ class UnclosedReport(unittest.TestCase):
             def watched_print(*args, **kwargs):
                 observed.append(("print", ledger.exists()))
 
+            # PATCHED ON `runner_shared`, WHERE `emit_shutdown_report` RESOLVES BOTH NAMES since
+            # runnerlayer Order 02 (`1f7xno`) re-homed that reporter out of the host driver. Patching
+            # the `oc_runipd` attribute would intercept NOTHING now, and this test would report an
+            # EMPTY observation list rather than a wrong order, which is how it failed when the move
+            # landed. The host attribute is a re-export of this same object, so the assertion below is
+            # unchanged in meaning.
             with (
                 mock.patch.object(
-                    oc_runipd, "record_unclosed_backlog_items", watched_record
+                    runner_shared, "record_unclosed_backlog_items", watched_record
                 ),
-                mock.patch.object(oc_runipd, "print", watched_print, create=True),
+                mock.patch.object(runner_shared, "print", watched_print, create=True),
             ):
                 oc_runipd.emit_shutdown_report()
         self.assertEqual(
@@ -1623,12 +1634,15 @@ class ShutdownReportOnInterrupt(unittest.TestCase):
                 # NOT a silent pass: assert the fallback coverage actually exists, so this branch cannot
                 # become a hole if `run_lock` is ever renamed or removed too.
                 self.assertTrue(
-                    hasattr(oc_runipd, "run_lock") or hasattr(runner_shared, "run_lock"),
+                    hasattr(oc_runipd, "run_lock")
+                    or hasattr(runner_shared, "run_lock"),
                     f"{name} is exposed by no module AND run_lock is gone, so nothing covers the lock "
                     "acquisition a signal handler must not perform",
                 )
                 continue
-            with self.subTest(forbidden=name, owner=owner.__name__), tempfile.TemporaryDirectory() as tmp:
+            with self.subTest(
+                forbidden=name, owner=owner.__name__
+            ), tempfile.TemporaryDirectory() as tmp:
                 run_dir = Path(tmp)
                 oc_runipd._SIGNAL_REPORT_DONE.clear()
                 oc_runipd._SIGNAL_REPORT_STATE.clear()

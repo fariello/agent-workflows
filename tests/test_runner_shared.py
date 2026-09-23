@@ -7660,10 +7660,42 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
                     )
         self.assertEqual(wrong, [], "\n".join(wrong))
 
+    #: Names that moved as a CO-MOVE rather than because agy imported them, so agy is NOT expected to
+    #: expose them. Each is oc-PRIVATE and was reached only by a public name in the work list whose
+    #: body closes over it: `_SIGNAL_REPORT_STATE`/`_SIGNAL_REPORT_DONE` are the signal-report registry
+    #: `emit_shutdown_report` and `register_signal_report` share, and `_carrier_kind` is the partition
+    #: helper `evaluate_backlog_close` calls. They HAD to move, because leaving them behind would have
+    #: given the two hosts separate registries; demanding an agy re-export for them would FABRICATE an
+    #: API agy never had, which is the opposite of this plan's claim to have changed nothing.
+    #:
+    #: oc still re-exports all three, because in-tree tests clear the two registry objects through the
+    #: `oc_runipd` attribute at five sites. A private name is still a real API when a test names it.
+    CO_MOVED_PRIVATE = (
+        "_SIGNAL_REPORT_DONE",
+        "_SIGNAL_REPORT_STATE",
+        "_carrier_kind",
+    )
+
     def test_every_rehomed_name_is_the_SAME_OBJECT_from_all_three_modules(self):
-        """`assertIs`, because grep cannot tell a shared object from a textually identical copy."""
+        """`assertIs`, because grep cannot tell a shared object from a textually identical copy.
+
+        A CO-MOVED PRIVATE name is held to the oc half only; see `CO_MOVED_PRIVATE` for why that is a
+        requirement of the move rather than an exemption from it.
+        """
         wrong = []
         for name in sorted(self.pre):
+            if name in self.CO_MOVED_PRIVATE:
+                shared = getattr(runner_shared, name, None)
+                self.assertIsNotNone(
+                    shared, f"{name}: ABSENT from runner_shared, which now OWNS it"
+                )
+                self.assertIs(
+                    getattr(oc_runipd, name, None),
+                    shared,
+                    f"{name}: oc must re-export runner_shared's object; in-tree tests clear this "
+                    "registry through the oc attribute",
+                )
+                continue
             shared = getattr(runner_shared, name, None)
             if shared is None:
                 wrong.append(f"  {name}: ABSENT from runner_shared, which now OWNS it")

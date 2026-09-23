@@ -221,27 +221,6 @@ CLASSIFICATION: tuple[Name, ...] = (
     # states the intent this Set is finishing: every rule "lives ONCE in `oc_runipd` and this
     # module binds the SAME objects", which is the right instinct wired to the wrong module.
     Name(
-        "BacklogCloseVerdict",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "the verdict record for one item; a data class",
-    ),
-    Name(
-        "CARRIER_KIND_IPD",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "carrier-kind constant; a records-vocabulary string",
-    ),
-    Name(
-        "CARRIER_KIND_OTHER",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "carrier-kind constant; a records-vocabulary string",
-    ),
-    Name(
         "close_backlog_item",
         "backlog-closing",
         NEUTRAL,
@@ -259,14 +238,6 @@ CLASSIFICATION: tuple[Name, ...] = (
         closes_over=("run_checked",),
     ),
     Name(
-        "evaluate_backlog_close",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "decides whether THIS run may close the item, and why not if it may not",
-        closes_over=("_carrier_kind",),
-    ),
-    Name(
         "process_backlog_close",
         "backlog-closing",
         NEUTRAL,
@@ -279,34 +250,6 @@ CLASSIFICATION: tuple[Name, ...] = (
             "parameter, not an opencode concept, so the verdict stays neutral; filed as a bug, NOT "
             "fixed by `9kmbr0`, which moves and changes nothing"
         ),
-    ),
-    Name(
-        "resolve_backlog_item",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "finds the item file whose `- Id:` matches; filesystem lookup",
-    ),
-    Name(
-        "record_unclosed_backlog_items",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "appends the unclosed-item ledger record before anything is printed",
-    ),
-    Name(
-        "unclosed_backlog_items",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "lists items this run touched but did not close, with reasons; reads run state",
-    ),
-    Name(
-        "render_unclosed_report",
-        "backlog-closing",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "formats that ledger for a human; text assembly",
     ),
     # --- run ordering (4) ---------------------------------------------------------------------
     # --- recovery routing (3) -----------------------------------------------------------------
@@ -352,41 +295,6 @@ CLASSIFICATION: tuple[Name, ...] = (
         ),
     ),
     # --- shutdown reporting (4) ---------------------------------------------------------------
-    Name(
-        "register_signal_report",
-        "shutdown-reporting",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "publishes run state for the signal handlers to report from",
-        closes_over=("_SIGNAL_REPORT_STATE",),
-        move_note="MODULE-LEVEL MUTABLE STATE: the `_SIGNAL_REPORT_*` globals must move WITH this group or the two hosts would keep separate registries",
-    ),
-    Name(
-        "emit_shutdown_report",
-        "shutdown-reporting",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "idempotently writes then prints the unclosed-item record on shutdown",
-        closes_over=("_SIGNAL_REPORT_DONE", "_SIGNAL_REPORT_STATE"),
-    ),
-    Name(
-        "signal_report_callback",
-        "shutdown-reporting",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "returns the callable the SIGINT/SIGTERM handlers invoke; a closure factory",
-    ),
-    Name(
-        "render_runs_pointer",
-        "shutdown-reporting",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "formats the trailing `aw runs <run-id>` pointer; its docstring notes `aw oc runs` does NOT exist",
-        move_note=(
-            "DESTINATION CONTESTED like `build_verify_and_continue_notice`: a one-line wording "
-            "function may belong to `render_stream`"
-        ),
-    ),
     # --- suite checking (5) -------------------------------------------------------------------
     Name(
         "run_suite_check",
@@ -464,14 +372,6 @@ CLASSIFICATION: tuple[Name, ...] = (
         PURE_REEXPORT,
         "diffs an attempt's head range to list the paths it produced; a git diff",
         closes_over=("run_checked",),
-        move_note="same `integpath` collision risk (see MOVE_UNSETTLED)",
-    ),
-    Name(
-        "run_earned_paths",
-        "earned-integration",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "unions the per-attempt earned paths across a run; reads run state",
         move_note="same `integpath` collision risk (see MOVE_UNSETTLED)",
     ),
     # --- declared spec-edit visibility (1 of an original 9) -----------------------------------
@@ -554,14 +454,27 @@ CLASSIFICATION: tuple[Name, ...] = (
 #: the list the plan's OQ-01 asked for, expressed on the axis the question actually lives on.
 MOVE_UNSETTLED: tuple[str, ...] = (
     # Destination contested: `render_stream` may own a wording function rather than `runner_shared`.
+    #
+    # `render_runs_pointer` LEFT THIS LIST BY MOVING, resolved rather than dropped (runnerlayer
+    # Order 02 `1f7xno`). This list means "names whose MOVE Order 02 must resolve or defer", so a
+    # moved name has had its move RESOLVED and an entry naming a row that no longer exists is what
+    # `test_the_classification_is_internally_consistent` correctly refuses. It went to
+    # `runner_shared` and not to `render_stream` because it could not be split from the closure it
+    # belongs to: `emit_shutdown_report` prints it, and that reporter shares the
+    # `_SIGNAL_REPORT_STATE` registry with `register_signal_report`, so the whole shutdown graph had
+    # to land in one module or the two hosts would have kept separate signal registries.
     "build_verify_and_continue_notice",
-    "render_runs_pointer",
-    # Sequencing: the pending `integpath` Set declares both drivers and discusses these names.
+    # Sequencing: the `integpath` Set was editing this surface when Order 01 classified these names.
+    #
+    # RE-MEASURED AT EXECUTION AND THE HEDGE IS STALE: all three plans Order 01 named (`51vw4y`,
+    # `rl67b0`, `3v7wo6`) are in `.aw/records/plans/executed/`, so the collision it was avoiding has
+    # resolved itself. Order 01's own text predicted exactly this and told Order 02 to "re-measure
+    # rather than inherit either claim". `collect_earned_paths` and `run_earned_paths` therefore
+    # moved, and they were not optional in any case: the backlog-closing closure REACHES them, so
+    # deferring them would have blocked eleven other names.
     "run_suite_check",
     "SuiteCheckResult",
     "integration_is_earned",
-    "collect_earned_paths",
-    "run_earned_paths",
 )
 
 #: Verdicts the criterion genuinely could not settle. EMPTY, and that is a MEASUREMENT: every

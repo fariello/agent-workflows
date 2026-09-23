@@ -561,6 +561,34 @@ from agent_workflows.runner_shared import (
 # Losing them would silently re-open the divergence this change exists to close, because a later fix
 # to, say, `edge_satisfied` would then be reachable through only ONE driver.
 
+# THE ONE DEFINITION IS NOW IN `runner_shared`, NOT IN THE OTHER HOST DRIVER (runnerlayer Order 02
+# `1f7xno`, backlog `cnwy8g`). The block below used to read "lives ONCE in `oc_runipd`", which was the
+# whole defect: this driver bound the right OBJECT through the wrong MODULE, so a fix reached it only
+# by way of a host driver it has no business depending on. The objects and every call site are
+# unchanged; only the module these statements name is different.
+#
+# THE SHUTDOWN REPORTERS MOVED AS ONE CLOSURE WITH THE CLOSE API, because they cannot be split.
+# `emit_shutdown_report` and `register_signal_report` share the module-level
+# `_SIGNAL_REPORT_STATE`/`_SIGNAL_REPORT_DONE` registry, and `emit_shutdown_report` calls
+# `record_unclosed_backlog_items`/`render_unclosed_report`, which call the close evaluator. Splitting
+# that graph across two modules would have given the two hosts SEPARATE signal registries, so a SIGINT
+# would have reported from whichever half the handler happened to resolve.
+from agent_workflows.runner_shared import (
+    BacklogCloseVerdict as BacklogCloseVerdict,
+    CARRIER_KIND_IPD as CARRIER_KIND_IPD,
+    CARRIER_KIND_OTHER as CARRIER_KIND_OTHER,
+    emit_shutdown_report as emit_shutdown_report,
+    evaluate_backlog_close as evaluate_backlog_close,
+    record_unclosed_backlog_items as record_unclosed_backlog_items,
+    register_signal_report as register_signal_report,
+    render_runs_pointer as render_runs_pointer,
+    render_unclosed_report as render_unclosed_report,
+    resolve_backlog_item as resolve_backlog_item,
+    run_earned_paths as run_earned_paths,
+    signal_report_callback as signal_report_callback,
+    unclosed_backlog_items as unclosed_backlog_items,
+)
+
 # --- bkclose (zhr6mc): backlog-close + shutdown-report API, IMPORTED, never re-declared -----------
 #
 # Same division of labor as the dependency API above and for the same measured reason: a duplicated
@@ -589,23 +617,10 @@ from agent_workflows.oc_runipd import (
     SUITE_CHECK_ARGV as SUITE_CHECK_ARGV,
     extract_suite_failures as extract_suite_failures,
     parse_suite_summary as parse_suite_summary,
-    BacklogCloseVerdict as BacklogCloseVerdict,
-    CARRIER_KIND_IPD as CARRIER_KIND_IPD,
-    CARRIER_KIND_OTHER as CARRIER_KIND_OTHER,
     close_backlog_item as close_backlog_item,
     collect_earned_paths as collect_earned_paths,
     commit_backlog_close as commit_backlog_close,
-    emit_shutdown_report as emit_shutdown_report,
-    evaluate_backlog_close as evaluate_backlog_close,
-    signal_report_callback as signal_report_callback,
     process_backlog_close as process_backlog_close,
-    record_unclosed_backlog_items as record_unclosed_backlog_items,
-    register_signal_report as register_signal_report,
-    render_runs_pointer as render_runs_pointer,
-    render_unclosed_report as render_unclosed_report,
-    resolve_backlog_item as resolve_backlog_item,
-    run_earned_paths as run_earned_paths,
-    unclosed_backlog_items as unclosed_backlog_items,
 )
 from agent_workflows.oc_runipd import (
     DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,

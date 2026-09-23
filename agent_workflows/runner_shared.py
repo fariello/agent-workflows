@@ -25143,6 +25143,436 @@ def execute_item_core(
 # cross-driver symmetry test. Preserve the form.
 # ==================================================================================================
 # ==== runnerlayer 02 (`1f7xno`): re-homed host-neutral names ====
+# --- bkclose (zhr6mc): close a backlog item when the run executes its last carrier ----------------
+#
+# `graduated` means "design handed off, code not yet written" and `done` means "written and
+# validated", but until now NOTHING advanced an item across that boundary: no automation, no
+# workflow instruction, no `aw check` rule, and the one warning that would nag inspects `open/`
+# only. Measured at authoring: ZERO items in `done/` carry a graduation record, so the transition
+# had never once occurred.
+#
+# The runner is the right owner because it is the only actor that knows the MOMENT the last carrier
+# lands. Everything below is defined ONCE here and IMPORTED by `agy_runipd` (which does not
+# re-declare it), for the same reason the dependency API is shared: a duplicated copy is exactly how
+# the deleted `_read_deps` pair came to be identically wrong in both drivers.
+
+# The carrier-kind partition. The closing rule turns on whether the item's requested output INCLUDES
+# AN IPD, not on the carrier's type per se (zhr6mc OQ-01, resolved by the maintainer):
+#   * carriers include >= 1 IPD -> the item promised CODE, so it closes only when every IPD carrier
+#     is in a terminal `executed` state;
+#   * carriers include NO IPD   -> the item asked for the ARTIFACT, so it is done as soon as that
+#     artifact EXISTS. Spec status is deliberately NOT consulted: an unreviewed, unapproved spec
+#     still satisfies "create a spec", and approval is the spec's own lifecycle (`aw specs`).
+CARRIER_KIND_IPD = "ipd"
+
+
+CARRIER_KIND_OTHER = "other"
+
+
+def _carrier_kind(path: Path) -> str:
+    """`ipd` for a plan IPD, `other` for any non-IPD carrier (spec, or a later artifact type)."""
+    return CARRIER_KIND_IPD if path.name.endswith(".ipd.md") else CARRIER_KIND_OTHER
+
+
+class BacklogCloseVerdict(NamedTuple):
+    """The decision about ONE backlog item, and why.
+
+    close:    may the run close this item `done` now?
+    reason:   the human-readable justification, reported verbatim either as the close message or as
+              the E-06 unclosed-item reason. Never a bare boolean, because "we did not close it" is
+              useless to the operator without the cause.
+    evidence: the repo-relative carrier path to cite as `--evidence` when closing, else None.
+    rule:     `ipd` (every IPD carrier executed) | `other` (the artifact exists) | None (no close).
+    """
+
+    close: bool
+    reason: str
+    evidence: str | None
+    rule: str | None
+
+
+# rununify 06 (`sy7uwh`) E-03: `_read_from_backlog` is IMPORTED from `runner_shared`, not defined here.
+# It is one of the six module-level readers `parse_plan_file` closes over, so it had to become resolvable
+# in the shared module for that function to move at all; leaving a SECOND copy behind would reproduce
+# exactly the defect this Set exists to end (a fix reaching one caller and not the other), one layer
+# down from the record itself. `agy_runipd` already bound this by name FROM this module, and
+# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts object identity between the two hosts;
+# a shared definition re-exported here under the same name satisfies that assertion, because both hosts
+# now name the SAME object rather than one naming the other's.
+# (The import itself is hoisted to the top-of-file shared-import block, per E402.)
+
+
+def resolve_backlog_item(repo: Path, item_id6: str) -> Path | None:
+    """The backlog item file whose `- Id:` is ``item_id6``, or None.
+
+    Reuses `backlog._iter_items` + `backlog.parse_item` (the tree walker and metadata reader the
+    backlog verbs themselves use) rather than globbing for the id6, so a renamed file or a
+    filename/`Id:` mismatch cannot make the runner miss an item the setter would find."""
+    from agent_workflows import backlog as _backlog
+
+    for path in _backlog._iter_items(Path(repo)):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if _backlog.parse_item(text).id == item_id6:
+            return path
+    return None
+
+
+def evaluate_backlog_close(
+    repo: Path,
+    item_id6: str,
+    earned_paths: Iterable[str],
+    *,
+    executed_overrides: Mapping[str, str] | None = None,
+) -> BacklogCloseVerdict:
+    """Decide whether THIS run may now close backlog item ``item_id6``, and why not if it may not.
+
+    ``earned_paths`` are the repo-relative paths this run actually produced (see
+    `run_earned_paths`). It is the E-04 gate: a run may not close an item whose carriers it merely
+    OBSERVED as already executed, because closing is a state change it did not earn.
+
+    FAIL CLOSED (E-04). Every lookup below is wrapped: a missing item, an unreadable tree, or a
+    raising helper yields `close=False` plus a recorded reason, never an escaping exception and never
+    an optimistic close.
+
+    ``executed_overrides`` (dirtygates-03 `9iq461` E-03) maps ONE carrier's path AS ``repo`` SEES IT
+    to the path it ALREADY occupies in the caller's lane worktree, and asserts that this single
+    carrier is terminal `executed` even though ``repo`` still shows it in `pending/`.
+
+    WHY THIS NARROW ESCAPE HATCH EXISTS, and why it is not a hole. OQ-01 resolved that eligibility is
+    evaluated in MAIN, because the question "have ALL carriers of this item proved the work?" is a
+    claim about SEVERAL plans and carrier discovery scans the FILESYSTEM (F-6), so only main's view
+    sees every sibling's true bucket. But the runner now performs the item's MOVE inside the lane,
+    BEFORE the merge, and at that instant main legitimately still shows THIS run's own plan in
+    `pending/` -- so a literal main-only evaluation would refuse EVERY close, forever, and would do so
+    silently (the run summary would simply list the item as left open). Measured pre-fix, the close
+    ran AFTER the merge, which is exactly how main came to show the plan executed; moving the write
+    earlier means that one fact must now be supplied explicitly rather than read.
+    A WORKER MAY ASSERT FACTS ABOUT ITS OWN ITEM, which is the same role rule `retire_orchestrator`
+    enforces from the other side. So the override is deliberately limited to the caller's OWN
+    just-finalized plan, and it is a MAPPING rather than a set so the verdict can cite the path the
+    carrier REALLY occupies (its `executed/` path) instead of main's stale `pending/` one, which would
+    be a false citation. SIBLING carriers are still read from ``repo`` with no override, so the
+    multi-carrier protection F-5/F-12 measured (21 of 108 carried items have more than one carrier,
+    the tail running 9, 6, 5) is untouched: an item whose sibling has not run still does not close.
+    Defaults to None, so every caller that does not pass it behaves exactly as before.
+    """
+    from agent_workflows import check_engine as _ce
+
+    overrides = dict(executed_overrides or {})
+    earned = {p for p in earned_paths if p}
+
+    try:
+        item_path = resolve_backlog_item(repo, item_id6)
+    except Exception as exc:  # fail closed: an unreadable backlog tree closes nothing
+        return BacklogCloseVerdict(
+            False, f"backlog item lookup failed: {exc}", None, None
+        )
+    if item_path is None:
+        return BacklogCloseVerdict(
+            False, f"no backlog item resolves to id6 {item_id6}", None, None
+        )
+    status = item_path.parent.name
+    if status == "done":
+        return BacklogCloseVerdict(False, "item is already done", None, None)
+
+    # THE ONE SHARED LOOKUP (E-02). `find_from_backlog_artifacts` already returns every PLAN and
+    # SPEC carrying the link, plans first. A second implementation here would be the same divergence
+    # defect this repository keeps hitting, so there is deliberately no local scan.
+    try:
+        carriers = [
+            Path(p) for p, _br in _ce.find_from_backlog_artifacts(repo, item_id6)
+        ]
+    except Exception as exc:  # fail closed
+        return BacklogCloseVerdict(False, f"carrier lookup failed: {exc}", None, None)
+    if not carriers:
+        return BacklogCloseVerdict(
+            False,
+            f"no plan or spec carries From-Backlog: {item_id6}, so no carrier proves the work",
+            None,
+            None,
+        )
+
+    def _rel(path: Path) -> str:
+        try:
+            return str(path.resolve().relative_to(Path(repo).resolve()))
+        except ValueError:
+            return str(path)
+
+    def _cited(path: Path) -> str:
+        """The path to CITE for a carrier: its overridden (real) location if one was supplied.
+
+        The distinction matters because the citation becomes the `--evidence` argument, and
+        `check_engine.resolve_evidence_artifact` must be able to RESOLVE it (F-11). Citing main's
+        stale `pending/` path for a plan that actually sits in `executed/` would be a false citation
+        of a file that does not exist where the claim says it does.
+        """
+        return overrides.get(_rel(path), _rel(path))
+
+    ipds = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_IPD]
+    others = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_OTHER]
+
+    if ipds:
+        # THE IPD RULE (E-02). The item promised code, so every IPD carrier must be terminal
+        # `executed`; one unexecuted sibling is enough to hold the item open. This is why closing on
+        # "my plan executed" is wrong: measured at authoring, `dh0uno` has TWO carriers, so that rule
+        # would have closed it while half its work was unwritten.
+        unexecuted: list[str] = []
+        for plan in ipds:
+            # dirtygates-03 (`9iq461`) E-03: the caller's OWN just-finalized plan is asserted
+            # executed, because at this point in the run its move exists only on the lane branch and
+            # `repo` still shows it in `pending/`. EVERY OTHER CARRIER IS READ FROM `repo` WITH NO
+            # OVERRIDE, which is the whole point: main's view is the only one that sees a sibling's
+            # true bucket, and a lane-side scan would see this plan executed and answer more
+            # permissively than main would.
+            if _rel(plan) in overrides:
+                continue
+            try:
+                bucket = plan_bucket(plan)
+            except Exception as exc:  # fail closed
+                return BacklogCloseVerdict(
+                    False,
+                    f"terminal-state read failed for {_rel(plan)}: {exc}",
+                    None,
+                    None,
+                )
+            if bucket != "executed":
+                unexecuted.append(_rel(plan))
+        if unexecuted:
+            return BacklogCloseVerdict(
+                False,
+                "IPD carrier(s) not executed: " + ", ".join(sorted(unexecuted)),
+                None,
+                None,
+            )
+        # E-04: the run must have EARNED it. The deciding carrier has to be one this run produced,
+        # not one it found already finished. BOTH spellings of an overridden carrier's path count as
+        # earned: `collect_earned_paths` derives its set from `git diff`, which reports the LANE's
+        # post-move `executed/` path, while the carrier scan found the same plan at main's `pending/`
+        # path. Testing only one spelling would refuse a close the run demonstrably earned.
+        earned_ipds = [p for p in ipds if _rel(p) in earned or _cited(p) in earned]
+        if not earned_ipds:
+            return BacklogCloseVerdict(
+                False,
+                "this run executed none of its carriers, so the close was not earned "
+                "(all carriers were already executed before this run)",
+                None,
+                None,
+            )
+        return BacklogCloseVerdict(
+            True,
+            "every IPD carrier is executed and this run executed "
+            + ", ".join(sorted(_cited(p) for p in earned_ipds)),
+            _cited(earned_ipds[0]),
+            CARRIER_KIND_IPD,
+        )
+
+    # THE NON-IPD RULE (E-03). No IPD carrier means the item's requested output IS the artifact, so
+    # existence is the whole test. Spec STATUS is not read here on purpose: a `draft`/`to-review`
+    # spec still satisfies "create the spec", and its approval belongs to `aw specs`.
+    existing = [p for p in others if p.is_file()]
+    if not existing:
+        return BacklogCloseVerdict(
+            False, "no non-IPD carrier artifact exists on disk", None, None
+        )
+    earned_others = [p for p in existing if _rel(p) in earned]
+    if not earned_others:
+        return BacklogCloseVerdict(
+            False,
+            "this run created none of its carriers, so the close was not earned "
+            "(all carrier artifacts existed before this run)",
+            None,
+            None,
+        )
+    return BacklogCloseVerdict(
+        True,
+        "the requested artifact(s) exist and this run created "
+        + ", ".join(sorted(_rel(p) for p in earned_others))
+        + " (no IPD carrier, so approval is not required)",
+        _rel(earned_others[0]),
+        CARRIER_KIND_OTHER,
+    )
+
+
+def run_earned_paths(state: dict[str, Any]) -> list[str]:
+    """Every repo-relative path THIS run actually produced, across all attempts (E-04).
+
+    Two sources, both derived from git or from the lifecycle rather than from a model claim:
+    the per-attempt `changed_paths` (`git diff --name-only <starting_head>..<ending_head>`) and the
+    executed plan's own post-finalize path. An older run directory carrying neither simply earns
+    nothing, which fails closed."""
+    earned: list[str] = []
+    for item in state.get("queue", []) or []:
+        for key in ("earned_paths",):
+            for path in item.get(key) or []:
+                if path and path not in earned:
+                    earned.append(path)
+    return earned
+
+
+def unclosed_backlog_items(state: dict[str, Any]) -> list[tuple[str, str]]:
+    """Every backlog item this run TOUCHED but did not close, as (item_id6, reason) pairs (E-06).
+
+    Scope is deliberately this run's own work, not the whole repository (zhr6mc OQ-02): a run
+    reporting on every open item would duplicate `aw attention`, which owns the cross-tree view. An
+    item whose plan never reached the close evaluation is reported with that as its reason, so a
+    linked item is never silently absent from the report.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for item in state.get("queue", []) or []:
+        item_id6 = item.get("from_backlog")
+        if not item_id6 or item_id6 in seen:
+            continue
+        record = item.get("backlog_close") or {}
+        if record.get("closed"):
+            seen.add(item_id6)
+            continue
+        reason = record.get("reason") or (
+            f"IPD {item.get('id6')} ended {item.get('status', 'unknown')}, so the close was "
+            f"never evaluated"
+        )
+        seen.add(item_id6)
+        out.append((item_id6, reason))
+    return out
+
+
+def render_unclosed_report(state: dict[str, Any]) -> str:
+    """The human-readable E-06 section, or '' when nothing is outstanding (print nothing then)."""
+    outstanding = unclosed_backlog_items(state)
+    if not outstanding:
+        return ""
+    pal = Palette(should_color(sys.stdout))
+    lines = ["", pal("--- Backlog items left open ---", "bold")]
+    for item_id6, reason in outstanding:
+        lines.append(f"  - {pal(item_id6, 'yellow')}: {reason}")
+    lines.append(
+        pal(
+            "  (this run's own items only; `aw attention` owns the cross-tree view)",
+            "dim",
+        )
+    )
+    return "\n".join(lines)
+
+
+def render_runs_pointer(state: dict[str, Any]) -> str:
+    """The E-07 trailing pointer. `aw runs <run-id>` is the real verb; `aw oc runs` does not exist."""
+    return f"Run `aw runs {state.get('run_id', 'run-...')}` for more info."
+
+
+def record_unclosed_backlog_items(run_dir: Path, state: dict[str, Any]) -> None:
+    """LEDGER FIRST (E-06): append the unclosed-item record BEFORE anything is printed.
+
+    Ordering is the whole point. A print can be truncated, redirected, or lost to an uncatchable
+    kill; the ledger append survives all three, so `aw runs <run-id>` can still answer "what did it
+    leave open?" when the terminal output cannot. Best-effort and never raising: this runs on the
+    shutdown path, where an exception would be worse than a missing line."""
+    outstanding = unclosed_backlog_items(state)
+    if not outstanding:
+        return
+    with contextlib.suppress(Exception):
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "backlog-items-left-open",
+                "items": [
+                    {"item": item_id6, "reason": reason}
+                    for item_id6, reason in outstanding
+                ],
+            },
+        )
+
+
+# --- bkclose (zhr6mc) E-05/E-06: the handler-safe shutdown report ---------------------------------
+#
+# WHY THIS IS A CALLABLE AND NOT A REGISTERED HANDLER (zhr6mc DEFERRED Q1).
+#
+# E-05 as authored asked this plan to install `signal.signal` handlers for SIGINT and SIGTERM in both
+# runner modules. It may not, and the reason is recorded rather than worked around: FOUR executed
+# plans installed guards that explicitly FORBID registering a handler (a `signal` `.signal(...)`
+# call) in these two files
+# (`tests/test_lane_allocation_idempotent.py`, `tests/test_runner_stop.py`,
+# `tests/test_runner_stop_level3.py`, `tests/test_runner_stop_level4.py`), reserving that
+# registration for `runstop` Phase 5 (`71vjbn`). One of those guards states the division of labor
+# verbatim: "`runstop` Phase 5 (`71vjbn`, approved) OWNS SIGINT/SIGTERM registration in these same
+# two files ... whichever plan registered last would silently win. This plan supplies the callable
+# those handlers will invoke, and installs none itself."
+#
+# The designs are also incompatible, not merely double-registered: `71vjbn` E-01/E-02 require SIGINT
+# to ESCALATE level 1 -> 3 -> 4 through `runner_stop.request_stop_nowait` and SIGTERM to REQUEST
+# LEVEL 3, whereas E-05 here wanted both to report and let the process die of the signal. Seizing the
+# registration would have deleted measured anti-deadlock protections (a handler deadlock plus a ~50%
+# lost-escalation race) and pre-empted the next plan in the very same run queue.
+#
+# So this plan supplies exactly the callable the guard describes, and reaches SIGINT through the
+# funnel that ALREADY exists (`except KeyboardInterrupt`), which needs no registration at all. When
+# `71vjbn` lands its handlers, each must call `emit_shutdown_report()` before recording its stop
+# request; that is a one-line addition inside handlers it is already writing.
+#
+# This is a SEPARATE mechanism from the escalating child-process kill sequence (the
+# `(signal.SIGINT, _SIGINT_GRACE_SECONDS)` / `(signal.SIGTERM, _SIGTERM_GRACE_SECONDS)` loop in the
+# shared reaper). That path signals CHILDREN and works; nothing about it is changed here.
+#
+# HANDLER DISCIPLINE, honored so `71vjbn` can call this from a real handler unchanged. Handlers run at
+# arbitrary points between bytecodes, so this routine does not acquire the run lock, does not call
+# `save_state`, and performs no blocking I/O beyond one ledger append and one print. It reads only
+# state already in memory, and it is idempotent so a repeated signal neither double-prints nor hangs.
+
+_SIGNAL_REPORT_STATE: dict[str, Any] = {}
+
+
+_SIGNAL_REPORT_DONE = threading.Event()
+
+
+def register_signal_report(run_dir: Path, state: dict[str, Any]) -> None:
+    """Publish the run's in-memory state for the signal handlers to report from."""
+    _SIGNAL_REPORT_STATE["run_dir"] = run_dir
+    _SIGNAL_REPORT_STATE["state"] = state
+
+
+def emit_shutdown_report(*, to_stderr: bool = False) -> None:
+    """Write the unclosed-item record, then print it and the `aw runs` pointer. IDEMPOTENT.
+
+    Idempotence is what makes a SECOND signal arriving mid-report safe: it neither double-prints nor
+    deadlocks, it simply returns. `threading.Event` is used rather than a lock precisely because a
+    handler must never block."""
+    if _SIGNAL_REPORT_DONE.is_set():
+        return
+    _SIGNAL_REPORT_DONE.set()
+    state = _SIGNAL_REPORT_STATE.get("state")
+    run_dir = _SIGNAL_REPORT_STATE.get("run_dir")
+    if not isinstance(state, dict) or run_dir is None:
+        return
+    stream = sys.stderr if to_stderr else sys.stdout
+    with contextlib.suppress(Exception):
+        record_unclosed_backlog_items(Path(run_dir), state)
+    with contextlib.suppress(Exception):
+        report = render_unclosed_report(state)
+        if report:
+            print(report, file=stream)
+        print(render_runs_pointer(state), file=stream)
+
+
+def signal_report_callback() -> Callable[[], None]:
+    """THE callable `runstop` Phase 5 (`71vjbn`) must invoke from its SIGINT/SIGTERM handlers.
+
+    Returned rather than registered, for the ownership reason recorded above: this plan may not call
+    `signal.signal` in these modules. The returned function is handler-safe (no lock, no
+    `save_state`, one ledger append plus one print) and idempotent, so `71vjbn` can call it first
+    thing in each handler and then proceed to record its stop request.
+
+    Prints to stderr, because a handler fires mid-run when stdout may be carrying streamed child
+    output."""
+
+    def _report() -> None:
+        emit_shutdown_report(to_stderr=True)
+
+    return _report
+
+
 def parse_dependency_token(token: str) -> Any:
     """Resolve ONE frozen dependency token to a shared `ipd_schema.ItemDependency`, or None.
 
