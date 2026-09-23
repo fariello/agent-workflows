@@ -9537,7 +9537,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
 
 
 def sweep_review_candidates_for_type(
-    repo: Path,
+    repo: Path | None,
     spec_type: str,
     *,
     manifest: dict[str, Any] | None = None,
@@ -9586,6 +9586,306 @@ def sweep_review_candidates_for_type(
         if _policy.needs_review("spec", rec.status, file_path=rec.file):
             out.append(id6)
     return out
+
+
+def sweep_review_candidates_for_types(
+    repo: Path | None,
+    types: Any = None,
+    *,
+    manifest: dict[str, Any] | None = None,
+) -> list[str]:
+    """The needs-review sweep for the operator's TYPE SET: the UNION, in canonical type order.
+
+    The plural sibling of :func:`sweep_review_candidates_for_type`, and the function both hosts'
+    `expand_selectors` call (specsweep-01 `ui8b9b` E-02). It adds NO membership logic of its own: it
+    resolves the type set with :func:`resolve_run_types` and asks the singular function once per type,
+    so the sweep and the Section 3 dispatch table still agree BY CONSTRUCTION (spec `6m4kow` R-16).
+
+    ``types=None`` is the normative IPD-only default (spec 2.4a property 1), for which this returns
+    the singular function's `ipd` answer unchanged - which is `sweep_review_candidates` verbatim. That
+    is what makes registering `--type` a no-op for every existing invocation.
+
+    THE UNION IS ORDERED BY TYPE, NOT INTERLEAVED, and deduplicated across types. Ordering by
+    :data:`RUN_TYPE_CHOICES` (spec 2.2's order) keeps the result deterministic and matches the order
+    the mixed-type preview renders, so an operator reading the preview sees the sweep's own order.
+    Within a type the singular function's order is preserved untouched, which for `ipd` is manifest
+    Set order and is the property a Set-ordered queue depends on.
+    """
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for spec_type in resolve_run_types(types):
+        for id6 in sweep_review_candidates_for_type(repo, spec_type, manifest=manifest):
+            if id6 in seen:
+                continue
+            seen.add(id6)
+            out.append(id6)
+    return out
+
+
+# ==================================================================================================
+# specsweep-01 (`ui8b9b`): `--type`'s VOCABULARY, ITS DEFAULT, AND THE TWO REFUSALS
+# (spec `25kzda` 2.1/2.3/2.4a; spec `6m4kow` R-15's operator surface)
+# ==================================================================================================
+#
+# WHY THIS SECTION EXISTS AT ALL. `sweep_review_candidates_for_type` above has shipped since
+# `6ypimw` and answers correctly for a spec, but NOTHING COULD HAND IT A TYPE: `grep '"--type"'`
+# returned zero in both hosts, so spec `6m4kow` R-15 was satisfied at the function boundary and by
+# nothing an operator could type. The gap was deliberate and documented, and this section closes it.
+#
+# THE DEFAULT IS THE LOAD-BEARING PART, NOT THE FLAG. Spec 2.4a property 1 fixes it: with no
+# `--type`, `reviews` selects IPDs ONLY, and "a type added in a later release never joins `reviews`
+# implicitly, for the same reason it never joins `all`". So registering this flag MUST NOT change
+# what a bare `aw <host> run reviews` selects, which is why :data:`RUN_TYPE_DEFAULT` is a frozen
+# one-element tuple rather than "whatever is sweepable" - the latter would widen the normative
+# default the moment a third type became sweepable, silently and in a later author's change.
+
+#: `--type`'s accepted vocabulary: spec 2.2's seven canonical type names.
+#:
+#: SPELLED HERE RATHER THAN IMPORTED, and the reason is a standing repository constraint rather than a
+#: preference: `tests/test_orchestrator_probe_cache.py::
+#: test_no_new_module_level_first_party_import_in_runner_shared` pins this module's module-level
+#: first-party imports to EXACTLY `render_stream` + `runner_profiles`, so
+#: `run_selection_policy.SPEC_TYPE_ORDER` cannot be read at module scope. A function-local import
+#: cannot build a module-level tuple either. So the values are written out AND TIED TO THEIR
+#: AUTHORITY BY TEST: `test_the_type_vocabulary_is_the_policy_modules_own` asserts this tuple EQUALS
+#: `run_selection_policy.SPEC_TYPE_ORDER`, which makes a divergence a test failure rather than a
+#: silent second definition. That is the same trade the `--on-integration-blocked` choices make.
+RUN_TYPE_CHOICES: tuple[str, ...] = (
+    "ipd",
+    "spec",
+    "backlog",
+    "prompt",
+    "research",
+    "release",
+    "walkthrough",
+)
+
+#: The normative default (spec 2.4a property 1): IPDs only. DELIBERATELY NOT DERIVED from
+#: :data:`RUN_TYPE_SWEEPABLE`; see the section note above for why that difference is the point.
+RUN_TYPE_DEFAULT: tuple[str, ...] = ("ipd",)
+
+#: The types the SHIPPED review sweep can actually enumerate. `ipd` walks the manifest and `spec`
+#: walks the specs tree (`sweep_review_candidates_for_type`); every other declared type reaches that
+#: function's fail-safe `return []`, which is why passing one is REFUSED rather than accepted.
+#:
+#: DERIVED FROM THE SWEEP'S OWN BRANCHES, and it is the one thing here a reader must keep true: a
+#: later plan teaching the sweep a third tree MUST add that type here, or the flag will refuse a
+#: capability the package has.
+RUN_TYPE_SWEEPABLE: frozenset[str] = frozenset({"ipd", "spec"})
+
+
+def resolve_run_types(values: Any) -> tuple[str, ...]:
+    """The EFFECTIVE type set for a run, as an ordered deduplicated tuple. Never empty.
+
+    ``None`` or an empty sequence means the operator said nothing, which resolves to
+    :data:`RUN_TYPE_DEFAULT` (spec 2.4a property 1's IPD-only default). Repetition is a UNION (spec
+    2.3 step 2: "one or more `--type` flags replace that default with the union of the named
+    types"), deduplicated so `--type spec --type spec` is one type rather than a mixed selection.
+
+    ORDERED BY :data:`RUN_TYPE_CHOICES`, not by the order the operator typed, because this tuple is
+    frozen into run state and reported; a canonical order makes two equivalent invocations produce
+    byte-identical state. Spec 2.2's order is also the deterministic sort key the mixed-type preview
+    already uses, so the two agree.
+
+    Validation is argparse's (`choices`), so an unknown name never reaches here. A value that does
+    arrive unknown is dropped rather than raising, which is the fail-safe direction for a function
+    called during selector expansion.
+    """
+
+    if values is None:
+        return RUN_TYPE_DEFAULT
+    if isinstance(values, str):
+        values = [values]
+    named = {
+        str(v).strip().lower()
+        for v in values
+        if str(v).strip().lower() in RUN_TYPE_CHOICES
+    }
+    if not named:
+        return RUN_TYPE_DEFAULT
+    return tuple(t for t in RUN_TYPE_CHOICES if t in named)
+
+
+def refuse_unsweepable_run_types(types: Any) -> None:
+    """REFUSE a `--type` the review sweep cannot enumerate, before any durable state exists.
+
+    Spec 2.1 DECLARES seven types and the shipped sweep serves two, so the grammar is deliberately
+    wider than the implementation. This is the same shape `--action` already ships
+    (:data:`ACTION_CHOICES` is three values, :data:`ACTION_IMPLEMENTED` is one, and
+    `enforce_requested_action` refuses the rest by name): argparse accepts what the SPEC declares, so
+    an operator reading the spec is not told the flag does not exist, and the refusal then states the
+    real reason.
+
+    THE ALTERNATIVE THAT MUST NEVER BE CHOSEN is accepting the value and sweeping nothing, which
+    `sweep_review_candidates_for_type`'s fail-safe `return []` would do on its own. An operator who
+    types `--type research` and gets a successful empty `reviews` has been told a falsehood about
+    what the run enforced - the exact failure :func:`refuse_unimplemented_run_flags` exists to
+    prevent, and it would be perverse to reintroduce it in a quieter form.
+    """
+
+    unsupported = [t for t in (types or ()) if t not in RUN_TYPE_SWEEPABLE]
+    if not unsupported:
+        return
+    raise RunFlagRefusal(
+        f"--type {', '.join(unsupported)}: the needs-review sweep can enumerate only "
+        f"{', '.join(sorted(RUN_TYPE_SWEEPABLE))} today. The other types spec 25kzda 2.2 declares "
+        "have no discovery tree wired to this sweep, so accepting one would report a successful "
+        "EMPTY selection rather than telling you it swept nothing. Spec z7nbn1 (universal artifact "
+        "dispatch) owns the remainder. No work started"
+    )
+
+
+class TypedSelection(NamedTuple):
+    """A resolved selection split by what each consumer may legitimately be handed.
+
+    THE SPLIT IS THE POINT, and it exists because the consumers downstream of selection are NOT
+    interchangeable once a selection can hold more than one type (specsweep-01 `ui8b9b` DECISION D5):
+
+      * ``plan_paths`` - PLAN files only. What the dependency preflight gets, because that preflight
+        hands each path's TEXT to `check_engine.evaluate_ipd_dependencies`, which can only produce
+        findings about a document that IS an IPD. Handing it a spec would manufacture findings about
+        an artifact whose contract it does not implement.
+      * ``all_paths``  - every resolved path, whatever its type. What the MIXED-TYPE GATE gets,
+        because judging the mix is its entire job and a gate shown one type cannot see a mix.
+      * ``unresolved`` - ids no tree could resolve, kept rather than dropped so a caller can say
+        WHICH id it could not place instead of silently shortening the selection.
+
+    Before this type there was one `selected_plan_paths` list feeding both consumers, which was
+    correct only while every selection was IPD-only.
+    """
+
+    plan_paths: tuple[Path, ...]
+    all_paths: tuple[Path, ...]
+    unresolved: tuple[str, ...]
+
+
+def resolve_selected_artifact_paths(
+    repo: Path,
+    manifest: dict,
+    queue_ids: Any,
+    types: Any = None,
+) -> TypedSelection:
+    """Resolve selected ids to files, keeping PLAN paths distinguishable from the rest.
+
+    ``types`` is the effective type set (:func:`resolve_run_types`); for the IPD-only default this
+    resolves exactly as the single-list code it replaces did, through `resolve_plan_path` against the
+    manifest entry, so no existing invocation's behavior moves.
+
+    A SPEC IS RESOLVED THROUGH `discover_specs`, NOT THROUGH `resolve_plan_path`, and that is a
+    correctness requirement rather than tidiness: `resolve_plan_path` FAILS OPEN. Its `selectors`
+    branch can return a `.spec.md` path with no diagnostic (measured and recorded in superseded plan
+    `mng63x`'s review), so routing a spec through it would produce a spec path that every later
+    plan-shaped reader treats as a plan, silently. Resolving each type through its OWN discovery
+    authority keeps the type of a path a fact rather than an inference.
+    """
+
+    effective = resolve_run_types(types)
+    plan_paths: list[Path] = []
+    all_paths: list[Path] = []
+    unresolved: list[str] = []
+    specs: dict[str, Any] | None = None
+
+    for id6 in list(queue_ids or ()):
+        resolved: Path | None = None
+        if "ipd" in effective and id6 in manifest.get("plans", {}):
+            try:
+                resolved = resolve_plan_path(
+                    repo, manifest["plans"][id6].get("file", ""), id6
+                )
+            except (DriverError, KeyError):
+                resolved = None
+            if resolved is not None:
+                plan_paths.append(resolved)
+        if resolved is None and "spec" in effective:
+            if specs is None:
+                specs = discover_specs(repo)
+            record = specs.get(id6)
+            if record is not None:
+                resolved = record.path
+        if resolved is None:
+            unresolved.append(id6)
+            continue
+        all_paths.append(resolved)
+
+    return TypedSelection(
+        plan_paths=tuple(plan_paths),
+        all_paths=tuple(all_paths),
+        unresolved=tuple(unresolved),
+    )
+
+
+def refuse_unrunnable_selected_types(types: Any, selection: TypedSelection) -> None:
+    """REFUSE a selection holding an artifact the runner can SELECT but cannot RUN, before any state.
+
+    THE HONEST LIMIT OF specsweep-01 (`ui8b9b`), enforced rather than merely documented. That plan
+    delivers REACHABILITY: `--type spec` now selects the specs awaiting review. It deliberately does
+    NOT deliver EXECUTION, because a queue entry is PLAN-SHAPED - the manifest is compiled from
+    discovered plans only, `initialize_run_core`'s queue build reads `manifest["plans"][id6]`, and
+    `resolve_plan_path` fails open on a non-plan path. Spec `z7nbn1` (universal artifact dispatch)
+    owns that remainder and carries its own release gate.
+
+    SO THE CHOICE HERE IS BETWEEN THREE HONEST-TO-VARYING-DEGREES OUTCOMES, and the refusal is the
+    only one that is honest at all. Letting the queue build proceed raises `KeyError` - an unhandled
+    traceback out of a flag we just shipped. Synthesizing a plan-shaped entry for the spec hands it to
+    code that assumes a plan at many call sites, and because `resolve_plan_path` fails OPEN that
+    failure would be SILENT rather than loud, which is strictly worse than the crash. Refusing states
+    the real boundary at the one moment an operator could otherwise mistake selection for execution.
+
+    IT IS SITED AFTER THE MIXED-TYPE GATE ON PURPOSE (`initialize_run_core`). A genuinely mixed
+    selection must meet spec 2.5's `[RUN-MIXED-TYPES]` refusal FIRST, because that gate is about the
+    operator's INTENT ("did you mean to span two types?") while this refusal is about the runner's
+    CAPABILITY. Pre-empting the gate would hide the intent question behind an implementation limit.
+    """
+
+    effective = tuple(types or ())
+    unrunnable = [t for t in effective if t != "ipd"]
+    if not unrunnable:
+        return
+    named = ", ".join(p.name for p in selection.all_paths) or "(none resolved)"
+    raise RunFlagRefusal(
+        f"--type {', '.join(unrunnable)}: this selection was RESOLVED but cannot be RUN. Selected: "
+        f"{named}. A run queue entry is plan-shaped (the manifest is compiled from the plans trees, "
+        "and the queue builder resolves each entry as an IPD), so queueing a non-plan artifact would "
+        "hand it to code that assumes a plan. Type-scoped SELECTION ships (spec 6m4kow R-15); "
+        "per-type DISPATCH is owned by spec z7nbn1 (universal artifact dispatch) and is not built. "
+        "The selection above is what `--type` resolved, so you can act on it directly. No work "
+        "started, and nothing durable was created"
+    )
+
+
+def refuse_type_scoping_outside_the_review_sweep(types: Any, selectors: Any) -> None:
+    """REFUSE `--type` on a selector that does not honor it yet, rather than ignoring it silently.
+
+    Spec 2.3 step 2 gives `--type` meaning for `all` and for a bare selector as well as for the
+    review sweep, and only the REVIEW sweep is type-scoped in shipped code: both hosts' `all` branch
+    and named-selector branch read the manifest, which `build_dynamic_manifest` compiles from
+    discovered PLANS only.
+
+    THIS REFUSAL IS MORE IMPORTANT THAN THE UNSWEEPABLE-TYPE ONE ABOVE, and the reason is the
+    asymmetry: `--type spec` genuinely WORKS on `reviews`, so an operator has every reason to believe
+    it worked on `all` too, and a silent no-op there would quietly hand them an IPD-only run they
+    believe was type-scoped. A flag that works on one selector and is ignored on another is worse
+    than a flag that does not exist.
+
+    An explicitly DEFAULT type set (`ipd`, i.e. no flag passed) is never refused: the default is what
+    every selector already means.
+    """
+
+    effective = tuple(types or ())
+    if not effective or effective == RUN_TYPE_DEFAULT:
+        return
+    if is_review_selector(selectors):
+        return
+    raise RunFlagRefusal(
+        f"--type {', '.join(effective)} is not honored by this selector. Only the needs-review "
+        "sweep (`reviews`/`review`/`to-review`) is type-scoped today; `all` and a named selector "
+        "resolve against the run manifest, which is compiled from the plans trees only, so a type "
+        "here would be silently ignored rather than applied. Spec 25kzda 2.3's type scoping for "
+        "those selectors is owned by spec z7nbn1 (universal artifact dispatch). To sweep another "
+        "type's review queue, run: aw <host> run reviews --type "
+        f"{effective[0]}. No work started"
+    )
 
 
 def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
@@ -10238,7 +10538,9 @@ class RunPolicyFlag(NamedTuple):
       * ``dest``        - the argparse destination, hence the run-state option key.
       * ``kind``        - ``"bool"`` (a `BooleanOptionalAction`, matching shipped `--full-auto`),
                           ``"int"``, ``"choice"`` (a closed string vocabulary carried in
-                          ``choices``), or ``"str"`` (an OPEN operator-authored string).
+                          ``choices``), ``"multi-choice"`` (the same closed vocabulary, but
+                          REPEATABLE and accumulating into a list), or ``"str"`` (an OPEN
+                          operator-authored string).
                           ``"choice"`` arrived with integpath-03's `--on-integration-blocked`, whose
                           value SELECTS A POLICY rather than toggling one, so argparse must reject an
                           unrecognized spelling at parse time instead of leaving a typo to be
@@ -10298,7 +10600,49 @@ RESUME_NONE_DEFAULT = "none-default"
 #:
 #: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
 #: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
+#:
+#: `--type` JOINED with specsweep Order 01 (`ui8b9b`), and it is the row whose ARRIVAL was planned for
+#: by the row that preceded it: `uyeko5` put `--type` in the contract test's
+#: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
+#: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
+#: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
+#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
+#: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
 RUN_POLICY_FLAGS: tuple = (
+    # specsweep-01 (`ui8b9b`) E-01: `--type`, MOVED out of the contract test's
+    # `DECLARED_BUT_NOT_OWNED_HERE` rather than added beside it. Spec 2.1 already DECLARED it, so no
+    # spec amendment is needed to register it here (unlike the `--allow-dirty-base` and
+    # `--allow-concurrent-driver` rows above, which had to amend 2.1 in their own change).
+    #
+    # FIRST IN THE TUPLE because spec 2.1's grammar block lists it first, and this table's contract is
+    # to hold the rows "in the order the spec's grammar block lists them".
+    #
+    # `resume_rule=RESUME_REFUSE`, and this is the table's SECOND refusing row after `--retry-budget`.
+    # The reason is stronger here than there: `--type` is not a policy a resume could re-apply, it IS
+    # THE SELECTION, and the queue is frozen. So an accepted `--type` on resume could not re-scope the
+    # queue; it could only write a frozen option CONTRADICTING the queue the run actually holds.
+    # Spec `:129` names exactly this case ("mutually exclusive with ... flags that would change the
+    # frozen queue"), so unlike `--full-auto` there is no `:129`-versus-`:131` tension to inherit.
+    RunPolicyFlag(
+        flag="--type",
+        dest="types",
+        kind="multi-choice",
+        implemented=True,
+        owner="runner_shared.sweep_review_candidates_for_type",
+        help=(
+            "Scope a needs-review sweep to one or more artifact TYPES, repeatable (--type ipd "
+            "--type spec selects the union). Omitted, the sweep selects IPDs ONLY, which is "
+            "normative: a type never joins `reviews` implicitly. Only 'ipd' and 'spec' can be "
+            "enumerated today; the other types this flag accepts are refused by name, because "
+            "sweeping nothing and reporting success would be a falsehood (spec z7nbn1 owns the "
+            "remainder). Honored by the review sweep ONLY: passing it with `all` or a named "
+            "selector is REFUSED rather than ignored. SELECTING a spec is not RUNNING one - a "
+            "spec-typed selection is refused at queue build, because a queue entry is plan-shaped. "
+            "Cannot be changed on --resume: the frozen value stands"
+        ),
+        resume_rule=RESUME_REFUSE,
+        choices=RUN_TYPE_CHOICES,
+    ),
     RunPolicyFlag(
         flag="--allow-mixed",
         dest="allow_mixed",
@@ -10620,6 +10964,22 @@ def register_run_policy_flags(
                 dest=row.dest,
                 choices=list(row.choices),
                 default=None,
+                help=row.help,
+            )
+        elif row.kind == "multi-choice":
+            # specsweep-01 (`ui8b9b`) E-01: REPEATABLE, because spec 2.1 spells it `[--type <...>]...`
+            # and 2.3 makes repetition the UNION of the named types. `action="append"` with
+            # `default=None` is what makes "the operator said nothing" distinguishable from "the
+            # operator named one type", which is the distinction the normative IPD-only default rests
+            # on: a `default=[]` or `default=("ipd",)` here would put the default in the PARSER, in two
+            # places, instead of in `resolve_run_types` where one function owns it.
+            parser.add_argument(
+                row.flag,
+                dest=row.dest,
+                action="append",
+                choices=list(row.choices),
+                default=None,
+                metavar="TYPE",
                 help=row.help,
             )
         elif row.kind == "str":
@@ -11530,6 +11890,14 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
             frozen[row.dest] = resolve_integration_retry_limit(_supplied(row.dest))
         elif row.dest == "on_integration_blocked":
             frozen[row.dest] = resolve_on_integration_blocked(_supplied(row.dest))
+        elif row.kind == "multi-choice":
+            # specsweep-01 (`ui8b9b`) E-03: frozen as the EFFECTIVE, RESOLVED type set, exactly as
+            # `retry_budget` freezes its effective integer and for the same reason - a later reader
+            # must never have to re-resolve a bare `None`, and re-resolve it differently. So a bare
+            # invocation freezes `["ipd"]` (the normative default made explicit and auditable in run
+            # state) rather than `null`, which would leave the run's own record unable to say what it
+            # selected. A LIST, not a tuple, because this dict is serialized to `state.json`.
+            frozen[row.dest] = list(resolve_run_types(_supplied(row.dest)))
         elif row.kind == "str":
             # orchprobe-03 (`m7gvuz`) E-05: frozen as the OPERATOR'S TEXT, never coerced to a bool.
             # The generic `bool(...)` arm below would freeze `True` and destroy the justification,
@@ -20772,9 +21140,18 @@ def initialize_run_core(
     resolve_retry_budget(getattr(args, "retry_budget", None))
     resolve_integration_retry_limit(getattr(args, "integration_retry_limit", None))
     resolve_on_integration_blocked(getattr(args, "on_integration_blocked", None))
+    # specsweep-01 (`ui8b9b`) E-01/E-02: `--type`'s two refusals, BOTH ahead of the run directory so
+    # each leaves nothing durable behind, exactly as `refuse_unimplemented_run_flags` above does.
+    # Resolved ONCE here and threaded, rather than re-derived per consumer, because a second
+    # resolution is a second place the normative IPD-only default could be widened by omission.
+    run_types = resolve_run_types(getattr(args, "types", None))
+    refuse_unsweepable_run_types(run_types)
+    refuse_type_scoping_outside_the_review_sweep(run_types, args.selectors)
     report_untracked_dirt_at_run_start(repo)
 
-    queue_ids = expand_selectors_fn(manifest, args.selectors, repo=repo)
+    queue_ids = expand_selectors_fn(
+        manifest, args.selectors, repo=repo, types=run_types
+    )
 
     if is_status_selector(args.selectors):
         queue_ids, draft_verdict = enforce_draft_admission_gate(
@@ -20834,14 +21211,14 @@ def initialize_run_core(
             file=sys.stderr,
         )
 
-    selected_plan_paths: list[Path] = []
-    for id6 in queue_ids:
-        try:
-            selected_plan_paths.append(
-                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
-            )
-        except (DriverError, KeyError):
-            continue
+    # specsweep-01 (`ui8b9b`) E-02/DECISION D5: resolved through the TYPE-AWARE resolver, which keeps
+    # PLAN paths distinguishable from the rest. The two consumers below are NOT interchangeable once a
+    # selection can hold more than one type: the dependency preflight hands each path's TEXT to the IPD
+    # dependency evaluator and must therefore see PLANS ONLY, while the mixed-type gate must see EVERY
+    # path, because judging the mix is its entire job. For the IPD-only default both lists are
+    # identical and identical to what the single list held before, so no existing run's behavior moves.
+    selection = resolve_selected_artifact_paths(repo, manifest, queue_ids, run_types)
+    selected_plan_paths = list(selection.plan_paths)
     enforce_dependency_preflight_fn(repo, selected_plan_paths)
 
     requested_action = getattr(args, "action", None)
@@ -20868,14 +21245,25 @@ def initialize_run_core(
         labels = AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS
         enforce_requested_action(requested_action, preflight_items, labels=labels)
 
+    # specsweep-01 (`ui8b9b`) E-04: THE FULL TYPED PATH SET, not the plan subset. Until `--type`
+    # existed this gate was reached on every run and correctly never applied, because no invocation
+    # could produce a mixed selection - a limit `uyeko5` pinned deliberately. Handing it
+    # `selected_plan_paths` now would keep that limit permanently true by construction: a spec would be
+    # filtered out before the gate could see it, so `--type ipd --type spec` would look single-type and
+    # the shipped `[RUN-MIXED-TYPES]` refusal would stay dead with no test able to notice.
     mixed_verdict = enforce_mixed_type_gate(
         repo,
-        selected_plan_paths,
+        list(selection.all_paths),
         allow_mixed=bool(getattr(args, "allow_mixed", False)),
         interactive=is_interactive_run(args),
         host=host,
         selector=" ".join(str(s) for s in args.selectors),
     )
+    # AFTER the mixed-type gate, DELIBERATELY (DECISION D4). That gate asks about the operator's
+    # INTENT ("did you mean to span two types?"); this refusal states the runner's CAPABILITY. Sited
+    # earlier it would pre-empt the intent question with an implementation limit, and an operator who
+    # genuinely mistyped a mixed selection would be told the wrong thing first.
+    refuse_unrunnable_selected_types(run_types, selection)
     enforce_no_active_runner_conflict(
         repo,
         queue_ids,

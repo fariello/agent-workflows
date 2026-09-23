@@ -14,6 +14,8 @@
   it does NOT change any plan-review behavior beyond what generalizing the record shape forces.
 
 ## Workflow history
+
+- 2026-09-23 note (aw specs): AMENDED by executed plan ui8b9b (specsweep Order 01), which delivered R-15's OPERATOR SURFACE: --type is now registered on BOTH hosts' start and resume parsers from the shared RUN_POLICY_FLAGS table and threaded to sweep_review_candidates_for_type, so 'aw <host> run reviews --type spec' is a real invocation. THREE corrections, each measured at HEAD a7e27f4a rather than inherited. (1) Section 0's R-15 row read 'IMPLEMENTED AT THE FUNCTION BOUNDARY, NOT OPERATOR-REACHABLE' with the evidence '--type is registered on NEITHER host'; both halves are now false. (2) That same row asserted the sweep 'returns the four to-review specs', a POPULATION claim that rotted TWICE in ten days (it returned [] at ui8b9b's review, because the spec-review round that filed ui8b9b advanced all four to approved, and returned one spec z7nbn1 at execution). The row is re-phrased on the PREDICATE and cites its tests, so it cannot rot the same way a third time; a reader wanting today's population runs the command. (3) The Section 0 gate table named plan mng63x as the execution half's carrier; mng63x was SUPERSEDED on 2026-09-18 by spec z7nbn1, which inherited Blocks-Release: next, so the table and Section 6 now point at z7nbn1 and record that the retired plan is in superseded/. WHAT IS UNCHANGED: this spec's - Status: (byte-identical, still approved) and its - Blocks-Release: (still ABSENT; it was cleared at authoring time in b16e1108 and was NOT re-cleared here, since a setter call against an absent field on an approved spec this plan's author did not approve would write a spurious record). THE LIMIT IS NARROWED, NOT REMOVED: selection ships, per-type EXECUTION does not, so a --type spec run selects the specs and then REFUSES to queue them (refuse_unrunnable_selected_types) naming what it selected, because a queue entry is plan-shaped and resolve_plan_path fails OPEN on a non-plan path. Spec z7nbn1 owns the remainder.
 - 2026-09-13 approved (aw set, --by-human): status set to approved
 - 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-101..SR-109, all nine FIXED, none deferred, none open. THIS REVIEW IS THE SPEC'S OWN ACCEPTANCE TEST: R-06 requires a spec-review capability producing a findings table, a verdict, a conforming record and a legal transition, and this record is that output, so A-01 is satisfied by the artifact itself. THE SPEC HAD SHIPPED AND READ AS THOUGH IT HAD NOT: 15 of 16 requirements are IMPLEMENTED (verified one by one) while Section 1 still said 'none of it is implementable today', so a new Section 0 carries a per-requirement status table with evidence and names the three delivering plans. NO CRITERION CITED A REQUIREMENT in a spec whose Section 2 gives every requirement a stable id for exactly that purpose; mapping them exposed R-05, R-10 and R-15 uncovered, and R-15 is the ONE unfinished requirement, so the uncovered and unfinished sets intersected where it was most dangerous. RELEASE GATE MOVED ON THE MAINTAINER'S RULING (a gate belongs on a plan, not a spec; plans preferred to backlog items; selection ships now with the execution half as its OWN blocker; HOW execution is implemented needs DISCUSSION captured loudly): filed ui8b9b (selection, conforming) and mng63x (execution, DESIGN-FIRST, Scope-Paths deliberately TBD, its OQ-01 being the design), both carrying Blocks-Release: next and From-Spec: 6m4kow, and this spec's gate is cleared in this same call. 2.0.0's blocker count is unchanged. Also corrected: the record population asserted as 34 (186 today, and already stale at 36 when the implementing plan was reviewed), the grandfathered count asserted as 20, the sizing note, R-10 presented as open nine days after it was ruled on, and 'aw find specs --status' recorded as broken at authoring and STILL broken (root-caused to a branch that never reads its status filter, affecting seven record types, tracked by no backlog item). Added the honest limit that filing a review record arms a no-override refusal on the spec's own approval, including for a record that merely fails to parse.
 - 2026-09-04 to-review (aw set): Authored at the maintainer's direction while answering a question about naming a review-status command. Research established that spec 25kzda (approved, Blocks-Release: next) already MANDATES spec review in Section 3.3 and already defines three deterministic checks for it by name in Section 4.8 (SPEC-REVIEW-COMPLETE, SPEC-REVIEW-TRANSITION, SPEC-REVIEW-STRUCTURE), so this is COMPLETION of approved release-gating work rather than a new proposal; hence From-Spec: 25kzda and the inherited release gate. FOUR THINGS MEASURED AT AUTHORING, not inherited: (a) no spec-review workflow exists at all - .aw/system/workflows/ has plan-review and plan-review-long, /spec states it PRODUCES rather than reviews, and /advise spec-editor yields no verdict, findings, or transition; (b) review_findings.render_review hardcodes '- Plan-Id:' and check_engine.check_review_dangling resolves it against the plans tree ONLY, so a spec review would be flagged check.review-dangling by the repository's own checker; (c) runner_shared.discover_plans walks only the two plans trees, so no selector can reach a spec however it is spelled; (d) spec to-review -> reviewed has NO entry in attention_contract.TRANSITION_AUTHORITY, so it is an UNATTESTED status flip today - an agent can set a spec reviewed with no review, no findings and no record, while the same claim on a plan is policed by check.review-finding-unescalated and the approval verdict guard. That gap is what R-11 closes and is the strongest argument in the spec, given that specs are the artifact which AUTHORIZES plans. POPULATION MEASURED so nobody reads this as throughput work: 1 plan at to-review, 2 specs at draft, 0 specs at to-review, 34 existing review records; recorded as an honest limit rather than omitted, because the justification is structural (two thirds of needs-review artifacts have no workflow) and not volume. ONE DECISION LEFT OPEN DELIBERATELY (R-10, Section 5): a new spec-review/ workflow versus generalizing plan-review/. Left to the graduating plan because it needs the code in front of it and both answers are defensible - generalizing means changing two bodies held in deliberate parity and making plan-specific machinery conditional, while forking means two rubrics. The constraint binding either answer is stated instead: the findings/verdict/record machinery stays shared exactly once, so a plan that forks the record is rejected regardless of workflow shape. Also recorded: 'aw find specs --status' silently ignores its filter at authoring (verified for all nine statuses), so anything built on it inherits the bug.
@@ -37,27 +39,48 @@ Measured at HEAD `9697856e`:
 | R-11, R-12 | IMPLEMENTED | `TRANSITION_AUTHORITY["->reviewed"]` carries `review_record: True`; ONE predicate `review_findings.review_attestation_missing`, consulted by `specs.py`, `status_set.py` and `check_engine.check.spec-review-unattested` |
 | R-13 | HOLDS | grandfathering is structural (the table is consulted only at transition time), not a cutover date |
 | R-14, R-16 | IMPLEMENTED | exactly one `def needs_review` in the package (`run_selection_policy.py:542`), derived from the dispatch table |
-| R-15 | IMPLEMENTED AT THE FUNCTION BOUNDARY, NOT OPERATOR-REACHABLE | `runner_shared.sweep_review_candidates_for_type(repo, "spec")` returns the four `to-review` specs; but `--type` is registered on NEITHER host, so no operator invocation can reach it |
+| R-15 | IMPLEMENTED AND OPERATOR-REACHABLE | `aw <host> run reviews --type spec` selects the specs the shipped predicate answers `needs_review` True for; `--type` is registered on BOTH hosts' `start` and `resume` parsers from the shared `RUN_POLICY_FLAGS` table and threaded to `sweep_review_candidates_for_type` (`ui8b9b`, `tests/test_run_flag_surface.py::TypeScopedReviewSweepTests`) |
 
-Delivered by `eyh1fu` (the record), `5slbpi` (the workflow plus the attestation) and `wpomxa` (the
-gating-predicate rename), all `- Status: executed`. WHAT IS NOT DONE is R-15's operator surface: the
-`--type` flag belongs to `25kzda` 2.2/2.3 and was explicitly excluded by executed plan `uyeko5`, so the
-cross-type sweep is callable but unreachable. Section 6 states this as an honest limit.
+Delivered by `eyh1fu` (the record), `5slbpi` (the workflow plus the attestation), `wpomxa` (the
+gating-predicate rename) and `ui8b9b` (R-15's operator surface), all `- Status: executed`.
+
+THE R-15 ROW IS PHRASED ON THE PREDICATE, NOT ON A POPULATION, AND THAT IS DELIBERATE. It previously
+read that the sweep "returns the four `to-review` specs", and that measurement rotted TWICE inside ten
+days: by the time `ui8b9b` was reviewed the sweep returned `[]` (the same spec-review round that filed
+`ui8b9b` advanced all four of those specs to `approved`), and by the time it was executed the sweep
+returned one spec (`z7nbn1`, then at `to-review`). Every one of those three answers was correct for its
+day, which is the point: a spec asserting a live population states something that becomes false without
+anyone editing any code. So this row states WHAT THE SWEEP DECIDES and cites the tests that prove it,
+and a reader wanting today's population runs the command.
+
+WHAT IS NOT DONE, stated precisely because the distinction is easy to lose now that the row is green:
+type-scoped SELECTION ships and per-type EXECUTION does not. `aw <host> run reviews --type spec` selects
+the specs awaiting review, and a run then REFUSES to queue them
+(`runner_shared.refuse_unrunnable_selected_types`), because a run queue entry is plan-shaped: the
+manifest is compiled from the plans trees, the queue builder resolves each entry as an IPD, and
+`resolve_plan_path` fails OPEN on a non-plan path, so queueing a spec would hand it to plan-shaped code
+SILENTLY. That refusal names the selection it resolved, so the capability is usable even though the run
+cannot act on it. Spec `z7nbn1` (universal artifact dispatch) owns the remainder and carries its own
+`- Blocks-Release: next`. Section 6 states this limit.
 
 WHERE THE RELEASE GATE LIVES NOW, and why it is no longer on this spec. This spec carried
 `- Blocks-Release: next` while its work was outstanding. On 2026-09-13 the maintainer ruled that a release
 gate belongs on a PLAN rather than on a spec, and that the spec's field is cleared once the plan carrying
 it is filed. TWO plans now carry it, because the same ruling split R-15's remainder in half:
 
-| Plan | Carries | State |
+| Artifact | Carries | State |
 |---|---|---|
-| `ui8b9b` (`specsweep` Order 01) | R-15's SELECTION half: register `--type` on both runners so a spec sweep is operator-reachable | filed `to-review`, `- Blocks-Release: next` |
-| `mng63x` (`specdispatch` Order 01) | R-15's EXECUTION half: how the runner dispatches a non-plan artifact | filed `to-review`, `- Blocks-Release: next`, DESIGN-FIRST |
+| `ui8b9b` (`specsweep` Order 01) | R-15's SELECTION half: register `--type` on both runners so a spec sweep is operator-reachable | `executed` 2026-09-23; the gate is discharged with the work |
+| spec `z7nbn1` (universal artifact dispatch) | R-15's EXECUTION half: how the runner dispatches a non-plan artifact | `- Blocks-Release: next`; SUPERSEDED plan `mng63x` on 2026-09-18 and inherited its gate |
 
-So clearing this spec's field loses no gate: 2.0.0's blocker count is unchanged, and the two halves are
-now separately reviewable and separately provable. `mng63x` is deliberately design-first, because the
-maintainer also ruled that HOW execution is implemented needs DISCUSSION; its own open question is that
-design, and it must not be executed as though the approach were settled.
+So clearing this spec's field lost no gate, and the EXECUTION half's carrier has since MOVED. The
+maintainer ruled on 2026-09-13 that the execution half needed DISCUSSION before it was built, so it was
+filed as design-first plan `mng63x`; that discussion produced spec `z7nbn1`, which superseded `mng63x` on
+2026-09-18 per its own OQ-03 and carries `- Blocks-Release: next` forward. A reader chasing the execution
+half must therefore follow `z7nbn1` and not `mng63x`, which is retired in
+`.aw/records/plans/superseded/`. The design-first instruction was honored rather than dropped: it
+produced a spec, which is the discussion the maintainer asked for, instead of an unreviewed
+implementation.
 
 THE SPEC IS STILL WORTH REVIEWING AND APPROVING RATHER THAN RETIRING, because it is the contract those
 three executed plans were built against and the two new ones are written against. What review must NOT do
@@ -290,16 +313,22 @@ forks the record is rejected regardless of which workflow shape it picks.
   The executed plan `5slbpi` deliberately AVOIDED the filter rather than fixing it (its D4, the fix being
   outside its scope) and used `check_engine._iter_spec_records` instead. Anything built on the filter
   inherits the bug; it is not tracked by any backlog item, which is itself a gap.
-- **R-15 is satisfied at the FUNCTION boundary only, and no operator can reach it.** The cross-type sweep
-  works when called with the spec type, and `--type` is registered on neither host, so no invocation can
-  supply one. Do not read a green R-15 as a shipped operator capability. The flag is `25kzda` 2.2/2.3's and
-  was explicitly excluded by executed plan `uyeko5`. Both halves of the remainder are now carried by plans
-  (`ui8b9b` for selection, `mng63x` for execution), each gating the release; see Section 0.
-- **SELECTING a spec is not RUNNING one, and the second half is genuinely large.** Measured while filing
-  `mng63x`: the manifest is compiled from discovered plans only, a queue entry is plan-shaped and its path
-  resolves through the plans tree, and two of the three declared spec actions are not review turns at all
-  (`approved` means author IPDs from the spec, and `implementing` dispatches children and has no dispatch
-  row). So even once `--type` lands, a reader must not conclude that a spec can be reviewed by the runner.
+- **R-15's operator surface SHIPS, and this bullet used to say the opposite.** It read that the sweep
+  "works when called with the spec type, and `--type` is registered on neither host, so no invocation can
+  supply one". Executed plan `ui8b9b` registered `--type` on BOTH hosts' `start` and `resume` parsers from
+  the shared `RUN_POLICY_FLAGS` table and threaded it to the sweep, so `aw <host> run reviews --type spec`
+  is now a real invocation. The flag's grammar is still `25kzda` 2.2/2.3's, and `uyeko5` still excluded it
+  deliberately; what changed is that a later plan took ownership of the row rather than the exclusion
+  standing forever.
+- **SELECTING a spec is STILL not RUNNING one, and this is now the whole of R-15's remainder.** The limit
+  did not go away with the flag; it moved from "you cannot ask" to "you can ask and the runner refuses".
+  Measured while filing `mng63x` and re-verified while executing `ui8b9b`: the manifest is compiled from
+  discovered plans only, a queue entry is plan-shaped and its path resolves through the plans tree, and two
+  of the three declared spec actions are not review turns at all (`approved` means author IPDs from the
+  spec, and `implementing` dispatches children and has no dispatch row). A `--type spec` run therefore
+  SELECTS the specs and then refuses to queue them, NAMING what it selected, rather than handing a spec to
+  plan-shaped code - which would fail SILENTLY, because `resolve_plan_path` fails open on a non-plan path.
+  Spec `z7nbn1` owns the remainder. Do not read a green R-15 as "the runner can review a spec".
 - **The attestation is only as strong as the record.** A review record that fails to PARSE is treated as
   BLOCKING, so a malformed record refuses its own spec's approval with a parse code rather than a finding.
   That is intended fail-closed behavior, and it means a careless reviewer can block a maintainer's spec.
@@ -308,7 +337,9 @@ forks the record is rejected regardless of which workflow shape it picks.
 
 - The `aw <host> review` alias, the `reviews` selector, and the draft admission gate: `25kzda`
   Sections 2.1, 2.4a, 2.5a. Consumed here, not specified here.
-- The runner flag surface, including `--type` and `--allow-drafts` registration: plan `uyeko5`.
+- The runner flag surface: plan `uyeko5`, which built the shared `RUN_POLICY_FLAGS` table and registered
+  `--allow-drafts`. `--type`'s registration in that table is plan `ui8b9b` (it was an explicitly NAMED
+  exclusion of `uyeko5`, not an oversight, and `ui8b9b` moved the row rather than adding a second one).
 - Multi-type SELECTION and the mixed-type gate wiring: `25kzda` Sections 2.2/2.3/2.5, gate built by
   executed plan `6lu3rq`, wiring owned by `uyeko5`.
 - Reviewing backlog, research, release, or walkthrough records (D-03).

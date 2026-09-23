@@ -2878,8 +2878,15 @@ def expand_selectors(
     manifest: dict[str, Any],
     selectors: Iterable[str],
     repo: Path | None = None,
+    types: Any = None,
 ) -> list[str]:
-    """Resolve selector tokens (id6, setid, file paths, or 'all') against the manifest and repo."""
+    """Resolve selector tokens (id6, setid, file paths, or 'all') against the manifest and repo.
+
+    `types` (specsweep-01 `ui8b9b` E-02) is the operator's `--type` set, honored by the REVIEW sweep
+    only. It is KEYWORD-OPTIONAL and defaults to `None`, which `resolve_run_types` reads as the
+    normative IPD-only default, so every existing call site (including the shipped tests that call
+    this with three positional arguments) keeps its exact behavior.
+    """
     plans = manifest.get("plans", {})
     sets = manifest.get("sets", {})
     selectors_list = [str(s).strip() for s in selectors]
@@ -2896,7 +2903,14 @@ def expand_selectors(
         # item the table routes to review and an item the sweep selects are the same set BY
         # CONSTRUCTION". The shared function derives the answer from `run_selection_policy`'s action
         # table and reads plan text only for `draft` candidates, failing safe to NOT-swept.
-        expanded = runner_shared.sweep_review_candidates(manifest, repo=repo)
+        #
+        # specsweep-01 (`ui8b9b`) E-02: ROUTED THROUGH THE TYPE-SCOPED ENTRY POINT, which for `ipd`
+        # delegates to `sweep_review_candidates` VERBATIM (same manifest walk, same Set ordering, same
+        # memoized decision), so a bare invocation's selection is unchanged. The agy twin does the
+        # same; membership stays the ONE shared predicate and gains no second copy here.
+        expanded = runner_shared.sweep_review_candidates_for_types(
+            repo, types, manifest=manifest
+        )
 
         if not expanded:
             # revsweep 76gsmv E-04: spec 25kzda 2.4a property 3. The message stays the same string

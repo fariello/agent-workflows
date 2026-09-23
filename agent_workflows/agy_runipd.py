@@ -1713,8 +1713,16 @@ def expand_selectors(
     manifest: dict[str, Any],
     selectors: Iterable[str],
     repo: Path | None = None,
+    types: Any = None,
 ) -> list[str]:
-    """Resolve selector tokens (id6, setid, file paths, or 'all') against manifest and repo."""
+    """Resolve selector tokens (id6, setid, file paths, or 'all') against manifest and repo.
+
+    `types` (specsweep-01 `ui8b9b` E-02) is the operator's `--type` set, honored by the REVIEW sweep
+    only, with the same signature and the same `None`-means-IPD-only default as the oc twin. The two
+    hosts take this parameter identically on purpose: `uyeko5`'s history records `--full-auto` having
+    meant opt-in on one host and opt-out on the other, which is the divergence a shared surface exists
+    to prevent.
+    """
     plans = manifest.get("plans", {})
     sets = manifest.get("sets", {})
     selectors_list = [str(s).strip() for s in selectors]
@@ -1728,7 +1736,13 @@ def expand_selectors(
         # entire point: the closure this replaces was a verbatim duplicate of oc's (they diffed to one
         # loop-variable hunk), so fixing one host's `status == "to-review"` test would have left THIS
         # one wrong. The oc twin carries the full note; spec 25kzda 2.4a property 2 is the rule.
-        expanded = runner_shared.sweep_review_candidates(manifest, repo=repo)
+        #
+        # specsweep-01 (`ui8b9b`) E-02: the type-scoped entry point, identical to the oc twin's call.
+        # For `ipd` it delegates to `sweep_review_candidates` verbatim, so a bare invocation on this
+        # host selects exactly what it selected before.
+        expanded = runner_shared.sweep_review_candidates_for_types(
+            repo, types, manifest=manifest
+        )
 
         if not expanded:
             # revsweep 76gsmv E-04: spec 25kzda 2.4a property 3. The message string is unchanged;
