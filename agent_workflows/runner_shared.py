@@ -2858,6 +2858,695 @@ def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
     return sorted(incoming & dirty)
 
 
+# ==================================================================================================
+# laneraceplan-01 (`kl18sz`): THE RECORDS-ONLY FRONT-MATTER CONFLICT, RE-DERIVED RATHER THAN MERGED
+# ==================================================================================================
+#
+# THE DEFECT, MEASURED RATHER THAN REASONED. A plan whose job is to edit front matter across the whole
+# `pending/` population is, by construction, contending with every execute item in its own run, so the
+# more successful the run the more conflicts it causes and the more likely it is to be stranded. Item
+# `8u6770` in run `run-20260922T024054Z-2245533` ended `merge-refused` with a real git conflict in 13
+# files, ALL of them `.aw/records/plans/*.ipd.md` and NONE of them code.
+#
+# THE SHAPE IS A PURE LIFECYCLE RACE, NOT A DISAGREEMENT. The lane reads plans in `pending/` and adds
+# two adjacent front-matter lines (`- Work-Kind:` and `- Priority:`) plus one history line to each,
+# inheriting each value from a backlog item the plan itself names. While it ran, THE SAME RUN executed
+# those very plans, and executing a plan moves the file `pending/` -> `executed/` AND rewrites its
+# `- Status:` line AND appends its own history line. Git therefore sees both sides touching adjacent
+# lines of a renamed file and conflicts. The lane's own appended history line says in as many words
+# "status unchanged (no lifecycle transition)", so it never intended to touch `- Status:` at all.
+#
+# RE-MEASURED AT EXECUTION (2026-09-23), and the measurement is BIGGER than the authored plan claimed.
+# The plan records `aw/lane/8u6770` as absent from every lane branch, which is true of the BRANCH
+# REFS; the lane's commits survive as DANGLING OBJECTS in this repository and the finalize tip
+# `0abc01d9` is still resolvable, so the real replay was reconstructed from it rather than from the
+# 4-path substitute the plan sanctioned. `git merge-tree --write-tree main 0abc01d9` reports 34
+# conflicting paths (30 now in `executed/`, 4 still in `pending/`), every one a `.ipd.md` plan. All 34
+# classify as THIS shape under the rule below, and on all 34 the target's `- Status:` had changed.
+#
+# THE TRAP IS A RESOLVER'S, NOT A SILENT MERGE'S, and the distinction is load-bearing because an
+# earlier draft of the plan overstated it. Git does NOT lose the transition on its own: a stale side
+# that edits a plan main has moved produces a loud conflict, and there is no conflict-free path that
+# un-executes a plan. The hazard is entirely in what a HUMAN OR AGENT then types at the conflict
+# prompt, where "keep the lane's version" is one keystroke, looks defensible for "the branch that owns
+# this edit", and would assert that 30 plans sitting in `executed/` are merely `approved`.
+#
+# WHY RE-DERIVATION IS NOT THE REPETITION SPEC `25kzda` 2.1 PROHIBITS. That section says the
+# integration ladder "never applies to a genuine merge conflict ... none of which repetition fixes",
+# and a genuine merge conflict is exactly what `8u6770` hit. The prohibition's stated REASON is that
+# repetition does not fix these classes, and that reasoning holds. Re-derivation is not repetition: it
+# RECOMPUTES the intended edit against the settled tree, which is a different operation with a
+# different failure mode. The maintainer accepted that argument on 2026-09-22 (plan `kl18sz` OQ-01),
+# and Section 2.1a of that spec now carries the narrow carve-out. Every OTHER conflict class remains
+# terminal on its first attempt, and a re-attempted merge of a genuine conflict is still prohibited.
+#
+# THE ALLOW-LIST IS AN ALLOW-LIST AND MUST NEVER BECOME A DENY-LIST. "Orthogonal to `- Status:`" is a
+# deny-list of ONE key, and it silently admits every field that has lifecycle or gate meaning:
+# `- Readiness:` is an attestation only `/plan-review` may write and the auto-approve predicate reads
+# FIRST, `- Approval:` records human sign-off, `- Blocks-Release:` carries a release gate,
+# `- Item-Dependencies:` changes queue ordering, and `- Id:`/`- Set:`/`- Order:` are identity. An
+# integration that could write any one of those automatically would be strictly worse than the
+# conflict it resolves. So the keys that MAY be re-derived are ENUMERATED below, and widening the
+# enumeration is a visible edit that a test refuses.
+
+#: The ONLY front-matter keys an integration may RE-DERIVE onto the settled tree.
+#:
+#: EXACTLY THE TWO THE MEASURED CASE NEEDS, and the narrowness is the safety property rather than a
+#: starting point to grow from. Both are descriptive metadata carrying no lifecycle, gate, identity or
+#: attestation meaning: `- Work-Kind:` classifies the work (`bug`/`chore`/...) and `- Priority:` ranks
+#: it. Neither is read by the auto-approve predicate, the dependency graph, the release gate, or any
+#: transition.
+#:
+#: DO NOT ADD A KEY HERE WITHOUT READING WHY EACH ABSENT ONE IS ABSENT (the section header lists them).
+#: `tests/test_records_only_lane_rederive.py` fails if `- Status:`, `- Readiness:`, `- Approval:`,
+#: `- Blocks-Release:` or `- Item-Dependencies:` is ever admitted, so a widening is refused rather than
+#: merely discouraged.
+REDERIVABLE_FRONT_MATTER_KEYS: frozenset[str] = frozenset(("Work-Kind", "Priority"))
+
+#: The record TYPES whose front-matter shape has actually been MEASURED for this conflict class.
+#:
+#: `.aw/records/` IS BROADER THAN PLANS, and the other types carry their own status vocabularies and
+#: their own lifecycle layouts: backlog (`open`/`graduated`/`done`/...), spec
+#: (`draft`->...->`implemented`), release (`planned`/`blocked`/`shipped`), review. The only shape this
+#: plan measured is PLAN front matter, so an unmeasured type returns UNKNOWN rather than being treated
+#: as a plan. That verdict is correct and cheap: the integration simply keeps today's refusal.
+REDERIVABLE_RECORD_SUFFIXES: tuple[str, ...] = (".ipd.md",)
+
+#: The records tree prefix. A path outside it is not a records edit and is never this shape.
+RECORDS_TREE_PREFIX = ".aw/records/"
+
+#: :func:`classify_records_only_front_matter_conflict`'s three verdicts.
+#:
+#: THREE-VALUED ON PURPOSE, and `UNKNOWN` is never collapsed into `NOT_THIS_SHAPE` even though both
+#: lead to the same refusal today. They are different facts: `NOT_THIS_SHAPE` means the classifier
+#: PROVED the file is something else (a code path, a real `- Status:` disagreement), while `UNKNOWN`
+#: means it could not prove either way (a blob it could not read, an unmeasured record type). Keeping
+#: them apart is what lets a future widening target the unknowns without weakening the proofs, and it
+#: keeps the refusal message honest about which it hit.
+REDERIVE_SHAPE_MATCH = "records-only-front-matter"
+REDERIVE_SHAPE_NOT = "not-this-shape"
+REDERIVE_SHAPE_UNKNOWN = "unknown"
+
+#: A history bullet: `- YYYY-MM-DD <anything>`. Appended by every status setter and by the backfill
+#: lane alike, which is why an INSERTED one is part of this shape.
+_HISTORY_BULLET_RE = re.compile(r"^- \d{4}-\d{2}-\d{2}[ \t]")
+
+#: A front-matter bullet: `- Key: value`. Deliberately NOT `selectors`' identity readers, which answer
+#: only about `- Id:`/`- Status:`/`- Set:`; this classifier must enumerate EVERY key present in order
+#: to prove that only allow-listed ones were added.
+_FRONT_MATTER_BULLET_RE = re.compile(r"^- ([A-Za-z][A-Za-z0-9 _-]*):[ \t]*(.*)$")
+
+
+class RecordsOnlyConflictVerdict(NamedTuple):
+    """One conflicting path's verdict, with the facts a refusal message and a re-derivation need.
+
+    ``verdict`` is one of the three ``REDERIVE_SHAPE_*`` constants. ``reason`` is one
+    operator-readable sentence saying WHY, always populated (including for a match, where it names the
+    keys). ``added_keys`` is the allow-listed key/value pairs the incoming side added, empty unless the
+    verdict is a match. ``history_lines`` is the history bullets it inserted. ``target_status`` and
+    ``incoming_status`` are the two sides' `- Status:` values, which is what makes the stale-snapshot
+    trap statable in the message. ``target_is_terminal`` records whether the TARGET path sits in a
+    terminal lifecycle directory, which is the anti-revert control's subject.
+    """
+
+    path: str
+    verdict: str
+    reason: str
+    added_keys: tuple[tuple[str, str], ...] = ()
+    history_lines: tuple[str, ...] = ()
+    target_status: str | None = None
+    incoming_status: str | None = None
+    target_is_terminal: bool = False
+
+
+def _split_metadata_region(text: str) -> tuple[str, str]:
+    """Split a record into (metadata region, remainder) using the ONE shared boundary.
+
+    `selectors.metadata_region` is the toolkit's single metadata-region authority (the
+    ARTIFACTS-NOT-MENTIONS contract), so a document that merely QUOTES a metadata block cannot be read
+    as declaring it. Reusing it here rather than re-deriving a boundary is what keeps this classifier
+    agreeing with every status reader in the repository about where front matter ENDS.
+    """
+    from agent_workflows import selectors as _sel
+
+    region = _sel.metadata_region(text)
+    return region, text[len(region) :]
+
+
+def _front_matter_bullets(region: str) -> tuple[dict[str, list[str]], tuple[str, ...]]:
+    """Every `- Key: value` bullet in a metadata region, plus every line that is NOT one.
+
+    The NON-bullet lines are returned because they must be UNCHANGED for this shape to hold: a
+    difference there is prose or structure, not a field addition, and the classifier must not
+    generalize past what it measured.
+    """
+    keys: dict[str, list[str]] = {}
+    other: list[str] = []
+    for line in region.splitlines():
+        m = _FRONT_MATTER_BULLET_RE.match(line)
+        if m:
+            keys.setdefault(m.group(1), []).append(m.group(2).strip())
+        else:
+            other.append(line)
+    return keys, tuple(other)
+
+
+def _body_change_is_history_insert_only(
+    base_body: str, incoming_body: str
+) -> tuple[bool, tuple[str, ...]]:
+    """Is the incoming side's body change ONLY the INSERTION of history bullets (and blank lines)?
+
+    A backfill appends one `## Workflow history` line and changes nothing else, so an insert-only body
+    diff is part of the proven shape. Any REPLACEMENT or DELETION is not: it would mean the incoming
+    side rewrote prose, and re-deriving two front-matter keys would silently drop that rewrite.
+
+    Uses `difflib.SequenceMatcher` opcodes rather than a line-count heuristic, because "the body grew
+    by one line" is also true of a one-line replacement plus a one-line addition.
+    """
+    import difflib
+
+    base_lines = base_body.splitlines()
+    incoming_lines = incoming_body.splitlines()
+    inserted: list[str] = []
+    matcher = difflib.SequenceMatcher(None, base_lines, incoming_lines)
+    for tag, _i1, _i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        if tag != "insert":
+            return False, ()
+        for line in incoming_lines[j1:j2]:
+            if not line.strip():
+                continue
+            if not _HISTORY_BULLET_RE.match(line):
+                return False, ()
+            inserted.append(line)
+    return True, tuple(inserted)
+
+
+def classify_records_only_front_matter_conflict(
+    *,
+    path: str,
+    base_text: str | None,
+    target_text: str | None,
+    incoming_text: str | None,
+    target_path: str | None = None,
+    incoming_path: str | None = None,
+    allow_list: frozenset[str] | None = None,
+) -> RecordsOnlyConflictVerdict:
+    """Is ONE conflicting path the measured records-only front-matter shape? Three-valued, PURE.
+
+    laneraceplan-01 (`kl18sz`) E-01. Answers about a SINGLE path, from the three merge stages plus the
+    two sides' paths, and does no IO so every arm is unit-testable with no live repository.
+
+    THE SHAPE, stated as the conjunction it is. ALL of these must hold, and any one failing yields
+    `NOT_THIS_SHAPE` (proved otherwise) or `UNKNOWN` (could not prove):
+
+    1. the path is under `.aw/records/` and carries a MEASURED record suffix
+       (:data:`REDERIVABLE_RECORD_SUFFIXES`, i.e. `.ipd.md` today);
+    2. all three merge stages are readable (an absent stage is `UNKNOWN`, never an assumed empty);
+    3. the INCOMING side added ONLY keys on the allow-list, removed none, and CHANGED none;
+    4. the incoming side's non-bullet metadata lines are byte-identical to the base's;
+    5. the incoming side's body change is history-bullet INSERTION only;
+    6. the TARGET side really did transition (its `- Status:` changed, or the file moved lifecycle
+       directory), which is what makes this a race rather than an ordinary stale edit; and
+    7. no allow-listed key the incoming side adds ALREADY exists on the target with a DIFFERENT value,
+       because that is a genuine disagreement about the value and not a race.
+
+    IT ASKS NOTHING ABOUT `- Status:` EXCEPT THAT THE TARGET'S CHANGED, deliberately. The incoming
+    side's `- Status:` is a STALE SNAPSHOT and is simply not consulted as an intention; condition 3
+    already refuses if the incoming side tried to CHANGE `- Status:` relative to its own base, which is
+    the case where it really does assert a transition and must not be re-derived.
+
+    ``allow_list`` EXISTS FOR THE TEST THAT PROVES THE ALLOW-LIST IS LOAD-BEARING, not for a caller to
+    widen the shape at runtime. Every production call omits it and gets
+    :data:`REDERIVABLE_FRONT_MATTER_KEYS`; the regression file passes a deliberately widened set to
+    demonstrate the anti-revert control FAILING, which is what makes that control evidence rather than
+    decoration.
+    """
+    allowed = (
+        REDERIVABLE_FRONT_MATTER_KEYS if allow_list is None else frozenset(allow_list)
+    )
+    tpath = target_path or path
+    ipath = incoming_path or path
+
+    def _unknown(reason: str) -> RecordsOnlyConflictVerdict:
+        return RecordsOnlyConflictVerdict(path, REDERIVE_SHAPE_UNKNOWN, reason)
+
+    def _not(reason: str) -> RecordsOnlyConflictVerdict:
+        return RecordsOnlyConflictVerdict(path, REDERIVE_SHAPE_NOT, reason)
+
+    # 1. LOCATION AND TYPE. A code path is PROVABLY not this shape; an unmeasured record type is
+    # UNKNOWN, because nothing here has measured what "orthogonal" means for its status vocabulary.
+    for candidate in (path, tpath, ipath):
+        if not candidate.startswith(RECORDS_TREE_PREFIX):
+            return _not(
+                f"{candidate!r} is not under {RECORDS_TREE_PREFIX}, so it is not a records edit"
+            )
+    for candidate in (path, tpath, ipath):
+        if not any(candidate.endswith(s) for s in REDERIVABLE_RECORD_SUFFIXES):
+            return _unknown(
+                f"{candidate!r} is a records file of an UNMEASURED type (only "
+                f"{', '.join(REDERIVABLE_RECORD_SUFFIXES)} has been measured for this shape); its "
+                "status vocabulary and lifecycle layout are its own, so no verdict is claimed"
+            )
+
+    # 2. READABILITY. An absent stage means the classifier cannot see one side; that is unknown, and
+    # treating a missing blob as an empty file would invent a whole-file rewrite or deletion.
+    if base_text is None or target_text is None or incoming_text is None:
+        missing = [
+            name
+            for name, value in (
+                ("base", base_text),
+                ("target", target_text),
+                ("incoming", incoming_text),
+            )
+            if value is None
+        ]
+        return _unknown(
+            f"merge stage(s) {', '.join(missing)} could not be read for {path!r}, so neither side's "
+            "intent is provable"
+        )
+
+    base_region, base_body = _split_metadata_region(base_text)
+    target_region, _target_body = _split_metadata_region(target_text)
+    incoming_region, incoming_body = _split_metadata_region(incoming_text)
+    base_keys, base_other = _front_matter_bullets(base_region)
+    target_keys, _target_other = _front_matter_bullets(target_region)
+    incoming_keys, incoming_other = _front_matter_bullets(incoming_region)
+
+    # 4. NON-BULLET METADATA LINES MUST BE IDENTICAL on the incoming side.
+    if base_other != incoming_other:
+        return _not(
+            "the incoming side changed non-bullet lines in the metadata region, so its edit is not a "
+            "pure field addition"
+        )
+
+    # 3. THE INCOMING SIDE ADDED ONLY ALLOW-LISTED KEYS, AND CHANGED OR REMOVED NONE.
+    removed = sorted(k for k in base_keys if k not in incoming_keys)
+    if removed:
+        return _not(
+            f"the incoming side REMOVED front-matter key(s) {removed}, which is not a backfill"
+        )
+    changed = sorted(
+        k for k in base_keys if k in incoming_keys and base_keys[k] != incoming_keys[k]
+    )
+    if changed:
+        return _not(
+            f"the incoming side CHANGED front-matter key(s) {changed} relative to its own base, so it "
+            "asserts a value rather than backfilling a missing one"
+            + (
+                "; `- Status:` among them, so this is a real lifecycle disagreement"
+                if "Status" in changed
+                else ""
+            )
+        )
+    added = sorted(k for k in incoming_keys if k not in base_keys)
+    if not added:
+        return _not(
+            "the incoming side added no front-matter key, so there is nothing to re-derive"
+        )
+    not_allowed = sorted(k for k in added if k not in allowed)
+    if not_allowed:
+        return _not(
+            f"the incoming side added front-matter key(s) {not_allowed} that are NOT on the "
+            f"re-derivable allow-list ({sorted(allowed)}); a key with lifecycle, gate, identity or "
+            "attestation meaning must never be written by an automated integration"
+        )
+
+    # 5. BODY INSERTION ONLY.
+    insert_only, history_lines = _body_change_is_history_insert_only(
+        base_body, incoming_body
+    )
+    if not insert_only:
+        return _not(
+            "the incoming side's body change is not history-bullet insertion only, so re-deriving "
+            "its front-matter keys would silently drop the rest of its edit"
+        )
+
+    # 6. THE TARGET REALLY TRANSITIONED. Without this the conflict is an ordinary stale edit, and this
+    # carve-out is scoped to the LIFECYCLE RACE it measured.
+    base_status = (base_keys.get("Status") or [None])[0]
+    target_status = (target_keys.get("Status") or [None])[0]
+    incoming_status = (incoming_keys.get("Status") or [None])[0]
+    status_changed = base_status != target_status
+    bucket_changed = tpath != ipath
+    if not (status_changed or bucket_changed):
+        return _not(
+            "the target side neither changed `- Status:` nor moved lifecycle directory, so this "
+            "conflict is not the lifecycle race this carve-out covers"
+        )
+
+    # 7. NO VALUE DISAGREEMENT ON AN ALLOW-LISTED KEY.
+    clash = sorted(
+        k for k in added if k in target_keys and target_keys[k] != incoming_keys[k]
+    )
+    if clash:
+        return _not(
+            f"the target already carries {clash} with a DIFFERENT value, so the two sides disagree "
+            "about the value rather than racing on the lifecycle"
+        )
+
+    from agent_workflows import run_selection_policy as _rsp
+
+    return RecordsOnlyConflictVerdict(
+        path=path,
+        verdict=REDERIVE_SHAPE_MATCH,
+        reason=(
+            "records-only front-matter race: the incoming side adds "
+            f"{', '.join(f'`- {k}:`' for k in added)} and appends "
+            f"{len(history_lines)} history line(s) while the target "
+            + (
+                f"transitioned `- Status:` {base_status!r} -> {target_status!r}"
+                if status_changed
+                else "moved lifecycle directory"
+            )
+            + (f" and moved {ipath!r} -> {tpath!r}" if bucket_changed else "")
+        ),
+        added_keys=tuple((k, incoming_keys[k][0]) for k in added),
+        history_lines=history_lines,
+        target_status=target_status,
+        incoming_status=incoming_status,
+        target_is_terminal=_rsp.is_in_terminal_directory(Path(tpath)),
+    )
+
+
+def classify_records_only_conflict_set(
+    verdicts: Sequence[RecordsOnlyConflictVerdict],
+) -> tuple[bool, str]:
+    """laneraceplan-01 (`kl18sz`) E-04: is the WHOLE conflict set re-derivable? ALL OR NOTHING.
+
+    Returns ``(rederivable, reason)``. True only when the set is NON-EMPTY and EVERY member matched.
+
+    A PARTIALLY RE-DERIVABLE SET IS NOT HALF-APPLIED, and that is the fail-closed rule this function
+    exists to make unavoidable rather than a convention each call site remembers. Writing the
+    re-derivable subset and leaving the rest conflicted would leave main holding an edit whose
+    companion never landed, with no single artifact recording that the integration was partial; and a
+    mixed set is exactly the case where the classifier's confidence is LOWEST, since it proved the
+    shape for some paths and not others.
+
+    AN EMPTY SET IS NOT RE-DERIVABLE EITHER. "Every member matched" is vacuously true of nothing, and
+    an empty conflict set means the caller could not enumerate the conflict, which is an unknown.
+    """
+    if not verdicts:
+        return (
+            False,
+            "no conflicting path was enumerated, so nothing is proven re-derivable",
+        )
+    unmatched = [v for v in verdicts if v.verdict != REDERIVE_SHAPE_MATCH]
+    if unmatched:
+        detail = "; ".join(f"{v.path} [{v.verdict}]: {v.reason}" for v in unmatched[:5])
+        more = "" if len(unmatched) <= 5 else f" (and {len(unmatched) - 5} more)"
+        return (
+            False,
+            f"{len(unmatched)} of {len(verdicts)} conflicting path(s) are NOT the proven "
+            f"records-only front-matter shape, so the whole integration refuses rather than "
+            f"half-applying: {detail}{more}",
+        )
+    return (
+        True,
+        f"all {len(verdicts)} conflicting path(s) are the proven records-only front-matter shape",
+    )
+
+
+def format_records_only_conflict_refusal_reason(
+    verdicts: Sequence[RecordsOnlyConflictVerdict],
+) -> str:
+    """laneraceplan-01 (`kl18sz`) E-02: the SHAPE-SPECIFIC refusal, naming the stale-snapshot trap.
+
+    THE WHOLE MEASURED HAZARD IS A RESOLVER TYPING "keep the lane's version" AT A PROMPT WHERE BOTH
+    SIDES LOOK DEFENSIBLE, so this message says which side's `- Status:` is stale, how many real
+    executions taking it would revert, and the CONCRETE safe resolution a human already applied by hand
+    on 2026-09-22. Today's generic text names the paths and git's own `CONFLICT (content)` lines, which
+    is everything except the one fact that decides the resolution.
+
+    THIS CHANGES NO CONTRACT, and that constraint is part of the item. The caller still returns the same
+    terminal :data:`INTEGRATION_REFUSAL_CONFLICT` kind for the same condition, so spec `25kzda` 2.1's
+    prohibition is untouched and the refusal's terminality is unchanged; only the MESSAGE improves.
+    """
+    matched = [v for v in verdicts if v.verdict == REDERIVE_SHAPE_MATCH]
+    if not matched:
+        return ""
+    terminal = [v for v in matched if v.target_is_terminal]
+    keys = sorted({k for v in matched for k, _ in v.added_keys})
+    parts = [
+        "merge-back conflict in {0} records file(s), and it is the RECORDS-ONLY FRONT-MATTER RACE: "
+        "the incoming branch adds only {1} and appends history, while main moved the same "
+        "plans through their lifecycle".format(
+            len(matched), ", ".join(f"`- {k}:`" for k in keys)
+        ),
+        "THE INCOMING BRANCH HOLDS A STALE LIFECYCLE SNAPSHOT: its `- Status:` values were read before "
+        "those transitions, so TAKING ITS SIDE WOULD REVERT {0} real execution(s)".format(
+            len(terminal)
+        ),
+        "SAFE RESOLUTION, per file: keep the TARGET's `- Status:` and its lifecycle directory, keep "
+        "the incoming branch's new field(s), and keep BOTH history lines",
+    ]
+    for v in matched:
+        parts.append(
+            "  {0}: target `- Status: {1}`{2}; incoming (STALE) `- Status: {3}`; re-derivable {4}".format(
+                v.path,
+                v.target_status,
+                " [TERMINAL directory]" if v.target_is_terminal else "",
+                v.incoming_status,
+                ", ".join(f"`- {k}: {val}`" for k, val in v.added_keys),
+            )
+        )
+    return "; ".join(parts[:3]) + "\n" + "\n".join(parts[3:])
+
+
+def rederive_front_matter(
+    *, target_text: str, verdict: RecordsOnlyConflictVerdict
+) -> str:
+    """laneraceplan-01 (`kl18sz`) E-03: write the incoming side's allow-listed keys onto TARGET text.
+
+    RE-DERIVES FROM THE LANE'S INTENT, NEVER BY REPLAYING ITS DIFF. The lane's diff is expressed
+    against an old snapshot, so applying it as a patch would reintroduce the very staleness this
+    function exists to remove. What is extracted is the KEY/VALUE pairs (already carried on the
+    verdict) and the history bullet(s); what is written is those keys onto the CURRENT target content.
+
+    `- Status:` AND THE LIFECYCLE DIRECTORY ARE NOT TOUCHED, which is the anti-revert property. This
+    function never writes a `- Status:` line, never moves a file (it returns TEXT and performs no IO),
+    and refuses outright if asked about anything but a positively classified verdict.
+
+    THE NEW KEYS ARE INSERTED AFTER THE LAST EXISTING FRONT-MATTER BULLET, which keeps them inside the
+    metadata region no matter how the target's own bullets are ordered. Anchoring on `- Status:`
+    instead was rejected: a target whose `- Status:` line is its LAST bullet would take the new keys
+    ahead of nothing, and a target with no `- Status:` at all would silently get no keys.
+
+    THE HISTORY BULLET IS INSERTED IMMEDIATELY AFTER THE `## Workflow history` HEADING, i.e. at the top
+    of the history list, because these histories are NEWEST-FIRST. The target's own entries are not
+    disturbed, so both sides' history survives - which is exactly what the hand resolution did.
+    """
+    if verdict.verdict != REDERIVE_SHAPE_MATCH:
+        raise DriverError(
+            "rederive_front_matter: refusing to re-derive a path classified {0!r} ({1})".format(
+                verdict.verdict, verdict.reason
+            )
+        )
+    for key, _value in verdict.added_keys:
+        if key not in REDERIVABLE_FRONT_MATTER_KEYS:
+            # BELT AND BRACES over the classifier's own allow-list check, because this is the function
+            # that WRITES. The classifier accepts an injected allow-list so a test can prove that
+            # control is load-bearing; the writer accepts only the shipped constant, so no test double
+            # and no future caller can widen what actually reaches a permanent record.
+            raise DriverError(
+                "rederive_front_matter: refusing to write non-allow-listed front-matter key "
+                f"{key!r} (allow-list: {sorted(REDERIVABLE_FRONT_MATTER_KEYS)})"
+            )
+
+    region, body = _split_metadata_region(target_text)
+    existing, _other = _front_matter_bullets(region)
+    pending = [
+        (k, v) for k, v in verdict.added_keys if k not in existing or existing[k] == [v]
+    ]
+    new_lines = [f"- {k}: {v}" for k, v in pending if k not in existing]
+
+    lines = region.splitlines(keepends=True)
+    last_bullet = -1
+    for idx, line in enumerate(lines):
+        if _FRONT_MATTER_BULLET_RE.match(line.rstrip("\n")):
+            last_bullet = idx
+    if new_lines:
+        if last_bullet < 0:
+            raise DriverError(
+                "rederive_front_matter: the target has no front-matter bullet to anchor on, so the "
+                "new key(s) cannot be placed inside its metadata region"
+            )
+        insertion = "".join(f"{line}\n" for line in new_lines)
+        lines.insert(last_bullet + 1, insertion)
+    region_out = "".join(lines)
+
+    body_out = body
+    if verdict.history_lines:
+        marker = "## Workflow history\n"
+        at = body_out.find(marker)
+        if at >= 0:
+            after = at + len(marker)
+            body_out = (
+                body_out[:after]
+                + "".join(f"{line}\n" for line in verdict.history_lines)
+                + body_out[after:]
+            )
+        else:
+            # NO HISTORY SECTION IS NOT A REASON TO DROP THE LINE, and it is not a reason to invent a
+            # section either: append it at the end so the fact is preserved and visible. Measured as
+            # unreachable on the real corpus (every plan has the heading), kept because silently
+            # losing a history line is the class of harm this whole section exists to prevent.
+            body_out = (
+                body_out.rstrip("\n")
+                + "\n"
+                + "".join(f"{line}\n" for line in verdict.history_lines)
+            )
+    return region_out + body_out
+
+
+#: The reported outcome of an integration whose content was RECOMPUTED rather than merged.
+#:
+#: ITS OWN KIND, NEITHER `integrated` NOR `merge-refused` (`kl18sz` F-11). A re-derived integration is
+#: not a plain success: content was written by the RUNNER rather than carried by the merge, and that is
+#: the one event an auditor most needs to see. Nor is it :data:`INTEGRATION_REFUSAL_CONFLICT`, which is
+#: documented in-code as "the gate measured the work and REFUSED it" - here the gate refused the MERGE
+#: and the work landed anyway, by a different route. Reporting either would hide the recomputation.
+#:
+#: IT IS A SUCCESS KIND: the lane's intent IS on main when this is returned, so `integrated=True`
+#: accompanies it and the ladder is never consulted (`classify_integration_refusal` is asked only about
+#: refusals). It is deliberately NOT added to `LEGACY_INTEGRATION_STATUS_ALIASES`, which maps only
+#: PRE-RENAME spellings of existing kinds.
+INTEGRATION_REDERIVED = "merge-rederived"
+
+
+def read_merge_stage(repo: Path, stage: int, path: str) -> str | None:
+    """One conflicted path's content at merge ``stage`` (1=base, 2=ours/target, 3=theirs/incoming).
+
+    Returns None when the stage does not exist, which is a REAL and common case rather than an error: a
+    modify/delete conflict has no stage 2 or 3, and the classifier treats an absent stage as UNKNOWN
+    rather than as an empty file.
+
+    Read via `git cat-file -p :<stage>:<path>` while the merge is in progress, so it MUST be called
+    before `git merge --abort` for the same reason :func:`conflicted_paths` must be.
+    """
+    rc, out, _err = _run_git(repo, ["cat-file", "-p", f":{stage}:{path}"])
+    return out if rc == 0 else None
+
+
+def classify_conflict_set_for_rederivation(
+    repo: Path, *, paths: Sequence[str], branch: str, base_commit: str
+) -> list[RecordsOnlyConflictVerdict]:
+    """Classify every conflicted path of an in-progress merge, reading its stages from the index.
+
+    THE THIN IO SHELL over the pure classifier, kept separate so every decision rule stays unit-testable
+    with no live repository. Its only job is to supply the three stage texts and the two sides' paths.
+
+    THE INCOMING PATH IS RESOLVED THROUGH RENAME DETECTION, and that matters because in this shape the
+    file MOVED: main renamed `pending/x` -> `executed/x` while the lane edited `pending/x`, so stage 1
+    and stage 3 live at the conflict's own path in the index while the LANE's path is the pre-rename
+    one. `git diff --name-status -M <base>..<branch>` names what the lane actually touched, which is
+    what condition 6 compares against to see that the target moved.
+
+    MUST be called while the merge is in progress (see :func:`read_merge_stage`).
+    """
+    incoming_by_name: dict[str, str] = {}
+    rc, out, _err = _run_git(
+        repo, ["diff", "--name-only", "-z", f"{base_commit}..{branch}"]
+    )
+    if rc == 0:
+        for raw in out.split("\0"):
+            p = raw.strip()
+            if p:
+                incoming_by_name.setdefault(p.rsplit("/", 1)[-1], p)
+
+    verdicts: list[RecordsOnlyConflictVerdict] = []
+    for path in paths:
+        incoming_path = incoming_by_name.get(path.rsplit("/", 1)[-1], path)
+        base_text = read_merge_stage(repo, 1, path)
+        if base_text is None:
+            # The lane's own pre-rename path is where the base content lives when main renamed the file
+            # and git did not record a stage 1 at the conflict path.
+            rc_b, out_b, _e = _run_git(
+                repo, ["cat-file", "-p", f"{base_commit}:{incoming_path}"]
+            )
+            base_text = out_b if rc_b == 0 else None
+        target_text = read_merge_stage(repo, 2, path)
+        incoming_text = read_merge_stage(repo, 3, path)
+        if incoming_text is None:
+            rc_i, out_i, _e = _run_git(
+                repo, ["cat-file", "-p", f"{branch}:{incoming_path}"]
+            )
+            incoming_text = out_i if rc_i == 0 else None
+        verdicts.append(
+            classify_records_only_front_matter_conflict(
+                path=path,
+                base_text=base_text,
+                target_text=target_text,
+                incoming_text=incoming_text,
+                target_path=path,
+                incoming_path=incoming_path,
+            )
+        )
+    return verdicts
+
+
+def apply_records_only_rederivation(
+    repo: Path, verdicts: Sequence[RecordsOnlyConflictVerdict]
+) -> tuple[bool, str]:
+    """Write the re-derived content for a fully classified conflict set. ALL OR NOTHING.
+
+    laneraceplan-01 (`kl18sz`) E-03/E-04. Returns ``(applied, reason)``.
+
+    RE-CHECKS :func:`classify_records_only_conflict_set` ITSELF rather than trusting its caller, because
+    this is the function that WRITES into permanent records: a caller that forgot the gate would
+    otherwise half-apply a mixed set, which is the one outcome E-04 exists to make impossible.
+
+    IT WRITES THE TARGET'S OWN PATH AND NEVER MOVES A FILE. The re-derived text is
+    :func:`rederive_front_matter`'s output over the TARGET (stage 2) content, so `- Status:` and the
+    lifecycle directory are untouched by construction: no `git mv`, no rename, no `- Status:` write.
+    Each path is then staged so the in-progress merge can be COMPLETED rather than aborted.
+
+    IT PREPARES THE TEXT BEFORE TOUCHING THE WORKING TREE, so a failure mid-set leaves nothing written.
+    """
+    ok, why = classify_records_only_conflict_set(verdicts)
+    if not ok:
+        return False, f"refusing to re-derive: {why}"
+
+    prepared: list[tuple[str, str]] = []
+    for verdict in verdicts:
+        target_text = read_merge_stage(repo, 2, verdict.path)
+        if target_text is None:
+            return (
+                False,
+                f"refusing to re-derive: the target stage of {verdict.path!r} could not be read, so "
+                "its current content is unknown",
+            )
+        try:
+            prepared.append(
+                (
+                    verdict.path,
+                    rederive_front_matter(target_text=target_text, verdict=verdict),
+                )
+            )
+        except DriverError as exc:
+            return False, f"refusing to re-derive: {exc}"
+
+    for path, text in prepared:
+        dest = repo / path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(text, encoding="utf-8")
+        rc, _out, err = _run_git(repo, ["add", "--", path])
+        if rc != 0:
+            return (
+                False,
+                f"re-derivation wrote {path!r} but could not stage it: {(err or '').strip()}",
+            )
+    return (
+        True,
+        "re-derived {0} records file(s) against the settled tree: wrote {1} and kept every "
+        "target `- Status:` and lifecycle directory unchanged".format(
+            len(prepared),
+            ", ".join(sorted({f"`- {k}:`" for v in verdicts for k, _ in v.added_keys})),
+        ),
+    )
+
+
 def build_lane_outcome(
     repo: Path, handle: Any, id6: str, *, run_checked: Callable[..., str]
 ) -> Any:
@@ -3109,12 +3798,82 @@ def integrate_lane_branch(
         # ordering resolves it via the preserved lane branch (E-02).
         # Capture the conflicted paths BEFORE aborting - the abort clears the index state they live in.
         conflicted = conflicted_paths(repo)
+
+        # laneraceplan-01 (`kl18sz`) E-01..E-04: THE ONE CONFLICT CLASS THAT IS RE-DERIVED RATHER THAN
+        # REFUSED, and it is reached ONLY through a positive proof plus an all-or-nothing gate.
+        #
+        # WHY IT SITS HERE AND NOT EARLIER. The classifier needs the three MERGE STAGES, which exist
+        # only while the merge is in progress, so this must run after the failed merge and BEFORE the
+        # abort below. It changes nothing about which merges are ATTEMPTED and nothing about the
+        # dirty-base guard, the gate, or the ff-only/no-ff sequence above.
+        #
+        # IT IS NOT THE REPETITION SPEC `25kzda` 2.1 PROHIBITS, and the carve-out it relies on is
+        # Section 2.1a of that same spec, amended in this change. Nothing is RETRIED: the merge is not
+        # re-attempted, the ladder is not consulted, and a failure here falls straight through to the
+        # unchanged refusal below. What happens instead is that the incoming side's INTENT is recomputed
+        # against the settled tree. Every other conflict class remains terminal on its first attempt.
+        verdicts = classify_conflict_set_for_rederivation(
+            repo,
+            paths=conflicted,
+            branch=handle.branch,
+            base_commit=handle.base_commit,
+        )
+        rederivable, rederive_why = classify_records_only_conflict_set(verdicts)
+        if rederivable:
+            applied, apply_why = apply_records_only_rederivation(repo, verdicts)
+            if applied:
+                rc3, out3, err3 = _run_git(
+                    repo,
+                    [
+                        "commit",
+                        "--no-edit",
+                        "-m",
+                        f"integrate({host_label}): re-derive records-only front matter for lane "
+                        f"{id6} against the settled tree",
+                    ],
+                )
+                if rc3 == 0:
+                    return (
+                        True,
+                        # SAYS RECOMPUTED, NOT MERGED (F-11). An auditor reading this line must be able
+                        # to tell that the runner WROTE content rather than carrying the lane's bytes.
+                        "integration RECOMPUTED rather than merged: "
+                        f"{apply_why}; {rederive_why}",
+                        INTEGRATION_REDERIVED,
+                    )
+                # The commit failed (a hook, most likely). Fall through to the unchanged refusal after
+                # aborting, so main is left exactly as clean as it would have been without this path.
+                _run_git(repo, ["merge", "--abort"])
+                return (
+                    False,
+                    "records-only re-derivation was applied but its commit was REFUSED, so the merge "
+                    "was aborted and main is untouched: "
+                    + ((err3 or out3 or "").strip() or "no message")
+                    + "; "
+                    + format_records_only_conflict_refusal_reason(verdicts),
+                    INTEGRATION_REFUSAL_CONFLICT,
+                )
+            _run_git(repo, ["merge", "--abort"])
+            return (
+                False,
+                f"{apply_why}; "
+                + format_records_only_conflict_refusal_reason(verdicts),
+                INTEGRATION_REFUSAL_CONFLICT,
+            )
+
+        # E-02: NOT re-derivable, so today's refusal stands - but if the shape was RECOGNIZED on some
+        # paths, say which side's `- Status:` is the stale snapshot and what the safe resolution is.
+        # THIS CHANGES NO CONTRACT: the same terminal kind for the same condition, a better message.
+        shape_detail = format_records_only_conflict_refusal_reason(verdicts)
         _run_git(repo, ["merge", "--abort"])
+        reason = format_merge_conflict_reason(
+            repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
+        )
+        if shape_detail:
+            reason = f"{reason}\n{shape_detail}\nNOT re-derived: {rederive_why}"
         return (
             False,
-            format_merge_conflict_reason(
-                repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
-            ),
+            reason,
             INTEGRATION_REFUSAL_CONFLICT,
         )
 
