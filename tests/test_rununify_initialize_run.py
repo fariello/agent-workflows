@@ -239,7 +239,18 @@ LIVE_OPTION_KEY_UNION = 38  # 25 shared + 13 host-specific
 #: That plan re-homed the implementation into `runner_shared`, leaving a one-line wrapper on each
 #: host, which is the sanctioned form. The fork count falls by one and the wrapper count rises by
 #: one, so the tables still partition the same population.
-STILL_DOUBLE_DEFINED = ("expand_selectors",)
+#: EMPTIED 2026-09-23 by the `hostdedup` residue lift: `expand_selectors` moved OUT of this tuple and
+#: into `THIN_WRAPPERS_OVER_RUNNER_SHARED` below. It was the LAST member, and its two bodies really were
+#: a symmetric fork (97 `ast.unparse` code lines each, similarity 0.958) rather than the
+#: define-plus-delegate shape `enforce_dependency_preflight` had. They differed in exactly two things:
+#: the `HostLabels` passed to `describe_spec_selector_refusal`, now the shared function's keyword-only
+#: `labels` parameter, and the name of an UNUSED loop variable. So the fork count falls to zero and the
+#: wrapper count rises by one, and the tables still partition the same population.
+#:
+#: AN EMPTY TUPLE IS THE CORRECT TERMINAL STATE, not a sign the table is now pointless: the assertion
+#: that reads it proves no symbol is double-defined while claiming to be a fork, so it keeps earning its
+#: place by REFUSING a future re-fork. A new entry here means someone re-introduced a divergent copy.
+STILL_DOUBLE_DEFINED: tuple[str, ...] = ()
 
 #: Imported FROM `runner_shared`, so they move with a relocated core for free.
 #:
@@ -295,7 +306,11 @@ THIN_WRAPPERS_OVER_RUNNER_SHARED = (
     # above in the same change that lifted it. See the note on that tuple for why it needed a
     # `HostLabels` field rather than a verbatim move.
     "discover_plans",
+    # GAINED `expand_selectors` 2026-09-23 by the `hostdedup` residue lift, moved out of
+    # `STILL_DOUBLE_DEFINED`, which it emptied. Its two bodies were a genuine symmetric fork; the lift
+    # parameterized the one host-specific line (`labels: HostLabels`) and left a wrapper on each host.
     "enforce_requested_action",
+    "expand_selectors",
     "git_common_dir",
     "set_plan_approved",
     "validate_manifest",
@@ -872,7 +887,13 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         # `RESOLVES_IN_RUNNER_SHARED`, which rose by one, so the partition assertion immediately below
         # is UNCHANGED against `CLOSURE_TOTAL` -- and that assertion, not this figure, is what proves
         # the re-base was a reclassification rather than a deletion.
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 1)
+        # 1 -> 0, RE-MEASURED 2026-09-23 by the `hostdedup` residue lift, which lifted the LAST member
+        # (`expand_selectors`) into `runner_shared` behind a `labels: HostLabels` parameter. It MOVED to
+        # `THIN_WRAPPERS_OVER_RUNNER_SHARED`, which rose by one, so the partition assertion immediately
+        # below is UNCHANGED against `CLOSURE_TOTAL`. ZERO is a real terminal state, not a broken
+        # measurement: no symbol in this closure is double-defined any more, and the assertion still
+        # earns its place by REFUSING a future re-fork.
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 0)
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED)
             + len(RESOLVES_IN_RUNNER_SHARED)

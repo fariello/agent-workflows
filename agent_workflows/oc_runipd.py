@@ -1914,229 +1914,23 @@ def expand_selectors(
     repo: Path | None = None,
     types: Any = None,
 ) -> list[str]:
-    """Resolve selector tokens (id6, setid, file paths, or 'all') against the manifest and repo.
+    """A THIN WRAPPER over the ONE definition in `runner_shared`, supplying THIS host's labels.
 
-    `types` (specsweep-01 `ui8b9b` E-02) is the operator's `--type` set, honored by the REVIEW sweep
-    only. It is KEYWORD-OPTIONAL and defaults to `None`, which `resolve_run_types` reads as the
-    normative IPD-only default, so every existing call site (including the shipped tests that call
-    this with three positional arguments) keeps its exact behavior.
+    The two host bodies were 97 `ast.unparse` code lines each at similarity 0.958 and differed in only
+    two things: the `HostLabels` handed to `describe_spec_selector_refusal` (now the shared function's
+    keyword-only `labels` argument, bound here) and the name of an unused loop variable. So this host's
+    behavior is unchanged and the refusal text it renders is still its own.
+
+    This is the residue `1f7xno` left behind: it re-homed 64 symbols and deliberately did not take
+    this one, and retired plan `nmlx47` would have taken it as part of a twelve-symbol lift whose other
+    half main had already done differently. Lifted on its own, 2026-09-23.
+
+    THE POSITIONAL SIGNATURE IS PRESERVED, including `types` defaulting to `None`, because shipped
+    tests call this with three positional arguments.
     """
-    plans = manifest.get("plans", {})
-    sets = manifest.get("sets", {})
-    selectors_list = [str(s).strip() for s in selectors]
-
-    if len(selectors_list) == 1 and selectors_list[0].lower() in (
-        "reviews",
-        "review",
-        "to-review",
-    ):
-        # revsweep-02 (`6ypimw`) E-02: THE SHARED membership test, replacing a `_needs_review` closure
-        # that was a VERBATIM duplicate of agy's and that tested `status == "to-review"` while
-        # `determine_action` (below) routed `to-review` AND `draft` to `review`. Spec 25kzda 2.4a
-        # property 2 requires membership to BE the Section 3 dispatch table, implemented ONCE, "so an
-        # item the table routes to review and an item the sweep selects are the same set BY
-        # CONSTRUCTION". The shared function derives the answer from `run_selection_policy`'s action
-        # table and reads plan text only for `draft` candidates, failing safe to NOT-swept.
-        #
-        # specsweep-01 (`ui8b9b`) E-02: ROUTED THROUGH THE TYPE-SCOPED ENTRY POINT, which for `ipd`
-        # delegates to `sweep_review_candidates` VERBATIM (same manifest walk, same Set ordering, same
-        # memoized decision), so a bare invocation's selection is unchanged. The agy twin does the
-        # same; membership stays the ONE shared predicate and gains no second copy here.
-        expanded = runner_shared.sweep_review_candidates_for_types(
-            repo, types, manifest=manifest
-        )
-
-        if not expanded:
-            # revsweep 76gsmv E-04: spec 25kzda 2.4a property 3. The message stays the same string
-            # it always was, so any log-scraper still matches; only the TYPE changed, which is what
-            # lets `main` exit 0 for the status selectors WITHOUT relaxing `DriverError` generally.
-            raise EmptyStatusSelection(
-                "No items in 'to-review' state found in repository"
-            )
-        return expanded
-
-    if len(selectors_list) == 1 and selectors_list[0].lower() == "all":
-        expanded: list[str] = []
-        seen: set[str] = set()
-        # setidsel (`7ap6ku`): `all` keeps its OWN, STRICTER test, and the difference from the
-        # selector admission test below is deliberate rather than an oversight. `all` means "sweep
-        # everything actionable", so it must additionally exclude a plan that is finished
-        # (`executed`) or standing (`reusable`) or status-less, none of which anyone asked for by
-        # name. A NAMED selector cannot use this stricter rule: an `executed` plan is a legitimate
-        # queue member when a dependent declares `executed:<id6>` on it, and a status-less entry is
-        # normal in a hand-written manifest. So the shared predicate refuses only the DELIBERATELY
-        # RETIRED, and this branch narrows further on its own behalf.
-        _is_actionable = runner_shared.manifest_entry_is_sweepable
-
-        # 1. Walk sets in manifest in defined order
-        for setid, group in sets.items():
-            for id6 in group.get("order", []):
-                p = plans.get(id6, {})
-                if _is_actionable(p):
-                    if id6 not in seen:
-                        expanded.append(id6)
-                        seen.add(id6)
-
-        # 2. Standalone plans in manifest
-        for id6, p in plans.items():
-            if id6 not in seen:
-                if _is_actionable(p):
-                    expanded.append(id6)
-                    seen.add(id6)
-
-        if not expanded:
-            raise DriverError("No actionable pending IPDs found in repository")
-        return expanded
-
-    expanded = []
-    seen = set()
-    # setidsel (`7ap6ku`): every candidate DROPPED as already-finished, so an empty result can say
-    # WHICH plans it skipped and why instead of claiming no selector was given.
-    filtered_out: list[str] = []
-
-    for selector in selectors:
-        sel_str = str(selector).strip()
-        matched_set: str | None = None
-        candidates: list[str] = []
-
-        file_cand = Path(sel_str)
-        if repo and not file_cand.is_absolute():
-            repo_file_cand = repo / sel_str
-        else:
-            repo_file_cand = file_cand
-
-        matched_file_id: str | None = None
-        for fc in (file_cand, repo_file_cand):
-            try:
-                if fc.is_file():
-                    rec = parse_plan_file(fc.resolve(), repo or Path.cwd())
-                    if rec:
-                        matched_file_id = rec.id6
-                        if rec.id6 not in plans:
-                            plans[rec.id6] = {
-                                "set": rec.setid,
-                                "file": rec.rel_path,
-                                "status": rec.status,
-                                "order": rec.order,
-                                "dependencies": rec.dependencies,
-                                "kind": rec.kind,
-                            }
-                        break
-            except OSError:
-                pass
-
-        if matched_file_id:
-            candidates = [matched_file_id]
-        elif sel_str in plans:
-            candidates = [sel_str]
-        elif sel_str in sets:
-            matched_set = sel_str
-            candidates = sets[sel_str]["order"]
-        else:
-            prefix_matches = [s for s in sets if s.startswith(sel_str)]
-            if len(prefix_matches) == 1:
-                matched_set = prefix_matches[0]
-                candidates = sets[prefix_matches[0]]["order"]
-            elif len(prefix_matches) > 1:
-                raise DriverError(
-                    f"Ambiguous Set selector prefix: {sel_str} matches {prefix_matches}"
-                )
-            else:
-                # graduate-02 (`iuxtjy`) E-02: THE TYPED SPEC BRANCH, AHEAD OF THE FILENAME-SUBSTRING
-                # FALLBACK BELOW, and the ORDER is the correctness content rather than the branch
-                # (F-13). The fallback matches a spec's own id6 inside an adopting plan's filename, so
-                # naming a spec selected a PLAN ABOUT it - measured at execution time for five
-                # discoverable spec id6s, two of them silently. Sited after the exact-plan and Set
-                # branches (verified: no discoverable spec id6 is a plan id6, a Set name, or a Set
-                # prefix, so this steals nothing) and before the fallback, where it is the only
-                # position that actually fixes the unambiguous cases. Shared with the agy host; do not
-                # fork the logic here.
-                spec_match = runner_shared.match_spec_selector(repo, sel_str, plans)
-                if spec_match is not None:
-                    raise DriverError(
-                        runner_shared.describe_spec_selector_refusal(
-                            spec_match, labels=runner_shared.OC_HOST_LABELS
-                        )
-                    )
-                matching_plans = [
-                    id6
-                    for id6, p in plans.items()
-                    if sel_str in p.get("file", "")
-                    or sel_str in Path(p.get("file", "")).name
-                ]
-                if len(matching_plans) == 1:
-                    candidates = matching_plans
-                elif len(matching_plans) > 1:
-                    raise DriverError(
-                        f"Ambiguous filename selector: {sel_str} matches multiple plans: {matching_plans}"
-                    )
-                else:
-                    raise DriverError(describe_unresolved_plan_selector(repo, sel_str))
-
-        if matched_set is not None and not candidates:
-            raise DriverError(
-                f"Set '{matched_set}' has an empty order (no plans to run)"
-            )
-
-        # setidsel (`7ap6ku`): EVERY branch above converges here, which is why the admission test
-        # belongs at this one point rather than repeated per branch. Before this, only the `all`
-        # branch filtered, so naming a Set (the ordinary way an operator names work) queued its
-        # RETIRED plans with a live `execute` action - measured at 587 terminal plans across 271 Sets.
-        #
-        # THE TWO SHAPES ARE DELIBERATELY DIFFERENT, and the discriminator is whether the operator
-        # named THIS PLAN or named a CONTAINER that happens to hold it:
-        #
-        #   * A SET MEMBER is dropped SILENTLY. A Set is a topic label spanning a plan's whole
-        #     history, so a mature Set legitimately holds executed and superseded members forever;
-        #     refusing the Set because it contains its own finished work would make `aw oc run <set>`
-        #     unusable for exactly the Sets that have made progress. Dropping is also what `all`
-        #     already does, so the two selectors now agree.
-        #   * AN EXPLICITLY NAMED PLAN (bare id6, filename, or file path) REFUSES LOUDLY. The
-        #     operator typed that identifier, so silently expanding it to nothing would report
-        #     "At least one id6 or Set selector is required" and leave them re-reading their own
-        #     command line for a typo that is not there. Say which plan, what state it is in, and
-        #     that the state is why.
-        explicit_plan = matched_set is None and len(candidates) == 1
-        for id6 in candidates:
-            if id6 in seen:
-                continue
-            if not runner_shared.manifest_entry_is_selectable(plans.get(id6, {})):
-                if explicit_plan:
-                    info = plans.get(id6, {}) or {}
-                    raise DriverError(
-                        f"Plan {id6} is {str(info.get('status', '') or 'unknown')!r} and was "
-                        f"RETIRED, so it cannot be run: "
-                        f"{info.get('file', '(unknown path)')}. A retired plan "
-                        f"({sorted(runner_shared.RETIRED_PLAN_STATUSES)}) is one whose work was "
-                        f"deliberately decided against, so re-running it would implement a decision "
-                        f"that was reversed. If it should run again, transition it out of its "
-                        f"retired disposition first."
-                    )
-                filtered_out.append(id6)
-                continue
-            expanded.append(id6)
-            seen.add(id6)
-
-    if not expanded:
-        # setidsel (`7ap6ku`): DISTINGUISH "you named nothing" from "everything you named is
-        # finished", because the fix above made the second case COMMON (263 Sets in this repository
-        # hold only terminal plans) and the old single message asserted the first, sending an
-        # operator to hunt a typo in a selector that resolved perfectly well. Naming the dropped
-        # plans is the whole point: it says the Set was found, what was in it, and why none of it ran.
-        if filtered_out:
-            detail = ", ".join(
-                f"{i} ({(plans.get(i) or {}).get('status', '') or 'unknown'})"
-                for i in filtered_out
-            )
-            raise DriverError(
-                f"Every plan the selector(s) matched was RETIRED, so there is nothing to run: "
-                f"{detail}. A retired plan "
-                f"({sorted(runner_shared.RETIRED_PLAN_STATUSES)}) is one whose work was "
-                f"deliberately decided against. This is not a selector typo: the plans were found "
-                f"and deliberately skipped."
-            )
-        raise DriverError("At least one id6 or Set selector is required")
-    return expanded
+    return runner_shared.expand_selectors(
+        manifest, selectors, repo, types, labels=runner_shared.OC_HOST_LABELS
+    )
 
 
 # orchretire-03 (`pgq326`) E-04: `determine_action` and `action_for` MOVED to `runner_shared` and are
@@ -4950,42 +4744,21 @@ def _add_output_mode_flags(
     sub_parser: argparse.ArgumentParser,
     verbosity_default: int | None = 0,
 ) -> None:
-    group = sub_parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "--quiet",
-        dest="output_mode",
-        action="store_const",
-        const="quiet",
-        help="Only per-IPD banners and a periodic heartbeat (no per-event lines)",
-    )
-    group.add_argument(
-        "--raw",
-        dest="output_mode",
-        action="store_const",
-        const="raw",
-        help="Stream the child agent's raw JSON events verbatim (legacy behavior)",
-    )
-    sub_parser.set_defaults(output_mode="clean")
-    # streamfmt (mm6wuz) E-05: verbosity TIERS within the default `clean` stream, which is why this
-    # is NOT part of the mutually exclusive group above: `--raw`/`--quiet` choose WHICH renderer
-    # runs, `-v` tunes how much the `clean` renderer shows. Deliberately NOT registered in
-    # `runner_shared.RUN_POLICY_FLAGS`: that table is the closed flag list spec `25kzda` 2.1
-    # declares and `tests/test_run_flag_surface.py` asserts against the spec file, so adding a
-    # display flag there would fail `test_no_owned_flag_is_absent_from_the_spec`. This is a display
-    # flag, exactly like the `--quiet`/`--raw` pair it sits beside.
-    #
-    # `verbosity_default` is `0` on `start` (a bare run freezes tier 0) and `None` on `resume`, so an
-    # OMITTED flag on resume leaves the frozen value untouched rather than silently resetting it to
-    # 0. That is the same `None`-means-absent convention `runner_shared.apply_run_policy_flags_on_resume`
-    # uses for the policy flags.
-    sub_parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosity",
-        action="count",
-        default=verbosity_default,
-        help="Increase live stream detail: -v also shows reads and searches (with line ranges "
-        "and hit counts), -vv also shows diff hunks and diagnostics. Ignored under --raw/--quiet.",
+    """A THIN WRAPPER over the ONE definition in `runner_shared`, supplying THIS host's help text.
+
+    The two host copies were 6 `ast.unparse` code lines each and differed in nothing but two help
+    strings, so the body moved and the strings stayed (`hostdedup` residue, 2026-09-23). `--help`
+    renders byte-identically to before: this host keeps the `--raw` "(legacy behavior)" parenthetical
+    and its own `-vv` sentence about diff hunks and diagnostics.
+    """
+    runner_shared.add_output_mode_flags(
+        sub_parser,
+        verbosity_default=verbosity_default,
+        raw_help="Stream the child agent's raw JSON events verbatim (legacy behavior)",
+        verbose_help=(
+            "Increase live stream detail: -v also shows reads and searches (with line ranges "
+            "and hit counts), -vv also shows diff hunks and diagnostics. Ignored under --raw/--quiet."
+        ),
     )
 
 
