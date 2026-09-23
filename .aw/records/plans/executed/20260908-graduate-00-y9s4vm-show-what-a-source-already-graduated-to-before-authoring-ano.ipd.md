@@ -10,7 +10,7 @@
 - Scope: The two children this needs, in the order the item requires. IN: (a) the PRE-GRADUATION VIEW, read-only and advisory, reporting every existing plan for a source with its status and Set so whoever graduates sees the cluster before authoring, plus the honest statement of which of the three cases it can and cannot detect; (b) making a spec or backlog selector REACHABLE for the plan action, building on the spec discovery that now exists rather than adding a second enumeration. OUT: per-requirement spec tracking (backlog `f1sw71`, which the item names as the blocker for the "already implemented" case); any semantic already-implemented verdict; any change to the two existing dangling checks. ALSO OUT, added at review: the FORWARD `Graduated-To` link, which pending plan `bwgyum` (Set `setidhard`, Order 02, `reviewed`, `go-pending-approval`) owns; see the coordination constraint below, because the two Sets read the same relationship from opposite ends and must not each grow their own index.
 - Scope-Paths: .aw/records/plans/pending/20260908-graduate-01-jxxec8-report-every-existing-plan-for-a-source-before-a-tenth-is-au.ipd.md, .aw/records/plans/pending/20260908-graduate-02-iuxtjy-make-a-spec-or-backlog-selector-reachable-for-the-plan-actio.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: medium
 - Readiness: go-pending-approval
@@ -19,10 +19,10 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: y9s4vm
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 6h7y2y
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set graduate reached executed, so the runner (run run-20260923T023317Z-3622118) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: jxxec8, iuxtjy, yv4tb1.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item 6h7y2y (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-909 all FIXED; readiness go-pending-approval
