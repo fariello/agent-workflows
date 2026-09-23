@@ -316,6 +316,20 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     if not ids:
         print("error: at least one <id6> is required")
         return MutationResult(2)
+    # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, on the RESEARCH backend
+    # of `aw group` (`artifact_types` routes research here, like plans, not through the generic engine).
+    from agent_workflows import config as _config
+
+    _setid_err, _setid_warn = _config.validate_setid_length_for_authoring(
+        repo_root,
+        R.kebab(getattr(args, "set", "") or ""),
+        verb="aw group research",
+    )
+    if _setid_err:
+        print(f"error: {_setid_err}")
+        return MutationResult(2)
+    if _setid_warn:
+        print(f"note: {_setid_warn}")
     date_str = getattr(args, "date", None) or date.today().strftime("%Y%m%d")
     start = getattr(args, "order", None)
     plans, err = plan_set_assign(

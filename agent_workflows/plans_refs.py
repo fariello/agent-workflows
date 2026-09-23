@@ -454,6 +454,22 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     if not ids:
         print("error: at least one <id6> is required")
         return MutationResult(2)
+    # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, on the PLANS backend of
+    # `aw group` (`artifact_types` routes plans here, not to `artifact_rename.run_group_generic`, so
+    # guarding only the generic engine would leave the plans tree unguarded). Judged on the KEBABED
+    # token, which is what `plan_set_assign` writes.
+    from agent_workflows import config as _config
+
+    _setid_err, _setid_warn = _config.validate_setid_length_for_authoring(
+        repo_root,
+        _core.kebab(getattr(args, "set", "") or ""),
+        verb="aw group plans",
+    )
+    if _setid_err:
+        print(f"error: {_setid_err}")
+        return MutationResult(2)
+    if _setid_warn:
+        print(f"note: {_setid_warn}")
     # e3hzyc: pass the flag THROUGH, including its absence. Collapsing None to 0 here was the
     # defect: it renumbered every named plan from zero, so a bare `aw group plans <child> --set X`
     # wrote `- Order: 0` onto a `Kind: child` (and, with --rename, moved it into the `00` filename
