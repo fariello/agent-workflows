@@ -1539,6 +1539,9 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="renderer_boundary",
         legacy_flags=(
             "--slug",
+            # promptid6 ubac5n E-01: the set slot of the clustered name. Declared, not merely
+            # accepted, so the declaration does not drift from the parser.
+            "--set",
             "--kind",
             "--status",
             "--author",

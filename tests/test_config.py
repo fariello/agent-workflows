@@ -1352,6 +1352,22 @@ class SetidPolicyTests(unittest.TestCase):
         decoration. This asserts the registration, not a particular date."""
         self.assertIn("setid_length", CFG.KNOWN_FEATURE_CUTOVERS)
 
+    def test_prompt_id6_is_registered_so_an_install_stamps_a_real_boundary(self):
+        """promptid6 `ubac5n` E-03, the same property for the prompts cutover.
+
+        Asserts the REGISTRATION, not a particular date: an unregistered feature makes
+        `resolve_cutover_date` fail open to `None` in every repository that has not hand-written the
+        key, which is the decoration failure mode `KNOWN_FEATURE_CUTOVERS`' own comment documents.
+        """
+        self.assertIn("prompt_id6", CFG.KNOWN_FEATURE_CUTOVERS)
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(d, {"schema_version": 2})
+            stamped = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-10-05")
+            self.assertEqual(stamped["prompt_id6"], "2026-10-05")
+            self.assertEqual(CFG.resolve_cutover_date(repo, "prompt_id6"), "20261005")
+            again = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-11-01")
+            self.assertEqual(again["prompt_id6"], "2026-10-05")
+
     def test_the_existing_install_stamper_covers_setid_length_and_preserves_it(self):
         """E-02/V-02: the EXISTING generic `sync_cutovers_on_install` stamps it; no second stamper."""
         with tempfile.TemporaryDirectory() as d:

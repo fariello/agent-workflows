@@ -9,6 +9,7 @@
 
 ## Workflow history
 
+- 2026-09-23 note (aw specs): IPD ubac5n (promptid6): AMENDED the section 2.1 Prompt row: a STAGED prompt now carries the id6-clustered grammar GOING FORWARD, exactly as the Spec row records for ha55fi. aw prompts new emits YYYYMMDD-<setid>-NN-<id6>-<slug>.prompt.md; aw check prompts enforces it at/after cutovers.prompt_id6 and grandfathers pre-cutover legacy YYYYMMDD-HHMM-NN-<slug>.prompt.md names; aw rename prompts <legacy> --to-id6 converts one on demand. A prompt's id6 is declared INSIDE its single <!-- aw-prompt: ... --> comment rather than as a - Id: bullet, because approved spec 20260808-1958-01-prompt-purity-lint R1/P4 forbids visible non-prompt content above the prompt body; that is the one way prompts differ from every other adopter of this grammar. Reverses jxqdcw OQ-02 on the maintainer's instruction of 2026-09-20. The spec's - Status: implemented was NOT changed (body amendment only).
 - 2026-08-28 note (aw specs): IPD ha55fi: specs adopt id6-in-filename going forward (producer aw specs new, checker cutover grandfathering legacy, aw rename specs --to-id6 conversion); Section 2.1 Spec row updated.
 ## 0. PRE-RELEASE FRAMING
 
@@ -54,7 +55,7 @@ YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md
 | Type | Suffix | Note |
 |---|---|---|
 | Plan / IPD | `.ipd.md` | (was bare `.md`) |
-| Prompt | `.prompt.md` | staging AND library items are `.prompt.md` |
+| Prompt | `.prompt.md` | staging AND library items are `.prompt.md`. AMENDED 2026-09-23 (IPD `ubac5n`): a STAGED prompt now also carries the id6-clustered grammar GOING FORWARD, `aw prompts new` emitting `YYYYMMDD-<setid>-NN-<id6>-<slug>.prompt.md`, with `aw check prompts` enforcing it for a prompt dated at/after the repository's `cutovers.prompt_id6` boundary and GRANDFATHERING pre-cutover legacy `YYYYMMDD-HHMM-NN-<slug>.prompt.md` names (converted on demand with `aw rename prompts <legacy> --to-id6`). A prompt's id6 is declared inside its single `<!-- aw-prompt: ... -->` comment rather than as a `- Id:` bullet, because approved spec `20260808-1958-01-prompt-purity-lint` R1/P4 forbids visible non-prompt content above the body. This reverses IPD `jxqdcw` OQ-02 on the maintainer's instruction of 2026-09-20. |
 | Spec | `.spec.md` | The `.spec.md` suffix was always the convention; the id6-in-filename requirement is now ALSO applied to specs GOING FORWARD (IPD ha55fi): `aw specs new` produces `YYYYMMDD-<id6>-NN-<id6>-<slug>.spec.md`, and `aw check specs` enforces the id6-clustered grammar for a spec dated at/after the repository's dynamic install cutover date (resolved dynamically via `config.resolve_cutover_date` / `check_engine.SPEC_ID6_CUTOVER_DATE`) while GRANDFATHERING pre-cutover legacy `YYYYMMDD-HHMM-NN-<slug>.spec.md` names. A legacy spec is converted on demand with `aw rename specs <legacy> --to-id6` (mints the id6, injects `- Id:`, rewrites references). |
 | Walkthrough | `.walkthrough.md` | |
 | Roadmap | `.roadmap.md` | |

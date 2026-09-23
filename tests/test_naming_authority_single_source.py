@@ -209,6 +209,56 @@ class RoundTripTests(unittest.TestCase):
             )
             self.assertEqual(rebuilt, name)
 
+    def test_prompt_round_trip_through_the_prompts_builder(self) -> None:
+        """IPD `ubac5n` E-01: `aw prompts new` must not re-encode the grammar.
+
+        `prompts.build_prompt_name` DELEGATES to this authority, so the name it produces parses here
+        and rebuilds byte-identically. A local f-string in `prompts.py` would pass a shape test and
+        still break this the moment the authority's grammar moved, which is the single-source property
+        this module exists to protect.
+        """
+
+        from agent_workflows import prompts as P
+
+        name = P.build_prompt_name(
+            date_compact="20260921",
+            set_id="plainlang",
+            order=1,
+            id6="ng0ga4",
+            slug="plain-language-reporting-instructions",
+        )
+        self.assertEqual(
+            name,
+            "20260921-plainlang-01-ng0ga4-plain-language-reporting-instructions.prompt.md",
+        )
+        m = N.parse_clustered(name)
+        self.assertIsNotNone(m, name)
+        assert m is not None
+        self.assertEqual(m.group("type"), "prompt")
+        rebuilt = N.build_clustered_name(
+            date=m.group("date"),
+            set_id=m.group("set"),
+            order=int(m.group("nn")),
+            id6=m.group("id6"),
+            slug=m.group("slug"),
+            artifact_type=m.group("type"),
+        )
+        self.assertEqual(rebuilt, name)
+
+    def test_the_prompts_module_does_not_re_encode_the_clustered_grammar(self) -> None:
+        """The structural half of the same property, for the module this plan changed.
+
+        The suite-wide `test_clustered_regex_defined_in_exactly_one_module` already forbids the id6
+        regex signature anywhere else; this narrows to the assertion `ubac5n` owns, namely that
+        `prompts.py` assembles NO clustered name of its own.
+        """
+
+        text = (PKG_DIR / "prompts.py").read_text(encoding="utf-8")
+        self.assertNotIn(_CLUSTERED_REGEX_SIGNATURE, text)
+        self.assertIn("build_clustered_name", text)
+        # A hand-rolled f-string assembling the five slots would look like this; it must not appear.
+        self.assertNotIn("{order:02d}-{id6}-", text)
+
     def test_research_build_then_parse(self) -> None:
         for model in ("gpt56", None):
             rn = RC.ResearchName(

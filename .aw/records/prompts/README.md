@@ -1,15 +1,25 @@
 # .aw/records/prompts/
 
-Operational STAGING for prompts, organized by lifecycle state. Prompt files are named
-`YYYYMMDD-HHMM-NN-<slug>.prompt.md` (the creating machine's local date and time; `NN` is a two-digit
-per-minute sequence; `<slug>` is lowercase kebab-case; `.prompt` is the uniform artifact-type facet).
-Do NOT hand-name a staged prompt: `aw prompts new` derives the name and writes the metadata for you
-(dry-run by default, `--apply` to write, never auto-staged).
+Operational STAGING for prompts, organized by lifecycle state. Prompt files use the uniform artifact
+grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.prompt.md` (the creating machine's local date; `<setid>` is
+the Set id, defaulting to the slug for a prompt that belongs to no group; `NN` is the order within
+that Set; `<id6>` is the prompt's own stable 6-character citation handle; `<slug>` is lowercase
+kebab-case; `.prompt` is the uniform artifact-type facet). The `<id6>` is what makes a staged prompt
+citable: it is how `aw find` resolves it and how the research report it produced can name the prompt
+that asked the question. Do NOT hand-name a staged prompt: `aw prompts new` mints the id6 and derives
+the name and metadata for you (dry-run by default, `--apply` to write, never auto-staged).
 
-Pipeline metadata lives in a SINGLE leading HTML comment, which must be the first line of the file:
+Legacy `YYYYMMDD-HHMM-NN-<slug>.prompt.md` names that predate this repository's `prompt_id6` cutover
+remain valid and are grandfathered; convert one on demand with
+`aw rename prompts <legacy-name> --to-id6` (mints the id6, writes it into the metadata comment, and
+rewrites inbound citations).
+
+Pipeline metadata lives in a SINGLE leading HTML comment, which must be the first line of the file,
+and the prompt's `Id:` is one of its fields (never a `- Id:` bullet, which would render as visible
+text above the prompt body):
 
 ```text
-<!-- aw-prompt: Kind: research | Status: pending | Created: 2026-08-30 | Author: <agent> (<model>) | Targets: ... | Concerns: ... -->
+<!-- aw-prompt: Kind: research | Id: <id6> | Set: <setid> | Status: pending | Created: 2026-08-30 | Author: <agent> (<model>) | Targets: ... | Concerns: ... -->
 ```
 
 An HTML comment is invisible when the file is pasted into a chat, so the prompt stays
