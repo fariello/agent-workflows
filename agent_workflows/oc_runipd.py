@@ -124,6 +124,16 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
+    # RE-EXPORTED IN THE `as <same-name>` FORM BECAUSE THIS MODULE NO LONGER CALLS IT, and that is a
+    # measured `ruff` deletion rather than a precaution (runnerlayer Order 02 `1f7xno`). This entry was
+    # a PLAIN import while `announce_run_order` was defined here and called it; the moment that
+    # function moved to `runner_shared`, the name became unused in this file and `ruff --fix` DELETED
+    # it on the batch's first commit. `tests/test_run_order_announcement.py` then failed with
+    # `AttributeError: module 'agent_workflows.oc_runipd' has no attribute
+    # 'format_run_order_announcement'`, because that test asserts both drivers bind the SAME formatter
+    # object. The redundant alias is what marks the import as an intentional re-export and is the only
+    # form the formatter leaves alone.
+    format_run_order_announcement as format_run_order_announcement,
 )
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
 
