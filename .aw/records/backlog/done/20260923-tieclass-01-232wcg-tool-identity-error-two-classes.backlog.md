@@ -1,5 +1,5 @@
 - Id: 232wcg
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: tieclass
 - Priority: high
@@ -7,4 +7,5 @@
 - Summary: runner_shared.assert_child_tool_identity raises runner_shared.ToolIdentityError, a DIFFERENT class from the one both hosts catch, so a run-fatal tool-identity mismatch is silently downgraded to an item-local failure
 
 ## Workflow history
+- 2026-09-23 set (aw backlog): FIXED by runnerlayer Order 02 (1f7xno) batch 6, in the same turn it was filed. That plan consolidated the nested-aw tool-identity pin onto the copy runner_shared already held and DELETED oc_runipd's duplicate, so there is now ONE ToolIdentityError class. Verified live after the change: oc.ToolIdentityError is runner_shared.ToolIdentityError -> True, agy likewise, and raising runner_shared.ToolIdentityError IS now caught by except oc_runipd.ToolIdentityError (before, it fell through to the broader except DriverError that both hosts document as ITEM-LOCAL, losing the ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class). The four public names plus the five private ones they close over (_AW_PIN_PROBE, _TOOL_IDENTITY_VERIFIED, runner_package_root, _AW_PIN_BOOTSTRAP, _AW_PIN_STRIP) moved as one closure, because leaving the memo behind would have given the two paths separate caches. Both hosts re-export from runner_shared and tests/test_lane_tool_identity.py passes (25 passed) with its patch sites repointed at the owning module.
 - 2026-09-23 created (aw backlog): Found while executing runnerlayer 02 (1f7xno). ToolIdentityError is defined TWICE: oc_runipd.py:686 and runner_shared.py:21159, and oc.ToolIdentityError is runner_shared.ToolIdentityError -> False. runner_shared.assert_child_tool_identity (:21194) raises the runner_shared class; oc_runipd.py:6877 and agy_runipd.py:3376 both catch the oc class (agy imports it from oc). Measured live: raising runner_shared.ToolIdentityError is NOT caught by except oc_runipd.ToolIdentityError, only by the broader except DriverError. Per the in-tree notes at oc_runipd.py:6879 and agy_runipd.py:3378 that broader handler is ITEM-LOCAL, so the ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class is lost and the run continues under tooling the runner is not. This is exactly the two-distinct-classes defect 818uru fixed for DriverError, reintroduced one subclass down. Note execute_item_core rebinds assert_child_tool_identity off driver_module, so today's live path raises oc's class; the shared copy is reachable whenever driver_module lacks the attribute.
