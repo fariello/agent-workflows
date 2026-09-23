@@ -1,5 +1,6 @@
 - Id: uj5g58
-- Status: open
+- Status: graduated
+- Graduated-To: envhermet
 - Blocks-Release: next
 - Set: uj5g58
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw backlog new has no near-duplicate guard: 18 items independently filed the same turn_bounds ambient-env defect
 
 ## Workflow history
+- 2026-09-23 graduated (aw set): Graduated to envhermet child 02 fwgq2u (the near-duplicate guard), with orchestrator uvwqvz. RE-MEASURED THIS ITEM'S CENTRAL NUMBER rather than repeating it: it records '18 items independently filed the same turn_bounds ambient-env defect'; at HEAD 22cf67d9 the live count is TWENTY-THREE, so SIX more were filed AFTER the item that counted them. The rising count is the argument for building the guard. VERIFIED there is no guard: 'aw backlog new --help' exposes no duplicate, similarity, or near-match option and nothing in the creation path consults existing items. THE DESIGN IS CONSTRAINED BY A SHIPPED PRECEDENT: 'aw graduation' (from jxxec8) solves the structurally identical problem advisory-only, showing a cluster and stating which cases it can, partly can, and cannot detect, never refusing. fwgq2u follows it deliberately, so refusing a filing is out of scope. HIGHEST-VALUE HALF, recorded because it is cheaper than similarity scoring: twenty-three of these items name the SAME TEST NODE and mostly the same env var, so exact distinctive-token overlap would likely have caught nearly all of them with no fuzzy matching and no false-positive risk; fwgq2u OQ-01 requires that be MEASURED first and forbids building prose similarity if tokens alone suffice. ALSO NOTED: all twenty-three carry Blocks-Release: next, so one test defect currently presents to the release gate as twenty-three blockers.
 - 2026-09-22 created (aw backlog): Filed from lane 8b9ufm (plan roleadv-01) after the defect-report step found the finding already present 18 times.
 
 THE DEFECT, MEASURED. Every managed lane that runs the bare suite hits the same environmental failure (tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped reds because the lane's own environment exports OPENCODE_CONFIG_CONTENT, which the spawned child inherits). Each lane's defect-report step then dutifully files it. Measured 2026-09-22 from lane 8b9ufm: 'grep -rln OPENCODE_CONFIG_CONTENT .aw/records/backlog/' returns 18 FILES, and 'aw find backlog' shows at least 4vn040, rfu7mk, to77re, ph0wlt, cfgj8s, wnabns, wx72g3, 8dp3zp, 06ngnx, zgndje all open and all describing the same single defect under different id6s.

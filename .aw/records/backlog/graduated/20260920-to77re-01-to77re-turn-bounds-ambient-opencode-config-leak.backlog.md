@@ -1,5 +1,6 @@
 - Id: to77re
-- Status: open
+- Status: graduated
+- Graduated-To: envhermet
 - Blocks-Release: next
 - Set: to77re
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: test_turn_bounds R4.1 policy assertion fails when the agent's own ambient env already carries OPENCODE_CONFIG_CONTENT
 
 ## Workflow history
+- 2026-09-23 graduated (aw set): Graduated to the envhermet Set (orchestrator uvwqvz, child 01 heglfv for the DEFECT, child 02 fwgq2u for the missing GUARD). This item is one of TWENTY-THREE open filings of a single non-hermetic assertion: tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped reads the AMBIENT OPENCODE_CONFIG_CONTENT, which run_opencode always sets for a turn. MEASURED at HEAD 22cf67d9: bare '144 passed', and with the variable set '1 failed, 143 passed' on 'assert OPENCODE_CONFIG_CONTENT not in {...}'. So the file is green for a human and red for every lane agent, which is why so many agents filed it independently. THE FIX MUST NOT RELAX THE ASSERTION: R4.1 genuinely requires a non-isolated turn to receive NO denial policy (it works in the main checkout where external-directory denial would refuse its ordinary work), so heglfv fixes the SEAM the test reads, not the guarantee. A session-wide conftest scrub is explicitly REJECTED, because that mechanism is what made rolevac 8i0xa7's role guard vacuous and repeating it would be a known self-inflicted defect. NOT CLOSED AS A DUPLICATE HERE: consolidating these twenty-three needs human judgement (uvwqvz OQ-01), since the filings are not identical and at least two attribute the failure to AW_EXECUTION_ROLE, a different and already-scrubbed cause.
 - 2026-09-20 created (aw backlog): test_turn_bounds R4.1 policy assertion fails when the agent's own ambient env already carries OPENCODE_CONFIG_CONTENT
 
 Measured 2026-09-20 while executing IPD i4c0c3 in an `aw oc run` lane worktree.
