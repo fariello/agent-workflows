@@ -14,8 +14,13 @@ WHAT THIS FILE PINS, and each is a property the resolver can silently lose in a 
    is recognized as a change to what `aw find` matches.
    The two patterns: `selectors._STATUS_RE` (agent_workflows/selectors.py:89, `(\\S+)`) versus
    `plans_index._META_RE["Status"]` (agent_workflows/plans_index.py:37, `(.+?)`).
-4. E-06 - research resolution is NOT index-backed, so a research status query keeps its
-   filename-shaped result set instead of jumping to the index's much larger one.
+4. IPD `xo3244` - research's YAML front matter IS read by the three content rules, so a research
+   id6/setid/status query resolves on METADATA rather than falling silently through to the
+   last-resort FILENAME rule. THIS REVERSES what item 4 asserted under e32j35 E-06 ("research
+   resolution keeps its filename-shaped result set"); the inverted contract lives in
+   `ResearchResolvesByYamlFrontMatterTests`, which carries the old class's four tests across rather
+   than deleting them, and the safety of the reversal for every OTHER record type rests on the
+   CASE-SENSITIVE key lookup pinned by `YamlFallbackIsCaseSensitiveTests`.
 5. The frozen precedence path -> id6 -> setid -> status -> stem -> substring is unchanged.
 
 The open counter deliberately patches BOTH `builtins.open` and `Path.open`, and counts only
@@ -422,11 +427,25 @@ class StatusParityConstraintTests(unittest.TestCase):
             self.assertEqual([p.name for p in got.paths], [single.name])
 
 
-class ResearchStaysFilesystemResolvedTests(unittest.TestCase):
-    """E-06: research uses YAML front matter, so its metadata is invisible to this resolver.
+class ResearchResolvesByYamlFrontMatterTests(unittest.TestCase):
+    """IPD `xo3244`: research's YAML front matter IS matchable, and this class RECORDS the reversal.
 
-    A research doc therefore resolves by FILENAME, and wiring `research/INDEX.json` into the
-    id6/setid/status rules would change results rather than merely speed them up.
+    THIS CLASS WAS `ResearchStaysFilesystemResolvedTests`, WHICH PINNED THE OPPOSITE CONTRACT, and it
+    is INVERTED rather than deleted so the corpus keeps the record that the behavior was changed
+    deliberately. Its e32j35 E-06 form asserted that a research id6 resolved via `MATCH_SUBSTRING`
+    and that a status query returned NOTHING, with an assertion message saying a `MATCH_ID6` here
+    "would mean the YAML dialect was wired in, which changes results". The YAML dialect is now wired
+    in, so those two assertions are the change, not a regression.
+
+    WHY THE OLD CONTRACT WAS WRONG RATHER THAN MERELY CONSERVATIVE, which is the reason the inversion
+    is an improvement and not a preference. Speaking only the bullet dialect did not make a research
+    query cautious, it made it SILENTLY UNDER-REPORT: the three content rules could never fire, so
+    every research query fell through to the last-resort FILENAME rule and returned a plausible short
+    list with nothing signalling that metadata was never read. Measured on the live tree before the
+    change, `aw find research reference` returned 5 records while 64 carried `status: reference`.
+
+    All four of the original class's tests are carried across, including the open-cost one, which
+    survives the change unaltered and belongs to this inverted class rather than being dropped.
     """
 
     def setUp(self) -> None:
@@ -434,7 +453,8 @@ class ResearchStaysFilesystemResolvedTests(unittest.TestCase):
         self.root = Path(self._tmp.name)
         rdir = self.root / ".aw" / "records" / "research"
         rdir.mkdir(parents=True)
-        # YAML front matter, as research actually writes it.
+        # YAML front matter, as research actually writes it. FIXTURE PRESERVED from the class this
+        # inverts, so the before/after comparison is on identical inputs.
         self.doc = rdir / "20260101-topic-01-ff0001-a-research-report.md"
         self.doc.write_text(
             "---\nid: ff0001\nset: topic\nstatus: reference\n---\n\n# Report\n\nbody\n",
@@ -450,40 +470,509 @@ class ResearchStaysFilesystemResolvedTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_research_has_no_bullet_id(self) -> None:
-        self.assertIsNone(selectors._read_id(self.doc.read_text(encoding="utf-8")))
+        """STILL TRUE, and kept to document that the FALLBACK is what matches, not the bullet path.
 
-    def test_research_id6_resolves_by_filename_substring_not_id6(self) -> None:
+        A research document genuinely carries no `- Id:` bullet, so the bullet regex MISSES and the
+        YAML fallback is what supplies the id6. Keeping this assertion is what makes the two
+        following tests meaningful: they prove the fallback fired, not that a bullet was found.
+        """
+        self.assertIsNone(
+            selectors._ID_RE.search(
+                selectors.metadata_region(self.doc.read_text(encoding="utf-8"))
+            )
+        )
+
+    def test_research_id6_resolves_by_its_yaml_id_not_by_filename_substring(
+        self,
+    ) -> None:
+        """INVERTED from `test_research_id6_resolves_by_filename_substring_not_id6`.
+
+        The matched FILE is the same one as before; what changed is the winning KIND, which the
+        `Resolution` carries so callers can apply the kind-aware ambiguity policy. That matters
+        beyond cosmetics: `id6` is in `UNIQUE_KINDS` while `substring` is not, so the same query now
+        routes through the collision policy instead of the ambiguity-with-`--force` one.
+        """
         got = selectors.resolve(self.root, "research", "ff0001")
         self.assertEqual([p.resolve() for p in got.paths], [self.doc.resolve()])
         self.assertEqual(
             got.kind,
-            selectors.MATCH_SUBSTRING,
-            "research resolves by FILENAME; a MATCH_ID6 here would mean the YAML dialect "
-            "was wired in, which changes results (see the module docstring)",
+            selectors.MATCH_ID6,
+            "the YAML dialect is wired in (IPD xo3244): a research id6 resolves via its "
+            "declared `id:`, no longer via the last-resort filename rule",
+        )
+        self.assertIn(got.kind, selectors.UNIQUE_KINDS)
+
+    def test_research_status_query_sees_the_yaml_status(self) -> None:
+        """INVERTED from `test_research_status_query_does_not_see_yaml_status`.
+
+        Before: `got.paths == []` for the selector `reference`. After: both fixture documents match
+        via `MATCH_STATUS`. This is the headline contract change in miniature.
+        """
+        got = selectors.resolve(self.root, "research", "reference")
+        self.assertEqual(got.kind, selectors.MATCH_STATUS)
+        self.assertEqual(
+            [p.resolve() for p in got.paths],
+            sorted([self.doc.resolve(), self.other.resolve()], key=str),
         )
 
-    def test_research_status_query_does_not_see_yaml_status(self) -> None:
-        """`status: reference` in YAML is invisible: the status rule must not match these docs."""
-        got = selectors.resolve(self.root, "research", "reference")
-        self.assertNotEqual(got.kind, selectors.MATCH_STATUS)
-        self.assertEqual(got.paths, [])
+    def test_research_setid_resolves_by_its_yaml_set(self) -> None:
+        """The third content rule, which the old class never covered because it could not fire."""
+        got = selectors.resolve(self.root, "research", "topic")
+        self.assertEqual(got.kind, selectors.MATCH_SETID)
+        self.assertEqual(len(got.paths), 2)
+        self.assertNotIn(
+            got.kind,
+            selectors.UNIQUE_KINDS,
+            "a Set is deliberately MULTI-target; this must not become a collision",
+        )
 
     def test_research_status_query_opens_zero_files_when_it_is_a_filename_miss(
         self,
     ) -> None:
+        """CARRIED ACROSS UNCHANGED: this one survives the inversion and still holds."""
         with _RecordOpenCounter() as c:
             selectors.resolve(self.root, "research", "no-such-research-fragment")
         # The status rule reads (it must try), but the outcome is a filename-shaped miss.
         self.assertGreaterEqual(c.count, 0)
 
+    def test_a_document_with_no_front_matter_at_all_still_resolves_by_filename(
+        self,
+    ) -> None:
+        """7 of 126 research files carry NO front matter; the fallback must not make them errors."""
+        bare = self.root / ".aw" / "records" / "research" / "a-prototype-note.md"
+        bare.write_text("# Just prose\n\nno front matter here\n", encoding="utf-8")
+        got = selectors.resolve(self.root, "research", "prototype-note")
+        self.assertEqual(got.kind, selectors.MATCH_SUBSTRING)
+        self.assertEqual([p.resolve() for p in got.paths], [bare.resolve()])
+
+
+class YamlFallbackIsCaseSensitiveTests(unittest.TestCase):
+    """IPD `xo3244` E-06: the no-perturbation proof for every NON-research type rests on CASE.
+
+    THE AUTHORED SAFETY ARGUMENT WAS "NOTHING ELSE IS FENCED", AND THAT PREMISE IS NOT DURABLE.
+    Re-measured on the live tree at execution, the `---`-fenced population is `plans 0/712`,
+    `specs 0/36`, `backlog 0/567`, `releases 0/1`, `reviews 0/273`, `prompts 0/17`,
+    `walkthroughs 0/24`, `comms 0/7`, `roadmaps 0/1`, `other 0/4`, `research 119/121`. So the corpus
+    happens to be clean TODAY, but the `handoff` workflow writes `---`-fenced `Kind: session-handoff`
+    records into a GITIGNORED lane (`.aw/.gitignore`: `records/*/untracked/`), so another checkout can
+    hold such a file and the next `handoff` run creates one. A corpus count is therefore NOT the
+    durable guard; this fixture is.
+
+    WHAT ACTUALLY PROTECTS THEM IS THE CASE-SENSITIVE LOOKUP. Those records carry CAPITALIZED keys
+    (`Kind:`, `Status:`, `Date:`), and `research_contract.parse_frontmatter` preserves keys VERBATIM,
+    so looking up exactly `id`/`status`/`set` returns None for them. A tolerant lookup would silently
+    make `aw find prompts draft` start matching session-handoff drafts. Do not "robustify" the
+    lookup: that is what these tests forbid.
+    """
+
+    HANDOFF = (
+        "---\n"
+        "Kind: session-handoff\n"
+        "Status: draft\n"
+        "Date: 2026-08-29\n"
+        "Purpose: hand a run ledger defect to the next session\n"
+        "---\n\n# Session handoff\n\nbody\n"
+    )
+
+    def test_capitalized_yaml_keys_are_not_read_by_the_fallback(self) -> None:
+        self.assertIsNone(selectors._read_status(self.HANDOFF))
+        self.assertIsNone(selectors._read_id(self.HANDOFF))
+        self.assertIsNone(selectors._read_setid(self.HANDOFF))
+
+    def test_the_parser_does_see_those_keys_under_their_real_capitalization(
+        self,
+    ) -> None:
+        """The contrast case: the keys ARE there, so the None above is the LOOKUP, not a parse fail.
+
+        Without this, the test above would pass just as well if the fallback were broken outright.
+        """
+        from agent_workflows import research_contract
+
+        data = research_contract.parse_frontmatter(self.HANDOFF)
+        self.assertIsNotNone(data)
+        assert data is not None
+        self.assertEqual(data.get("Status"), "draft")
+        self.assertIsNone(data.get("status"))
+
+    def test_a_fenced_non_research_record_is_not_matched_by_a_status_query(
+        self,
+    ) -> None:
+        """End-to-end: a fenced prompt with `Status: draft` must not join `aw find prompts draft`."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pdir = root / ".aw" / "records" / "prompts" / "untracked"
+            pdir.mkdir(parents=True)
+            handoff = pdir / "20260829-1422-01-session-handoff-run-ledger-defects.md"
+            handoff.write_text(self.HANDOFF, encoding="utf-8")
+            bullet = root / ".aw" / "records" / "prompts"
+            plain = bullet / "20260830-demo-01-hh0001-a-bullet-prompt.prompt.md"
+            plain.write_text(
+                "# Prompt\n\n- Id: hh0001\n- Status: draft\n- Set: demo\n",
+                encoding="utf-8",
+            )
+            got = selectors.resolve(root, "prompts", "draft")
+            self.assertEqual(got.kind, selectors.MATCH_STATUS)
+            self.assertEqual(
+                [p.resolve() for p in got.paths],
+                [plain.resolve()],
+                "only the BULLET prompt may match; the fenced handoff's `Status:` is capitalized",
+            )
+
+    def test_the_case_sensitivity_reason_is_recorded_in_the_source(self) -> None:
+        """A future "robustness" edit would undo the proof above, so the reason must be discoverable."""
+        src = Path(selectors.__file__).read_text(encoding="utf-8")
+        idx = src.index("def _read_yaml_scalar")
+        preamble = src[max(0, idx - 2500) : idx]
+        self.assertIn("CASE-SENSITIVE", preamble)
+        self.assertIn("handoff", preamble)
+
+
+class YamlFallbackFiresOnlyOnABulletMissTests(_Fixture):
+    """IPD `xo3244`: the fallback must not perturb a bullet record, and must not read BODIES."""
+
+    def test_a_bullet_record_never_consults_the_yaml_reader(self) -> None:
+        """The bullet path wins FIRST, so a bullet record's answer is byte-for-byte unchanged."""
+        text = self.target.read_text(encoding="utf-8")
+        calls: list[str] = []
+        real = selectors._read_yaml_scalar
+
+        def spy(t: str, key: str):  # type: ignore[no-untyped-def]
+            calls.append(key)
+            return real(t, key)
+
+        selectors._read_yaml_scalar = spy  # type: ignore[assignment]
+        try:
+            self.assertEqual(selectors._read_id(text), self.target_id6)
+            self.assertEqual(selectors._read_status(text), "approved")
+            self.assertEqual(selectors._read_setid(text), "demo")
+        finally:
+            selectors._read_yaml_scalar = real  # type: ignore[assignment]
+        self.assertEqual(
+            calls,
+            [],
+            "a bullet record matched, so the YAML fallback must never be consulted",
+        )
+
+    def test_a_yaml_looking_line_in_a_bullet_records_BODY_does_not_match(self) -> None:
+        """The fallback keys on a LEADING fence, so body prose cannot become metadata.
+
+        This is the ARTIFACTS-NOT-MENTIONS rule applied to the NEW dialect: a plan that documents
+        the research front-matter format in its body must not be read as declaring it.
+        """
+        p = self.pend / "20260101-demo-95-cc0095-documents-yaml-format.ipd.md"
+        p.write_text(
+            "# IPD: documenting the research dialect\n\n"
+            "- Id: cc0095\n- Status: to-review\n- Set: demo\n\n"
+            "## Goal\n\nA research doc's front matter looks like this:\n\n"
+            "---\nid: zz9999\nset: quotedset\nstatus: quotedstatus\n---\n",
+            encoding="utf-8",
+        )
+        text = p.read_text(encoding="utf-8")
+        self.assertEqual(selectors._read_id(text), "cc0095")
+        self.assertEqual(selectors._read_status(text), "to-review")
+        self.assertEqual(selectors._read_setid(text), "demo")
+        for token in ("zz9999", "quotedset", "quotedstatus"):
+            with self.subTest(token=token):
+                self.assertEqual(
+                    [], list(selectors.resolve(self.root, "plans", token).paths)
+                )
+
+    def test_a_record_whose_bullet_status_is_multi_word_does_not_gain_a_yaml_answer(
+        self,
+    ) -> None:
+        """A bullet MISS on a non-fenced record must stay a miss, not fall through to anything."""
+        text = "# IPD\n\n- Id: cc0094\n- Status: EXECUTED (approved by maintainer)\n- Set: demo\n"
+        self.assertIsNone(selectors._read_status(text))
+
+
+class YamlScalarNormalizationTests(unittest.TestCase):
+    """IPD `xo3244` E-04: a GUARD, honestly labelled, applied to the YAML dialect ONLY.
+
+    THE HONEST STATUS: the backlog item reported observing a `set:` value written `` `awoptimize` ``
+    with backticks, and warned that comparing raw produces a phantom mismatch. Re-measured at
+    execution across all 119 parsable research documents, checking every front-matter value for a
+    backtick or a stray quote pair, ZERO anomalies were found. So this normalization fixes no live
+    defect; it keeps a form the corpus once held from silently failing to match.
+
+    IT MUST NOT REACH THE BULLET DIALECT, which is the load-bearing half. `_read_setid`'s bullet path
+    returns a backticked value VERBATIM, pinned by
+    `tests/test_cli_find.py::BacktickSetValueIsPinnedTests` because normalizing there flips a real
+    query's winning KIND (4 substring hits become 1 setid hit) and SHRINKS the answer.
+    """
+
+    def test_a_backticked_yaml_set_resolves_for_the_bare_selector(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            rdir = root / ".aw" / "records" / "research"
+            rdir.mkdir(parents=True)
+            doc = rdir / "20260101-nomatchinname-01-gg0001-a-report.research-report.md"
+            doc.write_text(
+                "---\nid: gg0001\nset: `topic`\nstatus: reference\n---\n\n# R\n\nbody\n",
+                encoding="utf-8",
+            )
+            got = selectors.resolve(root, "research", "topic")
+            self.assertEqual(
+                got.kind,
+                selectors.MATCH_SETID,
+                "the backticks are stripped on the YAML dialect, so `topic` matches the setid",
+            )
+            self.assertEqual([p.resolve() for p in got.paths], [doc.resolve()])
+
+    def test_quote_pairs_are_stripped_too(self) -> None:
+        for raw in ("`topic`", "'topic'", '"topic"', "``topic``", "  topic  "):
+            with self.subTest(raw=raw):
+                self.assertEqual(selectors._normalize_yaml_scalar(raw), "topic")
+
+    def test_an_unbalanced_quote_is_left_alone(self) -> None:
+        """Only MATCHING pairs are stripped, so a value is never silently mangled."""
+        self.assertEqual(selectors._normalize_yaml_scalar("`topic"), "`topic")
+        self.assertEqual(selectors._normalize_yaml_scalar("topic'"), "topic'")
+
+    def test_the_bullet_dialect_is_NOT_normalized(self) -> None:
+        """The pin from `BacktickSetValueIsPinnedTests`, restated here as a boundary assertion."""
+        text = "# Doc\n\n- Id: effzzi\n- Set: `awoptimize`\n- Status: reference\n"
+        self.assertEqual(selectors._read_setid(text), "`awoptimize`")
+
+    def test_an_empty_yaml_value_reads_as_absent(self) -> None:
+        """An empty scalar must be None, not the empty string, or it would match a `''` selector."""
+        self.assertIsNone(selectors._read_yaml_scalar("---\nstatus:\n---\n", "status"))
+
+
+class YamlFallbackHeaderBoundTests(unittest.TestCase):
+    """IPD `xo3244` E-02: the bounded header read is sufficient for the YAML dialect too.
+
+    WHY THIS IS NOT TRIVIAL: `parse_frontmatter` returns `None` when it never sees the CLOSING `---`
+    fence, so a document whose front matter straddled the read window would read as having NO
+    metadata - the exact silent-miss class this change exists to remove. Measured at execution over
+    all 126 research `.md` files, the 119 that parse from the full text parse IDENTICALLY from
+    `_read_header`'s window, and the largest closing fence sits at byte 602 against a 4096-byte first
+    chunk. `_HEADER_CHUNK_BYTES` is deliberately NOT enlarged.
+    """
+
+    def test_the_chunk_size_is_unchanged_by_this_plan(self) -> None:
+        self.assertEqual(selectors._HEADER_CHUNK_BYTES, 4096)
+
+    def test_a_fence_inside_the_first_chunk_is_read(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "doc.md"
+            p.write_text(
+                "---\nid: ii0001\nset: topic\nstatus: reference\n---\n\n# R\n\n"
+                + ("body line\n" * 500),
+                encoding="utf-8",
+            )
+            text = selectors._read_header(p)
+            assert text is not None
+            self.assertEqual(selectors._read_id(text), "ii0001")
+            self.assertEqual(selectors._read_status(text), "reference")
+
+    def test_a_STRADDLING_fence_reads_as_absent_rather_than_as_a_wrong_value(
+        self,
+    ) -> None:
+        """The failure MODE is pinned, so a future front-matter growth spurt is visible not silent.
+
+        A fence beyond the window yields None (absent), never a fabricated or partial value. That is
+        the safe direction - a missing match rather than a wrong one - and it is why the guard above
+        measures the real corpus instead of assuming.
+        """
+        huge = (
+            "---\nid: ii0002\nsummary: "
+            + ("x" * 300_000)
+            + "\nstatus: reference\n---\n"
+        )
+        self.assertIsNone(selectors._read_yaml_scalar(huge[:4096], "status"))
+        self.assertEqual(selectors._read_yaml_scalar(huge, "status"), "reference")
+
+    def test_every_real_research_doc_parses_from_the_bounded_header(self) -> None:
+        """The corpus guard: run against the live tree when present, skipped elsewhere."""
+        repo = Path(__file__).resolve().parents[1]
+        rdir = repo / ".aw" / "records" / "research"
+        if not rdir.is_dir():
+            self.skipTest("not running inside the agent-workflows repo tree")
+        from agent_workflows import research_contract
+
+        differ = []
+        for p in sorted(rdir.rglob("*.md")):
+            full = research_contract.parse_frontmatter(
+                p.read_text(encoding="utf-8", errors="replace")
+            )
+            hdr = research_contract.parse_frontmatter(selectors._read_header(p) or "")
+            if full != hdr:
+                differ.append(p.name)
+        self.assertEqual(
+            differ,
+            [],
+            "a research doc's front matter straddles the bounded header read: it would "
+            "silently read as having NO metadata",
+        )
+
+
+class PublicRunnerReadersStayBulletOnlyTests(unittest.TestCase):
+    """IPD `xo3244` E-03: the runner-facing pair is deliberately NOT taught the YAML dialect.
+
+    A host runner reads PLAN front matter, which is bullet-dialect by construction, so a YAML branch
+    there would widen a dialect no caller can produce. And this is the ONE reader pair whose failure
+    mode is documented as SILENTLY DEGRADING a runner to a directory-derived status, so its surface
+    is kept as narrow as its callers need. Recorded as a test because the omission otherwise reads
+    as an oversight that a later change would "complete".
+    """
+
+    YAML_DOC = "---\nid: jj0001\nset: topic\nstatus: reference\n---\n\n# R\n\nbody\n"
+
+    def test_the_public_readers_return_none_for_a_yaml_record(self) -> None:
+        self.assertIsNone(selectors.read_front_matter_id(self.YAML_DOC))
+        self.assertIsNone(selectors.read_front_matter_status(self.YAML_DOC))
+
+    def test_the_internal_readers_by_contrast_DO_read_it(self) -> None:
+        """The contrast is the whole point: the two tiers now differ in DIALECT as well."""
+        self.assertEqual(selectors._read_id(self.YAML_DOC), "jj0001")
+        self.assertEqual(selectors._read_status(self.YAML_DOC), "reference")
+
+    def test_the_public_readers_keep_their_whitespace_tolerance(self) -> None:
+        """Unchanged behavior on their real input, so this plan touched nothing they do."""
+        two_spaces = "# T\n\n-  Id: aaa111\n-  Status: approved\n"
+        self.assertEqual(selectors.read_front_matter_id(two_spaces), "aaa111")
+        self.assertEqual(selectors.read_front_matter_status(two_spaces), "approved")
+        self.assertIsNone(selectors._read_id(two_spaces))
+
+    def test_the_decision_is_recorded_next_to_the_readers(self) -> None:
+        src = Path(selectors.__file__).read_text(encoding="utf-8")
+        idx = src.index("_FRONT_MATTER_ID_RE = re.compile")
+        preamble = src[max(0, idx - 1500) : idx]
+        self.assertIn("BULLET-ONLY", preamble)
+
+
+class PreservedInvariantsUnderTheNewDialectTests(unittest.TestCase):
+    """IPD `xo3244` E-05: the four resolver invariants that this change may not quietly alter."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        rdir = self.root / ".aw" / "records" / "research"
+        rdir.mkdir(parents=True)
+        self.doc = rdir / "20260101-topic-01-ff0001-a-research-report.md"
+        self.doc.write_text(
+            "---\nid: ff0001\nset: topic\nstatus: reference\n---\n\n# Report\n\nbody\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_precedence_is_unchanged(self) -> None:
+        self.assertEqual(
+            selectors._PRECEDENCE,
+            (
+                selectors.MATCH_PATH,
+                selectors.MATCH_ID6,
+                selectors.MATCH_SETID,
+                selectors.MATCH_STATUS,
+                selectors.MATCH_STEM,
+                selectors.MATCH_SUBSTRING,
+            ),
+        )
+
+    def test_an_explicit_PATH_still_outranks_the_new_status_match(self) -> None:
+        """`archive` is both a research STATUS and a DIRECTORY in that tree (OQ-02).
+
+        The status rule (4) now answers the bare token, while `path` (1) still wins for an explicit
+        path. Pinned because the two readings are easy to confuse and a silent flip between them is
+        the class of surprise this plan removes.
+        """
+        adir = self.root / ".aw" / "records" / "research" / "archive" / "202601"
+        adir.mkdir(parents=True)
+        shelved = adir / "20260101-topic-02-ff0002-shelved.research-report.md"
+        shelved.write_text(
+            "---\nid: ff0002\nset: topic\nstatus: archive\n---\n\n# R\n\nbody\n",
+            encoding="utf-8",
+        )
+        by_status = selectors.resolve(self.root, "research", "archive")
+        self.assertEqual(by_status.kind, selectors.MATCH_STATUS)
+        self.assertEqual([p.resolve() for p in by_status.paths], [shelved.resolve()])
+        by_path = selectors.resolve(self.root, "research", str(shelved))
+        self.assertEqual(by_path.kind, selectors.MATCH_PATH)
+
+    def test_a_denied_kind_is_still_an_explicit_rejection_not_a_silent_no_match(
+        self,
+    ) -> None:
+        got = selectors.resolve(
+            self.root, "research", "ff0001", deny=frozenset({selectors.MATCH_ID6})
+        )
+        self.assertEqual(got.paths, [])
+        self.assertEqual(got.rejected_kind, selectors.MATCH_ID6)
+        self.assertIsNone(got.kind)
+        paths, err = selectors.resolve_for_mutation(
+            self.root, "research", "ff0001", deny=frozenset({selectors.MATCH_ID6})
+        )
+        self.assertEqual(paths, [])
+        self.assertIn("does not accept a id6 selector", err or "")
+
+    def test_a_token_only_in_the_BODY_still_does_not_match(self) -> None:
+        """ARTIFACTS-NOT-MENTIONS: the fallback reads the leading fence, never body text."""
+        p = (
+            self.root
+            / ".aw"
+            / "records"
+            / "research"
+            / "20260102-topic-03-ff0003-mentions-things.research-report.md"
+        )
+        p.write_text(
+            "---\nid: ff0003\nset: topic\nstatus: reference\n---\n\n"
+            "# R\n\nThis doc discusses id kk0001 and status draftish and set otherset.\n",
+            encoding="utf-8",
+        )
+        for token in ("kk0001", "draftish", "otherset"):
+            with self.subTest(token=token):
+                self.assertEqual(
+                    [], list(selectors.resolve(self.root, "research", token).paths)
+                )
+
+    def test_the_single_traversal_property_survives(self) -> None:
+        """Instrumented, not wall-clock: a query touching both views opens each file at most once."""
+        for i in range(6):
+            p = (
+                self.root
+                / ".aw"
+                / "records"
+                / "research"
+                / f"2026010{i}-topic-1{i}-ll000{i}-filler.research-report.md"
+            )
+            p.write_text(
+                f"---\nid: ll000{i}\nset: topic\nstatus: reference\n---\n\n# R\n\nbody\n",
+                encoding="utf-8",
+            )
+        with _RecordOpenCounter() as c:
+            selectors.resolve(
+                self.root, "research", "a-token-that-matches-nothing-here"
+            )
+        self.assertGreater(c.count, 0, "the content rules must have been tried")
+        self.assertEqual(
+            c.count,
+            c.distinct,
+            f"{c.count} opens for {c.distinct} distinct files: the tree is being walked twice",
+        )
+
 
 class DialectDocumentationTests(unittest.TestCase):
-    """E-06 leaves a discoverable REASON in the source, not only in the plan."""
+    """The dialect decision leaves a discoverable REASON in the source, not only in the plan.
+
+    UNCHANGED IN SUBSTANCE BY IPD `xo3244`, and worth saying why. This class asserts the module
+    docstring NAMES the two dialects; it never asserted which way the decision went. So the rewrite
+    that reversed the exclusion (research's YAML front matter is now READ) keeps both required
+    phrases and this class keeps passing. The extra assertion below is new: it pins that the docstring
+    describes the CURRENT behavior, since the phrases alone would be satisfied by prose still claiming
+    research is deliberately excluded.
+    """
 
     def test_module_docstring_names_the_dialect_gap(self) -> None:
         doc = selectors.__doc__ or ""
         self.assertIn("YAML front matter", doc)
         self.assertIn("research", doc.lower())
+
+    def test_module_docstring_no_longer_claims_research_is_excluded(self) -> None:
+        """The code must not document the opposite of what it does (IPD `xo3244` E-07)."""
+        doc = selectors.__doc__ or ""
+        self.assertIn("BOTH DIALECTS", doc.upper())
+        self.assertNotIn("RESEARCH INDEX IS DELIBERATELY NOT WIRED IN", doc.upper())
 
     def test_status_regex_carries_the_parity_note(self) -> None:
         src = Path(selectors.__file__).read_text(encoding="utf-8")
