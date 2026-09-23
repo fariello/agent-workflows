@@ -2042,6 +2042,22 @@ def expand_selectors(
                     f"Ambiguous Set selector prefix: {sel_str} matches {prefix_matches}"
                 )
             else:
+                # graduate-02 (`iuxtjy`) E-02: THE TYPED SPEC BRANCH, AHEAD OF THE FILENAME-SUBSTRING
+                # FALLBACK BELOW, and the ORDER is the correctness content rather than the branch
+                # (F-13). The fallback matches a spec's own id6 inside an adopting plan's filename, so
+                # naming a spec selected a PLAN ABOUT it - measured at execution time for five
+                # discoverable spec id6s, two of them silently. Sited after the exact-plan and Set
+                # branches (verified: no discoverable spec id6 is a plan id6, a Set name, or a Set
+                # prefix, so this steals nothing) and before the fallback, where it is the only
+                # position that actually fixes the unambiguous cases. Shared with the agy host; do not
+                # fork the logic here.
+                spec_match = runner_shared.match_spec_selector(repo, sel_str, plans)
+                if spec_match is not None:
+                    raise DriverError(
+                        runner_shared.describe_spec_selector_refusal(
+                            spec_match, labels=runner_shared.OC_HOST_LABELS
+                        )
+                    )
                 matching_plans = [
                     id6
                     for id6, p in plans.items()

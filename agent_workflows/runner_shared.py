@@ -10089,6 +10089,204 @@ def collect_lane_earned_paths(
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
+class SpecSelectorMatch(NamedTuple):
+    """A selector token that names a SPEC, with what the runner can and cannot then do about it.
+
+    ``record`` is the :class:`SpecRecord` the shared spec enumeration found, so the path's TYPE is a
+    fact read from the specs tree rather than inferred from a filename.
+
+    ``shadowed_plans`` is the plan id6 list the FILENAME-SUBSTRING FALLBACK would have returned for
+    the same token. It is carried rather than discarded because it is the whole evidence for why this
+    branch must precede that fallback, and a refusal that can name the plan it declined to run is
+    materially more useful than one that cannot.
+    """
+
+    id6: str
+    record: SpecRecord
+    shadowed_plans: tuple[str, ...]
+    #: The repository root the match was resolved against, CARRIED rather than re-derived. An earlier
+    #: shape had the consumer walk up from the spec's own parent directory looking for `.aw`/`.git`,
+    #: which is guessing: under a temporary directory it walked past the intended root entirely and
+    #: reported another repository's cluster. The root is known here, so it travels with the match.
+    repo: Path
+
+
+def match_spec_selector(
+    repo: Path | None,
+    sel_str: str,
+    manifest_plans: Mapping[str, Any] | None = None,
+) -> SpecSelectorMatch | None:
+    """Return the SPEC a selector token names, or None. THE TYPED BRANCH, SHARED BY BOTH HOSTS.
+
+    WHY THIS EXISTS, AND IT IS A CORRECTNESS FIX RATHER THAN A FEATURE (graduate `iuxtjy` E-02, F-13).
+    `expand_selectors`' last resort is a FILENAME SUBSTRING match over plan filenames, and the naming
+    convention slugs an adopting plan `...-adopt-spec-<id6>` or similar, so a SPEC's own id6 already
+    matches a PLAN's filename. Measured in this repository at execution time, FIVE discoverable spec
+    id6s resolve through that fallback today: `25kzda` -> `['wenmg4', '7p3tt8']` (an ambiguity error),
+    `77tr3o` -> `['84j8d7']`, `7ckptx` -> `['h0zljh', '4fodkt']` (ambiguous), `c4gd2h` -> `['zpbx7o']`,
+    and `uonrjg` -> `['n4xq3l']`. So naming a spec silently selects a PLAN ABOUT that spec, which is a
+    different artifact, and the two single-match cases do it with no diagnostic at all.
+
+    IT MUST BE CONSULTED AFTER THE EXACT-PLAN AND SET BRANCHES AND BEFORE THE SUBSTRING FALLBACK, and
+    that ordering was measured rather than assumed. Verified at execution time: no discoverable spec
+    id6 is also a plan id6, an exact Set name, or a Set-name prefix (all 17 checked, all three columns
+    empty), so this branch STEALS NOTHING from an earlier branch and changes resolution for exactly
+    the five tokens above. Placed before the fallback it fixes them; placed after it, it is dead code
+    for the two unambiguous ones, which is the defect this function exists to remove.
+
+    THE ENUMERATION IS `discover_specs` AND NOTHING ELSE. No second walk, no new path literal: that
+    function reaches the tree through `check_engine._iter_spec_records` and is guarded by an AST test
+    rejecting a new `"records/specs"` constant in this module. A parallel walk would let the review
+    sweep and selector expansion disagree about which specs exist.
+
+    IT REPORTS, IT DOES NOT ENQUEUE, and the distinction is this function's honest limit. A run QUEUE
+    ENTRY is plan-shaped - `build_dynamic_manifest` compiles `discover_plans` alone and
+    `initialize_run_core`'s queue loop reads `manifest["plans"][id6]` with a BARE SUBSCRIPT - so
+    returning a spec id6 into the expanded selection would raise `KeyError` there rather than run it.
+    Per-type DISPATCH is owned by spec `z7nbn1` (universal artifact dispatch) 4.1/4.3, which names
+    this exact plans-only queue as "the single structural blocker" and `ACTION_PLAN` as having no
+    consumer. So the caller's obligation is to REFUSE with a message naming the spec, which is what
+    :func:`describe_spec_selector_refusal` composes.
+
+    ``manifest_plans`` supplies the shadowed-plan evidence and may be omitted; None yields an empty
+    tuple rather than raising, matching the fail-safe posture of the rest of selector expansion.
+
+    Never raises: an absent or unreadable specs tree yields None, so a token that names no spec falls
+    through to exactly the behavior it has today.
+    """
+
+    token = (sel_str or "").strip()
+    if not token or not ID6_RE.fullmatch(token):
+        # Only an id6-shaped token can name a spec HERE. A spec's stem or slug is resolvable through
+        # the shared `selectors` layer, but `discover_specs` keys on `- Id:` alone, so widening this
+        # test would promise a resolution this enumeration cannot deliver.
+        return None
+    if repo is None:
+        return None
+    try:
+        specs = discover_specs(Path(repo))
+    except Exception:
+        return None
+    record = specs.get(token)
+    if record is None:
+        return None
+    shadowed: list[str] = []
+    for id6, entry in (manifest_plans or {}).items():
+        configured = str((entry or {}).get("file", ""))
+        if token in configured or token in Path(configured).name:
+            shadowed.append(id6)
+    return SpecSelectorMatch(
+        id6=token,
+        record=record,
+        shadowed_plans=tuple(sorted(shadowed)),
+        repo=Path(repo),
+    )
+
+
+def describe_spec_selector_refusal(
+    match: SpecSelectorMatch, *, labels: HostLabels
+) -> str:
+    """The refusal for a selector that correctly names a SPEC the runner cannot queue.
+
+    THIS REPLACES A SILENTLY WRONG SUCCESS, which is the point: before this the same token resolved to
+    a PLAN whose filename merely contained the spec's id6, so the operator got a run they did not ask
+    for rather than a message. The message therefore states three things a reader needs - that the
+    token DID resolve, WHAT it resolved to, and WHY that cannot be queued - and it names the plan it
+    declined to run when the old fallback would have picked one, so nobody has to re-derive that.
+
+    It deliberately does NOT offer `--action plan` as the route, because that action is registered and
+    REFUSED (`ACTION_IMPLEMENTED` excludes it) and pointing at it would send an operator to a second
+    refusal. Spec `z7nbn1` is named instead, since it owns the capability.
+    """
+
+    parts = [
+        f"'{match.id6}' is a spec ({match.record.file}), not an IPD plan, so it cannot be queued: a "
+        "run queue entry is plan-shaped (the manifest is compiled from the plans trees and the queue "
+        "builder resolves each entry as an IPD)."
+    ]
+    if match.shadowed_plans:
+        named = ", ".join(match.shadowed_plans)
+        parts.append(
+            f"NOTE: before this branch existed, this token resolved by FILENAME SUBSTRING to "
+            f"plan(s) {named} - a plan ABOUT the spec rather than the spec - so a run you did not "
+            f"ask for would have started. Name that plan explicitly if it is what you meant."
+        )
+    parts.append(
+        "Per-type dispatch (authoring IPDs from an approved spec) is owned by spec z7nbn1 "
+        "(universal artifact dispatch) and is not built, so no run was started. To see what this "
+        f"source already graduated to, run: aw graduation {match.id6}. To review it instead, run: "
+        f"{labels.review_command} {match.id6}"
+    )
+    cluster_line = summarize_graduation_cluster(match.repo, match.id6)
+    if cluster_line:
+        parts.append(cluster_line)
+    return " ".join(parts)
+
+
+def summarize_graduation_cluster(repo: Path | None, source_id6: str) -> str:
+    """ONE LINE naming what ``source_id6`` already graduated to, by CALLING child 01's view.
+
+    THE POINT IS THAT THE GUARD IS REACHED, NOT MERELY AVAILABLE (graduate `iuxtjy` E-04). Child 01
+    (`jxxec8`) shipped the pre-graduation view as `check_engine.graduation_cluster` plus the
+    `aw graduation` verb, and backlog `6h7y2y`'s sequencing instruction is explicit about why order
+    matters: "A working `--action plan` with no duplicate check is a machine for generating redundant
+    plans faster than a human can." A view nobody calls helps only whoever remembers to run it, so the
+    runner surfaces it at the moment an operator names a graduation source.
+
+    IT INFORMS, IT NEVER REFUSES, and that is a requirement rather than a preference. Multiple
+    artifacts per source is LEGITIMATE DECOMPOSITION - measured, the largest real cluster is correct
+    and spec `25kzda`'s own graduation text says a run "may produce more than one IPD" - and the
+    already-implemented case is not mechanically answerable at all (backlog `f1sw71`). So this returns
+    TEXT for a caller to append; it raises nothing, decides nothing, and applies no `count > 1`
+    judgement. The caller here happens to be composing a refusal for an unrelated reason (the queue is
+    plan-shaped), and this line rides along with it rather than causing it.
+
+    NO CLUSTER LOGIC IS DUPLICATED. It calls `check_engine.graduation_cluster` and reads that
+    function's own record fields; the `- From-*` parse, both iterators, and the terminal-status set all
+    stay in the one module that owns them.
+
+    Returns '' when the view finds nothing or cannot run, because an empty cluster is the COMMON and
+    reassuring answer and a failed advisory must never turn into a failed run.
+    """
+
+    if repo is None:
+        return ""
+    root = Path(repo)
+    if not (root / ".aw").is_dir() and not (root / ".agents").is_dir():
+        # NO PARENT WALK. An earlier shape searched upward for a `.aw`/`.git` marker, which is
+        # guessing about somebody else's tree: given a path under a temporary directory it walked out
+        # of it and reported the ENCLOSING repository's cluster, attributing artifacts to a source
+        # that has none. The caller knows its own root, so an unrecognizable one yields no advisory
+        # rather than a confident wrong one.
+        return ""
+    try:
+        from agent_workflows import check_engine as _ce
+
+        cluster = _ce.graduation_cluster(root, source_id6)
+    except Exception:
+        return ""
+    if not cluster.artifact_count:
+        return (
+            f"PRE-GRADUATION VIEW (advisory): nothing yet links to {source_id6}, so no earlier "
+            "artifact would be duplicated. Note this means 'nothing LINKED to it' rather than "
+            "'nothing exists': work carrying no `- From-*` bullet is invisible to the view."
+        )
+    terminal = cluster.terminal_artifacts
+    members = ", ".join(
+        f"{a.id6 or a.path}[{a.status or '-'}]" for a in cluster.artifacts[:8]
+    )
+    more = (
+        "" if cluster.artifact_count <= 8 else f", +{cluster.artifact_count - 8} more"
+    )
+    return (
+        f"PRE-GRADUATION VIEW (advisory, refuses nothing): {source_id6} already has "
+        f"{cluster.artifact_count} linked artifact(s) across {len(cluster.setids) or 0} Set(s), "
+        f"{len(terminal)} already terminal: {members}{more}. Several artifacts for one source is "
+        "LEGITIMATE decomposition, not a defect; read the terminal ones before authoring another, "
+        f"since re-doing landed work is the costly case. Full view: aw graduation {source_id6}"
+    )
+
+
 def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
     """Provide an informative, context-aware error message when a plan selector cannot be resolved."""
     r = repo or Path(".")
@@ -10117,9 +10315,40 @@ def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
                     "prompts": "prompt document",
                     "comms": "comms message",
                 }.get(rtype, f"{rtype} record")
-                return (
+                message = (
                     f"'{sel_str}' is a {type_label} ({joined_paths}), not an IPD plan."
                 )
+                if rtype == "specs":
+                    # graduate-02 (`iuxtjy`) E-02: EXPLAIN THE ASYMMETRY RATHER THAN LEAVING IT AS A
+                    # BARE "not a plan", because a spec reached by STEM or SLUG and carrying no
+                    # `- Id:` is the majority case and its silence looks like a bug. `discover_specs`
+                    # deliberately SKIPS such a spec (without an id6 it cannot be named by a
+                    # selector, cannot carry a review record, and cannot be attested), while the
+                    # shared `selectors` layer DOES reach it by stem - which is exactly why the
+                    # operator is standing here looking at a file `aw find` can see. Name the
+                    # conversion verb rather than making them hunt for it. This branch explicitly
+                    # does NOT mint an id6 as a side effect of naming the file in a run (OQ-02): a
+                    # durable records write belongs to the `aw specs`/`aw rename specs` verbs that
+                    # own the tree, never to a dispatch path.
+                    declared = False
+                    for p in res.paths:
+                        try:
+                            from agent_workflows import check_engine as _ce
+
+                            if _ce._ITEM_ID_RE.search(p.read_text(encoding="utf-8")):
+                                declared = True
+                                break
+                        except Exception:
+                            continue
+                    if not declared:
+                        message += (
+                            " It declares no `- Id:`, so the runner's spec enumeration cannot see it"
+                            " and no selector can name it, even though `aw find` resolves this file"
+                            " by stem. That skip is deliberate, not a bug: without an id6 a spec"
+                            " cannot carry a review record or an attestation. Mint one with:"
+                            f" aw rename specs {joined_paths} --to-id6"
+                        )
+                return message
     except Exception:
         pass
 

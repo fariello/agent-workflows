@@ -1979,6 +1979,18 @@ def expand_selectors(
                     f"Ambiguous Set selector prefix: {sel_str} matches {prefix_matches}"
                 )
             else:
+                # graduate-02 (`iuxtjy`) E-02/E-05: THE TYPED SPEC BRANCH, in PARITY with the oc host
+                # (which carries the full rationale) and through the SAME shared predicate, so the two
+                # hosts cannot disagree about what a spec selector means. Sited AHEAD of the
+                # filename-substring fallback below, which is where the fix lives: after it, the
+                # branch is dead code for every token the fallback already matches unambiguously.
+                spec_match = runner_shared.match_spec_selector(repo, sel_str, plans)
+                if spec_match is not None:
+                    raise DriverError(
+                        runner_shared.describe_spec_selector_refusal(
+                            spec_match, labels=runner_shared.AGY_HOST_LABELS
+                        )
+                    )
                 matching_plans = [
                     id6
                     for id6, p in plans.items()
