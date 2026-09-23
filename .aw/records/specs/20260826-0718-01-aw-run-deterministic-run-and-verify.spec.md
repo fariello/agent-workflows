@@ -1019,9 +1019,66 @@ not this exception and does not release anything.
 
 WHAT IT DOES NOT RELAX. `ipd_lifecycle.finalize_precheck` applies UNCHANGED afterwards: a current begin
 receipt, the before-marking-executed lint requiring every `E-*` performed and every `V-*` passing with
-non-empty observed evidence, and the scope comparison. The merge-and-revalidate gate, the scope fence,
-the commit-content and hook checks, and the dependency checks are likewise untouched. This exception adds
-an ATTRIBUTED, REVIEWABLE input to one integration decision; it removes no gate.
+non-empty observed evidence, and the scope comparison. The scope fence, the commit-content and hook
+checks, and the dependency checks are likewise untouched. This exception adds an ATTRIBUTED, REVIEWABLE
+input to the integration decision; it removes no gate.
+
+WHERE IT APPLIES: BOTH GATES THAT ADJUDICATE THE SAME SUITE FAILURE, AND THIS PARAGRAPH IS AN AMENDMENT
+(2026-09-23, plan `n9na1c`). It previously said the merge-and-revalidate gate was "likewise untouched",
+alongside the scope fence and the hook and dependency checks. THAT WAS MEASURED WRONG AS A DESIGN, not
+merely as a description, which is why the sentence is amended rather than annotated. A lane's suite
+failure is adjudicated TWICE by two INDEPENDENT gates, and the answer reached only the first:
+
+- GATE 1, THE PER-LANE SUITE SIGNAL, decides whether an integration is attempted at all, and is the gate
+  every paragraph above describes.
+- GATE 2, THE POST-MERGE REVALIDATION, re-runs the full suite on the MERGE RESULT and refuses on its own
+  authority. It exists because per-lane green never implies integrated green, and that remains true.
+
+MEASURED on 2026-09-22 (item `ld8lb3`): the agent was asked, answered that the failure was not its own,
+the run durably recorded that answer with its failing identifiers, gate 1 released exactly as this
+section specifies, and the lane's plan genuinely reached its terminal state. Gate 2 then re-ran the suite
+on the merged tree, saw THE SAME identifier the agent had attributed away, consulted NEITHER the answer
+nor any other input, and refused the lane. So a correctly adjudicated failure was silently re-litigated
+by a second gate that could not see the adjudication, and the lane was stranded anyway. Two independent
+adjudications of one question is not a safeguard; it is the same binary whole-repository trust signal
+this exception exists to remove, relocated behind the merge.
+
+THE EXCEPTION THEREFORE GOVERNS GATE 2 AS WELL, ON EXACTLY THE SAME TERMS AND NO OTHERS. Nothing above
+is widened: the conjunctive conditions are unchanged, the closed vocabulary is unchanged, the two
+answers that may release are unchanged, an answer asserting a REPAIR still releases only on an OBSERVED
+PASSING RE-RUN and never on the claim, and the captured-evidence requirement is unchanged. What changes
+is only WHERE an already-admissible answer applies. Specifically, at gate 2 the answer may excuse only
+the IDENTIFIERS THE AGENT WAS SHOWN AND ANSWERED ABOUT; any failing identifier in the merged tree that
+the answer does not cover REFUSES, naming only the uncovered identifiers.
+
+THREE FURTHER CONDITIONS ARE REQUIRED FOR ADMISSIBILITY AT GATE 2, because this gate governs a tree
+nothing else has cleared and each condition was measured REACHABLE, two of them failing OPEN:
+
+1. A NON-PASSING SUITE THAT REPORTS NO FAILING IDENTIFIERS IS UNKNOWN, NEVER "NOTHING UNCOVERED". Over an
+   empty list, "every failure was attributed away" is VACUOUSLY TRUE, so a tree that broke everything
+   would integrate. This is the inversion a 2026 plan (`32ij2j`) shipped once, where an always-empty
+   identifier list made every lane pass including one that broke the whole suite. The EXIT CODE, never
+   the list, is the authority on whether an empty list means green.
+2. A TRUNCATED IDENTIFIER LIST MAY NOT BE SUBTRACTED. The extractor keeps a bounded number of failing
+   lines in first-seen order, so a GENUINE regression can be truncated out of the merged list while the
+   comparison finds nothing uncovered. Measured: 45 covered pre-existing failures plus one real lane
+   regression both truncate to the bound, and the regression disappears from the comparison. Either list
+   at the bound REFUSES, detected by length.
+3. ONLY THE ANSWER ASSERTING THE FAILURES ARE NOT THE AGENT'S MAY RELEASE HERE. The recorded identifier
+   list is populated for EVERY answer, because it is what the agent was SHOWN, and an answer asserting a
+   REPAIR carries its PRE-REPAIR identifiers beside a gate-1 release. So a rule keyed on the presence of
+   that list rather than on the ANSWER would release on answers designed to refuse, and would clear
+   exactly the identifiers whose repair did not survive the merge.
+
+An adjudication lacking any of those three is not this exception at gate 2 and releases nothing. An item
+with NO recorded answer is the COMMON case at gate 2 and is unaffected: it reaches that gate having never
+been asked, because it never failed at gate 1, so it carries nothing to excuse and gate 2 refuses on its
+own verdict exactly as before.
+
+BOTH GATES REMAIN GATES. Gate 2 still materializes and measures the merge result, still refuses any
+failure no answer covers, still refuses every unknown above, and still refuses when it could not measure
+at all. What it may no longer do is re-blame a failure the agent already attributed away with a recorded,
+reviewable answer that this section already admits.
 
 WHY IT EXISTS, recorded because a spec edit changes the contract every plan is reviewed against. The
 alternative was measured twice and is worse. On 2026-09-08 a single red test in a file no lane had
@@ -1490,4 +1547,5 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-23 note (aw specs): AMENDED 2026-09-23 (plan n9na1c, backlog c74dm7): Section 5.1's attributed suite-attribution exception now governs BOTH gates that adjudicate the same suite failure, not only the per-lane suite signal. WHY: the section previously stated the merge-and-revalidate gate was 'likewise untouched', and that was measured wrong as a DESIGN rather than as a description. On 2026-09-22 (item ld8lb3) the agent was asked, answered that the failure was not its own, the run recorded the answer with its failing identifiers, gate 1 released exactly as specified, the plan reached its terminal state - and the POST-MERGE revalidation then re-ran the suite on the merged tree, saw THE SAME identifier the agent had attributed away, consulted neither the answer nor any other input, and refused the lane anyway. Two independent adjudications of one question is not a safeguard; it is the same binary whole-repository trust signal this exception exists to remove, relocated behind the merge. WHAT IS UNCHANGED, deliberately and verbatim: the conjunctive conditions, the closed vocabulary, the two answers that may release, the rule that an answer asserting a REPAIR releases only on an OBSERVED PASSING RE-RUN and never on the claim, the captured-evidence requirement, and the HONEST LIMIT paragraph including the maintainer's 2026-09-08/2026-09-20 ruling that no gate may refuse on the strength of a pre-work baseline. Only WHERE an already-admissible answer applies changed. WHAT IS ADDED: three conditions required for admissibility at the second gate, each measured REACHABLE and two of them failing OPEN - (1) a non-passing suite reporting NO failing identifiers is UNKNOWN and never 'nothing uncovered' (the 32ij2j vacuous-truth inversion), (2) either identifier list at the extractor's truncation bound REFUSES because a genuine regression can be truncated out (measured: 45 covered failures plus one real regression), and (3) only the answer asserting the failures are NOT the agent's may release, because the identifier list is populated for EVERY answer and a REPAIR answer carries its PRE-REPAIR identifiers beside a gate-1 release. An item with NO recorded answer is the COMMON case at that gate and is unaffected: it was never asked because it never failed at gate 1, so it carries nothing to excuse and the gate refuses on its own verdict exactly as before.
 - 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): Section 2.1's two prose references to the terminal integration status now read merge-needs-human instead of integration-blocked, matching the renamed vocabulary (integration-deferred -> merge-retry, integration-blocked -> merge-needs-human, merge-conflict -> merge-refused, integration-unmeasured -> merge-unchecked). THE CLI FLAG NAMES ARE DELIBERATELY UNTOUCHED: --on-integration-blocked and --integration-retry-limit are public surfaces whose grammar stanza in 2.1 is extracted and asserted in both directions by tests/test_run_flag_surface.py, so renaming a flag would be a separate breaking change with its own decision; only the STATUS words moved. No rule changed: the ladder's scope (transient dirty-overlap only, never a genuine conflict, stale base, combined-red revalidation or scope violation), the retry-budget distinction, and the unchanged-refusal-condition guarantee all stand exactly as written. Verified: tests/test_run_flag_surface.py passes (the stanza still round-trips), 235 passed across the lifecycle/flag-surface/retirement suites.

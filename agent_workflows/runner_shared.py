@@ -18154,6 +18154,81 @@ evidence block. Claim `{GATE_ANSWER_NOT_MINE}` only if you believe it.
 #   mine         -> refuse, preserve the lane. No override, deliberately.
 #   needs-human  -> refuse, preserve the lane, and say in the run summary that a DECISION is awaited.
 #   anything else-> refuse. Silence and malformed answers are the fail-closed direction.
+#
+# ---- gateinert 01 (`n9na1c`) E-01: THERE ARE TWO GATES, AND THE FIVE LINES ABOVE DESCRIBE ONE ------
+#
+# READ THE `not-mine` LINE ABOVE PRECISELY: it says `integration.earned`, and that is TRUE and COMPLETE
+# for the gate it names. What misled a reader (and a backlog filing) was the ABSENCE of any statement
+# about the SECOND gate, which made the block read as though it described integration as a whole. It
+# does not. A lane's suite failure is adjudicated TWICE, by two independent gates:
+#
+#   GATE 1, THE PER-LANE SUITE SIGNAL: `integration_is_earned` -> `integration.earned`, resolved inside
+#     `execute_item_core`. This is the gate the four answers govern. It decides SELF-FINALIZE and
+#     whether an integration is attempted at all.
+#   GATE 2, THE POST-MERGE REVALIDATION: `make_integration_validation_runner`, reached LATER through
+#     `integrate_lane_branch`. It materializes the MERGE RESULT and re-runs the suite THERE.
+#
+# BEFORE THIS ITEM, GATE 2 CONSULTED NEITHER THE ANSWER NOR THE BASELINE and refused on its own
+# authority. MEASURED on item `ld8lb3` in run `run-20260922T024054Z-2245533`: the agent was asked,
+# answered `not-mine`, the record shows `answer: not-mine` with `usable: True`, gate 1 released exactly
+# as documented (`attempts[0]["integration_detail"]` ends "RELEASED by the agent's gate answer
+# (not-mine)", `finalized` is True, and the plan genuinely reached `executed/` on lane commit
+# `78891bde`) - and then gate 2 re-ran the suite on the merged tree, saw the SAME one failing id the
+# agent had attributed away, and refused it. The item's final status is `merge-refused`. So the answer
+# was honored once and then silently re-litigated by a gate that never saw it.
+#
+# THE ANSWER WAS WELL-FOUNDED, which is what made the second adjudication a defect rather than a
+# safeguard: the agent named the introducing commit (`894d7924`, landed after the lane's base), proved
+# the failure at its own base commit `301a1d8fbc15`, re-ran the node id with its own source changes
+# stashed out to show the failure persisting, and filed it as backlog `p9ag41` rather than
+# opportunistically fixing another agent's code. See :func:`attributed_away_failure_ids`, which gives
+# that answer a channel to gate 2, and `_relative_revalidation_verdict`, which consumes it.
+#
+# AND THERE IS A THIRD CASE, recorded here because its ABSENCE from this block is what let a reader
+# derive a false conclusion from it. AN ITEM CAN REACH GATE 2 HAVING NEVER BEEN ASKED, because it never
+# failed at gate 1. Sibling item `65cuw0` in the SAME run is that case: its suite check is
+# `passing: True` with `exit_code: 0` and an EMPTY failures list (`8118 passed, 3 skipped, 2 xfailed`),
+# its signal is `driver-run-suite` (`INTEGRATION_EARNED_BY_SUITE`), and `gate_answer_is_warranted`
+# returns `(False, 'integration was earned; there is nothing to answer')` for exactly those recorded
+# values. Its `integration_gate_answer` is `null` because there was NOTHING TO ASK, which is the
+# CORRECT record; the original filing read that `null` as "the ask is not reliably reached" and
+# inferred an ask-reachability defect that does not exist. Such an item carries NO answer and NO
+# attributed id set, so the channel below carries nothing for it and gate 2 keeps refusing on its own
+# verdict. THAT IS CORRECT AND MUST STAY CORRECT. It is also why this item rescues strictly ONE of the
+# two measured stranded lanes; the other is rescued only by sibling `tgyfs2`'s baseline subtraction.
+#
+# ---- gateinert 01 (`n9na1c`) E-02: THE THREE MEASURED WAYS THIS SUBTRACTION CAN LIE ----------------
+#
+# Every rule here is stated WITH THE MEASUREMENT OR TEST THAT ESTABLISHES IT, because the reason is
+# what stops a later refactor deriving the rule away. This channel WIDENS when an integration is
+# ALLOWED, which is the fail-open direction, and all three of these were reachable in the authored
+# design; two of them fail OPEN. Sibling `tgyfs2` makes the SAME comparison fail toward OVER-refusal,
+# which is recoverable. Here the same mistake merges unverified work into main.
+#
+#   (a) AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS NOT "NOTHING NEW". This is the `32ij2j`
+#       inversion, pinned by `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`,
+#       whose own docstring records that plan comparing failing sets as a subset over an ALWAYS-EMPTY
+#       string so that "every lane passed including one that broke everything" (the always-empty read
+#       was SHIPPED in `run_suite_check` until `h5pyqa`). Measured while authoring this: with a merged
+#       list of `()` and one attributed id, "a red consisting only of attributed ids" is VACUOUSLY TRUE
+#       and a tree that broke everything integrates. So an empty merged list on a non-passing suite
+#       REFUSES, forever. `new_failures_since_baseline` already encodes the same rule for the baseline
+#       arm and this arm inherits it rather than restating a second copy.
+#   (b) EITHER LIST AT THE TRUNCATION CAP MAKES THE SUBTRACTION UNSOUND, AND HERE IT FAILS OPEN.
+#       `oc_runipd.extract_suite_failures` stops at `SUITE_FAILURE_LIST_CAP` (40) in FIRST-SEEN order.
+#       Measured while authoring this: 45 attributed pre-existing failures plus ONE genuine lane
+#       regression both truncate at 40, the regression is truncated OUT of the merged list, the
+#       subtraction finds nothing new, and a lane that INTRODUCED a failure passes. Detected by LENGTH,
+#       never by parsing prose. Note the sign is OPPOSITE to `tgyfs2`'s, where the same cap causes
+#       over-refusal: there it is unreliable, here it is a safety hole, because this arm licenses a PASS.
+#   (c) ONLY THE `not-mine` TOKEN MAY LICENSE A RELEASE THROUGH THIS CHANNEL. Measured while authoring
+#       this by driving `perform_gate_answer` with `fixed` and a passing re-run: the record carries
+#       `release: True` AND a NON-EMPTY `failing_tests` set holding its PRE-REPAIR failures, because
+#       `failing_tests` records what the agent was SHOWN for EVERY answer including `mine` and
+#       `needs-human`. So a reader keyed on "is `failing_tests` non-empty" would clear exactly the ids
+#       whose repair did not survive the merge, and would release on two answers designed to refuse.
+#       `fixed` is released at gate 1 by an OBSERVED RE-RUN and never by its id set; that asymmetry is
+#       the maintainer's 2026-09-20 ruling and this channel preserves it by gating on the TOKEN.
 
 #: The key the per-item answer record is stored under on a queue item, mirroring `DEFECT_REPORT_KEY`'s
 #: role. ONE name, so the writer and every reader cannot drift apart (render_stream's F-4 defect
@@ -18794,6 +18869,162 @@ def revalidation_baseline_for(item: Mapping[str, Any]) -> SuiteBaseline | None:
     return None
 
 
+def attributed_away_failure_ids(item: Mapping[str, Any]) -> tuple[str, ...]:
+    """The normalized node ids a USABLE `not-mine` answer attributed AWAY from this item's work.
+
+    gateinert 01 (`n9na1c`) E-03. PURE: no I/O, and it WRITES NOTHING. Returns an EMPTY tuple for every
+    other answer, for an absent record, and for an unusable verdict, so a caller that finds nothing here
+    is looking at today's behavior unchanged.
+
+    THE CHANNEL ALREADY EXISTS AND IS NOT REBUILT HERE. `execute_item_core` writes
+    `item[GATE_ANSWER_RECORD_KEY] = gate_outcome.record` strictly BEFORE the integration block builds
+    its `val_runner`, and `gate_answer_record` already persists the id set the agent was shown as
+    `failing_tests`. So this is a READER and a NORMALIZER; it adds no key, no injection, and no second
+    vocabulary for the ids (inventing a second key is the `render_stream` F-4 producer/reader drift this
+    module's comments cite twice).
+
+    IT IS READ-ONLY BECAUSE ONE CALL PATH MAKES THAT LOAD-BEARING. Both hosts' deferral re-attempt
+    lambdas pass `dict(item)` - a SHALLOW COPY - into `validation_runner_for`, so a READ of the answer
+    record works there while any WRITE would land on the copy and be lost.
+
+    IT GATES ON THE ANSWER TOKEN AND NOT ON THE PRESENCE OF THE SET, which is guard (c) of the three
+    stated at :data:`GATE_ANSWER_RECORD_KEY`. `failing_tests` is populated for EVERY answer - it is what
+    the agent was SHOWN - so a reader keyed on "is it non-empty" would release on `mine`, on
+    `needs-human`, and on a `fixed` whose repair did not survive the merge (measured: a `fixed` record
+    carries `release: True` alongside its PRE-REPAIR id set). Only `not-mine` releases on the answer
+    alone, and only a USABLE verdict is an answer at all.
+
+    AN UNPARSEABLE ATTRIBUTED LINE IS DROPPED, and the direction of that choice is deliberate. Such a
+    line normalizes to :data:`UNPARSEABLE_FAILURE_ID`, and KEEPING it here would let it match an
+    unparseable POST-MERGE line and excuse it - a silent fail-open, since neither side is a known node
+    id. Dropping it makes an unparseable merged line permanently UNATTRIBUTED, so it refuses. This is
+    the same sentinel :func:`normalize_failure_id` documents, used in the opposite direction because the
+    fail-closed direction is opposite on this side of the comparison.
+    """
+
+    record = item.get(GATE_ANSWER_RECORD_KEY)
+    if not isinstance(record, Mapping):
+        return ()
+    if str(record.get("answer") or "").strip() != GATE_ANSWER_NOT_MINE:
+        return ()
+    if not record.get("usable"):
+        return ()
+    lines = record.get("failing_tests")
+    if isinstance(lines, (str, bytes)) or not isinstance(lines, Sequence):
+        return ()
+    normalized = (normalize_failure_id(line) for line in lines)
+    return tuple(dict.fromkeys(i for i in normalized if i != UNPARSEABLE_FAILURE_ID))
+
+
+def unattributed_merged_failures(
+    merged_failures: Sequence[str],
+    attributed: Sequence[str],
+    *,
+    suite_passed: bool = False,
+) -> RevalidationComparison:
+    """Which post-merge failures the agent's `not-mine` answer did NOT attribute away. PURE: no I/O.
+
+    gateinert 01 (`n9na1c`) E-04. DELIBERATELY THE SAME SHAPE AND THE SAME THREE-VALUED DISCIPLINE AS
+    :func:`new_failures_since_baseline`, and that is not stylistic: the two are UNIONED by
+    `_relative_revalidation_verdict`, and a second arm that answered a DIFFERENT vocabulary would make
+    the composed rule a third unknown-handling rule nobody wrote down. Only
+    :data:`REVALIDATION_NO_REGRESSION` may be read as permission to integrate a red tree, and `unknown`
+    is NOT a soft `no-regression`: a caller must refuse on it exactly as it refuses a regression.
+
+    ``attributed`` IS THE NORMALIZED SET FROM :func:`attributed_away_failure_ids`, i.e. the ids the
+    agent was ASKED ABOUT and answered `not-mine` to (OQ-01, resolved to the set carried into the
+    question rather than ids parsed from the agent's prose, which would let an agent release a failure it
+    was never shown). An EMPTY ``attributed`` means the answer carries nothing for this item - it never
+    failed at gate 1, or it answered `fixed`/`mine`/`needs-human`, or there is no record - and this
+    function then answers `unknown` so the composed verdict is byte-identical to today's.
+
+    THE TWO GUARDS, which are (a) and (b) of the three stated at :data:`GATE_ANSWER_RECORD_KEY`, and
+    BOTH FAIL OPEN if omitted, which is why they precede the subtraction rather than qualify it:
+
+      1. AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS UNKNOWN. This is the `32ij2j` inversion
+         (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`): with a merged
+         list of `()` the predicate "every failing id was attributed away" is VACUOUSLY TRUE, so a tree
+         that broke everything integrates. The EXIT CODE, never the list, is this repository's authority
+         on whether an empty list means "green" or "nothing parsed", which is why ``suite_passed`` is
+         REQUIRED INFORMATION and defaults to the conservative False.
+      2. EITHER LIST AT :data:`SUITE_FAILURE_LIST_CAP` IS UNKNOWN. `oc_runipd.extract_suite_failures`
+         truncates at 40 in FIRST-SEEN order. Measured: 45 attributed pre-existing failures plus ONE
+         genuine lane regression both cap at 40, the regression is truncated OUT of the merged list, the
+         subtraction finds nothing new, and a lane that introduced a failure PASSES. Detected by LENGTH.
+
+    AN UNPARSEABLE MERGED LINE IS ALWAYS UNATTRIBUTED, so it refuses: it normalizes to
+    :data:`UNPARSEABLE_FAILURE_ID`, which :func:`attributed_away_failure_ids` never emits.
+    """
+
+    merged_ids = tuple(normalize_failure_id(line) for line in (merged_failures or ()))
+    attributed_ids = tuple(dict.fromkeys(str(i) for i in (attributed or ())))
+
+    if not attributed_ids:
+        return RevalidationComparison(
+            judgement=REVALIDATION_UNKNOWN,
+            new_ids=merged_ids,
+            reason=(
+                "no usable `not-mine` gate answer attributed any failing id away from this work, so "
+                "the agent's answer says NOTHING about this merged tree and cannot excuse any failure "
+                "in it (an item that never failed at gate 1 was never asked, which is correct)"
+            ),
+            merged_ids=merged_ids,
+        )
+
+    if not suite_passed and not merged_ids:
+        return RevalidationComparison(
+            judgement=REVALIDATION_UNKNOWN,
+            reason=(
+                "the merged suite did NOT pass yet reported NO failing ids, so the failing set is "
+                "UNKNOWN rather than empty; 'every failing id was attributed away' is VACUOUSLY true "
+                "over an empty list, which is the inversion that sank plan 32ij2j, where an "
+                "always-empty list would have integrated a lane that broke the whole suite"
+            ),
+            baseline_ids=attributed_ids,
+            merged_ids=merged_ids,
+        )
+
+    if (
+        len(merged_ids) >= SUITE_FAILURE_LIST_CAP
+        or len(attributed_ids) >= SUITE_FAILURE_LIST_CAP
+    ):
+        return RevalidationComparison(
+            judgement=REVALIDATION_UNKNOWN,
+            reason=(
+                f"a failing-id list is at the {SUITE_FAILURE_LIST_CAP}-line truncation cap "
+                f"(attributed {len(attributed_ids)}, merged {len(merged_ids)}), and the extractor "
+                "truncates in FIRST-SEEN order, so a GENUINE regression can be truncated OUT of the "
+                "merged list and the subtraction would find nothing new; excusing a red tree on a "
+                "truncated list hides an introduced failure and is refused"
+            ),
+            baseline_ids=attributed_ids,
+            merged_ids=merged_ids,
+        )
+
+    excused = set(attributed_ids)
+    new_ids = tuple(dict.fromkeys(i for i in merged_ids if i not in excused))
+    if new_ids:
+        return RevalidationComparison(
+            judgement=REVALIDATION_REGRESSED,
+            new_ids=new_ids,
+            reason=(
+                f"{len(new_ids)} failure(s) in the merged tree were NOT attributed away by the "
+                "agent's `not-mine` answer: " + ", ".join(new_ids)
+            ),
+            baseline_ids=attributed_ids,
+            merged_ids=merged_ids,
+        )
+    return RevalidationComparison(
+        judgement=REVALIDATION_NO_REGRESSION,
+        reason=(
+            "every failing id in the merged tree was ATTRIBUTED AWAY by the agent's usable `not-mine` "
+            f"answer, which is durably recorded and reviewable ({len(merged_ids)} attributed)"
+        ),
+        baseline_ids=attributed_ids,
+        merged_ids=merged_ids,
+    )
+
+
 def materialize_merge_result(
     repo: Path,
     base_commit: str,
@@ -19285,6 +19516,33 @@ def _relative_revalidation_verdict(
     AND IT WARNS WHEN IT PASSES A RED TREE (OQ-01, resolved to integrate AND warn). Silence would hide
     a genuinely red main, which is the opposite failure from the one this plan fixes. The warning names
     the pre-existing ids and the baseline commit, costs one line, and does not add a refusal kind.
+
+    gateinert 01 (`n9na1c`) E-04 ADDS A SECOND EXCUSE HERE, AND THE COMPOSITION IS A UNION OF TWO
+    EXCUSES OVER ONE REFUSAL. The two arms answer DIFFERENT questions about the same failing id and
+    neither subsumes the other: the BASELINE says "this id was ALREADY red before the work", while the
+    ANSWER says "the agent that did the work attributed this id away", which covers ids no baseline can
+    catch (a failure that landed on main mid-turn, a flake, an order-dependence). AN ID EXCUSED BY
+    EITHER IS NOT NEW; AN ID EXCUSED BY NEITHER STILL REFUSES.
+
+    THE UNION IS PER-ID AND NOT PER-JUDGEMENT, which is a correctness requirement rather than a
+    refinement. Composing the two BOOLEANS would refuse the MIXED case: merged `{A, B}` with `A` in the
+    baseline and `B` attributed away leaves each arm holding one leftover id, so both arms say
+    `regressed` while NO id is unexcused and the correct composed answer is a PASS. Reading only the
+    two verdicts would refuse a lane that introduced nothing, i.e. reintroduce the very defect both
+    plans exist to remove, for the one shape that needs both of them.
+
+    AND IT ADDS NO THIRD UNKNOWN-HANDLING RULE, which is the one way a union of two safe rules can be
+    unsafe. An arm whose judgement is `unknown` CONTRIBUTES NO EXCUSES: the per-id union is computed
+    only where BOTH arms returned a trustworthy `regressed`, because that is precisely the state in
+    which both arms' excused sets are known and every shared guard (an empty merged list on a red suite,
+    either list at the truncation cap, an absent baseline, an absent answer) has already failed to fire.
+    Two refusing unknowns therefore compose to a REFUSAL and never to a pass, which would be the
+    `32ij2j` inversion arriving by a new route.
+
+    WHY THE BASELINE ARM STILL DECIDES THE RECORDED `comparison`: it is the arm whose four audit facts
+    `_record_revalidation` already persists as `baseline_comparison`, and this item adds no new key to
+    that record. The answer arm's contribution is legible in the reason string and, durably, in the
+    item's own `integration_gate_answer` record, which is where the attribution already lives.
     """
 
     passed = bool(measurement.get("passed"))
@@ -19294,16 +19552,66 @@ def _relative_revalidation_verdict(
     if measurement.get("collected_nothing"):
         return passed, reason, None
 
+    merged_failures = [str(line) for line in (measurement.get("failures") or ())]
+    suite_passed = bool(measurement.get("suite_passed"))
     baseline = revalidation_baseline_for(item)
     comparison = new_failures_since_baseline(
-        [str(line) for line in (measurement.get("failures") or ())],
+        merged_failures,
         baseline,
-        suite_passed=bool(measurement.get("suite_passed")),
+        suite_passed=suite_passed,
+    )
+    # gateinert 01 (`n9na1c`) E-04: THE SECOND ARM. Computed unconditionally so the union is evaluated
+    # the same way on both the fresh-measurement and cache-hit paths, and so an item with no answer
+    # record produces an `unknown` arm excusing nothing, leaving today's verdict byte-identical.
+    attributed = attributed_away_failure_ids(item)
+    answer_comparison = unattributed_merged_failures(
+        merged_failures,
+        attributed,
+        suite_passed=suite_passed,
     )
     if not comparison.introduced_nothing:
+        composed_new, composed_reason = _compose_revalidation_excuses(
+            comparison, answer_comparison
+        )
+        if composed_new is not None and not composed_new:
+            # Every failing id is excused by ONE of the two arms. This is the measured `ld8lb3` case
+            # when the answer arm carries it alone, and the mixed case when the two arms carry one id
+            # each. Both arms' guards have already fired by here, so an empty merged list, a truncated
+            # list, an absent baseline and an absent answer cannot reach this branch.
+            listed = ", ".join(answer_comparison.merged_ids) or "(none)"
+            with contextlib.suppress(Exception):
+                print(
+                    "  ! post-merge revalidation PASSED a RED tree for {0}: {1}. Failing ids: "
+                    "{2}".format(
+                        item.get("id6") or "(unknown item)", composed_reason, listed
+                    ),
+                    file=sys.stderr,
+                )
+            return (
+                True,
+                (
+                    f"the merged suite is RED but {composed_reason}, so revalidation passes. The "
+                    f"suite's own verdict was: {reason}"
+                ),
+                comparison,
+            )
+        if composed_new:
+            # OQ-02: NAME ONLY THE UNEXCUSED IDS. Listing the legitimately excused ones beside them as
+            # reasons is what made the original refusals so hard to diagnose, and one genuine excuse
+            # never licenses ignoring a real regression beside it.
+            return (
+                False,
+                f"{reason}; and the merged tree is refused because {composed_reason}",
+                comparison,
+            )
         return (
             False,
-            f"{reason}; and the merged tree is refused because {comparison.reason}",
+            f"{reason}; and the merged tree is refused because {comparison.reason}"
+            + (
+                ""
+                if not attributed
+                else f"; nor did the agent's `not-mine` answer excuse it: {answer_comparison.reason}"
+            ),
             comparison,
         )
 
@@ -19327,6 +19635,71 @@ def _relative_revalidation_verdict(
             f"{comparison.reason}. The suite's own verdict was: {reason}"
         ),
         comparison,
+    )
+
+
+def _compose_revalidation_excuses(
+    baseline_arm: RevalidationComparison,
+    answer_arm: RevalidationComparison,
+) -> tuple[tuple[str, ...] | None, str]:
+    """Union the two arms' EXCUSES per id. Returns `(unexcused_ids, reason)`, or `(None, why not)`.
+
+    gateinert 01 (`n9na1c`) E-04, and the ONLY place the two excuses meet. `None` means NEITHER ARM
+    EXCUSED ANYTHING, which a caller must treat exactly as it treats a regression: refuse.
+
+    AN ARM CONTRIBUTES AN EXCUSED SET, NEVER A VERDICT, and the mapping from its judgement to that set
+    is the whole safety argument:
+
+      * `no-regression` EXCUSES EVERY MERGED ID. Its own contract already says this ("empty for
+        `no-regression`"), and it is only reachable once that arm's guards have all failed to fire.
+      * `regressed` EXCUSES THE MERGED IDS IT DID NOT NAME, i.e. `merged - new_ids`. This is the one
+        state in which a leftover set is MEANINGFUL: it proves the arm's guards did not fire, so the
+        merged list is non-empty on a red suite, neither list is at the truncation cap, and the arm's own
+        evidence (a `completed` baseline, or a usable `not-mine` answer) exists.
+      * `unknown` EXCUSES NOTHING, because :class:`RevalidationComparison` says its `new_ids` "must NOT
+        be acted on". Acting on it would be wrong in BOTH directions: for the absent cases it holds the
+        WHOLE merged set (excusing nothing, harmlessly) and for the vacuous-truth `32ij2j` case it is
+        EMPTY, which read as a leftover set would excuse EVERYTHING. Refusing to read it at all is what
+        keeps TWO REFUSING UNKNOWNS A REFUSAL rather than a pass.
+
+    THE UNION IS THEREFORE PER-ID, which is what makes the MIXED case correct: merged `{A, B}` with `A`
+    in the baseline and `B` attributed away leaves each arm holding one leftover the OTHER arm excuses,
+    so nothing is unexcused and the composed answer is a pass, where composing the two BOOLEANS would
+    have refused a lane that introduced nothing.
+    """
+
+    merged_ids = tuple(dict.fromkeys(baseline_arm.merged_ids or answer_arm.merged_ids))
+    excused: set[str] = set()
+    contributors: list[str] = []
+    for arm, label in ((baseline_arm, "baseline"), (answer_arm, "answer")):
+        if arm.judgement == REVALIDATION_NO_REGRESSION:
+            excused.update(merged_ids)
+            contributors.append(f"{label}: {arm.reason}")
+        elif arm.judgement == REVALIDATION_REGRESSED:
+            named = set(arm.new_ids)
+            excused.update(i for i in merged_ids if i not in named)
+            contributors.append(f"{label}: {arm.reason}")
+
+    if not contributors:
+        return (
+            None,
+            "NEITHER comparison can be trusted, so no failure is excused (baseline: "
+            f"{baseline_arm.reason}; answer: {answer_arm.reason})",
+        )
+
+    unexcused = tuple(i for i in merged_ids if i not in excused)
+    if unexcused:
+        return (
+            unexcused,
+            f"{len(unexcused)} failure(s) are excused by NEITHER the pre-work baseline NOR the "
+            "agent's `not-mine` answer: " + ", ".join(unexcused),
+        )
+    return (
+        (),
+        "every failing id in the merged tree is excused by the pre-work baseline or by the agent's "
+        "usable `not-mine` answer, so this work introduced no failure ("
+        + "; ".join(contributors)
+        + ")",
     )
 
 
