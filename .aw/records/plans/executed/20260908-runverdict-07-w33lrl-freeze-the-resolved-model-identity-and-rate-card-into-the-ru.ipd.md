@@ -11,7 +11,7 @@
 - Scope: Record, per RUN, the RESOLVED model identity and the RESOLVED rate card in effect at launch, with a digest so a later host-config edit is detectable, and make cost views read the recorded card rather than the current one. EXCLUDES per-STEP model attribution, which no host currently emits (see OQ-01 and the deferred section); excludes any analytics, statistics, taxonomy, pricing-era arithmetic, SPA, export, or query surface, ALL of which belong to the `runanalytics` Set; excludes changing what any model is or how it is chosen (`runprofile`).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/oc_models.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_oc_models.py, tests/test_rununify_initialize_run.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: high
 - Readiness: go-pending-approval
@@ -20,11 +20,11 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: w33lrl
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: vlf75p
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: w33lrl verified (set runverdict, attempt 1). [Scope reconciliation - widened-scope tests/test_rununify_initialize_run.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run)]
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item vlf75p (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 
