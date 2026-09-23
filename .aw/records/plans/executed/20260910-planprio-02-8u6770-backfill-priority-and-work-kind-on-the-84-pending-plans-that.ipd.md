@@ -6,16 +6,16 @@
 - Scope: Inherit `Priority` and `Work-Kind` from each pending plan's `- From-Backlog:` source, writing them through the shipped `aw ipd set` setters rather than by hand. Does NOT decide a value for any plan lacking a source (sibling 03 owns those), does NOT touch terminal plans, and does NOT change any vocabulary or add a sort key.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: planprio
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8u6770
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 8u6770 verified (set planprio, attempt 1).
 - 2026-09-13 approved (aw set): set Item-Dependencies to none
 - 2026-09-13 approved (aw set): status set to approved
 
