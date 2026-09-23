@@ -19457,6 +19457,23 @@ AGY_HOST_LABELS = HostLabels(
 #: edit cannot be silent. Unifying the objects is `rununify`/`cnwy8g`'s work, not this constant's.
 SUCCESS_STATES = {"executed", "reviewed", "approved"}
 
+#: The EXECUTION success bar, unified here by runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`.
+#:
+#: WHY IT MOVED NOW rather than being left alone: `cascade_dependency_blocked` and
+#: `dependency_status_detailed` both close over it, and both were re-homed into this module, so the
+#: constant had to become resolvable HERE or those two bodies would have raised `NameError` at call
+#: time. The alternative, injecting a two-element set of strings at every call site, would have been
+#: strictly worse than sharing it.
+#:
+#: WHAT THIS FIXES, quoting the note that used to sit above `SUCCESS_STATES` and named this exact gap:
+#: each host declared its OWN set literal, so the two were "EQUAL BUT NOT IDENTICAL", and a one-sided
+#: edit to a duplicated constant is SILENT because no host-token diff, no import error and no type
+#: check shows it, while the consequence is that a later fix to the bar reaches ONE driver only.
+#: `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests` was the tripwire held against that,
+#: and it recorded in writing that "unifying the objects is `rununify`'s extraction and `cnwy8g`'s
+#: layering correction". This is that correction; both hosts now re-export this one object.
+EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
+
 #: The durable, explicit fact that an item was NOT dispatched because its plan still needs human
 #: approval (zz5yxq E-03). Frozen onto the queue entry as a boolean under this KEY, and reported as
 #: this TOKEN, which is deliberately the one the rest of the package already ships for exactly this
@@ -25143,6 +25160,505 @@ def execute_item_core(
 # cross-driver symmetry test. Preserve the form.
 # ==================================================================================================
 # ==== runnerlayer 02 (`1f7xno`): re-homed host-neutral names ====
+# Dependency findings that ABORT the whole run rather than failing one component. Spec 25kzda 2.10
+# maps `check.ipd-dependency-ambiguous` to the `fatal` identity/type-ambiguity class, and 5.4 rule 1
+# says "identity/type ambiguity aborts the run"; every other dependency finding fails only the
+# affected graph component.
+DEPENDENCY_FATAL_RULES = frozenset(("check.ipd-dependency-ambiguous",))
+
+
+def _consuming_actions_for(plans: list[tuple[Path, str]]) -> dict[str, str]:
+    """Map each selected plan's path to the action THIS run would take on it (`runner_shared.action_for`).
+
+    Spec 25kzda 2.9 makes `executed:` satisfaction ACTION-DEPENDENT, so the shared evaluator needs to
+    know which turn consumes each edge. Derived from the SAME `action_for(kind, status)` the queue
+    builder uses, rather than a second local rule, so preflight and dispatch cannot disagree about
+    what a plan's next action is. A plan whose kind/status cannot be read is simply OMITTED, which
+    leaves the evaluator on its strict (execute) default: unreadable must never mean permissive.
+    """
+    from agent_workflows import ipd_lint as _lint
+
+    out: dict[str, str] = {}
+    for path, text in plans:
+        try:
+            fields = _lint.parse(text).meta_fields
+            kind = (fields.get("Kind") or "").strip()
+            status = (fields.get("Status") or "").strip()
+        except Exception:
+            continue
+        # FAIL CLOSED, EXPLICITLY. Only a plan whose `- Status:` we actually READ may claim the
+        # relaxed `review` reading. `action_for` happens to return `execute` for an empty status
+        # today, but relying on that would make the safety of this gate depend on an unrelated
+        # function's default; omitting the entry instead leaves the evaluator on its own strict
+        # default, which is the behavior the tests pin.
+        if not status:
+            continue
+        try:
+            # UNQUALIFIED SINCE runnerlayer Order 02 (`1f7xno`): this body read
+            # `runner_shared.action_for` while it lived in `oc_runipd`, where that prefix named an
+            # IMPORTED MODULE. Inside `runner_shared` there is no such global, so the attribute access
+            # raised `NameError` and the `except Exception` below SWALLOWED it, making this function
+            # return an empty map and silently switching the dependency evaluator to its strict
+            # default. It broke fourteen tests and failed LOUDLY only because they existed; a
+            # qualified self-reference inside a swallowing try is the one lift error that can be
+            # invisible, which is why the batch pipeline now scans for it by AST.
+            action = action_for(kind, status)
+        except Exception:
+            continue
+        if action:
+            out[str(path)] = action
+    return out
+
+
+def preflight_dependency_findings(
+    repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
+) -> list[tuple[str, str, str]]:
+    """Run the SHARED dependency evaluator over the selected plans. Returns [(location, rule, msg)].
+
+    E-02 DELEGATES ENTIRELY: this calls `check_engine.evaluate_ipd_dependencies` with a BLOCKING
+    phase and surfaces whatever it returns, naming the shared `check.ipd-*dependency*` rules. There
+    is deliberately NO runner-local dependency policy here, and in particular NO runner-local branch
+    for the MISSING-statement case.
+
+    IT DOES pass the per-plan CONSUMING ACTION (`_consuming_actions_for`), which is an INPUT to the
+    shared rules rather than a local policy: spec 25kzda 2.9 makes `executed:` satisfaction
+    action-dependent, and the runner is the only caller that knows which turn it is about to take.
+    The judgement still belongs entirely to the evaluator.
+
+    WHY NO MISSING-STATEMENT BRANCH (8guhs0 OQ-02, resolved from repository evidence; see orchestrator
+    y0gg8o OQ-03): the decision is the evaluator's plus the cutover marker's, not the runner's. The
+    marker gates it (`config.dependency_cutover_date`), an ABSENT marker grandfathers every existing
+    plan, and spec 2.10's severity column for `check.ipd-missing-dependency-statement` is itself
+    phase-and-provenance conditional, so severity belongs to the evaluator. `ipd_lint` already encodes
+    exactly this deferral. A runner that refused a fieldless plan on its own authority would be
+    STRICTER than `aw check` and `aw ipd lint`, recreating the very divergence 8guhs0 exists to
+    remove and violating 2.10's "none reimplement the rules". If a maintainer later SETS the cutover
+    marker, fieldless plans begin failing preflight automatically, with no change here.
+    """
+    from agent_workflows import check_engine as _ce
+
+    plans: list[tuple[Path, str]] = []
+    for path in plan_paths:
+        try:
+            plans.append((path, path.read_text(encoding="utf-8")))
+        except OSError:
+            continue
+    if not plans:
+        return []
+    drift = _ce.evaluate_ipd_dependencies(
+        repo, phase=phase, plans=plans, actions=_consuming_actions_for(plans)
+    )
+    return [(d.location, d.rule, d.detail) for d in drift]
+
+
+# `_findings_block_reason` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
+
+
+def _artifact_owners(repo: Path, record_type: str, id6: str) -> list[tuple[str, str]]:
+    """Owners of ``id6`` of ``record_type`` as ``[(status, path)]`` via the SHARED identity index.
+
+    Reuses `check_engine.build_dependency_index` (the same index the shared evaluator resolves edges
+    with), so the runner and `aw check` cannot disagree about what an id6 names. Empty list = the
+    target does not exist (dangling); more than one = ambiguous.
+    """
+    try:
+        from agent_workflows import check_engine as _ce
+
+        index = _ce.build_dependency_index(repo)
+    except Exception:
+        return []
+    return [
+        (st or "", path)
+        for rt, st, path in index.owners.get(id6, [])
+        if rt == record_type
+    ]
+
+
+def edge_satisfied(
+    edge: Any,
+    item: dict[str, Any],
+    state: dict[str, Any],
+    by_id: dict[str, dict[str, Any]],
+) -> tuple[bool, str]:
+    """Is ONE typed edge satisfied? Returns ``(satisfied, reason)``; ``reason`` is "" when satisfied.
+
+    ``by_id`` IS DELIBERATELY UNREAD and is kept only so the two call sites and their tests need no
+    edit. It used to carry the IN-RUN status shortcut for an `executed:` edge, which the maintainer
+    removed on 2026-09-19 in favour of ONE authority: the plan's directory on disk. See the
+    `edge.kind == "executed"` branch for the measured incident that shortcut caused. Do not
+    reintroduce a read of it without that ruling being revisited.
+
+    WHY THIS LIVES IN THE RUNNER AND NOT IN THE SHARED EVALUATOR (8guhs0 F7; spec 25kzda 2.9 vs
+    2.10). Spec 2.10's "All surfaces call this evaluator; none reimplement the rules" governs the
+    STATIC rules: malformed, dangling, ambiguous, cyclic, missing-at-phase. Those are delegated
+    wholesale to `check_engine.evaluate_ipd_dependencies` in `preflight_dependency_findings`, and
+    NOTHING of them is re-implemented here. What follows is spec 2.9's RUNTIME wait/release
+    semantics, which that evaluator structurally CANNOT answer: its signature is
+    `evaluate_ipd_dependencies(repo_root, *, phase, plans, overlay) -> List[Drift]` and it has no
+    notion of a run, a queue, an item's outcome, or `verified` (verified by inspection: those words
+    do not appear in its body). "Is this prerequisite verified IN THIS RUN yet?" is a question about
+    run state, and run state lives here. So this is NOT a second implementation of the shared rules,
+    and it must not be "consolidated" into the static evaluator: doing so would break both, because
+    the static evaluator is called from `aw check`/lint/hook contexts that have no run at all. The
+    IDENTITY index is still shared (`_artifact_owners` -> `check_engine.build_dependency_index`), so
+    only the run-state judgement is local.
+    """
+    repo = Path(state["repo"])
+    is_exec = item.get("action") != "review"
+    tok = edge.canonical()
+
+    if edge.kind == "executed":
+        # spec 2.9: the target must be terminally executed with valid finalization evidence.
+        #
+        # THE DISK IS THE ONLY AUTHORITY, AND THE IN-RUN SHORTCUT THAT USED TO SIT HERE IS GONE
+        # (maintainer ruling 2026-09-19: one check, not gates in depth). It read the dependency's
+        # IN-MEMORY run status and accepted any member of `EXECUTION_SUCCESS_STATES`, which admits
+        # `substantially-complete`. That status means finalize did NOT happen, so the plan is still in
+        # `pending/` and - measured - its lane was never merged. The shortcut therefore reported an
+        # edge SATISFIED at the same moment the runner recorded the dependency's work as unintegrated.
+        #
+        # MEASURED COST, run `run-20260919T194413Z-2056285`: `yaxr4i` finished
+        # `substantially-complete` with its two commits living only on `aw/lane/yaxr4i`. `n4xq3l`
+        # declares `executed:yaxr4i`, was told the edge was met, and was dispatched into a tree with
+        # NONE of that work (`grep -c -- '--color' agent_workflows/cli.py` -> 0 in its lane). It
+        # correctly refused and went `blocked`, cascading `dependency-blocked` to eight more items:
+        # 2h 10m and $55.02 for nothing integrated.
+        #
+        # WHY DELETING IT LOSES NOTHING: the branch below already answers this question for every
+        # target, in-queue or not, and its own reasoning is the one the ruling adopted - an execute
+        # turn consumes its prerequisite's WORK, so the terminal directory is the right authority,
+        # because `executed/` is exactly where `aw ipd finalize` puts a plan and a directory move is
+        # harder to forge than a status field. An in-run dependency that genuinely finalized reaches
+        # `executed/` on disk and satisfies the edge through that branch on the next dispatch check,
+        # which the runner performs per item rather than once at queue build.
+        #
+        # THE REVIEW RELAXATION IS UNAFFECTED because it lives in the branch below, not here: a
+        # review turn still accepts a `reviewed`/`approved` `- Status:` field, since reviewing plan B
+        # against plan A needs A's TEXT and not A's code.
+        #
+        # Evaluated from frozen repository state, and that is UNCHANGED by the arrival of
+        # `--with-dependencies` (depclosure 01, `dhycim`). The flag now ships
+        # (`runner_shared.expand_dependency_closure`), but spec 25kzda :351 is explicit that it
+        # "changes selection, not satisfaction semantics": it can put the target IN the queue before
+        # freezing, which is a different run, and it grants no relaxation to the rule below. Without
+        # the flag an unsatisfied external target still simply cannot be met in this run.
+        try:
+            dep_path = resolve_plan_path(repo, "", edge.id6)
+        except DriverError as exc:
+            return False, f"{tok}: {exc}"
+        bucket = plan_bucket(dep_path)
+        allowed = ("executed",) if is_exec else ("executed", "reviewed", "approved")
+        # PRECEDENCE (depreview 03ie04 E-01, OQ-01): A TERMINAL DIRECTORY IS AUTHORITATIVE; for a
+        # NON-TERMINAL directory the `- Status:` FIELD carries the readiness. The two signals answer
+        # different halves of one question and only one of them carries information in each case.
+        #
+        # WHY THE DIRECTORY MUST WIN IN `executed/`, measured and not hypothetical: 24 of the 455
+        # plans in `executed/` carry a `- Status:` that `read_front_matter_status` returns None for
+        # (all 24 the MULTI-WORD `EXECUTED (approved ...)` form the reader documents as yielding
+        # None). Every one of them satisfies an `executed:` edge today because the directory decides.
+        # Making the field authoritative EVERYWHERE, or letting a None field override a terminal
+        # directory, silently breaks all 24 at once. `aw ipd finalize` is what moves a plan into
+        # `executed/`, so the move is the harder-to-forge signal, which is the same anti-fabrication
+        # posture `reconcile_disposition` takes when it trusts the directory over an agent's outcome.
+        # (The plan's review recorded "24 absent, 1 multi-word"; re-measured at execution the corpus
+        # is 24 multi-word and 0 absent. The conclusion is unchanged, the census is not.)
+        #
+        # WHY THE FIELD MUST WIN IN `pending/`: readiness in this layout is a FIELD, not a directory.
+        # A plan sits in `pending/` from `draft` through `to-review`, `reviewed` and `approved`, and
+        # only a TERMINAL state moves it, so there are no `reviewed/` or `approved/` directories to
+        # find. Reading the bucket alone therefore made the review-action relaxation above
+        # UNREACHABLE: every non-terminal plan buckets as `pending`, which is in neither `allowed`
+        # tuple, so a review turn refused exactly as an execute turn would (spec 25kzda 2.9's
+        # review-action row, which requires no terminal execution evidence).
+        #
+        # `_read_status` is the reader the module ALREADY imports and ALREADY uses for this exact
+        # comparison in `reconcile_disposition`'s review branch; do not substitute another. It
+        # returns None for an ABSENT and for a MULTI-WORD status alike, and in a NON-TERMINAL
+        # directory both must FAIL CLOSED, exactly as an unrecognized bucket does.
+        #
+        # THE ASYMMETRY BETWEEN THE TWO `allowed` TUPLES IS THE POINT AND MUST STAY VISIBLE. Only the
+        # REVIEW tuple gains anything from reading the field, because only it accepts a non-terminal
+        # state. An EXECUTE turn consumes its prerequisite's WORK, so a merely `reviewed` or
+        # `approved` plan has produced nothing to consume and satisfying its edge would dispatch a
+        # dependent against a base lacking the commits it depends on; for an execute edge the
+        # terminal directory IS the right authority, since `executed/` is exactly where finalize puts
+        # a plan, and the precedence rule above already yields that answer with no special case.
+        # Spec 25kzda 2.9 makes this normative: the two rows "must stay distinguishable by the
+        # consuming action and by nothing else: not by queue membership, not by which host is
+        # running, and not by whether the target happens to be in the current run".
+        #
+        # The terminal-directory set is NOT re-listed here: it is the shared
+        # `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` predicate, so a layout change lands in
+        # one place. Lazily imported for the same reason `ipd_schema` is below.
+        from agent_workflows import run_selection_policy as _policy
+
+        # THE READER IS IMPORTED FUNCTION-LOCALLY, in the same form its two sibling uses in this module
+        # already take (`reconcile_disposition` and the lane predicate both do exactly this). In
+        # `oc_runipd` this body resolved a MODULE-LEVEL `_read_status`; `runner_shared` has no such
+        # global, and a module-level first-party import here is REFUSED by
+        # `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`,
+        # which pins this module's module-level first-party imports to exactly `render_stream` plus
+        # `runner_profiles`. The function-local form is this module's documented route for a
+        # first-party dependency.
+        #
+        # IT IS THE SAME OBJECT BOTH HOSTS ALREADY BIND, which is what the comment above requires:
+        # `selectors.read_front_matter_status` is the shared PERMISSIVE reader, and
+        # `tests/test_runner_refork_guard.py` tables it as `selectors`-owned under both hosts' local
+        # `_read_status` spelling. Substituting another reader would change which front-matter
+        # spellings this comparison accepts.
+        from agent_workflows.selectors import read_front_matter_status as _read_status
+
+        effective = bucket
+        if bucket is not None and not _policy.is_in_terminal_directory(str(dep_path)):
+            try:
+                field = _read_status(dep_path.read_text(encoding="utf-8"))
+            except Exception:
+                field = None
+            effective = field
+        if effective not in allowed:
+            return False, (
+                f"{tok}: external target {edge.id6} is {effective!r} "
+                f"(directory {bucket!r}), needs one of {list(allowed)} "
+                "(it is not in this run, so it cannot become satisfied here)"
+            )
+        return True, ""
+
+    from agent_workflows import ipd_schema as _schema
+
+    record_type = _schema.ITEM_DEP_TYPE_TO_RECORD_TYPE.get(edge.target_type)
+    owners = _artifact_owners(repo, record_type or "", edge.id6)
+    if not owners:
+        return False, f"{tok}: no {edge.target_type} artifact has id6 {edge.id6}"
+    if len(owners) > 1:
+        return False, (
+            f"{tok}: id6 {edge.id6} matches multiple {edge.target_type} artifacts "
+            f"({', '.join(p for _s, p in owners)})"
+        )
+    status = owners[0][0]
+
+    if edge.kind == "exists":
+        # spec 2.9: evaluated immediately from current repository state; NEVER waits for the target
+        # to run, whatever its status.
+        return True, ""
+
+    # `state:` - the EXACT status is required. An already-satisfied `state:` edge is immediately
+    # releasable (this returns True right away, no waiting); the scheduler's obligation is to run the
+    # dependent BEFORE advancing the target away from that status, which holds here because the
+    # runner never mutates a `spec`/`backlog` target, and an in-queue IPD target that would advance
+    # is ordered AFTER its dependent by `queue_sort_key` (dependency depth).
+    if status != edge.status:
+        return False, (
+            f"{tok}: {edge.target_type} {edge.id6} is {status!r}, needs exactly {edge.status!r}"
+        )
+    return True, ""
+
+
+def dependency_status(
+    item: dict[str, Any], state: dict[str, Any]
+) -> tuple[bool, list[str]]:
+    """(satisfied, unsatisfied-dep-tokens). Shape UNCHANGED: `unsatisfied` stays a flat list[str].
+
+    See :func:`dependency_status_detailed` for the additional per-dependency REASON map, which is a
+    strictly additive companion so every existing consumer of the flat list keeps working.
+    """
+    satisfied, unsatisfied, _reasons = dependency_status_detailed(item, state)
+    return satisfied, unsatisfied
+
+
+def dependency_status_detailed(
+    item: dict[str, Any], state: dict[str, Any]
+) -> tuple[bool, list[str], dict[str, str]]:
+    """As :func:`dependency_status`, plus a ``{dep_token: reason}`` map naming each ROOT CAUSE.
+
+    COMBINES revgate Order 03 (7nkcgp) with 8guhs0 (lanetruth-03), which both rewrote this function.
+    Resolved at merge time on the maintainer's decision to keep BOTH behaviors rather than pick a
+    side: 8guhs0's typed-token parsing runs FIRST and its per-edge verdict is delegated to
+    `edge_satisfied`, then revgate's findings gate and reason map are layered on the result.
+
+    From 8guhs0: each dependency is a CANONICAL TYPED token, resolved through the shared grammar
+    before use. This closes its finding F8 - the pre-8guhs0 code used each `dep` BOTH as a queue dict
+    key and as a bare id6, so an unconverted `"executed:af7i6p"` matched neither and landed in
+    `unsatisfied`, BLOCKING a dependent that was actually ready. Failure direction was over-blocking,
+    not wrongly admitting.
+
+    From revgate 7nkcgp: an `executed:`-style (execute-action) dependency is satisfied by reaching
+    `executed` ONLY IF it also carries no recorded unresolved gating findings, applied to BOTH the
+    in-queue and out-of-queue resolution paths so the gate is not evadable by queue membership; and
+    every unsatisfied dependency gets a reason string so `dependency-blocked` can say WHY.
+
+    A `review`-action item is deliberately NOT findings-gated: only an `executed:` edge asserts that
+    work was completed and verified.
+    """
+    by_id = {entry["id6"]: entry for entry in state["queue"]}
+    repo = Path(state["repo"])
+    unsatisfied: list[str] = []
+    reasons: dict[str, str] = {}
+    is_exec = item.get("action") != "review"
+
+    def _block(dep: str, reason: str) -> None:
+        unsatisfied.append(dep)
+        reasons[dep] = reason
+
+    if item.get("action") == "orchestrate":
+        # orchretire-03 (`pgq326`) E-01: THE SELECTION GATE IS PART OF THE WIRING, and missing it would
+        # have left this Set's whole mechanism unreachable from the run shape it was built for.
+        #
+        # MEASURED, not reasoned: this clause used to call the queue-scoped `_set_children_all_executed`,
+        # and `initialize_run` derives an already-`executed` child's RUN status as `reviewed` (only
+        # to-review/draft/approved/auto-approved become `queued`). So for the PRIMARY case spec R-1
+        # names -- `aw oc run <setid>` on a Set whose children executed in EARLIER runs -- the gate
+        # reported `satisfied=False, missing=['executed:<child>']` while the on-disk verdict was
+        # `eligible=True`. The orchestrator was never selected, so the dispatch branch was NEVER
+        # REACHED, and wiring only the dispatch branch would have fixed nothing for that run.
+        #
+        # It now asks the SAME shared decision the dispatch branch acts on, so the gate and the dispatch
+        # cannot disagree about one plan. That equivalence is the point: two predicates answering one
+        # question is how this function and `cascade_dependency_blocked` once gave OPPOSITE verdicts
+        # (runorder F-7).
+        #
+        # WHY BLOCK ONLY ON RECONSIDER. A gate exists to make an item WAIT. So:
+        #   * RETIRE     -> admit it; the dispatch branch retires it.
+        #   * RECONSIDER -> block, because this run WILL still act on the named children; the item is
+        #                   re-tested on a later iteration, which IS the reconsideration R-7 requires.
+        #   * TERMINATE  -> ADMIT it, deliberately, so it reaches the dispatch branch and receives its
+        #                   SPECIFIC reason. Blocking instead would leave it to the drain path, which
+        #                   labels it `dependency-blocked` with whatever this function reported -- and
+        #                   for the no-children case that list is EMPTY, which is exactly the `5e4sb6`
+        #                   record that claimed an unmet dependency while naming none.
+        decision = decide_orchestrator_dispatch(
+            repo,
+            str(item.get("setid") or ""),
+            str(item["id6"]),
+            state.get("queue") or [],
+            terminal_states=TERMINAL_STATES,
+            success_states=EXECUTION_SUCCESS_STATES,
+        )
+        if decision.outcome == ORCH_DISPATCH_RECONSIDER:
+            for child_id, child_status in decision.unfinished:
+                _block(
+                    f"executed:{child_id}",
+                    f"orchestrator waits for child {child_id} of set "
+                    f"'{item.get('setid')}' to execute (currently {child_status or 'unfinished'})",
+                )
+
+    for dep in item.get("dependencies", []):
+        dep = str(dep)
+        # 8guhs0: parse the typed token FIRST, so the id6 and the queue key both come from the
+        # parsed edge and never from the raw string.
+        edge = parse_dependency_token(dep)
+        if edge is None:
+            # Fail closed: an unparseable token is never "no dependency". Preflight refuses such a
+            # run before any session starts; this is the belt-and-braces path for a hand-edited
+            # state.json.
+            _block(dep, f"{dep}: unparseable dependency token")
+            continue
+        ok, reason = edge_satisfied(edge, item, state, by_id)
+        if not ok:
+            # Report the token AS DECLARED, not its canonical rewrite: `unsatisfied_dependencies` is
+            # written into durable run records.
+            _block(dep, reason or f"{dep}: dependency not satisfied")
+            continue
+        # revgate: the edge is satisfied structurally; for an execute-action dependency ALSO refuse
+        # on unresolved gating findings. Uses the parsed edge's target id6, not the raw token.
+        if is_exec:
+            target = dependency_target_id6(edge) or dep
+            why = _findings_block_reason(repo, target)
+            if why:
+                _block(dep, why)
+    return not unsatisfied, unsatisfied, reasons
+
+
+def cascade_dependency_blocked(
+    state: dict[str, Any], run_dir: Path | None = None
+) -> list[dict[str, Any]]:
+    """Propagate `dependency-blocked` over reverse edges to a fixed point (spec 25kzda 5.4 rule 7).
+
+    A queued item whose prerequisite reached a NON-success terminal state can never become runnable,
+    so it is marked blocked immediately instead of stalling the queue, and its own dependents follow
+    transitively. Independent items are untouched and keep running.
+
+    Uses the EXISTING `dependency-blocked` disposition (already in `TERMINAL_STATES` and already
+    written by the orchestrator-deferral path). It does NOT introduce `dependency-not-met`, which is
+    the spec's vocabulary but does not exist anywhere in this runner; inventing a parallel state
+    would split the run records already on disk.
+
+    THE SUCCESS BAR IS ACTION-DEPENDENT, and it MUST match `edge_satisfied`'s (runorder F-7). A
+    REVIEW pass does not require its prerequisite to have been EXECUTED: reviewing a child that
+    imports a module the previous child creates needs only that the previous child was reviewed,
+    because no code is written or imported during a review. `edge_satisfied` has always encoded this
+    (`is_exec = item.get("action") != "review"`, then `EXECUTION_SUCCESS_STATES if is_exec else
+    SUCCESS_STATES`), so this function reuses the SAME predicate rather than a second one.
+
+    MEASURED FAILURE this fixes (run `run-20260904T042705Z-1025943`): a 6-item all-`review` run of
+    the `wslayout` Set reviewed Orders 00 and 01, and the instant Order 01 reached `reviewed` this
+    cascade declared it a dead prerequisite and killed Orders 02-05 with "prerequisite reached a
+    non-success terminal state". It hardcoded `EXECUTION_SUCCESS_STATES`, and `reviewed` is in
+    `TERMINAL_STATES` but not in that set. Meanwhile `dependency_status_detailed` returned
+    `satisfied: True` for those same items, so TWO functions gave opposite answers to one question
+    and the cascade won because it runs after each item completes. The Set was well-formed and its
+    edges were correct; a review-mode Set run was simply impossible to complete.
+    """
+    blocked: list[dict[str, Any]] = []
+    while True:
+        by_id = {entry["id6"]: entry for entry in state["queue"]}
+        progressed = False
+        for item in state["queue"]:
+            if item.get("status") != "queued":
+                continue
+            dead: list[str] = []
+            for dep in item.get("dependencies", []):
+                edge = parse_dependency_token(dep)
+                if edge is None or edge.target_type != "ipd":
+                    continue
+                entry = by_id.get(edge.id6)
+                if entry is None:
+                    continue
+                st = entry.get("status")
+                # SAME action-aware bar as `edge_satisfied`; do NOT hardcode
+                # EXECUTION_SUCCESS_STATES here (that made a review-mode Set run impossible).
+                required = (
+                    EXECUTION_SUCCESS_STATES
+                    if item.get("action") != "review"
+                    else SUCCESS_STATES
+                )
+                if st in TERMINAL_STATES and st not in required:
+                    dead.append(f"{edge.canonical()} (target {st})")
+            if not dead:
+                continue
+            item["status"] = "dependency-blocked"
+            item["unsatisfied_dependencies"] = dead
+            blocked.append(item)
+            progressed = True
+            if run_dir is not None:
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "dependency-blocked",
+                        "id6": item["id6"],
+                        "dependencies": dead,
+                        "reason": "prerequisite reached a non-success terminal state",
+                    },
+                )
+        if not progressed:
+            return blocked
+
+
+def dependency_reasons(item: dict[str, Any], state: dict[str, Any]) -> list[str]:
+    """Human-readable reasons for each unsatisfied edge (for events/report; no gating decision)."""
+    by_id = {entry["id6"]: entry for entry in state["queue"]}
+    reasons: list[str] = []
+    for dep in item.get("dependencies", []):
+        edge = parse_dependency_token(dep)
+        if edge is None:
+            reasons.append(f"{dep}: not a legal Item-Dependencies edge")
+            continue
+        ok, reason = edge_satisfied(edge, item, state, by_id)
+        if not ok:
+            reasons.append(reason)
+    return reasons
+
+
 # --- bkclose (zhr6mc): close a backlog item when the run executes its last carrier ----------------
 #
 # `graduated` means "design handed off, code not yet written" and `done` means "written and

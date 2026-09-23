@@ -509,6 +509,34 @@ from agent_workflows.runner_shared import (
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
 # how the previous inert half-pin came to differ from what it looked like it did. `oc_runipd` does
 # not import this module, so there is no import cycle.
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE DEPENDENCY API, now bound from
+# `runner_shared` instead of from the OTHER HOST DRIVER. The objects are unchanged and so is every
+# call site; only the module this statement names is different. The long note that used to sit on the
+# oc-side import (about `dependency_status_detailed` having been re-forked here for months, and about
+# the `as <same-name>` form being load-bearing because `ruff` deleted six of these once) applies
+# verbatim and is preserved on the statement below.
+# depreview 03ie04 E-03: `dependency_status_detailed` is RE-EXPORTED here, not defined. This
+# module used to carry its own copy, and that copy was the reason a dependency fix could reach
+# only ONE of this driver's two paths: the dispatch path called the re-exported
+# `dependency_status` (whose body resolves `dependency_status_detailed` in OC's globals) while
+# the DRAIN path called the local copy. Measured before the deletion:
+# `agy.dependency_status_detailed is oc.dependency_status_detailed` -> False. The copy was also
+# BROKEN in three ways that the shared implementation is not: it never called `edge_satisfied`;
+# it never called `parse_dependency_token`, so it used the raw token as an id6 and reported
+# "no plan resolves to this id6 in the repo" for a perfectly valid `executed:<id6>`; and it had
+# no `orchestrate` clause, so an orchestrator item bypassed `decide_orchestrator_dispatch` on
+# that path. `tests/test_runner_item_dependencies.py`'s `_SHARED_NAMES` now pins this name, so
+# the copy cannot come back silently.
+from agent_workflows.runner_shared import (
+    DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
+    _artifact_owners as _artifact_owners,
+    cascade_dependency_blocked as cascade_dependency_blocked,
+    dependency_reasons as dependency_reasons,
+    dependency_status as dependency_status,
+    dependency_status_detailed as dependency_status_detailed,
+    edge_satisfied as edge_satisfied,
+    preflight_dependency_findings as preflight_dependency_findings,
+)
 from agent_workflows.oc_runipd import (
     ToolIdentityError,
     assert_child_tool_identity as assert_child_tool_identity,  # noqa: F401
@@ -622,28 +650,6 @@ from agent_workflows.oc_runipd import (
     commit_backlog_close as commit_backlog_close,
     process_backlog_close as process_backlog_close,
 )
-from agent_workflows.oc_runipd import (
-    DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
-    _artifact_owners as _artifact_owners,
-    cascade_dependency_blocked as cascade_dependency_blocked,
-    dependency_reasons as dependency_reasons,
-    dependency_status as dependency_status,
-    # depreview 03ie04 E-03: `dependency_status_detailed` is RE-EXPORTED here, not defined. This
-    # module used to carry its own copy, and that copy was the reason a dependency fix could reach
-    # only ONE of this driver's two paths: the dispatch path called the re-exported
-    # `dependency_status` (whose body resolves `dependency_status_detailed` in OC's globals) while
-    # the DRAIN path called the local copy. Measured before the deletion:
-    # `agy.dependency_status_detailed is oc.dependency_status_detailed` -> False. The copy was also
-    # BROKEN in three ways that the shared implementation is not: it never called `edge_satisfied`;
-    # it never called `parse_dependency_token`, so it used the raw token as an id6 and reported
-    # "no plan resolves to this id6 in the repo" for a perfectly valid `executed:<id6>`; and it had
-    # no `orchestrate` clause, so an orchestrator item bypassed `decide_orchestrator_dispatch` on
-    # that path. `tests/test_runner_item_dependencies.py`'s `_SHARED_NAMES` now pins this name, so
-    # the copy cannot come back silently.
-    dependency_status_detailed as dependency_status_detailed,
-    edge_satisfied as edge_satisfied,
-    preflight_dependency_findings as preflight_dependency_findings,
-)
 
 # runorder (prpipy) E-07: the run-order comparison and its announcement, bound (never copied) for
 # the same reason the dependency key above is. `queue_sort_key` was ALREADY shared, so `prpipy`'s
@@ -731,7 +737,11 @@ TERMINAL_STATES = {
 # rununify 04 (`tx6q0h`): relocated to `runner_shared` (byte-identical in both hosts);
 # re-exported so this module's other call sites are untouched.
 SUCCESS_STATES = runner_shared.SUCCESS_STATES
-EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
+# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: ONE object, not a second set literal.
+# Each host used to declare its own, so the two were EQUAL BUT NOT IDENTICAL and a one-sided
+# edit was silent. `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests` named this
+# unification as `cnwy8g`'s work; see the constant's own note in `runner_shared`.
+EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
 LANE_PROMPT_TIMEOUT: float = 10.0

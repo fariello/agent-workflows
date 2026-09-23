@@ -49,7 +49,7 @@ import unittest
 from typing import Any
 from unittest import mock
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from agent_workflows import agy_runipd, oc_runipd, runner_shared, selectors
 
 FIXTURE = (
     pathlib.Path(__file__).parent
@@ -1821,27 +1821,35 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
         self.assertIs(oc_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
         self.assertIs(agy_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
 
-    def test_EXECUTION_SUCCESS_STATES_is_EQUAL_on_both_hosts_even_though_duplicated(
-        self,
-    ):
-        """FAILS if either host's set literal is edited alone, which is the whole point.
+    def test_EXECUTION_SUCCESS_STATES_is_ONE_OBJECT_across_both_hosts(self):
+        """SIMPLIFIED EXACTLY AS THE PREVIOUS VERSION INSTRUCTED, and the instruction is worth quoting.
 
-        The `assertIsNot` is deliberate and is NOT a wish for divergence: it RECORDS the measured
-        present state, so if a later plan unifies the objects this test fails loudly and is updated
-        together with the change, rather than silently continuing to assert something weaker than the
-        truth.
+        This method used to assert the two hosts' sets were EQUAL BUT NOT IDENTICAL, with an
+        `assertIsNot` whose own failure message read: "the two are now ONE object; unify the constant
+        and simplify this test, do not delete the equality pin". runnerlayer Order 02 (`1f7xno`) is the
+        unification that message anticipated, and this is the simplification it asked for; the equality
+        pin is NOT deleted, it is subsumed, because one object is trivially equal to itself.
+
+        WHY THE CONSTANT MOVED, since it was not a target of that plan by name: `cascade_dependency_blocked`
+        and `dependency_status_detailed` both close over it and both were re-homed, so the constant had to
+        become resolvable in `runner_shared` or those bodies would have raised `NameError`. The class
+        docstring above already named this work: "Unifying the objects is `rununify`'s extraction and
+        `cnwy8g`'s layering correction, deliberately NOT done here."
+
+        WHAT IS STRONGER NOW. The old pin could only catch a one-sided edit AFTER the fact, by value; a
+        single object cannot be edited one-sidedly at all, so the defect class is gone rather than
+        watched. `tests/test_runner_refork_guard.py` additionally forbids either host re-DEFINING it.
         """
-        self.assertEqual(
-            oc_runipd.EXECUTION_SUCCESS_STATES, agy_runipd.EXECUTION_SUCCESS_STATES
+        self.assertIs(
+            oc_runipd.EXECUTION_SUCCESS_STATES, runner_shared.EXECUTION_SUCCESS_STATES
+        )
+        self.assertIs(
+            agy_runipd.EXECUTION_SUCCESS_STATES, runner_shared.EXECUTION_SUCCESS_STATES
         )
         self.assertEqual(
-            oc_runipd.EXECUTION_SUCCESS_STATES, {"executed", "substantially-complete"}
-        )
-        self.assertIsNot(
-            oc_runipd.EXECUTION_SUCCESS_STATES,
-            agy_runipd.EXECUTION_SUCCESS_STATES,
-            "the two are now ONE object; unify the constant and simplify this test, do not "
-            "delete the equality pin",
+            runner_shared.EXECUTION_SUCCESS_STATES,
+            {"executed", "substantially-complete"},
+            "the VALUE is pinned too: unifying the object must not have changed the bar",
         )
 
     def test_the_action_aware_bar_is_the_SAME_OBJECT_from_every_module_that_exposes_it(
@@ -7611,10 +7619,45 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
         )
         self.assertEqual(len(self.pre), self.payload["symbol_count"])
 
+    #: The ONLY bodies permitted to differ from their pre-move capture, each mapped to the single
+    #: statement that changed and WHY. Enumerated rather than tolerated, because a blanket exemption on
+    #: the riskiest names is how a move harness becomes decorative (the same rule `INJECTED` and
+    #: `DOCUMENTED_SINCE_MOVE` above follow).
+    #:
+    #: BOTH ARE A RESOLUTION FIX, NOT A BEHAVIOR CHANGE, and both were FORCED by the move rather than
+    #: chosen. A body that resolved a name in `oc_runipd`'s namespace cannot resolve it in
+    #: `runner_shared`'s, so leaving the statement byte-identical would have left a function that raises
+    #: at call time. Each is the minimum edit that preserves the original behavior:
+    #:
+    #:   `_consuming_actions_for`  `runner_shared.action_for(...)` -> `action_for(...)`. The qualified
+    #:       prefix named an IMPORTED MODULE in oc; inside the module itself there is no such global, so
+    #:       the attribute access raised `NameError` which the body's own `except Exception: continue`
+    #:       SWALLOWED, making the function return an empty map and silently switching the dependency
+    #:       evaluator to its strict default. It broke fourteen tests. Same callee, same object.
+    #:   `edge_satisfied`  gained a FUNCTION-LOCAL
+    #:       `from agent_workflows.selectors import read_front_matter_status as _read_status`. In oc that
+    #:       reader was a module global; `runner_shared` has none, and a module-level first-party import
+    #:       here is REFUSED by a shipped guard that pins this module's module-level first-party imports
+    #:       to `render_stream` plus `runner_profiles`. The function-local form is this module's own
+    #:       documented route and is used identically by two sibling functions. Same reader object,
+    #:       which `tests/test_runner_refork_guard.py` tables as `selectors`-owned.
+    RESOLUTION_FIXED_SINCE_MOVE = {
+        "_consuming_actions_for": "unqualified `runner_shared.action_for` -> `action_for`",
+        "edge_satisfied": "function-local import of the shared `_read_status` reader",
+    }
+
     def test_every_rehomed_body_is_BYTE_IDENTICAL_to_its_pre_move_capture(self):
+        """The falsifiable half of the pure-move claim: edit one moved line and this fails.
+
+        `RESOLUTION_FIXED_SINCE_MOVE` is subtracted, and the subtraction is itself asserted below by
+        `test_every_resolution_fix_is_a_resolution_fix_and_not_a_behavior_change`, so an entry cannot be
+        added to that map to wave a real edit through.
+        """
         shared_defs = _top_level_definitions_by_node(runner_shared)
         wrong = []
         for name, expected in sorted(self.pre.items()):
+            if name in self.RESOLUTION_FIXED_SINCE_MOVE:
+                continue
             node = shared_defs.get(name)
             if node is None:
                 wrong.append(f"  {name}: NOT DEFINED in runner_shared at all")
@@ -7647,6 +7690,83 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
+    def test_every_resolution_fix_is_a_resolution_fix_and_not_a_behavior_change(self):
+        """The GUARD ON THE EXEMPTION, so `RESOLUTION_FIXED_SINCE_MOVE` cannot launder a real edit.
+
+        An enumerated exemption is only as good as the bound on what it admits. The claim each entry
+        makes is narrow: the body differs from its pre-move capture ONLY in how it RESOLVES a name, and
+        it still reaches the SAME object the pre-move body reached. So this asserts the consequence that
+        claim has, which a diff cannot: the function still WORKS, and it works through the shared object.
+
+        `_consuming_actions_for` must return the action the shared `action_for` gives for a real plan.
+        The pre-move body called `runner_shared.action_for`; if the unqualified call now resolved
+        something else, this disagrees. Crucially, the pre-move body's `except Exception: continue`
+        SWALLOWED the NameError, so an empty result is precisely the silent failure mode, and asserting
+        a NON-empty correct answer is what distinguishes a fixed body from a broken one.
+
+        `edge_satisfied` must read a target's status through the ONE shared permissive reader. Patching
+        `selectors.read_front_matter_status` must move its verdict; if the function-local import had been
+        written against some other reader, the patch would not bite and this fails.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = pathlib.Path(tmp) / "p.ipd.md"
+            text = "# IPD: x\n\n- Id: aaaaaa\n- Kind: child\n- Status: approved\n"
+            plan.write_text(text, encoding="utf-8")
+            derived = runner_shared._consuming_actions_for([(plan, text)])
+            self.assertEqual(
+                derived,
+                {str(plan): runner_shared.action_for("child", "approved")},
+                "the unqualified `action_for` call must reach the SAME shared decision the pre-move "
+                "`runner_shared.action_for` did. An EMPTY dict here is the exact silent failure the "
+                "body's own `except Exception: continue` produces when the name does not resolve",
+            )
+            self.assertNotEqual(
+                derived, {}, "an empty result means the name did not resolve at all"
+            )
+
+        # `edge_satisfied`'s half, asserted THROUGH THE MOVED BODY rather than on the reader alone.
+        # Its function-local import must have bound the ONE shared permissive reader, so replacing that
+        # reader on its OWNING module must FLIP the body's verdict. A body that had bound some other
+        # reader, or inlined a regex, would be unmoved by this patch and this assertion would fail -
+        # which is exactly how the missing resolution was caught when this batch landed.
+        #
+        # Driven through `dependency_status`, the entry point the dispatch site calls, because
+        # `edge_satisfied`'s own signature takes an internal `by_id` map this test has no business
+        # constructing.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp) / "repo"
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            (pending / "20260101-demo-01-depaaa-t.ipd.md").write_text(
+                "# IPD: t\n\n- Id: depaaa\n- Kind: child\n- Status: to-review\n",
+                encoding="utf-8",
+            )
+            item = {
+                "id6": "itemaa",
+                "status": "queued",
+                "action": "review",
+                "dependencies": ["executed:depaaa"],
+                "position": 1,
+                "configured_file": "",
+            }
+            state = {"repo": str(repo), "queue": [item]}
+            baseline, _why = runner_shared.dependency_status(item, state)
+            self.assertFalse(
+                baseline,
+                "baseline: a `to-review` target in `pending/` must not satisfy a review edge",
+            )
+            with mock.patch.object(
+                selectors, "read_front_matter_status", lambda _raw: "reviewed"
+            ):
+                flipped, _why2 = runner_shared.dependency_status(item, state)
+            self.assertTrue(
+                flipped,
+                "with the SHARED reader replaced, the moved `edge_satisfied` must flip. Still "
+                "refusing means its function-local import bound something other than "
+                "`selectors.read_front_matter_status`, so the resolution fix changed BEHAVIOR "
+                "rather than only resolution",
+            )
+
     def test_neither_runner_still_DEFINES_a_rehomed_name(self):
         wrong = []
         for runner in BOTH:
@@ -7674,6 +7794,11 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
         "_SIGNAL_REPORT_DONE",
         "_SIGNAL_REPORT_STATE",
         "_carrier_kind",
+        # The consuming-action derivation `preflight_dependency_findings` calls. Same shape as the
+        # three above: oc-private, reached only by a public name in the work list, never imported by
+        # agy. An in-tree mutation check neutralizes it through the `oc_runipd` attribute, which is why
+        # oc still re-exports it.
+        "_consuming_actions_for",
     )
 
     def test_every_rehomed_name_is_the_SAME_OBJECT_from_all_three_modules(self):

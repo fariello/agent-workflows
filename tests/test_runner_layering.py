@@ -143,55 +143,6 @@ CLASSIFICATION: tuple[Name, ...] = (
     # is the cautionary tale of the whole Set: agy carried its own BROKEN copy for months because
     # the symmetry guard's name list omitted it.
     Name(
-        "edge_satisfied",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "decides whether one typed dependency edge is satisfied; pure record/state logic",
-    ),
-    Name(
-        "dependency_status",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "aggregates edge verdicts for one plan; no host concept in the body",
-    ),
-    Name(
-        "dependency_status_detailed",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "the `_detailed` sibling adding a root-cause map; mentions `aw oc run` in PROSE only",
-        closes_over=("EXECUTION_SUCCESS_STATES", "TERMINAL_STATES"),
-        move_note=(
-            "the name whose ABSENCE from `_SHARED_NAMES` let the symmetry guard pass over "
-            "agy's real broken copy for months (`03ie04` E-04 added it)"
-        ),
-    ),
-    Name(
-        "dependency_reasons",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "renders why an edge is unsatisfied; reporting text, no gating decision",
-    ),
-    Name(
-        "cascade_dependency_blocked",
-        "dependency-graph",
-        NEUTRAL,
-        MODULE_LEVEL,
-        "propagates dependency-blocked over reverse edges to a fixed point",
-        closes_over=("EXECUTION_SUCCESS_STATES", "SUCCESS_STATES", "TERMINAL_STATES"),
-    ),
-    Name(
-        "preflight_dependency_findings",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "runs the SHARED evaluator over selected plans; already a thin call into `check_engine`",
-        closes_over=("_consuming_actions_for",),
-    ),
-    Name(
         "enforce_dependency_preflight",
         "dependency-graph",
         NEUTRAL,
@@ -201,20 +152,6 @@ CLASSIFICATION: tuple[Name, ...] = (
             "the behavioral defect the backlog item filed (two DriverError classes) was fixed "
             "by `818uru`, so this is now a pure layering move"
         ),
-    ),
-    Name(
-        "DEPENDENCY_FATAL_RULES",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "a frozenset of check-rule ids; data, and not host data",
-    ),
-    Name(
-        "_artifact_owners",
-        "dependency-graph",
-        NEUTRAL,
-        PURE_REEXPORT,
-        "looks owners up in the shared identity index; body is a `check_engine` call",
     ),
     # --- backlog closing (11) ----------------------------------------------------------------
     # The rule set deciding whether a run may close a backlog item. Its in-tree comment already

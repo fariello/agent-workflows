@@ -2173,14 +2173,22 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
             "and both drivers must bind the SAME object, or one host accepts a status the other refuses",
         )
 
-        # THE PATCH TARGET IS `oc_runipd`, FOR BOTH DRIVERS, and that is the point rather than a
-        # convenience. `edge_satisfied` is an oc-OWNED object that agy BINDS (see
-        # `CrossDriverSymmetryTests._SHARED_NAMES`), so exactly one module global named `_read_status`
-        # is consulted no matter which driver's entry point is called. MEASURED while writing this: a
-        # first version patched `mod._read_status` per driver and FAILED on agy, because patching agy's
-        # alias changes nothing the shared function reads. That failure is the invariant, not a
-        # problem: if patching oc's global did NOT move agy's verdict, agy would be running its own
-        # copy - which is exactly what shipped once and survived for months.
+        # THE PATCH TARGET IS `selectors`, FOR BOTH DRIVERS, and that is the point rather than a
+        # convenience. `edge_satisfied` now LIVES in `runner_shared` (runnerlayer Order 02 `1f7xno`
+        # re-homed it; this comment used to name `oc_runipd` for exactly the same structural reason),
+        # and that module reaches the reader through a FUNCTION-LOCAL
+        # `from agent_workflows.selectors import read_front_matter_status as _read_status`, because a
+        # module-level first-party import there is refused by a shipped guard. A function-local import
+        # is re-executed on every call and resolves through `selectors`, so the OWNING module of the
+        # reader is the only patchable site - and it is the right one, since `selectors` is where the
+        # one shared permissive reader is DEFINED.
+        #
+        # THE INVARIANT IS UNCHANGED AND IS STILL WHAT THIS ASSERTS. Patching the OWNING module's
+        # global must move BOTH hosts' verdicts; if it did not, that host would be running its own
+        # COPY of `edge_satisfied`, which is exactly what shipped once and survived for months.
+        # MEASURED TWICE, once per home: patching the non-owning module's alias changes nothing the
+        # shared function reads, so a version that patched `mod._read_status` per driver FAILED on the
+        # binding host. That failure is the invariant, not a problem.
         for driver, mod in _DRIVERS:
             with self.subTest(driver=driver, half="delegation"):
                 with tempfile.TemporaryDirectory() as t:
@@ -2190,7 +2198,7 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
                         "baseline: a `to-review` target in `pending/` does not satisfy a review turn",
                     )
                     with mock.patch.object(
-                        oc_runipd, "_read_status", lambda _p: "reviewed"
+                        selectors, "read_front_matter_status", lambda _p: "reviewed"
                     ):
                         self.assertTrue(
                             self._ask(mod, "dependency_status", repo, "review")[0],
@@ -2231,7 +2239,9 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
                             return _real(path)
 
                         # Patched on oc for the same reason as above: one shared global backs both.
-                        with mock.patch.object(oc_runipd, "_read_status", spy):
+                        with mock.patch.object(
+                            selectors, "read_front_matter_status", spy
+                        ):
                             self._ask(mod, "dependency_status", repo, "review")
                         self.assertEqual(
                             bool(reads),
@@ -2558,16 +2568,22 @@ class ReviewQueuePreflightTests(unittest.TestCase):
             self.assertEqual(
                 oc_runipd.enforce_dependency_preflight(repo, [dependent]), []
             )
-            original = oc_runipd._consuming_actions_for
+            # NEUTRALIZED ON `runner_shared`, WHICH IS WHERE `preflight_dependency_findings` RESOLVES
+            # THE DERIVATION since runnerlayer Order 02 (`1f7xno`) re-homed both out of `oc_runipd`.
+            # Neutralizing the host attribute would no longer intercept anything, so the mutation
+            # would be a no-op and this check would report "DriverError not raised" - which is exactly
+            # how it failed when the move landed, and which would otherwise have left a MUTATION CHECK
+            # that can no longer mutate. The host attribute re-exports this same object.
+            original = runner_shared._consuming_actions_for
             try:
-                oc_runipd._consuming_actions_for = lambda plans: {}
+                runner_shared._consuming_actions_for = lambda plans: {}
                 with self.assertRaises(oc_runipd.DriverError) as caught:
                     oc_runipd.enforce_dependency_preflight(repo, [dependent])
                 self.assertIn(
                     "check.ipd-dependency-findings-blocked", str(caught.exception)
                 )
             finally:
-                oc_runipd._consuming_actions_for = original
+                runner_shared._consuming_actions_for = original
             self.assertEqual(
                 oc_runipd.enforce_dependency_preflight(repo, [dependent]),
                 [],
@@ -2843,13 +2859,26 @@ class AntiDivergenceGuardTests(unittest.TestCase):
                 )
 
     def test_drivers_reference_the_shared_dependency_api(self):
-        """Pre-fix BOTH drivers referenced the shared dependency API zero times."""
-        oc_text = (REPO_ROOT / "agent_workflows" / "oc_runipd.py").read_text(
+        """Pre-fix BOTH drivers referenced the shared dependency API zero times.
+
+        READS THE MODULE THAT NOW HOLDS THE BODIES (runnerlayer Order 02 `1f7xno`). These three names
+        appeared in `oc_runipd` because the dependency evaluator's bodies were DEFINED there; that
+        whole group has been re-homed into `runner_shared`, so the mentions moved with them and a
+        source scan of the host driver now measures nothing. Following the bodies keeps the assertion
+        pointed at real code instead of at a file the code left.
+
+        WHY THIS IS NOT A WEAKENING, and the file itself already says so: the sibling
+        `test_each_shared_api_is_actually_REACHED_on_both_drivers` calls this mention check "a weak
+        proxy" that "stays only because a mention is where the fix began", and it proves the stronger
+        property (each authority is CONSULTED, on both hosts, through a real call). That test is
+        untouched and still passes, so the guarantee does not rest on this grep.
+        """
+        shared_text = (REPO_ROOT / "agent_workflows" / "runner_shared.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn("parse_item_dependencies", oc_text)
-        self.assertIn("META_ITEM_DEPENDENCIES", oc_text)
-        self.assertIn("evaluate_ipd_dependencies", oc_text)
+        self.assertIn("parse_item_dependencies", shared_text)
+        self.assertIn("META_ITEM_DEPENDENCIES", shared_text)
+        self.assertIn("evaluate_ipd_dependencies", shared_text)
 
     def test_each_shared_api_is_actually_REACHED_on_both_drivers(self):
         """The behavioral counterpart to the reference sweep above: each shared API really RUNS.
