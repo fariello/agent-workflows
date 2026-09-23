@@ -1526,12 +1526,12 @@ class RealRepositorySets(unittest.TestCase):
         ),
         (
             "rununify",
-            False,
-            rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            {"40it5e": "approved"},
+            True,
+            rs.RETIRE_ELIGIBLE,
+            {},
             (),
             12,
-            {"executed", "approved"},
+            {"executed"},
             "THE THREE-COLUMN, NO-`Id` LAYOUT, and the Set that motivated the unauthored-rows rule. "
             "Its placeholder rows `03+` and `last` stood unauthored by deliberate design and the "
             "runner correctly refused the parent on every run for two weeks; on the maintainer's "
@@ -1557,7 +1557,27 @@ class RealRepositorySets(unittest.TestCase):
             "reaches `approved` this row reads `approved`, and when it reaches `executed` the Set "
             "flips back to ELIGIBLE with all twelve children executed. Re-measure then; do not "
             "widen the status set to admit several values at once, which would stop this row "
-            "detecting anything",
+            "detecting anything. "
+            "BOTH PREDICTED MOVES THEN HAPPENED, 2026-09-23, and this row is re-pointed at the "
+            "SECOND of them: `40it5e` was promoted to `approved` (the third move, which needed no "
+            "edit because the unfinished map is keyed by id6 and only its VALUE changed) and then "
+            "EXECUTED, so the Set is ELIGIBLE with all twelve children `executed` and the "
+            "unfinished map is empty. The row therefore now asserts the ELIGIBLE end, and its "
+            "history above is the record of it reaching there: eligible at 11 children, refused "
+            "when a 12th was authored, refused through that child's `to-review` -> `reviewed` -> "
+            "`approved` advance, eligible again on its execution. That is every transition this "
+            "class describes, exercised on one real Set. "
+            "WHY THE TWELFTH CHILD MATTERED, restated because this row is now GREEN and a green "
+            "row invites deletion: the coverage gate found `5e4sb6` carrying an E-02 and E-03 no "
+            "child covered, and retirement SKIPS the pre-transition E/V checkpoint, so both would "
+            "have ticked unperformed. `40it5e` performed them (the characterization baseline in "
+            "`tests/test_rununify_characterization.py`, the residue disposition in research "
+            "`cxe3dw`, and the Set's verdict) and only THEN let this row go eligible. "
+            "WHEN THIS GOES RED, expect it to be because a THIRTEENTH child was authored, and "
+            "re-point it rather than deleting it: `orchretire` and `wslayout` above already carry "
+            "the stable-eligible property, so this row's value is its refusal HISTORY plus the "
+            "twelve-child count, which is asserted at >= 12 so the Set cannot become eligible by "
+            "LOSING a child",
         ),
         (
             "runprofile",
