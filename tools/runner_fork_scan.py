@@ -36,12 +36,29 @@ ALSO ALREADY in `runner_shared`, with the hosts ignoring the shared copy. That i
 a two-way fork (three bodies to keep in step, and the shared one is dead), so `--triples` names them
 rather than letting them hide inside the identical count.
 
+AND THE CASE EVERY PAIRWISE SECTION ABOVE IS STRUCTURALLY BLIND TO, which is why `--repo-wide`
+exists. Each report above compares the two runners against each other and against `runner_shared`,
+so a third copy sitting in SOME OTHER module is invisible to all of them: the comparison never looks
+there. That blindness is MEASURED HISTORY in this repository rather than a hypothetical. The
+`rununify` orchestrator records it as its F10 -- a one-sided guard over `render_stream` let
+`agy_runipd` re-fork `Palette`, `_one_line` and `_strip_ansi`, and let `Heartbeat` actually DRIFT, so
+a display fix in the owning module silently never reached `aw agy run`. Its E-03 therefore requires
+the single-implementation check to be "AST-level and REPO-WIDE across `agent_workflows/*.py`, not a
+pairwise check of the two runners". `--repo-wide` is that sweep, and plan `40it5e` E-01 consumes it.
+
+READ THE REPO-WIDE SECTION'S OWN WARNING BEFORE ACTING ON IT. A name collision is NOT a re-fork, and
+by NAME this sweep "finds" nine that do not exist: nine different modules define a `main`, and
+`build_parser`, `terminate_process` and `validate_manifest` collide the same way. `tvnq50` records an
+executor making exactly that error. So the sweep classifies by NORMALIZED BODY and reports a
+CO-DEFINED-ELSEWHERE symbol with its similarity, never as a verdict.
+
 USAGE
 
     python3 tools/runner_fork_scan.py                  # the census
     python3 tools/runner_fork_scan.py --closure        # + per-symbol module-level closure
     python3 tools/runner_fork_scan.py --hazards        # + __file__ / host-token scan
     python3 tools/runner_fork_scan.py --triples        # + symbols ALSO defined in runner_shared
+    python3 tools/runner_fork_scan.py --repo-wide      # + the sweep over ALL agent_workflows/*.py
     python3 tools/runner_fork_scan.py --all            # every section
     python3 tools/runner_fork_scan.py --json           # machine-readable
     python3 tools/runner_fork_scan.py --symbols A B C   # restrict to named symbols
@@ -411,6 +428,96 @@ def scan_hazards(node: ast.stmt, source_segment: str) -> dict[str, Any]:
     }
 
 
+def repo_wide_sweep() -> dict[str, Any]:
+    """Every runner symbol against ALL of `agent_workflows/*.py`: the class (d) question.
+
+    THE QUESTION THIS ANSWERS, and it is a DIFFERENT one from every section above. Those compare the
+    two runners with each other and with `runner_shared`, which cannot see a third copy living in
+    another module; `rununify` F10 records that blindness costing a real drift (`Heartbeat` fixed in
+    `render_stream` and silently not reaching `aw agy run`). So this walks the whole package.
+
+    IT REPORTS, IT DOES NOT RULE, and the distinction is load-bearing because the naive form of this
+    sweep is actively misleading. Matching on NAME alone reports eleven re-forks of which nine are
+    mere collisions (nine modules define a `main`), and `tvnq50` records the method correction after an
+    executor hit exactly that. So each co-definition carries the normalized-body similarity and the
+    identity verdict, and the caller reads them.
+
+    Keys: `runner_symbols` (every top-level symbol in either runner), `single_definition` (those
+    defined in NO OTHER module), `single_definition_repo_wide` (those defined in EXACTLY ONE module
+    counting the runners, which is the only class that is provably one implementation), and
+    `co_defined_elsewhere` mapping symbol -> the per-module records, each carrying `identical` and
+    `similarity`.
+
+    THE TWO SINGLE-DEFINITION KEYS ARE NOT THE SAME QUESTION and conflating them would restate this
+    Set's original error in a new place. A symbol defined in BOTH runners and nowhere else has NO
+    third copy, and it is still forked; only `single_definition_repo_wide` means one body exists.
+    """
+    modules: dict[str, dict[str, ast.stmt]] = {}
+    for path in sorted(package_dir().glob("*.py")):
+        try:
+            modules[path.stem] = top_level_defs(
+                ast.parse(path.read_text(encoding="utf-8"))
+            )
+        except (
+            SyntaxError
+        ):  # pragma: no cover - a broken module is not this tool's business
+            continue
+
+    runner_symbols = sorted(set(modules.get(OC, {})) | set(modules.get(AGY, {})))
+    co_defined: dict[str, list[dict[str, Any]]] = {}
+    for name in runner_symbols:
+        # The runner body to compare against. Prefer oc, which the maintainer's 2026-09-14 ruling
+        # makes the preferred version, and fall back to agy for an agy-only symbol.
+        host_node = modules.get(OC, {}).get(name) or modules[AGY][name]
+        host_norm = normalize(host_node)
+        elsewhere: list[dict[str, Any]] = []
+        for mod, defs in modules.items():
+            if mod in (OC, AGY) or name not in defs:
+                continue
+            other = defs[name]
+            elsewhere.append(
+                {
+                    "module": mod,
+                    "identical": normalize(other) == host_norm,
+                    "similarity": round(
+                        difflib.SequenceMatcher(
+                            None,
+                            _erase_host_tokens(host_norm),
+                            _erase_host_tokens(normalize(other)),
+                        ).ratio(),
+                        3,
+                    ),
+                    "lines": line_metrics(other),
+                }
+            )
+        if elsewhere:
+            co_defined[name] = sorted(elsewhere, key=lambda rec: rec["module"])
+
+    return {
+        "test": (
+            "REPO-WIDE: every top-level symbol of either runner compared, by NORMALIZED BODY, "
+            "against every module in agent_workflows/. A NAME collision is NOT a re-fork"
+        ),
+        "modules_scanned": len(modules),
+        "runner_symbols": runner_symbols,
+        "single_definition": sorted(n for n in runner_symbols if n not in co_defined),
+        "single_definition_repo_wide": sorted(
+            n
+            for n in runner_symbols
+            if n not in co_defined
+            and not (n in modules.get(OC, {}) and n in modules.get(AGY, {}))
+        ),
+        "co_defined_elsewhere": co_defined,
+        # The subset that is NOT explained by the sanctioned `runner_shared` extraction, i.e. the
+        # class (d) candidate set a reader must actually judge.
+        "outside_shared": sorted(
+            name
+            for name, recs in co_defined.items()
+            if any(rec["module"] != SHARED for rec in recs)
+        ),
+    }
+
+
 def census(symbols: Iterable[str] | None = None) -> dict[str, Any]:
     """The whole measurement, as data. Every report below is a rendering of this.
 
@@ -517,6 +624,10 @@ def census(symbols: Iterable[str] | None = None) -> dict[str, Any]:
         "triples": sorted(
             n for n, r in records.items() if r["also_in_shared"] and not r["wrapper"]
         ),
+        # The repo-wide sweep travels WITH the census rather than beside it, so `--json` carries the
+        # class (d) answer too and a consumer cannot get the pairwise numbers without the sweep that
+        # bounds them (`rununify` E-03 requires the check be repo-wide, not pairwise).
+        "repo_wide": repo_wide_sweep(),
         "symbols": records,
     }
 
@@ -557,7 +668,65 @@ def _sum_lines(data: dict[str, Any], names: Iterable[str], metric: str) -> int:
     return sum(data["symbols"][name]["lines"][metric] for name in names)
 
 
-def render(data: dict[str, Any], *, closure: bool, hazards: bool, triples: bool) -> str:
+def render_repo_wide(data: dict[str, Any]) -> list[str]:
+    """The class (d) section: what the pairwise sections above cannot see.
+
+    Ordered so the REASSURING number comes first and the JUDGEMENT SET second, because the set is
+    what a reader must act on and it is small enough to print whole.
+    """
+    sweep = data["repo_wide"]
+    out = [
+        "REPO-WIDE SWEEP (the class (d) question the pairwise sections cannot answer)"
+    ]
+    out.append(f"  {sweep['test']}")
+    out.append(f"  modules scanned              : {sweep['modules_scanned']}")
+    out.append(f"  runner symbols               : {len(sweep['runner_symbols'])}")
+    out.append(
+        f"  defined in NO OTHER module   : {len(sweep['single_definition'])} "
+        "(no THIRD copy; says nothing about the two-runner fork, which is the pairwise sections' "
+        "question)"
+    )
+    out.append(
+        f"  ONE definition repo-wide     : {len(sweep['single_definition_repo_wide'])} "
+        "(defined in exactly one module, runners included: the only class that is provably "
+        "single-implementation)"
+    )
+    out.append(
+        f"  co-defined in another module : {len(sweep['co_defined_elsewhere'])} "
+        f"(of which {len(sweep['outside_shared'])} outside `runner_shared`)"
+    )
+    out.append("")
+    out.append(
+        "  CO-DEFINED OUTSIDE runner_shared -- READ, DO NOT COUNT: a NAME collision is not a "
+        "re-fork, and by name this sweep 'finds' nine that do not exist"
+    )
+    if not sweep["outside_shared"]:
+        out.append("    none")
+    for name in sweep["outside_shared"]:
+        for rec in sweep["co_defined_elsewhere"][name]:
+            if rec["module"] == SHARED:
+                continue
+            verdict = (
+                "AST-IDENTICAL -> a real re-fork"
+                if rec["identical"]
+                else "different body"
+            )
+            out.append(
+                f"    {name:34s} also in {rec['module']:22s} "
+                f"sim={rec['similarity']:6.3f}  {verdict}"
+            )
+    out.append("")
+    return out
+
+
+def render(
+    data: dict[str, Any],
+    *,
+    closure: bool,
+    hazards: bool,
+    triples: bool,
+    repo_wide: bool = False,
+) -> str:
     out: list[str] = []
     out.append("RUNNER FORK CENSUS")
     out.append(f"  metric: {data['metric']}")
@@ -631,6 +800,9 @@ def render(data: dict[str, Any], *, closure: bool, hazards: bool, triples: bool)
                 f"unparse+doc={metrics['unparse_with_docstrings']:4d}"
             )
         out.append("")
+
+    if repo_wide:
+        out.extend(render_repo_wide(data))
 
     if triples:
         out.append(
@@ -719,6 +891,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="symbols ALSO defined in runner_shared while both hosts keep their own copy",
     )
+    parser.add_argument(
+        "--repo-wide",
+        action="store_true",
+        help=(
+            "sweep every runner symbol against ALL of agent_workflows/*.py. REQUIRED to answer the "
+            "single-implementation question: every other section is pairwise and cannot see a third "
+            "copy in another module (`rununify` F10 records that blindness costing a real drift)."
+        ),
+    )
     parser.add_argument("--all", action="store_true", help="every section")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     parser.add_argument(
@@ -740,6 +921,7 @@ def main(argv: list[str] | None = None) -> int:
             closure=args.closure or args.all,
             hazards=args.hazards or args.all,
             triples=args.triples or args.all,
+            repo_wide=args.repo_wide or args.all,
         )
     )
     return 0
