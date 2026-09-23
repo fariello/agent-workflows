@@ -123,7 +123,16 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - UNIFYING ANY REMAINING SYMBOL. Unifying a forked function is not a verification task, and doing it inside a
   plan whose job is to MEASURE would destroy the independence of the measurement. E-04 confirms the carrier
   covers what E-02 found rather than proposing new work.
-  - Carrier: gqo6if
+  - CARRIER RE-POINTED AT EXECUTION TIME, and the re-pointing is itself a measurement this plan owes its
+    reader. The row named `gqo6if`, which was `pending` when this plan was reviewed on 2026-09-22 and reached
+    `executed` on 2026-09-23 (commit `525442c4`, integrated before this turn's HEAD). So the row's original
+    carrier is terminal and `check.ipd-uncarried-obligation` correctly refused the commit: a deferral pointing
+    at an executed plan names nothing that will revisit it. `gqo6if` did NOT close the residue, it PARTITIONED
+    it, and its research `fedqe6` records where each part went, so the live carriers are those parts and not a
+    single successor plan. E-02 re-derives the partition at THIS head rather than trusting it.
+  - Carrier: 1f7xno
+  - Carrier: 2yjc5l
+  - Carrier: 2t4v1j
 - `5e4sb6` E-01. Already `performed`, with its gap declared. This plan does not re-open it, though E-02
   inherits the same per-symbol judgement question for whatever is still forked.
   - Carrier-Declined: NOT AN OBLIGATION THIS PLAN INCURS, and filing one would misrepresent a recorded
@@ -151,7 +160,13 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
   double-defined as a tripwire (`tests/test_rununify_run_queue.py`'s `STILL_DOUBLE_DEFINED` table names its
   own purpose). This plan unifies nothing, so it must trip none of them; a guard that fires here is a finding
   about the measurement, not a guard to update.
-  - Carrier: gqo6if
+  - Carrier-Declined: NOTHING IS OWED, because this row forbids an ACTION rather than postponing one, and that
+    became visible when the original carrier (`gqo6if`) went terminal. Re-pointing it at another plan would be
+    worse than leaving it dangling: it would file "re-base a guard" as debt on a plan that has no reason to do
+    it, when the correct future behavior is that NO plan re-bases a guard as a side effect of measuring. A
+    guard that fires while this plan runs is a defect in the measurement, and that path already has a real
+    carrier: this turn's defect report and the backlog item it would file. Verified at execution: none fired
+    (V-01 and the bare suite in V-04 record it).
 
 ## Scope check
 
