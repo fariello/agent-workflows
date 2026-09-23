@@ -88,7 +88,25 @@ STILL_DOUBLE_DEFINED = (
     "_integrate_stranded_lanes",
     "disable_lane_prompt",
     "execute_item",
-    "reclaim_lanes_on_interrupt",
+    # `reclaim_lanes_on_interrupt` IS DELIBERATELY NO LONGER HERE. It was SHARED by runresidue 01
+    # (`gqo6if`) E-03 and each host now keeps the sanctioned one-line wrapper, so it MOVED to
+    # THIN_WRAPPERS_OVER_RUNNER_SHARED below in the SAME change that lifted it, per this file's
+    # "re-base deliberately, never weaken silently" rule.
+    #
+    # WHY IT COULD BE SHARED AT LAST, recorded because this tuple's own header gave the reason it could
+    # not be: the objection was that a shared core would have to RECEIVE the per-host prompt symbols as
+    # injected parameters, and "injecting a symbol is the opposite of sharing it". That objection was
+    # measured and is narrower than it reads. The two copies were 73 `ast.unparse` lines EACH at 0.998
+    # host-token-normalised similarity, differing in ONE statement and only in its SPELLING
+    # (`f"Reason: {reason}."` against `"Reason: {0}.".format(reason)`), so 72 of 73 lines were copied
+    # code and exactly TWO NAMES needed injecting: `_lane_reclaim_prompt` and `disable_lane_prompt`,
+    # which must stay per host because the second writes a module-level `_LANE_PROMPT_DISABLED` through
+    # `global` that the first reads per module. Injecting two prompt callables to share 73 lines is the
+    # sanctioned trade (`818uru` OQ-02), not the degenerate one this header warned about.
+    #
+    # `disable_lane_prompt` and `_lane_reclaim_prompt` THEMSELVES STAY FORKED, which is what makes the
+    # above safe: see `PERMANENTLY_UNMOVABLE` below and
+    # `tests/test_runner_shared.py::UnmovableSymbolTests`.
     # `reconcile_interrupted` IS DELIBERATELY NO LONGER HERE. It was SHARED by runrecon-02 (`fduoj4`)
     # E-01 and each host now keeps the sanctioned one-line wrapper, so it moved to
     # THIN_WRAPPERS_OVER_RUNNER_SHARED below. That is the "re-base deliberately, never weaken silently"
@@ -174,6 +192,13 @@ THIN_WRAPPERS_OVER_RUNNER_SHARED = (
     "_observe_between_turn_stop",
     "_record_deliberate_stop",
     "driver_actor",
+    # runresidue 01 (`gqo6if`) E-03: MOVED here from `STILL_DOUBLE_DEFINED` above in the same change
+    # that shared it. `runner_shared` owns the body; each host keeps a one-line wrapper at the original
+    # name, signature and defaults, injecting its OWN `_lane_reclaim_prompt` and `disable_lane_prompt`
+    # (both keyword-only with no default in the shared signature, so a caller cannot silently bind the
+    # shared module's flag and break prompt suppression). See the note on that tuple for the measurement
+    # that made the lift correct.
+    "reclaim_lanes_on_interrupt",
     "reconcile_interrupted",
     "render_continuation_hint",
     "requeue_interrupted",

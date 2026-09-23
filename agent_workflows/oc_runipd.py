@@ -2393,250 +2393,29 @@ def reclaim_lanes_on_interrupt(
     interactive: bool = True,
     reason: str = "interrupt",
 ) -> list[dict[str, Any]]:
-    """THE lane-reclamation decision (E-05). Idempotent; safe to call twice; separately callable.
+    """THE lane-reclamation decision, ONE implementation in `runner_shared` (`gqo6if` E-03).
 
-    For every lane this run allocated: classify it with the E-01 classifier, then
+    A HOST SHELL, NOT A SECOND BODY. The two drivers carried 73 `ast.unparse` lines each at 0.998
+    host-token-normalised similarity, differing in ONE statement and only in its SPELLING, so the logic
+    is shared and this keeps the original name, signature and defaults: every call site in this module
+    and every test that drives `<driver>.reclaim_lanes_on_interrupt` is untouched.
 
-      * owned by a LIVE process -> never touched.
-      * provably RECOVERED (its work is already reachable from the integration target) and clean ->
-        reclaim it THROUGH THE SPEC R5.5 INVENTORY GATE, which preserves it instead if it holds
-        anything the driver cannot account for (laneorph `65cuw0` E-03).
-      * HOLDS WORK that has NOT landed -> LEAVE IT ENTIRELY ALONE, snapshot any uncommitted edits onto
-        its own lane branch (E-09, so `--force` can never erase them later), and record it as
-        recoverable. Never torn down, never stashed, reset, or moved: this repo's policy for un-owned
-        dirty state is REFUSE-AND-REPORT, not relocate.
-      * provably EMPTY (or a clean STALE lane) -> tear it down, so the NEXT run of this Set is not
-        wedged by this run's debris.
-
-    THE ORDER OF THOSE LAST THREE IS LOAD-BEARING AND WAS THE WHOLE DEFECT (laneorph `65cuw0`). The
-    recovered check MUST precede the `holds_work` bail-out, because a merged lane is STILL `holds_work`:
-    `commits_ahead` is measured against the lane's OWN creation base, so it never returns to zero after
-    a merge. Measured on a real merged lane before the fix: `state HOLDS-WORK, commits_ahead 1,
-    holds_work True, merge-base --is-ancestor(->main) rc=0`. So the merged lane took the preserve branch
-    on every interrupt and was kept forever, and widening `reclaimable` alone changed nothing at all.
-
-    Returns the classified lane records (for the report). Registers no signal handler: callers wire it
-    into their existing teardown path, and `runstop` Phase 5 owns the handlers.
+    WHAT THE SHELL EXISTS TO INJECT, which is why this is a wrapper and not a bare re-export. The two
+    prompt symbols stay PER HOST because `disable_lane_prompt` writes a module-level
+    `_LANE_PROMPT_DISABLED` through `global` and THIS module's `_lane_reclaim_prompt` reads THIS
+    module's copy. Binding the shared module's pair instead would set a flag nobody reads, silently
+    breaking prompt suppression on a repeated interrupt. See the shared implementation's docstring and
+    `tests/test_runner_shared.py::UnmovableSymbolTests`.
     """
-    from agent_workflows import worktree_lease
-
-    # dirtygates Order 05 (`ajxr5d`) E-11: read lanes through the SWEEP-AWARE composer, so an interrupt
-    # BETWEEN reviews reclaims the review sweep lane too instead of leaking it with no owner. The
-    # per-item reader is composed rather than edited (its body is fingerprint-pinned as a pure move); see
-    # `runner_shared.lane_records_including_sweep`. The classification and preservation below are
-    # UNCHANGED and apply to the sweep lane exactly as to a per-item lane: a lane holding work is left
-    # entirely alone and snapshotted, which is what keeps a stranded review recoverable.
-    #
-    # laneorph `65cuw0` E-03 reads through `describe_lane_with_recovery`, which COMPOSES `describe_lane`
-    # to add the one field the merged-lane decision needs. `describe_lane` itself is fingerprint-pinned
-    # as a pure move (`tests/fixtures/runner_shared_premove_fingerprints.json`), so it is composed here
-    # rather than edited, exactly as `lane_records_including_sweep` composes the per-item reader above.
-    lanes = [
-        runner_shared.describe_lane_with_recovery(repo, rec)
-        for rec in runner_shared.lane_records_including_sweep(state)
-    ]
-    if not lanes:
-        return []
-    if not interactive:
-        disable_lane_prompt()
-    pal = Palette(should_color(sys.stderr))
-    for lane in lanes:
-        if lane["state"] == worktree_lease.LANE_ABSENT:
-            continue
-        if lane.get("owned_by_other_live_process"):
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "lane-left-to-live-owner",
-                    "id6": lane["id6"],
-                    "branch": lane["branch"],
-                    "reason": reason,
-                },
-            )
-            continue
-        handle = worktree_lease.WorktreeHandle(
-            lane_id=lane["lane_id"],
-            path=Path(lane["worktree"]) if lane["worktree"] else Path(""),
-            branch=lane["branch"],
-            base_commit=lane["base_sha"] or "",
-        )
-        # laneorph `65cuw0` E-03: THE RECOVERED CASE IS DECIDED FIRST, before `holds_work` below can
-        # bail out. See this function's docstring for why the order is the load-bearing half. The rule
-        # itself is the SHARED one, so the agy twin cannot drift from it (spec R6.1, CID-3).
-        if runner_shared.lane_is_recovered_and_reclaimable(lane):
-            choice = _lane_reclaim_prompt(lane, "discard") if interactive else None
-            if choice == "keep":
-                lane["action"] = "kept-by-operator"
-                continue
-            # THROUGH THE ONE TEARDOWN GATE, never a direct `teardown_worktree(force=True)`: `dirty` is
-            # blind to IGNORED files and git's own refusal does not fire for one, so the R5.5 inventory
-            # is what stands between a merged lane and silent destruction of unexplained content. The
-            # `run_dir` and the owning ITEM are passed because without both the inventory can read no
-            # collection receipt and refuses everything.
-            item_for_lane = runner_shared.interrupt_lane_item_record(state, lane)
-            decision = runner_shared.reclaim_lane_through_gate(
-                repo, handle, run_dir=run_dir, item=item_for_lane
-            )
-            if decision.torn_down:
-                lane["action"] = "reclaimed"
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "lane-reclaimed-on-interrupt",
-                        "id6": lane["id6"],
-                        "branch": lane["branch"],
-                        "worktree": lane["worktree"],
-                        "state": lane["state"],
-                        "merged_into_target": True,
-                        "commits_ahead": lane["commits_ahead"],
-                        "reason": reason,
-                    },
-                )
-                continue
-            # REFUSED. Record it on the EXISTING preservation event with the inventory's own reason
-            # codes (spec R5.6), so a reader learns WHY the lane survived rather than inferring it from
-            # a surviving directory. Then fall through to today's preserve handling below.
-            lane["action"] = "preserved"
-            lane["retention_reason"] = decision.reason
-            lane["retention_reason_codes"] = list(decision.reason_codes)
-            event = {
-                "at": utc_now(),
-                "event": "lane-preserved-on-interrupt",
-                "id6": lane["id6"],
-                "branch": lane["branch"],
-                "worktree": lane["worktree"],
-                "commits_ahead": lane["commits_ahead"],
-                "dirty": lane["dirty"],
-                "merged_into_target": True,
-                "reason": reason,
-                "retention_reason": decision.reason,
-                "retention_reasons": list(decision.reason_codes),
-            }
-            event.update(decision.inventory.as_dict())
-            append_jsonl(run_dir / "events.jsonl", event)
-            if item_for_lane is not None:
-                lane_containment.record_preserved_lane_state(
-                    item=item_for_lane,
-                    handle=handle,
-                    reason=decision.reason,
-                    reason_codes=decision.reason_codes,
-                )
-            continue
-        if lane["holds_work"]:
-            choice = (
-                _lane_reclaim_prompt(lane, "keep and snapshot") if interactive else None
-            )
-            snapshot = None
-            if lane["dirty"]:
-                try:
-                    snapshot = worktree_lease.snapshot_lane_dirty_work(
-                        repo, handle, note=f"Reason: {reason}."
-                    )
-                except Exception as exc:  # never let preservation failure escalate
-                    append_jsonl(
-                        run_dir / "events.jsonl",
-                        {
-                            "at": utc_now(),
-                            "event": "lane-snapshot-failed",
-                            "id6": lane["id6"],
-                            "branch": lane["branch"],
-                            "detail": str(exc),
-                        },
-                    )
-            lane["snapshot_commit"] = snapshot
-            if choice == "discard":
-                # An operator explicitly asked; the snapshot above already made the work recoverable
-                # by ref, so the worktree can go while the BRANCH survives.
-                print(
-                    pal(
-                        "  (operator chose discard for {0}; its branch is kept)".format(
-                            lane["branch"]
-                        ),
-                        "dim",
-                    ),
-                    file=sys.stderr,
-                )
-                try:
-                    worktree_lease.teardown_worktree(repo, handle, force=True)
-                    lane["action"] = "reclaimed"
-                    append_jsonl(
-                        run_dir / "events.jsonl",
-                        {
-                            "at": utc_now(),
-                            "event": "lane-reclaimed-on-interrupt",
-                            "id6": lane["id6"],
-                            "branch": lane["branch"],
-                            "worktree": lane["worktree"],
-                            "snapshot_commit": snapshot,
-                            "reason": reason,
-                        },
-                    )
-                except Exception as exc:
-                    lane["action"] = "preserved"
-                    append_jsonl(
-                        run_dir / "events.jsonl",
-                        {
-                            "at": utc_now(),
-                            "event": "lane-teardown-failed",
-                            "id6": lane["id6"],
-                            "branch": lane["branch"],
-                            "detail": str(exc),
-                        },
-                    )
-                continue
-            lane["action"] = "preserved"
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "lane-preserved-on-interrupt",
-                    "id6": lane["id6"],
-                    "branch": lane["branch"],
-                    "worktree": lane["worktree"],
-                    "commits_ahead": lane["commits_ahead"],
-                    "dirty": lane["dirty"],
-                    "snapshot_commit": snapshot,
-                    "reason": reason,
-                },
-            )
-            continue
-        if not lane["reclaimable"]:
-            lane["action"] = "left-alone"
-            continue
-        choice = _lane_reclaim_prompt(lane, "discard") if interactive else None
-        if choice == "keep":
-            lane["action"] = "kept-by-operator"
-            continue
-        try:
-            worktree_lease.teardown_worktree(repo, handle, force=True)
-            lane["action"] = "reclaimed"
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "lane-reclaimed-on-interrupt",
-                    "id6": lane["id6"],
-                    "branch": lane["branch"],
-                    "state": lane["state"],
-                    "reason": reason,
-                },
-            )
-        except Exception as exc:
-            lane["action"] = "reclaim-failed"
-            lane["error"] = str(exc)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "lane-reclaim-failed",
-                    "id6": lane["id6"],
-                    "branch": lane["branch"],
-                    "detail": str(exc),
-                },
-            )
-    return lanes
+    return runner_shared.reclaim_lanes_on_interrupt(
+        repo,
+        run_dir,
+        state,
+        interactive=interactive,
+        reason=reason,
+        lane_prompt=_lane_reclaim_prompt,
+        disable_prompt=disable_lane_prompt,
+    )
 
 
 # `sync_receipt_into_worktree` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
