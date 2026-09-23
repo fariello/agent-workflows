@@ -2080,6 +2080,23 @@ def initialize_run(args: argparse.Namespace) -> Path:
             args, "dangerously_skip_permissions", True
         ),
         "no_verify": not verification.validate,
+        # runverdict Order 07 (`w33lrl`) E-04: the SAME cost-attribution record oc freezes, with this
+        # host's honest answer. NO agy model work was needed and none was added: `DEFAULT_MODEL` above
+        # already writes a CONCRETE model into `options["model"]` on every run, so it is oc that was
+        # behind on identity, not agy.
+        #
+        # `resolve_card=False`, and the reason is specific rather than a shrug. This host's model is
+        # NOT among the OpenCode config's gemini entries, Antigravity's own pricing lives in no file
+        # this tool reads, and `oc_models.resolve_config_path` resolves OPENCODE's config -- so
+        # resolving a card here would attribute one vendor's rates to another host's model. The
+        # inability is RECORDED, distinguishably from an oc config that was found but unparseable.
+        # Building an Antigravity config reader is separate work with its own security surface.
+        runner_shared.COST_ATTRIBUTION_KEY: runner_shared.cost_attribution_record(
+            host="agy",
+            model=getattr(args, "model", DEFAULT_MODEL),
+            model_source="host-default-constant",
+            resolve_card=False,
+        ),
     }
 
     return runner_shared.initialize_run_core(

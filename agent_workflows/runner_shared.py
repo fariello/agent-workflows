@@ -11913,6 +11913,213 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
     return frozen
 
 
+# ==================================================================================================
+# runverdict Order 07 (`w33lrl`) E-01/E-02/E-03/E-04: THE COST-ATTRIBUTION SNAPSHOT
+#
+# THE QUESTION THIS ANSWERS. A run record captured per-step COST but neither the MODEL that incurred
+# it nor the RATE CARD that priced it, so a recorded dollar figure could be neither ATTRIBUTED to a
+# model nor RECOMPUTED from its inputs. Asked "is Opus 5 a better verifier than 4.8", the only
+# available attribution was grepping model strings out of shell commands an AGENT had typed, and
+# agent prose is never authority in this framework (research `ig9bai`).
+#
+# WHY IT LIVES IN `runner_shared` AND NOT IN `oc_runipd`. `agy_runipd` imports 56 names from
+# `oc_runipd` and `oc_runipd` imports none from agy, so adding one more would deepen a layering
+# defect backlog `cnwy8g` already owns. Both hosts need the RECORD SHAPE (they differ only in what
+# they can fill in), so the shape is defined once, here.
+#
+# WHAT IT IS AND IS NOT. It is a LAUNCH-TIME SNAPSHOT, labelled as such in the record itself,
+# because no host emits a model id on a cost-bearing record: measured across 496 session logs, all
+# 32333 cost-bearing `step_finish` parts carry the key set
+# `{id, reason, snapshot, messageID, sessionID, type, tokens, cost}` and nothing else. The 16 real
+# `modelID` values in the corpus sit on `task` tool calls and name a SUB-AGENT, so they cannot be
+# repurposed for the turn that spent the money. PER-STEP identity is `runanalytics` Order 04's
+# (`5f2h8i`, executed), whose E-02 requires identity "recorded per file and ... not inferred later
+# from a single run-level snapshot"; the two COEXIST and neither supersedes the other.
+#
+# IT PRICES NOTHING. See `COST_NOT_RECOMPUTED_HERE` below for the measured invariant.
+# ==================================================================================================
+
+#: The label recorded with every card, so a consumer can never mistake a launch snapshot for a
+#: per-step observation. Spelled in the record rather than left to documentation, because the record
+#: outlives every reader's memory of how it was produced.
+CARD_SNAPSHOT_KIND = "launch-time-snapshot"
+
+#: The single field name and unit this plan contracts with the (already executed) `runanalytics`
+#: consumer Set. Stated as a constant so a consumer BINDS to it rather than guessing, which is what
+#: `w33lrl` OQ-03 exists to prevent: whoever executes second must bind to the first's name rather
+#: than adding a sibling field naming the same fact.
+COST_ATTRIBUTION_KEY = "cost_attribution"
+
+#: THE MEASURED INVARIANT `w33lrl` E-03 PINS, stated where the record is written so it can be seen.
+#:
+#: NOTHING IN THIS REPOSITORY PRICES TOKENS FROM A CARD. A reported cost is the sum of `part.cost`
+#: from `step_finish` events (`run_viewer.extract_log_metrics`), which each driver persists onto the
+#: attempt as `cost`/`verify_cost`; no runner path multiplies tokens by a rate. So a run's reported
+#: figure ALREADY cannot move when the host config is edited, and this snapshot does not change that
+#: -- it records WHAT PRICED the run so the figure can be attributed, and it is deliberately NOT a
+#: second source of truth for the figure itself.
+#:
+#: DO NOT "FIX" THIS BY WIRING THE CARD INTO A COST COMPUTATION. Recomputation from tokens times card
+#: (and the recorded-versus-estimated split it requires) is `run_analytics_pricing`'s, whose
+#: `PricedCost` keeps `recorded_usd` and `estimated_usd` separate precisely so an estimate can never
+#: overwrite a recorded value. A second computation here would fork that distinction.
+COST_NOT_RECOMPUTED_HERE = (
+    "launch-time snapshot only: no path in this driver prices tokens from this card; the reported "
+    "cost remains the sum of host-reported step costs and cannot change when the host config does"
+)
+
+#: WHY A MODULE THAT FREEZES A PRICE DOES NOT CONTRADICT ONE THAT REFUSES ONE, stated because a reader
+#: who finds both will otherwise think one of them is wrong. `benchmark_metrics` is documented "never
+#: dollar" and RAISES `MetricError` on a `cost`/`usd`/`price`/`dollars`/`spending`/`dollar_cost` key in
+#: a benchmark's trial USAGE mapping, and `benchmark_manifest` rejects the same set. That prohibition
+#: traces to a maintainer ruling and is SCOPED to CROSS-MODEL BENCHMARK COMPARISON, where a dollar
+#: figure would let a cheaper model look better than a more capable one and would silently change
+#: meaning whenever a vendor repriced.
+#:
+#: THIS record is a RUN record's launch snapshot, not a benchmark usage mapping, and it exists for the
+#: opposite reason: to make an already-recorded dollar figure ATTRIBUTABLE. It introduces no dollar
+#: metric into any benchmark comparison, and `COST_NOT_RECOMPUTED_HERE` above is what keeps it from
+#: becoming one. If a future change ever routes this card into `benchmark_metrics`, that prohibition
+#: applies and this snapshot is not an exception to it.
+BENCHMARK_DOLLAR_BOUNDARY = (
+    "benchmark_metrics' anti-dollar rule governs cross-model BENCHMARK comparison; this is a RUN "
+    "record's launch-time rate snapshot, recorded so an already-reported cost can be attributed"
+)
+
+#: Recorded when this host's card cannot be resolved from ANY config this tool reads. DISTINCT from
+#: an oc config that was FOUND BUT UNPARSEABLE, because the two call for different operator action:
+#: this one means no reader exists, that one means the file needs hand-editing.
+#:
+#: THE AGY CASE, AND IT IS A REAL ONE RATHER THAN A PLACEHOLDER (`w33lrl` E-04). `agy_runipd`
+#: already records a CONCRETE model (`DEFAULT_MODEL = "gemini-3.7-flash-high"`, written into
+#: `options["model"]` at run creation and the `--model` default), so agy needs NO model work and it
+#: is oc that was behind on identity. What agy cannot resolve is a CARD: that model is absent from
+#: the OpenCode config's gemini entries, Antigravity's own pricing lives in no file this tool reads,
+#: and `oc_models.resolve_config_path` resolves OPENCODE's config -- so pointing agy at it would
+#: attribute one vendor's rates to another host's model. Recording the inability is the honest
+#: answer; inventing an Antigravity config reader is separate work with its own security surface.
+CARD_HOST_NOT_READABLE = "host-card-not-in-any-readable-config"
+
+
+def cost_attribution_record(
+    *,
+    host: str,
+    model: str | None,
+    model_source: str,
+    resolve_card: bool = True,
+    env: Mapping[str, str] | None = None,
+    cwd: Path | None = None,
+    agent: str | None = None,
+) -> dict[str, Any]:
+    """Freeze WHICH model this run will use and WHAT PRICES applied, for ONE launch.
+
+    Returns the object a driver stores under :data:`COST_ATTRIBUTION_KEY`. Called once per LAUNCH,
+    so a run that froze a separate verifier launch gets TWO of these (`w33lrl` OQ-01: the two-model
+    case is live today, since `--verify-with` ships, and a single run-level field that silently
+    described only the executor would misattribute the verifier's cost the first time it is used).
+
+    ``model`` is the model the caller ALREADY resolved, or ``None`` meaning "this host passes no
+    `--model` and lets the host choose". In the ``None`` case the host's OWN default is resolved
+    here, which is the value that previously read `host-default` and could not be attributed:
+    `host-default` is a TRUE statement about the flag and stays true in `provenance`, while this
+    record answers the different question of which model that actually selects.
+
+    ``resolve_card=False`` is the ``agy`` position: the host's rates are not in any config this tool
+    reads, so the card is recorded as :data:`CARD_HOST_NOT_READABLE` rather than being guessed or,
+    worse, read out of OpenCode's config and misattributed.
+
+    EVERY UNKNOWN IS NAMED, NEVER OMITTED AND NEVER ZERO. An unresolvable model, an absent config, an
+    unparseable (`.jsonc`) config, a model with no `cost` block, and an individual component the card
+    does not mention each get their own named value, so a consumer can distinguish "not priced" from
+    "priced at zero" -- the exact conflation research `x0spmh` records being misled by.
+
+    NO PATH, NO CREDENTIAL. The card is read through `oc_models`' no-secret accessors, and only the
+    config's BASENAME and DIGEST are recorded: the resolved file lives under the operator's home
+    directory, and this object is written into durable run state.
+    """
+
+    from agent_workflows import oc_models
+
+    record: dict[str, Any] = {
+        "kind": CARD_SNAPSHOT_KIND,
+        "host": host,
+        "unit": oc_models.CARD_UNIT,
+        "cost_basis": COST_NOT_RECOMPUTED_HERE,
+    }
+
+    if not resolve_card:
+        # The agy position. The model is whatever this host resolved for itself (agy always has
+        # one), and the card is a NAMED inability rather than a guess or a foreign vendor's rates.
+        record["model"] = model or ""
+        record["model_source"] = model_source
+        record["card"] = {}
+        record["card_reason"] = CARD_HOST_NOT_READABLE
+        record["card_config"] = ""
+        record["card_config_digest"] = ""
+        return record
+
+    resolved_model = (model or "").strip()
+    if resolved_model:
+        # An EXPLICIT flag or a profile supplied it, so there is nothing to resolve; the card still
+        # has to be looked up, and the config digest still has to be frozen.
+        default = oc_models.resolve_host_default_model(env=env, cwd=cwd, agent=agent)
+        record["model"] = resolved_model
+        record["model_source"] = model_source
+    else:
+        default = oc_models.resolve_host_default_model(env=env, cwd=cwd, agent=agent)
+        record["model"] = default.model
+        record["model_source"] = default.key or ""
+        if not default.resolved:
+            record["model_reason"] = default.reason
+
+    record["card_config"] = default.config_name
+    record["card_config_digest"] = default.config_digest
+    # NAMED, so a reader knows WHICH file each digest covers. The launch profile's own
+    # `config_digest` covers `runner-profiles.json`, a DIFFERENT file, and overloading that key
+    # would break two shipped invariants (the executor and verifier share one profile digest, and it
+    # survives a resume unchanged).
+    record["card_config_covers"] = default.config_name
+
+    target_model = record["model"]
+    if not target_model:
+        record["card"] = {}
+        record["card_reason"] = oc_models.CARD_NO_MODEL
+        return record
+
+    parsed, reason = _parse_host_config(oc_models, env=env, cwd=cwd)
+    if parsed is None:
+        record["card"] = {}
+        record["card_reason"] = reason
+        return record
+    components, card_reason = oc_models.card_from_config(parsed, target_model)
+    record["card"] = components
+    record["card_reason"] = card_reason
+    record["card_model"] = target_model
+    return record
+
+
+def _parse_host_config(
+    oc_models: Any,
+    *,
+    env: Mapping[str, str] | None,
+    cwd: Path | None,
+) -> tuple[Any, str]:
+    """Parse the OpenCode config, or return ``(None, named_reason)``.
+
+    Reached ONLY through `oc_models.resolve_config_path`, so OpenCode's discovery precedence is not
+    re-derived here. A `.jsonc` config is unparseable BY DESIGN (stdlib json cannot read comments),
+    which is a reachable state rather than a hypothetical.
+    """
+
+    target = oc_models.resolve_config_path(env=env, cwd=cwd)
+    if target is None:
+        return None, oc_models.CARD_NO_CONFIG
+    try:
+        return json.loads(target.path.read_text(encoding="utf-8")), ""
+    except (OSError, ValueError):
+        return None, oc_models.CARD_UNPARSEABLE
+
+
 class VerificationDecision(NamedTuple):
     """WHETHER a verifier turn runs for this run, plus WHICH tier decided it.
 

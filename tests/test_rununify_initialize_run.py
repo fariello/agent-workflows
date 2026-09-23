@@ -100,6 +100,14 @@ TARGET = "initialize_run"
 #: scalar, and the value it freezes is the EFFECTIVE, RESOLVED type set (`["ipd"]` on a bare run, never
 #: `null`), so run state can report what the run selected without a later reader re-resolving the
 #: normative default for itself. The thirteen HOST-SPECIFIC keys are unmoved again.
+#: `cost_attribution` JOINED 2026-09-23 (runverdict-07 `w33lrl`), and it is the FIRST growth in this
+#: union that did NOT arrive through `freeze_run_policy_flags`: each host writes it at its own freeze
+#: site, because each host fills it in differently. It is SHARED rather than oc-only nonetheless, and
+#: the distinction matters. `launch_profile` is oc-only because agy has no launch-profile subsystem
+#: to have resolved one from, so freezing it there would be FABRICATED PROVENANCE. This key is the
+#: opposite case: agy DOES resolve a concrete model (`DEFAULT_MODEL`), and its record states the
+#: honest, host-specific fact that its rate card is not in any config this tool reads
+#: (`resolve_card=False`). Recording a named inability is not fabrication; it is the answer.
 SHARED_OPTION_KEYS = frozenset(
     {
         "action",
@@ -109,6 +117,7 @@ SHARED_OPTION_KEYS = frozenset(
         "allow_mixed",
         "allow_uncovered_orchestrator_work",
         "allow_unverifiable",
+        "cost_attribution",
         "follow_generated",
         "full_auto",
         "integration_retry_limit",
@@ -153,8 +162,19 @@ AGY_ONLY_OPTION_KEYS = frozenset(
 #: Present on oc only, and only when a VERIFIER profile is configured. Absent from an ordinary run,
 #: which is what keeps an existing invocation's frozen state byte-identical to what it was before the
 #: field existed (`kgpptv` E-02). Asserted as conditional rather than counted as present.
+#: `verify_cost_attribution` JOINED 2026-09-23 (runverdict-07 `w33lrl`) as a FIFTH conditional key,
+#: for exactly the reason the other four are conditional and with the same byte-identical-state
+#: property. It exists because the two-model case is LIVE: `--verify-with` ships, so a run can freeze
+#: a verifier launch on a different model, and one run-level cost snapshot that silently described
+#: only the executor would misattribute the verifier's spend the first time the feature is used.
 OC_CONDITIONAL_OPTION_KEYS = frozenset(
-    {"verify_model", "verify_variant", "verify_agent", "verify_launch_profile"}
+    {
+        "verify_model",
+        "verify_variant",
+        "verify_agent",
+        "verify_launch_profile",
+        "verify_cost_attribution",
+    }
 )
 
 HOST_SPECIFIC_OPTION_COUNT = 13  # 7 oc-only + 6 agy-only
@@ -169,7 +189,15 @@ HOST_SPECIFIC_OPTION_COUNT = 13  # 7 oc-only + 6 agy-only
 # one shared expansion, host-specific count UNMOVED. Same reading a fourth time, which is itself the
 # useful observation: every growth in this union since the partition was first measured has been a
 # SHARED key arriving through ONE expansion, so the divergence these counts police has not widened once.
-LIVE_OPTION_KEY_UNION = 37  # 24 shared + 13 host-specific
+# RE-MEASURED 2026-09-23 (37 -> 38) by runverdict-07 (`w33lrl`): one SHARED key, `cost_attribution`,
+# and this is the FIRST one that did NOT arrive through `freeze_run_policy_flags`. So the fourth-time
+# reading above no longer holds verbatim and is not restated as though it did: each host writes this
+# key at its OWN freeze site. The property these counts actually police is still intact, and is the
+# one to check -- the HOST-SPECIFIC count is UNMOVED at 13, because the key reached BOTH hosts. It
+# could not have landed on one host only, which is what the partition exists to catch; it reached
+# both through ONE shared record builder (`runner_shared.cost_attribution_record`) rather than
+# through one shared flag table.
+LIVE_OPTION_KEY_UNION = 38  # 25 shared + 13 host-specific
 
 # ==================================================================================================
 # E-01(b): THE CLOSURE. 37 free module-level names at execution HEAD (the plan's review said 34).

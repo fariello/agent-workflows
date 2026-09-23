@@ -29,6 +29,7 @@ Safety posture (ocsync-01 g7hljt, hardened by /plan-review):
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -325,6 +326,258 @@ def models_from_config(config: Any) -> Tuple[str, ...]:
             if pattern.match(candidate):
                 found.setdefault(candidate, None)
     return tuple(found)
+
+
+# --------------------------------------------------------------------------------------
+# runverdict Order 07 (w33lrl) E-01/E-02: the HOST DEFAULT MODEL and its RATE CARD
+#
+# WHY THESE ARE NEW FUNCTIONS RATHER THAN A REUSE OF THE THREE ABOVE. `models_from_config`
+# returns the CATALOG of declared `provider.<name>.models.<id>` keys; it can say WHICH models
+# exist and can never say which one is DEFAULT, because the default is the config's TOP-LEVEL
+# `model` key and nothing in this package read it before now (`w33lrl` F-12). An executor
+# pointed at the catalog reader gets a list and no answer, so the accessor below exists.
+#
+# THEY CARRY `models_from_config`'S NO-SECRET GUARANTEE, stated in each docstring and held to
+# in each body: the only keys read are the top-level `model`/`small_model`/`agent.<name>.model`
+# identifiers and `provider.<name>.models.<id>.cost`. A provider's `options` block, its
+# `apiKey`, and its headers are NEVER touched, so no credential can reach a caller (and hence
+# no credential can reach a run record, which is what these feed).
+# --------------------------------------------------------------------------------------
+
+#: Which config key supplied the resolved default model. A CLOSED vocabulary, because the value
+#: is recorded durably and a reader must never have to guess an origin from the id itself.
+DEFAULT_MODEL_KEY_TOP_LEVEL = "model"
+DEFAULT_MODEL_KEY_AGENT = "agent.model"
+DEFAULT_MODEL_KEY_SMALL = "small_model"
+
+#: Named reasons the default model is UNKNOWN. Each is a distinguishable, reachable state, never
+#: a stand-in for "absent" (the `x0spmh` absent-versus-zero rule applied to identity).
+DEFAULT_MODEL_NO_CONFIG = "no-config-found"
+DEFAULT_MODEL_UNPARSEABLE = "unparseable-config"
+DEFAULT_MODEL_NOT_DECLARED = "no-default-model-key"
+DEFAULT_MODEL_MALFORMED = "malformed-model-value"
+
+#: Named reasons a rate card is UNKNOWN, as distinct from a card with an absent COMPONENT.
+CARD_NO_CONFIG = DEFAULT_MODEL_NO_CONFIG
+CARD_UNPARSEABLE = DEFAULT_MODEL_UNPARSEABLE
+CARD_NO_MODEL = "no-model-to-price"
+CARD_MODEL_NOT_DECLARED = "model-not-in-config"
+CARD_NO_COST_BLOCK = "model-has-no-cost-block"
+CARD_NOT_RESOLVABLE_HOST = "host-card-not-in-any-readable-config"
+
+#: The card component names, in the order the config declares them. Four are READ; how many are
+#: PRESENT is a property of each model (measured live: 47 of 80 priced models carry only
+#: `input`/`output`), which is why the record names an unknown per absent component rather than
+#: assuming a four-component shape (`w33lrl` F-13).
+CARD_COMPONENTS: Tuple[str, ...] = ("input", "cache_read", "cache_write", "output")
+
+#: The unit the config stores, recorded EXPLICITLY beside the values. The config is ALREADY in
+#: dollars per million tokens (this module's own docstring says so, and `build_models` calls
+#: `per_million` on the GATEWAY's per-token value BEFORE storing), so a reader who assumed
+#: per-token would be off by 1e6.
+CARD_UNIT = "$/Mtok"
+
+#: A component present in the `cost` block but not a usable number. DISTINCT from absence: the
+#: config asserted a price and the assertion is unusable, which is an operator-visible defect
+#: rather than a model the gateway does not price.
+CARD_COMPONENT_MALFORMED = "malformed"
+#: A component the `cost` block does not mention at all. NOT zero: research `x0spmh` records a
+#: `cache_read = $0` read as "cache reads are free" when in fact an unpriced component was
+#: hiding 73.9 percent of a $16.41 turn.
+CARD_COMPONENT_ABSENT = "absent"
+
+
+class HostDefaultModel(NamedTuple):
+    """The model this OpenCode host will use when no ``--model`` is passed, or a NAMED unknown.
+
+    ``model`` is empty exactly when ``reason`` is set, so "unknown" is representable and is never
+    spelled as an empty string a caller might mistake for a resolved value. ``key`` names WHICH
+    config key supplied it (one of the ``DEFAULT_MODEL_KEY_*`` values), because an id with no
+    recorded origin forces a later reader to guess between the top-level default, an agent
+    override, and ``small_model``.
+    """
+
+    model: str = ""
+    key: str = ""
+    reason: str = ""
+    #: The config file's own digest, so a later edit to it is DETECTABLE. Distinct from any
+    #: profile-store digest: this covers the OpenCode config, that one covers
+    #: `runner-profiles.json`.
+    config_digest: str = ""
+    #: Basename ONLY, never the path. The resolved config lives under the operator's home, and a
+    #: durable record must not carry that (leak-sanitizer rule).
+    config_name: str = ""
+
+    @property
+    def resolved(self) -> bool:
+        return bool(self.model)
+
+
+def default_model_from_config(
+    config: Any,
+    agent: Optional[str] = None,
+) -> Tuple[str, str]:
+    """Return ``(model_id, key)`` for a parsed config's DEFAULT model, or ``("", reason)``.
+
+    Reads ONLY the default-model identifiers: ``agent.<agent>.model`` when ``agent`` is named and
+    declares one, else the top-level ``model``. It never looks at a provider's options block,
+    credential value, or headers, so no secret can reach the caller (the same guarantee
+    :func:`models_from_config` carries, and for the same reason).
+
+    ``small_model`` is deliberately NOT a fallback. It is OpenCode's cheap-task model, not the
+    default for a driver turn, so returning it would misattribute cost; it has a name in
+    :data:`DEFAULT_MODEL_KEY_SMALL` for a caller that resolves it explicitly.
+
+    The precedence mirrors OpenCode's own: a per-agent model overrides the top-level default,
+    which is why ``agent`` is threaded in rather than assumed absent. Measured on the maintainer's
+    live config the single configured agent sets only ``temperature``, so the top-level key is
+    today's effective default -- a property of one config, not a guarantee, which is exactly why
+    the KEY is returned alongside the id.
+    """
+
+    if not isinstance(config, Mapping):
+        return "", DEFAULT_MODEL_UNPARSEABLE
+    pattern = _model_re()
+
+    if agent:
+        agents = config.get("agent")
+        spec = agents.get(agent) if isinstance(agents, Mapping) else None
+        if isinstance(spec, Mapping):
+            candidate = spec.get("model")
+            if isinstance(candidate, str) and candidate.strip():
+                value = candidate.strip()
+                if pattern.match(value):
+                    return value, DEFAULT_MODEL_KEY_AGENT
+                return "", DEFAULT_MODEL_MALFORMED
+
+    candidate = config.get("model")
+    if candidate is None:
+        return "", DEFAULT_MODEL_NOT_DECLARED
+    if not isinstance(candidate, str) or not candidate.strip():
+        return "", DEFAULT_MODEL_MALFORMED
+    value = candidate.strip()
+    if not pattern.match(value):
+        # A value that is not a `provider/model` identifier is REFUSED rather than recorded: it
+        # would be attributed as a model id downstream and no consumer could tell it apart from
+        # a real one.
+        return "", DEFAULT_MODEL_MALFORMED
+    return value, DEFAULT_MODEL_KEY_TOP_LEVEL
+
+
+def resolve_host_default_model(
+    env: Optional[Mapping[str, str]] = None,
+    cwd: Optional[Path] = None,
+    agent: Optional[str] = None,
+) -> HostDefaultModel:
+    """Resolve THIS host's default model from the config OpenCode itself would load.
+
+    The config file is reached through :func:`resolve_config_path` and nothing else, so this does
+    not re-derive OpenCode's discovery precedence (``$OPENCODE_CONFIG`` -> a project
+    ``opencode.json``/``.jsonc`` walking up -> ``$XDG_CONFIG_HOME`` -> ``~/.config``). ``env`` and
+    ``cwd`` are injectable for exactly the reason they are on that function: a test must point at a
+    temp directory rather than reading the operator's real config, which differs per machine and is
+    rewritten by every ``aw oc update-models``.
+
+    EVERY failure is a NAMED unknown, never an omission and never a guess: no config
+    (:data:`DEFAULT_MODEL_NO_CONFIG`), a ``.jsonc`` or otherwise unparseable config
+    (:data:`DEFAULT_MODEL_UNPARSEABLE`, reachable BY DESIGN since stdlib json cannot read
+    comments), no top-level ``model`` key (:data:`DEFAULT_MODEL_NOT_DECLARED`), or a value that is
+    not a ``provider/model`` identifier (:data:`DEFAULT_MODEL_MALFORMED`).
+
+    Carries the config's DIGEST and BASENAME, not its path. The digest is what makes a later edit
+    to the card or the default detectable; the path is withheld because the file lives under the
+    operator's home directory and this value is written into a durable run record.
+    """
+
+    target = resolve_config_path(env=env, cwd=cwd)
+    if target is None:
+        return HostDefaultModel(reason=DEFAULT_MODEL_NO_CONFIG)
+    name = target.path.name
+    try:
+        raw = target.path.read_text(encoding="utf-8")
+    except OSError:
+        return HostDefaultModel(reason=DEFAULT_MODEL_UNPARSEABLE, config_name=name)
+    digest = _text_digest(raw)
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return HostDefaultModel(
+            reason=DEFAULT_MODEL_UNPARSEABLE, config_digest=digest, config_name=name
+        )
+    model, key = default_model_from_config(parsed, agent=agent)
+    if not model:
+        return HostDefaultModel(reason=key, config_digest=digest, config_name=name)
+    return HostDefaultModel(
+        model=model, key=key, config_digest=digest, config_name=name
+    )
+
+
+def _text_digest(text: str) -> str:
+    """The sha256 of a config's exact bytes, so a later edit to it is detectable."""
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def card_from_config(config: Any, model_id: str) -> Tuple[Dict[str, Any], str]:
+    """Return ``(components, reason)``: one model's rate card as the config declares it.
+
+    ``components`` maps each of :data:`CARD_COMPONENTS` to a float when the config prices it, to
+    :data:`CARD_COMPONENT_ABSENT` when the ``cost`` block does not mention it, and to
+    :data:`CARD_COMPONENT_MALFORMED` when it does but the value is unusable. A non-empty ``reason``
+    means no card at all (no such model, or no ``cost`` block) and ``components`` is empty.
+
+    AN ABSENT COMPONENT IS NEVER A ZERO, and that distinction is the whole point of this function.
+    Research `x0spmh` records the card being corrected mid-history from an era where ``cache_read``
+    was UNPRICED, and the resulting ``$0`` was read as evidence that cache reads were free when
+    they were in fact 73.9 percent of a $16.41 turn. Measured live, 47 of the 80 priced models in
+    the maintainer's config carry ONLY ``input`` and ``output``, so a partial card is the MAJORITY
+    case today rather than a historical artifact.
+
+    `per_million` IS DELIBERATELY NOT CALLED HERE, and calling it would be a 1000000x error. That
+    function is the WRITE-side converter: it turns a LiteLLM gateway's per-TOKEN figure into the
+    ``$/Mtok`` value that gets STORED (see :func:`build_models`). The config therefore already holds
+    ``$/Mtok`` (this module's docstring states it, and a live block reads
+    ``{"input": 5.5, "cache_read": 0.55, ...}``), so passing a value read back OUT through it would
+    multiply by 1e6. What IS reused is that function's REFUSAL POSTURE: a bool, a string, a None,
+    or a non-positive number is untrusted input and yields an unknown rather than a coerced price.
+
+    Reads only ``provider.<name>.models.<id>.cost``; never an options block or a credential.
+    """
+
+    if not isinstance(config, Mapping):
+        return {}, CARD_UNPARSEABLE
+    if not model_id:
+        return {}, CARD_NO_MODEL
+    provider_name, _, bare = model_id.partition("/")
+    providers = config.get("provider")
+    if not isinstance(providers, Mapping):
+        return {}, CARD_MODEL_NOT_DECLARED
+    spec = providers.get(provider_name)
+    models = spec.get("models") if isinstance(spec, Mapping) else None
+    entry = models.get(bare) if isinstance(models, Mapping) else None
+    if not isinstance(entry, Mapping):
+        return {}, CARD_MODEL_NOT_DECLARED
+    cost = entry.get("cost")
+    if not isinstance(cost, Mapping):
+        return {}, CARD_NO_COST_BLOCK
+
+    components: Dict[str, Any] = {}
+    for component in CARD_COMPONENTS:
+        if component not in cost:
+            components[component] = CARD_COMPONENT_ABSENT
+            continue
+        value = cost[component]
+        # `per_million`'s refusal posture WITHOUT its multiplication: reject a bool (which is an
+        # int in Python and would price at 1.0), a string, and a negative number. A GENUINE ZERO
+        # is KEPT as 0.0, because "priced at zero" and "not priced" are different facts and the
+        # `x0spmh` trap is exactly the confusion of the two.
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            components[component] = CARD_COMPONENT_MALFORMED
+        elif value < 0:
+            components[component] = CARD_COMPONENT_MALFORMED
+        else:
+            components[component] = float(value)
+    return components, ""
 
 
 def catalog_from_config(

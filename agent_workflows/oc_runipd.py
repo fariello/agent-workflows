@@ -3412,12 +3412,41 @@ def initialize_run(args: argparse.Namespace) -> Path:
         "variant": resolved_launch.variant,
         "agent": resolved_launch.agent,
         "launch_profile": launch_profile_record(resolved_launch),
+        # runverdict Order 07 (`w33lrl`) E-01/E-02: WHICH model incurred this run's cost and at WHAT
+        # PRICES. Before this, `options.model` was `null` on a run where no `--model` was passed and
+        # `launch_profile.provenance.model` read `host-default` ("nothing supplied it; pass no
+        # argument"), which HONESTLY named the gap rather than filling it: the record said it did not
+        # know. This resolves the host's own default and freezes the rate card in effect at launch,
+        # with the config's DIGEST so a later `aw oc update-models` cannot silently reprice history.
+        #
+        # A SEPARATE KEY FROM `launch_profile`, DELIBERATELY. That record's `config_digest` covers
+        # `runner-profiles.json`; this one covers the OpenCode config. Two files need two digests,
+        # and overloading the existing key would break the shipped invariants that the executor and
+        # verifier SHARE one profile digest and that it survives a resume unchanged.
+        runner_shared.COST_ATTRIBUTION_KEY: runner_shared.cost_attribution_record(
+            host="oc",
+            model=resolved_launch.model,
+            model_source=(resolved_launch.provenance or {}).get("model", ""),
+            agent=resolved_launch.agent,
+        ),
         **(
             {
                 "verify_model": resolved_verify.model,
                 "verify_variant": resolved_verify.variant,
                 "verify_agent": resolved_verify.agent,
                 "verify_launch_profile": launch_profile_record(resolved_verify),
+                # `w33lrl` OQ-01: the VERIFIER launch gets its OWN snapshot. The two-model case is
+                # live today (`--verify-with` ships), and one run-level field that silently described
+                # only the executor would misattribute the verifier's cost the first time it is used.
+                # CONDITIONAL, like its three siblings, so a run with no verifier profile freezes the
+                # state it always froze.
+                "verify_"
+                + runner_shared.COST_ATTRIBUTION_KEY: runner_shared.cost_attribution_record(
+                    host="oc",
+                    model=resolved_verify.model,
+                    model_source=(resolved_verify.provenance or {}).get("model", ""),
+                    agent=resolved_verify.agent,
+                ),
             }
             if resolved_verify is not None
             else {}
