@@ -35,6 +35,14 @@ YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md
 - `<setid>` - the Set id for Set members; for a STANDALONE (non-Set) artifact, the item's own `<id6>`
   is the setid (a singleton set), so a lone item reads `YYYYMMDD-<id6>-NN-<id6>-<slug>.<type>.md` with
   `NN=01` (mirrors how `aw backlog` already derives "a singleton from the item id"). (OQ-resolved.)
+  LENGTH IS BOUNDED BY POLICY, NOT BY THIS GRAMMAR (added 2026-09-23, plan `x75obw`; catalog invariant
+  I-17, spec `2lcqno` N8 normative). A setid of 14 characters or fewer is strongly PREFERRED, over 14
+  WARNS, and over 24 is REFUSED. The regex group for this segment is deliberately left UNBOUNDED
+  (`artifact_naming.parse_clustered`, `_UNIFORM_RE`), because a grammar match is binary and cannot
+  express two tiers or the per-repository cutover that grandfathers existing long setids per ARTIFACT.
+  So an over-length setid is a POLICY finding (`check.setid-length-warn` / `check.setid-length-error`,
+  `IPD-M109` on a plan) and is NOT a `check.name-nonconformant` violation; do not "tighten" the regex to
+  enforce it, which would refuse the 36 grandfathered setids the cutover exists to protect.
 - `NN` - two-digit order within the Set (`00` reserved for an orchestrator, `01+` otherwise);
   `01` for a standalone singleton.
 - `<id6>` - the stable 6-char base36 id (the artifact's `- Id:`), in the filename.

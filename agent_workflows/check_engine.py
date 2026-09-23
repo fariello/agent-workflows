@@ -116,6 +116,27 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.setid-collision": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-16"
     ),
+    # Setid SHAPE / LENGTH (catalog I-17, spec `2lcqno` N8), setidlen `x75obw` E-03. A NEW invariant
+    # rather than a widened I-16, and the distinction is the reason this pair is not registered under
+    # its neighbour above: I-16 asserts setid SEMANTICS ("a shared cross-type topic label, not a
+    # unique identity"), and a 30-character setid violates nothing that sentence says. Nor is this
+    # I-09: that governs whether a FILENAME matches its type's grammar, and both naming regexes leave
+    # the setid group unbounded (`artifact_naming.py` `parse_clustered`, `_UNIFORM_RE`) precisely so
+    # length can be a POLICY with tiers and a cutover instead of a binary grammar refusal. The catalog
+    # spec `pqsx96` was amended with I-17 in the same change, which is the precedent `216rgg` set when
+    # it repointed `check.setid-collision` in the commit that re-scoped it.
+    #
+    # TWO TIERS, NOT ONE, because the thresholds mean different things: over `warn_length` (14) is a
+    # legibility preference and must not fail a tree that already holds 36 such setids, while over
+    # `max_length` (24) is a refusal. Both are DETERMINISTIC (a string length and a date comparison,
+    # no heuristic). Thresholds and the cutover come from `config.get_setid_policy`, never from a
+    # constant in this module.
+    "check.setid-length-warn": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-17"
+    ),
+    "check.setid-length-error": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-17"
+    ),
     # Filename identity-slot / id6 uniqueness (catalog I-09 family).
     "check.id6-collision": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
@@ -1235,6 +1256,155 @@ def check_collisions(
                     seen_sets[set_key] = (desc, str(p))
 
     drift.extend(_check_identity_slots(records))
+    return drift
+
+
+# --------------------------------------------------------------------------------------
+# Setid LENGTH (catalog I-17, spec `2lcqno` N8), setidlen `x75obw` E-04
+# --------------------------------------------------------------------------------------
+
+_SETID_LENGTH_WARN_RULE = "check.setid-length-warn"
+_SETID_LENGTH_ERROR_RULE = "check.setid-length-error"
+
+#: An artifact's own compact `YYYYMMDD` date, taken from the leading date segment of its FILENAME.
+_ARTIFACT_DATE_RE = _re.compile(r"\A(\d{8})-")
+
+
+def _artifact_compact_date(path: Path, text: str = "") -> Optional[str]:
+    """The artifact's OWN date as compact ``YYYYMMDD``, from its filename, else its `- Date:`, else None.
+
+    THE FILENAME FIRST, DELIBERATELY. Every artifact type in this repository leads with `YYYYMMDD-`,
+    and the two shipped cutover precedents both read a per-artifact date rather than a per-topic one
+    (`_spec_requires_id6` reads the filename's leading date; `carrier_severity_for_plan` reads the
+    plan's own `- Date:`). The `- Date:` fallback exists for a legitimately unusual name.
+
+    WHY PER-ARTIFACT AT ALL (plan `x75obw` OQ-04): "the setid's date" is NOT a quantity that exists.
+    A setid is a SHARED label and spans artifacts with different dates (measured:
+    `backlog-medhigh-260819` spans 8 artifacts, `assess-documentation` 6, `agent-comms-broker` 3). A
+    finding is always LOCATED AT A FILE, so the file's own date is the only well-defined boundary
+    input. The intended consequence is that one long setid is grandfathered on an old artifact and
+    refused on a new one.
+    """
+    m = _ARTIFACT_DATE_RE.match(path.name)
+    if m is not None:
+        return m.group(1)
+    if text:
+        dm = _re.search(r"(?m)^-[ \t]*Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$", text)
+        if dm is not None:
+            return "{0}{1}{2}".format(*dm.groups())
+    return None
+
+
+def _filename_setid(name: str) -> Optional[str]:
+    """The setid segment of a clustered filename, or None for a name with no clustered setid slot.
+
+    Excludes the legacy ``YYYYMMDD-HHMM-NN-<slug>`` form, whose 4-digit HHMM occupies the setid
+    position without being one (the same discriminator `_identity_slot_token` applies, for the same
+    reason: reading `2147` as a setid would invent findings on legacy names).
+    """
+    m = _naming.parse_clustered(name)
+    if not m or _HHMM_RE.match(m.group("set")):
+        return None
+    return m.group("set")
+
+
+def check_setid_length(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
+    strict: Optional[bool] = None,
+) -> List[_core.Drift]:
+    """Setid LENGTH across every SUPPORTED type: warn over 14, refuse over 24 (catalog I-17).
+
+    Runs ONCE over every type (like `check_collisions`) rather than per type, because the policy is
+    repository-wide and a per-type fan-out would report one artifact's setid once per type it happens
+    to be enumerated under.
+
+    BOTH THE DECLARED AND THE FILENAME SETID ARE JUDGED, and they are judged as ONE finding per
+    artifact, not two. An artifact normally carries the same token in both places; when it carries a
+    long token in either, that is one defect about one file. Reporting it twice would double the count
+    for a single fix. The DECLARED `- Set:` wins when both are present and differ, because that is the
+    authoritative declaration (`check.setid-collision` reads the same field through `_parse_setid`).
+
+    GRANDFATHERING IS PER ARTIFACT AND FAIL-OPEN, via `config.get_setid_policy`: an artifact dated
+    before this repository's `cutovers.setid_length` boundary yields NOTHING, and a repository with NO
+    boundary (the resolver's documented tier-3 `None`) yields nothing at all. That is why registering
+    `setid_length` in `KNOWN_FEATURE_CUTOVERS` is load-bearing rather than cosmetic: without it the
+    `error` tier is unreachable and this rule ships as decoration. ``strict`` (project policy
+    `setids.strict`, or `aw check --strict-setid-length`) removes the grandfathering and applies the
+    rules to every artifact, including history.
+
+    MEASURED EXPECTATION AT EXECUTION (2026-09-23): 749 unique declared setids, 713 at <= 14, 36 in
+    the 15-24 band, 0 over 24, all 36 pre-cutover. So a correct implementation adds ZERO findings to
+    `aw check all` on this corpus, and a nonzero delta is a defect in this function rather than a
+    discovery about the tree.
+    """
+    from agent_workflows import config as _config
+
+    repo_root = Path(repo_root)
+    policy = _config.get_setid_policy(repo_root)
+    if strict:
+        policy = _config.SetidPolicy(
+            warn_length=policy.warn_length,
+            max_length=policy.max_length,
+            strict=True,
+            cutover_date=policy.cutover_date,
+        )
+
+    drift: List[_core.Drift] = []
+    seen: set = set()
+    for record_type in SUPPORTED:
+        for p in _iter_type_files(
+            repo_root,
+            record_type,
+            include_untracked=include_untracked,
+            include_retired=include_retired,
+        ):
+            try:
+                key = str(p.resolve())
+            except OSError:
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            declared, _desc = _parse_setid(text)
+            setid = declared or _filename_setid(p.name)
+            if not setid:
+                continue
+            tier = policy.tier_for(setid)
+            if tier is None:
+                continue
+            if not policy.applies_to_artifact_date(_artifact_compact_date(p, text)):
+                continue
+            where = "declared `- Set:`" if declared else "filename setid segment"
+            if tier == "error":
+                rule = _SETID_LENGTH_ERROR_RULE
+                detail = (
+                    f"setid {setid!r} is {len(setid)} characters, over the {policy.max_length}"
+                    f"-character maximum ({where})"
+                )
+                required = f"a setid of at most {policy.max_length} characters (<= {policy.warn_length} preferred)"
+            else:
+                rule = _SETID_LENGTH_WARN_RULE
+                detail = (
+                    f"setid {setid!r} is {len(setid)} characters, over the preferred "
+                    f"{policy.warn_length}-character length ({where})"
+                )
+                required = f"a setid of at most {policy.warn_length} characters (preferred); over {policy.max_length} is refused"
+            drift.append(
+                enrich_drift(
+                    _core.Drift(str(p), rule, detail),
+                    observed=f"setid {setid!r} ({len(setid)} characters)",
+                    required=required,
+                    recovery=(
+                        f"aw group {record_type} {setid} --set <shorter-setid> --rename --apply"
+                    ),
+                )
+            )
     return drift
 
 
@@ -2674,6 +2844,7 @@ def check_types(
     collisions: bool = False,
     include_untracked: bool = False,
     include_retired: bool = False,
+    strict_setid_length: bool = False,
 ) -> List[_core.Drift]:
     """Fan out check_type over the given types (or every SUPPORTED type for the ['all'] sentinel),
     concatenating Drift; unsupported types are skipped. The ['all'] sentinel implies
@@ -2768,6 +2939,22 @@ def check_types(
             # bklggrad ku93tn: dangling From-Backlog links (a plan pointing at a nonexistent backlog
             # item id6) are the same class of cross-tree ref check, run once in the full sweep.
             drift.extend(_releases.check_from_backlog(repo_root))
+        except Exception:
+            pass
+        # setidlen x75obw E-04 (catalog I-17): setid LENGTH is a repository-wide policy over every
+        # type, so it rides this once-per-full-sweep seam beside its `check.setid-collision` sibling
+        # rather than running per type, which would report one artifact once per type it is enumerated
+        # under. Its own try/except, matching the scans around it, so a failure here cannot suppress
+        # them.
+        try:
+            drift.extend(
+                check_setid_length(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                    strict=strict_setid_length,
+                )
+            )
         except Exception:
             pass
         # detrun bmh754: a dangling From-Spec link is the SPEC-side twin of the From-Backlog scan

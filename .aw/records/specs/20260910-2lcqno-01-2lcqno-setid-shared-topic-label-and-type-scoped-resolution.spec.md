@@ -155,6 +155,35 @@ superseded document across a reversal:
 - **N7 (the typed links carry the relationship, and are not replaced by the name).** N6 does not make
   the links optional. `From-Backlog`/`From-Spec` and `Graduated-To` remain the machine-readable truth,
   because a shared name is a human affordance and not a resolvable reference.
+- **N8 (a setid's LENGTH is bounded, in two tiers, with a per-repository cutover).** Added 2026-09-23 by
+  plan `x75obw`, catalog invariant I-17. A setid of **14 characters or fewer** is strongly PREFERRED; a
+  setid of **15 to 24** characters is a WARNING; a setid of **more than 24** characters is REFUSED. The
+  thresholds are repository policy, read from the optional `setids` object in `.aw/config/project.json`
+  (`warn_length`, `max_length`, `strict`) through the one accessor `config.get_setid_policy`, and MUST
+  NOT be re-spelled by any consumer.
+  LENGTH IS NOT PART OF THE FILENAME GRAMMAR, DELIBERATELY. The setid group in both naming regexes
+  (`artifact_naming.parse_clustered`, `_UNIFORM_RE`) stays UNBOUNDED, because a grammar match is binary
+  and could express neither the two tiers nor the cutover below. A length violation is therefore a
+  POLICY finding (`check.setid-length-warn` / `check.setid-length-error`, `IPD-M109` on a plan), never a
+  nonconformant NAME, and `check.name-nonconformant` must not start reporting it.
+  GRANDFATHERING IS PER ARTIFACT, NOT PER SETID, and this follows directly from N1. Because a setid is a
+  SHARED label, "the setid's date" is not a quantity that exists: measured 2026-09-23,
+  `backlog-medhigh-260819` (22 characters) spans 8 artifacts, `assess-documentation` (20) spans 6, and
+  `agent-comms-broker` (18) spans 3, with different dates. Each finding is located AT A FILE, so the
+  ARTIFACT'S OWN date is compared against the `cutovers.setid_length` boundary that
+  `sync_cutovers_on_install` stamps per repository. An absent boundary FAILS OPEN (everything is
+  grandfathered); `strict` removes the grandfathering entirely.
+  THE INTENDED CONSEQUENCE, STATED SO AN AUTHOR DOES NOT DISCOVER IT: one long setid can be
+  simultaneously grandfathered on an old artifact and refused on a new one, so a NEW artifact may NOT
+  join an existing long-setid topic after the cutover. That is the whole mechanism by which the corpus
+  stays green while new long setids stop appearing, and it is an accepted usability cost (see Section 4
+  item 5), not a defect.
+  AUTHORING REFUSES BEFORE THE FACT, through one shared validator
+  (`config.validate_setid_length_for_authoring`) called by the four `--set`-taking verbs: `aw ipd
+  scaffold`, `aw backlog new`, `aw research new`, `aw group`. `aw specs new` is EXCLUDED because it takes
+  no `--set` at all (`specs.run_new` passes `set_id=id6`, so a standalone spec's setid is always its own
+  6-character id6); a guard there would be unreachable code. The authoring guard deliberately consults NO
+  cutover: a setid being chosen now is post-cutover whatever the boundary says.
 
 ## 4. Accepted costs, stated plainly
 
@@ -169,7 +198,16 @@ superseded document across a reversal:
 3. NO AUTOMATED CHECK CAN TELL A DELIBERATE TOPIC SHARE FROM A CARELESS ONE. Two unrelated efforts that
    pick the same setid look exactly like one topic spanning types. That is the price of N1, and the
    mitigation is a human noticing, not a rule.
-4. EVERY COUNT IN THIS SPEC IS A DATED SNAPSHOT OF A GROWING CORPUS. The numbers in Section 1 were true
+5. THE `> 24` REFUSAL (N8) HAS ZERO MARGIN, AND A NEW ARTIFACT CANNOT JOIN A LONG-SETID TOPIC. Measured
+   2026-09-23 over 749 unique declared setids: 713 at 14 or fewer, 36 in the 15-to-24 band, and 0 over
+   24, with the longest being `research-prompt-pipeline` at EXACTLY 24 characters. So 24 was chosen to
+   sit AT the existing maximum rather than above it, which has two consequences worth stating. FIRST, the
+   comparison must be strictly `> max_length`: an off-by-one would hard-fail a live record, which is why
+   the tests pin 24-conforms and 25-errors rather than testing a comfortable 26. SECOND, the 36 setids in
+   the warn band are permanently grandfathered on their existing artifacts but are CLOSED to new members
+   once the repository's boundary is stamped, so continuing one of those topics means regrouping it under
+   a shorter setid. Both are accepted, not defects.
+6. EVERY COUNT IN THIS SPEC IS A DATED SNAPSHOT OF A GROWING CORPUS. The numbers in Section 1 were true
    when measured and are re-measured inline where they moved; none of them is a live invariant, and an
    implementer must re-derive rather than assert them (see Section 5, which is written in shape terms for
    this reason).

@@ -3877,6 +3877,16 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Include retired, archived, and terminal artifacts (executed/superseded/parked/done/shipped).",
             )
+            # setidlen x75obw E-04 / OQ-01: the CLI half of the setid-length strict switch. The
+            # repository-policy half is `setids.strict` in `.aw/config/project.json`; this flag is the
+            # per-invocation form for a local or CI sweep that wants history judged too. Without
+            # either, grandfathering is per artifact against `cutovers.setid_length`.
+            _p.add_argument(
+                "--strict-setid-length",
+                dest="strict_setid_length",
+                action="store_true",
+                help="Apply the setid length rules to PRE-cutover artifacts too (no grandfathering).",
+            )
             _p.formatter_class = _AlphaHelpFormatter
             _p.epilog = (
                 "AVAILABLE TYPES\n"
@@ -11289,6 +11299,7 @@ def _run_check(
             names_only=only_names,
             collisions=(norm == "all"),
             include_retired=include_retired,
+            strict_setid_length=bool(getattr(args, "strict_setid_length", False)),
         )
     except Exception:
         fn = at.resolve_backend(norm, "check")

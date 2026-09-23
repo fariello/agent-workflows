@@ -638,11 +638,52 @@ def run_set_priority(args: argparse.Namespace) -> int:
     return 0
 
 
+def _setid_length_guard(args: argparse.Namespace, setid):
+    """Return ``(error, warning)`` from the ONE shared setid-length validator (setidlen `x75obw` E-06).
+
+    The comparison lives in :func:`config.validate_setid_length_for_authoring` and is never re-spelled
+    here; this only resolves the repo root the way this module's other verbs do.
+    """
+    from agent_workflows import config as _config
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    return _config.validate_setid_length_for_authoring(
+        repo_root, setid, verb="aw research new"
+    )
+
+
+def _emit_new_error(args: argparse.Namespace, message: str) -> int:
+    """Report a `research new` refusal through this verb's EXISTING error shape (human + agent/JSON)."""
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import CommandResult, select_output
+
+    ctx = select_output(args)
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="research new",
+            status="cannot-run",
+            exit_code=2,
+            summary=message,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+    print(f"error: {message}")
+    return 2
+
+
 def run_new(args: argparse.Namespace) -> int:
     root = _research_root(args)
     topic = [
         t.strip() for t in (getattr(args, "topic", None) or "").split(",") if t.strip()
     ]
+    # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard. Reported through this
+    # verb's OWN error channel (the `err` string below, which already renders in both the human and
+    # the agent/JSON shapes) rather than a bare print, so a refusal is machine-readable here too.
+    _setid_err, _setid_warn = _setid_length_guard(args, getattr(args, "set", None))
+    if _setid_err:
+        return _emit_new_error(args, _setid_err)
+    if _setid_warn:
+        print(f"note: {_setid_warn}")
     files, err = plan_new(
         research_root=root,
         kind=getattr(args, "kind", ""),

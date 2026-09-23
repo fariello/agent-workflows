@@ -7,6 +7,17 @@ work that used to live only in the free-prose `TODO.md`.
 This is a `records`-class sub-tree: it materializes here at `.aw/records/backlog/` pre-migration and at
 `.aw/records/backlog/` after the awphysical layout migration (dual-path, like `plans`).
 
+
+SETID LENGTH IS BOUNDED (catalog invariant I-17, spec `2lcqno` N8). A setid of 14 characters or
+fewer is strongly preferred, a setid over 14 characters is a WARNING, and a setid over 24 characters
+is REFUSED: the `--set`-taking verbs (`aw ipd scaffold`, `aw backlog new`, `aw research new`,
+`aw group`) reject an over-length value, and `aw check` reports `check.setid-length-warn` /
+`check.setid-length-error`. Grandfathering is PER ARTIFACT against the `cutovers.setid_length`
+boundary stamped into `.aw/config/project.json` on install or update, so an artifact older than that
+boundary keeps its long setid while a NEW artifact is judged. The intended consequence is that a new
+artifact may NOT join an existing long-setid topic after the cutover; regroup the topic under a
+shorter setid instead.
+
 ## Layout (status by directory)
 
 ```

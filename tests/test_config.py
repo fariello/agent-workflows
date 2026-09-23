@@ -1266,5 +1266,202 @@ class DynamicCutoverResolutionTests(unittest.TestCase):
             self.assertEqual(stamped2["carrier_obligations"], "2026-09-25")
 
 
+class SetidPolicyTests(unittest.TestCase):
+    """setidlen x75obw E-01/E-02: the setid length policy and its cutover registration."""
+
+    def _repo(self, d, project=None):
+        repo = Path(d)
+        cfg = repo / ".aw" / "config"
+        cfg.mkdir(parents=True)
+        if project is not None:
+            (cfg / "project.json").write_text(json.dumps(project), encoding="utf-8")
+        return repo
+
+    def test_defaults_are_14_warn_24_max_not_strict(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(d, {"schema_version": 2})
+            p = CFG.get_setid_policy(repo)
+            self.assertEqual(p.warn_length, 14)
+            self.assertEqual(p.max_length, 24)
+            self.assertFalse(p.strict)
+
+    def test_absent_cutover_fails_open_to_None(self):
+        """OQ-02: an absent boundary grandfathers everything, so the error tier is unreachable."""
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(d, {"schema_version": 2})
+            self.assertIsNone(CFG.get_setid_policy(repo).cutover_date)
+            self.assertIsNone(CFG.resolve_cutover_date(repo, "setid_length"))
+
+    def test_custom_thresholds_and_strict_are_honored(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(
+                d,
+                {
+                    "schema_version": 2,
+                    "setids": {"warn_length": 8, "max_length": 12, "strict": True},
+                },
+            )
+            p = CFG.get_setid_policy(repo)
+            self.assertEqual((p.warn_length, p.max_length, p.strict), (8, 12, True))
+
+    def test_malformed_thresholds_fall_back_to_the_shipped_defaults(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(
+                d,
+                {
+                    "schema_version": 2,
+                    "setids": {
+                        "warn_length": "twelve",
+                        "max_length": 0,
+                        "strict": "yes",
+                    },
+                },
+            )
+            p = CFG.get_setid_policy(repo)
+            self.assertEqual((p.warn_length, p.max_length, p.strict), (14, 24, False))
+
+    def test_an_inverted_threshold_pair_falls_back_rather_than_emptying_the_warn_band(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(
+                d,
+                {
+                    "schema_version": 2,
+                    "setids": {"warn_length": 20, "max_length": 10},
+                },
+            )
+            p = CFG.get_setid_policy(repo)
+            self.assertEqual((p.warn_length, p.max_length), (14, 24))
+
+    def test_the_boundary_is_pinned_at_24_conforms_and_25_errors(self):
+        """THE ZERO-MARGIN BOUNDARY. The longest real setid is EXACTLY 24 characters
+        (`research-prompt-pipeline`), so an off-by-one (`>=`) would hard-fail a live record. A test
+        that only proves "26 fails" does NOT cover this."""
+        p = CFG.SetidPolicy()
+        self.assertIsNone(p.tier_for("a" * 14))
+        self.assertEqual(p.tier_for("a" * 15), "warning")
+        self.assertEqual(p.tier_for("a" * 24), "warning")
+        self.assertEqual(p.tier_for("a" * 25), "error")
+        # The real record the boundary was chosen from must conform.
+        self.assertEqual(len("research-prompt-pipeline"), 24)
+        self.assertNotEqual(p.tier_for("research-prompt-pipeline"), "error")
+
+    def test_setid_length_is_registered_so_the_error_tier_is_reachable(self):
+        """E-02: without the registry entry the resolver fails open forever and the rule is
+        decoration. This asserts the registration, not a particular date."""
+        self.assertIn("setid_length", CFG.KNOWN_FEATURE_CUTOVERS)
+
+    def test_the_existing_install_stamper_covers_setid_length_and_preserves_it(self):
+        """E-02/V-02: the EXISTING generic `sync_cutovers_on_install` stamps it; no second stamper."""
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(
+                d, {"schema_version": 2, "cutovers": {"spec_id6": "2026-08-20"}}
+            )
+            stamped = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-09-23")
+            self.assertEqual(stamped["setid_length"], "2026-09-23")
+            self.assertEqual(stamped["spec_id6"], "2026-08-20")  # untouched
+            self.assertEqual(CFG.resolve_cutover_date(repo, "setid_length"), "20260923")
+            # Re-install must NOT move an established boundary.
+            again = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-10-01")
+            self.assertEqual(again["setid_length"], "2026-09-23")
+
+    def test_there_is_no_second_setid_cutover_stamper(self):
+        """E-01 dropped `stamp_setid_cutover_if_missing`: a second writer to one JSON file is how
+        the two drift."""
+        self.assertFalse(hasattr(CFG, "stamp_setid_cutover_if_missing"))
+
+    def test_grandfathering_is_per_artifact_date_and_strict_overrides_it(self):
+        pre = CFG.SetidPolicy(cutover_date="20260923")
+        self.assertFalse(pre.applies_to_artifact_date("20260901"))
+        self.assertTrue(pre.applies_to_artifact_date("20260923"))
+        self.assertTrue(pre.applies_to_artifact_date("20261001"))
+        # An unparseable/absent date is treated as PRE-cutover (another rule owns missing dates).
+        self.assertFalse(pre.applies_to_artifact_date(None))
+        # No boundary at all -> everything grandfathered.
+        self.assertFalse(CFG.SetidPolicy().applies_to_artifact_date("20261001"))
+        # strict removes grandfathering entirely, including for history.
+        strict = CFG.SetidPolicy(strict=True)
+        self.assertTrue(strict.applies_to_artifact_date("20200101"))
+        self.assertTrue(strict.applies_to_artifact_date(None))
+
+
+class SetidAuthoringGuardTests(unittest.TestCase):
+    """setidlen x75obw E-06: the ONE shared authoring-time guard."""
+
+    def _repo(self, d):
+        repo = Path(d)
+        (repo / ".aw" / "config").mkdir(parents=True)
+        (repo / ".aw" / "config" / "project.json").write_text(
+            json.dumps({"schema_version": 2}), encoding="utf-8"
+        )
+        return repo
+
+    def test_over_max_is_an_error_and_15_to_24_is_only_a_warning(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(d)
+            err, warn = CFG.validate_setid_length_for_authoring(
+                repo, "a" * 25, verb="aw ipd scaffold"
+            )
+            self.assertIsNotNone(err)
+            self.assertIn("25 characters", err)
+            self.assertIn("24", err)
+            self.assertIsNone(warn)
+
+            err, warn = CFG.validate_setid_length_for_authoring(
+                repo, "a" * 16, verb="aw ipd scaffold"
+            )
+            self.assertIsNone(err)
+            self.assertIsNotNone(warn)
+            self.assertIn("16 characters", warn)
+
+            self.assertEqual(
+                CFG.validate_setid_length_for_authoring(
+                    repo, "a" * 14, verb="aw ipd scaffold"
+                ),
+                (None, None),
+            )
+
+    def test_the_authoring_boundary_is_also_pinned_at_24_and_25(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(d)
+            err24, warn24 = CFG.validate_setid_length_for_authoring(
+                repo, "a" * 24, verb="v"
+            )
+            err25, _ = CFG.validate_setid_length_for_authoring(repo, "a" * 25, verb="v")
+            self.assertIsNone(err24)
+            self.assertIsNotNone(warn24)
+            self.assertIsNotNone(err25)
+
+    def test_an_absent_setid_is_not_this_guards_business(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(d)
+            for value in (None, "", "   "):
+                self.assertEqual(
+                    CFG.validate_setid_length_for_authoring(repo, value, verb="v"),
+                    (None, None),
+                )
+
+    def test_the_guard_consults_no_cutover_so_an_unstamped_repo_still_refuses(self):
+        """A setid being CHOSEN now is post-cutover whatever the boundary says; applying the
+        boundary here would let an unstamped repository mint unbounded setids forever."""
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(d)
+            self.assertIsNone(CFG.get_setid_policy(repo).cutover_date)
+            err, _ = CFG.validate_setid_length_for_authoring(repo, "a" * 25, verb="v")
+            self.assertIsNotNone(err)
+
+    def test_a_repository_raising_max_length_is_honored_by_the_guard(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / ".aw" / "config").mkdir(parents=True)
+            (repo / ".aw" / "config" / "project.json").write_text(
+                json.dumps({"schema_version": 2, "setids": {"max_length": 30}}),
+                encoding="utf-8",
+            )
+            err, _ = CFG.validate_setid_length_for_authoring(repo, "a" * 25, verb="v")
+            self.assertIsNone(err)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -15,7 +15,14 @@ YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<model>].<kind>.md
 - `YYYYMMDD`: the SET's canonical date (shared by every member of a set); each file also records
   its own `created` date in frontmatter.
 - `<set-id>`: a short kebab cohort key that clusters a set in a name-sorted tree. A singleton is a
-  set of one.
+  set of one. ITS LENGTH IS BOUNDED (catalog invariant I-17, spec `2lcqno` N8): 14 characters or
+  fewer is strongly preferred, over 14 is a WARNING, and over 24 is REFUSED, so `aw research new`
+  and `aw group research` reject an over-length `--set` and `aw check` reports
+  `check.setid-length-warn` / `check.setid-length-error`. Grandfathering is PER ARTIFACT against the
+  `cutovers.setid_length` boundary stamped into `.aw/config/project.json` on install or update, so an
+  older artifact keeps its long setid while a NEW one is judged. The intended consequence is that a
+  new artifact may NOT join an existing long-setid topic after the cutover; regroup the topic under a
+  shorter setid instead.
 - `<NN>`: two-digit read/execute order within the set (`00` is the originating prompt).
 - `<id6>`: the stable 6-character base36-lowercase citation handle. It NEVER changes, even when the
   file is renamed, re-slugged, regrouped, or moved to a shard. Cite research by its `<id6>`
