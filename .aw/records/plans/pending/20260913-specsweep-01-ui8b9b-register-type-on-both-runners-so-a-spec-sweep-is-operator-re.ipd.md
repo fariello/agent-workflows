@@ -37,39 +37,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: register the flag and thread it
 
-- [ ] E-01 REGISTER `--type` ON BOTH HOSTS' `start` AND `resume` PARSERS, through the SHARED flag table rather than twice. `runner_shared.py` already holds the run-flag surface for exactly this reason (executed plan `uyeko5` put it there so "the flags are wired ONCE into the shared shape rather than twice into two diverging parsers"), and that plan's own history records `--full-auto` having meant opt-in on one host and opt-out on the other because a gate was wired to one runner only. Accept the canonical type names the dispatch table already keys on (`run_selection_policy._TYPE_ACTIONS` registers `ipd`, `spec`, `backlog`, and the prompt/always-skip types are handled separately); REFUSE an unknown value with a message listing the accepted set, rather than silently sweeping nothing.
+- [x] E-01 REGISTER `--type` ON BOTH HOSTS' `start` AND `resume` PARSERS, through the SHARED flag table rather than twice. `runner_shared.py` already holds the run-flag surface for exactly this reason (executed plan `uyeko5` put it there so "the flags are wired ONCE into the shared shape rather than twice into two diverging parsers"), and that plan's own history records `--full-auto` having meant opt-in on one host and opt-out on the other because a gate was wired to one runner only. Accept the canonical type names the dispatch table already keys on (`run_selection_policy._TYPE_ACTIONS` registers `ipd`, `spec`, `backlog`, and the prompt/always-skip types are handled separately); REFUSE an unknown value with a message listing the accepted set, rather than silently sweeping nothing.
   THE DEFAULT IS NORMATIVE AND MUST NOT BE WIDENED: spec `25kzda` 2.4a property 1 fixes it as IPDs only with no `--type`, and `sweep_review_candidates_for_type` deliberately takes the type with NO default precisely so a later caller cannot widen the default sweep by omission. Registering the flag must not change what a bare `aw oc run reviews` selects.
   THE SUBCOMMAND NAME WAS CORRECTED AT REVIEW (PR-704, F-10). This item originally said "`run` AND `resume`", and there is NO `run` subparser on either host: both expose exactly `['report', 'resume', 'start', 'status', 'stop']`. The operator-facing spelling `aw oc run reviews` reaches the `start` parser through the CLI wrapper, which is why the plan's command-line prose is right while its parser instruction was wrong. The shipped pin test already keys on the correct pair (`for sub in ("start", "resume")`, `tests/test_run_flag_surface.py:464`), so an executor registering on a `run` parser would satisfy neither the flag nor the test.
   - Depends on: none
   - Expected outcome: `--type` parses on both hosts' `start` and `resume` subparsers, appears in `--help`, and a bare invocation's selection is byte-identical to before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 THREAD THE OPERATOR'S VALUE TO THE ALREADY-SHIPPED SWEEP, changing no policy. Both hosts' `expand_selectors` currently call `runner_shared.sweep_review_candidates(manifest, repo=repo)` for the `reviews`/`review`/`to-review` selectors (`oc_runipd.py:2276`, `agy_runipd.py:1569`); route them through `sweep_review_candidates_for_type(repo, <type>, manifest=manifest)`, which for `ipd` delegates to the existing function VERBATIM (same manifest walk, same Set ordering, same memoized decision) so no existing invocation's behavior moves. Do NOT reimplement membership: `run_selection_policy.needs_review` is the one predicate and it is already type-aware by signature.
+- [x] E-02 THREAD THE OPERATOR'S VALUE TO THE ALREADY-SHIPPED SWEEP, changing no policy. Both hosts' `expand_selectors` currently call `runner_shared.sweep_review_candidates(manifest, repo=repo)` for the `reviews`/`review`/`to-review` selectors (`oc_runipd.py:2276`, `agy_runipd.py:1569`); route them through `sweep_review_candidates_for_type(repo, <type>, manifest=manifest)`, which for `ipd` delegates to the existing function VERBATIM (same manifest walk, same Set ordering, same memoized decision) so no existing invocation's behavior moves. Do NOT reimplement membership: `run_selection_policy.needs_review` is the one predicate and it is already type-aware by signature.
   KEEP THE EMPTY-RESULT CONTRACT. An empty `reviews` is a SUCCESS that exits 0 (spec 2.4a property 3, carried by `EmptyStatusSelection`), and that must hold for `--type spec` too: a repository with no spec awaiting review is the healthy state, not an error.
   THE LIVE POPULATION IS NOW ZERO, SO THE ACCEPTANCE TEST MUST USE A FIXTURE (PR-701, F-7). MEASURED AT REVIEW at HEAD `2674c250`: `sweep_review_candidates_for_type(repo, "spec")` returns `[]`, NOT the four specs the Concern and F-1 claim. All four (`6m4kow`, `2lcqno`, `6kwd2e`, `w15vzb`) were advanced `to-review` -> `approved` by the same spec-review round that authored this plan, and `needs_review('spec','approved')` is False, so they are correctly no longer swept. Verified further that ZERO specs sit at `to-review` anywhere in the repository (`grep -l '^- Status: to-review' .aw/records/specs/*.spec.md` returns nothing; the 14 discovered id6-carrying specs are 11 `approved`, 1 `superseded`, 1 `draft`, 1 `implementing`). CONSEQUENCE: the positive half of this item cannot be demonstrated against the live tree at all. Build a FIXTURE spec at `to-review` and assert the sweep returns it; do NOT advance a real spec's status to create a population, which would be a tooled lifecycle change made to satisfy a test. Note the empty-result contract is now the case the LIVE tree exercises, which makes that half easy and the positive half fixture-only.
   - Depends on: E-01
   - Expected outcome: with a FIXTURE spec at `to-review`, `aw oc run reviews --type spec` (dry-run or nearest non-mutating spelling) selects it; `--type ipd` and a bare invocation select what they select today; an empty result exits 0, which is what the live tree returns.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 FREEZE THE VALUE INTO RUN STATE AND DECIDE `resume`'s BEHAVIOR EXPLICITLY. Spec `25kzda` freezes selection-affecting options into run state so a resume cannot silently re-scope a run, and `uyeko5` implemented that for the flags it owned while recording an honest divergence: only `--retry-budget` is refused on resume, because the shipped `--full-auto` resume handler OVERWRITES rather than refuses. Do NOT inherit that divergence by accident. Freeze `--type` at `run`, and on `resume` either refuse it or ignore it in favour of the frozen value, whichever the spec's rule requires; state WHICH in the plan record and pin it with a test. A resume that silently re-scopes the queue is the failure this item exists to prevent.
+- [x] E-03 FREEZE THE VALUE INTO RUN STATE AND DECIDE `resume`'s BEHAVIOR EXPLICITLY. Spec `25kzda` freezes selection-affecting options into run state so a resume cannot silently re-scope a run, and `uyeko5` implemented that for the flags it owned while recording an honest divergence: only `--retry-budget` is refused on resume, because the shipped `--full-auto` resume handler OVERWRITES rather than refuses. Do NOT inherit that divergence by accident. Freeze `--type` at `run`, and on `resume` either refuse it or ignore it in favour of the frozen value, whichever the spec's rule requires; state WHICH in the plan record and pin it with a test. A resume that silently re-scopes the queue is the failure this item exists to prevent.
   - Depends on: E-02
   - Expected outcome: the frozen value is present in run state, and a `resume` passing a DIFFERENT `--type` behaves as the pinned rule says rather than re-scoping the queue.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the gate this makes reachable, and the honest limit
 
-- [ ] E-04 THE MIXED-TYPE GATE BECOMES LIVE FOR THE FIRST TIME, AND THAT IS A SAFETY CHANGE, NOT A SIDE EFFECT. `enforce_mixed_type_gate` is reached on every run today and correctly does not apply, because no invocation can produce a mixed selection; `uyeko5` proved the gate WIRED and CORRECT on a constructed classification while stating plainly that no live invocation could trigger it, and pinned that limit with `test_no_live_invocation_can_yet_produce_a_mixed_selection`. THAT TEST WILL NOW FAIL BY DESIGN, and it must be INVERTED rather than deleted: rewrite it to assert the gate is reachable and fires, keeping the invariant it actually defended. Then demonstrate the gate on a REAL invocation, refusing unattended without `--allow-mixed` and proceeding with it, which is evidence nobody has been able to produce before.
+- [x] E-04 THE MIXED-TYPE GATE BECOMES LIVE FOR THE FIRST TIME, AND THAT IS A SAFETY CHANGE, NOT A SIDE EFFECT. `enforce_mixed_type_gate` is reached on every run today and correctly does not apply, because no invocation can produce a mixed selection; `uyeko5` proved the gate WIRED and CORRECT on a constructed classification while stating plainly that no live invocation could trigger it, and pinned that limit with `test_no_live_invocation_can_yet_produce_a_mixed_selection`. THAT TEST WILL NOW FAIL BY DESIGN, and it must be INVERTED rather than deleted: rewrite it to assert the gate is reachable and fires, keeping the invariant it actually defended. Then demonstrate the gate on a REAL invocation, refusing unattended without `--allow-mixed` and proceeding with it, which is evidence nobody has been able to produce before.
   - Depends on: E-02
   - Expected outcome: a real multi-type invocation is refused with the spec's `[RUN-MIXED-TYPES]` text and proceeds under `--allow-mixed`; the superseded limit test asserts reachability instead of unreachability.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 AMEND SPEC `6m4kow` AND CLEAR ITS RELEASE GATE, which is the record-keeping this plan exists to make honest. Record in that spec that R-15's operator surface is delivered here, update its Section 0 status table row and its Section 6 honest limit (both of which currently say an operator cannot reach the sweep), and clear its `- Blocks-Release:` with `aw specs set ... --blocks-release -` now that THIS plan carries the gate. DO NOT hand-edit the spec's `- Status:` or its `## Workflow history`: both are tool-owned, a `status_untooled_gate` hook exists for that bypass, and this plan's own author is not the spec's approver. Use `aw specs note` for the amendment record.
+- [x] E-05 AMEND SPEC `6m4kow` AND CLEAR ITS RELEASE GATE, which is the record-keeping this plan exists to make honest. Record in that spec that R-15's operator surface is delivered here, update its Section 0 status table row and its Section 6 honest limit (both of which currently say an operator cannot reach the sweep), and clear its `- Blocks-Release:` with `aw specs set ... --blocks-release -` now that THIS plan carries the gate. DO NOT hand-edit the spec's `- Status:` or its `## Workflow history`: both are tool-owned, a `status_untooled_gate` hook exists for that bypass, and this plan's own author is not the spec's approver. Use `aw specs note` for the amendment record.
   THE ORDERING IS NOT OPTIONAL: the gate moves to this plan when this plan is FILED (it already carries `- Blocks-Release: next`), and the spec's field is cleared as part of THIS item, so at no point is the gate carried by neither artifact.
   THE GATE IS ALREADY CLEARED, SO HALF THIS ITEM IS A NO-OP AND MUST NOT BE RE-PERFORMED (PR-703, F-9). MEASURED AT REVIEW: `6m4kow`'s front matter carries NO `- Blocks-Release:` line at all, and its own workflow history records "this spec's gate is cleared in this same call" as part of commit `b16e1108`, the same spec-review round that filed this plan. So the clearing happened at authoring time, not at execution time, and the ordering worry this item raises was already discharged by the filing order the history describes. `aw check` was verified CLEAN on these gates at review (zero diagnostics mentioning `ui8b9b`, `mng63x` or `6m4kow`, and zero `blocks-release`/`from-spec` rule hits). DO NOT run `aw specs set ... --blocks-release -` again: the field is absent, and a setter call against an absent field is at best a no-op and at worst writes a spurious history line onto an approved spec this plan's author is not the approver of.
   WHAT REMAINS GENUINELY UNDONE, and it is the part worth doing: the spec's Section 0 status row for R-15 still reads "IMPLEMENTED AT THE FUNCTION BOUNDARY, NOT OPERATOR-REACHABLE" with the evidence "`--type` is registered on NEITHER host" (`:40`), and Section 6's honest limit says the same. Those become FALSE when E-01 lands and are this item's real deliverable. NOTE THAT ROW ALSO CARRIES A NOW-STALE MEASUREMENT of its own: it says the sweep "returns the four `to-review` specs", which F-7 measures as `[]` today. Correct that too rather than leaving a second stale claim behind, and phrase the replacement so it does not rot again (describe the PREDICATE, not a frozen population).
   - Depends on: E-04
   - Expected outcome: `6m4kow`'s Section 0 R-15 row and Section 6 limit describe an operator-reachable sweep, its stale four-spec population claim is replaced by a non-rotting phrasing, the gate remains absent from the spec and present on this plan, `aw check` still reports no dangling or mismatched gate, and the spec's `- Status:`/history were not hand-edited.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -115,7 +115,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Over-scope: none. The spec file is in `Scope-Paths` because E-05 amends it, which is what makes the amendment visible to the runner's declared-spec-edit announcement and the finalize scope gate.
 - Under-scope: DELIBERATE AND NAMED. This plan makes a spec sweep SELECTABLE, not EXECUTABLE (F-2, F-3). A reader who expects `aw oc run reviews --type spec` to review specs end to end after this plan will be wrong, and E-02's validation must state the limit rather than imply the capability.
 - Under-scope, ADDED AT REVIEW: E-02 now needs a FIXTURE spec at `to-review` (F-7), which means a test file gains a fixture rather than reading the live tree. `tests/test_run_flag_surface.py` is already declared and already builds a real multi-type path set including a spec (`multi_type_paths`, `:329-333`), so the fixture machinery exists there and no new `Scope-Paths` entry is required. Reuse it rather than writing a second spec-fixture helper.
-- SCOPE NOTE ON THE DECLARED SPEC FILE, verified at review: `.aw/records/specs/...6m4kow...spec.md` stays declared and IS still modified by E-05, because the Section 0 row and Section 6 limit remain genuinely stale even though the gate half is already done (F-9). So no `--scope-ack` is expected for it. If an executor finds nothing left to change there, that is a signal to re-read F-9 rather than to acknowledge an unmodified path.
+- SCOPE NOTE ON THE DECLARED SPEC FILE, verified at review: `.aw/records/specs/...6m4kow...spec.md` stays declared and IS still modified by E-05, because the Section 0 row and Section 6 limit remain genuinely stale even though the gate half is already done (F-9). So no `--scope-ack` is expected for it. If an executor finds nothing left to change there, that is a signal to re-read F-9 rather than to acknowledge an unmodified path. CONFIRMED AT EXECUTION: every one of the five declared paths was modified, so NO `--scope-ack` was needed for any of them.
+- OUT-OF-SCOPE PATHS CHANGED AT EXECUTION (two), declared here rather than left for the finalize gate to discover. `aw check` reports the expected `check.scope-drift` naming exactly these, and each is a SHIPPED PINNED-COUNT TEST that measures the operator-visible flag surface and therefore FAILS BY DESIGN when a flag is added. Re-basing a pin is what its own failure message instructs ("If this change is intended, update EXPECTED_OPTION_STRINGS in the SAME change and say why"):
+  - `tests/test_rununify_build_parser.py`: `LIVE_PARTITION` shared count 56 -> 57, `POLICY_FLAG_ROWS` 14 -> 15, `LIVE_STRINGS_FROM_POLICY_TABLE` 23 -> 24, and `--type` added to all FOUR `start`/`resume` rows of `EXPECTED_OPTION_STRINGS`. Every number rose by exactly ONE and the HOST-SPECIFIC counts did not move, which is the property those pins exist to police: the flag reached both hosts because one shared table declares it.
+  - `tests/test_rununify_initialize_run.py`: `SHARED_OPTION_KEYS` gained `types` and `LIVE_OPTION_KEY_UNION` 36 -> 37, again through the one shared `freeze_run_policy_flags` expansion with the thirteen host-specific keys unmoved.
+  NEITHER file's ASSERTIONS were weakened; only the measured constants were re-based, with the measurement history appended beside each in the comment style those tables already use. The plan could not have declared these at authoring time without knowing which pinned counts a new flag would move, which is the kind of path the two-way reconciliation exists to surface rather than to forbid.
 
 ## Required tests / validation
 
@@ -149,33 +153,119 @@ Spec `6m4kow` is AMENDED by E-05: its Section 0 status table row for R-15, its S
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `--help` from BOTH hosts and BOTH subcommands (`start` and `resume`, per F-10; there is no `run` subparser) showing `--type`; paste the refusal for an unknown value with its listed accepted set; paste the flag-surface suite passing, including the accounting assertion that fails on `declared - owned - excluded`, proving the row was MOVED rather than duplicated. Then paste a bare `aw oc run reviews` selection before and after the change and show it IDENTICAL, because the normative default not widening is the load-bearing half of this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `--type` REGISTERED on BOTH hosts and BOTH subcommands (per F-10 there is no `run` subparser; `start` is the one the operator spelling reaches). Walked each built parser:
+```
+oc_runipd start:  --type ['--type'] choices=['ipd','spec','backlog','prompt','research','release','walkthrough'] default=None
+oc_runipd resume: --type ['--type'] choices=['ipd','spec','backlog','prompt','research','release','walkthrough'] default=None
+agy_runipd start: --type ['--type'] choices=['ipd','spec','backlog','prompt','research','release','walkthrough'] default=None
+agy_runipd resume:--type ['--type'] choices=['ipd','spec','backlog','prompt','research','release','walkthrough'] default=None
+```
+    IN `--help`, rendered from the shared table (`python3 -m agent_workflows.oc_runipd start --help`):
+```
+  --type TYPE           Scope a needs-review sweep to one or more artifact
+                        TYPES, repeatable (--type ipd --type spec selects the
+                        union). Omitted, the sweep selects IPDs ONLY, which is
+                        normative: a type never joins `reviews` implicitly.
+```
+    UNKNOWN VALUE REFUSED, listing the accepted set (argparse `choices`, so it refuses at parse time before any durable state):
+```
+$ python3 -m agent_workflows.oc_runipd start reviews --type bogus --repo .
+runipd start: error: argument --type: invalid choice: 'bogus' (choose from 'ipd', 'spec', 'backlog', 'prompt', 'research', 'release', 'walkthrough')
+```
+    THE ROW WAS MOVED, NOT DUPLICATED, which is what the accounting assertion measures (`declared - owned - excluded` must be empty):
+```
+--type owned: True        (in runner_shared.RUN_POLICY_FLAGS_BY_FLAG)
+--type still excluded: False  (removed from tests DECLARED_BUT_NOT_OWNED_HERE)
+rows: 15  unique flags: 15  unique dests: 15   (no collision; nothing collapsed)
+```
+    THE BARE DEFAULT IS UNCHANGED, which is the load-bearing half. Measured on the LIVE tree, both hosts:
+```
+oc  legacy=[] typed_ipd=[] default=[]  ALL EQUAL: True
+agy legacy=[] typed_ipd=[] default=[]  ALL EQUAL: True
+$ python3 -m agent_workflows.oc_runipd  start reviews --repo . --prepare-only ; echo $?   -> 0
+$ python3 -m agent_workflows.agy_runipd start reviews --repo . --prepare-only ; echo $?   -> 0
+```
+    `legacy` is `sweep_review_candidates`, the pre-change function, unchanged and still shipped. NOTE the live tree has ZERO plans at `to-review`, so the live comparison is `[] == [] == []` and is NOT sufficient on its own; the non-vacuous proof is `TypeScopedReviewSweepTests::test_a_bare_reviews_selection_is_byte_identical_to_the_ipd_only_sweep`, which builds a fixture holding two plans AND a `to-review` spec and asserts the bare sweep returns the plan only and equals both `--type ipd` and `sweep_review_candidates`.
+    THE FLAG-SURFACE SUITE PASSES, including the accounting gate:
+```
+$ python3 -m pytest tests/test_run_flag_surface.py
+70 passed in 4.69s     (before the new class was added)
+$ python3 -m pytest tests/test_run_flag_surface.py tests/test_rununify_build_parser.py tests/test_rununify_initialize_run.py
+167 passed in 7.15s
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the selection for `--type spec` against a FIXTURE spec at `to-review`, for `--type ipd`, and for a bare invocation, on BOTH hosts. Paste an empty `--type spec` case exiting 0. Paste a grep showing no second membership test was added and that both hosts reach the SAME shared function. THEN STATE PLAINLY, as a limitation and not a success, that a selected spec cannot yet be EXECUTED (F-2, F-3): a validation that omits this reads as a shipped capability.
   - DO NOT EXPECT THE LIVE TREE TO YIELD A POSITIVE CASE (F-7). The plan's four ids are stale and the live sweep returns `[]`; re-derive the population at execution and expect it EMPTY. If a live `--type spec` run returns anything, say so and explain it, because that means a spec was moved to `to-review` between this review and execution. A positive case demonstrated ONLY against the live tree, or a fixture created by advancing a real spec's status, does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BOTH hosts route the review sweep through the type-scoped entry point, and they reach the SAME function object:
+```
+same fn object: True   (oc_runipd.runner_shared.sweep_review_candidates_for_types is agy's)
+def needs_review in package: 1   (no second membership test was added)
+```
+    POSITIVE CASE, against a FIXTURE spec at `to-review` as F-7 requires, on both hosts (`TypeScopedReviewSweepTests::test_type_spec_selects_a_FIXTURE_spec_awaiting_review_on_both_hosts`): the fixture holds `spc001` at `to-review`, `spc002` at `approved`, and `pln001` at `to-review`; `--type spec` returns EXACTLY `['spc001']` on oc and agy. The `approved` spec is excluded because the dispatch table routes it to `plan`, which is membership being the table's rather than a status-string test.
+    THE FIXTURE IS NOT OPTIONAL AND WAS NOT MANUFACTURED FROM A REAL SPEC. Re-derived the live population at execution per F-7's instruction and it had moved a THIRD time: `sweep_review_candidates_for_type(repo, "spec")` returns `['z7nbn1']` at HEAD `a7e27f4a`, where the plan's Concern says four ids and F-7 measured `[]`. Recorded in the decisions register. No real spec's status was touched.
+    LIVE-TREE CONFIRMATION that the wiring reaches the real repository (this is the demonstration, NOT the durable assertion):
+```
+$ python3 -m agent_workflows.oc_runipd start reviews --repo . --prepare-only --type spec
+runipd: --type spec: this selection was RESOLVED but cannot be RUN. Selected:
+  20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md
+```
+    `--type ipd` AND THE BARE INVOCATION are byte-identical to before, on both hosts; see V-01's paste.
+    EMPTY IS A SUCCESS THAT EXITS 0 (spec 2.4a property 3), asserted both at the seam and as a real exit code in `test_an_empty_type_scoped_sweep_is_a_SUCCESS_that_exits_zero`: `EmptyStatusSelection` is raised, `main` returns 0, and no run directory is created. The live tree exercises this half by default for PLANS too (zero plans at `to-review`, both hosts exit 0).
+    THE LIMIT, STATED PLAINLY AND AS A LIMITATION RATHER THAN A SUCCESS (F-2, F-3): A SELECTED SPEC CANNOT BE EXECUTED. This plan delivers REACHABILITY only. A `--type spec` run selects the specs and is then REFUSED at queue build by `refuse_unrunnable_selected_types`, because a run queue entry is plan-shaped: the manifest is compiled from the plans trees, the queue builder reads `manifest["plans"][id6]`, and `resolve_plan_path` fails OPEN on a non-plan path (measured in superseded plan `mng63x`'s review), so queueing a spec would hand it to plan-shaped code SILENTLY rather than loudly. DECISION 12-ui8b9b-D4 records why refusing beats crashing and beats synthesizing a plan-shaped entry. The refusal NAMES what it selected, so the capability is usable even though the runner cannot act on it. Per-type dispatch is owned by spec `z7nbn1`, which carries its own `- Blocks-Release: next`. A reader must NOT read this item as "the runner can review a spec".
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the frozen value in run state, and paste a `resume` passing a DIFFERENT `--type` showing the pinned behavior (refusal or frozen-value-wins), plus the test that pins it. State which rule was chosen and why, citing the spec line, since `uyeko5` recorded a shipped divergence here and copying a neighbour silently would reproduce it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE RULE CHOSEN IS **REFUSE**, and the reason is recorded in full as DECISION 12-ui8b9b-D2 rather than copied from a neighbour (F-5's warning). Spec `25kzda` `:129` says `--resume` is "mutually exclusive with a new selector and with flags that would change the frozen queue or policy"; `--type` IS the selection, and the queue is already frozen, so an ACCEPTED `--type` on resume could not re-scope the queue - it could only write a frozen option CONTRADICTING the queue the run holds. That is strictly worse than refusing, and unlike `--full-auto` there is no `:129`-versus-`:131` tension to inherit, because `:129` names this exact case. Implemented as `resume_rule=RESUME_REFUSE`, the table's second refusing row after `--retry-budget`.
+    THE FROZEN VALUE, read back from real `state.json` on both hosts (a bare run freezes the EFFECTIVE default, never `null`):
+```
+oc  state["options"]["types"] == ["ipd"]
+agy state["options"]["types"] == ["ipd"]
+```
+    A RESUME PASSING A DIFFERENT `--type` IS REFUSED, before any state is loaded or written:
+```
+$ ... resume <run-id> --repo <repo> --type spec
+runipd: --type cannot be changed on --resume: spec 25kzda 2.1 freezes it at queue build
+        ('the frozen value cannot change on resume'). Resume the run without it, or start a new run
+resume exit code: 2
+```
+    AN OMITTED `--type` ON RESUME CHANGES NOTHING (the other half, without which the refusal would be satisfiable by an unusable flag): `apply_run_policy_flags_on_resume` returns False and the frozen `["ipd"]` survives, because the resume parser declares `default=None` so silence is distinguishable from an explicit value.
+    PINNED BY `TypeScopedReviewSweepTests::test_resume_REFUSES_a_different_type_rather_than_re_scoping_the_queue` (both halves, both hosts) and `test_the_effective_type_set_is_FROZEN_into_run_state`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the mixed-type gate REFUSING a real invocation with the `[RUN-MIXED-TYPES]` text and PROCEEDING under `--allow-mixed`, with `gate_applied=True`. A verdict carrying `gate_applied=False` does NOT satisfy this item: that is the single-type short circuit and is what a still-unreachable gate would also return. Paste the inverted limit test and show it asserts reachability while keeping the invariant it defended; a DELETED test does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE GATE FIRES ON A REAL INVOCATION, which is evidence nobody could produce before this plan. `test_the_mixed_type_gate_REFUSES_a_real_invocation_and_proceeds_with_allow_mixed` drives `initialize_run` on BOTH hosts with `reviews --type ipd --type spec --unattended` against a fixture holding a `to-review` plan and a `to-review` spec: the run raises carrying `[RUN-MIXED-TYPES]` and `No work started.`, and NO run directory is created. Adding `--allow-mixed` SATISFIES that gate (its refusal is gone) and the run then reaches the unrunnable-type refusal, which is itself the proof the mixed gate was satisfied rather than skipped.
+    `gate_applied=True` ON THE REAL PATH SET, which is the assertion the item demands and which `gate_applied=False` (the single-type short circuit) cannot satisfy. `test_the_gate_reports_gate_applied_TRUE_on_the_real_multi_type_path_set` builds the path set through the SAME `resolve_selected_artifact_paths` the runner uses and asserts: 2 of 2 artifacts resolved, the PLAN subset holds exactly 1, and the verdict carries `proceed=True`, `gate_applied=True`, `record.response_or_flag == "--allow-mixed"`.
+    THAT SEAM IS WHERE THIS COULD HAVE GONE WRONG SILENTLY, so it is called out: the gate is now handed the FULL typed path set (`selection.all_paths`), not the plan subset. Passing the plan subset would have filtered the spec out before the gate could see it, keeping the old limit permanently true by construction while every registration test still passed.
+    THE SUPERSEDED PINS WERE INVERTED, NOT DELETED (F-4), and there were TWO of them rather than the one the plan names - see DECISION 12-ui8b9b-D6:
+      * `test_no_live_invocation_can_yet_produce_a_mixed_selection` -> `test_a_live_invocation_CAN_now_produce_a_mixed_selection`. Its `assertNotIn("--type", ...)` became `assertIn` on both hosts and both subcommands, it now drives the gate to a real `[RUN-MIXED-TYPES]` refusal, and its DISCOVERY half is deliberately UNCHANGED: `discover_plans` must still return IPDs only, because `--type spec` reaches specs through `discover_specs` and a spec appearing in plan discovery would mean the normative default was widened by the back door.
+      * `test_the_combined_path_is_proven_correct_and_NOT_proven_fired` (NOT named by the plan, found at execution) carried the same stale `assertNotIn`. Its flag assertion was inverted while the invariant it actually defends was kept: a `--allow-drafts` run that is NOT mixed must not reach the combined mixed-plus-draft entry point. Its claim is now narrower and still true.
+    Both were deliberate handoff signals from `uyeko5` ("so registering `--type` later fails here rather than silently outgrowing it") and both failed by design before being inverted. NEITHER was deleted.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `6m4kow`'s front matter showing no `- Blocks-Release:`, this plan's showing it present, and `aw check` reporting no dangling or mismatched gate. Paste the spec's amended Section 0 row and Section 6 limit. Paste a `git diff` proving the spec's `- Status:` line is byte-unchanged and that its history was written by `aw specs note` rather than by hand.
   - THE GATE-CLEARING HALF IS ALREADY TRUE AND MUST BE REPORTED AS SUCH, NOT RE-PERFORMED (F-9). Verified at review that `6m4kow` carries no `- Blocks-Release:` line and that its own history records the clearing in commit `b16e1108`, the authoring round. So the front-matter evidence above is a CONFIRMATION of an existing state, and the item's original demand to "confirm the gate was carried by this plan BEFORE the spec's field was cleared" is satisfied by that history rather than by anything execution does. State it that way. Do NOT run `--blocks-release -` against the absent field; if you did, say so and show what it wrote, because a setter call on an approved spec this plan's author did not approve is a change worth surfacing.
   - THE REAL DELIVERABLE IS THE TWO STALE ASSERTIONS. Paste the BEFORE and AFTER of the Section 0 R-15 row (`:40`), showing it no longer says `--type` is registered on neither host AND no longer claims the sweep "returns the four `to-review` specs" (which F-7 measures as `[]`). Show the replacement describes the predicate rather than a frozen population, so it cannot rot the same way twice.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE GATE-CLEARING HALF WAS ALREADY TRUE AND WAS NOT RE-PERFORMED (F-9). Verified `6m4kow` carries NO `- Blocks-Release:` front-matter line (the 7 textual matches in the file are all PROSE about where the gate went), and its own history records the clearing in commit `b16e1108`, the authoring round. `aw specs set ... --blocks-release -` was NOT run: the field is absent, and a setter call against an absent field on an approved spec this plan's author did not approve would write a spurious history record. This plan still carries `- Blocks-Release: next` (line 20), so the gate was never carried by neither artifact.
+    THE REAL DELIVERABLE, the two stale assertions. Section 0's R-15 row, BEFORE:
+```
+| R-15 | IMPLEMENTED AT THE FUNCTION BOUNDARY, NOT OPERATOR-REACHABLE | `runner_shared.sweep_review_candidates_for_type(repo, "spec")` returns the four `to-review` specs; but `--type` is registered on NEITHER host, so no operator invocation can reach it |
+```
+    AFTER:
+```
+| R-15 | IMPLEMENTED AND OPERATOR-REACHABLE | `aw <host> run reviews --type spec` selects the specs the shipped predicate answers `needs_review` True for; `--type` is registered on BOTH hosts' `start` and `resume` parsers from the shared `RUN_POLICY_FLAGS` table and threaded to `sweep_review_candidates_for_type` (`ui8b9b`, `tests/test_run_flag_surface.py::TypeScopedReviewSweepTests`) |
+```
+    BOTH stale claims are gone: the "registered on NEITHER host" evidence AND the four-spec POPULATION. The replacement describes the PREDICATE and cites its tests, so it cannot rot the same way; the prose beneath it records that the population measured four, then `[]`, then one (`z7nbn1`) on three different days, and that a reader wanting today's answer runs the command. Section 6's honest limit is rewritten the same way: R-15's operator surface ships, and the REMAINING limit is restated as "you can ask and the runner refuses" with the plan-shaped-queue reason and `z7nbn1` named. Section 0's gate table now names spec `z7nbn1` instead of plan `mng63x`, and Section 7's non-goal no longer assigns `--type`'s registration to `uyeko5`.
+    A THIRD STALENESS WAS FOUND AND FIXED, beyond the two the item names: F-9 asserts `mng63x` is "present in `pending/` carrying the gate", and it is NOT - it was SUPERSEDED on 2026-09-18 by spec `z7nbn1` (per that spec's OQ-03) and sits in `.aw/records/plans/superseded/` with the gate carried forward to the spec. Leaving the spec pointing at a retired plan would have been a fourth stale claim. Recorded in the decisions register.
+    NO TOOL-OWNED FIELD WAS HAND-EDITED. `git diff` over the spec shows ZERO changed lines matching `^[-+]- (Status|Id|Date|Blocks-Release|Approval)`, so `- Status: approved` is byte-unchanged, and the amendment record was appended by `aw specs note` (its own confirmation: "appended a history record to ...").
+    `aw check` REPORTS NO DANGLING OR MISMATCHED GATE: zero `check.blocks-release-*`, `check.from-spec-dangling` or `check.from-backlog-gate-mismatch` diagnostics naming `ui8b9b`, `6m4kow` or `z7nbn1`. Baseline 54 findings, after 55; the ONE added finding is `check.scope-drift` on this plan, naming the two shipped pin files below, and it is reconciled by finalize's `--scope-reason` rather than being a gate failure.
+  - Result: pass
 
 ## Approval and execution gate
 
