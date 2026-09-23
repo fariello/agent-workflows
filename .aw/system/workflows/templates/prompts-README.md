@@ -1,11 +1,27 @@
 # .aw/records/prompts/
 
-Operational STAGING for prompts, organized by lifecycle state. Prompt files are named
-`YYYYMMDD-HHMM-NN-<slug>.md` (the creating machine's local date and time; `NN` is a two-digit
-per-minute sequence; `<slug>` is lowercase kebab-case), the same convention as plans.
+Operational STAGING for prompts, organized by lifecycle state. Prompt files use the uniform artifact
+grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.prompt.md` (the creating machine's local date; `<setid>` is
+the Set id, defaulting to the slug for a prompt that belongs to no group; `NN` is the order within
+that Set; `<id6>` is the prompt's own stable 6-character citation handle; `<slug>` is lowercase
+kebab-case; `.prompt` is the uniform artifact-type facet), the same convention as plans and specs.
+Do NOT hand-name a staged prompt: `aw prompts new` mints the id6 and derives the name and metadata
+(dry-run by default, `--apply` to write, never auto-staged).
 
-Recognized prompt kinds (front-matter `Kind:`): run-once / research prompts QUEUED to be executed
-(the original staging use), and `Kind: session-handoff` resume prompts produced by `/handoff` (a
+A legacy `YYYYMMDD-HHMM-NN-<slug>.prompt.md` name dated before this repository's `prompt_id6` cutover
+stays valid and is grandfathered; convert one on demand with
+`aw rename prompts <legacy-name> --to-id6`.
+
+Pipeline metadata lives in a SINGLE leading HTML comment on the first line of the file, and the
+prompt's `Id:` is one of its fields (never a `- Id:` bullet, which would render as visible text above
+the prompt body):
+
+```text
+<!-- aw-prompt: Kind: research | Id: <id6> | Set: <setid> | Status: pending | Created: 2026-08-30 | Author: <agent> (<model>) | Targets: ... | Concerns: ... -->
+```
+
+Recognized prompt kinds (the `Kind:` field of that comment): run-once / research prompts QUEUED to be
+executed (the original staging use), and `session-handoff` resume prompts produced by `/handoff` (a
 prompt for the NEXT session rather than a task to run now). Handoff drafts are written to the
 gitignored `untracked/` lane (below) and promoted only after review.
 

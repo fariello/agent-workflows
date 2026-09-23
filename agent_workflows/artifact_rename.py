@@ -216,6 +216,7 @@ def _update_frontmatter_metadata(
     set_id: Optional[str] = None,
     order: Optional[int] = None,
     id6: Optional[str] = None,
+    artifact_type: Optional[str] = None,
 ) -> None:
     """Update Set/Order (and, IPD ha55fi E-04, Id) metadata in the file frontmatter if present.
 
@@ -223,10 +224,32 @@ def _update_frontmatter_metadata(
     (after ``- Status:``, else ``- Date:``, else after the H1). When the file already carries an
     ``- Id:`` this is a no-op for that field (the existing id6 is reused, never re-minted); this is
     the idempotence property (V-04/V-05). Set/Order updates are unchanged.
+
+    ``artifact_type`` (IPD `ubac5n` E-04) ROUTES PROMPTS AWAY FROM THE BULLET, and this is a REPAIR of
+    a live defect rather than a new feature. `--to-id6` is a GENERIC flag on the shared rename verb,
+    so `aw rename prompts <legacy> --to-id6` already ran before this plan; measured in preview against
+    the real tree, it planned a correct rename PLUS `would inject '- Id: gym3i0'`. A prompt carries
+    NEITHER a `- Status:` NOR a `- Date:` bullet, so the third anchor fired and the bullet landed
+    directly under the H1, i.e. as VISIBLE TEXT inside the pasteable prompt body, violating approved
+    spec `20260808-1958-01-prompt-purity-lint` R1/P4. Nothing caught it because `aw prompts check`
+    (the purity lint that spec specifies) IS NOT IMPLEMENTED. So for `prompts` the id6 is written into
+    the EXISTING `<!-- aw-prompt: ... -->` comment through the SAME writer `aw prompts new` uses, and
+    every other type keeps the bullet, which is CORRECT for a plan or a spec (they do carry front
+    matter bullets) and must stay byte-unchanged.
     """
     try:
         text = file_path.read_text(encoding="utf-8")
     except OSError:
+        return
+
+    if artifact_type == "prompts" and id6 is not None:
+        # A prompt's id6 home is its one metadata comment, never a bullet. Delegated so the verb and
+        # the minter cannot disagree about where it lives.
+        from agent_workflows import prompts as _prompts
+
+        new_text = _prompts.inject_metadata_id6(text, id6=id6, set_id=set_id)
+        if new_text != text:
+            _core.atomic_write(file_path, new_text, prefix=".aw-meta-")
         return
 
     updated = False
@@ -265,12 +288,70 @@ def _update_frontmatter_metadata(
         _core.atomic_write(file_path, text, prefix=".aw-meta-")
 
 
-def _read_existing_id6(file_path: Path) -> Optional[str]:
-    """Return the id6 in a file's `- Id:` metadata, or None (IPD ha55fi E-04 idempotence read)."""
+def _id6_write_message(
+    artifact_type: Optional[str],
+    id6: str,
+    target_name: str,
+    *,
+    preview: bool,
+    src: Optional[Path] = None,
+) -> str:
+    """The preview/apply line describing WHERE the id6 is recorded in-file (IPD `ubac5n` E-04).
+
+    Exists so the message cannot describe a destination the writer does not use: a prompt's id6 goes
+    into the single `<!-- aw-prompt: ... -->` comment, every other type gets a `- Id:` bullet. The
+    NON-PROMPT wording is byte-identical to what shipped before (`would inject '- Id: x' into y` /
+    `injected '- Id: x' into y`), deliberately: the spec conversion's own tests assert that literal
+    text, and this plan must not change specs' behavior at all.
+
+    A PROMPT WITH NO METADATA COMMENT IS REPORTED HONESTLY rather than claimed as a write. 6 of the 17
+    measured prompts have no leading comment, and `prompts.inject_metadata_id6` deliberately refuses
+    to mint one (adding a line above the body is the very purity violation this repair removes), so
+    such a file keeps its id6 in the FILENAME only and the message says exactly that.
+    """
+    if artifact_type == "prompts":
+        from agent_workflows import prompts as _prompts
+
+        has_comment = True
+        if src is not None:
+            try:
+                has_comment = _prompts.has_metadata_comment(
+                    src.read_text(encoding="utf-8")
+                )
+            except OSError:
+                has_comment = False
+        if not has_comment:
+            verb = "would record" if preview else "recorded"
+            return (
+                f"{verb} id6 {id6} in the FILENAME ONLY of {target_name} "
+                f"(no aw-prompt metadata comment to write it into; one is NOT added, because a new "
+                f"line above the prompt body would violate the prompt-purity contract)"
+            )
+        verb = "would write" if preview else "wrote"
+        return (
+            f"{verb} 'Id: {id6}' into the aw-prompt metadata comment of {target_name}"
+        )
+    verb = "would inject" if preview else "injected"
+    return f"{verb} '- Id: {id6}' into {target_name}"
+
+
+def _read_existing_id6(
+    file_path: Path, artifact_type: Optional[str] = None
+) -> Optional[str]:
+    """Return the id6 a file already declares, or None (IPD ha55fi E-04 idempotence read).
+
+    ``artifact_type`` (IPD `ubac5n` E-04): a PROMPT declares its id6 inside the single
+    `<!-- aw-prompt: ... -->` comment rather than in a `- Id:` bullet, so the reader must match the
+    writer or a `--to-id6` re-run would re-mint over an identity the file already holds.
+    """
     try:
         text = file_path.read_text(encoding="utf-8")
     except OSError:
         return None
+    if artifact_type == "prompts":
+        from agent_workflows import prompts as _prompts
+
+        return _prompts.read_metadata_id6(text)
     m = _ID_LINE_RE.search(text)
     return m.group(1) if m else None
 
@@ -484,7 +565,7 @@ def run_rename_generic(
     minted_id6: Optional[str] = None
     inject_id6: Optional[str] = None
     if to_id6:
-        existing = _read_existing_id6(src)
+        existing = _read_existing_id6(src, artifact_type)
         if existing:
             minted_id6 = existing  # reuse; no metadata write needed (already present)
         else:
@@ -534,9 +615,26 @@ def run_rename_generic(
             f"--- would rename {src.relative_to(repo_root).as_posix()} -> {new_name} ---"
         )
         if to_id6 and inject_id6:
-            print(f"--- would inject '- Id: {inject_id6}' into {new_name} ---")
+            # The MESSAGE names the real destination per type (IPD ubac5n E-04): a prompt's id6 goes
+            # into its one metadata comment, not into a `- Id:` bullet, and a preview that said
+            # otherwise would describe a purity violation as the intended behavior.
+            print(
+                "--- "
+                + _id6_write_message(
+                    artifact_type, inject_id6, new_name, preview=True, src=src
+                )
+                + " ---"
+            )
         elif to_id6 and minted_id6:
-            print(f"--- reuses existing '- Id: {minted_id6}' (no re-mint) ---")
+            # Same per-type phrasing rule as the write message above: a prompt's existing id6 was
+            # read out of its metadata comment, so calling it a `- Id:` bullet would be false. The
+            # non-prompt text is byte-identical to what shipped (the spec tests assert "no re-mint").
+            existing_label = (
+                f"'Id: {minted_id6}' in the aw-prompt metadata comment"
+                if artifact_type == "prompts"
+                else f"'- Id: {minted_id6}'"
+            )
+            print(f"--- reuses existing {existing_label} (no re-mint) ---")
         if update_refs:
             for e in ref_edits:
                 try:
@@ -590,9 +688,17 @@ def run_rename_generic(
             set_id=_core.kebab(new_set) if new_set else None,
             order=new_order,
             id6=inject_id6,
+            artifact_type=artifact_type,
         )
         if inject_id6 is not None:
-            print(f"injected '- Id: {inject_id6}' into {dst.name}")
+            # Read `dst` (post-write) rather than `src` (already moved away): for a prompt WITH a
+            # comment the id6 is now in it, and for one WITHOUT the file is untouched, so the message
+            # reflects what is actually on disk in both cases.
+            print(
+                _id6_write_message(
+                    artifact_type, inject_id6, dst.name, preview=False, src=dst
+                )
+            )
         touched.append(_rel_to_repo(dst, repo_root))
 
     if update_refs and ref_edits:

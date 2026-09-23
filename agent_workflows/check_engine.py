@@ -57,6 +57,24 @@ SPEC_ID6_CUTOVER_DATE = (
     "20260828"  # compact YYYYMMDD; require_id6 iff filename date >= this
 )
 
+# Prompt id6-in-filename cutover (IPD ubac5n E-03 / OQ-02): prompts adopt the id6-clustered grammar
+# GOING FORWARD, so a prompt whose FILENAME date is at/after the cutover MUST be id6-clustered while
+# a pre-cutover prompt stays conformant in either shape (all 17 measured 2026-09-20 are pre-cutover
+# and remain valid). THIS CONSTANT IS THE FALLBACK, NOT THE BOUNDARY: `_prompt_requires_id6` resolves
+# `config.resolve_cutover_date(repo_root, "prompt_id6")` FIRST, exactly as `_spec_requires_id6` does,
+# so a repository moves its own boundary in `.aw/config/project.json` and never by editing Python.
+# The fallback is non-`None` DELIBERATELY, which is what avoids BOTH documented failure modes: a
+# config-only resolver fails open to `None` and grandfathers every prompt forever (the decoration
+# mode `CARRIER_CUTOVER_DATE`'s comment records, and the reason it chose a bare constant), while a
+# constant-only rule ships an immovable date in a repo that already moved that capability into
+# config. Value `20260921`: strictly AFTER the only conforming prompt already in the tree
+# (`20260920-plainlang-01-ng0ga4-...`, hand-named ahead of this plan), so that file's conformance
+# stays incidental rather than load-bearing, and every legacy name is grandfathered under either
+# shape. A future migration that mass-renames the legacy corpus may lower it.
+PROMPT_ID6_CUTOVER_DATE = (
+    "20260921"  # compact YYYYMMDD; require_id6 iff filename date >= this
+)
+
 # --------------------------------------------------------------------------------------
 # Versioned policy schema (agentadhere Phase 1, IPD uisjns).
 #
@@ -819,9 +837,13 @@ def check_names(
     ):
         # Spec id6 cutover (IPD ha55fi E-03): a spec dated at/after the spec_id6 cutover must be
         # id6-clustered; a pre-cutover spec is grandfathered (legacy HHMM-NN name still conforms).
-        require_id6 = record_type == "specs" and _spec_requires_id6(
-            p.name, repo_root=repo_root
-        )
+        # Prompt id6 cutover (IPD ubac5n E-03): the exact structural twin for prompts.
+        if record_type == "specs":
+            require_id6 = _spec_requires_id6(p.name, repo_root=repo_root)
+        elif record_type == "prompts":
+            require_id6 = _prompt_requires_id6(p.name, repo_root=repo_root)
+        else:
+            require_id6 = False
         if npn.is_conformant(p.name, expected_type=facet, require_id6=require_id6):
             continue
         # legacy=True allows a name that FAILS is_conformant but is a RECOGNIZED legacy shape
@@ -834,13 +856,21 @@ def check_names(
         if require_id6:
             from agent_workflows import config as _config
 
+            # One message shape, two features. The singular noun and the `aw rename <type>` recovery
+            # command are derived from `record_type` rather than hard-coded, so the prompt cutover
+            # cannot ship a message telling an operator to run the SPEC converter.
+            feature, fallback, noun = (
+                ("spec_id6", SPEC_ID6_CUTOVER_DATE, "spec")
+                if record_type == "specs"
+                else ("prompt_id6", PROMPT_ID6_CUTOVER_DATE, "prompt")
+            )
             cutover_disp = (
-                _config.resolve_cutover_date(repo_root, "spec_id6", compact=True)
-                or SPEC_ID6_CUTOVER_DATE
+                _config.resolve_cutover_date(repo_root, feature, compact=True)
+                or fallback
             )
             detail = (
-                f"spec dated at/after the id6 cutover ({cutover_disp}) must be "
-                f"id6-clustered; convert it with `aw rename specs {p.name} --to-id6 --apply`"
+                f"{noun} dated at/after the id6 cutover ({cutover_disp}) must be "
+                f"id6-clustered; convert it with `aw rename {record_type} {p.name} --to-id6 --apply`"
             )
         drift.append(
             _core.Drift(
@@ -873,6 +903,35 @@ def _spec_requires_id6(filename: str, repo_root: Optional[Path] = None) -> bool:
         cutover = _config.resolve_cutover_date(repo_root, "spec_id6", compact=True)
     if cutover is None:
         cutover = SPEC_ID6_CUTOVER_DATE
+    return m.group(1) >= cutover
+
+
+def _prompt_requires_id6(filename: str, repo_root: Optional[Path] = None) -> bool:
+    """True iff a prompt filename's leading YYYYMMDD date is at/after the prompt_id6 cutover date.
+
+    IPD `ubac5n` E-03. The EXACT STRUCTURAL TWIN of :func:`_spec_requires_id6`, deliberately, rather
+    than a second mechanism: resolve `cutovers.prompt_id6` from the repository's own
+    `.aw/config/project.json` FIRST, fall back to the module constant, and treat an unparseable
+    leading date as PRE-cutover so an unusual legacy shape is not force-failed by the boundary (the
+    normal grammar check still applies to it). `config.resolve_cutover_date` needed no change: it
+    already resolves an arbitrary feature key.
+
+    THE FALLBACK IS WHY THIS HAS NEITHER DOCUMENTED FAILURE MODE. Config-FIRST keeps the boundary
+    per-repository and movable without editing Python (which copying the deprecated bare constant
+    would have lost); a non-`None` CONSTANT fallback keeps the `error` tier reachable in a repository
+    that has not stamped the key, which is the `None`-grandfathers-everything decoration mode
+    `CARRIER_CUTOVER_DATE`'s comment records as its reason for choosing a bare constant.
+    """
+    m = _SPEC_DATE_RE.match(filename)
+    if m is None:
+        return False
+    cutover = None
+    if repo_root is not None:
+        from agent_workflows import config as _config
+
+        cutover = _config.resolve_cutover_date(repo_root, "prompt_id6", compact=True)
+    if cutover is None:
+        cutover = PROMPT_ID6_CUTOVER_DATE
     return m.group(1) >= cutover
 
 

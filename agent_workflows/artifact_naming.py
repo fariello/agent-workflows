@@ -35,9 +35,9 @@ reference matcher, and ``artifact_core`` never imports THIS module - the import 
 toward core (orchestrator g6mbht module-placement principle). Pure, stdlib-only, Python 3.9
 compatible.
 
-id6-less legacy types (OQ documentation requirement): prompts, roadmaps, releases, and walkthroughs
-do not yet carry an id6 in most on-disk names; they are represented here through the same clustered
-grammar when they DO have an id6 (e.g. a ``.spec.md`` faceted clustered name) and through the legacy
+id6-less legacy types (OQ documentation requirement): roadmaps, releases, and walkthroughs do not yet
+carry an id6 in most on-disk names; they are represented here through the same clustered grammar when
+they DO have an id6 (e.g. a ``.spec.md`` faceted clustered name) and through the legacy
 ``YYYYMMDD-HHMM-NN`` and dated-slug forms when they do not. This module still does NOT add an id6 to
 those types (out of scope); it only represents whatever shape they already use.
 
@@ -47,6 +47,20 @@ enforces the clustered grammar for specs dated at/after the repository's dynamic
 date (resolved dynamically via ``config.resolve_cutover_date`` / ``check_engine.SPEC_ID6_CUTOVER_DATE``).
 Pre-cutover legacy ``YYYYMMDD-HHMM-NN-<slug>.spec.md`` names remain valid (grandfathered) and can be
 converted on demand with ``aw rename specs <legacy> --to-id6``.
+
+PROMPTS ARE ALSO OUT OF THAT SET going forward (IPD ubac5n), on the same pattern and for the same
+reason a spec needed it: an artifact with no id6 is unresolvable by every `aw` verb, which for a
+staged prompt means it cannot be cited by the research report it produced. ``aw prompts new`` mints an
+id6 and emits the id6-clustered ``.prompt.md`` name via :func:`build_clustered_name`, and the checker
+enforces the clustered grammar for prompts dated at/after the repository's ``prompt_id6`` cutover
+(``config.resolve_cutover_date`` / ``check_engine.PROMPT_ID6_CUTOVER_DATE``). Pre-cutover legacy
+``YYYYMMDD-HHMM-NN-<slug>.prompt.md`` names remain valid (grandfathered) and convert on demand with
+``aw rename prompts <legacy> --to-id6``. NOTE the id6 destination differs by type: a spec gets a
+``- Id:`` front-matter bullet, while a prompt's id6 goes inside its single
+``<!-- aw-prompt: ... -->`` comment, because a bullet would be visible text above the prompt body
+(approved spec ``20260808-1958-01-prompt-purity-lint`` R1/P4). This REVERSES IPD ``jxqdcw`` OQ-02 on
+the maintainer's explicit instruction (2026-09-20), which was a resolved choice on the evidence then
+available and not an oversight.
 """
 
 from __future__ import annotations

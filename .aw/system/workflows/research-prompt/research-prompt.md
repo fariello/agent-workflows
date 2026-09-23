@@ -6,7 +6,7 @@ This workflow is a PRODUCER: it drafts a prompt for another AI to execute. It do
 
 ## What this workflow does and does not do
 
-- It PRODUCES one upload-ready research handoff prompt (`.prompt.md`), minted by `aw prompts new` into `.aw/records/prompts/pending/`. The verb derives the filename (`YYYYMMDD-HHMM-NN-<slug>.prompt.md`); never hand-name it.
+- It PRODUCES one upload-ready research handoff prompt (`.prompt.md`), minted by `aw prompts new` into `.aw/records/prompts/pending/`. The verb mints the prompt's `<id6>` and derives the filename in the uniform grammar (`YYYYMMDD-<setid>-NN-<id6>-<slug>.prompt.md`); never hand-name it. Record that `<id6>`: it is how the research report this prompt produces can cite the prompt that asked the question.
 - It is read-only with respect to product code and durable reference records.
 - It writes a `Status: pending` draft and does NOT `git add`, stage, commit, or push the prompt file.
 - It does NOT execute the research inquiry or write research result documents (the prompt instructs the target AI to produce the research report).
@@ -105,7 +105,9 @@ Return your entire answer as a single DOWNLOADABLE markdown file named `<topic>-
      --apply
    ```
 
-   Omit `--apply` first if you want to preview the path it will use. The verb prints the path it wrote; use that path for the remaining steps. Do NOT compute a timestamp or sequence number, and do NOT hand-write the `<!-- aw-prompt: ... -->` comment: both are the verb's job, and hand-writing them is what drifted the existing corpus.
+   Pass `--set <setid>` when this prompt belongs to a group of related prompts; omit it for a lone prompt and the slug becomes its own singleton Set.
+
+   Omit `--apply` first if you want to preview the path it will use. The verb prints the path it wrote; use that path for the remaining steps. Do NOT compute an id6, a Set id, or an order number, and do NOT hand-write the `<!-- aw-prompt: ... -->` comment: all of them are the verb's job, and hand-writing them is what drifted the existing corpus. NOTE the minted `<id6>` appears in both the filename and that comment; report it to the user, because it is the handle the eventual research report cites.
 
 2. APPEND your Step 3 prompt body to that file, after the metadata comment the verb wrote. Add nothing else: no user-facing instructions, no delimiters, no template scaffolding.
 3. Run `aw check-local-leaks <the-file>` (or `python3 -m agent_workflows check-local-leaks <the-file> --agent`) to ensure no machine or maintainer identifying leaks were introduced.

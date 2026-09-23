@@ -513,9 +513,10 @@ _DESCRIPTIONS = {
     ),
     "prompts new": (
         "Mint a conforming staged prompt under .aw/records/prompts/pending/ (dry-run by default; "
-        "--apply to write). Derives the filename (YYYYMMDD-HHMM-NN-<slug>.prompt.md) and writes the "
-        "single leading `<!-- aw-prompt: ... -->` metadata comment, and NO body: the prompt body is "
-        "yours to author, since any other content would break prompt purity. Never auto-staged."
+        "--apply to write). Derives the filename in the uniform clustered grammar "
+        "(YYYYMMDD-<setid>-NN-<id6>-<slug>.prompt.md) and writes the single leading "
+        "`<!-- aw-prompt: ... -->` metadata comment carrying the minted id6, and NO body: the prompt "
+        "body is yours to author, since any other content would break prompt purity. Never auto-staged."
     ),
     "set": (
         "Transition lifecycle status for one or more plan, spec, prompt, or backlog artifacts, "
@@ -5389,6 +5390,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "EXAMPLES\n"
             "  aw prompts new --kind research --slug token-compression\n"
             "  aw prompts new --kind research --slug token-compression --apply\n"
+            "  aw prompts new --kind research --slug token-compression --set tokenwork --apply\n"
             "\n"
             "SAFETY & DEFAULTS\n"
             "  Dry-run by default: nothing is written without --apply.\n"
@@ -5411,10 +5413,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Mint a conforming staged prompt in pending/ (dry-run by default; --apply to write).",
         description=(
             "Create a conforming staged prompt under .aw/records/prompts/pending/ (dry-run by default; "
-            "--apply to write). Derives the filename (YYYYMMDD-HHMM-NN-<slug>.prompt.md, with NN a "
-            "per-minute sequence computed across the whole prompts tree) and writes the single leading "
-            "`<!-- aw-prompt: ... -->` metadata comment. It writes NO body: the prompt body is yours to "
-            "author, and any other content would violate the prompt-purity contract. Never auto-staged."
+            "--apply to write). Derives the filename in the uniform clustered grammar "
+            "(YYYYMMDD-<setid>-NN-<id6>-<slug>.prompt.md, with NN the order within the Set and <id6> a "
+            "freshly minted repository-unique handle) and writes the single leading "
+            "`<!-- aw-prompt: ... -->` metadata comment carrying that id6. It writes NO body: the prompt "
+            "body is yours to author, and any other content would violate the prompt-purity contract. "
+            "Never auto-staged."
         ),
     )
     p_prompts_new.add_argument(
@@ -5424,6 +5428,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--slug",
         default=None,
         help="Short descriptive kebab slug (required; becomes the filename slug).",
+    )
+    p_prompts_new.add_argument(
+        "--set",
+        default=None,
+        help="Set id for the filename's set slot (default: the slug, i.e. a singleton set of one).",
     )
     p_prompts_new.add_argument(
         "--kind",
@@ -5455,7 +5464,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--date", default=None, help="Override the created date (YYYY-MM-DD)."
     )
     p_prompts_new.add_argument(
-        "--time", default=None, help="Override the filename time component (HHMM)."
+        "--time",
+        default=None,
+        help="Accepted and validated but no longer part of the name (the clustered grammar has no "
+        "HHMM slot); kept so an existing invocation still parses.",
     )
     p_prompts_new.add_argument(
         "--apply", action="store_true", help="Write the file (default is preview only)."

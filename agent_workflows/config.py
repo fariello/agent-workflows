@@ -1186,6 +1186,13 @@ KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
     # above names: `resolve_cutover_date` would fail open to `None` forever, the `error` tier would
     # be unreachable, and the length rule would ship as decoration.
     "setid_length": "2026-09-23",
+    # promptid6 `ubac5n` E-03. The prompts id6-in-filename adoption, the exact twin of `spec_id6`
+    # above. Registered for the reason the block comment gives: WITHOUT the entry
+    # `resolve_cutover_date` falls through to its tier-3 `None` in any repository that has not hand
+    # written the key, and `check_engine._prompt_requires_id6` would then lean on its module fallback
+    # forever instead of a per-repo stamped boundary. The value is the FEATURE INTRODUCTION date, not
+    # the enforcement boundary; `sync_cutovers_on_install` stamps the per-repo boundary from it.
+    "prompt_id6": "2026-09-21",
 }
 
 
