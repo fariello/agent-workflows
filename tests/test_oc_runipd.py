@@ -8725,9 +8725,14 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
             and "oc_runipd" in node.module
             for alias in node.names
         }
+        # THE COUNT ASSERTION IS DELETED (2026-09-23), same reason as its twin in
+        # `tests/test_agy_runipd_cli.py`: it pinned 56 peer-runner imports, the real figure is 4 after
+        # that count was deliberately driven down by `1f7xno` and the hostdedup work, and pinning it
+        # made the test fail when the defect its docstring describes was FIXED. The two lines below are
+        # the actual contract: this symbol must live in `runner_shared` and must not be imported from
+        # the peer runner.
         self.assertNotIn("cost_attribution_record", from_oc)
         self.assertNotIn("COST_ATTRIBUTION_KEY", from_oc)
-        self.assertEqual(len(from_oc), 56, sorted(from_oc))
 
 
 class TheConsumerBoundaryHoldsTests(unittest.TestCase):

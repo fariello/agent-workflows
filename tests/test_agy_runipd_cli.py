@@ -2645,7 +2645,12 @@ class AgyCostAttributionTests(unittest.TestCase):
             and "oc_runipd" in node.module
             for alias in node.names
         }
-        self.assertEqual(len(from_oc), 56, sorted(from_oc))
+        # THE COUNT ASSERTION IS DELETED (2026-09-23). It read `assertEqual(len(from_oc), 56)` and
+        # asserted nothing about correctness: the real number is now 4, because `1f7xno` and the
+        # hostdedup work removed 52 of those imports, which is the OUTCOME this test's own docstring
+        # says it wants. A test that fails when the defect it describes gets FIXED is worse than no
+        # test, and it failed for exactly that reason. What this test is actually for is the line
+        # below: this ONE symbol must not be imported from the peer runner.
         self.assertNotIn("cost_attribution_record", from_oc)
 
 
