@@ -1,3 +1,57 @@
+RETIRED 2026-09-23: superseded by executed plan `1f7xno` (runnerlayer Order 02) for the majority of
+its scope, and REFUSED for the remainder because its central move is one main deliberately reverted.
+Superseded by `1f7xno` plus the corrective work tracked by backlog `zt2b16`.
+
+WHY, MEASURED AT HEAD `22cf67d9` AGAINST THIS PLAN'S OWN TWELVE SYMBOLS AND THREE GROUPS.
+
+GROUP (a), six drifted near-identical symbols: THREE are done. `reclaim_lanes_on_interrupt`,
+`reconcile_disposition` and `reconcile_interrupted` now have ONE definition in `runner_shared` and both
+hosts delegate to it. THREE remain duplicated: `expand_selectors` (oc 104 / agy 105 unparse lines),
+`_lane_reclaim_prompt` (37/37) and `_add_output_mode_flags` (6/6).
+
+GROUP (a'), `enforce_dependency_preflight` (this plan's F-9 correction): DONE. One definition in
+`runner_shared`, no `oc_runipd` copy.
+
+GROUP (b), the three agy stubs reaching into `oc_runipd`: NOT DONE, and this is the part that makes the
+plan unsafe rather than merely redundant. `agy_runipd` still lazily imports
+`classify_recovery_disposition`, `build_verify_and_continue_notice` and `route_recovery_turn` from
+`oc_runipd`, so the inverted runner-to-runner dependency this plan was written to remove survives. BUT
+`1f7xno` ATTEMPTED EXACTLY THIS CONSOLIDATION AND REVERTED IT, and the reason is recorded both at
+`agy_runipd.route_recovery_turn` and in backlog `zt2b16` (`high`, `Blocks-Release: next`, open):
+`runner_shared.classify_recovery_disposition` reads `st.path` and `st.base_commit` off the
+`worktree_lease.LaneState` NamedTuple, which has neither field (the real ones are `worktree_path` and
+`base_sha`), so it raises `AttributeError` on any lane that exists. It was never reachable in a shipped
+path, so nothing caught it. Consolidating the hosts onto that copy - which is what this plan's E-03
+does - adopts a body that cannot run; four `tests/test_resumedupe.py` tests failed that way when
+`1f7xno` tried it. `zt2b16` states the correct remedy, and it is NOT this plan's tactic: decide which
+body is authoritative (the host's, on the evidence), DELETE the other, and bind both hosts to the
+survivor. This is a pure-move plan and cannot do a reconciliation.
+
+GROUP (c), two genuinely differing symbols: `_record_forced_stop` has a `runner_shared` copy that
+NEITHER host uses (same dead-shared-copy shape as group (b)); `retry_deferred_integrations` is still
+two bodies (oc 100 / agy 69).
+
+THE REDUNDANCY IS ALSO MEASURED, not asserted. Diffing `runner_shared`'s top-level definitions against
+the merge base: `main` added 64, this lane added 68, and exactly ONE
+(`enforce_dependency_preflight`) was added by BOTH independently, which the trial merge duplicated.
+The lane's only unique contributions are `expand_selectors`, `_add_output_mode_flags`,
+`_lane_reclaim_prompt` and `reattempt_deferred_integrations_for_host`.
+
+INTEGRATION WAS ATTEMPTED AND ABANDONED ON EVIDENCE. A trial merge in a throwaway worktree resolved 20
+conflict hunks across 9 files and drove the suite from 453 failures to 208 to 75; the residue is two
+large parallel rewrites of the same three modules disagreeing about census counts and guard tables.
+Recovering four symbols is not worth reconciling that, and group (b) must not be recovered at all.
+
+THIS PLAN ALSO NEVER ACTUALLY PASSED ITS OWN GUARDS. Its three run-reported failures reproduce on the
+lane ALONE, not only after merging: it deleted `agy_runipd`'s `_read_status` while
+`tests/test_runner_refork_guard.py` requires that re-export of BOTH runners, and neither
+`test_runner_refork_guard.py` nor `test_runner_item_dependencies.py` is in its `- Scope-Paths:`. The
+run recorded it `merge-refused` with an `integration_failed_combined_red` verdict, which named the
+merge and not the lane; the lane was red by itself.
+
+THE BRANCH `aw/lane/nmlx47` IS PRESERVED and is NOT deleted by this retirement. Successor work is
+tracked by backlog `zt2b16` for the reconciliation, and the remaining pure-move symbols are named above.
+
 # IPD: Unify the twelve small divergent symbols behind HostLabels
 
 - Date: 2026-09-17
@@ -6,7 +60,7 @@
 - Scope: Resolve all twelve divergent symbols to ONE definition in `runner_shared` per shape: reconcile the drifted ones and lift them, parameterizing prompt suppression (`is_prompt_disabled` / `disable_prompt_fn`) so prompt suppression on repeated interrupts functions correctly without hanging; re-point the three agy stubs at `runner_shared` eliminating the inverted runner-to-runner import; unify the genuine differences through injected wrappers; and lift `enforce_dependency_preflight` to `runner_shared` now that `DriverError` is unified. Close the guard hole that allowed inverted imports. All twelve symbols move, achieving the parent Set criterion (34 forks reduced to the 5 large functions) and graduating backlog `8hx3g3`.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_review_findings_cascade.py, tests/test_hostdedup_divergent_unify.py, tests/test_rununify_initialize_run.py, tests/test_rununify_execute_item.py, tests/test_rununify_run_queue.py, tests/test_rununify_build_parser.py, tests/test_resumedupe.py, tests/test_orchestrator_probe_cache.py, tests/test_runner_shared.py, tests/test_review_lane_isolation.py
 - Item-Dependencies: executed:li44r9
-- Status: approved
+- Status: superseded
 - Readiness: go-pending-approval
 - From-Backlog: dstnso, 8hx3g3
 - Set: hostdedup
@@ -14,9 +68,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: nmlx47
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 superseded (aw set): Superseded by executed plan 1f7xno (runnerlayer Order 02) for the majority of its scope, and REFUSED for the remainder. Measured at HEAD 22cf67d9 against this plan's own three groups: group (a) is half done (reclaim_lanes_on_interrupt, reconcile_disposition, reconcile_interrupted are shared; expand_selectors, _lane_reclaim_prompt, _add_output_mode_flags are not), group (a') enforce_dependency_preflight is DONE, group (b) is NOT done, and group (c) is not done. THE DECIDING FACT is group (b): 1f7xno attempted exactly this consolidation and REVERTED it, because runner_shared.classify_recovery_disposition reads st.path/st.base_commit off a LaneState NamedTuple that has neither field, so it raises AttributeError on any lane that exists; four tests/test_resumedupe.py tests failed that way. Backlog zt2b16 (high, Blocks-Release: next, open) records it and states the remedy is a RECONCILIATION (pick the authoritative body, delete the other, bind both hosts), which a pure-move plan cannot do. Redundancy measured: main added 64 runner_shared definitions, this lane 68, exactly one in common. A trial merge resolved 20 hunks across 9 files and went 453 -> 208 -> 75 failures before I stopped. Also: this plan never passed its own guards; its three failures reproduce on the lane ALONE because it deleted agy_runipd._read_status while test_runner_refork_guard.py requires it of BOTH runners, and neither failing test file is in its Scope-Paths. Branch aw/lane/nmlx47 is PRESERVED.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 /plan-review (antigravity): APPROVE WITH REVISIONS APPLIED; Round 2 review complete. OQ-04 (PR-001) and OQ-05 (PR-002) resolved with maintainer authority: all 12 symbols move in this plan; prompt suppression is parameterized without hanging; enforce_dependency_preflight moves to runner_shared; 8hx3g3 graduated; import ratchet scoped to 3 stubs; readiness promoted to go-pending-approval.
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 13 findings, 11 FIXED, PR-001 (three of the twelve are unliftable: _lane_reclaim_prompt reads the module-level mutable flag the permanently-unmovable disable_lane_prompt writes, open backlog 8hx3g3) and PR-002 (a guard banning the oc-to-agy coupling would delete 44 pinned re-exports the approved runnerlayer Set owns) left OPEN at BLOCKER and escalated as blocking OQ-04/OQ-05; readiness no-go; typed review record under .aw/records/reviews/
