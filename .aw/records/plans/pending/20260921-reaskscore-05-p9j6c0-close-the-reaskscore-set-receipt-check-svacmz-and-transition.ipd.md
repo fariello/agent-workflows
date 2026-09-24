@@ -43,26 +43,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: receipt check, then the record transitions
 
-- [ ] E-01 RECEIPT-CHECK `svacmz`'s FOUR VALIDATION ITEMS, by reading its executed plan file rather than by re-performing its work. This is deliberately a receipt check and NOT a second verification: `svacmz` owns the predicate-unweakened pins (its E-01/E-02) and both measured-shape reconstructions plus the collision case (its E-03/E-04), and duplicating them here would put the same assertions in two places with no second observer.
+- [x] E-01 RECEIPT-CHECK `svacmz`'s FOUR VALIDATION ITEMS, by reading its executed plan file rather than by re-performing its work. This is deliberately a receipt check and NOT a second verification: `svacmz` owns the predicate-unweakened pins (its E-01/E-02) and both measured-shape reconstructions plus the collision case (its E-03/E-04), and duplicating them here would put the same assertions in two places with no second observer.
   READ `svacmz`'s OWN V-ITEM TEXT AS THE BAR, NOT THE PARAPHRASE BELOW, because that plan's review CHANGED two of these bars and a receipt check against a stale paraphrase would pass evidence its owner would reject. Two corrections, both measured at review HEAD `73e370ae` against `svacmz`'s current file. (1) `V-01` REQUIRES EIGHT DEFINITION SITES, NOT FIVE: its text reads "A statement that 'the constants are unchanged' without the values FAILS this item, and so does a paste covering only five sites, because the duplicated names are the ones a one-sided edit hides in" - five NAMES across EIGHT sites in three files, plus the three `TERMINAL_STATES` copies shown mutually equal and `EXECUTE_REPORTING_SUCCESS_STATES` shown still equal to `SUCCESS_STATES - {"reviewed"}` as a DERIVATION. A five-site paste FAILS by that item's own words, so accepting one here would launder the exact hole its review closed. (2) `V-02` DOES NOT DEMAND A CLEAN `git diff`: its review found the empty-diff bar already unsatisfiable (3 insertions / 2 deletions from unrelated main commit `eee6f427`, zero assertion lines) and re-expressed it at ASSERTION level, so the bar is that each changed line is a comment, docstring or citation, or else is attributed to the sibling that changed it. Requiring a clean diff here would manufacture a failure its owner explicitly ruled out.
   CONFIRM, then, on `svacmz`'s file: `V-01` carries the eight sites' ACTUAL VALUES plus the two derivation checks; `V-02` carries the pin output plus the assertion-level diff attribution for both pin files; `V-03` and `V-04` carry the SHAPE A and SHAPE B reconstruction output, the per-item retry counter values, and the collision case. An empty or hand-waved `Observed evidence` block on any of those four is a FAILURE of this item, and the Set is not complete - report it rather than compensating by running the checks here.
   EXPECT THE FAILURE PATH TODAY AND DO NOT TREAT IT AS YOUR OWN FAULT. Measured at review HEAD, `svacmz` is `approved` in `pending/` with all four `Observed evidence` blocks EMPTY and all four `Result: pending`. If that is still true when you run, the correct output of this item is a named upstream failure, E-02 and E-03 must NOT proceed (OQ-01), and this plan should report that the Set is not closeable yet. Say which blocks were empty.
   - Depends on: none
   - Expected outcome: a per-item statement quoting the evidence line that satisfies each of `svacmz`'s `V-01`..`V-04` AGAINST THAT PLAN'S CURRENT TEXT (eight sites for `V-01`, assertion-level attribution for `V-02`), or a named upstream failure identifying which block was empty.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 TRANSITION `yxfw4k` HONESTLY, RESPECTING ITS RELEASE GATE. Set it `done` ONLY IF its defect is fixed AND validated by `svacmz`'s evidence, as confirmed in E-01; if E-01 found that evidence absent, this item must NOT close it. Pass `--evidence` citing `svacmz`'s plan file, because that is the artifact that actually validated the fix, and do NOT clear the gate with `--blocks-release -`, which would discharge a release blocker by deleting it.
+- [x] E-02 TRANSITION `yxfw4k` HONESTLY, RESPECTING ITS RELEASE GATE. Set it `done` ONLY IF its defect is fixed AND validated by `svacmz`'s evidence, as confirmed in E-01; if E-01 found that evidence absent, this item must NOT close it. Pass `--evidence` citing `svacmz`'s plan file, because that is the artifact that actually validated the fix, and do NOT clear the gate with `--blocks-release -`, which would discharge a release blocker by deleting it.
   DO NOT RELY ON THE CLOSE-LEGITIMACY GATE TO CATCH YOU, because for THIS item it does not. The item's text formerly asserted that `aw backlog set done` "FAILS CLOSED" here; measured at review HEAD `73e370ae` by calling the shipped predicate directly, `check_engine.evaluate_blocking_close(repo, yxfw4k, "done", evidence=None)` returns LEGITIMATE via route HANDOFF, reason "gate 'next' handed off to a From-Backlog plan or spec" - with NO evidence passed at all. The cause is that four plans carry `From-Backlog: yxfw4k` with the same `Blocks-Release: next` (`skn8uk`, `ty7w6o`, `s0gnha`, `svacmz`), and the predicate checks HANDOFF before SATISFIED, so the handoff route short-circuits. TWO CONSEQUENCES, and the second is the one that matters. FIRST, `--evidence` here is BELT-AND-BRACES rather than the thing that unlocks the command, so its route will report HANDOFF and not SATISFIED; do not read that as a failure, and do not go hunting for a different citation to force the SATISFIED route. SECOND, and this is the real point: the tool will NOT stop you closing this item on absent evidence. Two of its four handoff carriers (`s0gnha`, `svacmz`) are themselves still `approved` in `pending/`, so the gate is being preserved by plans that have not run. THE ONLY THING STANDING BETWEEN THIS ITEM AND A FALSE CLOSE IS E-01's RECEIPT CHECK AND YOUR HONESTY. State in your evidence which route the predicate actually reported.
   - Depends on: E-01
   - Expected outcome: `yxfw4k` is `done` with a tool-written history entry citing `svacmz`'s plan file via `--evidence`, and the gate was NOT cleared; pasted command output, plus the route the predicate reported (expected HANDOFF, per the measurement above) stated explicitly rather than assumed to be SATISFIED.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 TRANSITION `x7wfyx` TO `graduated`, NOT `done`, AND DO NOT CLEAR ITS `Blocks-Release`. The reason is substantive and is the parent's: only its item B is implemented, so `done` would assert delivery of work that was not delivered. `graduated` is the correct state - the design is handed off while code for the remainder is not written - and the release gate must SURVIVE the transition, because the undelivered half still gates the release. Use `aw backlog set` so the history entry is tool-written.
+- [x] E-03 TRANSITION `x7wfyx` TO `graduated`, NOT `done`, AND DO NOT CLEAR ITS `Blocks-Release`. The reason is substantive and is the parent's: only its item B is implemented, so `done` would assert delivery of work that was not delivered. `graduated` is the correct state - the design is handed off while code for the remainder is not written - and the release gate must SURVIVE the transition, because the undelivered half still gates the release. Use `aw backlog set` so the history entry is tool-written.
   NAME BOTH HALVES BY THEIR ACTUAL CONTENT, verified against the item's own "What is still missing" section at review HEAD `73e370ae`, so the history entry is checkable rather than a bare letter. DELIVERED, ITEM B: "a zero-work turn is terminal when it could be retryable" - and record the CORRECTION the item itself carries, because it changes what was delivered: its trigger is a HOST truncation and not an agent choice, so the signal is recorded by `ty7w6o` as `attempt["host_truncation"]` plus a `host-truncated-turn` event and `dy9ymn` consumes it to decide the retry. NOT DELIVERED, ITEM A: "the agent is not told how much turn it has left" - the driver knows `stall_timeout` and `MAX_TURN_TIMEOUT` and the agent knows neither, which the item records as "still worth doing but would NOT have prevented the measured incident". That last clause is why `graduated` rather than `done` is honest and also why the gate must survive: the remaining half is real work, and the item is `Work-Kind: bug`, which under this repo's every-live-bug-gates-the-release rule MUST carry `Blocks-Release` while it is live - and `graduated` IS live.
   NOTE `graduated` IS NOT GATED by the close-legitimacy predicate (only `done` is checked, and `parked` warns), so no refusal will stop you here and nothing will complain if the gate goes missing. Preserving it is therefore entirely on you: `aw backlog set graduated` without `--blocks-release -` leaves it in place, so simply do not pass that flag, and then PROVE it by pasting the front matter afterwards.
   - Depends on: E-01
   - Expected outcome: `x7wfyx` is `graduated` with its `- Blocks-Release: next` intact, and its history entry names both halves BY CONTENT (B delivered via the `host_truncation` signal, A outstanding), not merely by letter; pasted command output plus the item's front matter showing the gate still present.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -108,7 +108,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - RE-PERFORMING `svacmz`'s VERIFICATIONS. It owns them; duplicating them here would place the same
   assertions in two files with no second observer, which is the parent's own stated reason for making
   E-02 a receipt check.
-  - Carrier: svacmz
+  - Carrier-Declined: AN EXCLUSION, NOT A DEFERRAL. Re-performing svacmz's verifications is owned by
+    svacmz itself, which has executed and validated all four items; duplicating them on this closing plan
+    was excluded by design to prevent unobserved duplicate assertions.
 - ANY PRODUCT CODE CHANGE. The three children delivered the code; this plan closes the records.
   - Carrier-Declined: AN EXCLUSION, NOT A DEFERRAL. This plan's entire purpose is to transition records
     honestly, and a product change here would be the defect rather than the deliverable (the parent's own
@@ -161,21 +163,98 @@ rather than incidental record sync, and E-02/E-03 own them.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: for each of `svacmz`'s `V-01`..`V-04`, quote the evidence line that satisfies it, AGAINST THAT PLAN'S CURRENT BAR rather than a paraphrase: for `V-01` the EIGHT definition sites' actual values (not five - that plan's own text says a five-site paste FAILS) plus the three `TERMINAL_STATES` copies shown mutually equal and `EXECUTE_REPORTING_SUCCESS_STATES` shown still equal to `SUCCESS_STATES - {"reviewed"}` as a derivation; for `V-02` the pin output plus the ASSERTION-LEVEL attribution for each changed line in both pin files (a demand for a CLEAN `git diff` is wrong and that plan's review measured it unsatisfiable); for `V-03`/`V-04` the SHAPE A / SHAPE B output, the per-item retry counter values, and the collision case. A statement that they "carry evidence" without quoting it FAILS this item, and so does accepting a five-site `V-01` paste. Plus the bare `python3 -m pytest` summary line on the merged result.
     A REPORTED UPSTREAM FAILURE IS A PASS FOR THIS ITEM, not a failure to work around, and at review HEAD it is the expected outcome (all four blocks empty). Naming which blocks were empty, and leaving both backlog items untransitioned, SATISFIES this item. Quietly running `svacmz`'s checks yourself and reporting them as its evidence FAILS it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Receipt check of `svacmz` (`.aw/records/plans/executed/20260919-reaskscore-04-svacmz-prove-the-composed-reaskscore-fix-against-both-measured-shap.ipd.md`), which executed at commit `e665a86a` / workflow history `2026-09-24 executed`:
+    1. Quoted `svacmz` `V-01` evidence (eight definition sites across three files, mutual equality, and derivation):
+       - `EXECUTION_SUCCESS_STATES` (3 sites):
+         `agent_workflows/runner_shared.py:21633`: `EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}` (pre-Set: `{'executed', 'substantially-complete'}`)
+         `agent_workflows/oc_runipd.py:843`: `EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES` (pre-Set: `{'executed', 'substantially-complete'}`)
+         `agent_workflows/agy_runipd.py:763`: `EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES` (pre-Set: `{'executed', 'substantially-complete'}`)
+         Identity: `oc_runipd.EXECUTION_SUCCESS_STATES is runner_shared.EXECUTION_SUCCESS_STATES` -> True; `agy_runipd.EXECUTION_SUCCESS_STATES is runner_shared.EXECUTION_SUCCESS_STATES` -> True.
+       - `SUCCESS_STATES` (3 sites):
+         `agent_workflows/runner_shared.py:21616`: `SUCCESS_STATES = {"executed", "reviewed", "approved"}` (pre-Set: `{'executed', 'reviewed', 'approved'}`)
+         `agent_workflows/oc_runipd.py:838`: `SUCCESS_STATES = runner_shared.SUCCESS_STATES` (pre-Set: `{'executed', 'reviewed', 'approved'}`)
+         `agent_workflows/agy_runipd.py:758`: `SUCCESS_STATES = runner_shared.SUCCESS_STATES` (pre-Set: `{'executed', 'reviewed', 'approved'}`)
+         Identity: `oc_runipd.SUCCESS_STATES is runner_shared.SUCCESS_STATES` -> True; `agy_runipd.SUCCESS_STATES is runner_shared.SUCCESS_STATES` -> True.
+       - `TERMINAL_STATES` (3 sites):
+         `agent_workflows/oc_runipd.py:813`: `{'executed', 'reviewed', 'approved', 'substantially-complete', 'partial', 'blocked', 'dependency-blocked', 'failed-safely', 'not-attempted', 'integration-blocked', 'merge-conflict', 'merge-needs-human', 'merge-refused'}`
+         `agent_workflows/agy_runipd.py:733`: `{'executed', 'reviewed', 'approved', 'substantially-complete', 'partial', 'blocked', 'dependency-blocked', 'failed-safely', 'not-attempted', 'integration-blocked', 'merge-conflict', 'merge-needs-human', 'merge-refused'}`
+         `agent_workflows/runner_shared.py:24241`: `frozenset({'substantially-complete', 'not-attempted', 'dependency-blocked', 'integration-blocked', 'executed', 'approved', 'partial', 'merge-conflict', 'blocked', 'reviewed', 'failed-safely', 'merge-needs-human', 'merge-refused'})`
+         Mutual equality: `set(oc_runipd.TERMINAL_STATES) == set(agy_runipd.TERMINAL_STATES) == set(runner_shared.TERMINAL_STATES)` -> True (13 states, deferrable pair `merge-retry`/`merge-unchecked` absent).
+       - `EXECUTE_REPORTING_SUCCESS_STATES` (1 site):
+         `agent_workflows/runner_shared.py:21719`: `EXECUTE_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(SUCCESS_STATES - {"reviewed"})` (pre-Set: `frozenset({'executed', 'approved'})`)
+         Derivation: `runner_shared.EXECUTE_REPORTING_SUCCESS_STATES == frozenset(runner_shared.SUCCESS_STATES - {"reviewed"}) == frozenset({"executed", "approved"})` -> True.
+       - `SET_RETIREMENT_DONE_STATUS` (1 site):
+         `agent_workflows/runner_shared.py:13996`: `SET_RETIREMENT_DONE_STATUS = "executed"` (pre-Set: `"executed"`)
+       All 15 assertions pass in `tests/test_reaskscore_composed.py::TestSharedConstantsByteIdenticalAndUnwidened`.
+    2. Quoted `svacmz` `V-02` evidence (pin output and assertion-level diff attribution):
+       Baseline commit: `git merge-base HEAD f3da906e` -> `f3da906e0714fe33a20c321e3c7f87a4f3b180eb`.
+       - `tests/test_rununify_run_queue.py`: `TheEqualConstantsStayEqualAcrossHosts::test_the_equal_constants_are_still_equal_across_hosts` PASSED. Diff against baseline touches vocabulary modernization (`l2mzxn`), zero assertions relaxed or deleted.
+       - `tests/test_rununify_execute_item_gates.py`:
+         - `test_submissions_are_collected_before_the_disposition_is_reconciled` PASSED (`min(collect) < max(disposition_assign)`)
+         - `test_the_disposition_is_reconciled_before_integration` PASSED (`max(disposition_assign) < self._first_line(calls, "integrate_lane_branch", host)`)
+         - `test_the_post_reask_rescore_precedes_the_integration_GATE` PASSED (added by `skn8uk` commit `2909713d` to strengthen the gate ordering pin).
+       All gate ordering and cross-host pins pass unweakened in `tests/test_reaskscore_composed.py::TestCrossHostPinsAndOrdering` and `tests/test_rununify_execute_item_gates.py`.
+    3. Quoted `svacmz` `V-03` evidence (SHAPE A reconstruction across both hosts):
+       - Stage 1: Turn 1 of `zqs0px` produces no outcome file (initial fallback score: `partial`).
+       - Stage 2: Defect re-ask triggers and completes work in lane, writing outcome file and committing work.
+       - Stage 3: Re-collection and rescore in `execute_item_core` rescores `partial` -> `substantially-complete` and emits `ipd-rescored` event.
+       - Final state: `zqs0px` status: `substantially-complete` (inside `EXECUTION_SUCCESS_STATES`). Sibling `qmgn12` (`dependencies: ["executed:zqs0px"]`): NOT `dependency-blocked`; executed to completion (`status: executed`). Sibling cascade events: 0 `dependency-blocked` events for siblings.
+       Passing test: `tests/test_reaskscore_composed.py::TestReconstructShapeAComposed::test_shape_a_rescued_turn_rescores_and_siblings_do_not_cascade[oc_runipd]` and `[agy_runipd]`.
+    4. Quoted `svacmz` `V-04` evidence (SHAPE B reconstruction, collision case, general exclusivity):
+       - SHAPE B Reconstruction: Host-truncated turn with zero work (no outcome, 0 commits, clean lane) is detected by `turn_attempted_nothing` (`attempted_nothing=True`). Turn is re-dispatched once within budget (`retry_budget=1`): `attempts`: 2 (`[{"number": 1, ...}, {"number": 2, ...}]`), `zero_work_retries_used`: 1. Final status: `zqs0px` = `executed`, `qmgn12` = `executed`.
+       - Collision Case (Host-truncated and Rescued): Turn truncated by host during turn 1, rescued by defect re-ask (outcome written, lane committed). Rescored to `substantially-complete`. Zero-work retry predicate evaluated on attempt: REFUSED (`decision.retry=False`) on both load-bearing conditions (outcome file written: True, lane commits_ahead > 0). Turn runs ONCE (`attempts`: 1, `zero_work_retries_used` not set), rescored and NOT retried.
+       - General Exclusivity Argument from Two Load-Bearing Conditions: Main checkout `starting_head == ending_head` and `ending_status == ""` are VACUOUS on isolated turns (they hold by construction). Exclusivity holds in general because: (a) Rescore requires `"outcome" in receipt["collected"]` (outcome file present); (b) `turn_attempted_nothing` refuses when `outcome_written=True` (condition 1: "an outcome file WAS written..."); (c) `turn_attempted_nothing` refuses when `commits_ahead > 0` (condition 3: "the lane holds ... commit(s)...").
+       Passing tests: `tests/test_reaskscore_composed.py::TestReconstructShapeBAndCollisionExclusivity::*` (all 5 cases pass).
+    5. Bare `python3 -m pytest` summary line on merged result:
+       `4 failed, 8812 passed, 3 skipped, 2 xfailed, 6 warnings in 189.58s (0:03:09)`
+       (The 4 failures are pre-existing outside reaskscore in orchestrator probe / frozen state / lint corpus; all reaskscore tests pass cleanly: 97 passed in 4.64s).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw backlog set done yxfw4k ...` output showing it SUCCEEDED, plus the `--evidence` citation used, plus the item's resulting front matter, plus the ROUTE the close-legitimacy predicate reported. THREE FAILURE CONDITIONS. An execution that reached success by passing `--blocks-release -` FAILS this item even though the command exited 0, because that discharges a release blocker by deleting the gate. A close performed while E-01 reported absent evidence FAILS it, and the tool WILL NOT CATCH THIS: the predicate returns legitimate via HANDOFF with no evidence at all (F-05), so exit 0 is not proof of legitimacy here and must not be offered as such. And an evidence block asserting the SATISFIED route FAILS as a misreading: HANDOFF is checked first and is what this item will report, which is why the route must be stated rather than assumed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 1. Pasted command output:
+       ```
+       $ aw backlog set done yxfw4k --yes --evidence .aw/records/plans/executed/20260919-reaskscore-04-svacmz-prove-the-composed-reaskscore-fix-against-both-measured-shap.ipd.md --message "Verified and validated by svacmz (reaskscore Order 04): composed fix rescored after defect re-ask and proven against SHAPE A and SHAPE B without widening shared constants." --no-commit
+       - >  backlog     20260919-reaskscore-01-yxfw4k  [high]  [blocking]  graduated → ✓  done
+       ```
+    2. Evidence citation:
+       `.aw/records/plans/executed/20260919-reaskscore-04-svacmz-prove-the-composed-reaskscore-fix-against-both-measured-shap.ipd.md`
+    3. Resulting front matter (`.aw/records/backlog/done/20260919-reaskscore-01-yxfw4k-reask-completes-work-but-is-never-rescored.backlog.md`):
+       - `Id: yxfw4k`
+       - `Status: done`
+       - `Blocks-Release: next`
+       - `Set: reaskscore`
+       - `Priority: high`
+       - `Work-Kind: bug`
+       - `Summary: A defect re-ask that completes the work is never rescored, so a successful turn is recorded partial and cascades dependency-blocked to its whole Set`
+    4. Close-legitimacy predicate route evaluated programmatically via `check_engine.evaluate_blocking_close(repo, item_path, "done", evidence=...)`:
+       `CloseVerdict(legitimate=True, severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec", fixes=(), path='HANDOFF')`
+       Reported route: `HANDOFF` (as expected and measured per F-05, since `From-Backlog: yxfw4k` plans exist).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `aw backlog set graduated x7wfyx ...` output, plus the item's front matter AFTER the transition showing `- Blocks-Release: next` STILL PRESENT, plus the history message quoted showing it names BOTH halves by content: item B delivered (a zero-work turn is now retryable, its trigger recorded as `attempt["host_truncation"]` by `ty7w6o` and consumed by `dy9ymn`) and item A outstanding (the agent is still not told its remaining turn budget). A transition to `done` FAILS this item. A transition that cleared the gate FAILS it, and note nothing will refuse that for you: the predicate gates only `done`, so `graduated` passes unexamined and the pasted front matter is the ONLY proof the gate survived. A history message naming the halves only by letter ("item B done, item A not") FAILS, because a later reader cannot check a letter.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 1. Pasted command output:
+       ```
+       $ aw backlog set graduated x7wfyx --yes --message "Graduated with Blocks-Release: next preserved. Item B delivered: a zero-work turn is retryable when it attempted nothing, with trigger recorded as attempt['host_truncation'] (ty7w6o) and consumed by zero-work retry logic (dy9ymn). Item A outstanding: telling the agent its remaining turn budget is not delivered and continues to gate the release." --no-commit
+       - >  backlog     20260918-x7wfyx-01-x7wfyx  [medium]  [blocking]  done → ●  graduated
+       ```
+    2. Resulting front matter AFTER transition (`.aw/records/backlog/graduated/20260918-x7wfyx-01-x7wfyx-zero-work-turn-retry-and-turn-budget.backlog.md`):
+       ```markdown
+       - Id: x7wfyx
+       - Status: graduated
+       - Blocks-Release: next
+       - Set: x7wfyx
+       - Priority: medium
+       - Work-Kind: bug
+       - Summary: Tell the agent its remaining turn budget, and retry a turn that provably attempted nothing instead of letting one partial block a whole Set
+       ```
+    3. Quoted history message naming both halves by content with `- Blocks-Release: next` preserved:
+       `- 2026-09-24 graduated (aw set): Graduated with Blocks-Release: next preserved. Item B delivered: a zero-work turn is retryable when it attempted nothing, with trigger recorded as attempt['host_truncation'] (ty7w6o) and consumed by zero-work retry logic (dy9ymn). Item A outstanding: telling the agent its remaining turn budget is not delivered and continues to gate the release.`
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -1,5 +1,5 @@
 - Id: yxfw4k
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: reaskscore
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: A defect re-ask that completes the work is never rescored, so a successful turn is recorded partial and cascades dependency-blocked to its whole Set
 
 ## Workflow history
+- 2026-09-24 done (aw set): Verified and validated by svacmz (reaskscore Order 04): composed fix rescored after defect re-ask and proven against SHAPE A and SHAPE B without widening shared constants.
 - 2026-09-19 graduated (aw set): Design handed off to Set `reaskscore` (orchestrator `s0gnha` plus children `skn8uk`, `ty7w6o`, `dy9ymn`), all carrying `From-Backlog: yxfw4k` and inheriting `Blocks-Release: next`, so the release gate is preserved through the handoff. NOT `done`: the plans are `to-review` awaiting human approval and no code is written yet. This also resolves the `check.orphaned-live-blocker` advisory, whose suggested `aw backlog set done` would have claimed completion that has not happened.
 - 2026-09-19 created (aw backlog): Measured twice on 2026-09-18 (zqs0px, zz5yxq): the re-ask completed and committed the work, recollect wrote the executed outcome to the path reconcile_disposition reads, and nothing rescored it; both runs went BLOCKED with 3 siblings dependency-blocked each
 
