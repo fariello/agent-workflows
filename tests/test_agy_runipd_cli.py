@@ -17,7 +17,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, cli
+from agent_workflows import agy_runipd, cli, runner_shared
 from tests import support
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
@@ -2635,7 +2635,17 @@ class AgyCostAttributionTests(unittest.TestCase):
 
     def test_agy_does_not_import_the_record_builder_FROM_oc_runipd(self):
         """Layering: the shared symbol is sited in `runner_shared`, never added to `oc_runipd` for agy
-        to import, which would deepen the one-way import defect backlog `cnwy8g` owns."""
+        to import, which would deepen the one-way import defect backlog `cnwy8g` owns.
+
+        THE RESIDUAL IS PINNED BY NAME, NOT BY COUNT, and that is a correction. This test was written
+        against a 56-name surface and asserted the bare number 56; `1f7xno` then re-homed 52 of those
+        names into `runner_shared` (its own commit message: "the oc-to-agy import surface goes from 56
+        names to 4"). The two plans were executed in PARALLEL from a common base, so neither lane's
+        suite could see the other's work and the stale number only failed once both were on `main`.
+        A bare count cannot say which names it expected, so the failure could not explain itself; the
+        set below can, and it is shared with the oc-side twin of this test.
+        """
+
         tree = ast.parse(open(agy_runipd.__file__, encoding="utf-8").read())
         from_oc = {
             alias.name
@@ -2645,7 +2655,7 @@ class AgyCostAttributionTests(unittest.TestCase):
             and "oc_runipd" in node.module
             for alias in node.names
         }
-        self.assertEqual(len(from_oc), 56, sorted(from_oc))
+        self.assertEqual(from_oc, set(runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD))
         self.assertNotIn("cost_attribution_record", from_oc)
 
 

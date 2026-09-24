@@ -8705,8 +8705,16 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
         self.assertEqual(reason, oc_models.CARD_MODEL_NOT_DECLARED)
 
     def test_the_shared_symbol_lives_in_runner_shared_NOT_in_oc_runipd(self):
-        """Layering: agy already imports 56 names from `oc_runipd` and adding a 57th would deepen the
-        defect backlog `cnwy8g` owns."""
+        """Layering: agy already imports names from `oc_runipd` and adding one more would deepen the
+        defect backlog `cnwy8g` owns.
+
+        THE RESIDUAL SURFACE IS PINNED BY NAME, in `runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD`, shared
+        with the agy-side twin of this test. This docstring used to assert "56 names" and the body
+        asserted that number; `1f7xno` re-homed 52 of them while this test was being written on a
+        parallel branch, so the figure was stale the moment both landed. See that constant for the full
+        account and for why the residual 4 are the intended resting point.
+        """
+
         self.assertTrue(hasattr(runner_shared, "cost_attribution_record"))
         self.assertEqual(
             runner_shared.cost_attribution_record.__module__,
@@ -8727,7 +8735,7 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
         }
         self.assertNotIn("cost_attribution_record", from_oc)
         self.assertNotIn("COST_ATTRIBUTION_KEY", from_oc)
-        self.assertEqual(len(from_oc), 56, sorted(from_oc))
+        self.assertEqual(from_oc, set(runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD))
 
 
 class TheConsumerBoundaryHoldsTests(unittest.TestCase):

@@ -1917,6 +1917,45 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
             "the VALUE is pinned too: unifying the object must not have changed the bar",
         )
 
+    def test_the_pinned_oc_to_agy_import_surface_matches_the_SOURCE(self):
+        """The guard set must be MEASURED against the real imports, not merely asserted somewhere.
+
+        WHY THIS EXISTS AS A THIRD TEST. Two tests already compare agy's imports against
+        `AGY_IMPORTS_FROM_OC_RUNIPD`, so both would pass if the constant and the source drifted
+        TOGETHER, and both would pass if the constant were quietly widened to match a new import. This
+        one states the property those cannot: the constant IS the source's actual surface and the
+        reverse direction is EMPTY. It replaces a pair of bare `len(...) == 56` assertions that had gone
+        stale (see the constant's own note), and it is sited here, beside the constant, so a reader
+        finds the account and its enforcement in one place.
+        """
+
+        def _imports(module_name: str, from_module: str) -> set[str]:
+            source = (
+                pathlib.Path(getattr(runner_shared, "__file__")).parent
+                / f"{module_name}.py"
+            )
+            tree = ast.parse(source.read_text(encoding="utf-8"))
+            return {
+                alias.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom)
+                and node.module
+                and from_module in node.module
+                for alias in node.names
+            }
+
+        self.assertEqual(
+            _imports("agy_runipd", "oc_runipd"),
+            set(runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD),
+            "agy's real imports from oc drifted from the pinned set; SHRINKING is progress (update "
+            "the constant), GROWING deepens the cnwy8g coupling and needs a reason",
+        )
+        self.assertEqual(
+            _imports("oc_runipd", "agy_runipd"),
+            set(),
+            "the reverse direction must stay EMPTY: oc must never import from agy",
+        )
+
     def test_the_action_aware_bar_is_the_SAME_OBJECT_from_every_module_that_exposes_it(
         self,
     ):

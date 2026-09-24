@@ -21334,6 +21334,38 @@ SUCCESS_STATES = {"executed", "reviewed", "approved"}
 #: layering correction". This is that correction; both hosts now re-export this one object.
 EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
 
+#: The names `agy_runipd` still imports FROM `oc_runipd`, i.e. the residual one-way coupling backlog
+#: `cnwy8g` tracked and `1f7xno` reduced from 56 to these 4. The reverse direction is ZERO and must
+#: stay there.
+#:
+#: WHY THIS IS A NAMED SET RATHER THAN A COUNT, which is the whole point of siting it here. Two tests
+#: (`test_agy_runipd_cli.py` and `test_oc_runipd.py`) guard this surface, and both were written by
+#: `w33lrl` asserting the bare number 56. `1f7xno` was re-homing those very names AT THE SAME TIME, on
+#: a parallel branch from a common base, and its commit message states the outcome: "the oc-to-agy
+#: import surface goes from 56 names to 4". Neither lane's suite could see the other's work, each
+#: passed in isolation, and the pair broke only once BOTH were on `main` - a merge-visible-only failure
+#: the merge-and-revalidate gate does not catch, because it revalidates the incoming branch and not
+#: every pair of branches. A bare count also cannot say WHICH names it expected, so the failure could
+#: not explain itself; whoever hit it had to reconstruct the history to find out that 56 was simply
+#: stale. A named set fails with the actual diff instead.
+#:
+#: WHY 4 IS THE INTENDED RESTING POINT AND NOT AN ACCIDENT. `1f7xno` moved everything it could prove
+#: safe to move. `route_recovery_turn` is here DELIBERATELY: its shared copy is AST-identical but
+#: resolves `classify_recovery_disposition` in the shared namespace, where that sibling reads
+#: `st.path`/`st.base_commit` off a `worktree_lease.LaneState` whose real fields are
+#: `worktree_path`/`base_sha`, so the consolidation was tried, broke four `test_resumedupe.py` tests
+#: with that exact `AttributeError`, and was reverted with the reason recorded. So this set SHRINKING
+#: is progress and a reviewer should update it; this set GROWING deepens a known defect and needs a
+#: reason.
+AGY_IMPORTS_FROM_OC_RUNIPD = frozenset(
+    {
+        "build_verify_and_continue_notice",
+        "classify_recovery_disposition",
+        "record_item_spec_edits",
+        "route_recovery_turn",
+    }
+)
+
 #: The durable, explicit fact that an item was NOT dispatched because its plan still needs human
 #: approval (zz5yxq E-03). Frozen onto the queue entry as a boolean under this KEY, and reported as
 #: this TOKEN, which is deliberately the one the rest of the package already ships for exactly this
