@@ -6,7 +6,7 @@
 - Scope: Build the shared placement library the maintainer ruled for in OQ-04, and adopt it in every spec writer plus the two types whose branches it replaces. IN: one module answering "where does a record of type T with status S live" for both TRANSITION and CREATION, adopted by `status_set.run_set_command`, the forked `specs.run_set`, and `specs.run_new`, with the existing `plans`/`prompts`/`backlog` branches replaced by calls to it and regression evidence that their behavior is byte-identical. OUT: moving any spec file (that is the migration child `1bdxcp`), making the specs readers recursive (that is `y4bdoz`), and promoting location-equals-status to a fail-closed `aw check` rule.
 - Scope-Paths: agent_workflows/record_placement.py, agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/layout.py, agent_workflows/attention_contract.py, tests/test_record_placement.py, tests/test_layout.py, tests/test_specs_status_dirs.py, .aw/records/specs/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
 - Item-Dependencies: executed:y4bdoz
-- Status: approved
+- Status: executed
 - Work-Kind: chore
 - Priority: medium
 - Readiness: go-pending-approval
@@ -15,10 +15,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: r9uvwc
-- Approval: 2026-09-22, recorded via aw ipd set: status set to approved
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: r9uvwc verified (set specdirs, attempt 1). [Scope reconciliation - out-of-scope tests/test_graduated_to_link.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_spec_id6_filenames.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_spec_review_attestation.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_status_set.py: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified agent_workflows/attention_contract.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item qzhfk2 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-22 approved (aw set): status set to approved
 - 2026-09-21 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-21, findings PR-001..E-06. Recomputed at HEAD `9792662f`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
