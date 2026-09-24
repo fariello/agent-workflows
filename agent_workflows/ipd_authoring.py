@@ -121,6 +121,8 @@ _AUTHORING_PLACEHOLDERS = (
     "- Scope: TODO.",
     "- Scope-Paths: TODO",
     "- Item-Dependencies: unresolved",
+    "- Work-Kind: unresolved",
+    "- Priority: unresolved",
     _SECTION_BODY[
         S.H_GOAL
     ],  # "TODO: one or two sentences on what this plan achieves and why."
@@ -249,6 +251,11 @@ def build_skeleton(
     # from the intra-plan `Depends on:` E-item ordering.
     lines.append("- Item-Dependencies: unresolved")
     lines.append("- Status: draft")
+    # Priority and Work-Kind (planprio lkexaw E-01; spec 20260802 Section 4.4/9.2): emit the reserved
+    # `unresolved` sentinel so a freshly scaffolded plan is an honest not-ready draft. Positioned
+    # immediately after `- Status:` to match where shipped writers anchor.
+    lines.append("- Work-Kind: unresolved")
+    lines.append("- Priority: unresolved")
     lines.append(f"- Set: {set_name}")
     lines.append(f"- Order: {order}")
     lines.append("- Highest E allocated: 01")

@@ -222,7 +222,12 @@ META_GRADUATED_TO = "Graduated-To"
 # only stops the IPD-M103 "unknown field" lint error; the ENUM value check lives in the `aw check`
 # surface (check.priority-invalid), NOT the schema layer, mirroring Scope-Paths/Blocks-Release/
 # From-Backlog. Absent = unprioritized (no forced default; existing plans are not mass-failed).
+# Required at the ready-to-execute gate (planprio lkexaw E-02).
 META_PRIORITY = "Priority"
+# The reserved sentinel values that grandfather a pre-cutoff plan or mark an untriaged scaffold draft
+# (planprio lkexaw E-02; mirroring SCOPE_PATHS_GRANDFATHERED and ITEM_DEPENDENCIES_UNRESOLVED).
+PLAN_PRIORITY_GRANDFATHERED = "grandfathered"
+PLAN_PRIORITY_UNRESOLVED = "unresolved"
 # wkindname Order ng2blv (graduated from backlog 1ap48y): a recognized-but-OPTIONAL `Work-Kind` field
 # recording the NATURE of the work (bug/feature/chore/security/followup). The shared vocabulary is
 # `backlog.KINDS` (imported by the `aw check` rule; do NOT fork it and do NOT define a per-type
@@ -233,8 +238,10 @@ META_PRIORITY = "Priority"
 # Recognition here only stops the IPD-M103 "unknown field" lint error; the ENUM value check lives in
 # the `aw check` surface (check.work-kind-invalid), NOT the schema layer, mirroring Priority/
 # Scope-Paths/Blocks-Release/From-Backlog. Absent = unclassified (no forced default; existing plans
-# are not mass-failed).
+# are not mass-failed). Required at the ready-to-execute gate (planprio lkexaw E-02).
 META_WORK_KIND = "Work-Kind"
+PLAN_WORK_KIND_GRANDFATHERED = "grandfathered"
+PLAN_WORK_KIND_UNRESOLVED = "unresolved"
 # fullauto Order 97df1z: the STRUCTURED readiness signal a review records, replacing the prose match
 # the `--full-auto` auto-approve gate used to regex out of a model-authored history line. The values
 # are the house bare-lowercase-kebab enum (cf. `Status:`, `Kind:`, `Priority:`, `Gate-Kind:`) mapped
@@ -614,6 +621,56 @@ def parse_scope_paths(value: str) -> Tuple[List[str], bool, List[str]]:
         if err:
             errors.append(err)
     return paths, False, errors
+
+
+def parse_plan_priority(value: str) -> Tuple[Optional[str], bool, Optional[str]]:
+    """Parse a `Priority` metadata value on an IPD (planprio lkexaw E-02).
+
+    Returns ``(priority, is_grandfathered, error)`` where ``is_grandfathered`` is True
+    iff value is PLAN_PRIORITY_GRANDFATHERED. When valid, ``priority`` is the vocabulary
+    value (or None if grandfathered). Pure.
+    """
+    from agent_workflows import backlog as _backlog
+
+    v = value.strip()
+    if v == PLAN_PRIORITY_GRANDFATHERED:
+        return None, True, None
+    if v in _backlog.PRIORITIES:
+        return v, False, None
+    if v == PLAN_PRIORITY_UNRESOLVED:
+        return (
+            None,
+            False,
+            "Priority is still the 'unresolved' scaffold sentinel; declare low, medium, or high",
+        )
+    if not v:
+        return None, False, "Priority must not be empty"
+    return None, False, f"priority not in {sorted(_backlog.PRIORITIES)}: {v!r}"
+
+
+def parse_plan_work_kind(value: str) -> Tuple[Optional[str], bool, Optional[str]]:
+    """Parse a `Work-Kind` metadata value on an IPD (planprio lkexaw E-02).
+
+    Returns ``(work_kind, is_grandfathered, error)`` where ``is_grandfathered`` is True
+    iff value is PLAN_WORK_KIND_GRANDFATHERED. When valid, ``work_kind`` is the vocabulary
+    value (or None if grandfathered). Pure.
+    """
+    from agent_workflows import backlog as _backlog
+
+    v = value.strip()
+    if v == PLAN_WORK_KIND_GRANDFATHERED:
+        return None, True, None
+    if v in _backlog.KINDS:
+        return v, False, None
+    if v == PLAN_WORK_KIND_UNRESOLVED:
+        return (
+            None,
+            False,
+            "Work-Kind is still the 'unresolved' scaffold sentinel; declare bug, feature, chore, security, or followup",
+        )
+    if not v:
+        return None, False, "Work-Kind must not be empty"
+    return None, False, f"work kind not in {sorted(_backlog.KINDS)}: {v!r}"
 
 
 # --------------------------------------------------------------------------------------

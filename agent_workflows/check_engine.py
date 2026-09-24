@@ -375,6 +375,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.priority-invalid": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # planprio lkexaw E-04: Priority required at the ready-to-execute gate.
+    # Staged severity is warning (which drives a nonzero exit per drift_exit_code), end state error.
+    # Invariant is "" because no catalog invariant (I-01..I-16) covers triage metadata.
+    "check.ipd-priority-required": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # Recognized-but-optional Work-Kind enum on a plan's own metadata (wkindname ng2blv). Same class
     # as its Priority sibling above: an out-of-vocab `- Work-Kind:` value is an error; an ABSENT
     # Work-Kind is silent (optional), which is what keeps the existing corpus from being mass-failed.
@@ -384,6 +390,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # design; nothing routes backlog through this registry.
     "check.work-kind-invalid": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # planprio lkexaw E-04: Work-Kind required at the ready-to-execute gate.
+    # Staged severity is warning (which drives a nonzero exit per drift_exit_code), end state error.
+    # Invariant is "" because no catalog invariant (I-01..I-16) covers triage metadata.
+    "check.ipd-work-kind-required": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
     # Authoring-lifecycle nudge (catalog I-12): a finished draft should advance to to-review. This
     # is GUIDANCE and only detectable (placeholder-free draft), so info-severity + heuristic.
@@ -1007,6 +1019,17 @@ def check_content(
         try:
             drift.extend(
                 check_plan_work_kind(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
+            )
+        except Exception:
+            pass
+        # planprio lkexaw E-04: enforce Priority and Work-Kind at the ready-to-execute gate.
+        try:
+            drift.extend(
+                check_plan_priority_required(
                     repo_root,
                     include_untracked=include_untracked,
                     include_retired=include_retired,
@@ -4435,13 +4458,15 @@ def check_plan_priority(
 
     Priority is OPTIONAL on an IPD (schema RECOGNIZES it; the enum value check lives HERE, in
     `aw check`, per the documented convention). A plan carrying an out-of-vocab `- Priority:` value
-    is flagged `check.priority-invalid`; a plan with a valid value (or NO Priority at all) is silent.
+    is flagged `check.priority-invalid`; a plan with a valid value (or NO Priority at all, or the
+    `grandfathered` sentinel admitted by planprio lkexaw E-09) is silent.
     The vocabulary is the SHARED `backlog.PRIORITIES` (imported, never forked). This is a plain
     metadata-enum check on the plan's OWN field (precedent: backlog.validate_item's priority guard),
     NOT a cross-tree dangling/reference check, so it runs in the plans-type content path (reached by
     both `aw check plans` and the `aw check all` fan-out, exactly once).
     """
     from agent_workflows import backlog as _backlog
+    from agent_workflows import ipd_schema as _schema
 
     drift: List[_core.Drift] = []
     for p in _iter_type_files(
@@ -4458,7 +4483,10 @@ def check_plan_priority(
         if not m:
             continue  # absent Priority is fine (optional)
         value = m.group(1).strip()
-        if value in _backlog.PRIORITIES:
+        if value in _backlog.PRIORITIES or value in (
+            _schema.PLAN_PRIORITY_GRANDFATHERED,
+            _schema.PLAN_PRIORITY_UNRESOLVED,
+        ):
             continue
         mid = _ITEM_ID_RE.search(text)
         id6 = mid.group(1) if mid else p.stem
@@ -4471,7 +4499,7 @@ def check_plan_priority(
                 ),
                 observed=f"Priority: {value}",
                 required=f"one of {sorted(_backlog.PRIORITIES)} (or omit Priority)",
-                recovery=f"aw ipd set {id6} --priority <low|medium|high>  (or --priority - to clear)",
+                recovery=f"aw ipd set {id6} --priority <low|medium|high>",
             )
         )
     return drift
@@ -4489,13 +4517,15 @@ def check_plan_work_kind(
 
     Work-Kind is OPTIONAL on an IPD (schema RECOGNIZES it; the enum value check lives HERE, in
     `aw check`, per the documented convention). A plan carrying an out-of-vocab `- Work-Kind:` value
-    is flagged `check.work-kind-invalid`; a plan with a valid value (or NO Work-Kind at all) is
-    silent. The vocabulary is the SHARED `backlog.KINDS` (imported, never forked). This is a plain
+    is flagged `check.work-kind-invalid`; a plan with a valid value (or NO Work-Kind at all, or the
+    `grandfathered` sentinel admitted by planprio lkexaw E-09) is silent.
+    The vocabulary is the SHARED `backlog.KINDS` (imported, never forked). This is a plain
     metadata-enum check on the plan's OWN field, NOT a cross-tree dangling/reference check, so it runs
     in the plans-type content path (reached by both `aw check plans` and the `aw check all` fan-out,
     exactly once). Mirrors `check_plan_priority` line-for-line.
     """
     from agent_workflows import backlog as _backlog
+    from agent_workflows import ipd_schema as _schema
 
     drift: List[_core.Drift] = []
     for p in _iter_type_files(
@@ -4512,7 +4542,10 @@ def check_plan_work_kind(
         if not m:
             continue  # absent Work-Kind is fine (optional)
         value = m.group(1).strip()
-        if value in _backlog.KINDS:
+        if value in _backlog.KINDS or value in (
+            _schema.PLAN_WORK_KIND_GRANDFATHERED,
+            _schema.PLAN_WORK_KIND_UNRESOLVED,
+        ):
             continue
         mid = _ITEM_ID_RE.search(text)
         id6 = mid.group(1) if mid else p.stem
@@ -4525,12 +4558,77 @@ def check_plan_work_kind(
                 ),
                 observed=f"Work-Kind: {value}",
                 required=f"one of {sorted(_backlog.KINDS)} (or omit Work-Kind)",
-                recovery=(
-                    f"aw ipd set {id6} --work-kind "
-                    "<bug|feature|chore|security|followup>  (or --work-kind - to clear)"
-                ),
+                recovery=f"aw ipd set {id6} --work-kind <bug|feature|chore|security|followup>",
             )
         )
+    return drift
+
+
+_PRIORITY_REQUIRED_RULE = "check.ipd-priority-required"
+_WORK_KIND_REQUIRED_RULE = "check.ipd-work-kind-required"
+
+
+def check_plan_priority_required(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
+) -> List[_core.Drift]:
+    """Validate that plans at the ready-to-execute gate have Priority and Work-Kind (planprio lkexaw E-04).
+
+    Reads the SAME predicates as the lint gate (ipd_lint.check_plan_priority / check_plan_work_kind),
+    so the checkpoint gate and the repo-wide sweep cannot drift apart.
+    """
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import ipd_schema as _schema
+
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(
+        repo_root,
+        "plans",
+        include_untracked=include_untracked,
+        include_retired=include_retired,
+    ):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        try:
+            doc = _lint.parse(text)
+        except Exception:
+            continue
+        status = doc.meta_fields.get("Status", "")
+        if not _lint._scope_paths_gate_applies("author", status):
+            continue
+        blocking_prio, _ = _lint.check_plan_priority(doc, "author", None)
+        mid = _ITEM_ID_RE.search(text)
+        id6 = mid.group(1) if mid else p.stem
+        for b in blocking_prio:
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(p),
+                        _PRIORITY_REQUIRED_RULE,
+                        b.message,
+                    ),
+                    observed=doc.meta_fields.get(_schema.META_PRIORITY, "absent"),
+                    required="a priority (low|medium|high) or 'grandfathered'",
+                    recovery=f"aw ipd set {id6} --priority <low|medium|high>",
+                )
+            )
+        blocking_wk, _ = _lint.check_plan_work_kind(doc, "author", None)
+        for b in blocking_wk:
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(p),
+                        _WORK_KIND_REQUIRED_RULE,
+                        b.message,
+                    ),
+                    observed=doc.meta_fields.get(_schema.META_WORK_KIND, "absent"),
+                    required="a work kind (bug|feature|chore|security|followup) or 'grandfathered'",
+                    recovery=f"aw ipd set {id6} --work-kind <bug|feature|chore|security|followup>",
+                )
+            )
     return drift
 
 

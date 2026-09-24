@@ -1515,9 +1515,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--priority",
         dest="priority",
         default=None,
-        choices=["low", "medium", "high", "-"],
-        help="Set the plan's Priority (low|medium|high); '-' clears it (xprio). Persists on a no-op "
-        "transition.",
+        choices=["low", "medium", "high"],
+        help="Set the plan's Priority (low|medium|high). Persists on a no-op transition.",
     )
     # wkindname ng2blv: the recognized-but-optional `- Work-Kind:` field (the NATURE of the work),
     # mirroring `--priority` above. Named `--work-kind`, not `--kind`, because `Kind` is already the
@@ -1526,9 +1525,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--work-kind",
         dest="work_kind",
         default=None,
-        choices=["bug", "feature", "chore", "security", "followup", "-"],
-        help="Set the plan's Work-Kind (bug|feature|chore|security|followup); '-' clears it "
-        "(wkindname). Persists on a no-op transition.",
+        choices=["bug", "feature", "chore", "security", "followup"],
+        help="Set the plan's Work-Kind (bug|feature|chore|security|followup). Persists on a no-op transition.",
     )
     p_ipd_set.add_argument(
         "--by-human", action="store_true", help="Attest human approval."

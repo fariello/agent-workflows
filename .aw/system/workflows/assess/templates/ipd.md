@@ -7,6 +7,8 @@
 - Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)
 - Item-Dependencies: unresolved
 - Status: draft
+- Work-Kind: unresolved
+- Priority: unresolved
 - Set: <set-id>
 - Order: 1
 - Highest E allocated: 01

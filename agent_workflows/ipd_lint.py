@@ -92,6 +92,8 @@ C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
 C_SCOPE_PATHS = "IPD-M106"  # Scope-Paths declared-scope allowlist (Order oorry1)
+C_PRIORITY = "IPD-M110"  # Priority missing / unresolved / invalid at ready-to-execute gate (planprio lkexaw)
+C_WORK_KIND = "IPD-M111"  # Work-Kind missing / unresolved / invalid at ready-to-execute gate (planprio lkexaw)
 C_NAME = "IPD-N001"  # filename does not match the plan grammar (awcheck Order 03)
 # orchtyped `dpdyed` (spec `r07vma` R1a/R3/R7): an Order-0 orchestrator's checklist row is not a
 # well-formed TYPED CHILD-TRACKING ROW. Sited in the `IPD-S4xx` state/SHAPE family because that is
@@ -1250,6 +1252,96 @@ def check_scope_paths(
     return blocking, advisory
 
 
+def check_plan_priority(
+    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
+) -> Tuple[List[Diagnostic], List[Diagnostic]]:
+    """Conditional Priority enforcement at ready-to-execute gate (planprio lkexaw E-03).
+
+    Returns (blocking, advisory). At the ready-to-execute gate (Section 9.2):
+    - missing Priority is a BLOCKING error (IPD-M110);
+    - Priority: grandfathered yields an ADVISORY diagnostic (non-blocking);
+    - Priority: unresolved is a BLOCKING error (scaffold placeholder);
+    - valid vocabulary value is silent (pass).
+    """
+    blocking: List[Diagnostic] = []
+    advisory: List[Diagnostic] = []
+    status = doc.meta_fields.get("Status", "")
+    if not _scope_paths_gate_applies(checkpoint, status):
+        return blocking, advisory
+    if S.META_PRIORITY not in doc.meta_fields:
+        blocking.append(
+            Diagnostic(
+                0,
+                0,
+                C_PRIORITY,
+                "Priority is required at the ready-to-execute gate: declare a priority "
+                "(low|medium|high), or the sentinel 'grandfathered'",
+            )
+        )
+        return blocking, advisory
+    value = doc.meta_fields.get(S.META_PRIORITY, "")
+    _prio, is_grandfathered, err = S.parse_plan_priority(value)
+    if is_grandfathered:
+        advisory.append(
+            Diagnostic(
+                0,
+                0,
+                C_PRIORITY,
+                "Priority: grandfathered is advisory-satisfied (pre-cutoff plan); a re-reviewed "
+                "or new plan should declare a real priority",
+            )
+        )
+        return blocking, advisory
+    if err:
+        blocking.append(Diagnostic(0, 0, C_PRIORITY, f"Priority: {err}"))
+    return blocking, advisory
+
+
+def check_plan_work_kind(
+    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
+) -> Tuple[List[Diagnostic], List[Diagnostic]]:
+    """Conditional Work-Kind enforcement at ready-to-execute gate (planprio lkexaw E-03).
+
+    Returns (blocking, advisory). At the ready-to-execute gate (Section 9.2):
+    - missing Work-Kind is a BLOCKING error (IPD-M111);
+    - Work-Kind: grandfathered yields an ADVISORY diagnostic (non-blocking);
+    - Work-Kind: unresolved is a BLOCKING error (scaffold placeholder);
+    - valid vocabulary value is silent (pass).
+    """
+    blocking: List[Diagnostic] = []
+    advisory: List[Diagnostic] = []
+    status = doc.meta_fields.get("Status", "")
+    if not _scope_paths_gate_applies(checkpoint, status):
+        return blocking, advisory
+    if S.META_WORK_KIND not in doc.meta_fields:
+        blocking.append(
+            Diagnostic(
+                0,
+                0,
+                C_WORK_KIND,
+                "Work-Kind is required at the ready-to-execute gate: declare a work kind "
+                "(bug|feature|chore|security|followup), or the sentinel 'grandfathered'",
+            )
+        )
+        return blocking, advisory
+    value = doc.meta_fields.get(S.META_WORK_KIND, "")
+    _wk, is_grandfathered, err = S.parse_plan_work_kind(value)
+    if is_grandfathered:
+        advisory.append(
+            Diagnostic(
+                0,
+                0,
+                C_WORK_KIND,
+                "Work-Kind: grandfathered is advisory-satisfied (pre-cutoff plan); a re-reviewed "
+                "or new plan should declare a real work kind",
+            )
+        )
+        return blocking, advisory
+    if err:
+        blocking.append(Diagnostic(0, 0, C_WORK_KIND, f"Work-Kind: {err}"))
+    return blocking, advisory
+
+
 # ipddeps Order ovbnyq (spec 25kzda 2.9-2.11): phased cross-IPD Item-Dependencies enforcement.
 # lint_text is PURE, so it only performs the SYNTAX-level checks (missing / unresolved / malformed)
 # here; the RESOLUTION-level checks (dangling / ambiguous / cycle) need the repo and are added in
@@ -1715,10 +1807,16 @@ def lint_text(
     diags += check_orchestrator_rows(doc, text, checkpoint)
     scope_blocking, scope_advisory = check_scope_paths(doc, checkpoint, directory)
     diags += scope_blocking
+    prio_blocking, prio_advisory = check_plan_priority(doc, checkpoint, directory)
+    diags += prio_blocking
+    wk_blocking, wk_advisory = check_plan_work_kind(doc, checkpoint, directory)
+    diags += wk_blocking
     dep_blocking, dep_advisory = check_item_dependencies(doc, checkpoint, directory)
     diags += dep_blocking
     disposition = S.DISPOSITION_CONFORMING if not diags else S.DISPOSITION_ERROR
-    advisories = check_density(doc) + scope_advisory + dep_advisory
+    advisories = (
+        check_density(doc) + scope_advisory + prio_advisory + wk_advisory + dep_advisory
+    )
     advisories += _draft_ready_advisory(doc, text, checkpoint)
     # citeanchor `mzc019` E-03/E-04: ADVISORY-ONLY by construction. It is appended to `advisories`
     # and NEVER to `diags`, so `disposition` (computed above) cannot see it and the exit status cannot
