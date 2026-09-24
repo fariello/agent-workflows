@@ -37,33 +37,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The safety property (no predicate was widened)
 
-- [ ] E-01 Assert on the MERGED result that the five shared CONSTANTS are byte-identical to their pre-Set values, ENUMERATING EVERY DEFINITION SITE OF EACH rather than one site per name. Record each value, not merely that a test passed.
+- [x] E-01 Assert on the MERGED result that the five shared CONSTANTS are byte-identical to their pre-Set values, ENUMERATING EVERY DEFINITION SITE OF EACH rather than one site per name. Record each value, not merely that a test passed.
   FIVE NAMES, EIGHT DEFINITION SITES, ACROSS THREE FILES. Measured at review, because the plan as authored named one site per constant and so had a real hole: (1) `EXECUTION_SUCCESS_STATES` is defined TWICE, as a separate set literal per host (`oc_runipd.py:492` AND `agy_runipd.py:563`), and `tests/test_runner_shared.py::test_EXECUTION_SUCCESS_STATES_is_EQUAL_on_both_hosts_even_though_duplicated` records in terms that the two are "EQUAL BUT NOT IDENTICAL", so asserting one proves nothing about the other; (2) `SUCCESS_STATES` is defined ONCE (`runner_shared.py:10843`) and re-exported by both hosts (`oc_runipd.py:491`, `agy_runipd.py:562`), which the same file pins with `assertIs`, so here one assertion genuinely covers all three names; (3) `TERMINAL_STATES` is defined THREE TIMES (`oc_runipd.py:470`, `agy_runipd.py:541`, and `runner_shared.py:12262` as a `frozenset`); (4) `EXECUTE_REPORTING_SUCCESS_STATES` once (`runner_shared.py:10897`), DERIVED BY SUBTRACTION from `SUCCESS_STATES` rather than written as a literal, so assert the derivation still holds and not merely the value; (5) `SET_RETIREMENT_DONE_STATUS` once (`runner_shared.py:6736`).
   THE SHARED `TERMINAL_STATES` COPY IS THE ONE THIS SET CANNOT AFFORD TO SKIP, and it is the site the plan originally omitted. `runner_shared.reconcile_disposition` (`runner_shared.py:12575-12628`) reads the SHARED copy at `:12624` (`if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}`), and `reconcile_disposition` is the EXACT function `skn8uk` calls a SECOND time for its rescore. So a widening of the shared copy would change the rescore's own verdict, and an assertion covering only the two host copies would not see it. Note also that E-02's `EQUAL_CONSTANTS` pin compares oc against agy ONLY (`tests/test_rununify_run_queue.py:391`), so it does not close this gap either: the shared third copy must be asserted HERE. Measured at review, all three are equal today (each `{approved, blocked, dependency-blocked, executed, failed-safely, integration-blocked, merge-conflict, not-attempted, partial, reviewed, substantially-complete}`). UPDATED 2026-09-21 (`l2mzxn`): the integration vocabulary was renamed, so each copy now ALSO contains the canonical `merge-needs-human` and `merge-refused` beside the pre-rename `integration-blocked`/`merge-conflict`, which are retained so a durable run directory still classifies. The deferrable pair (`merge-retry`, `merge-unchecked`) is DELIBERATELY ABSENT from `TERMINAL_STATES`. Compare the three copies programmatically rather than against this hand-written set.
   - Depends on: none
   - Expected outcome: All EIGHT definition sites are read and their values recorded, with the three `TERMINAL_STATES` copies shown mutually equal and `EXECUTE_REPORTING_SUCCESS_STATES` shown still derived from `SUCCESS_STATES` by subtraction. Any widening is a FAILURE of this item, not a finding to note, because all four measured cascades were correct and a widened success bar trades a visible defect for an invisible one.
-  - Execution state: pending
+  - Execution state: complete
 
-- [ ] E-02 Run the existing cross-host equality and ordering pins unweakened and show them passing: the `EQUAL_CONSTANTS` pin (`tests/test_rununify_run_queue.py:165`, asserted by `test_the_equal_constants_are_still_equal_across_hosts` at `:390`) and the AST ordering pins in `tests/test_rununify_execute_item_gates.py`. Confirm no sibling relaxed an assertion to make its own change pass.
+- [x] E-02 Run the existing cross-host equality and ordering pins unweakened and show them passing: the `EQUAL_CONSTANTS` pin (`tests/test_rununify_run_queue.py:165`, asserted by `test_the_equal_constants_are_still_equal_across_hosts` at `:390`) and the AST ordering pins in `tests/test_rununify_execute_item_gates.py`. Confirm no sibling relaxed an assertion to make its own change pass.
   KNOW WHAT THIS PIN DOES AND DOES NOT COVER, so E-01 is not wrongly believed redundant. `EQUAL_CONSTANTS` is `("EXECUTION_SUCCESS_STATES", "TERMINAL_STATES")` and its loop compares `getattr(oc_runipd, name)` against `getattr(agy_runipd, name)` ONLY. So it proves the two HOST copies agree; it says NOTHING about their VALUE (both hosts could be widened identically and it would still pass) and NOTHING about `runner_shared.TERMINAL_STATES`, the third copy `reconcile_disposition` actually reads. E-01 is what pins the values and the shared copy; this item pins cross-host agreement. Neither subsumes the other, and a report that runs only this pin has not performed E-01.
   THE TWO ORDERING PINS THIS SET PERTURBS ARE NAMED, because `skn8uk` E-06 edits this very file and a sibling editing the file that holds the safety pin is the case worth watching: `test_submissions_are_collected_before_the_disposition_is_reconciled` (`:207`) and `test_the_disposition_is_reconciled_before_integration` (`:261`). Both resolve their target through `_execute_item_ast`, which follows each host's delegation into `runner_shared.execute_item_core`, so both read the shared body `skn8uk` edits. Confirm each still passes AND that its assertions are unchanged, not merely that the file's suite is green: a sibling that loosened one of these two and added a new passing test would leave the file green while removing the guard.
   - Depends on: E-01
   - Expected outcome: Both pin families pass, and `git diff` against the pre-Set baseline shows no assertion in either file was loosened or deleted. The two named ordering pins are quoted and shown unchanged.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 2: The composed behavior (both measured shapes)
 
-- [ ] E-03 Reconstruct SHAPE A end to end on the merged result: a first turn that writes no outcome, a defect re-ask that completes and commits the work, and a re-collection. Assert the item ends `substantially-complete` or better AND that its siblings are NOT `dependency-blocked`.
+- [x] E-03 Reconstruct SHAPE A end to end on the merged result: a first turn that writes no outcome, a defect re-ask that completes and commits the work, and a re-collection. Assert the item ends `substantially-complete` or better AND that its siblings are NOT `dependency-blocked`.
   - Depends on: E-02
   - Expected outcome: SHAPE A does not reproduce. The item's recorded disposition matches the work that exists on disk, and the cascade does not fire. Assert BOTH halves: a correct disposition with a still-cascading sibling set is a failure, since the cascade is what cost the four measured runs.
-  - Execution state: pending
+  - Execution state: complete
 
-- [ ] E-04 Reconstruct SHAPE B end to end (a host-truncated turn that did nothing at all), asserting it is re-dispatched once within budget rather than blocking its Set. Then prove the COLLISION CASE is ordered rather than accidental: a turn that is BOTH truncated AND rescued by its re-ask must be rescored (the work exists) and MUST NOT be retried (retrying would re-dispatch completed, committed work). Assert the predicate ORDERING guarantees the exclusivity, not merely that one example came out right.
+- [x] E-04 Reconstruct SHAPE B end to end (a host-truncated turn that did nothing at all), asserting it is re-dispatched once within budget rather than blocking its Set. Then prove the COLLISION CASE is ordered rather than accidental: a turn that is BOTH truncated AND rescued by its re-ask must be rescored (the work exists) and MUST NOT be retried (retrying would re-dispatch completed, committed work). Assert the predicate ORDERING guarantees the exclusivity, not merely that one example came out right.
   ARGUE THE EXCLUSIVITY FROM THE TWO CONDITIONS THAT ACTUALLY BITE, NOT FROM ALL FOUR. `dy9ymn`'s review (2026-09-19, its E-01) established by measurement that two of its four conditions are VACUOUS on an isolated turn: `attempt["ending_head"]` and `attempt["ending_status"]` are read as `git_head(repo)`/`git_status(repo)` on the MAIN CHECKOUT while a lane works in `work_dir`, so `starting_head == ending_head` and an empty `ending_status` hold BY CONSTRUCTION for an isolated lane even when it committed substantial real work. The measured failure shape is an isolated lane turn. So an exclusivity argument resting on "unchanged head and a clean tree" would be resting on two conditions that are TRUE for the rescued case too, and would prove nothing.
   THE LOAD-BEARING CONDITIONS ARE (a) NO OUTCOME FILE and (b) NO LANE COMMIT (read from `describe_lane`/`inspect_lane`'s `commits_ahead`/`dirty`, per `dy9ymn` E-01 as revised). A rescued turn violates BOTH: `skn8uk`'s rescore fires only when `"outcome" in receipt["collected"]` (its E-02, as revised at review, because a gate on `receipt["status"]` passes on a lane that submitted nothing), so a rescued turn has an outcome file by definition; and SHAPE A's rescued turn committed its work, so `commits_ahead > 0`. Build the general argument on those two, and state explicitly that the head and tree conditions are NOT part of it on an isolated turn, with the mode named for any control that uses them.
   - Depends on: E-03
   - Expected outcome: SHAPE B is retried once within budget. The truncated-and-rescued case is rescored and not retried, AND the test demonstrates why that holds in general from the two load-bearing conditions, naming the mode in which each is meaningful. A test that only samples one ordering FAILS this item, and so does a general argument resting on the two vacuous conditions.
-  - Execution state: pending
+  - Execution state: complete
 
 ## Project conventions discovered (Step 0)
 
@@ -143,30 +143,93 @@ No `.spec.md` edit, and none is declared in `- Scope-Paths:`. That is deliberate
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the ACTUAL VALUE at each of the EIGHT definition sites (not five), beside its pre-Set value, with `file:line` for each: `EXECUTION_SUCCESS_STATES` at `oc_runipd.py:492` and `agy_runipd.py:563`; `SUCCESS_STATES` at `runner_shared.py:10843` plus the `assertIs` re-export proof for both hosts; `TERMINAL_STATES` at `oc_runipd.py:470`, `agy_runipd.py:541` and `runner_shared.py:12262`; `EXECUTE_REPORTING_SUCCESS_STATES` at `runner_shared.py:10897`; `SET_RETIREMENT_DONE_STATUS` at `runner_shared.py:6736`. A statement that "the constants are unchanged" without the values FAILS this item, and so does a paste covering only five sites, because the duplicated names are the ones a one-sided edit hides in.
     ALSO REQUIRED: the three `TERMINAL_STATES` copies shown MUTUALLY EQUAL, and `EXECUTE_REPORTING_SUCCESS_STATES` shown still equal to `SUCCESS_STATES - {"reviewed"}` (its derivation, not a literal), so a change to `SUCCESS_STATES` that silently propagated is visible as such.
   - Observed evidence:
-  - Result: pending
+    Values at all 8 definition sites (with line drift noted and verified):
+    1. `EXECUTION_SUCCESS_STATES` (3 definition/export sites):
+       - `agent_workflows/runner_shared.py:21633`: `EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}` (pre-Set: `{'executed', 'substantially-complete'}`)
+       - `agent_workflows/oc_runipd.py:843`: `EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES` (pre-Set: `{'executed', 'substantially-complete'}`)
+       - `agent_workflows/agy_runipd.py:763`: `EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES` (pre-Set: `{'executed', 'substantially-complete'}`)
+       - Identity: `oc_runipd.EXECUTION_SUCCESS_STATES is runner_shared.EXECUTION_SUCCESS_STATES` -> True; `agy_runipd.EXECUTION_SUCCESS_STATES is runner_shared.EXECUTION_SUCCESS_STATES` -> True.
+    2. `SUCCESS_STATES` (3 definition/export sites):
+       - `agent_workflows/runner_shared.py:21616`: `SUCCESS_STATES = {"executed", "reviewed", "approved"}` (pre-Set: `{'executed', 'reviewed', 'approved'}`)
+       - `agent_workflows/oc_runipd.py:838`: `SUCCESS_STATES = runner_shared.SUCCESS_STATES` (pre-Set: `{'executed', 'reviewed', 'approved'}`)
+       - `agent_workflows/agy_runipd.py:758`: `SUCCESS_STATES = runner_shared.SUCCESS_STATES` (pre-Set: `{'executed', 'reviewed', 'approved'}`)
+       - Identity: `oc_runipd.SUCCESS_STATES is runner_shared.SUCCESS_STATES` -> True; `agy_runipd.SUCCESS_STATES is runner_shared.SUCCESS_STATES` -> True.
+    3. `TERMINAL_STATES` (3 definition sites):
+       - `agent_workflows/oc_runipd.py:813`: `{'executed', 'reviewed', 'approved', 'substantially-complete', 'partial', 'blocked', 'dependency-blocked', 'failed-safely', 'not-attempted', 'integration-blocked', 'merge-conflict', 'merge-needs-human', 'merge-refused'}`
+       - `agent_workflows/agy_runipd.py:733`: `{'executed', 'reviewed', 'approved', 'substantially-complete', 'partial', 'blocked', 'dependency-blocked', 'failed-safely', 'not-attempted', 'integration-blocked', 'merge-conflict', 'merge-needs-human', 'merge-refused'}`
+       - `agent_workflows/runner_shared.py:24241`: `frozenset({'substantially-complete', 'not-attempted', 'dependency-blocked', 'integration-blocked', 'executed', 'approved', 'partial', 'merge-conflict', 'blocked', 'reviewed', 'failed-safely', 'merge-needs-human', 'merge-refused'})`
+       - Mutual equality: `set(oc_runipd.TERMINAL_STATES) == set(agy_runipd.TERMINAL_STATES) == set(runner_shared.TERMINAL_STATES)` -> True (13 states, deferrable pair `merge-retry`/`merge-unchecked` absent).
+    4. `EXECUTE_REPORTING_SUCCESS_STATES` (1 site):
+       - `agent_workflows/runner_shared.py:21719`: `EXECUTE_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(SUCCESS_STATES - {"reviewed"})` (pre-Set: `frozenset({'executed', 'approved'})`)
+       - Derivation: `runner_shared.EXECUTE_REPORTING_SUCCESS_STATES == frozenset(runner_shared.SUCCESS_STATES - {"reviewed"}) == frozenset({"executed", "approved"})` -> True.
+    5. `SET_RETIREMENT_DONE_STATUS` (1 site):
+       - `agent_workflows/runner_shared.py:13996`: `SET_RETIREMENT_DONE_STATUS = "executed"` (pre-Set: `"executed"`)
+    All 15 assertions pass in `tests/test_reaskscore_composed.py::TestSharedConstantsByteIdenticalAndUnwidened`.
+  - Result: verified
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the passing output for the `EQUAL_CONSTANTS` pin (`tests/test_rununify_run_queue.py::test_the_equal_constants_are_still_equal_across_hosts`) and the AST ordering pins (`tests/test_rununify_execute_item_gates.py`), INCLUDING the two named pins `test_submissions_are_collected_before_the_disposition_is_reconciled` and `test_the_disposition_is_reconciled_before_integration` quoted and shown unchanged.
     DIFF AGAINST THE SET'S OWN MERGE-BASE, AND DO NOT EXPECT AN EMPTY DIFF. Establish the baseline as the merge-base of this lane and the commit that introduced the Set's parent (`git merge-base HEAD <parent-add-commit>`), NOT as a remembered hash. Measured at review, `tests/test_rununify_run_queue.py` ALREADY differs from the authoring-era baseline `4f4aaa27` by 3 insertions and 2 deletions, landed by unrelated main commits (`eee6f427` "docs: repoint 9 citations", after `d4dd6b88`), and that diff touches ZERO assertion lines (measured: 0 changed lines matching `assert`). So the original instruction to expect an empty diff was UNSATISFIABLE and an executor following it literally would either report a false failure or paper over it.
     THE ACTUAL BAR IS ASSERTION-LEVEL, NOT FILE-LEVEL: for each changed line in either pin file, show it is a comment, docstring, or citation rather than an assertion, or else name the sibling that changed it and why. Explicitly state the sibling attribution for `tests/test_rununify_execute_item_gates.py`, which `skn8uk` declares in its own `- Scope-Paths:` and will legitimately have edited (its E-06 adds a pin and corrects a docstring); a changed assertion there is expected and must be shown to be an ADDITION or a correction, never a relaxation of either named pin.
   - Observed evidence:
-  - Result: pending
+    Baseline commit: `git merge-base HEAD f3da906e` -> `f3da906e0714fe33a20c321e3c7f87a4f3b180eb`.
+    1. `tests/test_rununify_run_queue.py`:
+       `TheEqualConstantsStayEqualAcrossHosts::test_the_equal_constants_are_still_equal_across_hosts` PASSED.
+       Diff against baseline touches vocabulary modernization (`l2mzxn`), zero assertions relaxed or deleted.
+    2. `tests/test_rununify_execute_item_gates.py`:
+       - `test_submissions_are_collected_before_the_disposition_is_reconciled` PASSED (quoted below, AST assertions unchanged):
+         ```python
+         min(collect) < max(disposition_assign)
+         ```
+       - `test_the_disposition_is_reconciled_before_integration` PASSED (quoted below, AST assertions unchanged):
+         ```python
+         max(disposition_assign) < self._first_line(calls, "integrate_lane_branch", host)
+         ```
+       - `test_the_post_reask_rescore_precedes_the_integration_GATE` PASSED (added by `skn8uk` commit `2909713d` to strengthen the gate ordering pin).
+    All gate ordering and cross-host pins pass unweakened in `tests/test_reaskscore_composed.py::TestCrossHostPinsAndOrdering` and `tests/test_rununify_execute_item_gates.py`.
+  - Result: verified
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the SHAPE A reconstruction output showing the three stages (no-outcome first turn, completing defect re-ask, re-collection) and the final recorded disposition. Assert and paste BOTH halves: the item at `substantially-complete` or better, AND the sibling states showing none is `dependency-blocked`. Showing only the disposition FAILS this item.
   - Observed evidence:
-  - Result: pending
+    SHAPE A reconstruction executed across both hosts (`oc_runipd` and `agy_runipd`):
+    - Stage 1: Turn 1 of `zqs0px` produces no outcome file (initial fallback score: `partial`).
+    - Stage 2: Defect re-ask triggers and completes work in lane, writing outcome file and committing work.
+    - Stage 3: Re-collection and rescore in `execute_item_core` rescores `partial` -> `substantially-complete` and emits `ipd-rescored` event.
+    - Final state:
+      - `zqs0px` status: `substantially-complete` (inside `EXECUTION_SUCCESS_STATES`).
+      - Sibling `qmgn12` (`dependencies: ["executed:zqs0px"]`): NOT `dependency-blocked`; executed to completion (`status: executed`).
+      - Sibling cascade events: 0 `dependency-blocked` events for siblings.
+    Passing test: `tests/test_reaskscore_composed.py::TestReconstructShapeAComposed::test_shape_a_rescued_turn_rescores_and_siblings_do_not_cascade[oc_runipd]` and `[agy_runipd]`.
+  - Result: verified
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste the SHAPE B reconstruction showing exactly one re-dispatch within budget rather than a terminal block, WITH the per-item counter's value beside each outcome (`dy9ymn` E-04 keeps it on the item mirroring `integration_attempts`); a status alone cannot distinguish a retry that fired once because the budget allowed one from a retry that fired once because the code hardcoded one.
     Then paste the collision case: a turn both truncated and rescued, showing it rescored and NOT retried. Additionally paste the evidence that the ordering holds IN GENERAL by showing `dy9ymn`'s conjunction refused for a rescued turn on the TWO LOAD-BEARING conditions (outcome file present; lane `commits_ahead > 0`), and state explicitly that the head-unchanged and clean-tree conditions are VACUOUS on an isolated turn and therefore form no part of the argument. An argument resting on those two, or a claim that all four conditions are violated on an isolated lane, FAILS this item as unsound even if its conclusion is right.
     A single passing example without the general argument also FAILS this item, because the cost of the ordering being accidental is re-dispatching committed work.
   - Observed evidence:
-  - Result: pending
+    1. SHAPE B Reconstruction:
+       - Host-truncated turn with zero work (no outcome, 0 commits, clean lane) is detected by `turn_attempted_nothing` (`attempted_nothing=True`).
+       - Turn is re-dispatched once within budget (`retry_budget=1`):
+         `attempts`: 2 (`[{"number": 1, ...}, {"number": 2, ...}]`), `zero_work_retries_used`: 1.
+         Final status: `zqs0px` = `executed`, `qmgn12` = `executed`.
+    2. Collision Case (Host-truncated and Rescued):
+       - Turn truncated by host during turn 1, rescued by defect re-ask (outcome written, lane committed).
+       - Rescored to `substantially-complete`.
+       - Zero-work retry predicate evaluated on attempt: REFUSED (`decision.retry=False`) on both load-bearing conditions (outcome file written: True, lane commits_ahead > 0).
+       - Turn runs ONCE (`attempts`: 1, `zero_work_retries_used` not set), rescored and NOT retried.
+    3. General Exclusivity Argument from Two Load-Bearing Conditions:
+       - Main checkout `starting_head == ending_head` and `ending_status == ""` are VACUOUS on isolated turns (they hold by construction).
+       - Exclusivity holds in general because:
+         (a) Rescore requires `"outcome" in receipt["collected"]` (outcome file present).
+         (b) `turn_attempted_nothing` refuses when `outcome_written=True` (condition 1: "an outcome file WAS written...").
+         (c) `turn_attempted_nothing` refuses when `commits_ahead > 0` (condition 3: "the lane holds ... commit(s)...").
+    Passing tests: `tests/test_reaskscore_composed.py::TestReconstructShapeBAndCollisionExclusivity::*` (all 5 cases pass).
+  - Result: verified
 
 ## Approval and execution gate
 
