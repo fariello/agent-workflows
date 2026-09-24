@@ -1291,6 +1291,13 @@ _HOST_TRUNCATING_TERMINATE = "terminating 2 background task(s) on exit"
 _HOST_WAITING = (
     "root agent idle; waiting for 1 background task(s) (bounded by --print-timeout)"
 )
+# THE SECOND HEALTHY FORM, captured from `run-20260924T010059Z-999731` item `lc4unl` on 2026-09-24.
+# Same `waiting up to` phrasing as the truncating form above, and the OPPOSITE meaning: the host named
+# its FULL `--print-timeout` ceiling, then waited out a 306s foreground `python3 -m pytest` and let it
+# finish. This line is the reason the bound's magnitude is parsed rather than the phrase matched.
+_HOST_WAITING_FULL_CEILING = (
+    "root agent idle; waiting up to 4h0m0s for 1 background task(s)"
+)
 
 
 class TestTheHostsOwnTruncationIsClassified:
@@ -1307,6 +1314,12 @@ class TestTheHostsOwnTruncationIsClassified:
     captured sessions 3 emitted the waiting form and WAITED (healthy) against 8 that cut. Treating them
     alike would flag healthy turns. That ratio is a recorded historical measurement, not reproducible
     from this tree.
+
+    AND THAT NEGATIVE CONTROL WAS INCOMPLETE, WHICH COST A FALSE POSITIVE (2026-09-24). The host also
+    emits `waiting up to 4h0m0s` - the SAME phrasing as the truncating form, its FULL ceiling, and
+    HEALTHY - and this class originally pinned the phrase alone as proof of a cut, so a turn that ran
+    its suite to completion was recorded truncated twice. The verdict now turns on the BOUND'S SIZE,
+    and `_HOST_WAITING_FULL_CEILING` is the negative control that was missing.
     """
 
     def test_both_real_truncating_lines_are_truncating(self):
@@ -1320,6 +1333,118 @@ class TestTheHostsOwnTruncationIsClassified:
         verdict = lane_containment.classify_host_turn_line(_HOST_WAITING)
         assert verdict == lane_containment.HOST_TURN_WAITING
         assert verdict != lane_containment.HOST_TURN_TRUNCATING
+
+    def test_a_full_ceiling_bounded_wait_is_healthy_not_truncating(self):
+        """THE REGRESSION. The measured false positive of 2026-09-24, pinned by its real line.
+
+        `waiting up to 4h0m0s` is maximal patience, not a cut: the host then waited out a 306s
+        foreground test run. The old `waiting up to` substring called this a truncation.
+        """
+
+        verdict = lane_containment.classify_host_turn_line(_HOST_WAITING_FULL_CEILING)
+        assert verdict == lane_containment.HOST_TURN_WAITING
+        assert verdict != lane_containment.HOST_TURN_TRUNCATING
+
+    def test_the_two_bounded_wait_forms_differ_ONLY_in_their_bound(self):
+        """So the test cannot pass by matching some other incidental difference in the sentence."""
+
+        cut = _HOST_TRUNCATING_BOUNDED_WAIT.replace("2 background", "1 background")
+        healthy = _HOST_WAITING_FULL_CEILING
+        assert cut.replace("5s", "<B>") == healthy.replace("4h0m0s", "<B>")
+        assert (
+            lane_containment.classify_host_turn_line(cut)
+            == lane_containment.HOST_TURN_TRUNCATING
+        )
+        assert (
+            lane_containment.classify_host_turn_line(healthy)
+            == lane_containment.HOST_TURN_WAITING
+        )
+
+    @pytest.mark.parametrize(
+        ("bound", "expected"),
+        (
+            ("500ms", lane_containment.HOST_TURN_TRUNCATING),
+            ("5s", lane_containment.HOST_TURN_TRUNCATING),
+            ("60s", lane_containment.HOST_TURN_TRUNCATING),
+            ("1m", lane_containment.HOST_TURN_TRUNCATING),
+            ("61s", lane_containment.HOST_TURN_WAITING),
+            ("1m30s", lane_containment.HOST_TURN_WAITING),
+            ("10m", lane_containment.HOST_TURN_WAITING),
+            ("4h0m0s", lane_containment.HOST_TURN_WAITING),
+            ("240m", lane_containment.HOST_TURN_WAITING),
+        ),
+    )
+    def test_the_verdict_turns_on_the_bound_either_side_of_the_ceiling(
+        self, bound, expected
+    ):
+        line = f"root agent idle; waiting up to {bound} for 1 background task(s)"
+        assert lane_containment.classify_host_turn_line(line) == expected
+
+    def test_the_token_wait_ceiling_sits_between_both_measured_bounds(self):
+        """The threshold must separate the two real observations, or it separates nothing."""
+
+        ceiling = lane_containment.HOST_TOKEN_WAIT_CEILING_SECONDS
+        measured_cut = lane_containment.parse_go_duration_seconds("5s")
+        measured_healthy = lane_containment.parse_go_duration_seconds("4h0m0s")
+        assert measured_cut is not None and measured_healthy is not None
+        assert measured_cut <= ceiling
+        assert measured_healthy > ceiling
+
+    def test_an_unreadable_bound_yields_no_verdict_rather_than_a_truncation(self):
+        """Fail toward "this line does not say", never toward accusing a healthy turn."""
+
+        for line in (
+            "root agent idle; waiting up to for 1 background task(s)",
+            "root agent idle; waiting up to soon for 1 background task(s)",
+            "root agent idle; waiting up to 4h0m0sZZ for 1 background task(s)",
+        ):
+            assert lane_containment.classify_host_turn_line(line) is None, line
+
+    def test_the_terminate_line_still_settles_a_kill_on_its_own(self):
+        """The bound check must not weaken the branch that reads the ACTUAL kill admission.
+
+        Across every measured truncation the host printed this line too, which is what makes the
+        unreadable-bound fallthrough above safe.
+        """
+
+        assert (
+            lane_containment.classify_host_turn_line(_HOST_TRUNCATING_TERMINATE)
+            == lane_containment.HOST_TURN_TRUNCATING
+        )
+
+    @pytest.mark.parametrize(
+        ("text", "seconds"),
+        (
+            ("4h0m0s", 14400.0),
+            ("5s", 5.0),
+            ("1m30s", 90.0),
+            ("500ms", 0.5),
+            ("240m", 14400.0),
+            ("4h", 14400.0),
+        ),
+    )
+    def test_the_compound_duration_parser_reads_the_hosts_own_shapes(
+        self, text, seconds
+    ):
+        assert lane_containment.parse_go_duration_seconds(text) == seconds
+
+    @pytest.mark.parametrize(
+        "text", ("", "   ", "garbage", "4h0m0sZZ", "12", "-5s", None, object())
+    )
+    def test_the_compound_duration_parser_refuses_anything_else_without_raising(
+        self, text
+    ):
+        assert lane_containment.parse_go_duration_seconds(text) is None
+
+    def test_the_two_duration_parsers_stay_separate(self):
+        """Widening the CONFIGURED-ceiling parser would move the driver's own timeout arithmetic.
+
+        `parse_host_ceiling_seconds` feeds `driver_bound_for_host`; it must keep refusing the host's
+        compound shape rather than growing to accept it.
+        """
+
+        assert lane_containment.parse_host_ceiling_seconds("4h0m0s") is None
+        assert lane_containment.parse_go_duration_seconds("4h0m0s") == 14400.0
 
     @pytest.mark.parametrize(
         "line",
@@ -1631,10 +1756,23 @@ class TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam:
         events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
         assert "host-truncated-turn" in events
 
-    def test_a_healthy_turn_through_the_same_loop_records_nothing(self, tmp_path):
-        repo = tmp_path / "repo-healthy"
+    @pytest.mark.parametrize(
+        "healthy_line",
+        (_HOST_WAITING, _HOST_WAITING_FULL_CEILING),
+        ids=("print-timeout-bound", "full-ceiling-bounded-wait"),
+    )
+    def test_a_healthy_turn_through_the_same_loop_records_nothing(
+        self, tmp_path, healthy_line
+    ):
+        """END TO END, at the seam where the false positive was actually observed.
+
+        The `full-ceiling-bounded-wait` case is the 2026-09-24 regression: the driver printed its
+        truncation warning and wrote `host_truncation` into the run record for a turn nothing had cut.
+        """
+
+        repo = tmp_path / f"repo-healthy-{abs(hash(healthy_line))}"
         repo.mkdir(parents=True)
-        run_dir = tmp_path / "run-healthy"
+        run_dir = tmp_path / f"run-healthy-{abs(hash(healthy_line))}"
         (run_dir / "sessions").mkdir(parents=True)
         (run_dir / "prompts").mkdir(parents=True)
         prompt = run_dir / "prompts" / "01-prompt.md"
@@ -1647,7 +1785,7 @@ class TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam:
             "attempts": [{"number": 1}],
         }
         stdout_lines = [
-            _HOST_WAITING + "\n",
+            healthy_line + "\n",
             '{"type":"result","status":"SUCCESS"}\n',
         ]
 

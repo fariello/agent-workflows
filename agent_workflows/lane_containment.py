@@ -2017,10 +2017,17 @@ def lane_preserved_for_missing_input(item: dict[str, Any]) -> bool:
 # structured event, and its own `result.status` says `SUCCESS`. If the host rewords a line, detection
 # STOPS and behavior reverts to exactly today's - a degradation to the status quo, NOT a false
 # positive, which would be the dangerous direction. Hence a stable substring CORE rather than the whole
-# sentence or a digit-exact pattern (the task count and the `5s` bound are host details that may
-# change). The alternative detector (infer truncation from a short duration plus a missing outcome) was
-# REJECTED: it cannot distinguish a host truncation from a legitimately brief turn and would fire on
-# healthy work.
+# sentence (the task count is a host detail that may change). The alternative detector (infer
+# truncation from a short duration plus a missing outcome) was REJECTED: it cannot distinguish a host
+# truncation from a legitimately brief turn and would fire on healthy work.
+#
+# THAT CLAIM WAS ONCE FALSE, AND THE CORRECTION IS THE REASON THE BOUND IS PARSED. The original
+# detector treated the bare phrase `waiting up to` as a truncation admission, which is NOT fail-silent:
+# it fired on a healthy turn in production (2026-09-24), the exact dangerous direction this note
+# promises to avoid. So the `5s` bound is NO LONGER "a host detail that may change" to be ignored - its
+# MAGNITUDE is load-bearing, and it is read. What remains fail-silent is the phrasing around it: reword
+# `waiting up to` or `terminating ... on exit` and detection stops, which is still the safe direction.
+# An unparseable bound is likewise treated as "no verdict from this line", never as a truncation.
 
 # The host's verdicts, named so a caller never compares against a bare string.
 HOST_TURN_TRUNCATING = "truncating"
@@ -2032,19 +2039,124 @@ HOST_TURN_WAITING = "waiting"
 #   truncating: `root agent idle; waiting up to 5s for 2 background task(s)`
 #   truncating: `terminating 2 background task(s) on exit`
 #   waiting:    `root agent idle; waiting for 1 background task(s) (bounded by --print-timeout)`
+#   waiting:    `root agent idle; waiting up to 4h0m0s for 1 background task(s)`
 #
-# Measured across the captured agy sessions: 3 sessions emit the WAITING form and wait for the work
-# (healthy); 8 emit the bounded-wait form and then cut. That ratio is a RECORDED HISTORICAL
+# Measured across the captured agy sessions: 3 sessions emit the first WAITING form and wait for the
+# work (healthy); 8 emit the bounded-wait form and then cut. That ratio is a RECORDED HISTORICAL
 # MEASUREMENT: `.aw/records/runs/` is gitignored and absent from a lane worktree and a fresh clone, so
 # it is not reproducible, and the WAITING branch must NOT be weakened on the grounds that no example
 # can be found today.
+#
+# THE FOURTH FORM IS WHY THE BOUND'S MAGNITUDE IS NOW READ (2026-09-24, measured in production on
+# `run-20260924T010059Z-999731` item `lc4unl`). `waiting up to` ALONE was treated as a truncation
+# admission, and the host emitted `waiting up to 4h0m0s` - its FULL `--print-timeout` ceiling, i.e.
+# maximal patience - then waited the whole 306s the agent's foreground `python3 -m pytest` needed, let
+# it finish (`9098 passed ... in 304.62s` is in that session log), and carried on. The turn was NOT
+# cut, and it was recorded `host_truncation` twice anyway. THAT IS A FALSE POSITIVE, the exact
+# direction this detector's own FAIL-SILENT note calls "the dangerous direction", so the phrase alone
+# cannot be the trigger.
+#
+# WHAT ACTUALLY DISCRIMINATES: the SIZE of the bound the host names. A bound of seconds is a TOKEN
+# wait the host has no intention of honoring for real work; a bound of hours IS the turn ceiling and
+# means the host is waiting properly. Reading the number is therefore not a cosmetic refinement, it is
+# the only thing separating the two, and it is exactly what the earlier `waiting up to` substring
+# threw away.
 _HOST_WAITING_CORE = "bounded by --print-timeout"
 _HOST_TRUNCATING_BOUNDED_WAIT_CORE = "waiting up to"
 _HOST_TRUNCATING_TERMINATE_CORE = "background task(s) on exit"
 
+#: A `waiting up to <bound>` at or below this many seconds is a TOKEN wait, so the line is read as the
+#: host admitting it is about to cut. Above it, the host is waiting properly and the line is HEALTHY.
+#:
+#: WHY 60s, and why the exact value is not load-bearing. The two measured bounds are `5s` (the host
+#: then cut, twice, 2026-09-18) and `4h0m0s` (the host then waited out a 306s test run, 2026-09-24),
+#: so any threshold between them separates every case anybody has actually observed. 60s is chosen
+#: because this repository's own execute prompt tells the agent the validation suite "takes minutes":
+#: a host allowing under a minute cannot be waiting for the work a turn is actually asked to do.
+#: DO NOT tune this to chase a new observation without adding that observation to the two above; the
+#: point of naming it is that a future edit argues with a recorded measurement, not with a magic
+#: number.
+HOST_TOKEN_WAIT_CEILING_SECONDS = 60.0
+
 # `terminating 2 background task(s) on exit` -> 2, and the bounded-wait form's count too. Best effort:
 # the verdict NEVER depends on parsing a number.
 _HOST_TASK_COUNT_RE = re.compile(r"(\d+)\s+background task\(s\)")
+
+# The bound the host names right after `waiting up to`, e.g. `5s` or `4h0m0s`.
+_HOST_WAIT_BOUND_RE = re.compile(r"waiting up to\s+(\S+)")
+
+# The host writes a Go duration (`4h0m0s`, `5s`, `1m30s`, `500ms`), so a single-unit parser such as
+# `parse_host_ceiling_seconds` cannot read it: that one is for a CONFIGURED ceiling like `"240m"` and
+# would reject `4h0m0s` outright. Hence a second, compound reader rather than a widening of the first,
+# which is consumed by the driver-bound arithmetic and must not start accepting new shapes.
+_GO_DURATION_UNIT_SECONDS = {
+    "ns": 1e-9,
+    "us": 1e-6,
+    "\u00b5s": 1e-6,
+    "ms": 1e-3,
+    "s": 1.0,
+    "m": 60.0,
+    "h": 3600.0,
+}
+# Longest units FIRST in the alternation, so `500ms` reads as milliseconds and never as `m` + `s`.
+_GO_DURATION_PART_RE = re.compile(r"(\d+(?:\.\d+)?)(ns|us|\u00b5s|ms|s|m|h)")
+
+
+def parse_go_duration_seconds(value: Any) -> float | None:
+    """Seconds from a Go-style compound duration such as `4h0m0s`, `5s`, `1m30s` or `500ms`.
+
+    Returns `None` for anything unrecognized and NEVER raises. This is the shape the agy host prints in
+    its own diagnostics; `parse_host_ceiling_seconds` reads the DIFFERENT, single-unit shape a
+    CONFIGURED ceiling is written in (`"240m"`), and the two are kept apart deliberately so that
+    teaching this parser a new host phrasing can never move a driver's own timeout arithmetic.
+
+    FAIL-SAFE DIRECTION, and it is the opposite of the other parser's. There, an unreadable value means
+    "no known ceiling" and yields the LONGER bound, because guessing short would kill healthy turns.
+    Here, an unreadable value means the caller cannot tell how patient the host was being, and the
+    caller must then decline to call the line a truncation - see `classify_host_turn_line`. Both
+    choices land on "do not harm a healthy turn".
+    """
+
+    if value is None:
+        return None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value) if value > 0 else None
+    if not isinstance(value, str):
+        return None
+    text = value.strip().lower()
+    if not text:
+        return None
+    # A bare number is NOT accepted here: the host always writes a unit, and silently reading `5` as
+    # five seconds would invent a precision the line does not carry.
+    parts = _GO_DURATION_PART_RE.findall(text)
+    if not parts:
+        return None
+    # Every character must belong to a matched part, so `4h0m0sZZ` or `later up to 5s maybe` is
+    # refused rather than partially read.
+    if "".join(number + unit for number, unit in parts) != text:
+        return None
+    total = 0.0
+    for number, unit in parts:
+        try:
+            total += float(number) * _GO_DURATION_UNIT_SECONDS[unit]
+        except (ValueError, KeyError):  # pragma: no cover - the regex guarantees both
+            return None
+    return total if total > 0 else None
+
+
+def host_wait_bound_seconds(line: str) -> float | None:
+    """Seconds in the bound the host named on a `waiting up to <bound>` line, or `None`.
+
+    `None` means "this line does not state a readable bound", which the classifier treats as
+    "cannot conclude a truncation" rather than as a small bound.
+    """
+
+    match = _HOST_WAIT_BOUND_RE.search(line or "")
+    if match is None:
+        return None
+    # The bound is followed by ` for N background task(s)`, so strip trailing punctuation the host may
+    # attach without letting a stray token through the strict parser above.
+    return parse_go_duration_seconds(match.group(1).strip(",;:"))
 
 
 def classify_host_turn_line(line: str) -> str | None:
@@ -2053,6 +2165,14 @@ def classify_host_turn_line(line: str) -> str | None:
     Returns `HOST_TURN_TRUNCATING` (the host cut the turn's work), `HOST_TURN_WAITING` (the host is
     waiting for it, which is HEALTHY and must NOT be reported as truncation), or `None` for an
     ordinary line. PURE: no I/O, no state, no side effect.
+
+    A `waiting up to <bound>` LINE IS JUDGED ON ITS BOUND, NOT ON ITS PHRASING (fixed 2026-09-24 after
+    a measured false positive; see `HOST_TOKEN_WAIT_CEILING_SECONDS` and the discriminator block for
+    the two observations). A token bound of seconds is the host about to cut; a bound of hours is the
+    host waiting properly, and is HEALTHY. An UNREADABLE bound yields `None`, NOT a truncation: the
+    only honest verdict for a line whose patience cannot be measured is "this line does not say", and
+    the `terminating ... on exit` branch below still catches the kill itself, since across every
+    measured truncation the host printed that line too.
 
     HOST-NEUTRAL AND HERE RATHER THAN IN THE DRIVER because spec `7ckptx` R2.6 requires the single
     definition of a driver-consumed containment rule to live in a declared shared module, and R6.1
@@ -2090,7 +2210,16 @@ def classify_host_turn_line(line: str) -> str | None:
     if _HOST_WAITING_CORE in lowered:
         return HOST_TURN_WAITING
     if _HOST_TRUNCATING_BOUNDED_WAIT_CORE in lowered and "background task" in lowered:
-        return HOST_TURN_TRUNCATING
+        bound = host_wait_bound_seconds(lowered)
+        if bound is None:
+            # The host said it would wait but not for how long, so nothing here establishes either
+            # verdict. Fall through rather than guessing, and let a `terminating` line settle it.
+            return None
+        if bound <= HOST_TOKEN_WAIT_CEILING_SECONDS:
+            return HOST_TURN_TRUNCATING
+        # A bound this large IS the turn ceiling: the host is waiting properly. Reporting this as a
+        # truncation is the measured 2026-09-24 false positive.
+        return HOST_TURN_WAITING
     if _HOST_TRUNCATING_TERMINATE_CORE in lowered and "terminating" in lowered:
         return HOST_TURN_TRUNCATING
     return None
