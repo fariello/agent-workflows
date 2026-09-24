@@ -40,7 +40,8 @@ import sys
 # (`worker_role_active(os.environ)`, ipd_lifecycle.py:4105 and :4285), so every in-process
 # test that drives those CLI wrappers gets the worker refusal instead of the behavior it
 # asserts. Measured suite-wide: `31 failed, 8080 passed` with the marking present versus
-# `0 failed, 7993 passed` without it, no code change between the two runs.
+# `0 failed, 7993 passed` without it (re-measured at IPD `8i0xa7`: 42 tests in protected files
+# fail under the re-assert probe, because role declaration was incomplete; see backlog `owi0no`).
 #
 # WHY IT MATTERS EVEN THOUGH IT CANNOT SHIP A BUG. The driver's own merge gate
 # (`oc_runipd.run_suite_check`) runs in the PRIMARY checkout inheriting the DRIVER's
@@ -67,10 +68,19 @@ import sys
 # inside a runner turn, rather than weakening it.
 #
 # HONEST LIMITS, both deliberate. (1) A test that needs the marking must set it ITSELF, on
-# an explicit env dict passed to the code under test, which is what every such test already
-# does (`test_worker_role_refusal.py` builds `marked`/`stripped` dicts and never relies on
-# the ambient value). (2) This scrubs the CURRENT process only; a subprocess a test spawns
+# an explicit env dict passed to the code under test (or declare its role with
+# `support.declare_execution_role`). Note that `test_driver_own_process_is_not_worker_role`
+# is the one exception whose subject IS the ambient environment: because of this scrub,
+# that test cannot fail via ordinary shell export, but it remains falsifiable via a
+# `pytest_configure` re-assert plugin (see `tests/test_role_declaration_guard.py`).
+# Note also that compliance across the suite is incomplete (e.g. 42 tests in
+# `tests/test_ipd_lifecycle_cli.py` still inherit the ambient role, tracked in backlog
+# `owi0no`). (2) This scrubs the CURRENT process only; a subprocess a test spawns
 # inherits this already-cleaned environment, which is the intended propagation.
+#
+# CROSS-REFERENCE: `tests/test_role_declaration_guard.py` asserts behavioral outcome
+# invariance under both roles across protected files by injecting a `pytest_configure`
+# plugin that re-asserts the marking after this scrub and before test collection.
 #
 # Done at import time, before any test module is collected, so no test can observe the
 # marked value. `pop` is unconditional and side-effect-free when the variable is absent,
