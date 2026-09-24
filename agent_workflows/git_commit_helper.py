@@ -393,6 +393,44 @@ def _staged_paths(repo_root: Path) -> List[str]:
     return paths
 
 
+def _contained_files(repo_root: Path, dir_paths: Sequence[str]) -> List[str]:
+    """Repo-relative paths of changed/untracked files inside ``dir_paths``.
+
+    Uses ``git status --porcelain -z -uall`` so untracked directories are expanded to individual
+    files (F-8) while respecting .gitignore, without forcing or staging anything.
+    """
+
+    if not dir_paths:
+        return []
+    rc, out, _err = _git(
+        repo_root, ["status", "--porcelain", "-z", "-uall", "--", *dir_paths]
+    )
+    if rc != 0 or not out:
+        return []
+    entries = out.split("\0")
+    files: List[str] = []
+    i = 0
+    while i < len(entries):
+        entry = entries[i]
+        if not entry:
+            i += 1
+            continue
+        if len(entry) >= 3:
+            status = entry[:2]
+            path = entry[3:]
+            if path and path not in files:
+                files.append(path)
+            # If status is rename/copy (R or C), the next field is the old path
+            if status[0] in ("R", "C") or status[1] in ("R", "C"):
+                i += 1
+                if i < len(entries) and entries[i]:
+                    old_path = entries[i]
+                    if old_path not in files:
+                        files.append(old_path)
+        i += 1
+    return files
+
+
 def _in_index(repo_root: Path, rel_path: str) -> bool:
     """Whether the index still holds an entry for ``rel_path``.
 
@@ -490,6 +528,10 @@ def offer_commit(
         EXCLUDES is dropped from the staging set first, with a note naming it on stderr (see
         below). Callers must therefore not rely on a generated, gitignored file being committed
         here.
+
+        DIRECTORY ARGUMENTS ARE REFUSED BEFORE STAGING (``STATUS_ERROR``), naming the contained
+        files so the corrected invocation is copy-pasteable. Siting the refusal ahead of staging
+        guarantees that a refused call leaves the index untouched (no mutation, no rollback).
     message:
         Commit message. Never combined with ``--no-verify``; the commit is path-scoped
         (``git commit -- <paths>``) and is never pushed.
@@ -517,11 +559,11 @@ def offer_commit(
     Returns
     -------
     CommitOutcome
-        ``committed`` (with the new sha), ``skipped`` (gate declined it non-interactively or
-        ``no_commit``), ``declined`` (interactive user said no), ``refused-dirty``
-        (``on_unrelated_staged="refuse"`` and the index held unrelated staged paths),
-        ``nothing-to-commit`` (no requested path exists/changed, or EVERY requested path is
-        gitignored), or ``error``.
+        ``committed`` (with the new sha; reports any named paths that had nothing to commit),
+        ``skipped`` (gate declined it non-interactively or ``no_commit``), ``declined`` (interactive
+        user said no), ``refused-dirty`` (``on_unrelated_staged="refuse"`` and the index held
+        unrelated staged paths), ``nothing-to-commit`` (no requested path exists/changed, or EVERY
+        requested path is gitignored), or ``error`` (e.g. a directory argument was passed).
 
     Notes
     -----
@@ -554,6 +596,23 @@ def offer_commit(
 
     if no_commit:
         return CommitOutcome(STATUS_SKIPPED, None, (), "skipped: --no-commit requested")
+
+    # --- Refuse directory arguments BEFORE staging (OQ-01 / F-6 / F-7). ---
+    # A directory argument is staged by `git add -- <dir>`, but git reports the contained FILES at
+    # `_staged_paths`, so `our_staged = now_staged & set(rel_paths)` drops them. That dropped the
+    # destination of records moves and committed deletions alone (ca8e22e4 / F-1 / F-2). An
+    # all-directories call returned `nothing-to-commit` having already staged the full move with no
+    # rollback (F-6). Refusing BEFORE staging ensures the index remains untouched.
+    dir_paths = [p for p in rel_paths if (repo_root / p).is_dir()]
+    if dir_paths:
+        contained = _contained_files(repo_root, dir_paths)
+        hint = f": {', '.join(contained)}" if contained else ""
+        return CommitOutcome(
+            STATUS_ERROR,
+            None,
+            (),
+            f"refusing directory argument(s): {', '.join(dir_paths)}; name explicit file path(s) instead{hint}",
+        )
 
     # --- Drop gitignored paths BEFORE staging (never force-add them). ---
     # A single ignored path makes `git add` exit 1 having staged NOTHING, which previously turned
@@ -652,11 +711,21 @@ def offer_commit(
         our_staged = sorted(now_staged & set(rel_paths))
         if not our_staged:
             # Nothing of ours changed (already committed / identical); no empty commit.
+            # Roll back any unexpected staging residue to restore the pre-call index state (F-6).
+            residue = sorted(now_staged - pre_staged)
+            if residue:
+                _git(repo_root, ["reset", "--quiet", "HEAD", "--", *residue])
+                return CommitOutcome(
+                    STATUS_NOTHING_TO_COMMIT,
+                    None,
+                    (),
+                    f"nothing to commit: requested path(s) had no staged changes ({', '.join(rel_paths)}); reset staged residue: {', '.join(residue)}",
+                )
             return CommitOutcome(
                 STATUS_NOTHING_TO_COMMIT,
                 None,
                 (),
-                "nothing to commit: requested paths have no staged changes",
+                f"nothing to commit: requested path(s) have no staged changes ({', '.join(rel_paths)})",
             )
 
         # --- Path-scoped commit, performed in an ISOLATED worktree. ---
@@ -671,6 +740,12 @@ def offer_commit(
             # (`commit_isolated`). Say so rather than reporting a bare success: the committed bytes are
             # then the HOOK's, not exactly what the caller wrote, and an operator who is not told that
             # has no way to notice.
+            shortfall = [p for p in rel_paths if p not in set(our_staged)]
+            shortfall_note = (
+                f" ({len(shortfall)} path(s) had nothing to commit: {', '.join(shortfall)})"
+                if shortfall
+                else ""
+            )
             note = ""
             if iso.hook_fixed:
                 note = (
@@ -686,7 +761,7 @@ def offer_commit(
                 STATUS_COMMITTED,
                 iso.commit,
                 tuple(our_staged),
-                f"committed {len(our_staged)} path(s) as {iso.commit}{note}",
+                f"committed {len(our_staged)} path(s) as {iso.commit}{note}{shortfall_note}",
                 tuple(iso.hook_fixed),
                 tuple(iso.hook_fixed_diverged),
             )

@@ -1058,3 +1058,173 @@ def test_a_plain_deletion_is_still_committed(repo: Path):
     assert out.status == H.STATUS_COMMITTED
     tracked = git(repo, "ls-tree", "-r", "--name-only", "HEAD").stdout
     assert victim not in tracked
+
+
+# --------------------------------------------------------------------------------------
+# UNTRACKED-DESTINATION RECORDS MOVE & DIRECTORY REFUSAL (IPD hv9gar)
+# --------------------------------------------------------------------------------------
+
+
+def _create_untracked_move_fixture(repo: Path) -> tuple[str, str]:
+    """Build the writer's real output shape: write+unlink (NOT git mv).
+
+    Leaves the destination UNTRACKED and the source deletion UNSTAGED, matching what
+    `core.atomic_write` + `src.unlink()` leaves on disk before staging. Uses a realistic
+    multi-line body (30+ lines) so git rename detection reliably scores high.
+    """
+    body = "".join(f"line {i}: content for record item-abc123\n" for i in range(35))
+    src = _write(repo, "records/open/item-abc123.md", body)
+    git(repo, "add", "--", src)
+    git(repo, "commit", "-q", "-m", "seed item-abc123 in open")
+
+    dest = "records/done/item-abc123.md"
+    _write(repo, dest, body)
+    (repo / src).unlink()
+    return src, dest
+
+
+def test_untracked_destination_shape_commits_both_halves_when_naming_explicit_files(
+    repo: Path, rec
+):
+    """E-04: naming explicit files for an untracked-destination move commits atomically."""
+
+    src, dest = _create_untracked_move_fixture(repo)
+
+    # Prove the fixture starts with unstaged deletion and untracked destination (NOT git mv).
+    status_before = git(repo, "status", "--porcelain").stdout
+    assert f" D {src}" in status_before
+    assert f"?? {dest}" in status_before or "?? records/done/" in status_before
+
+    out = H.offer_commit(
+        repo,
+        [src, dest],
+        message="close item-abc123",
+        assume_yes=True,
+        interactive=False,
+    )
+    assert out.status == H.STATUS_COMMITTED
+    assert out.commit is not None
+    assert set(out.staged) == {src, dest}
+
+    # The commit carries a rename record or paired deletion and addition.
+    shown = git(
+        repo, "show", "--name-status", "--pretty=format:", "-M", out.commit
+    ).stdout
+    assert "records/open/item-abc123.md" in shown
+    assert "records/done/item-abc123.md" in shown
+
+    # Tree is clean after commit.
+    assert git(repo, "status", "--porcelain").stdout.strip() == ""
+
+    # Destination is present in HEAD, source is gone.
+    tracked = git(repo, "ls-tree", "-r", "--name-only", "HEAD").stdout.splitlines()
+    assert dest in tracked
+    assert src not in tracked
+    rec.assert_contract_clean()
+
+
+def test_mixed_file_and_directory_argument_is_refused_before_staging(repo: Path, rec):
+    """E-02 / E-04: passing a directory argument in a mixed call is refused before staging."""
+
+    src, dest = _create_untracked_move_fixture(repo)
+    head_before = _head(repo)
+    status_before = git(repo, "status", "--porcelain").stdout
+
+    out = H.offer_commit(
+        repo,
+        [src, "records/done/"],
+        message="close item-abc123",
+        assume_yes=True,
+        interactive=False,
+    )
+    assert out.status == H.STATUS_ERROR
+    assert out.commit is None
+    assert out.staged == ()
+    # Refusal names the refused directory and the contained file.
+    assert "records/done" in out.message
+    assert dest in out.message
+
+    # Crucial property: HEAD is unchanged and index/working tree is byte-identical (no staging residue).
+    assert _head(repo) == head_before
+    assert git(repo, "status", "--porcelain").stdout == status_before
+    assert all("commit" not in c for c in rec.calls)
+    rec.assert_contract_clean()
+
+
+def test_all_directories_argument_is_refused_before_staging(repo: Path, rec):
+    """E-02 / E-04 / F-6: passing only directory arguments is refused before staging."""
+
+    src, dest = _create_untracked_move_fixture(repo)
+    head_before = _head(repo)
+    status_before = git(repo, "status", "--porcelain").stdout
+
+    out = H.offer_commit(
+        repo,
+        ["records/open/", "records/done/"],
+        message="close item-abc123",
+        assume_yes=True,
+        interactive=False,
+    )
+    assert out.status == H.STATUS_ERROR
+    assert out.commit is None
+    assert out.staged == ()
+    # Refusal names the directories and contained files.
+    assert "records/open" in out.message
+    assert "records/done" in out.message
+    assert src in out.message
+    assert dest in out.message
+
+    # HEAD is unchanged and index is completely untouched (no staged rename residue).
+    assert _head(repo) == head_before
+    assert git(repo, "status", "--porcelain").stdout == status_before
+    assert all("commit" not in c for c in rec.calls)
+    rec.assert_contract_clean()
+
+
+def test_committed_outcome_reports_shortfall_for_unchanged_paths(repo: Path, rec):
+    """E-03: committed outcome reports which requested paths had nothing to commit."""
+
+    a = _write(repo, "a.txt", "a\n")
+    b = _write(repo, "b.txt", "b\n")
+    git(repo, "add", "--", a, b)
+    git(repo, "commit", "-q", "-m", "seed a,b")
+
+    # Modify only a.txt, pass both a.txt and b.txt.
+    _write(repo, "a.txt", "a modified\n")
+
+    out = H.offer_commit(
+        repo, [a, b], message="update a", assume_yes=True, interactive=False
+    )
+    assert out.status == H.STATUS_COMMITTED
+    assert out.staged == ("a.txt",)
+    assert "b.txt" in out.message
+    assert "1 path(s) had nothing to commit" in out.message
+    rec.assert_contract_clean()
+
+
+def test_nothing_to_commit_reports_shortfall_paths(repo: Path, rec):
+    """E-03: nothing-to-commit outcome reports the requested paths that had no changes."""
+
+    out = H.offer_commit(
+        repo, ["seed.txt"], message="no changes", assume_yes=True, interactive=False
+    )
+    assert out.status == H.STATUS_NOTHING_TO_COMMIT
+    assert out.commit is None
+    assert "seed.txt" in out.message
+    rec.assert_contract_clean()
+
+
+def test_refused_directory_with_no_contained_changes(repo: Path):
+    """E-02: a directory with no changed files is still refused before staging."""
+
+    (repo / "empty_dir").mkdir()
+    head_before = _head(repo)
+    status_before = git(repo, "status", "--porcelain").stdout
+
+    out = H.offer_commit(
+        repo, ["empty_dir"], message="empty dir", assume_yes=True, interactive=False
+    )
+    assert out.status == H.STATUS_ERROR
+    assert "empty_dir" in out.message
+    assert _head(repo) == head_before
+    assert git(repo, "status", "--porcelain").stdout == status_before

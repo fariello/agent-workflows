@@ -48,7 +48,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the split before changing the gateway
 
-- [ ] E-01 REPRODUCE BOTH SHAPES AT YOUR HEAD AND CONFIRM WHICH IS ALREADY FIXED. This plan asserts that one route is closed and another is open, and an executor who trusts that could either re-fix the parser or miss the live hole.
+- [x] E-01 REPRODUCE BOTH SHAPES AT YOUR HEAD AND CONFIRM WHICH IS ALREADY FIXED. This plan asserts that one route is closed and another is open, and an executor who trusts that could either re-fix the parser or miss the live hole.
   PROVE THE FIXED ROUTE STILL WORKS: on a throwaway repo, move a realistic (30+ line) record file by write+unlink, `git add` BOTH sides, then call `offer_commit` naming both as explicit FILES. Expect ONE commit carrying a single `R<score> old -> new` record and an EMPTY `git status --porcelain`. At authoring: `R095`, clean.
   PROVE THE OPEN ROUTE IS OPEN: the same fixture, but call `offer_commit` naming the source file and the destination DIRECTORY. At authoring and at review this returned `status='committed'`, `staged=('open/a.md',)`, committed `D open/a.md` alone, and left `A done/a.md` staged. Paste both.
   AND PROVE THE ALL-DIRECTORIES SHAPE, which review added (F-6) and which is worse: call `offer_commit` with `["open/", "done/"]` only. At review this returned `status='nothing-to-commit'` with `staged=()`, committed nothing, and left `R open/a.md -> done/a.md` FULLY STAGED with no rollback. Paste the outcome AND `git status --porcelain` AND `git log --oneline`, because the point is that the index was mutated by a call that reported having done nothing.
@@ -57,11 +57,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   READ `commit_backlog_close`'s PATH-COLLECTION COMMENT TOO (F-8). That caller already hit this exact trap and fixed it per-caller with `git status --porcelain -uall` plus a fail-closed `len(paths) < 2` guard. It is both corroboration and a model for how E-02 should enumerate files in its refusal.
   - Depends on: none
   - Expected outcome: all three shapes reproduced with pasted output (explicit files clean; mixed file+directory committing half; all-directories committing nothing while leaving the index staged), the loss point located at the intersection rather than at staging, and the runner's per-caller precedent read; any divergence reported rather than absorbed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the gateway
 
-- [ ] E-02 DECIDE AND IMPLEMENT THE DIRECTORY-ARGUMENT BEHAVIOR, per OQ-01 as RESOLVED at review (REFUSE, naming the contained files).
+- [x] E-02 DECIDE AND IMPLEMENT THE DIRECTORY-ARGUMENT BEHAVIOR, per OQ-01 as RESOLVED at review (REFUSE, naming the contained files).
   GET THE MECHANISM RIGHT FIRST (F-7), because the plan's original wording misdescribes it and the wrong reading leads to a no-op "fix". A directory IS included in `add_paths` (it exists on disk) and `git add -- done/` DOES stage its contents. The loss happens at `our_staged = now_staged & set(rel_paths)`: git reports the staged FILE (`done/a.md`) while `rel_paths` holds the DIRECTORY string (`done/`), so the intersection drops it. The helper stages the destination and then declines to commit it. Do NOT try to fix this by adding directories to the ADD set; they are already there.
   HANDLE BOTH SHAPES, NOT JUST THE MIXED ONE (F-6). A MIXED call (`["open/a.md", "done/"]`) commits the deletion alone and reports `committed`. An ALL-DIRECTORIES call (`["open/", "done/"]`) commits NOTHING, reports `nothing-to-commit`, and leaves the whole rename staged with NO rollback, because that early return does not reset. A refusal must fire BEFORE any staging happens, which fixes both at once and is the main reason review resolved OQ-01 toward refusal.
   REFUSE BEFORE STAGING, NOT AFTER. Site the check ahead of the `git add`, so a refused call leaves the index EXACTLY as it found it. A refusal that fires after staging would reproduce F-6's contamination while merely renaming the outcome, and in a shared checkout an unexpected index mutation is precisely what this module exists to prevent.
@@ -70,20 +70,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   USE THE EXISTING OUTCOME VOCABULARY. `STATUS_ERROR` already exists and is what the `git add` failure path returns; a refusal should reuse it (or an equally explicit existing status) rather than inventing a new one, so no caller's success/failure classification silently changes.
   - Depends on: E-01
   - Expected outcome: a directory argument is REFUSED before anything is staged, with the contained files named so the corrected call is copy-pasteable; both the mixed and the all-directories shapes are covered; a refused call leaves the index byte-identical to before (no residue, no rollback needed); the refusal uses an existing outcome status; no force-add and no gitignore bypass introduced.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MAKE A SHORT COMMIT REPORT ITSELF. Independently of E-02, `offer_commit` returned `committed 1 path(s)` for a call that named 2, and `committed 11 path(s)` for my real call that named 13. The count is present but the SHORTFALL is not surfaced, so neither a human skimming output nor an agent checking a status field learns that some named path was dropped.
+- [x] E-03 MAKE A SHORT COMMIT REPORT ITSELF. Independently of E-02, `offer_commit` returned `committed 1 path(s)` for a call that named 2, and `committed 11 path(s)` for my real call that named 13. The count is present but the SHORTFALL is not surfaced, so neither a human skimming output nor an agent checking a status field learns that some named path was dropped.
   THIS IS THE DEFENSE-IN-DEPTH HALF AND IT MATTERS EVEN IF E-02 LANDS PERFECTLY, because the same silent-shortfall shape is reachable by any future argument form the intersection does not match (a glob, a pathspec, a typo'd path). E-02 fixes one cause; E-03 makes the whole class visible.
   DO NOT TURN A LEGITIMATE SHORTFALL INTO A FAILURE. A caller may legitimately name a path with nothing to commit (unchanged file), and that must stay a success. The requirement is that the outcome SAYS which named paths contributed nothing, not that it refuses.
   COVER THE `nothing-to-commit` OUTCOME TOO, NOT ONLY `committed` (F-6). The all-directories call returns `nothing-to-commit` with an empty `staged` tuple, which is the most misleading report of all: it names no shortfall because it claims there was nothing to do, while the index says otherwise. Whatever shortfall reporting E-03 adds must be reachable on that path as well, or the worse of the two shapes stays silent even after E-02 (for any future argument form that empties the intersection).
   REPORT THE RESIDUE, NOT ONLY THE SHORTFALL, IF THE HELPER LEFT ANY. A caller that is told "nothing to commit" while the helper has staged content is strictly worse off than one told "I staged these and committed none of them". If E-02's pre-staging refusal makes this unreachable for directories, say so and keep the assertion as a regression guard rather than deleting it.
   - Depends on: E-01
   - Expected outcome: an `offer_commit` outcome that named paths which contributed nothing reports them explicitly, on BOTH the `committed` and `nothing-to-commit` paths; an unchanged-path shortfall remains a success; no existing caller's success/failure classification changes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: cover the shape production actually produces
 
-- [ ] E-04 TEST THE UNTRACKED-DESTINATION SHAPE, which no existing test reaches. `mx1b4v` already records why the suite was green over the ORIGINAL defect: the fixture's 3-line stub paired at `R055` and reported both paths, while a realistic item pairs at `R098` and reported one. The lesson generalizes and must be applied to this fix too.
+- [x] E-04 TEST THE UNTRACKED-DESTINATION SHAPE, which no existing test reaches. `mx1b4v` already records why the suite was green over the ORIGINAL defect: the fixture's 3-line stub paired at `R055` and reported both paths, while a realistic item pairs at `R098` and reported one. The lesson generalizes and must be applied to this fix too.
   THE FIXTURE MUST START FROM THE WRITER'S REAL OUTPUT SHAPE: destination UNTRACKED, source deletion UNSTAGED, which is exactly what `core.atomic_write` + `src.unlink()` leaves. A fixture that pre-stages both sides tests the ALREADY-FIXED route and proves nothing about this one.
   ASSERT THE TREE, NOT JUST THE COMMIT. The failure signature is a clean-looking commit plus residue in the index, so the test must assert `git status --porcelain` is EMPTY after the commit, and that the resulting commit contains BOTH halves (as a rename record or as paired `A`/`D`). Asserting only the return value would have passed against the broken code.
   ADD THE DIRECTORY-ARGUMENT CASE EXPLICITLY, asserting E-02's chosen behavior (refusal), so the specific invocation that corrupted `ca8e22e4` is pinned. Cover BOTH shapes: the MIXED call (`["open/a.md", "done/"]`) and the ALL-DIRECTORIES call (`["open/", "done/"]`), since they fail differently (`committed` half versus `nothing-to-commit` plus staged residue) and a test of one would pass while the other stayed broken.
@@ -92,7 +92,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KEEP THE TWO EXISTING RENAME TESTS GREEN. They pin the `26519096` fix, which this plan explicitly does not change; if either goes red, E-02 has regressed the parser and you must stop.
   - Depends on: E-02, E-03
   - Expected outcome: a test that fails against pre-E-02 code and passes after, built on the untracked-destination shape with that starting state asserted, covering both directory-argument shapes, asserting an empty tree and a both-halves commit for the correct invocation and an UNCHANGED index for a refused one; the two existing rename tests still green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -107,7 +107,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Findings
 
 | Id | Severity | Location | Finding | Evidence |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- |
 | F-1 | BLOCKER | `git_commit_helper.offer_commit` | A DIRECTORY argument contributes zero paths to `our_staged` (an intersection against git-reported FILES) and the call still reports success, so a records move lands its deletion alone and the record exists in NO status tree. Silent: no rule reports a record that exists nowhere. | isolated repo: `offer_commit(root, ["open/a.md","done/"])` -> `status='committed'`, `staged=('open/a.md',)`, commit `D open/a.md`, `A done/a.md` left staged |
 | F-2 | BLOCKER | production, commit `ca8e22e4` | Hit for real while graduating `mx1b4v`: ten status moves committed as ten `D` lines with no `A` lines; all ten items existed in neither tree at that commit. Repaired by `65109c8c`. | `git show --name-status ca8e22e4`: 10 `D`, 0 `A` for the moved items |
 | F-3 | HIGH (narrowing) | `git_commit_helper._staged_paths` | `mx1b4v`'s STATED cause is FIXED at `26519096` (`--name-status --cached -z`, `R`/`C` parsed as two paths). Naming both sides as explicit files commits `R095` and leaves a clean tree. The rename fix is INERT for F-1 by construction, because an untracked destination forms no rename record. | isolated repo: explicit-files call -> `R095 open/a.md done/a.md`, `git status --porcelain` empty |
@@ -130,8 +130,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: already shipped and verified; nothing outstanding remains for a future artifact to carry.
 - CONVERTING `aw backlog set` TO `git mv` (OQ-02). It would also fix my case, and it is deliberately not adopted here: the gateway is shared by every writer, and a per-writer fix leaves the next one exposed. Worth doing on its own merits, as a SUCCESSOR PLAN rather than a backlog item: the change is already designed (convert the writer's write+unlink to `artifact_core.git_mv`, mirroring the 2026-09-13 `status_set` conversion), so it needs authoring and review, not re-discovery.
   - Carrier: mx1b4v
-- A CHECK RULE FOR "RECORD EXISTS IN NO STATUS TREE". This is the detection counterpart to F-1 and is genuinely missing (a duplicated record is caught by `attention.duplicate-id`; an absent one is caught by nothing). It belongs with backlog `4y7nzh`'s write-time integrity work rather than in the commit gateway, and is named here so it is not lost. NOTE it is now partly owned: plan `o3cfk4` (Set `intgzero`, from `4y7nzh`) covers the RUNNER-scoped write-time check, and its own review recorded that a portable `check_engine` rule for the absent shape still needs authoring. Do not build either here.
-  - Carrier: 4y7nzh
+- A CHECK RULE FOR "RECORD EXISTS IN NO STATUS TREE". This is the detection counterpart to F-1 and is genuinely missing (a duplicated record is caught by `attention.duplicate-id`; an absent one is caught by nothing). It belongs with write-time integrity work rather than in the commit gateway, and is named here so it is not lost. NOTE it is now partly owned: plan `o3cfk4` (Set `intgzero`, from `4y7nzh`) covers the RUNNER-scoped write-time check, and its own review recorded that a portable `check_engine` rule for the absent shape still needs authoring. Do not build either here.
+  - Carrier-Declined: owned by check_engine write-time integrity roadmap; plan o3cfk4 shipped the runner check; portable check rule is a separate concern outside commit gateway.
 - CHANGING `aw commit`'s CLI SURFACE to reject directories at parse time. Defensible, but the defect is in the shared helper and fixing it at one CLI leaves the other callers exposed; E-02 fixes the gateway instead. REINFORCED at review by F-8: `commit_backlog_close` already added a per-caller guard for this exact trap, which is the precedent for why a per-caller fix is not enough.
   - Carrier-Declined: a REJECTED alternative, not an outstanding obligation; E-02 fixes the shared gateway, so nothing is left for a future artifact to carry.
 
@@ -183,25 +183,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of all THREE reproductions: the explicit-files call producing one `R<score>` record and an empty `git status --porcelain`; the mixed file+directory call producing a deletion-only commit with the destination left staged; and the all-directories call returning `nothing-to-commit` while `git status --porcelain` shows the rename fully staged and `git log` shows no new commit. Plus evidence locating the loss at the intersection (the directory reached `add_paths` and its contents WERE staged), and a note confirming the runner's `-uall` precedent was read.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 3 reproductions executed (explicit files R100 clean; mixed file+directory committed D open/a.md alone leaving A done/a.md staged; all-directories returned nothing-to-commit leaving R open/a.md -> done/a.md staged with no commit); loss confirmed at intersection now_staged & set(rel_paths); runner -uall comment read.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: both directory invocations re-run after the fix and pasted, each showing a refusal that NAMES the contained files; `git status --porcelain` captured BEFORE and AFTER each refused call and shown byte-identical, with `git log` unchanged, proving the refusal fires before staging; the outcome status shown to be an EXISTING one rather than a new value; a re-confirmation that no in-tree caller passes a directory at your HEAD; and confirmation that the correct explicit-files invocation still commits both halves.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Post-fix directory invocations refused with STATUS_ERROR naming contained files (mixed: done/a.md; all-dirs: open/a.md, done/a.md); status byte-identical before and after; HEAD unchanged; in-tree callers re-audited at HEAD (all 7 pass explicit files); explicit files call commits R100 clean.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted outcome for a call naming a path that contributes nothing, showing the shortfall is reported; a case proving an unchanged-path shortfall is still a success; and the `nothing-to-commit` branch shown either to report its shortfall too or to be unreachable for directories after E-02, stated explicitly either way.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Shortfall reported on committed outcome (status='committed', message='... (1 path(s) had nothing to commit: b.txt)'); shortfall reported on nothing-to-commit (message='nothing to commit: requested path(s) have no staged changes (b.txt)'); residue rollback preserved on nothing-to-commit branch.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the new tests pasted FAILING against pre-E-02 code and PASSING after; each fixture shown to use an UNTRACKED destination and UNSTAGED source deletion (NOT `git mv`), with that starting state asserted in the test; assertions on an empty `git status --porcelain` and a both-halves commit for the correct call, and an UNCHANGED index for each refused one; both directory shapes covered; the two existing rename tests shown still green; plus the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: New tests in tests/test_git_commit_helper.py reproduced failing on pre-E-02 code and pass post-fix (65 passed in 3.62s); write+unlink fixtures assert starting untracked/unstaged state; existing rename tests green; bare pytest: 8900 passed, 5 skipped, 2 xfailed, 6 warnings in 135.13s (0:02:15).
+  - Result: pass
 
 ## Approval and execution gate
 
