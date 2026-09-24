@@ -6,7 +6,7 @@
 - Scope: Move the two ANSWERABLE finalize-refusal classes onto the existing send-back path so the agent is asked rather than the item failed, keeping every unanswerable class exactly as it is. The test that decides is NOT "did a frozen requirement change" but "can the agent answer this in one bounded turn": a `Scope-Paths` REDUCTION and a STALE RECEIPT are answerable (justify or revert); an out-of-scope MUTATION that widened the fence without authority is not, and stays terminal. Reuses `RETRYABLE_FINALIZE_FINDING_TEXTS`, the `finalize_refused` prior-attempt key, and the frozen retry budget; adds no new packet format and no new prompt channel. IN: the retryable-finding predicate, the send-back dispatch decision, and the tests that pin both. OUT: changing what `aw ipd finalize` itself checks or refuses (Order 01 and this plan both leave the gate's own logic alone), widening the retry BUDGET, and any change to the digest's frozen region.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, tests/test_finalize_sendback.py, tests/test_finidem_double_finalize.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Set: statusvocab
 - Order: 2
 - Highest E allocated: 03
@@ -17,6 +17,7 @@
 - Id: 787hb4
 
 ## Workflow history
+- 2026-09-24 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored as part of splitting the oversized cyamvi plan into a Set on maintainer instruction; complete enough to critique.
 
 - 2026-09-24 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 
