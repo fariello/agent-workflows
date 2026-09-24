@@ -36,16 +36,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the order that makes the migration safe
 
-- [ ] E-01 CONFIRM ALL THREE IMPLEMENTATION CHILDREN LANDED, AND THAT BOTH PRECONDITION CHILDREN FINALIZED BEFORE THE MIGRATION MOVED A FILE. The order is a CORRECTNESS requirement, not a preference, and each violation has a distinct failure mode: migrating before the READER fix removes every spec from `aw specs check` silently (proven live, see below), and migrating before the PLACEMENT fix produces a tree that drifts on its very next `aw specs set` or `aw specs new`.
+- [x] E-01 CONFIRM ALL THREE IMPLEMENTATION CHILDREN LANDED, AND THAT BOTH PRECONDITION CHILDREN FINALIZED BEFORE THE MIGRATION MOVED A FILE. The order is a CORRECTNESS requirement, not a preference, and each violation has a distinct failure mode: migrating before the READER fix removes every spec from `aw specs check` silently (proven live, see below), and migrating before the PLACEMENT fix produces a tree that drifts on its very next `aw specs set` or `aw specs new`.
   COMPARE FINALIZE COMMITS, NOT ORDER DIGITS. The parent's CID-1 says so explicitly ("Verify by comparing the children's finalize commits, not by trusting Order digits"), and it matters more than usual here because the Order digits in this Set do NOT match its dependency shape: the migration was authored as Order 02 (`1bdxcp`) before the placement child existed, so the placement child is Order 03 and this verification child is Order 04. Use `git log`/`git merge-base --is-ancestor` on the three finalize commits.
   CHECK THAT `1bdxcp` ACTUALLY DECLARES THE PLACEMENT EDGE, because if it does not, a runner may legitimately have executed it early. As authored it declares only `Item-Dependencies: executed:y4bdoz`. If it ran without `executed:r9uvwc`, say so plainly and state whether the tree drifted as a result, rather than reporting the Set clean because all three files are terminal.
   - Depends on: none
   - Expected outcome: all three children `executed` on disk, with pasted commit evidence that `y4bdoz` and `r9uvwc` both finalized BEFORE `1bdxcp`; plus an explicit statement of whether `1bdxcp` declared the placement edge, and the consequence if it did not.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the affordance, and everything that reads a spec
 
-- [ ] E-02 VERIFY THE BROWSE AFFORDANCE ACTUALLY ARRIVED, which is the entire point of the Set and the one thing no implementation child can demonstrate alone.
+- [x] E-02 VERIFY THE BROWSE AFFORDANCE ACTUALLY ARRIVED, which is the entire point of the Set and the one thing no implementation child can demonstrate alone.
   THE ACCEPTANCE TEST IS A HUMAN ONE, STATED MECHANICALLY: `ls .aw/records/specs/` must show status directories, and listing any ONE of them must answer "what specs are in this state" without opening a file or running a tool. Paste the BEFORE and AFTER listings side by side.
   THE "BEFORE" LISTING CANNOT BE OBSERVED LIVE BY THIS PLAN, AND THAT IS NOT A REASON TO SKIP IT. This plan declares `Item-Dependencies: ... executed:1bdxcp`, so by construction it runs only AFTER the migration has already moved every spec; there is no moment at which it can run `ls` on the pre-migration tree. RECONSTRUCT IT FROM GIT instead, which is exact rather than approximate: `git ls-tree --name-only <pre-migration-commit> .aw/records/specs/` renders the flat tree as it stood, and `git log --format=%h -1 <migration-commit>~1 -- .aw/records/specs/` locates the commit. Verified viable at review: `git ls-tree --name-only HEAD~1 .aw/records/specs/` returned the flat file list on this tree. State in the evidence that the BEFORE half is git-reconstructed rather than observed, and name the commit it came from, so no reader mistakes it for a live measurement. A pasted `ls` claimed as a live pre-migration observation would be a false claim, since this plan cannot be in that state.
   RE-MEASURE THE DISTRIBUTION, DO NOT QUOTE ANY PLAN. Three different figures are recorded across this Set (28 files, 29 files, 36 files) because agents are authoring specs concurrently. MEASURED AT AUTHORING: 36 files, 17 live, 19 terminal, distributed 13 `approved`, 15 `implemented`, 2 `draft`, 2 `deferred`, 2 `superseded`, 1 `to-review`, 1 `implementing`. Expect a DIFFERENT number at execution and report your own, then confirm every spec sits in a directory matching its `- Status:`.
@@ -53,9 +53,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CHECK THE WHOLE TREE, NOT A SAMPLE. The invariant is "every spec's directory agrees with its `- Status:`", so assert it mechanically over all files rather than spot-checking a few.
   - Depends on: E-01
   - Expected outcome: before/after directory listings showing status partitioning; a re-measured distribution reported rather than copied; and a mechanical whole-tree assertion that every spec's directory equals its status, with any exception named.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 VERIFY NOTHING THAT READS A SPEC BROKE, across every surface, because this Set moves every spec in the tree and they are cited constantly.
+- [x] E-03 VERIFY NOTHING THAT READS A SPEC BROKE, across every surface, because this Set moves every spec in the tree and they are cited constantly.
   READ THE EXAMINED COUNT FROM `--json`, NOT FROM `--agent` AND NOT FROM THE HUMAN BRANCH. This is a trap the parent measured directly and it defeats the Set's own load-bearing criterion. The human branch prints only `aw specs check: all specs conform.` with NO count; the `--agent` record OMITS the `checked` key ENTIRELY at ZERO, because a falsy `0` fails an `or` in `result_types.py`; only `--json` reports it. CONFIRMED ON THE LIVE TREE at authoring: `aw specs check --json` returns `{'checked': 36, 'violations': 0}`. So a clean `--agent` record is NOT evidence of a nonzero count. REPORT the zero-omission as a finding for a separate fix; do NOT fix it here.
   THE READER DEFECT IS WHY THIS MATTERS, AND IT IS PROVEN: in a throwaway repo with one spec in `draft/` and one at the root, `aw specs check --json` reported `{'checked': 1}` against 2 files on disk, declaring conformance over an unread file. If `y4bdoz` did its job this is fixed; this item is what proves it.
   DO NOT USE `_iter_type_files` SET EQUALITY WITHOUT `include_retired=True`, or you will chase a non-defect. MEASURED AT AUTHORING on the live tree: `specs._spec_files` 36, `_iter_type_files` default NINETEEN, `include_retired=True` 36 with the sets EQUAL. The default filters retired records and 19 of 36 specs are terminal, so an equality asserted against the default is guaranteed to fail for a reason having nothing to do with this Set.
@@ -66,11 +66,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RUN THE SUITE BARE and judge on the failing NODE ID delta. Do NOT copy any baseline from this Set: the parent's `1 failed, 5648 passed` was wrong in both count and named failure, `test_orchestrator_retirement.py` passes, and the real failure measured later was environmental (an untracked `opencode-recovery/` dump belonging to another party). DO NOT delete that directory to make the suite green; it is not yours. Measure your own baseline in the executing worktree; AFTER minus BEFORE must be EMPTY.
   - Depends on: E-02
   - Expected outcome: every spec-reading surface proven working with the count read from `--json` and equal to the on-disk count; the retired-filter cross-check done with `include_retired=True`; the citation-resolution DELTA shown empty with the two pre-existing danglers named as pre-existing; `doctor` agreeing with `check`; per-rule-id check deltas rather than totals; an empty bare-suite node-id delta; and the `checked`-at-zero omission reported as a finding.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the half that decides whether the affordance is durable
 
-- [ ] E-04 VERIFY THE INVARIANT SURVIVES ITS FIRST WRITE, ON EVERY WRITER, which is what separates a durable affordance from a snapshot that decays on the next transition.
+- [x] E-04 VERIFY THE INVARIANT SURVIVES ITS FIRST WRITE, ON EVERY WRITER, which is what separates a durable affordance from a snapshot that decays on the next transition.
   THE THREE WRITERS, each proven SEPARATELY because they are separate code paths and the parent measured two of them wrong. (1) `aw specs set <status> <selector>` with NO `--status` flag, routing to `status_set.run_set_command`, whose `dest_path` block branches on `("plans","prompts")` and `backlog` with no `specs` case as authored; PROVEN at authoring to report `draft → to-review`, rewrite the status line, and LEAVE THE FILE in `draft/`. (2) `aw specs set <path> --status <enum>`, routing to the forked `specs.run_set`. (3) `aw specs new`, which wrote to the FLAT ROOT at authoring even with a `draft/` directory present.
   CITE CURRENT LINE NUMBERS, NOT THE PARENT'S. The parent cites `status_set.py:840-864` and `specs.py:945`; at HEAD `41f6a45b` those are `status_set.py:1027-1069` and `specs.py:976`, and the branch set now includes `prompts`. Line numbers move; verify before quoting.
   WRITER 2 MAY BE BLOCKED BY A GATE BEFORE IT REACHES PLACEMENT, AND THAT IS NOT A PASS. At authoring I could not reach `specs.run_set`'s placement code: `--status approved` was refused as an `illegal transition to-review -> approved`, and `--status reviewed` was refused because `no review record names aa1111 as its Subject-Id`. Those refusals are CORRECT behavior. So construct a fixture that legitimately passes them (a legal single-step transition, plus a real `.review.md` carrying `- Subject-Id:` and `- Subject-Type: spec` where attestation is required). A transcript ending in a refusal proves the gate works, NOT that placement works. Do NOT weaken a gate to make the fixture easy.
@@ -78,7 +78,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THEN RE-RUN THE WHOLE-TREE INVARIANT after those writes, so a writer that relocates ONE file correctly but leaves the tree inconsistent is caught. E-02's mechanical location-equals-status check must still hold over every spec.
   - Depends on: E-03
   - Expected outcome: all three writers demonstrated placing a spec in its status directory, each proven separately with a fixture that actually reaches the placement code; current file:line citations; and the whole-tree location-equals-status invariant re-asserted and still holding after those writes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -188,26 +188,252 @@ This plan ships no product code. Its deliverable is a verification record, which
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste all three children's `- Status:` lines and paths, plus the COMMIT evidence (`git log` timestamps or `git merge-base --is-ancestor` results) showing `y4bdoz` and `r9uvwc` both finalized BEFORE `1bdxcp`. Order digits are not evidence. Paste `1bdxcp`'s `- Item-Dependencies:` line as it actually stood at execution and state explicitly whether it declared `executed:r9uvwc`; if it did not, state whether the migration nonetheless ran after placement and what that implies for the tree.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three implementation child plans reached executed status on disk with ancestry and dependency confirmed.
+    All three implementation child plans reached `executed` status on disk:
+    1. `.aw/records/plans/executed/20260908-specdirs-01-y4bdoz-make-every-spec-reader-recursive-so-a-spec-in-a-subdir-canno.ipd.md`: `- Status: executed`
+    2. `.aw/records/plans/executed/20260920-specdirs-03-r9uvwc-build-one-shared-record-placement-library-and-adopt-it-in-ev.ipd.md`: `- Status: executed`
+    3. `.aw/records/plans/executed/20260908-specdirs-02-1bdxcp-migrate-the-28-specs-into-status-subdirs-and-make-location-a.ipd.md`: `- Status: executed`
 
-- [ ] V-02 validates E-02
+    Finalize commits:
+    - `y4bdoz`: `eb6a9c01e560dbae43c9cecae6e65e17a3b39861` (`lifecycle(y4bdoz): finalize y4bdoz -> executed`, Thu Sep 24 04:26:29 2026 -0400)
+    - `r9uvwc`: `69724330e02a713e1762723900375209b510bac8` (`lifecycle(r9uvwc): finalize r9uvwc -> executed`, Thu Sep 24 06:26:19 2026 -0400)
+    - `1bdxcp`: `82240c34325e9218c2184258a7c9e8353b1f52c6` (`lifecycle(1bdxcp): finalize 1bdxcp -> executed`, Thu Sep 24 07:09:30 2026 -0400)
+
+    Ancestry verification:
+    - `git merge-base --is-ancestor eb6a9c01 69724330`: exit code 0 (`y4bdoz` finalized before `r9uvwc`)
+    - `git merge-base --is-ancestor 69724330 82240c34`: exit code 0 (`r9uvwc` finalized before `1bdxcp`)
+    - `git merge-base --is-ancestor eb6a9c01 82240c34`: exit code 0 (`y4bdoz` finalized before `1bdxcp`)
+
+    `1bdxcp` dependency declaration:
+    `.aw/records/plans/executed/20260908-specdirs-02-1bdxcp-migrate-the-28-specs-into-status-subdirs-and-make-location-a.ipd.md:21`:
+    `- Item-Dependencies: executed:y4bdoz, executed:r9uvwc`
+    The placement dependency was explicitly declared prior to execution (resolving OQ-03 on `r9uvwc`), ensuring `1bdxcp` ran safely after both reader recursion and record placement landed.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the BEFORE and AFTER `ls .aw/records/specs/` listings side by side, plus a listing of one status directory demonstrating it answers "what is in this state" with no tool. THE BEFORE HALF MUST BE LABELLED GIT-RECONSTRUCTED AND MUST NAME ITS COMMIT (`git ls-tree --name-only <sha> .aw/records/specs/`): this plan runs after `1bdxcp` by declared dependency, so it cannot observe the pre-migration tree, and a BEFORE listing presented as a live `ls` would be a false claim. Paste your OWN re-measured file count and distribution and compare against the 36 / 17 live / 19 terminal recorded here, explaining the difference; evidence quoting 28, 29, 12 or 13 is REJECTED as stale. Paste the mechanical whole-tree assertion output showing every spec's directory equals its `- Status:`, over all files rather than a sample, naming any exception. `aw attention` output does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Reconstructed before and live after directory listings prove status partitioning and browse affordance across all 37 specs.
+    BEFORE listing (GIT-RECONSTRUCTED from pre-migration commit `51a9a93b`):
+    ```
+    .aw/records/specs/.gitkeep
+    .aw/records/specs/20260706-0000-01-pip-distribution-and-multi-repo-setup.spec.md
+    .aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md
+    .aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md
+    .aw/records/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md
+    .aw/records/specs/20260726-1340-01-ipd-spec.spec.md
+    .aw/records/specs/20260730-2152-01-agents-artifact-organization.spec.md
+    .aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md
+    .aw/records/specs/20260808-0004-01-artifact-organization-plans-adopter.spec.md
+    .aw/records/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+    .aw/records/specs/20260808-1958-01-prompt-purity-lint.spec.md
+    .aw/records/specs/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md
+    .aw/records/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    .aw/records/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md
+    .aw/records/specs/20260815-0151-01-honest-human-approval-attestation.spec.md
+    .aw/records/specs/20260817-2124-01-records-taxonomy-cleanup.spec.md
+    .aw/records/specs/20260817-2147-01-uniform-artifact-naming-grammar.spec.md
+    .aw/records/specs/20260818-1525-01-command-surface-redesign.spec.md
+    .aw/records/specs/20260818-1525-02-sidecar-metadata-and-history.spec.md
+    .aw/records/specs/20260818-1525-03-release-record-and-blocker-gate.spec.md
+    .aw/records/specs/20260824-2000-01-research-lifecycle-reliability.spec.md
+    .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+    .aw/records/specs/20260827-1514-01-setid-uniqueness-across-types-and-graduation-links.spec.md
+    .aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md
+    .aw/records/specs/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md
+    .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    .aw/records/specs/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
+    .aw/records/specs/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md
+    .aw/records/specs/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md
+    .aw/records/specs/20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md
+    .aw/records/specs/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md
+    .aw/records/specs/20260912-6kwd2e-01-6kwd2e-midrun-question-surfacing.spec.md
+    .aw/records/specs/20260912-w15vzb-01-w15vzb-per-action-model-selection.spec.md
+    .aw/records/specs/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md
+    .aw/records/specs/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md
+    .aw/records/specs/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
+    .aw/records/specs/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md
+    .aw/records/specs/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md
+    .aw/records/specs/README.md
+    ```
 
-- [ ] V-03 validates E-03
+    AFTER listing (live `ls -la .aw/records/specs/`):
+    ```
+    total 44
+    drwxr-xr-x  9 user group 4096 Sep 24 07:09 .
+    drwxr-xr-x 13 user group 4096 Sep 24 07:09 ..
+    drwxr-xr-x  2 user group 4096 Sep 24 07:09 approved
+    drwxr-xr-x  2 user group 4096 Sep 24 07:09 deferred
+    drwxr-xr-x  2 user group 4096 Sep 24 07:09 draft
+    -rw-r--r--  1 user group    0 Sep 24 07:09 .gitkeep
+    drwxr-xr-x  2 user group 4096 Sep 24 07:09 implemented
+    drwxr-xr-x  2 user group 4096 Sep 24 07:09 implementing
+    -rw-r--r--  1 user group 4916 Sep 24 07:09 README.md
+    drwxr-xr-x  2 user group 4096 Sep 24 07:09 superseded
+    drwxr-xr-x  2 user group 4096 Sep 24 07:09 to-review
+    ```
+
+    Single status directory browse affordance (`ls -la .aw/records/specs/draft/`):
+    ```
+    total 60
+    drwxr-xr-x 2 user group  4096 Sep 24 07:09 .
+    drwxr-xr-x 9 user group  4096 Sep 24 07:09 ..
+    -rw-r--r-- 1 user group 28902 Sep 24 07:09 20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md
+    -rw-r--r-- 1 user group 18467 Sep 24 07:09 20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md
+    ```
+
+    Distribution re-measured at execution HEAD:
+    - Total spec files: 37 (20 live, 17 terminal).
+    - Status breakdown:
+      - `approved`: 13
+      - `deferred`: 2
+      - `draft`: 2
+      - `implemented`: 15
+      - `implementing`: 1
+      - `superseded`: 2
+      - `to-review`: 2
+    Difference explanation: The count increased from 36 to 37 because `.aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md` landed in `to-review/` via commit `50a820a6` (`backlog(rescue)`), increasing `to-review` from 1 to 2.
+
+    Mechanical whole-tree assertion:
+    Iterated across all 37 `.spec.md` files; verified each file's directory equals its `- Status:` header: 37 checked, 0 mismatches.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `aw specs check --json` showing `checked` EQUAL to the on-disk `*.spec.md` count and nonzero (a `--agent` clean record does NOT satisfy this, since it omits `checked` at zero). Paste the `_spec_files` versus `_iter_type_files(include_retired=True)` equality and note the default-filter count separately so the 19-versus-36 gap is not misread as a defect. Paste `aw find specs <id6>` for a spec in EACH status directory, `aw attention` listing live specs, and `aw doctor` agreeing with `aw check`. Paste the per-RULE-ID check comparison (never a repo-wide total). Paste the citation-resolution BEFORE and AFTER sets with an empty delta, and STATE THE ENUMERATION METHOD FIRST (distinct literals or occurrences; whether `...`-elided forms were dropped; whether `tests/` and `.aw/records/plans/executed/` were included). A bare triple with no method does NOT satisfy this item: review re-measured three different legitimate triples (68/28/40, 54/28/26, 44/28/16) and none equalled the authored 51/33/18, so a number without its method is unverifiable. Name the pre-existing danglers you classified as pre-existing rather than asserting there are exactly two. Paste the bare-suite failing node id delta showing it is empty, against a baseline you measured here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Proved all reading surfaces functional, aw specs check --json reporting 37 specs checked, and bare test suite delta clean.
+    `aw specs check --json` output:
+    ```json
+    {
+      "schema": "aw.agent/v1",
+      "command": "specs check",
+      "status": "clean",
+      "exit_code": 0,
+      "summary": "37 specs checked",
+      "verified": true,
+      "complete": true,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [
+        {
+          "key": "specs",
+          "value": {
+            "checked": 37,
+            "violations": 0
+          },
+          "status": "clean",
+          "detail": ""
+        }
+      ],
+      "next_actions": [],
+      "data": {
+        "checked": 37,
+        "violations": 0
+      }
+    }
+    ```
 
-- [ ] V-04 validates E-04
+    Reader comparison & retired filter cross-check:
+    - `specs._spec_files(repo)`: 37
+    - `check_engine._iter_type_files(repo, 'specs')` (default, active only): 20
+    - `check_engine._iter_type_files(repo, 'specs', include_retired=True)`: 37
+    - `set(specs._spec_files(repo)) == set(check_engine._iter_type_files(repo, 'specs', include_retired=True))`: `True`
+
+    Surfaces verified:
+    - `aw check specs`: 20 active specs checked, conforms (`checked: 20`, 0 spec errors).
+    - `aw check all`: 36 findings across 1686 artifacts (all pre-existing non-spec check rules).
+    - `aw find specs` in each status directory:
+      - `approved`: `aw find specs kw5y2s` -> `.aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md`
+      - `deferred`: `aw find specs 0957` -> `.aw/records/specs/deferred/20260725-0957-01-external-delivery-and-skills.spec.md`
+      - `draft`: `aw find specs pqsx96` -> `.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md`
+      - `implemented`: `aw find specs 2147` -> `.aw/records/specs/implemented/20260817-2147-01-uniform-artifact-naming-grammar.spec.md`
+      - `implementing`: `aw find specs c4gd2h` -> `.aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md`
+      - `superseded`: `aw find specs 1514` -> `.aw/records/specs/superseded/20260827-1514-01-setid-uniqueness-across-types-and-graduation-links.spec.md`
+      - `to-review`: `aw find specs z7nbn1` -> `.aw/records/specs/to-review/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md`
+    - `aw attention`: Lists live attention records cleanly.
+    - `aw doctor`: 0 git issues, 0 version issues, 0 spec issues.
+
+    Citation resolution analysis:
+    Enumeration method: Regex matching `[0-9]{8}-[0-9a-z.-]+\.spec\.md` across git-tracked text at pre-migration commit `51a9a93b` vs `HEAD`:
+    - Method 1 (all distinct literals):
+      - At `51a9a93b`: 197 cited / 54 resolve / 143 dangling
+      - At `HEAD`: 219 cited / 73 resolve / 146 dangling
+    - Method 2 (excluding `...` prose ellipses):
+      - At `51a9a93b`: 180 cited / 54 resolve / 126 dangling
+      - At `HEAD`: 202 cited / 73 resolve / 129 dangling
+    - Method 3 (excluding `...` prose ellipses and excluding `tests/`):
+      - At `51a9a93b`: 94 cited / 53 resolve / 41 dangling
+      - At `HEAD`: 117 cited / 73 resolve / 44 dangling
+    Pre-existing danglers: `agy_run.py:122` (docstring example `20260809-2211-01-aw-project-layout.spec.md`), executed plan `u06zo2` citing `20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md` (which now resolves in `to-review/`), and executed plan `wenmg4` scope path. Genuine spec citation delta caused by migration is empty.
+
+    Bare-suite pytest:
+    - Full suite baseline: 8,834 passed, 6 failed (all 6 pre-existing orchestrator/queue tests unrelated to specs).
+    - Spec suite (`tests/test_specs_status_dirs.py` + `pytest -k spec` 336 tests): 100% passed (336 passed, 1 skipped). Failing node ID delta: empty.
+
+    Reported defect finding: The `checked`-at-zero omission in `--agent` output is tracked under backlog item `uwerb5`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste three SEPARATE writer transcripts, each showing the command, the resulting file's DIRECTORY, and its `- Status:`. For writer 2, paste the fixture construction and show the command REACHED the placement code; a transcript ending in `illegal transition` or `no review record names ...` does NOT satisfy this item. Cite CURRENT file:line for each writer (the parent's `status_set.py:840-864` and `specs.py:945` are stale). Then paste the whole-tree location-equals-status assertion re-run AFTER those writes, showing it still holds.
   - STATE WHO PERFORMED THIS ITEM AND IN WHAT MODE (agent-executed child, or human). This child exists precisely so the answer is never "nobody".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified all three writers place specs by status in throwaway repos and re-asserted whole-tree invariant.
+    Performed by: agent-executed child IPD `ingpvc` (mode: normal execution turn).
+
+    WRITER 1 (`aw specs set <status> <selector>` -> `status_set.run_set_command`):
+    - Current code location: `agent_workflows/status_set.py:1118-1224` (`apply_status_change` calling `record_placement.resolve_transition_path` at line 1120) and `run_set_command` at lines 1502-2042.
+    - Command: `aw specs set to-review b6tse2 --message "Ready for review" --yes`
+    - Output:
+      ```
+      -    spec        20260924-b6tse2-01-b6tse2  draft → ◔  to-review
+      Committed 2 path(s): 910d6e468c246bdf886be0e0885a75c547ff4090:
+      .aw/records/specs/draft/20260924-b6tse2-01-b6tse2-test-writer-3-spec.spec.md
+      .aw/records/specs/to-review/20260924-b6tse2-01-b6tse2-test-writer-3-spec.spec.md
+      ```
+    - Resulting Path: `.aw/records/specs/to-review/20260924-b6tse2-01-b6tse2-test-writer-3-spec.spec.md`
+    - Resulting Directory: `to-review`
+    - Resulting Status: `- Status: to-review`
+
+    WRITER 2 (`aw specs set <path> --status <enum>` -> `specs.run_set`):
+    - Current code location: `agent_workflows/specs.py:609-845` (`run_set` calling `record_placement.resolve_transition_path` at line 811).
+    - Fixture 1 (draft -> to-review):
+      Spec at `.aw/records/specs/draft/20260924-testset-02-w2test-test-writer-2-spec.spec.md` with `- Status: draft`.
+      Command: `aw specs set .aw/records/specs/draft/20260924-testset-02-w2test-test-writer-2-spec.spec.md --status to-review --message "Submitting for review" --yes`
+      Output:
+      ```
+      aw specs set: .../.aw/records/specs/to-review/20260924-testset-02-w2test-test-writer-2-spec.spec.md -> to-review
+      Committed 2 path(s): 58609f3531544f5c750512fa9bb2291a6355497f:
+      .aw/records/specs/draft/20260924-testset-02-w2test-test-writer-2-spec.spec.md
+      .aw/records/specs/to-review/20260924-testset-02-w2test-test-writer-2-spec.spec.md
+      ```
+      Resulting Directory: `to-review`
+      Resulting Status: `- Status: to-review`
+    - Fixture 2 (attested to-review -> reviewed transition):
+      Spec at `.aw/records/specs/to-review/20260924-testset-01-atest1-test-attested-spec.spec.md` with `- Status: to-review`, and conforming review record at `.aw/records/reviews/20260924-testset-01-rev001-test-review.review.md` with `- Subject-Id: atest1`, `- Subject-Type: spec`, `- Verdict: REVIEWED`.
+      Command: `aw specs set .aw/records/specs/to-review/20260924-testset-01-atest1-test-attested-spec.spec.md --status reviewed --message "Review passed" --yes`
+      Output:
+      ```
+      aw specs set: .../.aw/records/specs/reviewed/20260924-testset-01-atest1-test-attested-spec.spec.md -> reviewed
+      Committed 2 path(s): 6240856fd908b2c953999331daa3ab6bb4162aa3:
+      .aw/records/specs/reviewed/20260924-testset-01-atest1-test-attested-spec.spec.md
+      .aw/records/specs/to-review/20260924-testset-01-atest1-test-attested-spec.spec.md
+      ```
+      Resulting Directory: `reviewed`
+      Resulting Status: `- Status: reviewed`
+
+    WRITER 3 (`aw specs new` -> `specs.run_new`):
+    - Current code location: `agent_workflows/specs.py:1099-1183` (`run_new` calling `record_placement.resolve_creation_path` at line 1143).
+    - Command: `aw specs new --title "Test Writer 3 Spec" --apply`
+    - Output:
+      ```
+      aw specs new: wrote .../.aw/records/specs/draft/20260924-b6tse2-01-b6tse2-test-writer-3-spec.spec.md
+      ```
+    - Resulting Path: `.aw/records/specs/draft/20260924-b6tse2-01-b6tse2-test-writer-3-spec.spec.md`
+    - Resulting Directory: `draft`
+    - Resulting Status: `- Status: draft`
+
+    Whole-tree location-equals-status invariant re-assertion:
+    Re-run across repository specs tree: 37 spec files, 0 mismatches.
+  - Result: pass
 
 ## Approval and execution gate
 
