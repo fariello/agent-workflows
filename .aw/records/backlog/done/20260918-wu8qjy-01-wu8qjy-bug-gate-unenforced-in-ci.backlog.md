@@ -1,5 +1,5 @@
 - Id: wu8qjy
-- Status: graduated
+- Status: done
 - Graduated-To: gateci
 - Blocks-Release: next
 - Set: wu8qjy
@@ -8,6 +8,7 @@
 - Summary: The release-gate rule is unenforced in CI: no workflow step runs aw check all, and the one step that could report it is advisory
 
 ## Workflow history
+- 2026-09-24 set (aw backlog): closed by aw oc run: IPD 2vw35i executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260923-gateci-01-2vw35i-make-the-release-gate-rule-family-reachable-from-a-per-type.ipd.md); evidence .aw/records/plans/executed/20260923-gateci-01-2vw35i-make-the-release-gate-rule-family-reachable-from-a-per-type.ipd.md
 - 2026-09-23 graduated (aw set): Graduated to IPD 2vw35i (gateci Order 01). CONFIRMED BOTH HALVES at HEAD 22cf67d9. (1) CI NEVER RUNS THE SWEEP: grep -c 'agent_workflows check all' returns ZERO in every workflow file (tests.yml, local-leaks.yml, secret-scan.yml), so the seam hosting the release-gate family never executes remotely. (2) THE RULES ARE UNREACHABLE PER-TYPE: 'aw check backlog --agent' reports 4 findings, none from the gate family, while 'aw check all --agent' reports 49 INCLUDING check.live-bug-ungated against a real item (7l1ggb, a live bug with no Blocks-Release). So a genuine violation exists right now and no per-type invocation can see it. THE FINDING THAT SHAPES THE PLAN, and the reason this is not a one-line fix: deleting the '|| true' from the existing advisory 'check backlog' CI step would red main IMMEDIATELY, because the pre-existing naming debt that DECISION 18-r2ks4k-D1 defers is still live and measurable (check.name-nonconformant x3 plus check.collisions-not-checked). So 2vw35i separates the GATE rules from the CONFORMANCE rules and adds a NARROW named fail-closed step, leaving the advisory step exactly as the maintainer left it. A broad step enforcing all 49 findings would be the same red-gate failure 4y7nzh measured over two days and 143 commits. Rule VERDICTS are explicitly out of scope: 4le6yz and 0cqf33 own specific gate-rule defects, so this plan changes reachability and enforcement only.
 - 2026-09-18 created (aw backlog): The release-gate rule is unenforced in CI: no workflow step runs aw check all, and the one step that could report it is advisory
 
