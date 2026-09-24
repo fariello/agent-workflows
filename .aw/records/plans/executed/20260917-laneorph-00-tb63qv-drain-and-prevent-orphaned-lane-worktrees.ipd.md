@@ -6,7 +6,7 @@
 - Scope: Coordinate the two children. Order 01 fixes the reclaim predicate and tears a lane down when its work lands. Order 02 drains the 13 existing branches by evidence-cited disposition. This orchestrator holds NO work of its own beyond sequencing and the Set-level acceptance check.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: next
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: tb63qv
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set laneorph reached executed, so the runner (run run-20260924T050407Z-3108751) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 65cuw0, ut0vzr, k311gw.
 - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (laneorph: high/bug); Blocks-Release: next per Ruling 3
 - 2026-09-19 approved (aw set): status set to approved
