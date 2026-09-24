@@ -56,7 +56,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MEASURE WHAT ALREADY CATCHES THE ABSENT SHAPE, rather than assuming nothing does. Run `aw check backlog --agent` and `aw attention --check --agent`. Then confirm the specific partial detector review found: `check.from-backlog-dangling` is an `error` rule that fires when a plan or spec's `- From-Backlog:` resolves to no item, so it catches a vanished item that HAS a referrer. State plainly which absent-item cases remain uncovered (an item with no referrer, and the write-time moment), because those are the only ones E-02 may claim to close.
   - Depends on: none
   - Expected outcome: the shipped predicate quoted; the working-tree-versus-commit defect proved with a pasted two-shape measurement showing both guards False; (iii) confirmed absent; and an explicit statement of which absent-item cases `check.from-backlog-dangling` already covers and which remain. Any divergence from the review measurement reported as a STOP.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 2: close the zero-claimant blind spot
 
@@ -70,7 +70,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SAY WHAT A READER SHOULD DO. Each message carries the item's id6, the count actually observed, the sha inspected when there is one, and the remedy: for 0, that the destination write was probably dropped from the commit; for >1, that a pre-move copy probably survived beside its destination.
   - Depends on: E-01
   - Expected outcome: after a close whose commit leaves the id6 claimed 0 or >1 times IN THAT COMMIT, the fact is reported in all three destinations under a rule name distinct from `attention.duplicate-id` and distinct per condition; a close with no commit sha reports nothing; a healthy close reports nothing; the existing working-tree duplicate branch and `backlog_item_paths_for_id`'s semantics are unchanged; the check still never raises and never fails the run; both hosts share one implementation.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 3: recommendation (iii), the startup report
 
@@ -86,7 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   LAND IT ON BOTH HOSTS THROUGH ONE IMPLEMENTATION, sited in `runner_shared`, never in `oc_runipd` for `agy_runipd` to import.
   - Depends on: E-01
   - Expected outcome: both hosts report at startup, before the run directory exists, that the cross-tree view is invalid and which rule ids are outstanding; validity is computed through `drift_exit_code` so an `info`-only tree stays SILENT; the run still starts; a failure to compute the view warns instead of raising; a records-free repository is silent; the added startup cost is measured and pasted; one shared implementation.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 4: cover both
 
@@ -98,7 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   FOR E-03, ASSERT THREE THINGS: that the report is emitted BEFORE the run directory exists (a test that only checks the text appears somewhere would pass against a report printed too late to help); that an `info`-only drift set produces SILENCE (the false-positive guard for the `drift_exit_code` requirement); and that a view-computation failure warns rather than raising.
   - Depends on: E-02, E-03
   - Expected outcome: tests failing against pre-E-02/E-03 code and passing after, covering both committed-tree miscounts from real git fixtures, the healthy close staying silent, the no-sha close staying silent, the startup report's position before durable state, the `info`-only silence, and the compute-failure warning.
-  - Execution state: complete
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
