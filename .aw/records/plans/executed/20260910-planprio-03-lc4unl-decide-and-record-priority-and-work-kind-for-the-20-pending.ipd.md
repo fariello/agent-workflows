@@ -6,7 +6,7 @@
 - Scope: Assign both fields to every pending plan sibling 02 could not reach, using a SECOND derivation route where one exists (a child inheriting from its Set orchestrator) and a single human decision list for the genuine remainder. Writes through the shipped `aw ipd set` setters only. Does NOT touch any plan sibling 02 handled, does NOT edit terminal plans, and does NOT change any vocabulary.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: medium
 - Readiness: go-pending-approval
@@ -15,9 +15,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: lc4unl
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: lc4unl verified (set planprio, attempt 1).
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (planprio: medium/feature)
 - 2026-09-22 executed-substantially (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-06 all PERFORMED and V-01..V-06 all verified with pasted evidence at HEAD `c49c9027`. `aw ipd lint` reports exactly ONE error, at `--phase author` and `--phase pre-transition` alike, and it is CORRECT: `IPD-Q501`, the newly raised OQ-05 is an OPEN BLOCKING question. WRITTEN BY HAND rather than by `aw ipd set --message` because the setter REFUSED, correctly: "refusing to set approved for plan lc4unl: an unresolved BLOCKING open question remains (OQ-05)". It offers `--allow-open-questions`, which was NOT used: overriding a blocking question this very turn raised, on the executor's own authority, is the self-approval the plan forbids.
   THE FINDING THAT DECIDED THIS EXECUTION: Ruling 2 (2026-09-12) decided 13 plans, and TWELVE of them reached `executed/` in the intervening ten days, where this plan may not write. The ruling's 13 and E-01's re-derived 17 overlap in EXACTLY ONE member. `m7gvuz` gained `Work-Kind: bug`, `Priority: medium` and `Blocks-Release: next` in ONE setter call by id6, so the ungated-bug state `qmgn12` exists to detect never existed in the tree; its `- Status:` is untouched and the history line carries the real reason rather than the setter's fabricated `status set to approved`.
