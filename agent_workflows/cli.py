@@ -678,6 +678,15 @@ class _AwArgumentParser(argparse.ArgumentParser):
         kwargs.setdefault("conflict_handler", "resolve")
         super().__init__(*args, **kwargs)
 
+    def format_help(self) -> str:
+        text = super().format_help()
+        if "__{LIFECYCLE_LEGEND}__" in text:
+            legend = Term(color=False).format_lifecycle_legend(both_forms=True)
+            indented = "\n".join(f"  {line}" for line in legend.splitlines())
+            block = f"LIFECYCLE LEGEND (spec uonrjg Section 9.2)\n{indented}\n"
+            text = text.replace("__{LIFECYCLE_LEGEND}__", block)
+        return text
+
     def error(self, message: str) -> None:
         self.print_usage(sys.stderr)
         prog = self.prog
@@ -945,6 +954,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  - Styling: --no-color and NO_COLOR change color styling only.\n"
             "  - Exit codes: 0 clean, 1 findings, 2 cannot-run/usage error.\n"
             "  See docs/cli-output-contract.md for normative contract specifications.\n"
+            "\n"
+            "__{LIFECYCLE_LEGEND}__"
         ),
     )
     parser.add_argument(

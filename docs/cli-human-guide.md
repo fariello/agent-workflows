@@ -5,26 +5,21 @@ terminal. For the machine-facing wire format that agents parse, see the
 [Agent protocol reference](cli-agent-protocol.md). For the full normative rules that both
 audiences share, see the [CLI Output Mode Contract](cli-output-contract.md).
 
-## The one rule that surprises people first
+## Output mode and audience
 
-`aw` decides its output audience from whether stdout is a terminal, not from a flag:
+By default, `aw` emits human-readable text whether stdout is a terminal, a pipe, or a file.
+The earlier proposal for an automatic non-TTY hard cutover to machine JSONL was RETRACTED
+(maintainer ruling, 2026-09-10): piped output remains human text, and `--agent` is the explicit
+way to select machine JSONL. Non-TTY stdout affects color only.
 
-- stdout is a terminal (you are looking at it): you get the HUMAN view (styled, scannable).
-- stdout is a pipe or a file (redirected, captured, or run by an agent): you get the AGENT
-  view (`aw.agent/v1` JSONL, one compact JSON record per line).
+You can select the format and styling with flags:
 
-So `aw status` at your prompt looks different from `aw status | cat`. That is intentional and
-it is a HARD CUTOVER as of the 2.0.0 release: piped output is now machine JSONL, not the old
-plain text. See the [migration guide](cli-migration.md) if you have scripts that scrape the
-old text.
-
-You can always override the automatic choice:
-
-- `aw status --agent` forces the machine JSONL view even at a terminal.
-- `aw status --json` forces pretty-printed structured JSON.
-- `aw status --no-color` keeps the human view but disables ANSI color (also honored via the
-  `NO_COLOR` environment variable).
-- `FORCE_COLOR=1` keeps color even when piped.
+- `aw <command>` (default): human-readable output (ANSI-colored on a TTY, uncolored when piped).
+- `aw <command> --agent`: machine-readable `aw.agent/v1` JSONL (one compact JSON record per line).
+- `aw <command> --json`: pretty-printed structured JSON.
+- `aw <command> --no-color`: human view without ANSI color (also honored via the `NO_COLOR`
+  environment variable).
+- `FORCE_COLOR=1`: preserves ANSI color even when piped.
 
 ## Anatomy of a human render
 
@@ -64,11 +59,14 @@ Color and glyphs are never the sole carrier of meaning:
 
 - Every status prints a WORD (OK, FINDINGS, FAIL, WARN, PREVIEW, ...), so a monochrome or
   redirected view is complete on its own.
-- Only the sixteen named colors and the terminal default background are used; there is no
-  assumed background, no truecolor, and no blink.
+- Terminal styling uses an xterm-256 color palette on capable terminals, degrading through 16-color
+  ANSI and then no-color monochrome. Users can pin their preferred color depth, and `NO_COLOR`
+  outranks the depth pin.
 - Unicode glyphs (check mark, cross, arrow) degrade to ASCII (`OK`, `FAIL`, `->`) when the
   terminal cannot render them, or when you set `AW_ASCII_ONLY=1` or `FORCE_ASCII=1`, or when
   `TERM=dumb`.
+- Run `aw --help` to see the canonical lifecycle legend, which details every lifecycle stage, its
+  Unicode glyph, and its ASCII fallback.
 
 Environment precedence for color: `NO_COLOR` disables color and is only overridden by
 `FORCE_COLOR`; otherwise color is on only for a real terminal with a capable `TERM`.
@@ -107,6 +105,7 @@ in your own scripts for "the command could not run at all".
 | You want | Run |
 | --- | --- |
 | The styled interactive view | `aw status` (at a terminal) |
+| The canonical lifecycle legend | `aw --help` |
 | Machine JSONL, even at a terminal | `aw status --agent` |
 | Pretty structured JSON | `aw status --json` |
 | Human view without color | `aw status --no-color` |
