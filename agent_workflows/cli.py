@@ -3926,6 +3926,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 "  comms         Inter-agent communication inbox/records\n"
                 "  releases      Release definition records (.release.md)\n"
                 "  all           All supported record types across the repository (default)\n"
+                "  release-gates Release-gate rule family across backlog, specs, plans, and releases\n"
                 "\n"
                 "RESERVED SUB-CHECKS & OPTIONS\n"
                 "  names         Check filename grammar and clustering conformity only\n"
@@ -11364,49 +11365,54 @@ def _run_check(
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     include_retired = bool(getattr(args, "all", False))
 
-    try:
-        norm = at.normalize_type(raw_type)
-    except ValueError as exc:
-        err_msg = str(exc)
-        result = CommandResult(
-            command="check",
-            status="error",
-            exit_code=2,
-            summary=err_msg,
-            next_actions=[NextAction(command="aw check --help")],
-            data={"target": raw_type, "repo_root": repo_root},
-            verified=True,
-            complete=True,
-        )
-        return get_renderer(ctx).emit(result, ctx)
-
-    selectors = list(getattr(args, "selector", None) or [])
-    only_names = "names" in selectors
-    target_types = [norm] if norm != "all" else list(at.ARTIFACT_TYPES)
-
-    try:
-        drift = ce.check_types(
-            repo_root,
-            [norm] if norm != "all" else ["all"],
-            names_only=only_names,
-            collisions=(norm == "all"),
-            include_retired=include_retired,
-            strict_setid_length=bool(getattr(args, "strict_setid_length", False)),
-        )
-    except Exception:
-        fn = at.resolve_backend(norm, "check")
-        if fn is None:
+    if raw_type in ("release-gates", "release-gate", "release_gates", "release_gate"):
+        norm = "release-gates"
+        target_types = ["backlog", "specs", "plans", "releases"]
+        drift = ce.check_release_gates(repo_root)
+    else:
+        try:
+            norm = at.normalize_type(raw_type)
+        except ValueError as exc:
+            err_msg = str(exc)
             result = CommandResult(
                 command="check",
                 status="error",
                 exit_code=2,
-                summary=f"'check' is not supported for {norm}.",
+                summary=err_msg,
                 next_actions=[NextAction(command="aw check --help")],
-                data={"target": norm, "repo_root": repo_root},
+                data={"target": raw_type, "repo_root": repo_root},
+                verified=True,
+                complete=True,
             )
             return get_renderer(ctx).emit(result, ctx)
-        res_code = fn(_nv_backend_args(args, norm))
-        return res_code if isinstance(res_code, int) else 0
+
+        selectors = list(getattr(args, "selector", None) or [])
+        only_names = "names" in selectors
+        target_types = [norm] if norm != "all" else list(at.ARTIFACT_TYPES)
+
+        try:
+            drift = ce.check_types(
+                repo_root,
+                [norm] if norm != "all" else ["all"],
+                names_only=only_names,
+                collisions=(norm == "all"),
+                include_retired=include_retired,
+                strict_setid_length=bool(getattr(args, "strict_setid_length", False)),
+            )
+        except Exception:
+            fn = at.resolve_backend(norm, "check")
+            if fn is None:
+                result = CommandResult(
+                    command="check",
+                    status="error",
+                    exit_code=2,
+                    summary=f"'check' is not supported for {norm}.",
+                    next_actions=[NextAction(command="aw check --help")],
+                    data={"target": norm, "repo_root": repo_root},
+                )
+                return get_renderer(ctx).emit(result, ctx)
+            res_code = fn(_nv_backend_args(args, norm))
+            return res_code if isinstance(res_code, int) else 0
 
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -11529,6 +11535,8 @@ def _run_check(
             next_actions.append(NextAction(command="aw research find"))
         elif norm == "backlog":
             next_actions.append(NextAction(command="aw backlog check"))
+        elif norm == "release-gates":
+            next_actions.append(NextAction(command="aw releases list"))
     else:
         for f in seen_fixes:
             next_actions.append(NextAction(command=f))

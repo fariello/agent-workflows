@@ -3023,17 +3023,7 @@ def check_types(
                 include_retired=include_retired,
             )
         )
-        # awrelease Order 02: dangling Blocks-Release references are a cross-tree ref check, run once
-        # alongside collisions in the full sweep.
-        try:
-            from agent_workflows import releases as _releases
 
-            drift.extend(_releases.check_blocks_release(repo_root))
-            # bklggrad ku93tn: dangling From-Backlog links (a plan pointing at a nonexistent backlog
-            # item id6) are the same class of cross-tree ref check, run once in the full sweep.
-            drift.extend(_releases.check_from_backlog(repo_root))
-        except Exception:
-            pass
         # setidlen x75obw E-04 (catalog I-17): setid LENGTH is a repository-wide policy over every
         # type, so it rides this once-per-full-sweep seam beside its `check.setid-collision` sibling
         # rather than running per type, which would report one artifact once per type it is enumerated
@@ -3090,37 +3080,24 @@ def check_types(
             drift.extend(check_status_untooled(repo_root))
         except Exception:
             pass
-        # bklggrad orb9zb: release-gate close-legitimacy consistency rules (blocking item closed
-        # without a preserved/satisfied gate; a From-Backlog plan whose Blocks-Release != the item's;
-        # a still-open blocking item already graduated to a blocking plan). ERROR-severity rules fold
-        # into the exit-blocking sweep; the WARN-severity findings are surfaced by attention only.
-        try:
-            drift.extend(check_release_gate_consistency(repo_root))
-        except Exception:
-            pass
-        # nobugship rgaasb E-02: a LIVE bug-kind item with no release gate. Rides THIS
-        # once-per-full-sweep seam beside its I-07 siblings above, and the placement is a decision with
-        # two measured consequences rather than a default.
+        # gateci 2vw35i: the complete release-gate rule family runs here via the shared
+        # `check_release_gates` aggregator, ensuring the full sweep and the distinct
+        # `aw check release-gates` target cannot diverge in their composed rule sets.
         #
-        # (1) IT IS DELIBERATELY *NOT* ADDED INSIDE `check_release_gate_consistency`, even though that
-        # would be the tidier-looking home. That function is composed by `check_commit_invariants`, the
-        # opt-in PRE-COMMIT aggregator, and every rule in it is COMMIT- or RECEIPT-scoped for a reason
-        # (its own Rule 1 examines only STAGED items). This rule is WHOLE-TREE, so putting it there
-        # would refuse a commit because some OTHER party's bug item elsewhere in the tree is ungated -
-        # exactly the shared-checkout failure AGENTS.md warns against.
+        # (1) Whole-tree release-gate rules are DELIBERATELY *NOT* added inside
+        # `check_commit_invariants`: that function is composed by the opt-in pre-commit
+        # aggregator and must remain commit-scoped so a local hook cannot refuse a commit over
+        # an unrelated artifact in a shared checkout.
         #
-        # (2) IT IS THEREFORE NOT REPORTED BY `aw check backlog`, and that is a known, stated cost, not
-        # an oversight: `check_type('backlog')` never reaches this block, so the whole I-07 family is
-        # invisible to the type-scoped command (measured: `check_types(repo,['backlog'])` reports 0
-        # while `['all']` reports the family). Wiring it into the backlog content path instead was
-        # rejected because it would surface this ONE rule while its four siblings stayed invisible on
-        # the same command, which is a more confusing contract than "the family lives on the full
-        # sweep". Consumers must use `aw check` / `aw check all`.
+        # (2) The family is reachable as a distinct target (`aw check release-gates` /
+        # `check_release_gates`), making the WHOLE family reachable outside the full sweep
+        # without wiring individual rules into `check_type('backlog')` (which was rejected
+        # because it would surface only one rule while its siblings stayed invisible).
         #
         # Own try/except, per the established pattern in this block, so a failure here cannot suppress
         # any other rule.
         try:
-            drift.extend(check_live_bug_gate(repo_root))
+            drift.extend(check_release_gates(repo_root))
         except Exception:
             pass
         # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: the emitted layout document is absent
@@ -3988,6 +3965,51 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
                 ),
             )
         )
+    return drift
+
+
+RELEASE_GATE_RULES = (
+    "check.live-bug-ungated",
+    "check.blocking-item-closed-without-gate",
+    "check.from-backlog-gate-mismatch",
+    "check.blocks-release-dangling",
+    "check.from-backlog-dangling",
+)
+
+
+def check_release_gates(repo_root: Path) -> List[_core.Drift]:
+    """Validate the release-gate rule family across the repository (IPD 2vw35i).
+
+    This exposes the complete release-gate rule family as a distinct named target outside the full
+    sweep, calling the shared predicates rather than diverging.
+
+    Composed rules:
+      * check.blocks-release-dangling (releases.check_blocks_release)
+      * check.from-backlog-dangling (releases.check_from_backlog)
+      * check.blocking-item-closed-without-gate (check_release_gate_consistency)
+      * check.from-backlog-gate-mismatch (check_release_gate_consistency)
+      * check.live-bug-ungated (check_live_bug_gate)
+    """
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    from agent_workflows import releases as _releases
+
+    try:
+        drift.extend(_releases.check_blocks_release(repo_root))
+    except Exception:
+        pass
+    try:
+        drift.extend(_releases.check_from_backlog(repo_root))
+    except Exception:
+        pass
+    try:
+        drift.extend(check_release_gate_consistency(repo_root))
+    except Exception:
+        pass
+    try:
+        drift.extend(check_live_bug_gate(repo_root))
+    except Exception:
+        pass
     return drift
 
 

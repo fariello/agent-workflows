@@ -11,7 +11,7 @@
   ONE MORE MEASURED FACT THE PLAN'S PREMISE OMITS, AND IT WEAKENS THE "CI WOULD CATCH IT" STORY: THE EXISTING FAIL-CLOSED STEP IS ALREADY RED. `aw check plans --agent` exits 1 with 12 findings on this tree (11 `check.ipd-uncarried-obligation` plus the `info` collisions notice), and THIS PLAN is one of them. So the job E-03 wants to join is not a green job gaining a gate; it is a job already failing for an unrelated reason. That does not invalidate the plan, but it does mean E-03 cannot claim its step is what turns the job red, and it means the plan must clear its own carrier finding before it can finalize. See F-9.
   THE SHAPE OF THE FIX IS THEREFORE NOT "MAKE `check backlog` FAIL CLOSED". It is to make the release-gate family reachable per-type AND enforced by its own named step, so a live ungated bug blocks a merge while the pre-existing naming debt stays advisory until its own migration lands. That distinction is the whole design and is what OQ-01 asks the reviewer to confirm.
 - Scope: Make a live ungated release-blocking bug VISIBLE to CI as its own named step, without red-lining `main`. IN: (a) make the release-gate rule family reachable outside the full-sweep seam, as a WHOLE family rather than one rule of it, per OQ-01 and consistent with the recorded decision F-6 quotes; (b) add a NAMED CI step running exactly those rules, fail-closed if and only if the family is clean and otherwise advisory with the blocking findings named (REVISED in review per F-7/F-8: the authored scope said "fail-closed" unconditionally, which reds `main` on two findings this plan may not fix), leaving the existing advisory `check backlog` step as it is; (c) tests proving every family member is reachable, that it fires on a synthetic violation, and that it does NOT fire on a clean one or on a legitimately handed-off bug. OUT: flipping the existing `check backlog` step to fail-closed, which `DECISION 18-r2ks4k-D1` defers to a separate baseline-cleaning migration and which the measured 4 findings would immediately red; cleaning that naming debt; and adding `aw check all` wholesale to CI, which would enforce 49 findings' worth of unrelated rules in one step.
-- Scope-Paths: agent_workflows/check_engine.py, .github/workflows/tests.yml, tests/test_check_engine_release_gate.py
+- Scope-Paths: agent_workflows/check_engine.py, agent_workflows/cli.py, AGENTS.md, .github/workflows/tests.yml, tests/test_check_engine_release_gate.py
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -49,7 +49,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the double gap and the constraint
 
-- [ ] E-01 RE-MEASURE THE GAP **AND THE BLAST RADIUS**, because review found the second half decides whether E-03 may land at all. Every count below DRIFTS, so re-derive them; the authoring and review figures are context, never the bar.
+- [x] E-01 RE-MEASURE THE GAP **AND THE BLAST RADIUS**, because review found the second half decides whether E-03 may land at all. Every count below DRIFTS, so re-derive them; the authoring and review figures are context, never the bar.
   CONFIRM CI NEVER RUNS THE SWEEP: grep every file under `.github/workflows/` for `check all` and paste the counts. At authoring and at review: zero in all three workflow files.
   CONFIRM THE PER-TYPE UNREACHABILITY: run `aw check backlog --agent` and `aw check all --agent` and paste both finding counts and rule sets. At review: 5 versus 26 (authoring said 4 versus 49), with `check.live-bug-ungated` present only in the second.
   CONFIRM THE ADVISORY STEP'S CONSTRAINT IS STILL LIVE, which is what forbids the one-line fix: show that `check backlog` reports findings TODAY, so removing `|| true` would fail the job on debt unrelated to release gating. If that debt has since been cleaned, SAY SO, because then the simpler fix becomes available and OQ-01's answer changes.
@@ -59,11 +59,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MEASURE WHETHER THE JOB E-03 WOULD JOIN IS ALREADY RED (F-9): run `aw check plans --agent` and `aw check releases --agent` and paste their exit codes. At review `check plans` exits 1 with 12 findings, and THIS PLAN is one of them.
   - Depends on: none
   - Expected outcome: all measurements pasted and re-derived rather than copied; the recorded decision quoted; the family's live finding set enumerated with each member classified fixable-or-not by this plan; an explicit statement of whether E-03 can land fail-closed today; and the current exit status of the existing fail-closed steps.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the rules reachable
 
-- [ ] E-02 MAKE THE RELEASE-GATE FAMILY REACHABLE OUTSIDE THE FULL SWEEP, per OQ-01. Today the family (`check.live-bug-ungated`, `check.from-backlog-gate-mismatch`, `check.blocking-item-closed-without-gate`, `check.blocks-release-dangling`, `check.from-backlog-dangling`) is wired only into the once-per-sweep seam in `check_types`, so no per-type invocation can report it.
+- [x] E-02 MAKE THE RELEASE-GATE FAMILY REACHABLE OUTSIDE THE FULL SWEEP, per OQ-01. Today the family (`check.live-bug-ungated`, `check.from-backlog-gate-mismatch`, `check.blocking-item-closed-without-gate`, `check.blocks-release-dangling`, `check.from-backlog-dangling`) is wired only into the once-per-sweep seam in `check_types`, so no per-type invocation can report it.
   DO NOT FORK THE PREDICATES. `AGENTS.md` records that ONE shared predicate (`check_engine.evaluate_blocking_close`) backs the setter, the `aw check` rules and the opt-in hook precisely "so they cannot diverge". Whatever makes the family reachable must call the same rules, not a copy.
   THE RULES ARE CROSS-TREE BY NATURE, WHICH IS WHY THEY LIVE IN THE SWEEP. A gate rule joins a backlog item to a release record and sometimes to a plan, so "check only the backlog tree" cannot answer it in general. Decide deliberately whether the reachable form is a per-type invocation that still reads the other trees, or a distinct named target, and record which.
   DO NOT RE-LITIGATE THE REJECTED SHAPE SILENTLY (F-6). The in-code comment E-01 quotes already rejected "teach `check backlog` to report this rule", on the stated ground that it surfaces ONE rule while four siblings stay invisible. So a per-type form is admissible ONLY if it makes the WHOLE family reachable together; a form that exposes `check.live-bug-ungated` alone is the shape already refused, and choosing it would contradict a recorded decision without argument. OQ-01's recommended DISTINCT TARGET is consistent with that comment ("Consumers must use `aw check` / `aw check all`" names commands, not a prohibition on a new one) and is the safer default.
@@ -71,11 +71,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE WHAT THE RULES DECIDE. This plan changes REACHABILITY and ENFORCEMENT only. If you find a rule itself is wrong, report it rather than fixing it here; `4le6yz` and `0cqf33` already record specific gate-rule defects and are owned elsewhere.
   - Depends on: E-01
   - Expected outcome: the release-gate family is reportable from an invocation narrower than the full sweep, calling the SAME shared predicates, with the WHOLE family reachable together rather than one rule of it; the rules' verdicts are unchanged; `check_commit_invariants` still composes only commit-scoped rules; the chosen form is recorded with its reason and with an explicit statement of how it relates to the recorded decision it revisits.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: enforce it in CI
 
-- [ ] E-03 ADD A NAMED CI STEP FOR THE GATE FAMILY, FAIL-CLOSED **ONLY IF THE TREE IS ALREADY CLEAN FOR THAT FAMILY**, AND LEAVE THE ADVISORY STEP ALONE.
+- [x] E-03 ADD A NAMED CI STEP FOR THE GATE FAMILY, FAIL-CLOSED **ONLY IF THE TREE IS ALREADY CLEAN FOR THAT FAMILY**, AND LEAVE THE ADVISORY STEP ALONE.
   THE PRECONDITION IS THE WHOLE OF THIS ITEM, and it is what review added (F-7/F-8). A fail-closed step may land ONLY when E-01 shows the family reports ZERO findings on the tree, or reports only findings this plan has legitimately cleared. At review the family reported 2, exit 1, and NEITHER was this plan's to fix. Landing a fail-closed step in that state reds `main` on arrival, which is precisely the `4y7nzh` failure this plan's own reasoning forbids -- and worse than the `|| true` case, because here the plan would be the direct cause.
   IF THE FAMILY IS NOT CLEAN, DO NOT LAND FAIL-CLOSED. Take the ADVISORY form instead: the same named step running the same narrow invocation with the `|| true`-plus-`::warning::` shape the existing backlog step uses, carrying a comment that names the exact blocking findings and the precondition for flipping it. That is strictly better than today (the family becomes VISIBLE in CI, which it currently is not at all, since nothing runs the sweep), it is honest, and it follows the precedent the maintainer already set for exactly this situation. THEN SAY SO PLAINLY in the item's report and in V-03: an advisory step does NOT satisfy `wu8qjy`'s "CI fails on it" clause, so record which half shipped and file the flip as the remaining obligation rather than claiming the criterion met.
   DO NOT MAKE THE TREE CLEAN BY SUPPRESSION. Do not narrow the step's rule set to exclude whichever rule is currently firing, do not add an ignore list, and do not gate `7l1ggb` or edit the `executed/` plan to silence a finding. Each of those converts a visible obligation into a hidden one, which is the opposite of this plan's purpose.
@@ -85,9 +85,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE STEP MUST BE PROVEN TO BEHAVE AS CLAIMED, not merely added. Run the exact command locally and paste it: nonzero on a violating fixture, zero on a clean one. A CI step nobody has seen fail is an assumption.
   - Depends on: E-02
   - Expected outcome: a named, narrow CI step enforcing the release-gate family, fail-closed if and only if E-01 showed the family clean, otherwise advisory with the blocking findings and flip precondition named in a comment; the advisory backlog step unchanged; no rule suppressed, no ignore list, no live record edited to silence a finding; the command demonstrated nonzero on a violating fixture and zero on a clean one; and an explicit statement of whether `wu8qjy`'s "CI fails on it" clause is met or still outstanding.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 TEST THE FAMILY'S REACHABILITY AND ITS POLARITY, from fixtures.
+- [x] E-04 TEST THE FAMILY'S REACHABILITY AND ITS POLARITY, from fixtures.
   ASSERT BOTH DIRECTIONS: a fixture with a live `bug` carrying no `Blocks-Release` must produce `check.live-bug-ungated` from the new reachable invocation, and a clean fixture must produce nothing. A one-sided test would pass against a rule that fires always.
   DO NOT PIN THE LIVE CORPUS. `7l1ggb` is the live violation today and this plan's own siblings may gate or close it, so an assertion keyed on it would rot; `jb0sc1`, `caf5ed` and `agrlvw` all record that hazard in this repository.
   COVER THE `done`-WITH-GATE CASE TOO if it is cheap, since `check.blocking-item-closed-without-gate` shares the family's seam and `AGENTS.md` documents its three legitimate fixes (handoff, evidence, de-gate); a test that only covers the ungated-bug rule leaves the rest of the family unproven as reachable.
@@ -96,7 +96,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT ASSERT THE FAMILY IS CLEAN ON THE LIVE TREE. That is a live-artifact count which drifts, and at review it was NOT clean; such an assertion would both rot and fail.
   - Depends on: E-02
   - Expected outcome: tests proving every family member is reachable from the new invocation, that it fires on genuine violations and not on clean or legitimately-handed-off ones, using synthetic fixtures with no reference to live records and no assertion about the live tree's cleanliness.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -189,25 +189,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `check all` grep counts for every workflow file; pasted finding counts and rule sets for `check backlog` versus `check all`, re-derived not copied; the RECORDED DECISION quoted verbatim from `check_types` (both points: the rejected per-type wiring, and the pre-commit-aggregator scoping); the family's own finding set pasted with each member's location and severity plus `drift_exit_code`; each member CLASSIFIED fixable-or-not-by-this-plan with the reason; an explicit statement of whether E-03 may land fail-closed today; the id6 of any item filed for the `none`-sentinel verdict question if it still blocks; and the current exit codes of `check plans`/`check releases`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Workflow grep counts (`grep -c "check all" .github/workflows/*.yml`) are 0 for all 3 files (`tests.yml:0`, `local-leaks.yml:0`, `secret-scan.yml:0`). `aw check backlog --agent` returns 5 findings (`check.name-nonconformant` (4), `check.collisions-not-checked` (1)) exit 1 with gate family absent; `aw check all --agent` returns 25 findings (exit 1) including `check.live-bug-ungated` and `check.from-backlog-dangling`. Recorded decision in `check_types` quoted verbatim: (1) "IT IS DELIBERATELY *NOT* ADDED INSIDE `check_release_gate_consistency` ... composed by `check_commit_invariants` ... rule is WHOLE-TREE ... would refuse a commit because some OTHER party's bug item elsewhere in the tree is ungated"; (2) "IT IS THEREFORE NOT REPORTED BY `aw check backlog`, and that is a known, stated cost, not an oversight ... Consumers must use `aw check` / `aw check all`." Family finding set in-process: 2 findings, drift_exit_code 1 (`check.live-bug-ungated` on `.aw/records/backlog/open/20260918-7l1ggb-01-7l1ggb-closure-census-missed-integrate-stranded-lanes.backlog.md` and `check.from-backlog-dangling` on `.aw/records/plans/executed/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md`). Classification: 7l1ggb unfixable by this plan (recorded maintainer decision in history that it is not a gate; deferral forbids gating); mjx7ne unfixable by this plan (executed plan with sentinel none; AGENTS.md forbids editing executed plans). Fail-closed statement: E-03 cannot land fail-closed today. Backlog item filed: 7dcw6z (`.aw/records/backlog/open/20260924-7dcw6z-01-7dcw6z-treat-from-backlog-literal-sentinel-none-as-absent.backlog.md`). Check exit codes: `aw check plans --agent` exit 1 (11 findings), `aw check releases --agent` exit 0 (1 info), `aw check specs --agent` exit 0 (1 info).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted output of the new reachable invocation reporting a gate-family finding on a SYNTHETIC fixture; evidence by inspection that it calls the shared predicates rather than a copy; proof that the WHOLE family is reachable from it (each member named), not one rule; proof that `check_commit_invariants` still composes exactly its three commit-scoped rules; the recorded choice of form with its reason and its relation to the decision it revisits; and, if a new target was added, a statement of where it lives and why it is not a ninth entry in `SUPPORTED`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m agent_workflows check release-gates --agent` executed and reported gate family findings (`check.from-backlog-dangling`, `check.live-bug-ungated`). Shared predicates called: `check_engine.check_release_gates` calls `releases.check_blocks_release`, `releases.check_from_backlog`, `check_release_gate_consistency`, and `check_live_bug_gate`. Full family reachability verified in `tests/test_check_engine_release_gate.py`: `check.live-bug-ungated`, `check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`, `check.blocks-release-dangling`, `check.from-backlog-dangling`. Pre-commit aggregator composition verified by source inspection in `test_check_commit_invariants_composition_intact` (composes only `check_status_untooled`, `check_release_gate_consistency`, `check_scope_drift`). Form chosen: distinct named target `release-gates` (alias `release-gate`), resolving OQ-01. Implemented in `check_engine.check_release_gates` and routed in `cli._run_check`; `check_engine.SUPPORTED` is untouched and retains 8 record types.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the CI step's definition quoted; a pasted local run of that EXACT command returning nonzero on a violating fixture and zero on a clean one; a diff or quote proving the advisory `check backlog` step is unchanged; an explicit statement of WHICH form shipped (fail-closed or advisory) with the E-01 measurement that decided it; if advisory, the comment naming the blocking findings and the flip precondition, plus a plain statement that `wu8qjy`'s "CI fails on it" clause is NOT yet met and what carries the remainder; and confirmation that nothing was suppressed (no ignore list, no narrowed rule set, no live record or `executed/` plan edited).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CI step added in `.github/workflows/tests.yml`: `- name: aw check release-gates (release-gate family; ADVISORY until baseline findings cleared)` running `python -m agent_workflows check release-gates --agent || echo "::warning::aw check release-gates reported findings (advisory; see IPD 2vw35i - flip to fail-closed after 7l1ggb and From-Backlog none baseline findings are resolved)"`. Local run of `python -m agent_workflows check release-gates --agent` returned exit 1 on live violating repository and rc=1 on synthetic violation fixture, and rc=0 on synthetic clean fixture (`test_cli_check_release_gates_runner` / `test_cli_check_release_gates_clean`). Existing advisory `check backlog` step is unchanged. Form shipped: ADVISORY form shipped due to 2 unfixable baseline findings (7l1ggb and mjx7ne); `wu8qjy`'s "CI fails on it" clause is outstanding and carried by 7dcw6z and wu8qjy. Zero suppression: no ignore list, no rule exclusion, no live/executed record edits.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: tests pasted showing the family fires on a violating fixture, NOT on a clean one, and NOT on a live bug whose `From-Backlog` carrier holds the gate (the handoff exemption); an assertion per family member that it is reachable from the new invocation; confirmation by inspection that no assertion reads live records or asserts the live tree is family-clean; `check plans`/`check releases`/`check backlog`/`check specs` exit codes pasted before and after (noting `check plans` exits 1 for the unrelated F-9 reason); and the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 13 unit tests pass in `tests/test_check_engine_release_gate.py` covering polarity, handoff exemption, all 5 family members reachable, `check_commit_invariants` composition, parity with `check_types(['all'])`, CLI runner and alias routing. All tests use synthetic fixtures in temporary directories and none inspect live records or assert live tree cleanliness. Pre/post exit codes: `aw check plans` exit 1 (11 findings, unchanged), `aw check releases` exit 0 (1 info, unchanged), `aw check backlog` exit 1 (5 findings, unchanged), `aw check specs` exit 0 (1 info, unchanged). Bare `python3 -m pytest` output: `8872 passed, 5 skipped, 2 xfailed, 6 warnings in 147.75s (0:02:27)`.
+  - Result: pass
 
 ## Approval and execution gate
 
