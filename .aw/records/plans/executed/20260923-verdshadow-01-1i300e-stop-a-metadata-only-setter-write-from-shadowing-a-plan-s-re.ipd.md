@@ -13,18 +13,18 @@
 - Scope: Make a metadata-only setter write incapable of being read as a review verdict. IN: (a) TAG the setter's own history record with a form no verdict reader accepts as a review record, per OQ-01 as RESOLVED at review; this must hold for a record carrying an explicit `--message` as well as a defaulted one, because F-7 measured that suppression alone leaves the defect fully reachable through the `--message` path the plan must preserve; (b) a regression test driving the measured three-step chain, including the `- Readiness:`-omitted auto-approve flip, since that is the consequence that makes this `high`, AND the `--message` variant of it; (c) extend the existing `same_status_message_is_duplicate` dedup to cover the defaulted-message record, which currently bypasses it (F-9); (d) reconcile the plan and backlog paths' no-op behavior so one setter has one rule. OUT: the DISCRIMINATOR fix in `plan_readiness.is_review_history_entry` (owned by `ycg597`, with `nwrb0j` as its other face) and the out-of-vocab NEGATIVE misread (`gv36a7`); this plan must not edit that reader, because two plans changing one predicate from opposite ends is how the two-readers-disagree class is created.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py, tests/test_plan_readiness.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: verdshadow
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1i300e
-- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: da7w6n
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: 1i300e verified (set verdshadow, attempt 1).
 - 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): status set to reviewed
 
