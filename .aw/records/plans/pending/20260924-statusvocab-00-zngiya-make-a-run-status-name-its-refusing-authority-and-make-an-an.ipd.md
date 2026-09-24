@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together make a run status name its refusing authority, make an answerable finalize refusal a question, and show an operator whether each item landed in `main`. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`cyamvi` the vocabulary and its exhaustiveness guard, `787hb4` the send-back, `9x7otz` the `Landed` column and the eight spec amendments), and this file contributes no code, no test, and no record of its own. EXCLUDES changing WHICH gate refuses what, in every child without exception.
 - Scope-Paths: .aw/records/plans/pending/20260924-statusvocab-00-zngiya-make-a-run-status-name-its-refusing-authority-and-make-an-an.ipd.md
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Set: statusvocab
 - Order: 0
 - Highest E allocated: 03
@@ -17,6 +17,7 @@
 - Id: zngiya
 
 ## Workflow history
+- 2026-09-24 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored as part of splitting the oversized cyamvi plan into a Set on maintainer instruction; complete enough to critique.
 
 - 2026-09-24 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 
