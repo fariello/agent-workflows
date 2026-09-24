@@ -13,7 +13,7 @@
 - Scope: Coordinate a THREE-child Set that makes specs partition by status like every other lifecycle-bearing type: first make every spec READER recursive so a subdir cannot hide a spec, then make every spec WRITER place a spec in its status directory, then migrate the 29 specs and make location agree with status. This orchestrator changes NO product code; it sequences the children and verifies the whole-Set outcome. EXCLUDES the reviews-location question (`sv0sf3`, deliberately not bundled per that item's instruction) and excludes giving subdirs to types with no lifecycle.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: chore
 - Priority: medium
 - Readiness: go-pending-approval
@@ -22,10 +22,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wfjsp4
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set specdirs reached executed, so the runner (run run-20260924T050407Z-3108751) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: y4bdoz, 1bdxcp, r9uvwc, ingpvc.
 - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item qzhfk2 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
