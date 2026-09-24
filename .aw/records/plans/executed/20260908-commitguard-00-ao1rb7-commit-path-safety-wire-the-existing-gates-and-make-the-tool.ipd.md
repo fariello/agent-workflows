@@ -6,7 +6,7 @@
 - Scope: Orchestration only. Sequence the two children, hold the Set's shared constraint (the honest-limit disclosure rule), and define what makes the whole Set complete. Every deliverable belongs to a child; this parent performs no implementation work of its own.
 - Scope-Paths: .aw/records/plans/pending/20260908-commitguard-01-kbqpkn-wire-the-four-unwired-gates-and-install-the-missing-pre-push.ipd.md, .aw/records/plans/pending/20260908-commitguard-02-y9vpvv-add-a-plan-less-aw-commit-and-land-the-ruled-must-wording.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: high
 - Readiness: go-pending-approval
@@ -15,10 +15,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ao1rb7
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: wjl471
 
 ## Workflow history
+- 2026-09-24 executed (opencode/its_direct-pt3-claude-opus-5-1m-us): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set commitguard reached executed, so the runner (an unrecorded run) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: kbqpkn, y9vpvv, 2s0iym.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item wjl471 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 
