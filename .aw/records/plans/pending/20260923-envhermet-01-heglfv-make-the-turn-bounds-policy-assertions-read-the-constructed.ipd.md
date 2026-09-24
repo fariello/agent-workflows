@@ -13,6 +13,7 @@
 - Scope-Paths: tests/test_turn_bounds.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: envhermet
 - Order: 1
 - Highest E allocated: 04
@@ -22,6 +23,11 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-207, all FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260923-envhermet-01-heglfv-make-the-turn-bounds-policy-assertions-read-the-constructed.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them.
+  THE DEFECT IS CONFIRMED AND THE FIX IS WORTH MAKING: at HEAD `3eb35740` in a lane, `python3 -m pytest tests/test_turn_bounds.py` gives `1 failed, 147 passed` and `env -u OPENCODE_CONFIG_CONTENT -u AW_EXECUTION_ROLE` gives `148 passed`, no code change between. Counts drifted from the plan's `144`/`143`, so E-01 now re-derives rather than quotes.
+  TWO ATTRIBUTIONS WERE WRONG AND AN EXECUTOR ACTING ON EITHER WOULD HAVE GONE ASTRAY. FIRST (PR-201): the plan says `R4.1` "genuinely requires that a non-isolated turn receive NO denial policy". Spec `7ckptx` says "An unattended ISOLATED turn MUST run under the STRONGEST permission posture its host supports" and is SILENT on the non-isolated turn; its only normative non-isolated statements are R1.3 and R4.4a. The assertion is still worth keeping, but it defends `run_opencode`'s deliberate "ISOLATED TURNS ONLY" narrowing (R4.6-ordered), not an R4.1 obligation. SECOND (PR-202): the plan says `run_opencode` "always sets" the variable. The assignment is inside `if work_dir:`, so the runner sets it for isolated turns ONLY; the real chain is that the OUTER driver set it and the test's INNER `run_opencode(work_dir=None)` inherits it via `pinned_child_env`, which begins `os.environ.copy()`.
+  THE AUDIT E-01 ASKED FOR ALREADY HAS A SECOND HIT (PR-203), and it is the finding I would most want a human to see. The SAME test carries `assert "AW_EXECUTION_ROLE" not in main_env` with the identical non-hermetic construction; it passes today ONLY because `conftest.py` pops that variable at import time. Proven by re-setting the marking after the pop: the constructed non-isolated env then contains it. So a fix that repairs line 271 and leaves 275 leaves a latent twin protected by another file, which is the `rolevac` shape this plan exists to avoid. Both lines are now in E-02's scope.
+  OQ-01 IS RESOLVED AGAINST A SHIPPED PRECEDENT IT HAD NOT WEIGHED (PR-204): `tests/test_lane_permission_posture.py` already uses `monkeypatch.delenv(OPENCODE_RUNTIME_CONFIG_ENV, raising=False)` in three tests, exercises the same seam, and is GREEN with the variable ambient (`27 passed`). Construct-and-compare stays acceptable if recorded. Also added: E-04 carries backlog `wnabns`'s stranded release gate, which the parent's completion criterion 6 assigns to this child, with the mechanical trap named (`--from-backlog` SETS rather than appends, so `mepbmp` must not be overwritten); and OQ-02 raises the genuine spec gap PR-201 exposed.
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-201..PR-207 all FIXED; readiness go-pending-approval
 
 - 2026-09-23 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from the twenty-three-item turn-bounds family. `- From-Backlog:` names `mepbmp` as the representative carrier (it states the mechanism most precisely: the assertion expects no policy but `run_opencode` now always sets the variable); the full list is enumerated in the Concern so no filing is lost. `- Blocks-Release: next` is INHERITED, every member carries it.
