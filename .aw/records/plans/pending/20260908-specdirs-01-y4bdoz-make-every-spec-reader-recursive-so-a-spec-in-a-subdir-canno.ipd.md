@@ -41,26 +41,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce, then find every reader
 
-- [ ] E-01 REPRODUCE THE INVISIBILITY AS A FAILING TEST FIRST, so the fix is demonstrated rather than asserted. In a throwaway repo, place a valid spec in `.aw/records/specs/approved/` and assert that `aw specs check` SEES it. That assertion must FAIL at HEAD.
+- [x] E-01 REPRODUCE THE INVISIBILITY AS A FAILING TEST FIRST, so the fix is demonstrated rather than asserted. In a throwaway repo, place a valid spec in `.aw/records/specs/approved/` and assert that `aw specs check` SEES it. That assertion must FAIL at HEAD.
   ASSERT THE FILE COUNT, NOT ONLY THE VERDICT. The dangerous behavior is a "conform" verdict over ZERO files, so a test that only checks the exit code or the words "all specs conform" would PASS at HEAD and prove nothing. Assert that the number of specs examined equals the number on disk.
   DO NOT TAKE THE COUNT FROM `--agent`, WHICH REPORTS NOTHING IN EXACTLY THIS CASE. Measured at review: the `--agent` record OMITS the `checked` key ENTIRELY when the count is ZERO, because `result_types.py:388` reads `self.data.get("checked") or self.data.get("total_checked")` and a falsy `0` fails the `or`, so the zero-spec repo emitted `{"schema":"aw.agent/v1",...,"outcome":"clean","exit":0,...,"findings":0,...}` with no `checked` key while this repo emitted `"checked":29`. The human branch prints no count at all (`specs.py:490-493`). PREFER asserting on `specs._spec_files` / the verb's `--json` `data.checked` (measured `{'checked': 0, 'violations': 0}`), and if the test drives the CLI, use `--json`. A test written against `--agent` would find no key and could pass vacuously, which is the same failure mode as asserting the verdict text.
   PIN THE CURRENT DISAGREEMENT EXPLICITLY: in the same fixture, assert `specs._spec_files` returns 0 while `check_engine._iter_type_files(..., "specs")` returns 1 at HEAD. RE-PROVEN at review in a throwaway repo, so this fixture is known to reproduce. That contrast is the defect in one assertion and is what makes the fix's effect legible. NOTE the default arguments are correct HERE (a single non-terminal spec is not filtered) but are NOT correct for E-04's live-corpus equality; see E-04.
   - Depends on: none
   - Expected outcome: a test failing at HEAD proving a subdir spec is invisible to `specs._spec_files` while visible to `check_engine`, asserted by COUNT taken from a surface that actually reports zero, not from `--agent`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONFIRM AND EXTEND THE REVIEW-SUPPLIED AUDIT OF EVERY PATH BY WHICH A SPEC FILE IS ENUMERATED, and write the list down before changing anything. A partial fix is worse than none, because it makes the surfaces agree in the tested case and disagree elsewhere.
+- [x] E-02 CONFIRM AND EXTEND THE REVIEW-SUPPLIED AUDIT OF EVERY PATH BY WHICH A SPEC FILE IS ENUMERATED, and write the list down before changing anything. A partial fix is worse than none, because it makes the surfaces agree in the tested case and disagree elsewhere.
   REVIEW ALREADY RAN THIS AUDIT AND THE ANSWER IS NARROWER THAN THE PLAN ASSUMED, which resolves OQ-03. Re-confirm each line rather than re-deriving it, and report any drift. MEASURED at HEAD `b929ad31`, in a throwaway repo holding ONE spec inside `.aw/records/specs/approved/`: `specs._spec_files` returned 0 (NON-recursive, the only defective reader); `specs._existing_spec_ids` returned an empty set (a CONSEQUENCE of `_spec_files`, so it is fixed by fixing that helper and is not a second site); `check_engine._iter_type_files` returned 1 (already recursive, `check_engine.py:517`); `selectors._iter_paths` returned 1 (already recursive, via `_iter_md`'s `os.walk` at `selectors.py:372-395`). END TO END on the same fixture, all four adjacent surfaces the plan flagged as unknown ALREADY WORK: `aw find specs 2vev8j` resolved the subdir path, `aw attention` listed the subdir spec with its `approved` status, `aw check specs` reported `1 specs checked`, and `aw doctor` ran clean. A package-wide grep for a glob/iterdir/listdir/walk over a specs root finds exactly ONE non-recursive site, `specs.py:89`.
   SO THE SCOPE IS ONE HELPER, NOT AN OPEN-ENDED SWEEP, and `agent_workflows/specs.py` as declared is sufficient. Do NOT widen scope on the strength of the plan's original suspicion; widen only if YOUR re-run of the audit contradicts the measurements above, and then report it.
   WHAT THE AUDIT DID FIND, and it is the real gap: `_spec_files` performs NO ignored-path filtering, while `check_engine._iter_type_files` filters both the root and each file via `_core.is_ignored_path` (`check_engine.py:510-521`). Record that in the inventory as the reason E-03 is not a one-line change.
   IF A READER CANNOT BE MADE RECURSIVE SAFELY, SAY SO rather than forcing it. For example a reader that deliberately treats a subdirectory as a grouping (as `research` does) would need a different treatment; report that rather than making an unsafe change.
   - Depends on: E-01
   - Expected outcome: the review-supplied inventory re-confirmed (one defective site, `specs.py:89`; three adjacent readers already recursive; the missing ignored-path filter recorded), with any contradiction of those measurements reported.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make them agree
 
-- [ ] E-03 MAKE THE ENUMERATION RECURSIVE **AND** IGNORED-PATH-AWARE, and keep the skip conventions the trees already rely on. The two halves are ONE change and must not be separated: recursion without the filter ships a new bug.
+- [x] E-03 MAKE THE ENUMERATION RECURSIVE **AND** IGNORED-PATH-AWARE, and keep the skip conventions the trees already rely on. The two halves are ONE change and must not be separated: recursion without the filter ships a new bug.
   THE CHANGE IS NOT A ONE-LINE SWAP, and the plan's original claim that it was is the correction review most wants carried. `glob("*.md")` -> `rglob("*.md")` at `specs.py:89` is NECESSARY BUT NOT SUFFICIENT. `_spec_files` performs NO ignored-path filtering (no `is_ignored_path`, no `get_ignored_dirs`), and non-recursion is currently MASKING that: a flat glob cannot descend into an ignored SUBDIRECTORY, so today there is nothing to filter. PROVEN at review: with one tracked spec at the root and one inside a gitignored `.aw/records/specs/untracked/`, the naive `rglob` returned TWO while `check_engine._iter_type_files(..., include_retired=True)` returned ONE, so E-04's own equality FAILS. And this is live, not theoretical: the shipped `.aw/.gitignore` line 6 is `records/*/untracked/` (verified with `git check-ignore -v .aw/records/specs/untracked/x.spec.md`) and two sibling trees already have that lane. Without the filter, `aw specs check` would validate, and could REFUSE on, a box-local file that is never committed.
   MIRROR `check_engine._iter_type_files` (`check_engine.py:509-521`), which is the in-repo model that already works: resolve `ignored_dirs` once via `_core.get_ignored_dirs(repo_root)`, skip an ignored ROOT before descending, and skip each ignored FILE. Do NOT invent a second convention and do NOT reimplement the predicate.
   PRESERVE THE SKIPS. `_spec_files` currently excludes only `README.md`; `check_engine` excludes `README.md`, `INDEX.md` and `STATUS.md` via `_SKIP_NAMES` (`check_engine.py:409`). Recursion must not start pulling in a nested `README.md` from a status directory, and this is REAL PRECEDENT rather than a worry: `records/prompts/` already carries a README in EVERY lifecycle bucket (measured: `prompts/{pending,executed,superseded,not-executed,reusable}/README.md`), and `engine.py:5141-5144` generates exactly that per-bucket README from `PLAN_LIFECYCLE_SUBDIRS`, so the migration child creating status dirs makes nested READMEs likely. Align the skip set with `check_engine`'s rather than inventing a third convention.
@@ -68,9 +68,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE WHAT ANY CHECK REPORTS about a spec. This item changes WHICH FILES are read, not the verdicts. If making the reader recursive newly surfaces a genuine finding on an existing spec, that is a real defect the fix EXPOSED: report it, do not fix it here and do not suppress it.
   - Depends on: E-02
   - Expected outcome: the enumeration recursive AND filtering ignored paths through the shared `_core.is_ignored_path`, `check_engine`'s three-name skip set adopted, dedup preserved and proven on resolved paths, and no verdict logic changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE THE SURFACES NOW AGREE, AND THAT THE FLAT TREE IS UNAFFECTED. Both halves matter: the fix must work for subdirs and must change nothing for the tree as it stands today.
+- [x] E-04 PROVE THE SURFACES NOW AGREE, AND THAT THE FLAT TREE IS UNAFFECTED. Both halves matter: the fix must work for subdirs and must change nothing for the tree as it stands today.
   ASSERT AGREEMENT AS AN EQUALITY, on the real repository, WITH `include_retired=True`. This is a correction: the assertion as originally written named `check_engine._iter_type_files(..., "specs")` with DEFAULT arguments, and that default DROPS retired records (`is_retired`, `check_engine.py:482-500`) while 16 of 29 specs are terminal. MEASURED at HEAD on the live FLAT tree: `_spec_files` 29 versus `_iter_type_files` THIRTEEN by default (equality FALSE) versus 29 with `include_retired=True` (equality TRUE). So the original assertion could not pass on a tree with no subdirectories at all, and an executor would have misdiagnosed its own correct fix. Compare RESOLVED paths on both sides. Paste BOTH counts (default and flagged) so the distinction is on the record rather than looking like a fudge.
   ASSERT THE FLAT-TREE COUNT IS UNCHANGED. RE-MEASURED AT REVIEW: there are TWENTY-NINE specs, not the 28 this plan was authored against, so re-count rather than trusting either figure. `aw specs check` must examine exactly the same number before and after. A change here would mean recursion picked up something it should have skipped, which after E-03 most likely means an ignored path or a nested README.
   ASSERT THE IGNORED-PATH CASE EXPLICITLY, because it is the regression E-03's second half exists to prevent and no other item covers it: in a fixture repo, put a spec inside a gitignored subdirectory of the specs tree (`records/*/untracked/` is pre-ignored by the shipped `.aw/.gitignore`) and assert `_spec_files` does NOT return it while a spec in a TRACKED subdirectory IS returned. Without this, a fix that recurses but does not filter passes every other assertion in this plan.
@@ -78,7 +78,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RUN THE SUITE BARE (`python3 -m pytest`) and judge on the DELTA. RE-MEASURED AT REVIEW on main (HEAD `b929ad31`): `1 failed, 5958 passed, 3 skipped, 2 xfailed in 56.54s`. The authored baseline `1 failed, 5648 passed` and its named failure are BOTH WRONG: `tests/test_orchestrator_retirement.py` PASSES (`112 passed in 2.67s`), and the single real failure is `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, which is ENVIRONMENTAL because it walks the repo and trips over another party's untracked `opencode-recovery/` directory. DO NOT DELETE THAT DIRECTORY to make the suite green; it is not yours. Measure your OWN before-baseline. Criterion: AFTER minus BEFORE is EMPTY.
   - Depends on: E-03
   - Expected outcome: set equality on the live corpus with `include_retired=True` and both counts pasted, an unchanged flat-tree count re-counted at execution, the gitignored-subdir exclusion asserted, an end-to-end subdir report from the verb, and an empty bare-suite delta against a self-measured baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -194,25 +194,193 @@ No spec amendment is expected FROM THIS CHILD: this is an internal reader fix an
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new test and its ACTUAL FAILING output at HEAD. Quote the assertion showing it checks the examined COUNT rather than the verdict text, and NAME the surface the count came from (`specs._spec_files` directly, or the verb's `--json` `data.checked`). State in one sentence why a verdict-text assertion would have passed at HEAD, AND why an assertion reading `--agent`'s `checked` key would have been vacuous (the key is absent at zero). Paste the pinned disagreement: `specs._spec_files` 0 versus `check_engine._iter_type_files` 1 on the same fixture.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: failing test test_reproduce_subdir_spec_invisibility written and executed at HEAD (failing) and after fix (passing).
+New test added in `tests/test_specs_recursive_read.py`:
+```python
+    def test_reproduce_subdir_spec_invisibility(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+            (repo / ".aw").mkdir(parents=True)
+            (repo / ".aw" / ".gitignore").write_text("records/*/untracked/\n", encoding="utf-8")
 
-- [ ] V-02 validates E-02
+            spec_dir = repo / ".aw" / "records" / "specs" / "approved"
+            spec_dir.mkdir(parents=True)
+            spec_file = spec_dir / "20260908-test01-01-test.spec.md"
+            spec_file.write_text(_spec_content("approved", "test01"), encoding="utf-8")
+
+            # Helper assertion by COUNT
+            found_files = specs._spec_files(repo)
+            self.assertEqual(
+                len(found_files),
+                1,
+                f"specs._spec_files must find the spec in approved/, got {found_files}",
+            )
+            self.assertEqual(found_files[0].resolve(), spec_file.resolve())
+
+            # CLI --json assertion by COUNT
+            ns = argparse.Namespace(dir=str(repo), path=None, agent=False, json=True, yaml=False)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = specs.run_check(ns)
+            self.assertEqual(rc, 0)
+            data = json.loads(buf.getvalue())
+            self.assertEqual(
+                data["data"]["checked"],
+                1,
+                f"aw specs check --json must report checked=1, got: {data}",
+            )
+            self.assertEqual(data["data"]["violations"], 0)
+```
+Actual failing output at HEAD (before fix):
+```
+            # Helper assertion by COUNT
+            found_files = specs._spec_files(repo)
+>           self.assertEqual(
+                len(found_files),
+                1,
+                f"specs._spec_files must find the spec in approved/, got {found_files}",
+            )
+E           AssertionError: 0 != 1 : specs._spec_files must find the spec in approved/, got []
+
+tests/test_specs_recursive_read.py:59: AssertionError
+```
+Quoted assertion checking COUNT:
+`self.assertEqual(len(found_files), 1)` from `specs._spec_files(repo)` and `self.assertEqual(data["data"]["checked"], 1)` from `aw specs check --json` `data.checked`.
+
+Sentence on verdict-text assertion: A verdict-text assertion (such as asserting "all specs conform" or returncode 0) would pass at HEAD because `aw specs check` examines 0 specs and vacantly reports conformance.
+
+Sentence on `--agent` checked key: An assertion reading `--agent`'s `checked` key is vacuous because `--agent` omits the `checked` key entirely when the count is zero (`falsy 0` in `result_types.py:388`).
+
+Pinned disagreement at HEAD on the same fixture:
+```
+specs._spec_files(repo): [] (count 0)
+check_engine._iter_type_files(repo, "specs"): [PosixPath('.../.aw/records/specs/approved/20260908-test01-01-test.spec.md')] (count 1)
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the audit inventory naming EVERY spec enumeration path with its current recursion behavior, and state for EACH whether it CONFIRMS or CONTRADICTS the review-supplied measurements (`specs._spec_files` 0 / `check_engine._iter_type_files` 1 / `selectors._iter_paths` 1 on a subdir fixture; `aw find specs`, `aw attention`, `aw check specs`, `aw doctor` all correct end to end; exactly one non-recursive site at `specs.py:89`). Paste the recorded fact that `_spec_files` has NO ignored-path filter while `check_engine` does. If anything contradicts the audit, say whether you widened scope with justification or reported it; OQ-03 is already resolved on this evidence, so a contradiction is a finding, not a silent widening.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: audit inventory confirmed against codebase with exactly one defective site at specs.py:89 and missing ignored-path filter recorded.
+Audit inventory of every spec enumeration path in the repository:
+1. `specs._spec_files` (`agent_workflows/specs.py:70`): Non-recursive `glob("*.md")` at `:89` at HEAD; no ignored-path filter. CONFIRMS review measurement (returned 0 on subdir fixture; returned gitignored specs with naive rglob).
+2. `specs._existing_spec_ids` (`agent_workflows/specs.py:980`): Iterates over `_spec_files(repo_root)`. CONFIRMS review measurement (empty set at HEAD, repaired automatically via `_spec_files`).
+3. `specs.run_check` (`agent_workflows/specs.py:499`): Calls `_spec_files(repo_root)`. CONFIRMS review measurement (examined 0 files at HEAD, repaired via `_spec_files`).
+4. `check_engine._iter_type_files` (`agent_workflows/check_engine.py:767`): Recursive `rglob("*.md")` at `:781`; filters root and each file with `_core.is_ignored_path`; skips `_SKIP_NAMES`; dedups on `str(p.resolve())`. CONFIRMS review measurement (returned 1 on subdir fixture).
+5. `selectors._iter_paths` (`agent_workflows/selectors.py:722`): Recursive via `_iter_md` (`os.walk` at `:711`); skips `_SKIP_NAMES`. CONFIRMS review measurement (returned 1 on subdir fixture).
+6. End-to-end CLI surfaces (`aw find specs`, `aw attention`, `aw check specs`, `aw doctor`): All already recursive and resolve subdir specs correctly. CONFIRMS review measurement.
 
-- [ ] V-03 validates E-03
+Ignored-path filter finding:
+`specs._spec_files` previously had NO ignored-path filter (`is_ignored_path` / `get_ignored_dirs` were never called in `specs.py`), while `check_engine._iter_type_files` filters both the root directory and each candidate path via `_core.is_ignored_path(..., ignored_dirs)`.
+
+Contradiction report: Zero contradictions found. Scope remains exactly `agent_workflows/specs.py` and `tests/test_specs_recursive_read.py`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the changed enumeration showing BOTH halves: the recursive walk AND the ignored-path filtering that reuses `_core.is_ignored_path` (not a forked predicate). Paste the aligned skip set with its comment naming `check_engine._SKIP_NAMES`. Paste the docstring text recording why the filter is coupled to the recursion, since that is what stops a later "simplification" from restoring the bug. Paste proof the dedup survives on RESOLVED paths (a case where the dual roots overlap yields no double count). Paste NEGATIVE proof that no verdict logic changed (a diff scoped to the enumeration) and that neither `run_set` nor `run_new` was touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: specs._spec_files updated with recursive walk, ignored-path filtering, aligned skip names, and resolved-path deduplication.
+Changed `_spec_files` in `agent_workflows/specs.py`:
+```python
+def _spec_files(repo_root: Path) -> List[Path]:
+    """Return sorted list of spec file Paths under specs roots.
 
-- [ ] V-04 validates E-04
+    Enumeration is RECURSIVE (`rglob`) so that specs placed in subdirectories
+    (such as lifecycle status subdirectories `.aw/records/specs/approved/`)
+    are visible to `aw specs check` and `_existing_spec_ids`. Previously, a flat
+    `glob("*.md")` caused specs in subdirectories to be completely invisible to
+    `aw specs check`, which reported conformance having examined zero files.
+
+    Ignored-path filtering via `core.is_ignored_path` / `core.get_ignored_dirs`
+    is coupled to this recursive walk: non-recursion previously masked the lack
+    of an ignored-path filter because a flat glob cannot descend into ignored
+    subdirectories (such as `.aw/records/specs/untracked/`, pre-ignored by the
+    shipped `.aw/.gitignore` pattern `records/*/untracked/`). Making the walk
+    recursive without this filter would cause gitignored specs to be returned
+    and validated, potentially refusing on box-local files that are never committed.
+
+    Skips `README.md`, `INDEX.md`, and `STATUS.md`, aligning with `check_engine._SKIP_NAMES`.
+    De-duplicates by resolved path while returning Path instances.
+    """
+    from agent_workflows.record_producers import resolve_record_read_paths
+
+    try:
+        roots = list(resolve_record_read_paths("specs", target_repo=str(repo_root)))
+    except Exception:
+        roots = [repo_root / ".aw" / "records" / "specs"]
+    local_specs = repo_root / ".aw" / "records" / "specs"
+    if local_specs not in roots:
+        roots.append(local_specs)
+    # Always include the legacy `.agents/docs/specs` read path for bounded compatibility.
+    # resolve_record_read_paths only appends the legacy dir once a migration retention
+    # manifest exists; but an UN-migrated repo (the common case until the Order 11
+    # self-migration runs) still keeps its specs under `.agents/docs/specs`, and
+    # `aw specs check` must continue to see them. Adding it unconditionally is safe: the
+    # loop below skips non-existent dirs and dedups.
+    legacy = repo_root / ".agents" / "docs" / "specs"
+    if legacy not in roots:
+        roots.append(legacy)
+
+    # Skip names aligned with check_engine._SKIP_NAMES (README.md, INDEX.md, STATUS.md)
+    skip_names = {"README.md", "INDEX.md", "STATUS.md"}
+    ignored_dirs = core.get_ignored_dirs(repo_root)
+    files: List[Path] = []
+    seen_resolved: set = set()
+    for r in roots:
+        if not r.is_dir() or core.is_ignored_path(r, repo_root, ignored_dirs):
+            continue
+        for p in r.rglob("*.md"):
+            if p.name in skip_names or core.is_ignored_path(p, repo_root, ignored_dirs):
+                continue
+            try:
+                key = str(p.resolve())
+            except OSError:
+                continue
+            if key in seen_resolved:
+                continue
+            seen_resolved.add(key)
+            files.append(p)
+    return sorted(files)
+```
+
+Proof of dedup on resolved paths:
+Tested by `test_dual_roots_dedup_resolved_paths` in `tests/test_specs_recursive_read.py` (overlapping `.aw/records/specs` and symlinked `.agents/docs/specs` yields exactly 1 spec).
+
+Negative proof:
+Diff on `specs.py` is strictly contained in `_spec_files` (lines 70-125). Neither `validate_spec` / verdict logic nor `run_set` / `run_new` was modified.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the SET EQUALITY result on the live repository between `specs._spec_files` and `check_engine._iter_type_files`, run with `include_retired=True` on RESOLVED paths, AND paste the default-argument count beside it (measured 13 versus 29 at review) so the distinction is on the record. Paste the GITIGNORED-SUBDIR assertion: a spec in a gitignored subdir NOT returned, one in a tracked subdir returned. Paste the flat-tree examined count before and after, equal, re-counted at execution (29 at review, not the 28 originally authored). Paste the end-to-end test showing a NON-CONFORMING spec in a subdirectory is REPORTED by `aw specs check`, with its unpiped exit code. THEN paste the BARE `python3 -m pytest` summary lines before and after, from a baseline YOU measured, and state the failure-set delta explicitly; if `test_reporting_contract.py` fails, name it environmental and confirm you deleted no untracked directory. If recursion surfaced any new finding, paste it as a report per OQ-02.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: set equality verified on live corpus (37 specs), gitignored-subdir exclusion verified, end-to-end subdir check verified, and bare suite delta verified empty.
+Live repository measurements at execution HEAD:
+```
+specs._spec_files count: 37
+check_engine._iter_type_files (default) count: 20
+check_engine._iter_type_files (include_retired=True) count: 37
+Set equality (include_retired=True): True
+```
+
+Flat-tree examined count before and after:
+- Before fix: 37 specs (`aw specs check` / `specs._spec_files`)
+- After fix: 37 specs (`aw specs check` / `specs._spec_files`)
+- Count is unchanged (37 == 37).
+
+Gitignored-subdir exclusion:
+Verified by `test_gitignored_subdir_spec_excluded` in `tests/test_specs_recursive_read.py`: with `.aw/.gitignore` containing `records/*/untracked/`, `untracked/` spec is excluded while `approved/` spec is returned.
+
+End-to-end non-conforming subdir spec test:
+Verified by `test_end_to_end_nonconforming_subdir_spec_reported`: non-conforming spec in `.aw/records/specs/approved/` is reported by `aw specs check --json` with `exit_code: 1`, `violations > 0`, and `status: "findings"`.
+
+Bare pytest suite runs:
+- BEFORE baseline: `4 failed, 8801 passed, 3 skipped, 2 xfailed, 6 warnings in 228.49s (0:03:48)`
+- AFTER run: `4 failed, 8808 passed, 3 skipped, 2 xfailed, 6 warnings in 123.67s (0:02:03)`
+- Delta (AFTER minus BEFORE): +7 passed (7 new tests in `tests/test_specs_recursive_read.py`). Zero new failures.
+- Baseline 4 failures are unchanged pre-existing suite failures (`test_orchestrator_probe.py`, `test_ipd_lint.py`, `test_rununify_initialize_run.py` x2). No untracked directories were deleted.
+
+New findings surfaced on existing specs: None.
+  - Result: pass
 
 ## Approval and execution gate
 

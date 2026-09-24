@@ -68,12 +68,34 @@ def _read_status(lines: List[str]) -> Optional[str]:
 
 
 def _spec_files(repo_root: Path) -> List[Path]:
+    """Return sorted list of spec file Paths under specs roots.
+
+    Enumeration is RECURSIVE (`rglob`) so that specs placed in subdirectories
+    (such as lifecycle status subdirectories `.aw/records/specs/approved/`)
+    are visible to `aw specs check` and `_existing_spec_ids`. Previously, a flat
+    `glob("*.md")` caused specs in subdirectories to be completely invisible to
+    `aw specs check`, which reported conformance having examined zero files.
+
+    Ignored-path filtering via `core.is_ignored_path` / `core.get_ignored_dirs`
+    is coupled to this recursive walk: non-recursion previously masked the lack
+    of an ignored-path filter because a flat glob cannot descend into ignored
+    subdirectories (such as `.aw/records/specs/untracked/`, pre-ignored by the
+    shipped `.aw/.gitignore` pattern `records/*/untracked/`). Making the walk
+    recursive without this filter would cause gitignored specs to be returned
+    and validated, potentially refusing on box-local files that are never committed.
+
+    Skips `README.md`, `INDEX.md`, and `STATUS.md`, aligning with `check_engine._SKIP_NAMES`.
+    De-duplicates by resolved path while returning Path instances.
+    """
     from agent_workflows.record_producers import resolve_record_read_paths
 
     try:
         roots = list(resolve_record_read_paths("specs", target_repo=str(repo_root)))
     except Exception:
         roots = [repo_root / ".aw" / "records" / "specs"]
+    local_specs = repo_root / ".aw" / "records" / "specs"
+    if local_specs not in roots:
+        roots.append(local_specs)
     # Always include the legacy `.agents/docs/specs` read path for bounded compatibility.
     # resolve_record_read_paths only appends the legacy dir once a migration retention
     # manifest exists; but an UN-migrated repo (the common case until the Order 11
@@ -83,11 +105,27 @@ def _spec_files(repo_root: Path) -> List[Path]:
     legacy = repo_root / ".agents" / "docs" / "specs"
     if legacy not in roots:
         roots.append(legacy)
+
+    # Skip names aligned with check_engine._SKIP_NAMES (README.md, INDEX.md, STATUS.md)
+    skip_names = {"README.md", "INDEX.md", "STATUS.md"}
+    ignored_dirs = core.get_ignored_dirs(repo_root)
     files: List[Path] = []
+    seen_resolved: set = set()
     for r in roots:
-        if r.is_dir():
-            files.extend(p for p in r.glob("*.md") if p.name != "README.md")
-    return sorted(set(files))
+        if not r.is_dir() or core.is_ignored_path(r, repo_root, ignored_dirs):
+            continue
+        for p in r.rglob("*.md"):
+            if p.name in skip_names or core.is_ignored_path(p, repo_root, ignored_dirs):
+                continue
+            try:
+                key = str(p.resolve())
+            except OSError:
+                continue
+            if key in seen_resolved:
+                continue
+            seen_resolved.add(key)
+            files.append(p)
+    return sorted(files)
 
 
 def _read_gate(lines: List[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
