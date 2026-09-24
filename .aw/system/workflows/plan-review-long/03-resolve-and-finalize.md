@@ -134,6 +134,16 @@ repair; exit `2` is a hard stop. INVOKE the linter; do not paraphrase it. It pro
 only; it does not establish semantic adequacy. (The `machine preflight unavailable: bootstrap`
 label applies only while the linter does not yet exist.)
 
+For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the plan's own first
+`- Kind:` bullet in front matter; never use a whole-file containment scan like
+`grep -l 'Kind: orchestrator'`, which misclassifies child plans quoting the bullet such as `m7gvuz`),
+`review-finalize` enforces typed child-tracking row conformance (`IPD-S407`).
+
+**Honest exhaustion (R6):** If the orchestrator repair loop (budget of 2 attempts) exhausts with
+`IPD-S407` violations unresolved, the plan remains `- Status: to-review`, the findings are recorded
+in the review round, and `- Readiness:` is left ABSENT. Do NOT write `- Readiness:` at all in this
+path (not `no-go` and not a pass); absence is legal, silent, and fails closed downstream.
+
 Apply the project's review-complete status. If it uses `Status`, set `reviewed`
 unless the contract requires another value.
 
@@ -161,6 +171,11 @@ field; whatever readiness wording appears in the history line is for humans. Omi
 field is not neutral: a consumer that finds no field FAILS CLOSED and treats the plan as not
 cleared, so a clean plan that should have read `go-pending-approval` simply will not be
 picked up. Write exactly one of the three values, lowercase, with no extra words.
+
+**Exception for exhausted orchestrator repair loop (`IPD-S407` / R6):** If an orchestrator's
+checklist repair loop exhausts its budget of 2 attempts unresolved, leave `- Readiness:` ABSENT
+entirely. Do NOT write `- Readiness: no-go` or any other value; absence ensures downstream gates fail
+closed while honestly reflecting that no review verdict was reached.
 
 Append or update:
 

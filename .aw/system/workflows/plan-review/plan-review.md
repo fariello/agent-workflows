@@ -129,6 +129,29 @@ sufficiency, truthful blocking-classification, or conceptual density per E-item)
 review below remains fully required and separate. A passing count-based size lint does NOT
 clear right-sizing; conceptual density must be evaluated in semantic review.
 
+#### Orchestrator checklist row check and bounded repair loop (`IPD-S407`)
+Beside `review-finalize`, for any plan whose own first `- Kind:` bullet reads `orchestrator`
+(read from the plan's own first `- Kind:` bullet in front matter; never use a whole-file containment
+scan like `grep -l 'Kind: orchestrator'`, which misclassifies child plans quoting the bullet such as
+`m7gvuz`), the linter validates typed child-tracking row conformance (`IPD-S407`).
+
+If `IPD-S407` violations are reported:
+1. **Bounded repair loop:** Ask the agent to repair the checklist rows and re-run the check, up to
+   an attempt budget of 2 (default 2 per `resolve_retry_budget(None) == 2`; the repository-policy tier
+   of that precedence is unimplemented, backlog `dh3us4`).
+2. **Verbatim refusal message:** The repair prompt MUST carry child 01's refusal message verbatim
+   (which states the invariant, forbids satisfying it by deletion, and names both remedies: moving the
+   step to a child with dependencies, or removing it if redundant).
+3. **Attempt logging:** Log every attempt into the current `## Round <n>` of the typed review record
+   (`.aw/records/reviews/<...>.review.md`, append-only per round; not the workflow history), recording
+   the attempt number, what the check reported, what changed, and the row count before and after
+   (`rows: N -> M`) so repair by deletion is distinguishable from relocation.
+4. **Honest exhaustion (R6):** If the 2-attempt budget is exhausted with violations unresolved, the
+   plan remains `- Status: to-review`, the findings are recorded in the review round, and `- Readiness:`
+   is left ABSENT. Do NOT write `- Readiness:` at all in this path (not `no-go` and not a pass);
+   absence is the correct state, it is silent, and it makes downstream gates fail closed. (The
+   auto-approve predicate reads `- Readiness:` first; `IPD-M107` refuses unattested values).
+
 (Only while the linter does not yet exist may a run record say `machine preflight unavailable:
 bootstrap`; once `aw ipd lint` is available that exception no longer applies.)
 
@@ -400,6 +423,11 @@ field; whatever readiness wording appears in the history line is for humans. Omi
 field is not neutral: a consumer that finds no field FAILS CLOSED and treats the plan as not
 cleared, so a clean plan that should have read `go-pending-approval` simply will not be
 picked up. Write exactly one of the three values, lowercase, with no extra words.
+
+**Exception for exhausted orchestrator repair loop (`IPD-S407` / R6):** If an orchestrator's
+checklist repair loop exhausts its budget of 2 attempts unresolved, leave `- Readiness:` ABSENT
+entirely. Do NOT write `- Readiness: no-go` or any other value; absence ensures downstream gates fail
+closed while honestly reflecting that no review verdict was reached.
 
 Append or update:
 

@@ -90,6 +90,26 @@ Make surgical, well-anchored edits:
 - keep the plan concise and executable;
 - do not weaken valid requirements.
 
+### Orchestrator checklist row repair loop (`IPD-S407`)
+
+For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the plan's own first
+`- Kind:` bullet in front matter; never use a whole-file containment scan like
+`grep -l 'Kind: orchestrator'`, which misclassifies child plans quoting the bullet such as `m7gvuz`):
+
+1. **Verify conformance (`IPD-S407`):** Every checklist item must be a typed child-tracking row
+   matching `- [ ] E-NN CONFIRM <child-id6> REACHED <status>`.
+2. **Bounded repair loop:** If `IPD-S407` violations are reported, ask the agent to repair the
+   checklist rows and re-run the check, up to an attempt budget of 2 (default 2 per
+   `resolve_retry_budget(None) == 2`; the repository-policy tier of that precedence is unimplemented,
+   backlog `dh3us4`).
+3. **Verbatim refusal message:** The repair prompt MUST carry child 01's refusal message verbatim
+   (which states the invariant, forbids satisfying it by deletion, and names both remedies: moving the
+   step to a child with dependencies, or removing it if redundant).
+4. **Attempt logging:** Log every attempt into the current `## Round <n>` of the typed review record
+   (`.aw/records/reviews/<...>.review.md`, append-only per round; not the workflow history), recording
+   what the check reported, what changed, and the row count before and after (`rows: N -> M`) to
+   distinguish relocation from deletion.
+
 For cross-plan findings, fix the owning plan and cross-reference dependent
 plans. Do not duplicate requirements.
 
@@ -107,3 +127,4 @@ Do not proceed until:
 - [ ] Over-scope is removed or explicitly excluded.
 - [ ] Revised plans remain concise, coherent, and executable.
 - [ ] Replan findings identify the minimum required new direction.
+- [ ] Orchestrator checklist rows conform to `IPD-S407` or are logged for honest exhaustion in Step 3.

@@ -132,6 +132,11 @@ class VariantParityTests(unittest.TestCase):
             "the closed decision vocabulary a review record is validated against",
             (PLAN_REVIEW, PRL_02),
         ),
+        (
+            "IPD-S407",
+            "the rule code for orchestrator checklist row conformance",
+            (PLAN_REVIEW, PRL_02, PRL_03),
+        ),
     )
 
     def test_both_variants_carry_every_load_bearing_token(self):
