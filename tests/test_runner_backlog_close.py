@@ -2254,5 +2254,450 @@ class BacklogCloseIntegritySelfCheck(unittest.TestCase):
             )
 
 
+class CommittedTreeBacklogCloseIntegritySelfCheck(unittest.TestCase):
+    """E-04: Test committed-tree integrity miscounts from REAL git fixtures.
+
+    Per F-6 and F-7: A half-committed git mv leaves the working tree with exactly 1 claimant
+    while HEAD holds 0 or 2 claimants. The self-check must inspect the commit sha and report
+    both broken counts under distinct rule names, while staying silent on healthy or no-sha closes.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "config",
+                "user.email",
+                "t@t",
+            ],
+            cwd=self.root,
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "config",
+                "user.name",
+                "t",
+            ],
+            cwd=self.root,
+            check=True,
+        )
+        for rel in (
+            ".aw/records/backlog/open",
+            ".aw/records/backlog/graduated",
+            ".aw/records/backlog/done",
+            ".aw/records/plans/executed",
+        ):
+            (self.root / rel).mkdir(parents=True, exist_ok=True)
+
+    def _item(self, path: Path, id6: str, status: str) -> None:
+        path.write_text(
+            f"- Id: {id6}\n- Status: {status}\n- Summary: s\n\n## Workflow history\n- 20260101 {status}: test\n",
+            encoding="utf-8",
+        )
+
+    def _plan(self, path: Path, id6: str, from_backlog: str) -> None:
+        path.write_text(
+            f"# IPD: {id6}\n\n- Date: 2026-01-01\n- Kind: child\n- Status: executed\n- Set: demo\n- Order: 1\n- Id: {id6}\n- From-Backlog: {from_backlog}\n\n## Goal\nDone.\n",
+            encoding="utf-8",
+        )
+
+    def test_committed_tree_addition_only_duplicate_is_detected(self):
+        """Shape A: A commit leaves two copies in HEAD (the 36-item corruption), working tree has one."""
+        item_grad = (
+            self.root
+            / ".aw/records/backlog/graduated/20260101-demo-01-abc123-test.backlog.md"
+        )
+        self._item(item_grad, "abc123", "graduated")
+        plan = (
+            self.root / ".aw/records/plans/executed/20260101-demo-01-plan01-test.ipd.md"
+        )
+        self._plan(plan, "plan01", "abc123")
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.root, check=True)
+
+        item_done = (
+            self.root
+            / ".aw/records/backlog/done/20260101-demo-01-abc123-test.backlog.md"
+        )
+
+        def do_close(*_a, **_k):
+            item_grad.rename(item_done)
+            return 0, "ok"
+
+        def do_commit(*_a, **_k):
+            # Simulate addition-only commit: stage done while keeping graduated in git index
+            self._item(item_grad, "abc123", "graduated")
+            subprocess.run(
+                ["git", "add", str(item_done), str(item_grad)],
+                cwd=self.root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "addition-only duplicate commit"],
+                cwd=self.root,
+                check=True,
+            )
+            # Remove graduated from working tree so working tree has only item_done
+            item_grad.unlink()
+            return subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+
+        run_dir = self.root / "run"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        state = {
+            "repo": str(self.root),
+            "run_id": "run-test",
+            "queue": [
+                {
+                    "id6": "plan01",
+                    "position": 1,
+                    "setid": "demo",
+                    "from_backlog": "abc123",
+                    "status": "executed",
+                    "attempts": [],
+                    "last_plan_path": str(plan),
+                }
+            ],
+        }
+        item = state["queue"][0]
+
+        stderr_buf = io.StringIO()
+        with (
+            mock.patch.object(oc_runipd, "close_backlog_item", do_close),
+            mock.patch.object(oc_runipd, "commit_backlog_close", do_commit),
+            contextlib.redirect_stderr(stderr_buf),
+        ):
+            oc_runipd.process_backlog_close(run_dir, state, item)
+
+        record = item.get("backlog_close") or {}
+        self.assertTrue(record.get("closed"))
+        self.assertIn("integrity", record)
+        self.assertEqual(record["integrity"]["rule"], "attention.committed-duplicate")
+        self.assertEqual(record["integrity"]["count"], 2)
+        self.assertIsNotNone(record["integrity"]["commit"])
+        self.assertEqual(len(record["integrity"]["paths"]), 2)
+
+        events = [
+            json.loads(line)
+            for line in (run_dir / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        violations = [
+            e for e in events if e.get("event") == "backlog-close-integrity-violation"
+        ]
+        self.assertEqual(len(violations), 1)
+        self.assertEqual(violations[0]["rule"], "attention.committed-duplicate")
+
+        err = stderr_buf.getvalue()
+        self.assertIn("attention.committed-duplicate", err)
+        self.assertIn("abc123", err)
+        self.assertIn("survived beside its destination", err)
+
+    def test_committed_tree_deletion_only_vanished_is_detected(self):
+        """Shape B: A commit leaves zero copies in HEAD (e.g. ca8e22e4), working tree has one."""
+        item_open = (
+            self.root
+            / ".aw/records/backlog/open/20260101-demo-01-def456-test.backlog.md"
+        )
+        self._item(item_open, "def456", "open")
+        plan = (
+            self.root / ".aw/records/plans/executed/20260101-demo-01-plan02-test.ipd.md"
+        )
+        self._plan(plan, "plan02", "def456")
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.root, check=True)
+
+        item_done = (
+            self.root
+            / ".aw/records/backlog/done/20260101-demo-01-def456-test.backlog.md"
+        )
+
+        def do_close(*_a, **_k):
+            item_open.rename(item_done)
+            return 0, "ok"
+
+        def do_commit(*_a, **_k):
+            # Commit deletion of item_open without staging item_done
+            subprocess.run(
+                ["git", "rm", "-q", str(item_open)], cwd=self.root, check=True
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "deletion-only vanished commit"],
+                cwd=self.root,
+                check=True,
+            )
+            return subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+
+        run_dir = self.root / "run"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        state = {
+            "repo": str(self.root),
+            "run_id": "run-test",
+            "queue": [
+                {
+                    "id6": "plan02",
+                    "position": 1,
+                    "setid": "demo",
+                    "from_backlog": "def456",
+                    "status": "executed",
+                    "attempts": [],
+                    "last_plan_path": str(plan),
+                }
+            ],
+        }
+        item = state["queue"][0]
+
+        stderr_buf = io.StringIO()
+        with (
+            mock.patch.object(oc_runipd, "close_backlog_item", do_close),
+            mock.patch.object(oc_runipd, "commit_backlog_close", do_commit),
+            contextlib.redirect_stderr(stderr_buf),
+        ):
+            oc_runipd.process_backlog_close(run_dir, state, item)
+
+        record = item.get("backlog_close") or {}
+        self.assertTrue(record.get("closed"))
+        self.assertIn("integrity", record)
+        self.assertEqual(record["integrity"]["rule"], "attention.committed-absent")
+        self.assertEqual(record["integrity"]["count"], 0)
+        self.assertIsNotNone(record["integrity"]["commit"])
+        self.assertEqual(record["integrity"]["paths"], [])
+
+        events = [
+            json.loads(line)
+            for line in (run_dir / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        violations = [
+            e for e in events if e.get("event") == "backlog-close-integrity-violation"
+        ]
+        self.assertEqual(len(violations), 1)
+        self.assertEqual(violations[0]["rule"], "attention.committed-absent")
+
+        err = stderr_buf.getvalue()
+        self.assertIn("attention.committed-absent", err)
+        self.assertIn("def456", err)
+        self.assertIn("dropped from the commit", err)
+
+    def test_committed_tree_exactly_one_claimant_is_silent(self):
+        """Healthy close with exactly 1 claimant in commit reports no integrity violation."""
+        item_grad = (
+            self.root
+            / ".aw/records/backlog/graduated/20260101-demo-01-ghi789-test.backlog.md"
+        )
+        self._item(item_grad, "ghi789", "graduated")
+        plan = (
+            self.root / ".aw/records/plans/executed/20260101-demo-01-plan03-test.ipd.md"
+        )
+        self._plan(plan, "plan03", "ghi789")
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.root, check=True)
+
+        item_done = (
+            self.root
+            / ".aw/records/backlog/done/20260101-demo-01-ghi789-test.backlog.md"
+        )
+
+        def do_close(*_a, **_k):
+            item_grad.rename(item_done)
+            return 0, "ok"
+
+        def do_commit(*_a, **_k):
+            subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "clean move commit"], cwd=self.root, check=True
+            )
+            return subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+
+        run_dir = self.root / "run"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        state = {
+            "repo": str(self.root),
+            "run_id": "run-test",
+            "queue": [
+                {
+                    "id6": "plan03",
+                    "position": 1,
+                    "setid": "demo",
+                    "from_backlog": "ghi789",
+                    "status": "executed",
+                    "attempts": [],
+                    "last_plan_path": str(plan),
+                }
+            ],
+        }
+        item = state["queue"][0]
+
+        stderr_buf = io.StringIO()
+        with (
+            mock.patch.object(oc_runipd, "close_backlog_item", do_close),
+            mock.patch.object(oc_runipd, "commit_backlog_close", do_commit),
+            contextlib.redirect_stderr(stderr_buf),
+        ):
+            oc_runipd.process_backlog_close(run_dir, state, item)
+
+        record = item.get("backlog_close") or {}
+        self.assertTrue(record.get("closed"))
+        self.assertNotIn("integrity", record)
+
+        events = [
+            json.loads(line)
+            for line in (run_dir / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        violations = [
+            e for e in events if e.get("event") == "backlog-close-integrity-violation"
+        ]
+        self.assertEqual(len(violations), 0)
+        self.assertEqual(stderr_buf.getvalue(), "")
+
+    def test_no_commit_sha_is_silent(self):
+        """When there is no commit sha (e.g. isolated turn), the committed check is skipped silently."""
+        item_grad = (
+            self.root
+            / ".aw/records/backlog/graduated/20260101-demo-01-jkl012-test.backlog.md"
+        )
+        self._item(item_grad, "jkl012", "graduated")
+        plan = (
+            self.root / ".aw/records/plans/executed/20260101-demo-01-plan04-test.ipd.md"
+        )
+        self._plan(plan, "plan04", "jkl012")
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.root, check=True)
+
+        run_dir = self.root / "run"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        state = {
+            "repo": str(self.root),
+            "run_id": "run-test",
+            "queue": [
+                {
+                    "id6": "plan04",
+                    "position": 1,
+                    "setid": "demo",
+                    "from_backlog": "jkl012",
+                    "status": "executed",
+                    "attempts": [],
+                    "last_plan_path": str(plan),
+                }
+            ],
+        }
+        item = state["queue"][0]
+
+        stderr_buf = io.StringIO()
+        with (
+            mock.patch.object(
+                oc_runipd, "close_backlog_item", lambda *_a, **_k: (0, "ok")
+            ),
+            mock.patch.object(
+                oc_runipd, "commit_backlog_close", lambda *_a, **_k: None
+            ),
+            contextlib.redirect_stderr(stderr_buf),
+        ):
+            oc_runipd.process_backlog_close(run_dir, state, item)
+
+        record = item.get("backlog_close") or {}
+        self.assertTrue(record.get("closed"))
+        self.assertNotIn("integrity", record)
+
+        events = [
+            json.loads(line)
+            for line in (run_dir / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        violations = [
+            e for e in events if e.get("event") == "backlog-close-integrity-violation"
+        ]
+        self.assertEqual(len(violations), 0)
+        self.assertEqual(stderr_buf.getvalue(), "")
+
+    def test_paths_for_commit_are_repository_relative(self):
+        """Paths returned by backlog_item_paths_for_commit are repo-relative (no leak)."""
+        item_grad = (
+            self.root
+            / ".aw/records/backlog/graduated/20260101-demo-01-abc123-test.backlog.md"
+        )
+        self._item(item_grad, "abc123", "graduated")
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.root, check=True)
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        paths = runner_shared.backlog_item_paths_for_commit(self.root, sha, "abc123")
+        self.assertEqual(len(paths), 1)
+        for rel in paths:
+            self.assertFalse(PurePath(rel).is_absolute())
+            self.assertTrue(rel.startswith(".aw/"))
+
+    def test_absent_id_and_invalid_commit_are_empty(self):
+        """Non-existent id or invalid sha returns empty list, never an exception."""
+        item_grad = (
+            self.root
+            / ".aw/records/backlog/graduated/20260101-demo-01-abc123-test.backlog.md"
+        )
+        self._item(item_grad, "abc123", "graduated")
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.root, check=True)
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(
+            runner_shared.backlog_item_paths_for_commit(self.root, sha, "zzzz99"), []
+        )
+        self.assertEqual(
+            runner_shared.backlog_item_paths_for_commit(
+                self.root, "deadbeef" * 5, "abc123"
+            ),
+            [],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

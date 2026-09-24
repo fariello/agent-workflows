@@ -22,6 +22,7 @@ from unittest import mock
 from pathlib import Path
 
 from agent_workflows import agy_runipd
+from agent_workflows import artifact_core as core
 from agent_workflows import oc_models
 from agent_workflows import oc_runipd as driver
 from agent_workflows import runner_shared
@@ -8574,6 +8575,143 @@ class TheConsumerBoundaryHoldsTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("benchmark_metrics", source)
+
+
+class StartupAttentionIntegrityReportTests(unittest.TestCase):
+    """E-03 & E-04: Test the startup report for an invalid cross-tree attention view."""
+
+    def test_invalid_board_is_reported_at_run_start(self):
+        """When the cross-tree view has non-info drift, report it at run start with rule names and counts."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stream = io.StringIO()
+            with mock.patch(
+                "agent_workflows.attention.scan",
+                return_value=(
+                    [],
+                    [
+                        core.Drift(
+                            ".aw/records/backlog/open/a.md",
+                            "attention.duplicate-id",
+                            "dup",
+                        ),
+                    ],
+                ),
+            ), mock.patch(
+                "agent_workflows.attention.stranded_lane_drift",
+                return_value=[],
+            ):
+                runner_shared.report_invalid_board_at_run_start(root, stream=stream)
+            out = stream.getvalue()
+            self.assertIn("warning: cross-tree attention view is INVALID", out)
+            self.assertIn("attention.duplicate-id", out)
+            self.assertIn("1 finding(s)", out)
+
+    def test_info_only_findings_are_silent_at_run_start(self):
+        """When drift contains only info-severity findings (e.g. attention.lane-superseded), report is silent."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stream = io.StringIO()
+            info_drift = core.Drift(
+                "aw/lane/abc",
+                "attention.lane-superseded",
+                "superseded",
+                severity="info",
+            )
+            with mock.patch(
+                "agent_workflows.attention.scan",
+                return_value=([], []),
+            ), mock.patch(
+                "agent_workflows.attention.stranded_lane_drift",
+                return_value=[info_drift],
+            ):
+                runner_shared.report_invalid_board_at_run_start(root, stream=stream)
+            self.assertEqual(stream.getvalue(), "")
+
+    def test_clean_repository_is_silent_at_run_start(self):
+        """A clean repository with 0 findings produces silence."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stream = io.StringIO()
+            with mock.patch(
+                "agent_workflows.attention.scan",
+                return_value=([], []),
+            ), mock.patch(
+                "agent_workflows.attention.stranded_lane_drift",
+                return_value=[],
+            ):
+                runner_shared.report_invalid_board_at_run_start(root, stream=stream)
+            self.assertEqual(stream.getvalue(), "")
+
+    def test_computation_failure_degrades_to_warning_and_does_not_raise(self):
+        """A scan error warns rather than raising, never killing the run."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stream = io.StringIO()
+            with mock.patch(
+                "agent_workflows.attention.scan",
+                side_effect=RuntimeError("disk read error"),
+            ):
+                runner_shared.report_invalid_board_at_run_start(root, stream=stream)
+            out = stream.getvalue()
+            self.assertIn(
+                "warning: could not compute cross-tree attention view at run start", out
+            )
+            self.assertIn("disk read error", out)
+
+    def test_startup_report_ordering_is_before_run_directory_creation(self):
+        """The report must be emitted before the run directory exists on disk."""
+        events: list[str] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".aw/records/plans/pending").mkdir(parents=True, exist_ok=True)
+            plan = root / ".aw/records/plans/pending/20260101-demo-01-abc123-p.ipd.md"
+            plan.write_text(
+                "# IPD: abc123\n- Date: 2026-01-01\n- Kind: child\n- Status: approved\n- Set: demo\n- Order: 1\n- Id: abc123\n\n## Goal\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=t",
+                    "-c",
+                    "user.email=t@t",
+                    "commit",
+                    "-qm",
+                    "init",
+                ],
+                cwd=root,
+                check=True,
+            )
+
+            original_report = getattr(
+                runner_shared, "report_invalid_board_at_run_start", None
+            )
+
+            def spy_report(repo, **kw):
+                runs_dir = root / ".aw/records/runs"
+                # Assert no run directory has been created yet
+                existing_runs = (
+                    list(runs_dir.glob("run-*")) if runs_dir.is_dir() else []
+                )
+                events.append(f"report_called:run_count={len(existing_runs)}")
+                if original_report:
+                    return original_report(repo, **kw)
+                return []
+
+            parser = driver.build_parser()
+            args = parser.parse_args(
+                ["start", "abc123", "--prepare-only", "--repo", str(root)]
+            )
+            with mock.patch(
+                "agent_workflows.runner_shared.report_invalid_board_at_run_start",
+                spy_report,
+            ):
+                driver.initialize_run(args)
+            self.assertIn("report_called:run_count=0", events)
 
 
 if __name__ == "__main__":

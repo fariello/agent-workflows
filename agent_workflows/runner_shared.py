@@ -804,21 +804,15 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
 
 
 def backlog_item_paths_for_id(repo: Path, item_id6: str) -> list[str]:
-    """EVERY backlog file claiming ``item_id6``, repo-relative and sorted. Normally exactly one.
+    """EVERY backlog file claiming ``item_id6`` IN THE WORKING TREE, repo-relative and sorted.
 
-    THE SCOPED INTEGRITY QUESTION, added after a measured two-day corruption (2026-09-22). A backlog
-    id6 must exist in exactly ONE status directory: the directory IS the item's lifecycle state, so the
-    same id6 in two of them means the item has two contradictory states at once, and `aw attention`
-    reports it as `attention.duplicate-id` and declares its whole board non-authoritative.
+    THE WORKING-TREE SCOPED INTEGRITY QUERY, added 2026-09-22. A backlog id6 must exist in exactly ONE
+    status directory in the working tree.
 
-    WHY THE RUNNER ASKS THIS AT ALL, rather than leaving it to `aw check` and CI. A bug in
-    `git_commit_helper._staged_paths` (fixed 2026-09-22) committed a `git mv` relocation as a bare
-    ADDITION, leaving the pre-move copy in HEAD beside its own destination. That produced 36 duplicated
-    items across two days. The CI gate that catches this is correct and DID fire - but it speaks only
-    after the corrupt commit is pushed, and 143 further commits reached `origin/main` while it was red,
-    so detection-after-the-fact did not prevent accumulation. This function is the cheap half of the
-    remedy: the runner already knows WHICH id6 it just wrote, so it can verify that one id6 rather than
-    walking the whole tree, and can say so at the moment of creation instead of two days later.
+    DESCRIBES THE WORKING TREE ONLY (2026-09-24 review correction). This function iterates
+    `backlog._iter_items`, which globs the filesystem, so it describes the current working tree rather
+    than a commit. For the committed-tree question that catches corruption in a commit, see its
+    sibling :func:`backlog_item_paths_for_commit`.
 
     DELIBERATELY A PLAIN QUERY, NOT A REFUSAL. It returns facts and raises nothing; the caller decides.
     A close that has already been committed cannot be undone by refusing here, so the honest action is
@@ -845,6 +839,64 @@ def backlog_item_paths_for_id(repo: Path, item_id6: str) -> list[str]:
             ValueError
         ):  # pragma: no cover - a path outside the repo cannot be reported relatively
             hits.append(path.name)
+    return sorted(hits)
+
+
+def backlog_item_paths_for_commit(
+    repo: Path,
+    commit_sha: str,
+    item_id6: str,
+    *,
+    git_runner: Callable[..., tuple[int, str, str]] | None = None,
+) -> list[str]:
+    """EVERY backlog file claiming ``item_id6`` IN ``commit_sha``, repo-relative and sorted.
+
+    THE COMMITTED-TREE SCOPED INTEGRITY QUERY (E-02).
+    A backlog id6 must exist in exactly ONE status directory in the commit the runner just made.
+    Unlike :func:`backlog_item_paths_for_id`, which inspects the working tree, this function
+    queries the committed object tree for ``commit_sha`` via `git ls-tree` and parses each
+    matching blob with `backlog.parse_item`.
+    """
+    from agent_workflows import backlog as _backlog
+
+    runner = git_runner or _run_git
+    try:
+        rc, out, _err = runner(
+            Path(repo), ["ls-tree", "-r", "--name-only", str(commit_sha)]
+        )
+    except Exception:
+        return []
+    if rc != 0:
+        return []
+
+    valid_prefixes = tuple(
+        f"{root_rel.removeprefix('./').removeprefix('/')}/{status}/"
+        for root_rel in _backlog.BACKLOG_ROOTS
+        for status in _backlog.STATUS_DIRS
+    )
+
+    hits: list[str] = []
+    for line in out.splitlines():
+        path_str = line.strip()
+        if (
+            not path_str
+            or not path_str.endswith(".md")
+            or path_str.endswith("/README.md")
+            or path_str == "README.md"
+        ):
+            continue
+        if not any(path_str.startswith(pfx) for pfx in valid_prefixes):
+            continue
+        show_rc, blob_text, _show_err = runner(
+            Path(repo), ["show", f"{commit_sha}:{path_str}"]
+        )
+        if show_rc != 0:
+            continue
+        try:
+            if _backlog.parse_item(blob_text).id == item_id6:
+                hits.append(path_str)
+        except Exception:
+            continue
     return sorted(hits)
 
 
@@ -12940,6 +12992,49 @@ def report_untracked_dirt_at_run_start(
     return report
 
 
+def report_invalid_board_at_run_start(
+    repo: Path,
+    *,
+    stream: Any = None,
+) -> list[str]:
+    """Emit the cross-tree attention view validity report at run start (E-03).
+
+    CALLED FROM `initialize_run_core` BESIDE `report_untracked_dirt_at_run_start`, before the run
+    directory exists. Computes validity via `artifact_core.drift_exit_code` across `attention.scan`
+    and `attention.stranded_lane_drift`.
+
+    IT NEVER RAISES AND NEVER REFUSES: a computation error degrades to a warning so a diagnostic
+    cannot kill a run. It respects `drift_exit_code`'s exemption of `info`-severity findings
+    (such as `attention.lane-superseded`), producing silence on a valid board.
+    """
+    import collections
+    from agent_workflows import artifact_core as _core, attention as _attention
+
+    repo_path = Path(repo)
+    out_stream = stream if stream is not None else sys.stderr
+    try:
+        items, drift = _attention.scan(repo_path)
+        drift = drift + _attention.stranded_lane_drift(repo_path)
+        if _core.drift_exit_code(drift) != 0:
+            violating = [d for d in drift if getattr(d, "severity", "") != "info"]
+            counts = collections.Counter(d.rule for d in violating)
+            rule_summary = ", ".join(
+                f"{rule} ({cnt})" for rule, cnt in sorted(counts.items())
+            )
+            print(
+                f"warning: cross-tree attention view is INVALID ({len(violating)} finding(s): {rule_summary}); "
+                "`aw attention` board is not authoritative until repaired",
+                file=out_stream,
+            )
+            return [d.rule for d in violating]
+    except Exception as exc:
+        print(
+            f"warning: could not compute cross-tree attention view at run start: {exc}",
+            file=out_stream,
+        )
+    return []
+
+
 #: The verdicts a pre-launch clean-base decision can reach (dirtybase `3i0aaz` E-03/E-05).
 CLEAN_BASE_PROCEED = "proceed"
 CLEAN_BASE_CONSENTED = "consented"
@@ -23303,6 +23398,7 @@ def initialize_run_core(
     refuse_unsweepable_run_types(run_types)
     refuse_type_scoping_outside_the_review_sweep(run_types, args.selectors)
     report_untracked_dirt_at_run_start(repo)
+    report_invalid_board_at_run_start(repo)
 
     queue_ids = expand_selectors_fn(
         manifest, args.selectors, repo=repo, types=run_types
@@ -28123,28 +28219,39 @@ def process_backlog_close(
         run_id=state.get("run_id"),
         plan_id6=item.get("id6"),
     )
-    # SCOPED INTEGRITY SELF-CHECK, IMMEDIATELY AFTER OUR OWN WRITE (2026-09-22).
+    # SCOPED INTEGRITY SELF-CHECK, IMMEDIATELY AFTER OUR OWN WRITE (2026-09-22, extended 2026-09-24).
     #
     # WHY HERE AND NOT ONLY IN CI. A `_staged_paths` bug committed this very relocation as a bare
     # ADDITION, so the pre-move copy survived in HEAD beside its destination and the item held two
-    # contradictory lifecycle states at once. 36 items were corrupted over two days. The CI gate that
-    # catches it is correct and fired, but it speaks only after a push, and 143 commits landed on
-    # `origin/main` while it was red. The runner KNOWS which id6 it just wrote, so checking that one
-    # id6 costs one tree walk and reports at the moment of creation rather than two days later.
+    # contradictory lifecycle states at once (36 items corrupted over two days). Later, a deletion-only
+    # commit (ca8e22e4) dropped ten items into 0 committed claimants. The CI gate that catches corruption
+    # is correct and fires, but speaks only after a push. The runner KNOWS which id6 it just wrote, so
+    # checking that one id6 costs one tree walk and reports at the moment of creation.
+    #
+    # TWO SEPARATE QUERIES (F-6). The working-tree query (:func:`backlog_item_paths_for_id`) detects a
+    # dirty checkout with multiple claimants on disk. The committed-tree query
+    # (:func:`backlog_item_paths_for_commit`) detects corruption in the commit the runner just made
+    # (both 0 claimants and >1 claimants), which is invisible in the working tree when a half-committed
+    # `git mv` leaves the working tree clean.
+    #
+    # NO-COMMIT CASE IS SKIPPED SILENTLY (F-9). On an isolated turn, the move rides the lane's finalize
+    # commit rather than a commit made here, so `record["commit"]` is None. When there is no commit sha,
+    # the committed-tree check is skipped silently without reporting, preventing false positives on the
+    # default isolated path.
     #
     # IT REPORTS AND NEVER RAISES. The close is already committed by this point, so refusing would
     # leave the tree in exactly the same state while additionally killing the run; the useful act is to
     # make the corruption impossible to MISS. The fact lands in three places a later reader actually
     # consults: the item's own `backlog_close` record, the run's `events.jsonl`, and stderr.
     with contextlib.suppress(Exception):  # never let a self-check break a run
-        claimants = backlog_item_paths_for_id(write_repo, item_id6)
-        if len(claimants) > 1:
+        wt_claimants = backlog_item_paths_for_id(write_repo, item_id6)
+        if len(wt_claimants) > 1:
             record["integrity"] = {
                 "rule": "attention.duplicate-id",
                 "id6": item_id6,
-                "paths": claimants,
+                "paths": wt_claimants,
                 "detail": (
-                    f"backlog item {item_id6} now exists at {len(claimants)} paths, so its lifecycle "
+                    f"backlog item {item_id6} now exists at {len(wt_claimants)} paths, so its lifecycle "
                     "state is contradictory; a relocation committed only half of its move"
                 ),
             }
@@ -28156,14 +28263,86 @@ def process_backlog_close(
                     "id6": item["id6"],
                     "backlog_item": item_id6,
                     "rule": "attention.duplicate-id",
-                    "paths": claimants,
+                    "paths": wt_claimants,
                 },
             )
             sys.stderr.write(
-                f"warning: backlog item {item_id6} exists at {len(claimants)} paths after its close "
-                f"({', '.join(claimants)}); `aw attention` will report attention.duplicate-id and its "
+                f"warning: backlog item {item_id6} exists at {len(wt_claimants)} paths after its close "
+                f"({', '.join(wt_claimants)}); `aw attention` will report attention.duplicate-id and its "
                 "board is NOT authoritative until this is repaired\n"
             )
+
+        commit_sha = record.get("commit")
+        if commit_sha:
+            committed_claimants = backlog_item_paths_for_commit(
+                write_repo, commit_sha, item_id6
+            )
+            if len(committed_claimants) == 0:
+                rule = "attention.committed-absent"
+                detail = (
+                    f"backlog item {item_id6} exists at 0 paths in commit {commit_sha}; "
+                    "the destination write was probably dropped from the commit"
+                )
+                record["integrity"] = {
+                    "rule": rule,
+                    "id6": item_id6,
+                    "paths": committed_claimants,
+                    "commit": commit_sha,
+                    "count": 0,
+                    "detail": detail,
+                }
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "backlog-close-integrity-violation",
+                        "id6": item["id6"],
+                        "backlog_item": item_id6,
+                        "rule": rule,
+                        "paths": committed_claimants,
+                        "commit": commit_sha,
+                        "count": 0,
+                        "detail": detail,
+                    },
+                )
+                sys.stderr.write(
+                    f"warning: backlog item {item_id6} exists at 0 paths in commit {commit_sha}; "
+                    f"`aw attention` will report {rule} and its board is NOT authoritative until this is repaired "
+                    "(the destination write was probably dropped from the commit)\n"
+                )
+            elif len(committed_claimants) > 1:
+                rule = "attention.committed-duplicate"
+                detail = (
+                    f"backlog item {item_id6} exists at {len(committed_claimants)} paths in commit {commit_sha} "
+                    f"({', '.join(committed_claimants)}); a pre-move copy probably survived beside its destination"
+                )
+                record["integrity"] = {
+                    "rule": rule,
+                    "id6": item_id6,
+                    "paths": committed_claimants,
+                    "commit": commit_sha,
+                    "count": len(committed_claimants),
+                    "detail": detail,
+                }
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "backlog-close-integrity-violation",
+                        "id6": item["id6"],
+                        "backlog_item": item_id6,
+                        "rule": rule,
+                        "paths": committed_claimants,
+                        "commit": commit_sha,
+                        "count": len(committed_claimants),
+                        "detail": detail,
+                    },
+                )
+                sys.stderr.write(
+                    f"warning: backlog item {item_id6} exists at {len(committed_claimants)} paths in commit {commit_sha} "
+                    f"({', '.join(committed_claimants)}); `aw attention` will report {rule} and its board is NOT authoritative until this is repaired "
+                    "(a pre-move copy probably survived beside its destination)\n"
+                )
     item["backlog_close"] = record
     append_jsonl(
         run_dir / "events.jsonl",

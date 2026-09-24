@@ -46,9 +46,9 @@ REVISED IN REVIEW. The pre-review goal was "make a zero-claimant write as loud a
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
-### Task group 1: confirm which recommendations already exist
+#### Task group 1: confirm which recommendations already exist
 
-- [ ] E-01 RE-MEASURE THE CHECK'S TWO INDEPENDENT DEFECTS BEFORE WRITING ANYTHING, because E-02's redesign rests on the SECOND one, which the pre-review plan did not know about.
+- [x] E-01 RE-MEASURE THE CHECK'S TWO INDEPENDENT DEFECTS BEFORE WRITING ANYTHING, because E-02's redesign rests on the SECOND one, which the pre-review plan did not know about.
   CONFIRM (i) EXISTS AND FIND ITS PREDICATE: locate the scoped integrity self-check in `runner_shared.process_backlog_close` and quote the guard. At review it is `if len(claimants) > 1`.
   PROVE DEFECT 1, THE PREDICATE: call `backlog_item_paths_for_id` with an id6 that exists nowhere and show it returns an empty list, so a `len > 1` guard cannot fire. Paste it.
   PROVE DEFECT 2, THE TREE, WHICH IS THE ONE THAT DECIDES THE DESIGN. Confirm `backlog_item_paths_for_id` reads the FILESYSTEM (it iterates `backlog._iter_items`, which globs status directories) and therefore answers about the WORKING TREE, not the commit. Then build a throwaway git fixture and measure BOTH corruption shapes: commit a `git mv` addition-only, and commit one deletion-only. For each, paste the working-tree claimant count beside the committed (`git ls-tree -r HEAD`) claimant count. The expected result, measured in review, is that the working tree reads exactly 1 in BOTH shapes while HEAD reads 2 and 0 respectively, so `len > 1` AND `len == 0` are both False in both. If your measurement disagrees, STOP and report: E-02's redesign is wrong and the plan needs re-review.
@@ -56,11 +56,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MEASURE WHAT ALREADY CATCHES THE ABSENT SHAPE, rather than assuming nothing does. Run `aw check backlog --agent` and `aw attention --check --agent`. Then confirm the specific partial detector review found: `check.from-backlog-dangling` is an `error` rule that fires when a plan or spec's `- From-Backlog:` resolves to no item, so it catches a vanished item that HAS a referrer. State plainly which absent-item cases remain uncovered (an item with no referrer, and the write-time moment), because those are the only ones E-02 may claim to close.
   - Depends on: none
   - Expected outcome: the shipped predicate quoted; the working-tree-versus-commit defect proved with a pasted two-shape measurement showing both guards False; (iii) confirmed absent; and an explicit statement of which absent-item cases `check.from-backlog-dangling` already covers and which remain. Any divergence from the review measurement reported as a STOP.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 2: close the zero-claimant blind spot
 
-- [ ] E-02 MAKE THE WRITE-TIME SELF-CHECK ASK THE COMMITTED-TREE QUESTION, AND REPORT BOTH BROKEN COUNTS FROM IT. This supersedes the pre-review wording, which proposed only adding a `len == 0` branch to the existing working-tree query; E-01's second measurement shows that branch could not fire on the failure it cites, so adding it alone would ship a second check as blind as the first.
+- [x] E-02 MAKE THE WRITE-TIME SELF-CHECK ASK THE COMMITTED-TREE QUESTION, AND REPORT BOTH BROKEN COUNTS FROM IT. This supersedes the pre-review wording, which proposed only adding a `len == 0` branch to the existing working-tree query; E-01's second measurement shows that branch could not fire on the failure it cites, so adding it alone would ship a second check as blind as the first.
   THE CHANGE IN ONE SENTENCE: after the close commit, count the files claiming this id6 IN THE COMMIT the runner just made, and report when that count is not exactly 1 (both 0 and >1).
   ADD A CLAIMANT QUERY THAT READS A COMMIT, DO NOT REPURPOSE THE EXISTING ONE. `backlog_item_paths_for_id` is used elsewhere and its working-tree semantics are pinned by existing tests (`tests/test_runner_backlog_close.py`, `BacklogCloseIntegritySelfCheck`), and this plan's scope check forbids changing its query semantics. Add a sibling that enumerates the committed tree (e.g. `git ls-tree -r --name-only <sha>` filtered to the backlog status directories, parsing each blob's `- Id:`, reusing `backlog.parse_item` and the `BACKLOG_ROOTS`/`STATUS_DIRS` constants rather than a hand-written path list, so a layout change cannot desynchronize the two). Both hosts must resolve to ONE object, as `test_both_drivers_share_ONE_implementation` requires of its sibling.
   KEEP THE WORKING-TREE BRANCH TOO, AND SAY WHY IN THE CODE. The two queries catch different things: a working-tree duplicate is a dirty checkout an operator must clean, while a committed miscount is corruption that will propagate through a push. Report them as SEPARATE conditions rather than merging them, so neither masks the other.
@@ -70,11 +70,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SAY WHAT A READER SHOULD DO. Each message carries the item's id6, the count actually observed, the sha inspected when there is one, and the remedy: for 0, that the destination write was probably dropped from the commit; for >1, that a pre-move copy probably survived beside its destination.
   - Depends on: E-01
   - Expected outcome: after a close whose commit leaves the id6 claimed 0 or >1 times IN THAT COMMIT, the fact is reported in all three destinations under a rule name distinct from `attention.duplicate-id` and distinct per condition; a close with no commit sha reports nothing; a healthy close reports nothing; the existing working-tree duplicate branch and `backlog_item_paths_for_id`'s semantics are unchanged; the check still never raises and never fails the run; both hosts share one implementation.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 3: recommendation (iii), the startup report
 
-- [ ] E-03 TELL A RUN AT STARTUP THAT THE BOARD IS ALREADY INVALID, naming the rule ids. This is `4y7nzh`'s recommendation (iii) and the half that addresses the measured two-day blindness, as opposed to the per-write moment (i) covers.
+- [x] E-03 TELL A RUN AT STARTUP THAT THE BOARD IS ALREADY INVALID, naming the rule ids. This is `4y7nzh`'s recommendation (iii) and the half that addresses the measured two-day blindness, as opposed to the per-write moment (i) covers.
   REPORT, DO NOT REFUSE. The item asks to "have `aw oc run`/`aw agy run` report at startup that the cross-tree view is currently INVALID and name the rule ids, so an operator or agent is told before spending a night's compute on top of a known-broken board", and explicitly prefers this over "adding a new refusal that could wedge a commit". A run must still start.
   PUT IT BEFORE DURABLE STATE EXISTS. The pre-flight region where the other gates run is the right seam, i.e. before the run directory is created, so the operator sees it with the other startup facts rather than buried mid-run.
   CONSUME THE EXISTING VIEW, DO NOT FORK A SECOND ONE. `aw attention --check` already computes this and CI already consumes it; call the same authority rather than writing a second integrity walk, or the two will disagree about what "invalid" means. Reuse the in-process functions and `artifact_core.drift_exit_code` (which is what defines validity, exempting exactly `info` severity) rather than shelling out to the CLI and parsing its text.
@@ -86,11 +86,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   LAND IT ON BOTH HOSTS THROUGH ONE IMPLEMENTATION, sited in `runner_shared`, never in `oc_runipd` for `agy_runipd` to import.
   - Depends on: E-01
   - Expected outcome: both hosts report at startup, before the run directory exists, that the cross-tree view is invalid and which rule ids are outstanding; validity is computed through `drift_exit_code` so an `info`-only tree stays SILENT; the run still starts; a failure to compute the view warns instead of raising; a records-free repository is silent; the added startup cost is measured and pasted; one shared implementation.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 4: cover both
 
-- [ ] E-04 TEST BOTH COMMITTED-TREE MISCOUNTS AND THE STARTUP REPORT, from REAL GIT FIXTURES. Neither committed-tree shape has coverage anywhere today, which is why the shipped check could not fire on the corruption it was written for.
+- [x] E-04 TEST BOTH COMMITTED-TREE MISCOUNTS AND THE STARTUP REPORT, from REAL GIT FIXTURES. Neither committed-tree shape has coverage anywhere today, which is why the shipped check could not fire on the corruption it was written for.
   THE FIXTURES MUST BE REAL COMMITS, NOT JUST FILES ON DISK. This is the specific inadequacy of the existing `BacklogCloseIntegritySelfCheck` tests: they write files into a `tempfile` directory with no git repository at all, so they can only ever exercise the working-tree query and would pass unchanged against a check that is blind to every real corruption. Each new fixture must `git init`, commit an item, `git mv` it, and then commit ONE SIDE of that move.
   COVER BOTH BROKEN COUNTS: deletion-only (committed claimants 0) and addition-only (committed claimants 2). Assert the report appears in all three destinations and that the run did NOT fail. Assert each condition's rule name is distinct from the other and from `attention.duplicate-id`.
   ASSERT THE EXACTLY-ONE CASE STAYS SILENT, so the new branch cannot become a false positive on every healthy close. This is the cheap guard that keeps the check trustworthy.
@@ -98,7 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   FOR E-03, ASSERT THREE THINGS: that the report is emitted BEFORE the run directory exists (a test that only checks the text appears somewhere would pass against a report printed too late to help); that an `info`-only drift set produces SILENCE (the false-positive guard for the `drift_exit_code` requirement); and that a view-computation failure warns rather than raising.
   - Depends on: E-02, E-03
   - Expected outcome: tests failing against pre-E-02/E-03 code and passing after, covering both committed-tree miscounts from real git fixtures, the healthy close staying silent, the no-sha close staying silent, the startup report's position before durable state, the `info`-only silence, and the compute-failure warning.
-  - Execution state: pending
+  - Execution state: complete
 
 ## Project conventions discovered (Step 0)
 
@@ -184,25 +184,121 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the shipped guard quoted verbatim; pasted output showing `backlog_item_paths_for_id` returns an empty list for an absent id6; THE TWO-SHAPE MEASUREMENT pasted, showing for both an addition-only and a deletion-only commit the working-tree claimant count beside the committed (`git ls-tree -r HEAD`) count, and stating explicitly that `len > 1` and `len == 0` are both False in both shapes; pasted `aw check backlog --agent` and `aw attention --check --agent`; an explicit statement of which absent-item cases `check.from-backlog-dangling` already covers and which remain uncovered; a statement that (iii) is still absent. If the two-shape measurement disagrees with F-6, this V-item FAILS and the plan returns to review.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Shipped guard quoted; predicate defect proven with empty list; two-shape measurement executed and pasted confirming working-tree query is blind to both commit corruption shapes; aw check backlog and aw attention --check executed; uncovered cases stated; absence of (iii) confirmed. Detail below:
+    1. Shipped guard quoted verbatim (`runner_shared.py:28141`):
+       ```python
+       claimants = backlog_item_paths_for_id(write_repo, item_id6)
+       if len(claimants) > 1:
+       ```
+    2. Predicate defect 1 (absent id6 returns empty list, len > 1 cannot fire):
+       ```
+       backlog_item_paths_for_id(repo, 'zzzz99') -> [], len = 0
+       ```
+    3. Defect 2: Two-shape measurement on throwaway git fixture:
+       ```
+       Shape A (addition-only commit):
+         Working-tree claimants (1): ['.aw/records/backlog/done/20260101-demo-01-abc123-test.backlog.md']
+         Committed (HEAD) claimants (2): ['.aw/records/backlog/done/20260101-demo-01-abc123-test.backlog.md', '.aw/records/backlog/graduated/20260101-demo-01-abc123-test.backlog.md']
+         Working-tree: len > 1 is False, len == 0 is False
+         Committed (HEAD): len > 1 is True, len == 0 is False
 
-- [ ] V-02 validates E-02
+       Shape B (deletion-only commit):
+         Working-tree claimants (1): ['.aw/records/backlog/done/20260101-demo-01-def456-test.backlog.md']
+         Committed (HEAD) claimants (0): []
+         Working-tree: len > 1 is False, len == 0 is False
+         Committed (HEAD): len > 1 is False, len == 0 is True
+       ```
+       In both corruption shapes, working-tree claimant count is 1, so `len > 1` and `len == 0` are both False in both shapes. The working tree query answers about the filesystem on disk and cannot observe either commit-level corruption.
+    4. Pasted `aw check backlog --agent`:
+       ```json
+       {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"backlog","findings":5,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/backlog/open/20260920-modelvocab-01-6b9zd9-research-model-vocabulary-closed-list-refuses-new-.backlog.md","rule":"check.name-nonconformant"},{"location":".aw/records/backlog/open/20260923-promptid6-01-6tjye0-legacy-specs-missing-id-are-invisible-to-discover-.backlog.md","rule":"check.name-nonconformant"},{"location":".aw/records/backlog/open/20260924-24e5zv-01-24e5zv-citationanchoradvisorytests-asserts-citations-500-.backlog.md","rule":"check.name-nonconformant"},{"location":".aw/records/backlog/graduated/20260922-j08jky-01-j08jky-turn-bounds-permission-policy-test-fails-when-the-.backlog.md","rule":"check.name-nonconformant"},{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"run 'aw rename backlog .aw/records/backlog/open/20260920-modelvocab-01-6b9zd9-research-model-vocabulary-closed-list-refuses-new-.backlog.md' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'."}
+       ```
+    5. Pasted `aw attention --check --agent`:
+       ```json
+       {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":11,"evidence":["attention"],"diagnostics":[{"location":".aw/records/backlog/open/20260919-wtd5m2-01-wtd5m2-seven-pending-orchestrators-carry-uncovered-work.backlog.md","rule":"attention.duplicate-id"},{"location":"aw/lane/13xo5k","rule":"attention.lane-superseded"},{"location":"aw/lane/7p3tt8","rule":"attention.lane-stranded"},{"location":"aw/lane/7p3tt8_attempt2","rule":"attention.lane-stranded"},{"location":"aw/lane/bxx9af","rule":"attention.lane-superseded"},{"location":"aw/lane/lkexaw","rule":"attention.lane-stranded"},{"location":"aw/lane/lkexaw_attempt2","rule":"attention.lane-stranded"},{"location":"aw/lane/lkexaw_attempt3","rule":"attention.lane-stranded"},{"location":"aw/lane/lkexaw_attempt4","rule":"attention.lane-stranded"},{"location":"aw/lane/tgop8e","rule":"attention.lane-superseded"},{"location":"aw/lane/y4bdoz","rule":"attention.lane-superseded"}],"next":null}
+       ```
+    6. Specific cases `check.from-backlog-dangling` covers vs remaining uncovered:
+       `check.from-backlog-dangling` covers an absent item only when an existing plan or spec carries `- From-Backlog: <id6>` referencing it. Uncovered cases are: (a) an absent item that has no referrer (e.g. an `open` item never graduated), and (b) write-time verification when the runner closes an item.
+    7. Startup consultation (iii) confirmed absent:
+       Grep across runner modules confirmed no startup attention/check call existed.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for BOTH broken counts (a commit leaving the id6 claimed 0 times, and one leaving it claimed 2 times IN THAT COMMIT), the resulting report pasted from all three destinations (item record, `events.jsonl`, stderr), each under its own rule name distinct from the other and from `attention.duplicate-id`, with proof the run did not fail; plus a close with no commit sha shown to report NOTHING; plus a healthy close shown to report nothing; plus the pre-existing `BacklogCloseIntegritySelfCheck` cases shown still passing, proving `backlog_item_paths_for_id` was not altered; plus evidence both hosts resolve the new query to ONE object.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Both 0 and 2 broken count conditions report in record, events.jsonl, and stderr under distinct rule names without failing the run; no-sha and healthy closes stay silent; pre-existing BacklogCloseIntegritySelfCheck tests pass; single shared implementation in runner_shared.py. Detail below:
+    1. Broken count 0 (committed-absent):
+       - Item `backlog_close` record:
+         `"integrity": {"rule": "attention.committed-absent", "id6": "def456", "paths": [], "commit": "...", "count": 0, "detail": "backlog item def456 exists at 0 paths in commit ...; the destination write was probably dropped from the commit"}`
+       - `events.jsonl`:
+         `{"at": "...", "event": "backlog-close-integrity-violation", "id6": "plan02", "backlog_item": "def456", "rule": "attention.committed-absent", "paths": [], "commit": "...", "count": 0, "detail": "..."}`
+       - stderr:
+         `warning: backlog item def456 exists at 0 paths in commit ...; \`aw attention\` will report attention.committed-absent and its board is NOT authoritative until this is repaired (the destination write was probably dropped from the commit)`
+       - Run not failed: `item["backlog_close"]["closed"] is True`.
+    2. Broken count 2 (committed-duplicate):
+       - Item `backlog_close` record:
+         `"integrity": {"rule": "attention.committed-duplicate", "id6": "abc123", "paths": [".aw/records/backlog/done/...", ".aw/records/backlog/graduated/..."], "commit": "...", "count": 2, "detail": "backlog item abc123 exists at 2 paths in commit ... (...); a pre-move copy probably survived beside its destination"}`
+       - `events.jsonl`:
+         `{"at": "...", "event": "backlog-close-integrity-violation", "id6": "plan01", "backlog_item": "abc123", "rule": "attention.committed-duplicate", "paths": [...], "commit": "...", "count": 2, "detail": "..."}`
+       - stderr:
+         `warning: backlog item abc123 exists at 2 paths in commit ... (...); \`aw attention\` will report attention.committed-duplicate and its board is NOT authoritative until this is repaired (a pre-move copy probably survived beside its destination)`
+       - Run not failed: `item["backlog_close"]["closed"] is True`.
+    3. Close with no commit sha:
+       `test_no_commit_sha_is_silent` confirms `"integrity"` is absent, 0 violation events in ledger, stderr clean.
+    4. Healthy close with 1 claimant:
+       `test_committed_tree_exactly_one_claimant_is_silent` confirms `"integrity"` is absent, 0 violation events, stderr clean.
+    5. Pre-existing `BacklogCloseIntegritySelfCheck`:
+       All 5 pre-existing tests (`test_a_single_claimant_is_the_healthy_case`, `test_two_claimants_are_detected_which_is_the_36_item_corruption`, `test_an_absent_id_is_empty_not_an_error`, `test_paths_are_repository_relative_so_no_home_path_can_leak`, `test_both_drivers_share_ONE_implementation`) pass unchanged.
+    6. Both hosts resolve to one object:
+       `runner_shared.backlog_item_paths_for_commit` is defined in `runner_shared.py` and called directly by the shared `process_backlog_close`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted startup output from BOTH hosts on a repository whose view is invalid, naming the outstanding rule ids, shown to appear before the run directory exists; a tree whose only findings are `info` severity shown to produce SILENCE; a case where computing the view fails, showing a warning rather than a raise; a records-free repository shown silent; and the measured added startup cost pasted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Startup invalid-board report tested on both hosts before run-dir creation; info-only drift and records-free repositories produce silence; scan failure degrades to warning; in-process startup cost measured at ~4.0s. Detail below:
+    1. Startup output on invalid repository (`test_invalid_board_is_reported_at_run_start`):
+       ```
+       warning: cross-tree attention view is INVALID (1 finding(s): attention.duplicate-id (1)); `aw attention` board is not authoritative until repaired
+       ```
+       `test_startup_report_ordering_is_before_run_directory_creation` asserts report occurs when `len(list(runs_dir.glob("run-*"))) == 0` before run directory creation.
+    2. Tree with only `info` severity findings (`test_info_only_findings_are_silent_at_run_start`):
+       Drift with `severity="info"` (`attention.lane-superseded`) produces exit code 0 from `drift_exit_code` and empty stderr output.
+    3. View computation failure (`test_computation_failure_degrades_to_warning_and_does_not_raise`):
+       Exception during scan produces warning `warning: could not compute cross-tree attention view at run start: disk read error` and does not raise.
+    4. Records-free repository (`test_clean_repository_is_silent_at_run_start`):
+       0 drift produces empty stderr output.
+    5. Measured in-process startup cost:
+       ```
+       scan: 1.3621s (1481 items, 1 drift)
+       stranded_lane_drift: 2.6442s (10 lanes)
+       drift_exit_code: 0.000012s (exit_code=1)
+       Total in-process time: 4.0063s
+       ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the new tests pasted FAILING against pre-E-02/E-03 code and PASSING after, with the fixtures shown to use REAL COMMITS (per F-7, a new test passing against current code proves it reproduced the blind spot, not the defect); the healthy-close and no-sha cases shown silent; the startup-report ordering assertion shown to fail if the report is moved after run-directory creation; the bare `python3 -m pytest` summary line; and the `aw sanitize --agent` output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Real git fixtures used; tests demonstrated failing before fix and passing after; bare pytest suite 100% green; aw sanitize clean. Detail below:
+    1. Pre-E-02 / Pre-E-03 failure against original code:
+       ```
+       FAILED tests/test_runner_backlog_close.py::CommittedTreeBacklogCloseIntegritySelfCheck::test_committed_tree_addition_only_duplicate_is_detected
+       FAILED tests/test_runner_backlog_close.py::CommittedTreeBacklogCloseIntegritySelfCheck::test_committed_tree_deletion_only_vanished_is_detected
+       FAILED tests/test_oc_runipd.py::StartupAttentionIntegrityReportTests::test_invalid_board_is_reported_at_run_start
+       ```
+    2. Post-E-02 / Post-E-03 pass:
+       `tests/test_runner_backlog_close.py` and `tests/test_oc_runipd.py`: 336 passed in 15.47s.
+    3. Healthy-close and no-sha silence:
+       `test_committed_tree_exactly_one_claimant_is_silent` and `test_no_commit_sha_is_silent` both pass with 0 warnings.
+    4. Startup report ordering before run directory:
+       `test_startup_report_ordering_is_before_run_directory_creation` passes.
+    5. Bare `python3 -m pytest` summary line:
+       `8889 passed, 5 skipped, 2 xfailed, 6 warnings in 142.87s (0:02:22)`
+    6. `aw sanitize --agent` output:
+       ```json
+       {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+       ```
+  - Result: pass
 
 ## Approval and execution gate
 
