@@ -1,5 +1,5 @@
 - Id: 31y86f
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: orchsuper
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: An orchestrator whose child was deliberately SUPERSEDED can never retire: the retirement gate accepts only 'executed', so hostdedup a5wdne is permanently dependency-blocked
 
 ## Workflow history
+- 2026-09-24 done (aw set): FIXED at 65e51ec0. Retirement now accepts any TERMINAL child status, derived from ipd_schema.TERMINAL via the new set_retirement_terminal_statuses() rather than compared against the single value SET_RETIREMENT_DONE_STATUS. Still an allowlist, so a status invented later is refused until someone admits it in ipd_schema; retirement and dependency edges keep separate constants because they ask different questions. The eligible message also stopped lying: it now names each child's real disposition ('3 executed (li44r9, xdvglg, 04vf1h) and 1 deliberately retired and will never run (nmlx47: superseded)') instead of asserting all four executed. Regression test test_a_deliberately_retired_child_does_not_wedge_its_set asserts both directions and is proven non-vacuous (reverting the predicate alone makes it fail). VERIFIED END TO END: Set hostdedup retired, a5wdne is now in executed/, and nothing remains in pending for that Set. Full bare suite 8910 passed, 5 skipped, 2 xfailed. NOTE ON THE DELAY IN CONFIRMING IT: two runs kept reporting the old refusal after the fix landed, because the driver executed from a STALE LANE WORKTREE (.aw/worktrees/lkexaw_attempt4, recorded in the run's own state.json driver.path) whose copy predates the fix. That is backlog uin96r/0vbdll/ccbe60, not a defect in this fix; running via 'python3 -m agent_workflows' from the main checkout retired it immediately.
 - 2026-09-24 created (aw backlog): An orchestrator whose child was deliberately SUPERSEDED can never retire: the retirement gate accepts only 'executed', so hostdedup a5wdne is permanently dependency-blocked
 
 MEASURED 2026-09-24 on run run-20260924T165302Z-1635336 and again on a clean tree.
