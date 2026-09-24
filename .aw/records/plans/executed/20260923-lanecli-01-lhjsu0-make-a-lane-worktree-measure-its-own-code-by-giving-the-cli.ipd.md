@@ -11,18 +11,18 @@
 - Scope: Make the tree an EVIDENCE command runs in be the tree it measures, for the CLI and for subprocess tests, WITHOUT weakening the deliberate control-plane pin. IN: (a) decide the mechanism per OQ-01 and implement it for the EVIDENCE caller; (b) make subprocess CLI tests exercise the tree under test rather than the absolute pin (`ccbe60`); (c) add a guard test that FAILS if resolution silently falls back to another tree, since the defect's whole character is silence, asserting BOTH directions. OUT, and the first exclusion is load-bearing: the CONTROL-PLANE pin shipped by `af7i6p` (a driver-spawned nested `aw` MUST keep resolving the driver's tree, per `af7i6p` F4 and spec `7ckptx` A8) - this plan may not relax it, and a fix that cannot distinguish the two callers is out of scope by construction; `caf5ed`'s six scope-drift arrangements (test hygiene, not resolution); changing how the package is installed for END USERS, since a normal non-editable install has no second tree and no defect; renaming `agent_workflows/selectors.py` (F-3 is a real but separate single-tree hazard, and renaming a module is a wider blast radius than this plan's fence); and any change to `aw`'s repo-root resolution for RECORDS (`--dir`/`resolve_verb_repo_root`), which is a separate axis and is not what any of these three items measures.
 - Scope-Paths: tests/test_lane_import_root.py, tests/support.py, conftest.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: lanecli
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: lhjsu0
-- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: uin96r
 - Blocks-Release: next
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: lhjsu0 verified (set lanecli, attempt 1).
 - 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED. BLOCKER PR-001: the plan never cited executed plan af7i6p, whose control-plane import pin its RECOMMENDED OQ-01 candidate (a) measurably reintroduces (shipped _AW_PIN_PROBE selected the LANE from a lane subdirectory while the order-blind shipped assertion stayed green). Two authored claims measured FALSE and corrected: the 'fixed interpreter shebang' is not a mechanism, and the selectors crash is a single-tree stdlib shadow rather than two-tree evidence (F-3 downgraded HIGH->LOW). OQ-01 re-scoped: (a) rejected, (b) impossible as authored, (c) re-assessed strongest, new (d) added. F-1/F-2/F-4 re-measured TRUE; F-4 upgraded from unconfirmed to measured (59 launches / 26 files / 15 unpinned, no shared helper exists). OQ-01 stays open and Blocking: no. Readiness: GO - PENDING HUMAN APPROVAL.
 
