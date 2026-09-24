@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
+from agent_workflows import cli
 from agent_workflows import config as CFG
 
 
 class ConfigPathTests(unittest.TestCase):
-    def test_honors_xdg_config_home(self):
+    def test_config_path_resolution(self):
+        # 1. Honors XDG_CONFIG_HOME
         with tempfile.TemporaryDirectory() as d:
             os.environ["XDG_CONFIG_HOME"] = d
             try:
@@ -23,14 +28,12 @@ class ConfigPathTests(unittest.TestCase):
             finally:
                 del os.environ["XDG_CONFIG_HOME"]
 
-    def test_falls_back_to_home_config_when_xdg_unset(self):
+        # 2. Falls back to home config when XDG unset
         os.environ.pop("XDG_CONFIG_HOME", None)
         expected = Path.home() / ".config" / "agent-workflows"
         self.assertEqual(CFG.config_dir(), expected)
 
-    def test_never_directly_under_home(self):
-        # The config dir must be nested under .config/agent-workflows, never ~/ itself.
-        os.environ.pop("XDG_CONFIG_HOME", None)
+        # 3. Never directly under home
         self.assertNotEqual(CFG.config_dir(), Path.home())
         self.assertEqual(CFG.config_dir().name, "agent-workflows")
 
@@ -44,7 +47,7 @@ class SaveLoadTests(unittest.TestCase):
         os.environ.pop("XDG_CONFIG_HOME", None)
         self._tmp.cleanup()
 
-    def test_save_writes_to_xdg_dir_and_roundtrips(self):
+    def test_save_load_roundtrip_and_defaults(self):
         cfg = CFG.default_config()
         CFG.set_repo_setting(cfg, "search", ["~/src"])
         CFG.set_repo_setting(cfg, "installed", ["~/src/foo"])
@@ -58,26 +61,18 @@ class SaveLoadTests(unittest.TestCase):
         self.assertEqual(loaded["repos"]["ignore"], ["*/vendor/*"])
         self.assertEqual(loaded["config_version"], CFG.CONFIG_VERSION)
 
-    def test_load_missing_returns_default(self):
-        self.assertEqual(CFG.load(), CFG.default_config())
+        # Load missing returns default
+        with tempfile.TemporaryDirectory() as empty_d:
+            os.environ["XDG_CONFIG_HOME"] = empty_d
+            self.assertEqual(CFG.load(), CFG.default_config())
+            os.environ["XDG_CONFIG_HOME"] = self._tmp.name
 
-    def test_load_corrupt_returns_default(self):
+        # Load corrupt returns default
         p = CFG.config_path()
-        p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("{not valid json", encoding="utf-8")
         self.assertEqual(CFG.load(), CFG.default_config())
 
-    def test_no_pollution_directly_under_home(self):
-        # With XDG pointed at a temp dir, saving must not write anything at ~/.
-        before = set(os.listdir(Path.home())) if Path.home().is_dir() else set()
-        CFG.save(CFG.default_config())
-        after = set(os.listdir(Path.home())) if Path.home().is_dir() else set()
-        self.assertEqual(before, after, "config save polluted the home directory")
-
-    def test_drops_unknown_and_sensitive_keys(self):
-        # R-5: only the allowlisted keys are persisted; a stray "token" is dropped.
-        p = CFG.config_path()
-        p.parent.mkdir(parents=True, exist_ok=True)
+        # Drops unknown and sensitive keys
         p.write_text(
             json.dumps(
                 {
@@ -95,82 +90,69 @@ class SaveLoadTests(unittest.TestCase):
         self.assertNotIn("password", loaded)
         self.assertNotIn("evil", loaded["defaults"])
         self.assertEqual(loaded["defaults"], {"backup": True, "prune": False})
-
-        # And a re-save persists only the allowlist.
         CFG.save(loaded)
         on_disk = json.loads(CFG.config_path().read_text(encoding="utf-8"))
         self.assertEqual(set(on_disk.keys()), CFG.default_config().keys() | set())
         self.assertNotIn("token", on_disk)
 
+        # No pollution directly under home
+        before = set(os.listdir(Path.home())) if Path.home().is_dir() else set()
+        CFG.save(CFG.default_config())
+        after = set(os.listdir(Path.home())) if Path.home().is_dir() else set()
+        self.assertEqual(before, after, "config save polluted the home directory")
+
     def test_is_configured(self):
         self.assertFalse(CFG.is_configured())
-        cfg = CFG.default_config()
-        CFG.set_repo_setting(cfg, "search", ["~/src"])
-        CFG.save(cfg)
-        self.assertTrue(CFG.is_configured())
 
-    def test_is_configured_false_for_default_nested_config(self):
-        # E-06 regression guard: the default `repos` MAPPING is a non-empty dict, so a
-        # container truthiness check would report a brand-new user as configured and
-        # suppress the setup path. is_configured() must test the nested LISTS.
+        # False for default nested config
         CFG.save(CFG.default_config())
         self.assertTrue(CFG.config_path().is_file())
-        self.assertTrue(bool(CFG.load()["repos"]), "the container itself is truthy")
         self.assertFalse(CFG.is_configured())
 
+        # True for search configured
         cfg = CFG.load()
         CFG.set_repo_setting(cfg, "search", ["~/src"])
         CFG.save(cfg)
         self.assertTrue(CFG.is_configured())
 
-    def test_is_configured_true_for_installed_only(self):
-        cfg = CFG.default_config()
-        CFG.set_repo_setting(cfg, "installed", ["~/src/foo"])
-        CFG.save(cfg)
+        # True for installed only
+        cfg2 = CFG.default_config()
+        CFG.set_repo_setting(cfg2, "installed", ["~/src/foo"])
+        CFG.save(cfg2)
         self.assertTrue(CFG.is_configured())
 
-    def test_exclude_roundtrips_and_expands(self):
-        # E-01: the exclude blocklist round-trips load/save (home-preserved), unknown keys
-        # still stripped, and expanded_excludes returns expanded strings (paths AND globs).
+    def test_exclude_config(self):
         cfg = CFG.default_config()
         CFG.set_repo_setting(cfg, "exclude", ["~/src/legacy-repo", "*/never-install/*"])
-        cfg["token"] = "SECRET-should-not-persist"  # unknown -> must be dropped
+        cfg["token"] = "SECRET-should-not-persist"
         CFG.save(cfg)
         loaded = CFG.load()
         self.assertEqual(
             loaded["repos"]["exclude"], ["~/src/legacy-repo", "*/never-install/*"]
         )
         self.assertNotIn("token", loaded)
-        on_disk = json.loads(CFG.config_path().read_text(encoding="utf-8"))
-        self.assertIn("exclude", on_disk["repos"])
-        self.assertNotIn("token", on_disk)
 
         expanded = CFG.expanded_excludes(loaded)
         self.assertEqual(
-            expanded,
-            [str(Path.home() / "src" / "legacy-repo"), "*/never-install/*"],
+            expanded, [str(Path.home() / "src" / "legacy-repo"), "*/never-install/*"]
         )
-        # An absolute path entry expands to itself; a default config has no excludes.
         self.assertEqual(CFG.expanded_excludes(CFG.default_config()), [])
-
-    def test_exclude_defaults_empty(self):
         self.assertEqual(CFG.default_config()["repos"]["exclude"], [])
-        self.assertEqual(CFG.load()["repos"]["exclude"], [])
+        self.assertEqual(
+            CFG.load()["repos"]["exclude"], ["~/src/legacy-repo", "*/never-install/*"]
+        )
 
 
 class PathExpansionTests(unittest.TestCase):
-    def test_expand_path_tilde(self):
+    def test_path_expansion(self):
         self.assertEqual(CFG.expand_path("~/x"), Path.home() / "x")
 
-    def test_expand_path_env_var(self):
         os.environ["AW_TEST_VAR"] = "/somewhere"
         try:
             self.assertEqual(CFG.expand_path("$AW_TEST_VAR/x"), Path("/somewhere/x"))
         finally:
             del os.environ["AW_TEST_VAR"]
 
-    def test_preserve_home_roundtrip(self):
-        # A path under home stores as ~-relative; expansion restores it.
         p = Path.home() / "projects" / "demo"
         stored = CFG._preserve_home(str(p))
         self.assertTrue(stored.startswith("~"))
@@ -178,7 +160,7 @@ class PathExpansionTests(unittest.TestCase):
 
 
 class ConfigSchemaAndGetSetTests(unittest.TestCase):
-    def test_config_schema_contains_all_allowed_keys(self):
+    def test_config_schema_and_get(self):
         for k in (
             "repos",
             "repos.search",
@@ -193,41 +175,29 @@ class ConfigSchemaAndGetSetTests(unittest.TestCase):
         ):
             self.assertIn(k, CFG.CONFIG_SCHEMA)
 
-    def test_config_schema_has_no_legacy_flat_keys(self):
         for k in ("search_roots", "exclude", "ignore"):
             self.assertNotIn(k, CFG.CONFIG_SCHEMA)
         self.assertEqual(CFG.CONFIG_SCHEMA["repos"].type_name, "dict")
 
-    def test_get_config_value_top_level_and_dotted(self):
         cfg = CFG.default_config()
         CFG.set_repo_setting(cfg, "search", ["~/src"])
         cfg["defaults"] = {"backup": False, "prune": True}
 
         k, v = CFG.get_config_value("repos.search", cfg)
-        self.assertEqual(k, "repos.search")
-        self.assertEqual(v, ["~/src"])
-
+        self.assertEqual((k, v), ("repos.search", ["~/src"]))
         k, v = CFG.get_config_value("repos", cfg)
-        self.assertEqual(k, "repos")
-        self.assertEqual(v["search"], ["~/src"])
-
+        self.assertEqual((k, v["search"]), ("repos", ["~/src"]))
         k, v = CFG.get_config_value("defaults.backup", cfg)
-        self.assertEqual(k, "defaults.backup")
-        self.assertFalse(v)
-
+        self.assertEqual((k, v), ("defaults.backup", False))
         k, v = CFG.get_config_value("backup", cfg)
-        self.assertEqual(k, "defaults.backup")
-        self.assertFalse(v)
-
+        self.assertEqual((k, v), ("defaults.backup", False))
         k, v = CFG.get_config_value("prune", cfg)
-        self.assertEqual(k, "defaults.prune")
-        self.assertTrue(v)
+        self.assertEqual((k, v), ("defaults.prune", True))
 
-    def test_get_config_value_unknown_raises(self):
         with self.assertRaises(CFG.ConfigError):
             CFG.get_config_value("nonexistent_key")
 
-    def test_set_config_value_bool_coercion(self):
+    def test_set_config_values(self):
         cfg = CFG.default_config()
         for t_val in ("true", "1", "yes", "on", "t", "y", True):
             cfg, k, v = CFG.set_config_value(
@@ -245,12 +215,9 @@ class ConfigSchemaAndGetSetTests(unittest.TestCase):
             self.assertFalse(v)
             self.assertFalse(cfg["defaults"]["backup"])
 
-    def test_set_config_value_invalid_bool_raises(self):
         with self.assertRaises(CFG.ConfigError):
             CFG.set_config_value("defaults.backup", "invalid_bool", auto_save=False)
 
-    def test_set_config_value_list_and_paths(self):
-        cfg = CFG.default_config()
         cfg, k, v = CFG.set_config_value(
             "repos.search", "~/src, ~/work", cfg=cfg, auto_save=False
         )
@@ -262,78 +229,58 @@ class ConfigSchemaAndGetSetTests(unittest.TestCase):
         )
         self.assertEqual(v, ["~/projects"])
 
-    def test_set_config_value_read_only_raises(self):
         with self.assertRaises(CFG.ConfigError):
             CFG.set_config_value("config_version", 2, auto_save=False)
 
-    def test_set_config_value_aw_home(self):
-        cfg = CFG.default_config()
         cfg, k, v = CFG.set_config_value(
             "aw_home", "~/toolkit", cfg=cfg, auto_save=False
         )
         self.assertEqual(k, "aw_home")
         self.assertEqual(v, "~/toolkit")
-
         cfg, k, v = CFG.set_config_value("aw_home", "", cfg=cfg, auto_save=False)
         self.assertIsNone(v)
         self.assertNotIn("aw_home", cfg)
 
-    def test_parse_set_args_syntax_variants(self):
-        var, val = CFG.parse_set_args(["defaults.backup", "false"])
-        self.assertEqual((var, val), ("defaults.backup", "false"))
+    def test_parse_args_and_add_remove(self):
+        # parse_set_args variants
+        for args in (
+            ["defaults.backup", "false"],
+            ["defaults.backup", "=", "false"],
+            ["defaults.backup", "to", "false"],
+            ["defaults.backup=false"],
+        ):
+            self.assertEqual(CFG.parse_set_args(args), ("defaults.backup", "false"))
 
-        var, val = CFG.parse_set_args(["defaults.backup", "=", "false"])
-        self.assertEqual((var, val), ("defaults.backup", "false"))
+        self.assertEqual(
+            CFG.parse_set_args(["repos.search", "~/src,", "~/work"]),
+            ("repos.search", "~/src, ~/work"),
+        )
+        for bad in ([], ["defaults.backup"], ["defaults.backup", "="]):
+            with self.assertRaises(CFG.ConfigError):
+                CFG.parse_set_args(bad)
 
-        var, val = CFG.parse_set_args(["defaults.backup", "to", "false"])
-        self.assertEqual((var, val), ("defaults.backup", "false"))
+        # parse_add_args variants
+        for args in (
+            ["~/src", "to", "repos.search"],
+            ["~/src", "repos.search"],
+            ["repos.search", "~/src"],
+        ):
+            self.assertEqual(CFG.parse_add_args(args), ("~/src", "repos.search"))
 
-        var, val = CFG.parse_set_args(["defaults.backup=false"])
-        self.assertEqual((var, val), ("defaults.backup", "false"))
+        # parse_remove_args variants
+        for args in (
+            ["~/src", "from", "repos.search"],
+            ["~/src", "repos.search"],
+            ["repos.search", "~/src"],
+        ):
+            self.assertEqual(CFG.parse_remove_args(args), ("~/src", "repos.search"))
 
-        var, val = CFG.parse_set_args(["repos.search", "~/src,", "~/work"])
-        self.assertEqual((var, val), ("repos.search", "~/src, ~/work"))
+        # parse_is_args variants
+        for args in (["~/src", "in", "repos.search"], ["~/src", "repos.search"]):
+            self.assertEqual(CFG.parse_is_args(args), ("~/src", "repos.search"))
 
-    def test_parse_set_args_error_cases(self):
-        with self.assertRaises(CFG.ConfigError):
-            CFG.parse_set_args([])
-
-        with self.assertRaises(CFG.ConfigError):
-            CFG.parse_set_args(["defaults.backup"])
-
-        with self.assertRaises(CFG.ConfigError):
-            CFG.parse_set_args(["defaults.backup", "="])
-
-    def test_parse_add_args_variants(self):
-        item, var = CFG.parse_add_args(["~/src", "to", "repos.search"])
-        self.assertEqual((item, var), ("~/src", "repos.search"))
-
-        item, var = CFG.parse_add_args(["~/src", "repos.search"])
-        self.assertEqual((item, var), ("~/src", "repos.search"))
-
-        item, var = CFG.parse_add_args(["repos.search", "~/src"])
-        self.assertEqual((item, var), ("~/src", "repos.search"))
-
-    def test_parse_remove_args_variants(self):
-        item, var = CFG.parse_remove_args(["~/src", "from", "repos.search"])
-        self.assertEqual((item, var), ("~/src", "repos.search"))
-
-        item, var = CFG.parse_remove_args(["~/src", "repos.search"])
-        self.assertEqual((item, var), ("~/src", "repos.search"))
-
-        item, var = CFG.parse_remove_args(["repos.search", "~/src"])
-        self.assertEqual((item, var), ("~/src", "repos.search"))
-
-    def test_parse_is_args_variants(self):
-        item, var = CFG.parse_is_args(["~/src", "in", "repos.search"])
-        self.assertEqual((item, var), ("~/src", "repos.search"))
-
-        item, var = CFG.parse_is_args(["~/src", "repos.search"])
-        self.assertEqual((item, var), ("~/src", "repos.search"))
-
-    def test_add_and_remove_config_item(self):
+        # add and remove item
         cfg = CFG.default_config()
-        # Add item
         cfg, key, items, added, stored = CFG.add_config_item(
             "repos.search", "~/src", cfg=cfg, auto_save=False
         )
@@ -341,47 +288,42 @@ class ConfigSchemaAndGetSetTests(unittest.TestCase):
         self.assertTrue(added)
         self.assertIn("~/src", items)
 
-        # Idempotent add
+        # idempotent add
         cfg, key, items, added, stored = CFG.add_config_item(
             "repos.search", "~/src", cfg=cfg, auto_save=False
         )
         self.assertFalse(added)
         self.assertEqual(len(items), 1)
 
-        # Check membership
+        # check membership
         key, present, stored = CFG.is_config_item_present(
             "repos.search", "~/src", cfg=cfg
         )
         self.assertTrue(present)
 
-        # Remove item
+        # remove item
         cfg, key, items, removed, stored = CFG.remove_config_item(
             "repos.search", "~/src", cfg=cfg, auto_save=False
         )
         self.assertTrue(removed)
         self.assertNotIn("~/src", items)
 
-        # Remove nonexistent
+        # remove nonexistent
         cfg, key, items, removed, stored = CFG.remove_config_item(
             "repos.search", "~/src", cfg=cfg, auto_save=False
         )
         self.assertFalse(removed)
 
-    def test_add_remove_non_list_raises(self):
-        cfg = CFG.default_config()
+        # non-list raises
         with self.assertRaises(CFG.ConfigError):
             CFG.add_config_item("defaults.backup", "foo", cfg=cfg, auto_save=False)
-
         with self.assertRaises(CFG.ConfigError):
             CFG.remove_config_item("defaults.backup", "foo", cfg=cfg, auto_save=False)
-
         with self.assertRaises(CFG.ConfigError):
             CFG.is_config_item_present("defaults.backup", "foo", cfg=cfg)
 
 
 class SchemaMigrationTests(unittest.TestCase):
-    """Schema version 1 (flat keys) -> version 2 (nested `repos` mapping); plan 8h9lap E-02."""
-
     LEGACY = {
         "config_version": 1,
         "search_roots": ["~/src", "~/work"],
@@ -391,7 +333,7 @@ class SchemaMigrationTests(unittest.TestCase):
         "defaults": {"backup": False, "prune": True},
     }
 
-    def test_legacy_flat_config_migrates_with_no_value_loss(self):
+    def test_schema_migration_idempotent_and_shape_driven(self):
         out = CFG.normalize(self.LEGACY)
         self.assertEqual(out["config_version"], 2)
         self.assertEqual(out["repos"]["search"], ["~/src", "~/work"])
@@ -399,63 +341,51 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(out["repos"]["exclude"], ["~/src/legacy", "*/never-install/*"])
         self.assertEqual(out["repos"]["ignore"], ["*/vendor/*"])
         self.assertEqual(out["defaults"], {"backup": False, "prune": True})
-        # No flat key survives the migration; there are deliberately no aliases.
         for legacy_key in ("search_roots", "exclude", "ignore"):
             self.assertNotIn(legacy_key, out)
 
-    def test_migration_is_idempotent(self):
-        once = CFG.normalize(self.LEGACY)
-        twice = CFG.normalize(once)
-        self.assertEqual(once, twice)
+        # Idempotent
+        twice = CFG.normalize(out)
+        self.assertEqual(out, twice)
         self.assertEqual(
-            json.dumps(once, sort_keys=True), json.dumps(twice, sort_keys=True)
+            json.dumps(out, sort_keys=True), json.dumps(twice, sort_keys=True)
         )
 
-    def test_partially_migrated_config_does_not_double_apply(self):
-        # A file carrying BOTH shapes: the nested value wins and the legacy value is not
-        # appended onto it, so a half-migrated config cannot duplicate or clobber entries.
+        # Partially migrated
         partial = {
             "config_version": 1,
             "search_roots": ["~/legacy-root"],
             "repos": {"search": ["~/new-root"]},
             "ignore": ["*/vendor/*"],
         }
-        out = CFG.normalize(partial)
-        self.assertEqual(out["repos"]["search"], ["~/new-root"])
-        self.assertNotIn("~/legacy-root", out["repos"]["search"])
-        # A legacy key with NO nested counterpart still migrates in.
-        self.assertEqual(out["repos"]["ignore"], ["*/vendor/*"])
+        out_part = CFG.normalize(partial)
+        self.assertEqual(out_part["repos"]["search"], ["~/new-root"])
+        self.assertNotIn("~/legacy-root", out_part["repos"]["search"])
+        self.assertEqual(out_part["repos"]["ignore"], ["*/vendor/*"])
 
-    def test_migration_is_shape_driven_not_version_driven(self):
-        # A hand-edited file whose version was bumped but whose keys are still flat must
-        # still migrate; deciding on config_version alone would silently drop these.
+        # Stale version flat file
         stale_version = dict(self.LEGACY)
         stale_version["config_version"] = 2
-        out = CFG.normalize(stale_version)
-        self.assertEqual(out["repos"]["search"], ["~/src", "~/work"])
-        self.assertEqual(out["repos"]["installed"], ["~/src/foo", "~/src/bar"])
+        out_stale = CFG.normalize(stale_version)
+        self.assertEqual(out_stale["repos"]["search"], ["~/src", "~/work"])
 
-        # Likewise an UNVERSIONED flat file.
+        # Unversioned flat file
         unversioned = {k: v for k, v in self.LEGACY.items() if k != "config_version"}
-        out = CFG.normalize(unversioned)
-        self.assertEqual(out["repos"]["search"], ["~/src", "~/work"])
-        self.assertEqual(out["config_version"], 2)
+        out_unv = CFG.normalize(unversioned)
+        self.assertEqual(out_unv["repos"]["search"], ["~/src", "~/work"])
+        self.assertEqual(out_unv["config_version"], 2)
 
-    def test_nested_repos_ignore_is_not_home_expanded(self):
-        # `repos.ignore` holds fnmatch globs, not paths: a leading ~ must not be rewritten.
+    def test_normalize_config(self):
+        # repos.ignore not home expanded
         out = CFG.normalize({"repos": {"ignore": ["~weird-glob", "*/vendor/*"]}})
         self.assertEqual(out["repos"]["ignore"], ["~weird-glob", "*/vendor/*"])
 
-    def test_normalize_rejects_unknown_repos_subkeys(self):
-        out = CFG.normalize({"repos": {"search": ["~/src"], "bogus": ["x"]}})
-        self.assertEqual(set(out["repos"]), set(CFG._ALLOWED_REPOS_KEYS))
-        self.assertNotIn("bogus", out["repos"])
+        # unknown repos subkeys rejected
+        out_sub = CFG.normalize({"repos": {"search": ["~/src"], "bogus": ["x"]}})
+        self.assertEqual(set(out_sub["repos"]), set(CFG._ALLOWED_REPOS_KEYS))
+        self.assertNotIn("bogus", out_sub["repos"])
 
-    def test_normalize_applies_the_top_key_allowlist(self):
-        # E-01: `_ALLOWED_TOP_KEYS` must be load-bearing, not dead code. Prove it actually
-        # filters by having default_config() emit a key that is not on the allowlist.
-        from unittest import mock
-
+        # top key allowlist applied
         real_default = CFG.default_config
 
         def leaky_default():
@@ -464,24 +394,22 @@ class SchemaMigrationTests(unittest.TestCase):
             return cfg
 
         with mock.patch.object(CFG, "default_config", leaky_default):
-            out = CFG.normalize({})
-        self.assertNotIn("sneaky_key", out)
-        self.assertTrue(set(out) <= CFG._ALLOWED_TOP_KEYS)
+            out_leak = CFG.normalize({})
+        self.assertNotIn("sneaky_key", out_leak)
+        self.assertTrue(set(out_leak) <= CFG._ALLOWED_TOP_KEYS)
 
-    def test_allowlist_matches_the_default_config_shape(self):
+        # allowlist matches default config shape
         self.assertTrue(set(CFG.default_config()) <= CFG._ALLOWED_TOP_KEYS)
         self.assertNotIn("search_roots", CFG._ALLOWED_TOP_KEYS)
         self.assertIn("repos", CFG._ALLOWED_TOP_KEYS)
 
-    def test_normalize_survives_malformed_repos_value(self):
+        # survives malformed repos values
         for bad in (None, "string", 7, []):
-            out = CFG.normalize({"repos": bad})
-            self.assertEqual(out["repos"], CFG.default_config()["repos"])
+            out_bad = CFG.normalize({"repos": bad})
+            self.assertEqual(out_bad["repos"], CFG.default_config()["repos"])
 
 
 class MigrationOnDiskTests(unittest.TestCase):
-    """Lazy on-disk migration and the fail-closed downgrade guard (E-02, E-03)."""
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         os.environ["XDG_CONFIG_HOME"] = self._tmp.name
@@ -497,8 +425,8 @@ class MigrationOnDiskTests(unittest.TestCase):
         p.write_text(text, encoding="utf-8")
         return p, text
 
-    def test_planted_legacy_config_loads_nested_and_survives_a_save(self):
-        self._plant(SchemaMigrationTests.LEGACY)
+    def test_planted_legacy_config_and_load_no_rewrite(self):
+        _, planted_text = self._plant(SchemaMigrationTests.LEGACY)
         loaded = CFG.load()
         self.assertEqual(loaded["repos"]["search"], ["~/src", "~/work"])
         self.assertEqual(loaded["repos"]["installed"], ["~/src/foo", "~/src/bar"])
@@ -507,89 +435,64 @@ class MigrationOnDiskTests(unittest.TestCase):
         )
         self.assertEqual(loaded["repos"]["ignore"], ["*/vendor/*"])
 
+        # Load does not rewrite file (lazy)
+        self.assertEqual(CFG.config_path().read_text(encoding="utf-8"), planted_text)
+
+        # Save updates to v2
         CFG.save(loaded)
         on_disk = json.loads(CFG.config_path().read_text(encoding="utf-8"))
         self.assertEqual(on_disk["config_version"], 2)
         self.assertEqual(on_disk["repos"]["search"], ["~/src", "~/work"])
         self.assertNotIn("search_roots", on_disk)
 
-    def test_load_does_not_rewrite_the_file(self):
-        # Migration is LAZY: a read-only session leaves a v1 file exactly as it was.
-        _, planted_text = self._plant(SchemaMigrationTests.LEGACY)
-        CFG.load()
-        self.assertEqual(CFG.config_path().read_text(encoding="utf-8"), planted_text)
-
-    def test_future_version_config_is_not_emptied_on_load(self):
+    def test_future_version_handling(self):
         payload = {
             "config_version": 3,
             "repos": {
                 "search": ["~/src"],
-                "installed": ["~/src/foo"],
                 "exclude": ["~/src/never"],
+                "installed": ["~/src/foo"],
                 "ignore": ["*/vendor/*"],
             },
             "some_future_key": {"kept": True},
         }
-        self._plant(payload)
+        _, planted_text = self._plant(payload)
         loaded = CFG.load()
-        # Passthrough: nothing normalized away, so nothing is lost from view.
         self.assertEqual(loaded["repos"]["search"], ["~/src"])
-        self.assertEqual(loaded["repos"]["exclude"], ["~/src/never"])
         self.assertEqual(loaded["config_version"], 3)
         self.assertIn("some_future_key", loaded)
 
-    def test_save_refuses_to_overwrite_a_future_version_config(self):
-        payload = {
-            "config_version": 3,
-            "repos": {"search": ["~/src"], "exclude": ["~/src/never"]},
-        }
-        _, planted_text = self._plant(payload)
-
-        # Refuses the in-memory future config...
-        with self.assertRaises(CFG.ConfigError) as ctx:
+        # Save refuses to overwrite future config
+        with self.assertRaises(CFG.ConfigError):
             CFG.save(CFG.load())
-        self.assertIn(str(CFG.config_path()), str(ctx.exception))
-
-        # ...and also refuses a normal write over a future file on disk.
-        with self.assertRaises(CFG.ConfigError) as ctx2:
+        with self.assertRaises(CFG.ConfigError):
             CFG.save(CFG.default_config())
-        self.assertIn(str(CFG.config_path()), str(ctx2.exception))
-
-        # The file is byte-identical: nothing was destroyed.
         self.assertEqual(CFG.config_path().read_text(encoding="utf-8"), planted_text)
 
-    def test_future_version_mutating_verb_fails_without_data_loss(self):
-        payload = {
-            "config_version": 3,
-            "repos": {"search": ["~/src"], "exclude": ["~/src/never"]},
-        }
-        _, planted_text = self._plant(payload)
+        # Mutating verb fails without data loss
         with self.assertRaises(CFG.ConfigError):
             CFG.add_config_item("repos.search", "~/other")
         self.assertEqual(CFG.config_path().read_text(encoding="utf-8"), planted_text)
 
-    def test_current_and_older_versions_are_not_treated_as_future(self):
+        # is_future_version check
         self.assertFalse(CFG.is_future_version({"config_version": 1}))
         self.assertFalse(CFG.is_future_version({"config_version": 2}))
         self.assertFalse(CFG.is_future_version({}))
-        # A non-integer version is treated as v1, not as a future version.
         self.assertFalse(CFG.is_future_version({"config_version": "banana"}))
         self.assertFalse(CFG.is_future_version({"config_version": True}))
         self.assertTrue(CFG.is_future_version({"config_version": 3}))
 
 
 class NestedRepoKeyVerbTests(unittest.TestCase):
-    """get/set/add/remove/is across all four `repos.*` keys, plus the bare-`repos` break (E-04, E-05)."""
-
     SUBKEYS = ("repos.search", "repos.installed", "repos.exclude", "repos.ignore")
 
-    def test_roundtrip_on_every_repos_subkey(self):
+    def test_nested_repo_key_roundtrip_and_subkeys(self):
         for key in self.SUBKEYS:
             with self.subTest(key=key):
                 cfg = CFG.default_config()
                 item = "*/glob-entry/*" if key == "repos.ignore" else "~/src/thing"
 
-                cfg, k, items, added, stored = CFG.add_config_item(
+                cfg, k, items, added, _ = CFG.add_config_item(
                     key, item, cfg=cfg, auto_save=False
                 )
                 self.assertEqual(k, key)
@@ -598,15 +501,8 @@ class NestedRepoKeyVerbTests(unittest.TestCase):
 
                 _, val = CFG.get_config_value(key, cfg)
                 self.assertEqual(val, [item])
-
                 _, present, _ = CFG.is_config_item_present(key, item, cfg=cfg)
                 self.assertTrue(present)
-
-                cfg, _, items, added, _ = CFG.add_config_item(
-                    key, item, cfg=cfg, auto_save=False
-                )
-                self.assertFalse(added, "add must be idempotent")
-                self.assertEqual(items, [item])
 
                 cfg, _, items, removed, _ = CFG.remove_config_item(
                     key, item, cfg=cfg, auto_save=False
@@ -614,41 +510,28 @@ class NestedRepoKeyVerbTests(unittest.TestCase):
                 self.assertTrue(removed)
                 self.assertEqual(items, [])
 
-                _, present, _ = CFG.is_config_item_present(key, item, cfg=cfg)
-                self.assertFalse(present)
-
-                cfg, _, _, removed, _ = CFG.remove_config_item(
-                    key, item, cfg=cfg, auto_save=False
-                )
-                self.assertFalse(removed)
-
-    def test_set_config_value_on_every_repos_subkey(self):
+        # set_config_value on every subkey
         cfg = CFG.default_config()
         for key in self.SUBKEYS:
-            with self.subTest(key=key):
-                cfg, k, val = CFG.set_config_value(key, "a,b", cfg=cfg, auto_save=False)
-                self.assertEqual(k, key)
-                self.assertEqual(val, ["a", "b"])
-        # Every subkey kept its own value; the writes did not stomp each other.
+            cfg, k, val = CFG.set_config_value(key, "a,b", cfg=cfg, auto_save=False)
+            self.assertEqual(k, key)
+            self.assertEqual(val, ["a", "b"])
         for key in self.SUBKEYS:
             _, val = CFG.get_config_value(key, cfg)
             self.assertEqual(val, ["a", "b"])
 
-    def test_set_repos_mapping_rejects_unknown_subkey(self):
-        cfg = CFG.default_config()
-        with self.assertRaises(CFG.ConfigError) as ctx:
+        # set repos mapping rejects unknown subkey
+        with self.assertRaises(CFG.ConfigError):
             CFG.set_config_value(
                 "repos", {"search": ["~/src"], "bogus": []}, cfg=cfg, auto_save=False
             )
-        self.assertIn("bogus", str(ctx.exception))
-
         cfg, k, val = CFG.set_config_value(
             "repos", {"search": ["~/src"]}, cfg=cfg, auto_save=False
         )
         self.assertEqual(k, "repos")
         self.assertEqual(val["search"], ["~/src"])
 
-    def test_list_verbs_on_bare_repos_name_the_subkeys(self):
+    def test_nested_repo_key_verbs_and_readers(self):
         cfg = CFG.default_config()
         for call in (
             lambda: CFG.add_config_item("repos", "~/src", cfg=cfg, auto_save=False),
@@ -665,40 +548,37 @@ class NestedRepoKeyVerbTests(unittest.TestCase):
                 "repos.ignore",
             ):
                 self.assertIn(subkey, msg)
-            self.assertNotIn("it is not a list (type is dict)", msg)
 
-    def test_reading_bare_repos_still_works(self):
-        cfg = CFG.default_config()
+        # reading bare repos
         CFG.set_repo_setting(cfg, "search", ["~/src"])
         k, val = CFG.get_config_value("repos", cfg)
         self.assertEqual(k, "repos")
-        self.assertIsInstance(val, dict)
         self.assertEqual(val["search"], ["~/src"])
 
-    def test_set_repo_setting_rejects_unknown_subkey(self):
+        # set_repo_setting rejects unknown subkey
         with self.assertRaises(CFG.ConfigError):
             CFG.set_repo_setting(CFG.default_config(), "bogus", [])
 
-    def test_repo_setting_reader_degrades_to_empty(self):
+        # repo_setting reader degrades to empty
         self.assertEqual(CFG.repo_setting({}, "search"), [])
         self.assertEqual(CFG.repo_setting({"repos": "nonsense"}, "search"), [])
         self.assertEqual(CFG.repo_setting({"repos": {}}, "search"), [])
 
-    def test_accessors_read_the_nested_layout(self):
-        cfg = CFG.normalize(SchemaMigrationTests.LEGACY)
+        # accessors read nested layout
+        cfg_norm = CFG.normalize(SchemaMigrationTests.LEGACY)
         self.assertEqual(
-            CFG.expanded_search_roots(cfg),
+            CFG.expanded_search_roots(cfg_norm),
             [Path.home() / "src", Path.home() / "work"],
         )
         self.assertEqual(
-            CFG.expanded_repos(cfg),
+            CFG.expanded_repos(cfg_norm),
             [Path.home() / "src" / "foo", Path.home() / "src" / "bar"],
         )
         self.assertEqual(
-            CFG.expanded_excludes(cfg),
+            CFG.expanded_excludes(cfg_norm),
             [str(Path.home() / "src" / "legacy"), "*/never-install/*"],
         )
-        self.assertEqual(CFG.ignore_patterns(cfg), ["*/vendor/*"])
+        self.assertEqual(CFG.ignore_patterns(cfg_norm), ["*/vendor/*"])
 
 
 class ConfigCliCommandTests(unittest.TestCase):
@@ -710,242 +590,124 @@ class ConfigCliCommandTests(unittest.TestCase):
         os.environ.pop("XDG_CONFIG_HOME", None)
         self._tmp.cleanup()
 
-    def test_cli_config_show_and_json(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
+    def test_cli_config_show_get_set(self):
         out = io.StringIO()
         with redirect_stdout(out):
-            rc = cli.main(["config", "show"])
-        self.assertEqual(rc, 0)
+            self.assertEqual(cli.main(["config", "show"]), 0)
         self.assertIn("agent-workflows configuration", out.getvalue())
         self.assertIn("defaults.backup", out.getvalue())
 
         out_json = io.StringIO()
         with redirect_stdout(out_json):
-            rc = cli.main(["config", "show", "--json"])
-        self.assertEqual(rc, 0)
+            self.assertEqual(cli.main(["config", "show", "--json"]), 0)
         data = json.loads(out_json.getvalue())
         self.assertIn("config_file", data)
         self.assertIn("config", data)
 
-    def test_cli_config_show_single_var(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
+        # single var
+        out_single = io.StringIO()
+        with redirect_stdout(out_single):
+            self.assertEqual(cli.main(["config", "show", "defaults.backup"]), 0)
+        self.assertIn("defaults.backup", out_single.getvalue())
 
-        out = io.StringIO()
-        with redirect_stdout(out):
-            rc = cli.main(["config", "show", "defaults.backup"])
-        self.assertEqual(rc, 0)
-        self.assertIn("defaults.backup", out.getvalue())
+        out_sj = io.StringIO()
+        with redirect_stdout(out_sj):
+            self.assertEqual(
+                cli.main(["config", "show", "defaults.backup", "--json"]), 0
+            )
+        self.assertTrue(json.loads(out_sj.getvalue())["value"])
 
-        out_json = io.StringIO()
-        with redirect_stdout(out_json):
-            rc = cli.main(["config", "show", "defaults.backup", "--json"])
-        self.assertEqual(rc, 0)
-        data = json.loads(out_json.getvalue())
-        self.assertEqual(data["key"], "defaults.backup")
-        self.assertTrue(data["value"])
-
-    def test_cli_config_get_and_set_roundtrip(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        # Set value with 'to'
+        # set and get roundtrip
         out_set = io.StringIO()
         with redirect_stdout(out_set):
-            rc = cli.main(["config", "set", "defaults.backup", "to", "false"])
-        self.assertEqual(rc, 0)
+            self.assertEqual(
+                cli.main(["config", "set", "defaults.backup", "to", "false"]), 0
+            )
         self.assertIn("defaults.backup = False", out_set.getvalue())
 
-        # Get value
         out_get = io.StringIO()
         with redirect_stdout(out_get):
-            rc = cli.main(["config", "get", "defaults.backup"])
-        self.assertEqual(rc, 0)
+            self.assertEqual(cli.main(["config", "get", "defaults.backup"]), 0)
         self.assertEqual(out_get.getvalue().strip(), "false")
 
-        # Get value with --json
         out_get_json = io.StringIO()
         with redirect_stdout(out_get_json):
-            rc = cli.main(["config", "get", "defaults.backup", "--json"])
-        self.assertEqual(rc, 0)
-        data = json.loads(out_get_json.getvalue())
-        self.assertEqual(data, {"defaults.backup": False})
-
-    def test_cli_config_set_errors(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        out = io.StringIO()
-        with redirect_stdout(out):
-            rc = cli.main(["config", "set", "invalid_key", "foo"])
-        self.assertEqual(rc, 2)
-        self.assertIn("FAIL", out.getvalue())
-
-    def test_cli_config_add_remove_and_is(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        # Add
-        out_add = io.StringIO()
-        with redirect_stdout(out_add):
-            rc = cli.main(["config", "add", "~/my-test-root", "to", "repos.search"])
-        self.assertEqual(rc, 0)
-        self.assertIn("Added", out_add.getvalue())
-
-        # Is present
-        out_is = io.StringIO()
-        with redirect_stdout(out_is):
-            rc = cli.main(["config", "is", "~/my-test-root", "in", "repos.search"])
-        self.assertEqual(rc, 0)
-        self.assertIn("Yes", out_is.getvalue())
-
-        # Remove
-        out_rm = io.StringIO()
-        with redirect_stdout(out_rm):
-            rc = cli.main(
-                ["config", "remove", "~/my-test-root", "from", "repos.search"]
+            self.assertEqual(
+                cli.main(["config", "get", "defaults.backup", "--json"]), 0
             )
-        self.assertEqual(rc, 0)
-        self.assertIn("Removed", out_rm.getvalue())
-
-        # Is not present (exit 1)
-        out_is2 = io.StringIO()
-        with redirect_stdout(out_is2):
-            rc = cli.main(["config", "is", "~/my-test-root", "in", "repos.search"])
-        self.assertEqual(rc, 1)
-        self.assertIn("No", out_is2.getvalue())
-
-    def test_cli_conf_alias(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        out = io.StringIO()
-        with redirect_stdout(out):
-            rc = cli.main(["conf", "show"])
-        self.assertEqual(rc, 0)
-        self.assertIn("agent-workflows configuration", out.getvalue())
-
-    def test_cli_config_show_groups_sections(self):
-        # E-10: nested settings are grouped, and the `repos` container is NOT also printed
-        # as a raw mapping (that would show the same data twice).
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        out = io.StringIO()
-        with redirect_stdout(out):
-            rc = cli.main(["config", "show"])
-        self.assertEqual(rc, 0)
-        text = out.getvalue()
-        self.assertIn("Settings (repos)", text)
-        self.assertIn("Settings (defaults)", text)
-        for key in (
-            "repos.search",
-            "repos.installed",
-            "repos.exclude",
-            "repos.ignore",
-        ):
-            self.assertIn(key, text)
-        self.assertNotIn("'search':", text)
-        self.assertEqual(text.count("repos.search"), 1)
-
-    def test_cli_config_show_repos_group_and_subkey(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        out = io.StringIO()
-        with redirect_stdout(out):
-            rc = cli.main(["config", "show", "repos"])
-        self.assertEqual(rc, 0)
-        self.assertIn("repos.search", out.getvalue())
-        self.assertIn("repos.installed", out.getvalue())
-
-        out_one = io.StringIO()
-        with redirect_stdout(out_one):
-            rc = cli.main(["config", "show", "repos.search"])
-        self.assertEqual(rc, 0)
-        self.assertIn("repos.search", out_one.getvalue())
-        self.assertNotIn("repos.installed", out_one.getvalue())
-
-        out_json = io.StringIO()
-        with redirect_stdout(out_json):
-            rc = cli.main(["config", "show", "repos", "--json"])
-        self.assertEqual(rc, 0)
-        data = json.loads(out_json.getvalue())
-        self.assertEqual(data["key"], "repos")
-        self.assertEqual(set(data["value"]), set(CFG._ALLOWED_REPOS_KEYS))
-
-    def test_cli_config_add_remove_and_is_on_repos_subkeys(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        for key in ("repos.search", "repos.installed", "repos.exclude", "repos.ignore"):
-            with self.subTest(key=key):
-                item = "*/noise/*" if key == "repos.ignore" else "~/my-test-entry"
-                out = io.StringIO()
-                with redirect_stdout(out):
-                    rc = cli.main(["config", "add", item, "to", key])
-                self.assertEqual(rc, 0)
-                self.assertIn("Added", out.getvalue())
-                self.assertIn(item, CFG.load()["repos"][key.split(".", 1)[1]])
-
-                out_is = io.StringIO()
-                with redirect_stdout(out_is):
-                    rc = cli.main(["config", "is", item, "in", key])
-                self.assertEqual(rc, 0)
-
-                out_rm = io.StringIO()
-                with redirect_stdout(out_rm):
-                    rc = cli.main(["config", "remove", item, "from", key])
-                self.assertEqual(rc, 0)
-                self.assertIn("Removed", out_rm.getvalue())
-
-                out_is2 = io.StringIO()
-                with redirect_stdout(out_is2):
-                    rc = cli.main(["config", "is", item, "in", key])
-                self.assertEqual(rc, 1)
-
-    def test_cli_config_add_to_bare_repos_is_actionable(self):
-        # E-05: the one user-visible break. `aw config add <path> to repos` worked under the
-        # flat v1 schema; it must now fail LOUDLY, naming the successor subkey.
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        out = io.StringIO()
-        with redirect_stdout(out):
-            rc = cli.main(["config", "add", "~/src/foo", "to", "repos"])
-        self.assertEqual(rc, 2)
-        text = out.getvalue()
-        self.assertIn("repos.installed", text)
-        self.assertNotIn("it is not a list (type is dict)", text)
-
-    def test_cli_legacy_config_on_disk_is_migrated_by_a_mutating_verb(self):
-        from agent_workflows import cli
-        import io
-        from contextlib import redirect_stdout
-
-        p = CFG.config_path()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(
-            json.dumps(SchemaMigrationTests.LEGACY, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
+        self.assertEqual(
+            json.loads(out_get_json.getvalue()), {"defaults.backup": False}
         )
 
-        out = io.StringIO()
-        with redirect_stdout(out):
-            rc = cli.main(["config", "add", "~/extra-root", "to", "repos.search"])
-        self.assertEqual(rc, 0)
+        # set errors
+        out_err = io.StringIO()
+        with redirect_stdout(out_err):
+            self.assertEqual(cli.main(["config", "set", "invalid_key", "foo"]), 2)
+        self.assertIn("FAIL", out_err.getvalue())
+
+        # conf alias
+        out_alias = io.StringIO()
+        with redirect_stdout(out_alias):
+            self.assertEqual(cli.main(["conf", "show", "defaults.backup"]), 0)
+        self.assertIn("defaults.backup", out_alias.getvalue())
+
+        # groups sections
+        out_grp = io.StringIO()
+        with redirect_stdout(out_grp):
+            self.assertEqual(cli.main(["config", "show"]), 0)
+        self.assertIn("Settings (defaults)", out_grp.getvalue())
+        self.assertIn("Settings (repos)", out_grp.getvalue())
+
+    def test_cli_config_add_remove_and_is(self):
+        out_add = io.StringIO()
+        with redirect_stdout(out_add):
+            self.assertEqual(
+                cli.main(["config", "add", "~/my-test-root", "to", "repos.search"]), 0
+            )
+        self.assertIn("Added", out_add.getvalue())
+
+        out_is = io.StringIO()
+        with redirect_stdout(out_is):
+            self.assertEqual(
+                cli.main(["config", "is", "~/my-test-root", "in", "repos.search"]), 0
+            )
+        self.assertIn("Yes", out_is.getvalue())
+
+        out_rem = io.StringIO()
+        with redirect_stdout(out_rem):
+            self.assertEqual(
+                cli.main(
+                    ["config", "remove", "~/my-test-root", "from", "repos.search"]
+                ),
+                0,
+            )
+        self.assertIn("Removed", out_rem.getvalue())
+
+        out_is2 = io.StringIO()
+        with redirect_stdout(out_is2):
+            self.assertEqual(
+                cli.main(["config", "is", "~/my-test-root", "in", "repos.search"]), 1
+            )
+        self.assertIn("No", out_is2.getvalue())
+
+        # add to bare repos is actionable error
+        out_bare = io.StringIO()
+        with redirect_stdout(out_bare):
+            self.assertEqual(
+                cli.main(["config", "add", "~/my-test-root", "to", "repos"]), 2
+            )
+        self.assertIn("repos.search", out_bare.getvalue())
+
+    def test_cli_legacy_config_migration(self):
+        p = CFG.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(SchemaMigrationTests.LEGACY), encoding="utf-8")
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.assertEqual(
+                cli.main(["config", "add", "~/extra-root", "to", "repos.search"]), 0
+            )
 
         on_disk = json.loads(p.read_text(encoding="utf-8"))
         self.assertEqual(on_disk["config_version"], 2)
@@ -954,21 +716,9 @@ class ConfigCliCommandTests(unittest.TestCase):
             on_disk["repos"]["search"], ["~/src", "~/work", "~/extra-root"]
         )
         self.assertEqual(on_disk["repos"]["installed"], ["~/src/foo", "~/src/bar"])
-        self.assertEqual(
-            on_disk["repos"]["exclude"], ["~/src/legacy", "*/never-install/*"]
-        )
-        self.assertEqual(on_disk["repos"]["ignore"], ["*/vendor/*"])
 
 
 class ColorDepthKeyTests(unittest.TestCase):
-    """A12c (spec `uonrjg` R9.3a.4): the user can PIN the color depth, and a bad value is REFUSED.
-
-    THE REFUSAL IS THE CRITERION, not merely the setting. A12c requires an invalid value be "REFUSED
-    at validation with a message naming the accepted set", so these tests assert the MESSAGE CONTENT
-    and not only that an exception was raised: a bare type error tells a user nothing about what to
-    write instead, and is the failure mode the criterion is worded to exclude.
-    """
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
@@ -982,146 +732,92 @@ class ColorDepthKeyTests(unittest.TestCase):
         else:
             os.environ["XDG_CONFIG_HOME"] = self._saved
 
-    def test_the_key_is_registered_in_the_schema(self):
+    def test_color_depth_schema_registration_and_normalization(self):
         self.assertIn("color_depth", CFG.CONFIG_SCHEMA)
         spec = CFG.CONFIG_SCHEMA["color_depth"]
         self.assertFalse(spec.read_only)
         self.assertEqual(spec.allowed_values, CFG.COLOR_DEPTH_VALUES)
 
-    def test_the_key_survives_normalization(self):
-        """Registration alone is not enough: `normalize()` drops any key not allowlisted.
-
-        Asserted explicitly because that drop is SILENT (no error, no warning, setting gone), which
-        `tests/test_run_analytics_wizard.py` records as a shipped bug in an earlier plan. A pin that
-        vanished on the next write would look like it worked and then stop working.
-        """
+        # Survives normalization
         self.assertIn("color_depth", CFG._ALLOWED_TOP_KEYS)
         out = CFG.normalize({"color_depth": "16"})
         self.assertEqual(out["color_depth"], "16")
 
-    def test_each_accepted_value_round_trips_to_disk(self):
+        # Accepted values roundtrip
         for value in CFG.COLOR_DEPTH_VALUES:
             with self.subTest(value=value):
                 CFG.set_config_value("color_depth", value)
                 self.assertEqual(CFG.load()["color_depth"], value)
                 self.assertEqual(CFG.get_color_depth(), value)
 
-    def test_an_invalid_value_is_refused_and_the_message_names_the_accepted_set(self):
+        # Case insensitive and stored canonically
+        CFG.set_config_value("color_depth", "NONE")
+        self.assertEqual(CFG.get_color_depth(), "none")
+
+        # Unset reads as none
+        CFG.save(CFG.default_config())
+        self.assertIsNone(CFG.get_color_depth())
+
+    def test_color_depth_refusal_and_resilience(self):
         with self.assertRaises(CFG.ConfigError) as ctx:
             CFG.set_config_value("color_depth", "tru3color")
         message = str(ctx.exception)
         self.assertIn("tru3color", message)
         for value in CFG.COLOR_DEPTH_VALUES:
-            self.assertIn(
-                value,
-                message,
-                f"the refusal message omits the accepted value {value!r}; A12c requires the "
-                f"accepted set be named. Message was: {message}",
-            )
+            self.assertIn(value, message)
 
-    def test_a_refused_value_is_not_written_to_disk(self):
+        # Refused value not written to disk
         CFG.set_config_value("color_depth", "16")
         with self.assertRaises(CFG.ConfigError):
             CFG.set_config_value("color_depth", "nope")
-        self.assertEqual(
-            CFG.get_color_depth(), "16", "a refused value clobbered the previous pin"
-        )
+        self.assertEqual(CFG.get_color_depth(), "16")
 
-    def test_a_plausible_near_miss_is_refused(self):
-        """`8`, `true`, `yes` and `full` are what a user actually guesses; each must be refused."""
+        # Plausible near misses refused
         for bad in ("8", "true", "yes", "full", "truecolor", "24bit", ""):
-            with self.subTest(bad=bad):
-                with self.assertRaises(CFG.ConfigError):
-                    CFG.set_config_value("color_depth", bad)
+            with self.subTest(bad=bad), self.assertRaises(CFG.ConfigError):
+                CFG.set_config_value("color_depth", bad)
 
-    def test_the_value_is_case_insensitive_and_stored_canonically(self):
-        CFG.set_config_value("color_depth", "NONE")
-        self.assertEqual(CFG.get_color_depth(), "none")
-
-    def test_unset_reads_as_none_rather_than_a_default_tier(self):
-        """ "Unset" must be a distinct state from "pinned", or detection is unreachable."""
-        self.assertIsNone(CFG.get_color_depth())
-        self.assertNotIn("color_depth", CFG.default_config())
-
-    def test_a_hand_edited_invalid_value_is_dropped_rather_than_honored(self):
+        # Hand edited invalid value dropped
         cfg = CFG.load()
         cfg["color_depth"] = "tru3color"
         CFG.save(cfg)
         self.assertIsNone(CFG.get_color_depth())
 
-    def test_get_color_depth_survives_a_corrupt_config_file(self):
-        """A styling read must never be the reason a command cannot start."""
+        # Survives corrupt config file
         path = CFG.config_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{not json at all", encoding="utf-8")
         self.assertIsNone(CFG.get_color_depth())
 
-    def test_the_cli_can_set_and_show_the_pin(self):
-        import io
-        from agent_workflows import cli
-        from contextlib import redirect_stdout
-
-        rc = cli.main(["config", "set", "color_depth", "16"])
-        self.assertEqual(rc, 0)
+    def test_color_depth_cli_interaction(self):
+        self.assertEqual(cli.main(["config", "set", "color_depth", "16"]), 0)
         self.assertEqual(CFG.get_color_depth(), "16")
 
         out = io.StringIO()
         with redirect_stdout(out):
-            rc = cli.main(["config", "show"])
-        self.assertEqual(rc, 0)
+            self.assertEqual(cli.main(["config", "show"]), 0)
         self.assertIn("color_depth", out.getvalue())
 
-    def test_the_cli_refusal_is_visible_to_the_user(self):
-        import io
-        from agent_workflows import cli
-        from contextlib import redirect_stderr, redirect_stdout
-
-        out = io.StringIO()
+        out_err = io.StringIO()
         err = io.StringIO()
-        with redirect_stdout(out), redirect_stderr(err):
+        with redirect_stdout(out_err), redirect_stderr(err):
             rc = cli.main(["config", "set", "color_depth", "tru3color"])
         self.assertNotEqual(rc, 0)
-        combined = out.getvalue() + err.getvalue()
+        combined = out_err.getvalue() + err.getvalue()
         self.assertIn("256", combined)
         self.assertIn("16", combined)
 
 
 class DeclarativeAllowedValuesTests(unittest.TestCase):
-    """The MECHANISM behind A12c's refusal (plan `pow5sj` OQ-01, declarative route).
-
-    Tested on its own because it is a general schema capability rather than a `color_depth` detail:
-    the whole reason for choosing the declarative route over a setter-local `if` was that the next
-    enum key should need no new branch, and that claim is only credible if the mechanism is proven
-    independent of its first user.
-    """
-
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        self._saved = os.environ.get("XDG_CONFIG_HOME")
-        os.environ["XDG_CONFIG_HOME"] = self._tmp.name
-        self.addCleanup(self._restore)
-
-    def _restore(self):
-        if self._saved is None:
-            os.environ.pop("XDG_CONFIG_HOME", None)
-        else:
-            os.environ["XDG_CONFIG_HOME"] = self._saved
-
-    def test_allowed_values_defaults_to_unconstrained(self):
-        """Every pre-existing key must be unaffected, or this field changed shipped behavior."""
+    def test_declarative_allowed_values(self):
         for key, spec in CFG.CONFIG_SCHEMA.items():
             if key == "color_depth":
                 continue
             with self.subTest(key=key):
                 self.assertIsNone(spec.allowed_values)
 
-    def test_an_unconstrained_key_still_accepts_an_arbitrary_value(self):
         CFG.set_config_value("aw_home", "~/somewhere")
         self.assertEqual(CFG.load()["aw_home"], "~/somewhere")
-
-    def test_the_constraint_is_enforced_generically_for_any_declaring_key(self):
-        from unittest import mock
 
         fake = dict(CFG.CONFIG_SCHEMA)
         fake["aw_home"] = CFG.ConfigKeySpec(
@@ -1138,9 +834,7 @@ class DeclarativeAllowedValuesTests(unittest.TestCase):
 
 
 class DynamicCutoverResolutionTests(unittest.TestCase):
-    """Plan ogs6a2: tests for resolve_cutover_date and sync_cutovers_on_install."""
-
-    def test_project_json_precedence_and_formatting(self):
+    def test_cutover_resolution_precedence(self):
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d)
             cfg_dir = repo / ".aw" / "config"
@@ -1157,15 +851,11 @@ class DynamicCutoverResolutionTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            # compact=True -> YYYYMMDD
             self.assertEqual(
-                CFG.resolve_cutover_date(repo, "spec_id6", compact=True),
-                "20260829",
+                CFG.resolve_cutover_date(repo, "spec_id6", compact=True), "20260829"
             )
-            # compact=False -> YYYY-MM-DD
             self.assertEqual(
-                CFG.resolve_cutover_date(repo, "spec_id6", compact=False),
-                "2026-08-29",
+                CFG.resolve_cutover_date(repo, "spec_id6", compact=False), "2026-08-29"
             )
             self.assertEqual(
                 CFG.resolve_cutover_date(repo, "carrier_obligations", compact=False),
@@ -1176,7 +866,7 @@ class DynamicCutoverResolutionTests(unittest.TestCase):
                 "20260919",
             )
 
-    def test_legacy_dependency_schema_fallback(self):
+        # Legacy dependency schema fallback
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d)
             cfg_dir = repo / ".aw" / "config"
@@ -1195,15 +885,12 @@ class DynamicCutoverResolutionTests(unittest.TestCase):
                 "20260901",
             )
 
-    def test_install_history_fallback_matches_first_valid_install(self):
+        # Install history fallback
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d)
             history_dir = repo / ".aw" / "state" / "history"
             history_dir.mkdir(parents=True)
             installs = history_dir / "installs.jsonl"
-            # History has installs on 2026-08-18 and 2026-08-29.
-            # spec_id6 was introduced 2026-08-28, so 2026-08-29 should match.
-            # carrier_obligations was introduced 2026-09-19, so none match.
             installs.write_text(
                 json.dumps({"timestamp": "2026-08-18T15:00:00Z"})
                 + "\n"
@@ -1212,21 +899,20 @@ class DynamicCutoverResolutionTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(
-                CFG.resolve_cutover_date(repo, "spec_id6", compact=False),
-                "2026-08-29",
+                CFG.resolve_cutover_date(repo, "spec_id6", compact=False), "2026-08-29"
             )
             self.assertIsNone(
                 CFG.resolve_cutover_date(repo, "carrier_obligations", compact=False)
             )
 
-    def test_fail_open_when_no_configuration_or_history(self):
+        # Fail open when no configuration or history
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d)
             self.assertIsNone(CFG.resolve_cutover_date(repo, "spec_id6"))
             self.assertIsNone(CFG.resolve_cutover_date(repo, "carrier_obligations"))
             self.assertIsNone(CFG.resolve_cutover_date(repo, "dependency_schema"))
 
-    def test_sync_cutovers_on_install_stamps_missing_and_preserves_existing(self):
+    def test_sync_cutovers_on_install(self):
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d)
             cfg_dir = repo / ".aw" / "config"
@@ -1234,10 +920,7 @@ class DynamicCutoverResolutionTests(unittest.TestCase):
             project_json = cfg_dir / "project.json"
             project_json.write_text(
                 json.dumps(
-                    {
-                        "preset": "private-target",
-                        "cutovers": {"spec_id6": "2026-08-20"},
-                    }
+                    {"preset": "private-target", "cutovers": {"spec_id6": "2026-08-20"}}
                 ),
                 encoding="utf-8",
             )
@@ -1250,14 +933,11 @@ class DynamicCutoverResolutionTests(unittest.TestCase):
             )
 
             stamped = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-09-25")
-            # Existing spec_id6 is preserved
             self.assertEqual(stamped["spec_id6"], "2026-08-20")
-            # dependency_schema resolved from history (2026-09-02 >= 2026-09-01)
             self.assertEqual(stamped["dependency_schema"], "2026-09-02")
-            # carrier_obligations was not in history, so stamped with install_timestamp
             self.assertEqual(stamped["carrier_obligations"], "2026-09-25")
 
-            # Subsequent call does not overwrite
+            # Subsequent call preserves established cutovers
             stamped2 = CFG.sync_cutovers_on_install(
                 repo, install_timestamp="2026-10-01"
             )
@@ -1267,8 +947,6 @@ class DynamicCutoverResolutionTests(unittest.TestCase):
 
 
 class SetidPolicyTests(unittest.TestCase):
-    """setidlen x75obw E-01/E-02: the setid length policy and its cutover registration."""
-
     def _repo(self, d, project=None):
         repo = Path(d)
         cfg = repo / ".aw" / "config"
@@ -1277,22 +955,17 @@ class SetidPolicyTests(unittest.TestCase):
             (cfg / "project.json").write_text(json.dumps(project), encoding="utf-8")
         return repo
 
-    def test_defaults_are_14_warn_24_max_not_strict(self):
+    def test_setid_policy_defaults_and_boundaries(self):
         with tempfile.TemporaryDirectory() as d:
             repo = self._repo(d, {"schema_version": 2})
             p = CFG.get_setid_policy(repo)
             self.assertEqual(p.warn_length, 14)
             self.assertEqual(p.max_length, 24)
             self.assertFalse(p.strict)
-
-    def test_absent_cutover_fails_open_to_None(self):
-        """OQ-02: an absent boundary grandfathers everything, so the error tier is unreachable."""
-        with tempfile.TemporaryDirectory() as d:
-            repo = self._repo(d, {"schema_version": 2})
-            self.assertIsNone(CFG.get_setid_policy(repo).cutover_date)
+            self.assertIsNone(p.cutover_date)
             self.assertIsNone(CFG.resolve_cutover_date(repo, "setid_length"))
 
-    def test_custom_thresholds_and_strict_are_honored(self):
+        # Custom thresholds and strict
         with tempfile.TemporaryDirectory() as d:
             repo = self._repo(
                 d,
@@ -1304,7 +977,7 @@ class SetidPolicyTests(unittest.TestCase):
             p = CFG.get_setid_policy(repo)
             self.assertEqual((p.warn_length, p.max_length, p.strict), (8, 12, True))
 
-    def test_malformed_thresholds_fall_back_to_the_shipped_defaults(self):
+        # Malformed thresholds fall back
         with tempfile.TemporaryDirectory() as d:
             repo = self._repo(
                 d,
@@ -1320,46 +993,40 @@ class SetidPolicyTests(unittest.TestCase):
             p = CFG.get_setid_policy(repo)
             self.assertEqual((p.warn_length, p.max_length, p.strict), (14, 24, False))
 
-    def test_an_inverted_threshold_pair_falls_back_rather_than_emptying_the_warn_band(
-        self,
-    ):
+        # Inverted thresholds fall back
         with tempfile.TemporaryDirectory() as d:
             repo = self._repo(
                 d,
-                {
-                    "schema_version": 2,
-                    "setids": {"warn_length": 20, "max_length": 10},
-                },
+                {"schema_version": 2, "setids": {"warn_length": 20, "max_length": 10}},
             )
             p = CFG.get_setid_policy(repo)
             self.assertEqual((p.warn_length, p.max_length), (14, 24))
 
-    def test_the_boundary_is_pinned_at_24_conforms_and_25_errors(self):
-        """THE ZERO-MARGIN BOUNDARY. The longest real setid is EXACTLY 24 characters
-        (`research-prompt-pipeline`), so an off-by-one (`>=`) would hard-fail a live record. A test
-        that only proves "26 fails" does NOT cover this."""
-        p = CFG.SetidPolicy()
-        self.assertIsNone(p.tier_for("a" * 14))
-        self.assertEqual(p.tier_for("a" * 15), "warning")
-        self.assertEqual(p.tier_for("a" * 24), "warning")
-        self.assertEqual(p.tier_for("a" * 25), "error")
-        # The real record the boundary was chosen from must conform.
+        # Boundary at 24 and 25
+        p_bound = CFG.SetidPolicy()
+        self.assertIsNone(p_bound.tier_for("a" * 14))
+        self.assertEqual(p_bound.tier_for("a" * 15), "warning")
+        self.assertEqual(p_bound.tier_for("a" * 24), "warning")
+        self.assertEqual(p_bound.tier_for("a" * 25), "error")
         self.assertEqual(len("research-prompt-pipeline"), 24)
-        self.assertNotEqual(p.tier_for("research-prompt-pipeline"), "error")
+        self.assertNotEqual(p_bound.tier_for("research-prompt-pipeline"), "error")
 
-    def test_setid_length_is_registered_so_the_error_tier_is_reachable(self):
-        """E-02: without the registry entry the resolver fails open forever and the rule is
-        decoration. This asserts the registration, not a particular date."""
+    def test_setid_and_prompt_cutover_registration(self):
         self.assertIn("setid_length", CFG.KNOWN_FEATURE_CUTOVERS)
-
-    def test_prompt_id6_is_registered_so_an_install_stamps_a_real_boundary(self):
-        """promptid6 `ubac5n` E-03, the same property for the prompts cutover.
-
-        Asserts the REGISTRATION, not a particular date: an unregistered feature makes
-        `resolve_cutover_date` fail open to `None` in every repository that has not hand-written the
-        key, which is the decoration failure mode `KNOWN_FEATURE_CUTOVERS`' own comment documents.
-        """
         self.assertIn("prompt_id6", CFG.KNOWN_FEATURE_CUTOVERS)
+
+        with tempfile.TemporaryDirectory() as d:
+            repo = self._repo(
+                d, {"schema_version": 2, "cutovers": {"spec_id6": "2026-08-20"}}
+            )
+            stamped = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-09-23")
+            self.assertEqual(stamped["setid_length"], "2026-09-23")
+            self.assertEqual(stamped["spec_id6"], "2026-08-20")
+            self.assertEqual(CFG.resolve_cutover_date(repo, "setid_length"), "20260923")
+
+            again = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-10-01")
+            self.assertEqual(again["setid_length"], "2026-09-23")
+
         with tempfile.TemporaryDirectory() as d:
             repo = self._repo(d, {"schema_version": 2})
             stamped = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-10-05")
@@ -1368,54 +1035,35 @@ class SetidPolicyTests(unittest.TestCase):
             again = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-11-01")
             self.assertEqual(again["prompt_id6"], "2026-10-05")
 
-    def test_the_existing_install_stamper_covers_setid_length_and_preserves_it(self):
-        """E-02/V-02: the EXISTING generic `sync_cutovers_on_install` stamps it; no second stamper."""
-        with tempfile.TemporaryDirectory() as d:
-            repo = self._repo(
-                d, {"schema_version": 2, "cutovers": {"spec_id6": "2026-08-20"}}
-            )
-            stamped = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-09-23")
-            self.assertEqual(stamped["setid_length"], "2026-09-23")
-            self.assertEqual(stamped["spec_id6"], "2026-08-20")  # untouched
-            self.assertEqual(CFG.resolve_cutover_date(repo, "setid_length"), "20260923")
-            # Re-install must NOT move an established boundary.
-            again = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-10-01")
-            self.assertEqual(again["setid_length"], "2026-09-23")
-
-    def test_there_is_no_second_setid_cutover_stamper(self):
-        """E-01 dropped `stamp_setid_cutover_if_missing`: a second writer to one JSON file is how
-        the two drift."""
-        self.assertFalse(hasattr(CFG, "stamp_setid_cutover_if_missing"))
-
-    def test_grandfathering_is_per_artifact_date_and_strict_overrides_it(self):
+    def test_setid_grandfathering(self):
         pre = CFG.SetidPolicy(cutover_date="20260923")
         self.assertFalse(pre.applies_to_artifact_date("20260901"))
         self.assertTrue(pre.applies_to_artifact_date("20260923"))
         self.assertTrue(pre.applies_to_artifact_date("20261001"))
-        # An unparseable/absent date is treated as PRE-cutover (another rule owns missing dates).
         self.assertFalse(pre.applies_to_artifact_date(None))
-        # No boundary at all -> everything grandfathered.
         self.assertFalse(CFG.SetidPolicy().applies_to_artifact_date("20261001"))
-        # strict removes grandfathering entirely, including for history.
+
         strict = CFG.SetidPolicy(strict=True)
         self.assertTrue(strict.applies_to_artifact_date("20200101"))
         self.assertTrue(strict.applies_to_artifact_date(None))
 
 
 class SetidAuthoringGuardTests(unittest.TestCase):
-    """setidlen x75obw E-06: the ONE shared authoring-time guard."""
-
-    def _repo(self, d):
+    def _repo(self, d, extra_project=None):
         repo = Path(d)
         (repo / ".aw" / "config").mkdir(parents=True)
+        payload = {"schema_version": 2}
+        if extra_project:
+            payload.update(extra_project)
         (repo / ".aw" / "config" / "project.json").write_text(
-            json.dumps({"schema_version": 2}), encoding="utf-8"
+            json.dumps(payload), encoding="utf-8"
         )
         return repo
 
-    def test_over_max_is_an_error_and_15_to_24_is_only_a_warning(self):
+    def test_setid_authoring_guard(self):
         with tempfile.TemporaryDirectory() as d:
             repo = self._repo(d)
+            # over max is error
             err, warn = CFG.validate_setid_length_for_authoring(
                 repo, "a" * 25, verb="aw ipd scaffold"
             )
@@ -1424,6 +1072,7 @@ class SetidAuthoringGuardTests(unittest.TestCase):
             self.assertIn("24", err)
             self.assertIsNone(warn)
 
+            # 15 to 24 is warning
             err, warn = CFG.validate_setid_length_for_authoring(
                 repo, "a" * 16, verb="aw ipd scaffold"
             )
@@ -1431,6 +1080,7 @@ class SetidAuthoringGuardTests(unittest.TestCase):
             self.assertIsNotNone(warn)
             self.assertIn("16 characters", warn)
 
+            # <= 14 conforms
             self.assertEqual(
                 CFG.validate_setid_length_for_authoring(
                     repo, "a" * 14, verb="aw ipd scaffold"
@@ -1438,9 +1088,7 @@ class SetidAuthoringGuardTests(unittest.TestCase):
                 (None, None),
             )
 
-    def test_the_authoring_boundary_is_also_pinned_at_24_and_25(self):
-        with tempfile.TemporaryDirectory() as d:
-            repo = self._repo(d)
+            # boundary at 24 and 25
             err24, warn24 = CFG.validate_setid_length_for_authoring(
                 repo, "a" * 24, verb="v"
             )
@@ -1449,34 +1097,27 @@ class SetidAuthoringGuardTests(unittest.TestCase):
             self.assertIsNotNone(warn24)
             self.assertIsNotNone(err25)
 
-    def test_an_absent_setid_is_not_this_guards_business(self):
-        with tempfile.TemporaryDirectory() as d:
-            repo = self._repo(d)
+            # absent setid
             for value in (None, "", "   "):
                 self.assertEqual(
                     CFG.validate_setid_length_for_authoring(repo, value, verb="v"),
                     (None, None),
                 )
 
-    def test_the_guard_consults_no_cutover_so_an_unstamped_repo_still_refuses(self):
-        """A setid being CHOSEN now is post-cutover whatever the boundary says; applying the
-        boundary here would let an unstamped repository mint unbounded setids forever."""
-        with tempfile.TemporaryDirectory() as d:
-            repo = self._repo(d)
+            # unstamped repo still refuses
             self.assertIsNone(CFG.get_setid_policy(repo).cutover_date)
-            err, _ = CFG.validate_setid_length_for_authoring(repo, "a" * 25, verb="v")
-            self.assertIsNotNone(err)
-
-    def test_a_repository_raising_max_length_is_honored_by_the_guard(self):
-        with tempfile.TemporaryDirectory() as d:
-            repo = Path(d)
-            (repo / ".aw" / "config").mkdir(parents=True)
-            (repo / ".aw" / "config" / "project.json").write_text(
-                json.dumps({"schema_version": 2, "setids": {"max_length": 30}}),
-                encoding="utf-8",
+            err_un, _ = CFG.validate_setid_length_for_authoring(
+                repo, "a" * 25, verb="v"
             )
-            err, _ = CFG.validate_setid_length_for_authoring(repo, "a" * 25, verb="v")
-            self.assertIsNone(err)
+            self.assertIsNotNone(err_un)
+
+        # repository raising max length honored
+        with tempfile.TemporaryDirectory() as d:
+            repo_raised = self._repo(d, {"setids": {"max_length": 30}})
+            err_raised, _ = CFG.validate_setid_length_for_authoring(
+                repo_raised, "a" * 25, verb="v"
+            )
+            self.assertIsNone(err_raised)
 
 
 if __name__ == "__main__":

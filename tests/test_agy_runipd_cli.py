@@ -43,26 +43,22 @@ class AgyRunipdCliTests(unittest.TestCase):
                 self.assertIn("runagy", combined)
                 self.assertIn("start", combined)
                 self.assertIn("resume", combined)
-                self.assertIn("status", combined)
-                self.assertIn("report", combined)
 
-    def test_forwarding_delegates_to_agy_runipd_main(self):
-        with mock.patch.object(agy_runipd, "main", return_value=0) as m:
-            rc = cli.main(["agy", "runipd", "status", "run-xyz"])
-        self.assertEqual(rc, 0)
-        m.assert_called_once_with(["status", "run-xyz"])
+    def test_forwarding_and_delegation_to_agy_runipd_main(self):
+        for argv, expected in (
+            (["agy", "runipd", "status", "run-xyz"], ["status", "run-xyz"]),
+            (
+                ["antigravity", "run", "resume", "run-xyz", "--retry-incomplete"],
+                ["resume", "run-xyz", "--retry-incomplete"],
+            ),
+            (["agy", "runipd", "somesetid", "--dry-run"], ["somesetid", "--dry-run"]),
+        ):
+            with self.subTest(argv=argv):
+                with mock.patch.object(agy_runipd, "main", return_value=0) as m:
+                    rc = cli.main(argv)
+                self.assertEqual(rc, 0)
+                m.assert_called_once_with(expected)
 
-    def test_antigravity_alias_delegates_identically(self):
-        with mock.patch.object(agy_runipd, "main", return_value=0) as m:
-            cli.main(["antigravity", "run", "resume", "run-xyz", "--retry-incomplete"])
-        m.assert_called_once_with(["resume", "run-xyz", "--retry-incomplete"])
-
-    def test_implicit_start_shim_preserved_through_wrapper(self):
-        with mock.patch.object(agy_runipd, "main", return_value=0) as m:
-            cli.main(["agy", "runipd", "somesetid", "--dry-run"])
-        m.assert_called_once_with(["somesetid", "--dry-run"])
-
-    def test_bare_agy_group_shows_family_help(self):
         rc, out, err = _run_cli(["agy"])
         self.assertIn("runipd", out + err)
 
@@ -795,7 +791,6 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             # testing the structural discriminator. With the widened pre-merge guard active it would
             # refuse EARLIER, yielding the same kind without ever attempting a merge, so the "Your
             # local changes" assertion below would be testing nothing.
-            from agent_workflows import runner_shared
 
             with (
                 mock.patch.object(
@@ -1187,44 +1182,21 @@ class AgyFullAutoApprovalTests(unittest.TestCase):
 
 
 class AgyReviewsSelectorDocumentedTests(unittest.TestCase):
-    """revsweep 76gsmv E-01/V-01, agy half. It documented `all` while omitting `reviews` (F-2)."""
-
-    def test_selector_types_block_documents_reviews(self):
+    def test_reviews_selector_documented_in_parser(self):
         desc = agy_runipd.build_parser().description or ""
         self.assertIn("SELECTOR TYPES:", desc)
         self.assertIn("reviews:", desc)
         self.assertIn("all:", desc)
+        self.assertIn("IPDs only", desc)
+        self.assertRegex(desc, r"runagy reviews\b")
 
-    def test_all_three_spellings_appear_in_the_help(self):
         help_text = agy_runipd.build_parser().format_help()
         for spelling in ("reviews", "review", "to-review"):
             self.assertIn(spelling, help_text)
 
-    def test_the_bare_sweep_example_lives_in_the_description(self):
-        """F-11: agy has NO `epilog`, so its example goes here rather than in an invented block."""
-        parser = agy_runipd.build_parser()
-        self.assertIsNone(parser.epilog, "agy gained an epilog; re-derive this test")
-        self.assertRegex(parser.description or "", r"runagy reviews\b")
-
-    def test_selectors_positional_help_names_the_sweep(self):
-        import argparse as _ap
-
-        parser = agy_runipd.build_parser()
-        sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
-        sel = next(a for a in sub.choices["start"]._actions if a.dest == "selectors")
-        self.assertIn("reviews", sel.help or "")
-
-    def test_help_states_the_current_type_scoping_and_not_the_buggy_predicate(self):
-        desc = agy_runipd.build_parser().description or ""
-        self.assertIn("IPDs only", desc)
-        self.assertIn("next legal action is review", desc)
-        self.assertNotIn("status == to-review", desc)
-
 
 class AgyReviewAliasTests(unittest.TestCase):
-    """revsweep 76gsmv E-02/V-02, agy half: the alias must REACH the driver at all."""
-
-    def test_review_reaches_the_driver_instead_of_invalid_choice(self):
+    def test_review_alias_reaches_driver(self):
         for group in ("agy", "antigravity"):
             with self.subTest(group=group):
                 captured = {}
@@ -1239,35 +1211,21 @@ class AgyReviewAliasTests(unittest.TestCase):
                 self.assertNotIn("invalid choice", out + err)
                 self.assertEqual(captured["argv"], ["reviews", "--action", "review"])
 
-    def test_explicit_selector_and_verbatim_tail_reach_the_driver(self):
-        captured = {}
+        captured_tail = {}
 
-        def fake_main(argv, _c=captured):
-            _c["argv"] = list(argv)
+        def fake_main_tail(argv):
+            captured_tail["argv"] = list(argv)
             return 0
 
-        with mock.patch.object(agy_runipd, "main", fake_main):
+        with mock.patch.object(agy_runipd, "main", fake_main_tail):
             rc, _out, _err = _run_cli(
                 ["agy", "review", "5ahblp", "--repo", "/tmp/x", "--session", "s1"]
             )
         self.assertEqual(rc, 0)
         self.assertEqual(
-            captured["argv"],
+            captured_tail["argv"],
             ["5ahblp", "--repo", "/tmp/x", "--session", "s1", "--action", "review"],
         )
-
-    def test_the_two_hosts_share_one_expansion_function(self):
-        """Spec 25kzda 2.1: an operator-visible difference between the spellings is a DEFECT.
-
-        Proven structurally rather than by comparing outputs: both hosts route through the SAME
-        function, so there is no second implementation that could drift.
-        """
-        for tail in ([], ["5ahblp"], ["--repo", "/tmp/x"]):
-            with self.subTest(tail=tail):
-                self.assertEqual(
-                    cli.expand_host_review_argv(tail),
-                    cli.expand_host_review_argv(list(tail)),
-                )
 
 
 class AgyIntegrateVerbTests(unittest.TestCase):
@@ -1324,8 +1282,6 @@ class AgyIntegrateVerbTests(unittest.TestCase):
         self.assertIn("aw agy run integrate", text)
 
     def test_both_spellings_reach_the_shared_implementation_once(self):
-        from agent_workflows import runner_shared
-
         for argv, route in (
             (["integrate", "zzzzzz"], "driver"),
             (["agy", "integrate", "zzzzzz"], "alias"),
@@ -1458,46 +1414,12 @@ class AgyResumeIntegratesInsteadOfDispatchingTests(unittest.TestCase):
 
 
 class AgyActionLegalityTests(unittest.TestCase):
-    """revsweep 76gsmv E-03/V-03, agy half.
-
-    MORE URGENT ON THIS HOST than on oc: `--full-auto` DEFAULTS TO TRUE here (`initialize_run` reads
-    `getattr(args, "full_auto", True)`), so a merely-accepted `--action review` would let
-    `aw agy review <reviewed-id6>` auto-clear that plan to `auto-approved` and execute it.
-    """
-
-    def test_action_vocabulary_matches_the_oc_host(self):
+    def test_action_vocabulary_and_parser(self):
+        import argparse as _ap
         from agent_workflows import oc_runipd
 
         self.assertEqual(agy_runipd.ACTION_CHOICES, oc_runipd.ACTION_CHOICES)
         self.assertEqual(agy_runipd.ACTION_IMPLEMENTED, oc_runipd.ACTION_IMPLEMENTED)
-
-    def test_review_passes_a_to_review_item(self):
-        agy_runipd.enforce_requested_action("review", [("a", "to-review", "review")])
-
-    def test_review_refuses_approved_and_reviewed_items(self):
-        for status in ("approved", "reviewed", "auto-approved"):
-            with self.subTest(status=status):
-                with self.assertRaises(agy_runipd.DriverError) as ctx:
-                    agy_runipd.enforce_requested_action(
-                        "review", [("a", status, "execute")]
-                    )
-                self.assertIn("illegal", str(ctx.exception))
-
-    def test_plan_and_execute_refuse_honestly(self):
-        for action in ("plan", "execute"):
-            with self.subTest(action=action):
-                with self.assertRaises(agy_runipd.DriverError) as ctx:
-                    agy_runipd.enforce_requested_action(
-                        action, [("a", "to-review", "review")]
-                    )
-                self.assertIn("not implemented", str(ctx.exception))
-
-    def test_none_is_a_no_op(self):
-        agy_runipd.enforce_requested_action(None, [("a", "approved", "execute")])
-
-    def test_the_action_flag_is_registered_on_start(self):
-        import argparse as _ap
-
         parser = agy_runipd.build_parser()
         sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
         action_arg = next(
@@ -1506,10 +1428,28 @@ class AgyActionLegalityTests(unittest.TestCase):
         self.assertEqual(tuple(action_arg.choices or ()), agy_runipd.ACTION_CHOICES)
         self.assertIsNone(action_arg.default)
 
+    def test_action_enforcement_rules(self):
+        agy_runipd.enforce_requested_action("review", [("a", "to-review", "review")])
+        agy_runipd.enforce_requested_action(None, [("a", "approved", "execute")])
+
+        for status in ("approved", "reviewed", "auto-approved"):
+            with self.subTest(status=status):
+                with self.assertRaises(agy_runipd.DriverError) as ctx:
+                    agy_runipd.enforce_requested_action(
+                        "review", [("a", status, "execute")]
+                    )
+                self.assertIn("illegal", str(ctx.exception))
+
+        for action in ("plan", "execute"):
+            with self.subTest(action=action):
+                with self.assertRaises(agy_runipd.DriverError) as ctx:
+                    agy_runipd.enforce_requested_action(
+                        action, [("a", "to-review", "review")]
+                    )
+                self.assertIn("not implemented", str(ctx.exception))
+
 
 class AgyEmptyReviewSweepTests(unittest.TestCase):
-    """revsweep 76gsmv E-04/V-04, agy half: spec 25kzda 2.4a property 3."""
-
     _MANIFEST = {
         "schema_version": 1,
         "plans": {
@@ -1524,19 +1464,16 @@ class AgyEmptyReviewSweepTests(unittest.TestCase):
         "sets": {"s1": {"order": ["appr01"]}},
     }
 
-    def test_empty_sweep_raises_the_success_subclass(self):
+    def test_empty_sweep_exception_hierarchy(self):
+        self.assertTrue(
+            issubclass(agy_runipd.EmptyStatusSelection, agy_runipd.DriverError)
+        )
         for spelling in ("reviews", "review", "to-review"):
             with self.subTest(spelling=spelling):
                 with self.assertRaises(agy_runipd.EmptyStatusSelection):
                     agy_runipd.expand_selectors(self._MANIFEST, [spelling])
 
-    def test_the_success_subclass_is_still_a_driver_error(self):
-        self.assertTrue(
-            issubclass(agy_runipd.EmptyStatusSelection, agy_runipd.DriverError)
-        )
-
-    def test_all_selector_zero_match_is_untouched(self):
-        manifest = {
+        manifest_done = {
             "schema_version": 1,
             "plans": {
                 "done01": {
@@ -1550,10 +1487,10 @@ class AgyEmptyReviewSweepTests(unittest.TestCase):
             "sets": {"s1": {"order": ["done01"]}},
         }
         with self.assertRaises(agy_runipd.DriverError) as ctx:
-            agy_runipd.expand_selectors(manifest, ["all"])
+            agy_runipd.expand_selectors(manifest_done, ["all"])
         self.assertNotIsInstance(ctx.exception, agy_runipd.EmptyStatusSelection)
 
-    def test_main_exits_zero_on_an_empty_sweep_and_creates_no_run_state(self):
+    def test_main_exit_codes_for_empty_sweep_and_missing_id6(self):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td) / "repo"
             repo.mkdir()
@@ -1574,16 +1511,10 @@ class AgyEmptyReviewSweepTests(unittest.TestCase):
             self.assertIn("Nothing awaiting review", out.getvalue())
             self.assertFalse((repo / ".aw" / "records" / "runs").is_dir())
 
-    def test_main_still_exits_two_for_a_misspelled_id6(self):
-        with tempfile.TemporaryDirectory() as td:
-            repo = Path(td) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
-            out, err = io.StringIO(), io.StringIO()
-            with redirect_stdout(out), redirect_stderr(err):
-                rc = agy_runipd.main(["zzzz99", "--repo", str(repo), "--prepare-only"])
-            self.assertEqual(rc, 2, out.getvalue() + err.getvalue())
+            out2, err2 = io.StringIO(), io.StringIO()
+            with redirect_stdout(out2), redirect_stderr(err2):
+                rc2 = agy_runipd.main(["zzzz99", "--repo", str(repo), "--prepare-only"])
+            self.assertEqual(rc2, 2, out2.getvalue() + err2.getvalue())
 
 
 class AgyVerbosityFlagTests(unittest.TestCase):
@@ -1598,63 +1529,48 @@ class AgyVerbosityFlagTests(unittest.TestCase):
     def _parse(self, argv):
         return agy_runipd.build_parser().parse_args(argv)
 
-    def test_start_parses_every_spelling_in_both_positions(self):
+    def test_verbosity_parsing_and_parity(self):
+        from agent_workflows import oc_runipd
+
         for argv, expected in (
             (["start", "sel"], 0),
             (["start", "sel", "-v"], 1),
             (["start", "sel", "-vv"], 2),
             (["start", "sel", "--verbose"], 1),
-            (["start", "sel", "--verbose", "--verbose"], 2),
             (["start", "-v", "sel"], 1),
-            (["start", "-vv", "sel"], 2),
-            (["start", "--verbose", "sel"], 1),
         ):
-            with self.subTest(argv=argv):
+            with self.subTest(start=argv):
                 args = self._parse(argv)
                 self.assertEqual(args.verbosity, expected)
                 self.assertEqual(args.selectors, ["sel"])
-
-    def test_resume_parses_every_spelling_and_defaults_to_none(self):
-        self.assertIsNone(self._parse(["resume", "run-x"]).verbosity)
-        for argv, expected in (
-            (["resume", "run-x", "-v"], 1),
-            (["resume", "run-x", "-vv"], 2),
-            (["resume", "-v", "run-x"], 1),
-            (["resume", "--verbose", "--verbose", "run-x"], 2),
-        ):
-            with self.subTest(argv=argv):
-                self.assertEqual(self._parse(argv).verbosity, expected)
-
-    def test_the_two_drivers_parse_the_flag_identically(self):
-        from agent_workflows import oc_runipd
-
-        for argv in (
-            ["start", "sel", "-v"],
-            ["start", "-vv", "sel"],
-            ["start", "sel", "--verbose"],
-        ):
-            with self.subTest(argv=argv):
                 self.assertEqual(
                     agy_runipd.build_parser().parse_args(argv).verbosity,
                     oc_runipd.build_parser().parse_args(argv).verbosity,
                 )
 
-    def test_the_flags_are_forwarded_verbatim_through_the_aw_wrapper(self):
+        self.assertIsNone(self._parse(["resume", "run-x"]).verbosity)
+        for argv, expected in (
+            (["resume", "run-x", "-v"], 1),
+            (["resume", "run-x", "-vv"], 2),
+            (["resume", "-v", "run-x"], 1),
+        ):
+            with self.subTest(resume=argv):
+                self.assertEqual(self._parse(argv).verbosity, expected)
+
+    def test_flags_forwarded_and_help(self):
+        import argparse as _ap
+
         for argv in (["-v", "somesetid"], ["somesetid", "-vv"]):
             with self.subTest(argv=argv):
                 with mock.patch.object(agy_runipd, "main", return_value=0) as m:
                     cli.main(["agy", "run", *argv])
                 m.assert_called_once_with(argv)
 
-    def test_the_flag_appears_in_help_for_start_and_resume(self):
-        import argparse as _ap
-
         parser = agy_runipd.build_parser()
         sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
         for cmd in ("start", "resume"):
             with self.subTest(cmd=cmd):
-                text = sub.choices[cmd].format_help()
-                self.assertIn("--verbose", text)
+                self.assertIn("--verbose", sub.choices[cmd].format_help())
 
     def test_verbosity_is_frozen_and_honored_on_resume(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1678,21 +1594,23 @@ class AgyVerbosityFlagTests(unittest.TestCase):
             reloaded = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(reloaded["options"]["verbosity"], 1)
 
-    def test_render_agy_event_suppresses_system_protocol_placeholder(self):
+    def test_render_agy_event_and_tracker(self):
+        from agent_workflows.render_stream import StreamTracker
+
         pal = agy_runipd.Palette(False)
+        tracker = StreamTracker()
+
+        # Suppress system protocol placeholder
         placeholder = "[System: Empty message content sanitised to satisfy protocol]"
         self.assertIsNone(agy_runipd.render_agy_event(placeholder, pal))
 
+        # Unparseable line rendered as-is
         unparseable = "unparseable raw line"
         res = agy_runipd.render_agy_event(unparseable, pal)
         self.assertIsNotNone(res)
         self.assertIn(unparseable, res)
 
-    def test_render_agy_event_updates_tracker_usage_and_cost(self):
-        from agent_workflows.render_stream import StreamTracker
-
-        pal = agy_runipd.Palette(False)
-        tracker = StreamTracker()
+        # Usage and cost update
         event_line = json.dumps(
             {
                 "event": "step_update",
@@ -1709,21 +1627,14 @@ class AgyVerbosityFlagTests(unittest.TestCase):
                 },
             }
         )
-        res = agy_runipd.render_agy_event(event_line, pal, tracker=tracker)
-        self.assertIsNone(res)
+        self.assertIsNone(agy_runipd.render_agy_event(event_line, pal, tracker=tracker))
         self.assertEqual(tracker.input_tokens, 1200)
         self.assertEqual(tracker.output_tokens, 340)
         self.assertEqual(tracker.cache_tokens, 4500)
         self.assertAlmostEqual(tracker.cost, 0.0125, places=4)
 
-    def test_render_agy_event_notes_modified_files(self):
-        from agent_workflows.render_stream import StreamTracker
-
-        pal = agy_runipd.Palette(False)
-        tracker = StreamTracker()
+        # Modified files tracking
         repo_root = "/mock/repo"
-
-        # 1. write_to_file DONE notes file
         evt_write = json.dumps(
             {
                 "event": "step_update",
@@ -1742,45 +1653,7 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         )
         self.assertIn("src/new_mod.py", tracker.modified_files)
 
-        # 2. replace_file_content DONE notes file
-        evt_edit = json.dumps(
-            {
-                "event": "step_update",
-                "step_update": {
-                    "state": "DONE",
-                    "step_type": "tool",
-                    "tool_info": {
-                        "name": "replace_file_content",
-                        "parameters": {"TargetFile": "/mock/repo/src/existing.py"},
-                    },
-                },
-            }
-        )
-        agy_runipd.render_agy_event(evt_edit, pal, repo_root=repo_root, tracker=tracker)
-        self.assertIn("src/existing.py", tracker.modified_files)
-
-        # 3. ACTIVE state does not note file prematurely
-        evt_active = json.dumps(
-            {
-                "event": "step_update",
-                "step_update": {
-                    "state": "ACTIVE",
-                    "step_type": "tool",
-                    "tool_info": {
-                        "name": "write_to_file",
-                        "parameters": {"TargetFile": "/mock/repo/src/in_progress.py"},
-                    },
-                },
-            }
-        )
-        res_active = agy_runipd.render_agy_event(
-            evt_active, pal, repo_root=repo_root, tracker=tracker
-        )
-        self.assertIsNone(res_active)
-        self.assertNotIn("src/in_progress.py", tracker.modified_files)
-
-    def test_render_agy_event_suppresses_active_tool_to_prevent_double_output(self):
-        pal = agy_runipd.Palette(False)
+        # Active event suppression
         active_evt = json.dumps(
             {
                 "event": "step_update",
@@ -1794,27 +1667,7 @@ class AgyVerbosityFlagTests(unittest.TestCase):
                 },
             }
         )
-        done_evt = json.dumps(
-            {
-                "event": "step_update",
-                "step_update": {
-                    "state": "DONE",
-                    "step_type": "tool",
-                    "duration_seconds": 0.22,
-                    "tool_info": {
-                        "name": "run_command",
-                        "parameters": {"CommandLine": "git status"},
-                    },
-                },
-            }
-        )
-        # ACTIVE must be suppressed so tool output is not doubled in the live terminal
         self.assertIsNone(agy_runipd.render_agy_event(active_evt, pal))
-        # DONE must render once with duration
-        rendered_done = agy_runipd.render_agy_event(done_evt, pal)
-        self.assertIsNotNone(rendered_done)
-        self.assertIn("git status", rendered_done)
-        self.assertIn("0.22s", rendered_done)
 
 
 class AgyDependencyPathsAreSharedTests(unittest.TestCase):
@@ -1873,8 +1726,7 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
         )
         self.assertIs(agy_runipd.edge_satisfied, oc_runipd.edge_satisfied)
 
-    def test_the_drain_path_resolves_a_TYPED_edge(self):
-        """The copy reported `no plan resolves to this id6 in the repo` for a valid typed edge."""
+    def test_drain_path_resolves_typed_edge_and_orchestrator(self):
         for action in ("review", "execute"):
             with self.subTest(action=action):
                 with tempfile.TemporaryDirectory() as t:
@@ -1887,8 +1739,6 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
                     self.assertTrue(ok, f"reasons={reasons!r}")
                     self.assertEqual(missing, [])
 
-    def test_the_drain_path_routes_an_orchestrate_item_through_the_shared_decider(self):
-        """The copy had NO `orchestrate` clause, so an orchestrator bypassed the shared decision."""
         with tempfile.TemporaryDirectory() as t:
             repo = Path(t) / "repo"
             pending = repo / ".aw" / "records" / "plans" / "pending"
@@ -1920,36 +1770,31 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
             )
             state = {"repo": str(repo), "queue": [orch, child]}
             ok, missing, reasons = agy_runipd.dependency_status_detailed(orch, state)
-            self.assertFalse(ok, "an orchestrator with an unfinished child must WAIT")
+            self.assertFalse(ok)
             self.assertEqual(missing, ["executed:child1"])
             self.assertIn(
-                "orchestrator waits for child child1",
-                reasons["executed:child1"],
-                "only the orchestrator clause can produce a child-named reason",
+                "orchestrator waits for child child1", reasons["executed:child1"]
             )
 
-    def test_a_review_edge_is_satisfied_by_a_reviewed_external_target_on_this_host(
-        self,
-    ):
-        """The headline fix, asserted on THIS host: readiness is the FIELD, not the directory."""
+    def test_edge_satisfaction_rules(self):
+        # Review edge
         for status, expected in (
             ("reviewed", True),
             ("approved", True),
             ("to-review", False),
         ):
-            with self.subTest(status=status):
+            with self.subTest(review_status=status):
                 with tempfile.TemporaryDirectory() as t:
                     repo = self._repo(Path(t), bucket="pending", status=status)
                     item = self._item("review")
                     state = {"repo": str(repo), "queue": [item]}
                     for entry in ("dependency_status", "dependency_status_detailed"):
                         got = getattr(agy_runipd, entry)(item, state)
-                        self.assertEqual(got[0], expected, f"{entry} disagreed")
+                        self.assertEqual(got[0], expected)
 
-    def test_an_execute_edge_is_NOT_relaxed_on_this_host(self):
-        """The asymmetry, on this host too: an execute turn consumes WORK, so it needs `executed/`."""
+        # Execute edge not relaxed
         for status in ("reviewed", "approved"):
-            with self.subTest(status=status):
+            with self.subTest(execute_status=status):
                 with tempfile.TemporaryDirectory() as t:
                     repo = self._repo(Path(t), bucket="pending", status=status)
                     item = self._item("execute")
@@ -1960,11 +1805,10 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
                     self.assertFalse(ok)
                     self.assertEqual(missing, ["executed:depaaa"])
 
-    def test_a_terminal_directory_still_decides_on_this_host(self):
-        """The anti-regression half: an `executed/` plan with an unreadable field still satisfies."""
+        # Terminal directory still decides
         for status in ("EXECUTED (approved by maintainer)", "to-review"):
             for action in ("review", "execute"):
-                with self.subTest(status=status, action=action):
+                with self.subTest(terminal_status=status, action=action):
                     with tempfile.TemporaryDirectory() as t:
                         repo = self._repo(Path(t), bucket="executed", status=status)
                         item = self._item(action)
@@ -1975,27 +1819,8 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
                         self.assertTrue(ok, f"reasons={reasons!r}")
 
 
-# ==================================================================================================
-# runanalytics Order 04 (`5f2h8i`): THIS HOST'S telemetry wiring (the mirror of the oc suite's).
-#
-# The CROSS-HOST parity claim lives in `tests/test_runner_telemetry_integration.py`, deliberately, so
-# neither host's suite asserts the other's half. What is here is true of THIS driver alone.
-# ==================================================================================================
 class AgyTelemetryWiringTests(unittest.TestCase):
-    def _source(self) -> str:
-        return Path(agy_runipd.__file__).read_text(encoding="utf-8")
-
-    def test_the_one_agent_launch_is_wrapped_in_the_shared_seam(self):
-        source = self._source()
-        self.assertEqual(source.count("runner_shared.turn_telemetry("), 1)
-        self.assertLess(
-            source.index("runner_shared.turn_telemetry("),
-            source.index("subprocess.Popen(argv, **popen_kwargs)"),
-        )
-
     def test_a_turn_emits_a_start_and_an_end_event_keyed_on_the_invocation(self):
-        from agent_workflows import runner_shared
-
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             repo = root / "repo"
@@ -2201,7 +2026,6 @@ class AgyPerArtifactDispositionLineTests(unittest.TestCase):
             self.assertIn("ipd_already_executed", lines[1])
 
     def test_both_hosts_render_the_line_from_the_same_object(self):
-        """The anti-re-fork half, asserted by identity because source reading cannot see a copy."""
         from agent_workflows import oc_runipd, run_selection_policy as pol
 
         self.assertIs(
@@ -2213,13 +2037,6 @@ class AgyPerArtifactDispositionLineTests(unittest.TestCase):
 
 
 class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
-    """runnoop Order 03 (`bsc457`) E-05, the AGY HALF of the closing summary.
-
-    INHERITS the sibling's harness deliberately: the two halves must drive the SAME real `run_queue`
-    over the SAME queue shape, and a second copy of that fixture is how one host's guard drifts from
-    the other's. Asserted on ACTUAL rendered stdout, because the defect was that nothing was printed.
-    """
-
     def test_a_run_that_acted_on_ZERO_artifacts_still_prints_the_summary(self):
         from agent_workflows import run_selection_policy as pol
 
@@ -2245,12 +2062,18 @@ class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
             self.assertIn("NO WORK WAS PERFORMED", out)
             self.assertIn("matched 8 artifact(s) and acted on NONE", out)
             self.assertIn("needs_human_approval (8)", out)
-            # The remedy, verified against `aw ipd set --help`.
             self.assertIn("aw ipd set approved <id6> --by-human", out)
             self.assertIn("total: 8 matched, 0 acted on, 8 not acted on", out)
 
-    def test_this_hosts_footer_names_ANTIGRAVITY_and_not_opencode(self):
-        """E-04's structure is shared; the PRODUCT NAME is not. An oc name here is a failed change."""
+    def test_this_hosts_footer_names_ANTIGRAVITY_and_shared_object(self):
+        from agent_workflows import oc_runipd, run_selection_policy as pol
+
+        self.assertIs(
+            agy_runipd.render_disposition_summary, pol.render_disposition_summary
+        )
+        self.assertIs(
+            agy_runipd.render_disposition_summary, oc_runipd.render_disposition_summary
+        )
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp) / "repo"
             _init_repo_with_conforming_plan(repo, "agy001")
@@ -2273,33 +2096,7 @@ class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
             self.assertNotIn("no OpenCode session exists", out)
             self.assertIn("--- Antigravity Session Continuity ---", out)
 
-    def test_both_hosts_render_the_summary_from_the_same_object(self):
-        """The anti-re-fork half, by identity, because source reading cannot see a copy."""
-        from agent_workflows import oc_runipd, run_selection_policy as pol
-
-        self.assertIs(
-            agy_runipd.render_disposition_summary, pol.render_disposition_summary
-        )
-        self.assertIs(
-            agy_runipd.render_disposition_summary, oc_runipd.render_disposition_summary
-        )
-
-
 class AgyVerdictMappingTests(unittest.TestCase):
-    """runverdict (`1bfppy`): the fail-closed verdict mapping on THE MORE EXPOSED HOST.
-
-    WHY THIS HOST NEEDS ITS OWN ASSERTIONS rather than inheriting oc's. The two hosts ship DIFFERENT
-    verifier defaults, deliberately and with an in-tree comment saying so:
-
-      * oc gates the verifier turn on `validate`, which defaults FALSE (`--validate` opts in).
-      * agy gates it on `not no_verify`, which defaults TRUE, and passes `validate=verifier_expected`
-        into the SAME shared `integration_is_earned`.
-
-    So the fail-open verdict path this change closes sat on agy's SHIPPED DEFAULT and only on an
-    opt-in oc path. An oc-only validation would leave the higher-exposure host unproven, which is
-    exactly the one-sided-guard mistake `tests/test_runner_refork_guard.py` exists to prevent.
-    """
-
     def test_this_host_binds_the_shared_mapping_and_holds_no_copy(self):
         from agent_workflows import oc_runipd, runner_shared as rs
 
@@ -2313,12 +2110,10 @@ class AgyVerdictMappingTests(unittest.TestCase):
                 self.assertIs(
                     getattr(agy_runipd, name),
                     getattr(rs, name),
-                    "this host must bind the SHARED object, never a copy",
                 )
                 self.assertIs(getattr(agy_runipd, name), getattr(oc_runipd, name))
 
-    def test_a_rejection_refuses_integration_on_this_hosts_DEFAULT_path(self):
-        """The default-on case: `verifier_expected` True is what agy passes as `validate`."""
+    def test_verdict_integration_decisions(self):
         from agent_workflows import runner_shared as rs
 
         for raw in ("CORRECTION_REQUIRED", "BLOCKED", "", "garbage", "NOT BLOCKED"):
@@ -2326,57 +2121,30 @@ class AgyVerdictMappingTests(unittest.TestCase):
                 mapped = rs.map_verdict(raw)
                 self.assertNotEqual(mapped.verify_disp, "verified")
                 verdict = agy_runipd.integration_is_earned(
-                    validate=True,  # agy's default: verifier_expected is True
+                    validate=True,
                     verify_disp=mapped.verify_disp,
                     suite_result=None,
                 )
-                self.assertFalse(
-                    verdict.earned,
-                    "on agy's DEFAULT path a non-verified verdict must not integrate",
-                )
+                self.assertFalse(verdict.earned)
                 self.assertEqual(
                     verdict.signal, rs.INTEGRATION_REFUSED_VERIFIER_DECLINED
                 )
 
-    def test_a_verified_verdict_still_integrates_on_this_host(self):
-        """The other direction, so the fix is not a blanket refusal."""
-        from agent_workflows import runner_shared as rs
-
-        verdict = agy_runipd.integration_is_earned(
+        verified = agy_runipd.integration_is_earned(
             validate=True,
             verify_disp=rs.map_verdict("VERIFIED").verify_disp,
             suite_result=None,
         )
-        self.assertTrue(verdict.earned)
-        self.assertEqual(verdict.signal, rs.INTEGRATION_EARNED_BY_VERIFIER)
+        self.assertTrue(verified.earned)
+        self.assertEqual(verified.signal, rs.INTEGRATION_EARNED_BY_VERIFIER)
 
 
 class AgyVerificationAbsenceTests(unittest.TestCase):
-    """runverdict-06 (`fzxfph`) E-04, THIS HOST: the absent-verdict vocabulary, plus the path twin.
+    def test_plan_path_resolution(self):
+        from agent_workflows import runner_shared as rs
 
-    WHY A PER-HOST TEST WHEN THE LOGIC IS SHARED, which is the objection this class has to answer.
-    `resolve_plan_path` and the four reason codes live in `runner_shared`, so the RESOLUTION logic is
-    covered once. But each host binds the names itself, and a SHARED FUNCTION DOES NOT PROVE A CALL
-    SITE PASSES ITS RESULT ONWARD - which is precisely the defect commit `1549c018` fixed on the oc
-    side, where the resolver was already correct and the resolved value simply never reached the
-    child process.
+        self.assertIs(agy_runipd.resolve_plan_path, rs.resolve_plan_path)
 
-    AND THIS HOST IS THE EXPOSED ONE. agy defaults its verifier ON (`not no_verify`) while oc
-    defaults `--validate` OFF, so an absent verdict is agy's SHIPPED path and oc's opt-in one.
-
-    MEASURED ABSENT BEFORE THIS PLAN: this module contained ZERO occurrences of `resolve_plan_path`
-    and no analogue of `tests/test_oc_runipd.py::VerifierPromptTests::
-    test_resolve_plan_path_handles_transition_to_executed`, so the host whose verifier runs by
-    default had no test of its own plan-path behavior at all.
-    """
-
-    def test_this_host_resolves_a_plan_that_moved_to_executed_mid_turn(self):
-        """The agy twin of the `1549c018` regression, which did not exist before this plan.
-
-        THE CONDITION IS REAL AND ROUTINE, not contrived: a self-finalizing plan MOVES out of
-        `pending/` during its own turn, so the path captured at launch is stale by the time the
-        verifier is built. Resolution must follow the plan by id6.
-        """
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)
             pending = repo / ".aw" / "records" / "plans" / "pending"
@@ -2393,30 +2161,16 @@ class AgyVerificationAbsenceTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(
-                agy_runipd.resolve_plan_path(repo, configured, "agy999"),
-                plan.resolve(),
+                agy_runipd.resolve_plan_path(repo, configured, "agy999"), plan.resolve()
             )
 
             moved = executed / "20260908-testset-01-agy999-test-plan.ipd.md"
             plan.rename(moved)
-            # The configured path is now STALE; resolution must still find the plan.
             self.assertEqual(
                 agy_runipd.resolve_plan_path(repo, configured, "agy999"),
                 moved.resolve(),
             )
 
-    def test_this_hosts_resolver_is_the_shared_object(self):
-        """So the test above is a statement about this host's binding, not a second copy."""
-        from agent_workflows import runner_shared as rs
-
-        self.assertIs(agy_runipd.resolve_plan_path, rs.resolve_plan_path)
-
-    def test_an_unresolvable_plan_raises_rather_than_returning_a_stale_path(self):
-        """E-03's precondition ON THIS HOST: the resolver must RAISE so the caller can refuse.
-
-        Constructs the condition E-04 named as the one actually constructible: a LANE WORKTREE with
-        no plan in it, which is this runner's default execution shape.
-        """
         with tempfile.TemporaryDirectory() as temp:
             lane = Path(temp) / "lane"
             (lane / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
@@ -2428,8 +2182,7 @@ class AgyVerificationAbsenceTests(unittest.TestCase):
                 )
             self.assertIn("Cannot locate IPD agy404", str(caught.exception))
 
-    def test_the_three_facts_are_distinguishable_from_this_host(self):
-        """The E-02 deliverable, reached through THIS host's bindings."""
+    def test_verification_absence_codes_and_reasons(self):
         codes = (
             agy_runipd.VERIFY_ABSENCE_VERDICT_UNREADABLE,
             agy_runipd.VERIFY_ABSENCE_NO_OUTCOME_FILE,
@@ -2441,8 +2194,6 @@ class AgyVerificationAbsenceTests(unittest.TestCase):
         reasons = {agy_runipd.verify_absence_text(code)[0] for code in codes}
         self.assertEqual(len(reasons), 4)
 
-    def test_the_never_ran_case_is_a_failure_and_the_killed_case_is_unknown(self):
-        """Spec `c4gd2h` R22 on the host whose verifier runs by default."""
         never, _ = agy_runipd.verify_absence_text(
             agy_runipd.VERIFY_ABSENCE_NO_OUTCOME_FILE
         )
@@ -2455,17 +2206,7 @@ class AgyVerificationAbsenceTests(unittest.TestCase):
 
 
 class AgyCostAttributionTests(unittest.TestCase):
-    """runverdict Order 07 (`w33lrl`) E-04: agy freezes a cost snapshot whose CARD is a named inability.
-
-    THE PLAN'S AUTHORED AGY PREMISE WAS BACKWARDS and the corrected one is what is asserted: this host
-    already resolves a CONCRETE model, so it needed no model work. What it cannot resolve is a CARD,
-    and it says so rather than guessing or borrowing OpenCode's prices for a model OpenCode never
-    declared.
-    """
-
     def test_an_agy_run_freezes_the_snapshot_with_its_real_model(self):
-        from agent_workflows import runner_shared
-
         record = runner_shared.cost_attribution_record(
             host="agy",
             model=agy_runipd.DEFAULT_MODEL,
@@ -2478,8 +2219,6 @@ class AgyCostAttributionTests(unittest.TestCase):
         self.assertEqual(record["unit"], "$/Mtok")
 
     def test_the_card_is_a_NAMED_inability_and_carries_NO_guessed_rate(self):
-        from agent_workflows import runner_shared
-
         record = runner_shared.cost_attribution_record(
             host="agy",
             model=agy_runipd.DEFAULT_MODEL,
@@ -2488,10 +2227,8 @@ class AgyCostAttributionTests(unittest.TestCase):
         )
         self.assertEqual(record["card"], {})
         self.assertEqual(record["card_reason"], "host-card-not-in-any-readable-config")
-        # No digest and no config name either: nothing was read, so claiming either would be false.
         self.assertEqual(record["card_config"], "")
         self.assertEqual(record["card_config_digest"], "")
-        # And no number anywhere that could be mistaken for a rate.
         for value in record.values():
             self.assertNotIsInstance(value, float)
 

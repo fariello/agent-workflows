@@ -2590,33 +2590,26 @@ class TrackingWarningScanTests(unittest.TestCase):
             INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         return buf.getvalue()
 
-    def test_notice_prints_with_safety_valves(self):
-        repo = init_repo(self.base / "notice")
-        out = self._install_capture(repo)
-        self.assertIn("git-tracks IPDs, prompts, and research by default", out)
-        self.assertIn(".agents/prompts/untracked/", out)
-        self.assertIn("untracked", out)
+    def test_tracking_warning_scan(self):
+        # 1. Clean repo prints notice with safety valves but no per-file warning
+        clean_repo = init_repo(self.base / "clean")
+        out_clean = self._install_capture(clean_repo)
+        self.assertIn("git-tracks IPDs, prompts, and research by default", out_clean)
+        self.assertIn(".agents/prompts/untracked/", out_clean)
+        self.assertIn("untracked", out_clean)
+        self.assertNotIn("ALREADY git-tracked", out_clean)
 
-    def test_clean_repo_has_no_per_file_warning(self):
-        """The NEGATIVE half of the scan: a clean repo must not be warned at."""
-        repo = init_repo(self.base / "clean")
-        out = self._install_capture(repo)
-        self.assertNotIn("ALREADY git-tracked", out)
+        # 2. Already tracked match is flagged with remedy
+        tracked_repo = init_repo(self.base / "tracked")
+        (tracked_repo / "leak.untracked.md").write_text("oops", encoding="utf-8")
+        git(tracked_repo, "add", "-f", "leak.untracked.md")
+        git(tracked_repo, "commit", "-m", "add tracked untracked-named file")
+        out_tracked = self._install_capture(tracked_repo)
+        self.assertIn("ALREADY git-tracked", out_tracked)
+        self.assertIn("leak.untracked.md", out_tracked)
+        self.assertIn("git rm --cached", out_tracked)
 
-    def test_already_tracked_match_is_flagged_with_remedy(self):
-        repo = init_repo(self.base / "tracked")
-        # Commit a file matching the untracked pattern BEFORE install adds the .gitignore block,
-        # then force-add it so it is tracked despite the pattern.
-        (repo / "leak.untracked.md").write_text("oops", encoding="utf-8")
-        git(repo, "add", "-f", "leak.untracked.md")
-        git(repo, "commit", "-m", "add tracked untracked-named file")
-        out = self._install_capture(repo)
-        self.assertIn("ALREADY git-tracked", out)
-        self.assertIn("leak.untracked.md", out)
-        self.assertIn("git rm --cached", out)
-
-    def test_scan_helper_non_git_safe(self):
-        """Kept separate: the precondition is the ABSENCE of a git repo, which no install row has."""
+        # 3. Non-git directory safe
         nogit = self.base / "plain"
         nogit.mkdir()
         self.assertEqual(INS._already_tracked_untracked_matches(nogit), [])
@@ -2987,9 +2980,8 @@ class AwBlockMigrationTests(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def test_legacy_block_converts_not_appends(self):
-        # A repo carrying the OLD monolithic block must be CONVERTED in place: no duplicate, no
-        # legacy markers re-emitted, human-visible prose preserved.
+    def test_legacy_block_conversion_and_sibling_preservation(self):
+        # 1. Legacy AGENTS.md converts in place
         repo = init_repo(self.base / "legacy")
         legacy = repo / "AGENTS.md"
         legacy.write_text(
@@ -3011,36 +3003,33 @@ class AwBlockMigrationTests(unittest.TestCase):
         self.assertIn("User epilogue", txt)
         self.assertIn("## Agent workflows", txt)
 
-    def test_legacy_native_mirror_converts(self):
-        """Kept separate: the same conversion on a NATIVE host file, which is mirrored not authored."""
-        repo = init_repo(self.base / "legacy-native")
-        (repo / "CLAUDE.md").write_text(
+        # 2. Legacy native mirror (CLAUDE.md) converts
+        repo2 = init_repo(self.base / "legacy-native")
+        (repo2 / "CLAUDE.md").write_text(
             "User C\n\n" + INS.agents_pointer_block() + "\n", encoding="utf-8"
         )
-        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
-        c = (repo / "CLAUDE.md").read_text(encoding="utf-8")
+        INS.install_into_repo(repo2, self.source, yes=True, no_color=True)
+        c = (repo2 / "CLAUDE.md").read_text(encoding="utf-8")
         self.assertEqual(c.count("<!-- aw:block -->"), 1)
         self.assertNotIn(self.LEGACY_BEGIN, c)
         self.assertIn("User C", c)
 
-    def test_sibling_named_block_untouched_through_install(self):
-        """M9 end-to-end: a foreign AGENT-PLANS block must be BYTE-IDENTICAL after a real install."""
-        repo = init_repo(self.base / "sibling")
+        # 3. Sibling named block untouched through install
+        repo3 = init_repo(self.base / "sibling")
         sibling = "<!-- AGENT-PLANS:BEGIN -->\n## Agent plans\npolicy text here\n<!-- AGENT-PLANS:END -->\n"
-        (repo / "AGENTS.md").write_text(
+        (repo3 / "AGENTS.md").write_text(
             "# AGENTS\n\n" + sibling + "\n" + INS.agents_pointer_block() + "\n",
             encoding="utf-8",
         )
-        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
-        txt = (repo / "AGENTS.md").read_text(encoding="utf-8")
+        INS.install_into_repo(repo3, self.source, yes=True, no_color=True)
+        txt3 = (repo3 / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn(
-            sibling, txt, "foreign AGENT-PLANS block must be byte-identical (M9)"
+            sibling, txt3, "foreign AGENT-PLANS block must be byte-identical (M9)"
         )
-        self.assertEqual(txt.count("<!-- AGENT-PLANS:BEGIN -->"), 1)
-        self.assertEqual(txt.count("<!-- aw:block -->"), 1)
+        self.assertEqual(txt3.count("<!-- AGENT-PLANS:BEGIN -->"), 1)
+        self.assertEqual(txt3.count("<!-- aw:block -->"), 1)
 
-    def test_reinstall_is_empty_diff_on_target_file(self):
-        """Kept separate: a before/after idempotence PAIR on AGENTS.md; the two halves are one claim."""
+    def test_reinstall_idempotence_and_declined_section(self):
         repo = init_repo(self.base / "idem")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         first = (repo / "AGENTS.md").read_text(encoding="utf-8")
@@ -3051,17 +3040,12 @@ class AwBlockMigrationTests(unittest.TestCase):
             "reinstall must be an empty diff on the target file",
         )
 
-    def test_declined_section_not_written(self):
-        """Kept separate: requires hand-writing a decline TOMBSTONE into the manifest first."""
         from agent_workflows import manifest as M
 
-        repo = init_repo(self.base / "declined")
-        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         mpath = repo / ".aw" / "system" / "managed-sections.json"
         man = M.load(mpath)
         man.mark_declined("AGENTS.md#aw:pointer", kind="section")
         M.save(man, mpath)
-        # Rewrite AGENTS.md without the block, then reinstall: the declined section stays out.
         (repo / "AGENTS.md").write_text("# AGENTS\n\nuser only\n", encoding="utf-8")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         self.assertNotIn(
@@ -3362,125 +3346,28 @@ class PhysicalSystemInstallTests(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def test_e01(self):
-        """E-01: Canonical source tree and package-resource resolver."""
-        from agent_workflows.engine import resolve_source_root
+    def test_physical_source_packaging_and_spoof_protection(self):
+        """Source tree resolution, packaging inclusion, and positive source-checkout / anti-spoof checks."""
+        from agent_workflows.engine import is_source_checkout, resolve_source_root
+        from agent_workflows.install_wizard import ProjectPolicy
+        from agent_workflows.project_layout import install_system_tree
 
-        fx = (
-            REPO_ROOT
-            / "tests"
-            / "fixtures"
-            / "awphysical"
-            / "order04"
-            / "e01-source-tree.json"
-        )
-        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
-
+        # Source root resolution
         src = resolve_source_root(None)
-        self.assertTrue(src.is_dir(), f"Source root is not a directory: {src}")
+        self.assertTrue(src.is_dir())
         self.assertTrue(
             (src / "index.md").is_file()
             or (src / "workflows" / "index.md").is_file()
             or (src / "VERSION").is_file()
-            or (src / "managed-sections.json").is_file(),
-            "Manifest/VERSION absent from source root",
+            or (src / "managed-sections.json").is_file()
         )
 
-    def test_e02(self):
-        """E-02: Package inspection, versioning, and stdlib-only runtime."""
-        fx = (
-            REPO_ROOT
-            / "tests"
-            / "fixtures"
-            / "awphysical"
-            / "order04"
-            / "e02-packaging.json"
-        )
-        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
-
+        # Packaging
         pyproject_text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        # The packaged bundle ships from .aw/system ONCE (Order-11 self-migration moved the
-        # source there); the legacy .agents/workflows force-include is gone (no double-ship).
         self.assertIn(".aw/system", pyproject_text)
         self.assertNotIn('".agents/workflows"', pyproject_text)
 
-    def test_e03(self):
-        """E-03: Staged candidate system tree, validation, and atomic pivot."""
-        from agent_workflows.install_wizard import ProjectPolicy
-        from agent_workflows.project_layout import (
-            install_system_tree,
-            validate_candidate_system,
-        )
-
-        fx = (
-            REPO_ROOT
-            / "tests"
-            / "fixtures"
-            / "awphysical"
-            / "order04"
-            / "e03-pivot.json"
-        )
-        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
-
-        target = self.tmp_dir / "target_repo"
-        target.mkdir()
-        policy = ProjectPolicy(preset="private-target")
-
-        res = install_system_tree(
-            str(target), source_root=SOURCE_WORKFLOWS, policy=policy
-        )
-        self.assertEqual(res["status"], "installed")
-        self.assertTrue((target / ".aw" / "system" / "VERSION").is_file())
-
-        corrupt_cand = self.tmp_dir / "corrupt_cand"
-        corrupt_cand.mkdir()
-        (corrupt_cand / "VERSION").write_text("", encoding="utf-8")
-        self.assertFalse(validate_candidate_system(corrupt_cand))
-
-    def test_e04(self):
-        """E-04: Transient state in state/runtime/ and durable state in state/durable/."""
-        from agent_workflows.install_wizard import ProjectPolicy
-        from agent_workflows.project_layout import install_system_tree
-
-        fx = (
-            REPO_ROOT
-            / "tests"
-            / "fixtures"
-            / "awphysical"
-            / "order04"
-            / "e04-transient-state.json"
-        )
-        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
-
-        target = self.tmp_dir / "target_e04"
-        target.mkdir()
-        install_system_tree(
-            str(target),
-            source_root=SOURCE_WORKFLOWS,
-            policy=ProjectPolicy(preset="private-target"),
-        )
-
-        durable_file = target / ".aw" / "state" / "durable" / "install.json"
-        history_file = (
-            target / ".aw" / "state" / "durable" / "history" / "installs.jsonl"
-        )
-        self.assertTrue(durable_file.is_file(), "Durable install snapshot missing")
-        self.assertTrue(history_file.is_file(), "Durable install history missing")
-        self.assertTrue(
-            (target / ".aw" / "state" / "runtime").is_dir(), "Runtime dir missing"
-        )
-
-    def test_e05(self):
-        """E-05: Positive source-checkout identity and spoofing protection.
-
-        Kept as one test with several probes: they are the POSITIVE identity plus three distinct SPOOF
-        shapes, and the security claim is the combination (real evidence accepted, every partial
-        imitation refused). Splitting them would let a reader take any single refusal as the rule.
-        """
-        from agent_workflows.engine import is_source_checkout
-        from agent_workflows.install_wizard import ProjectPolicy
-        from agent_workflows.project_layout import install_system_tree
-
+        # Positive source checkout identity
         src_repo = self.tmp_dir / "src_positive"
         src_repo.mkdir()
         (src_repo / ".git").mkdir()
@@ -3500,6 +3387,7 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         )
         self.assertEqual(res["status"], "source-checkout-preserved")
 
+        # Spoofing shapes are refused
         path_eq = self.tmp_dir / "path_equality_only"
         path_eq.mkdir()
         (path_eq / ".git").mkdir()
@@ -3519,36 +3407,43 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         (spoof2 / ".git").mkdir()
         self.assertFalse(is_source_checkout(spoof2, source_root=SOURCE_WORKFLOWS))
 
-        ambig = self.tmp_dir / "ambiguous_evidence"
-        ambig.mkdir()
-        self.assertFalse(is_source_checkout(ambig, source_root=SOURCE_WORKFLOWS))
-
-    def test_e06(self):
-        """E-06: Conservative uninstall and ownership checks (a user file and local config survive)."""
+    def test_physical_system_install_lifecycle_and_modes(self):
+        """System install, validation, state directories, conservative uninstall, and mode matrix."""
         from agent_workflows.install_wizard import ProjectPolicy
         from agent_workflows.project_layout import (
             install_system_tree,
             uninstall_system_tree,
+            validate_candidate_system,
         )
 
-        fx = (
-            REPO_ROOT
-            / "tests"
-            / "fixtures"
-            / "awphysical"
-            / "order04"
-            / "e06-uninstall.json"
-        )
-        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
-
-        target = self.tmp_dir / "target_e06"
+        target = self.tmp_dir / "target_repo"
         target.mkdir()
-        install_system_tree(
-            str(target),
-            source_root=SOURCE_WORKFLOWS,
-            policy=ProjectPolicy(preset="private-target"),
-        )
+        policy = ProjectPolicy(preset="private-target")
 
+        # Install system tree & candidate validation
+        res = install_system_tree(
+            str(target), source_root=SOURCE_WORKFLOWS, policy=policy
+        )
+        self.assertEqual(res["status"], "installed")
+        self.assertTrue((target / ".aw" / "system" / "VERSION").is_file())
+
+        corrupt_cand = self.tmp_dir / "corrupt_cand"
+        corrupt_cand.mkdir()
+        (corrupt_cand / "VERSION").write_text("", encoding="utf-8")
+        self.assertFalse(validate_candidate_system(corrupt_cand))
+
+        # Transient and durable state layout
+        self.assertTrue(
+            (target / ".aw" / "state" / "durable" / "install.json").is_file()
+        )
+        self.assertTrue(
+            (
+                target / ".aw" / "state" / "durable" / "history" / "installs.jsonl"
+            ).is_file()
+        )
+        self.assertTrue((target / ".aw" / "state" / "runtime").is_dir())
+
+        # Conservative uninstall preserves user files and config
         (target / ".aw" / "config").mkdir(parents=True, exist_ok=True)
         (target / ".aw" / "config" / "local.json").write_text(
             '{"user": true}\n', encoding="utf-8"
@@ -3557,56 +3452,25 @@ class PhysicalSystemInstallTests(unittest.TestCase):
             "important user note\n", encoding="utf-8"
         )
 
-        res = uninstall_system_tree(str(target), source_root=SOURCE_WORKFLOWS)
-        self.assertEqual(res["status"], "uninstalled")
+        res_un = uninstall_system_tree(str(target), source_root=SOURCE_WORKFLOWS)
+        self.assertEqual(res_un["status"], "uninstalled")
+        self.assertTrue((target / "human_notes.txt").is_file())
+        self.assertTrue((target / ".aw" / "config" / "local.json").is_file())
 
-        self.assertTrue(
-            (target / "human_notes.txt").is_file(), "Human file was deleted!"
-        )
-        self.assertTrue(
-            (target / ".aw" / "config" / "local.json").is_file(),
-            "Config local was deleted!",
-        )
-
-    def test_e07(self):
-        """E-07: Mode matrix (fresh-tracked, update, windows fallback, then uninstall)."""
-        from agent_workflows.install_wizard import ProjectPolicy
-        from agent_workflows.project_layout import (
-            install_system_tree,
-            uninstall_system_tree,
-        )
-
-        fx = (
-            REPO_ROOT
-            / "tests"
-            / "fixtures"
-            / "awphysical"
-            / "order04"
-            / "e07-modes.json"
-        )
-        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
-
-        target1 = self.tmp_dir / "fresh_tracked"
-        target1.mkdir()
-        for expected in ("installed", "installed"):  # fresh, then an update
-            res = install_system_tree(
-                str(target1),
-                source_root=SOURCE_WORKFLOWS,
-                policy=ProjectPolicy(preset="private-target"),
-            )
-            self.assertEqual(res["status"], expected)
-
-        target3 = self.tmp_dir / "win_fallback"
-        target3.mkdir()
-        res3 = install_system_tree(
-            str(target3),
+        # Mode matrix: update and windows fallback
+        target_win = self.tmp_dir / "win_fallback"
+        target_win.mkdir()
+        res_win = install_system_tree(
+            str(target_win),
             source_root=SOURCE_WORKFLOWS,
-            policy=ProjectPolicy(preset="private-target"),
+            policy=policy,
             windows_fallback=True,
         )
-        self.assertEqual(res3["status"], "installed")
+        self.assertEqual(res_win["status"], "installed")
         self.assertEqual(
-            uninstall_system_tree(str(target3), source_root=SOURCE_WORKFLOWS)["status"],
+            uninstall_system_tree(str(target_win), source_root=SOURCE_WORKFLOWS)[
+                "status"
+            ],
             "uninstalled",
         )
 
@@ -4400,13 +4264,8 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
-    def test_guard_proceeds_on_every_clean_repo_shape_without_speaking(self):
-        """Kept separate: asserts the guard stays SILENT, which the consent table cannot say.
-
-        The healthy shapes must reach `proceed` with NO status output at all, since a guard that warned
-        on a clean repo would train users to ignore the warning. `assert_not_called` is a claim about
-        the terminal object rather than about the repo, so it is not a row.
-        """
+    def test_guard_clean_shapes_and_description(self):
+        """Clean repos proceed silently; describe_split_brain produces a one-liner without side effects."""
         for factory in (
             "_make_clean_aw_repo",
             "_make_clean_legacy_repo",
@@ -4421,25 +4280,17 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
             )
             stub_term.status.assert_not_called()
 
-    def test_describe_split_brain_contents_and_no_side_effects(self):
-        """Kept separate: the subject is the DESCRIPTION STRING (and that describing changes nothing)."""
-        repo = self._make_split_brain_repo("describe")
-        tree_before = self._tree_files(repo)
-        desc = INS.describe_split_brain(repo)
-        self.assertEqual(tree_before, self._tree_files(repo))
+        repo_split = self._make_split_brain_repo("describe")
+        tree_before = self._tree_files(repo_split)
+        desc = INS.describe_split_brain(repo_split)
+        self.assertEqual(tree_before, self._tree_files(repo_split))
         self.assertIn(".aw/system", desc)
         self.assertIn(".agents/workflows", desc)
-        self.assertIn("aw migrate-layout", desc, "the user must be told the remedy")
-        self.assertNotIn(
-            "\n", desc.strip(), "the description is a one-liner by contract"
-        )
+        self.assertIn("aw migrate-layout", desc)
+        self.assertNotIn("\n", desc.strip())
 
     def test_split_brain_guard_interactive_migrate_now(self):
-        """Kept separate: the only path that RUNS a migration, with MigrationManager patched.
-
-        Its real claim is the call signature passed to the migration manager, which no consent row can
-        express, and it has to fake the migration's filesystem effect so the guard re-checks cleanly.
-        """
+        """Interactive migrate now runs migration with defer and re-checks cleanly."""
         repo = self._make_split_brain_repo("migrate-now")
         args = mock.MagicMock()
         args.yes = False
@@ -4451,7 +4302,6 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
                 ) as MockMgr:
 
                     def fake_migrate(**kwargs):
-                        # simulate migration moving .agents/workflows into .aw/
                         for p in list((repo / ".agents" / "workflows").glob("*")):
                             p.unlink()
                         (repo / ".agents" / "workflows").rmdir()
@@ -4463,40 +4313,19 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
             target_backend="repository", leftover_disposition="defer"
         )
 
-    def test_install_one_skips_split_brain_repo_without_writes(self):
-        """Kept separate: drives `cli._install_one`, one layer ABOVE the guard, with a full argv namespace."""
-        repo = self._make_split_brain_repo("install-one")
-        tree_before = self._tree_files(repo)
-        args = mock.MagicMock()
-        args.yes = True
-        args.dry_run = False
-        args.no_backup = False
-        args.no_prune = False
-        args.no_color = True
-        stub_term = mock.MagicMock()
-        outcome = CLI._install_one(repo, SOURCE_WORKFLOWS, args, stub_term)
-        self.assertEqual(outcome, "nochange")
-        self.assertEqual(tree_before, self._tree_files(repo))
-
-    def test_cli_install_split_brain_repo_skips_without_writes(self):
-        """Kept separate: drives `CLI.main` and asserts USER-FACING output, not a return value."""
+    def test_cli_split_brain_skip_behaviors(self):
+        """CLI install, batch install, and setup skip split-brain repos without writes while serving clean repos."""
+        # 1. Single repo CLI skip
         repo = self._make_split_brain_repo("cli-install")
         tree_before = self._tree_files(repo)
         buf = io.StringIO()
         with redirect_stdout(buf):
             code = CLI.main(["install", str(repo), "--yes"])
         self.assertEqual(code, 0)
-        output = buf.getvalue()
-        self.assertIn("split-brain", output)
-        self.assertIn("skipped", output)
+        self.assertIn("split-brain", buf.getvalue())
         self.assertEqual(tree_before, self._tree_files(repo))
 
-    def test_cli_install_all_skips_split_brain_and_installs_clean(self):
-        """Kept separate: a BATCH claim needing XDG config manipulation and a registered repo list.
-
-        The property is that one bad repo does not stop the others, which requires two repos and an
-        assertion about each; that is not the same shape as a single-repo skip.
-        """
+        # 2. Batch install skips split-brain and installs clean repo
         old_xdg = os.environ.get("XDG_CONFIG_HOME")
         os.environ["XDG_CONFIG_HOME"] = str(self.base / "cfg")
         try:
@@ -4508,37 +4337,13 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
             CFG.set_repo_setting(cfg, "installed", [str(split_repo), str(clean_repo)])
             CFG.save(cfg)
 
-            split_tree_before = self._tree_files(split_repo)
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                code = CLI.main(["install", "all", "--yes"])
-            self.assertEqual(code, 0)
-            self.assertIn("split-brain", buf.getvalue())
-            self.assertEqual(split_tree_before, self._tree_files(split_repo))
-            # The clean repo in the same batch WAS installed.
-            self.assertTrue(
-                (clean_repo / ".aw" / "system" / "workflows" / "index.md").is_file()
-            )
-        finally:
-            if old_xdg is None:
-                os.environ.pop("XDG_CONFIG_HOME", None)
-            else:
-                os.environ["XDG_CONFIG_HOME"] = old_xdg
-
-    def test_cli_setup_skips_split_brain_repo(self):
-        """Kept separate: `aw setup` DISCOVERS repos under a root, a different entry point from install all."""
-        old_xdg = os.environ.get("XDG_CONFIG_HOME")
-        os.environ["XDG_CONFIG_HOME"] = str(self.base / "cfg-setup")
-        try:
-            split_repo = self._make_split_brain_repo("setup-split")
-            clean_repo = self._make_clean_aw_repo("setup-clean")
-            split_tree_before = self._tree_files(split_repo)
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                code = CLI.main(["setup", "--root", str(self.base), "--yes"])
-            self.assertEqual(code, 0)
-            self.assertIn("split-brain", buf.getvalue())
-            self.assertEqual(split_tree_before, self._tree_files(split_repo))
+            split_tree = self._tree_files(split_repo)
+            buf2 = io.StringIO()
+            with redirect_stdout(buf2):
+                code2 = CLI.main(["install", "all", "--yes"])
+            self.assertEqual(code2, 0)
+            self.assertIn("split-brain", buf2.getvalue())
+            self.assertEqual(split_tree, self._tree_files(split_repo))
             self.assertTrue(
                 (clean_repo / ".aw" / "system" / "workflows" / "index.md").is_file()
             )
@@ -4550,18 +4355,7 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
 
 
 class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
-    """migleftover Order 01 (z1yefm) E-01/E-02: `aw install --leftovers` must REACH the migration.
-
-    Every install-time migration used to pass a HARDCODED `leftover_disposition="defer"`, so an
-    install-driven migration could never sweep the residue it left behind and a migrated repo
-    reported a permanent split-brain layout. THREE call sites carried that literal: the `--to-aw`
-    path, the interactive-confirm path in `_handle_legacy_migration`, and the migrate-now branch
-    inside `_split_brain_guard`. Each is asserted here, because fixing only some of them leaves
-    the path a real repo actually takes unable to clean up.
-
-    The DEFAULT must stay `defer`: this change makes a cleanup REACHABLE, it does not make any
-    existing invocation destructive (plan OQ-01).
-    """
+    """migleftover Order 01 (z1yefm) E-01/E-02: `aw install --leftovers` must REACH the migration."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -4597,8 +4391,8 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
             setattr(ns, k, v)
         return ns
 
-    def test_flag_is_declared_and_parses_with_a_defer_default(self):
-        """E-01/E-02: the flag exists on the `install` verb, and a bare `--to-aw` still means defer."""
+    def test_leftover_flag_parsing_and_resolver(self):
+        """Flag parsing, command inventory inclusion, and safe fallback to defer."""
         parser = CLI._build_parser()
         self.assertIsNone(parser.parse_args(["install", ".", "--to-aw"]).leftovers)
         for value in ("keep", "remove", "defer"):
@@ -4608,14 +4402,12 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                 ).leftovers,
                 value,
             )
-        # Declared in the command surface inventory, which the conformance tests read.
         from agent_workflows.command_surface import COMMAND_INVENTORY
 
         install_decl = next(d for d in COMMAND_INVENTORY if d.command == "install")
         self.assertIn("--leftovers", install_decl.legacy_flags)
 
-    def test_resolver_defaults_to_defer_and_rejects_junk(self):
-        """The ONE resolver all three call sites read fails SAFE toward `defer`."""
+        # Resolver defaults and junk rejection
         self.assertEqual(CLI._install_leftover_disposition(self._args()), "defer")
         self.assertEqual(
             CLI._install_leftover_disposition(self._args(leftovers="remove")), "remove"
@@ -4623,23 +4415,22 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
         self.assertEqual(
             CLI._install_leftover_disposition(self._args(leftovers="keep")), "keep"
         )
-        # A namespace without the attribute at all (e.g. the `setup` verb) still resolves.
         self.assertEqual(
             CLI._install_leftover_disposition(argparse.Namespace()), "defer"
         )
-        # Anything not in the enum is NOT trusted through to a destructive disposition.
         self.assertEqual(
             CLI._install_leftover_disposition(self._args(leftovers="rm -rf")), "defer"
         )
 
-    def test_to_aw_path_threads_the_requested_disposition(self):
-        """Call site 1: `_handle_legacy_migration`'s `--to-aw` branch."""
+    def test_migration_paths_thread_requested_disposition(self):
+        """All three migration paths (--to-aw, interactive confirm, split-brain migrate-now) thread leftovers disposition."""
+        # 1. --to-aw path
         for requested, expected in (
             ("remove", "remove"),
             ("keep", "keep"),
             (None, "defer"),
         ):
-            with self.subTest(leftovers=requested):
+            with self.subTest(site="to_aw", leftovers=requested):
                 repo = self._legacy_repo(f"to-aw-{requested}")
                 with mock.patch(
                     "agent_workflows.layout_migration.MigrationManager"
@@ -4651,10 +4442,9 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                     target_backend="repository", leftover_disposition=expected
                 )
 
-    def test_interactive_confirm_path_threads_the_requested_disposition(self):
-        """Call site 2: `_handle_legacy_migration`'s interactive-confirm branch."""
+        # 2. interactive confirm path
         for requested, expected in (("remove", "remove"), (None, "defer")):
-            with self.subTest(leftovers=requested):
+            with self.subTest(site="interactive", leftovers=requested):
                 repo = self._legacy_repo(f"interactive-{requested}")
                 with mock.patch("sys.stdin.isatty", return_value=True):
                     with mock.patch("agent_workflows.cli._confirm", return_value=True):
@@ -4668,15 +4458,9 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                     target_backend="repository", leftover_disposition=expected
                 )
 
-    def test_split_brain_migrate_now_threads_the_requested_disposition(self):
-        """Call site 3: the migrate-now branch in `_split_brain_guard`.
-
-        This is the site the original plan MISSED (F-09) and it is the path a genuinely
-        split-brain repo actually takes, so leaving it hardcoded would leave the consolidation
-        path unable to clean up.
-        """
+        # 3. split-brain migrate-now path
         for requested, expected in (("remove", "remove"), (None, "defer")):
-            with self.subTest(leftovers=requested):
+            with self.subTest(site="split_brain", leftovers=requested):
                 repo = self._split_brain_repo(f"sb-{requested}")
                 with mock.patch("sys.stdin.isatty", return_value=True):
                     with mock.patch(

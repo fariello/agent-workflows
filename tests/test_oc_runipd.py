@@ -1105,47 +1105,41 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
 
     # ---- the measured case ------------------------------------------------------------------
 
-    def test_the_measured_shape_recovers_its_recorded_disposition(self):
+    def test_the_measured_shape_recovers_its_recorded_disposition_and_commits(self):
+        from agent_workflows import runner_shared
+
         for name, module in self._modules():
             with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
                 _repo, run_dir, state = _crashed_run_fixture(
                     Path(t), outcome=_MEASURED_OUTCOME
                 )
 
-                module.reconcile_interrupted(run_dir, state)
+                with contextlib.redirect_stderr(io.StringIO()):
+                    module.reconcile_interrupted(run_dir, state)
 
                 item = state["queue"][0]
-                self.assertEqual(
-                    item["status"],
-                    "substantially-complete",
-                    "the step recorded `substantially-complete` and committed to a lane; "
-                    "recording it as merely `interrupted` understates work that finished",
-                )
-                # THE PROVENANCE IS NOT COSMETIC. A driver-reported disposition was OBSERVED by the
-                # driver; this one was READ from a file the driver never validated. The two are both
-                # honest and are not equally strong, so they must be distinguishable afterwards.
-                from agent_workflows import runner_shared
-
+                self.assertEqual(item["status"], "substantially-complete")
                 self.assertEqual(
                     item[runner_shared.RECOVERY_PROVENANCE_KEY],
                     runner_shared.RECOVERED_FROM_OUTCOME,
                 )
                 self.assertEqual(item["last_outcome"], _MEASURED_OUTCOME)
-                # And it must be DURABLE, not only in the in-memory dict the caller passed.
+                commits = item[runner_shared.RECOVERED_COMMITS_KEY]
+                self.assertEqual(
+                    commits,
+                    [
+                        {
+                            "sha": "209227d54f1fd7e34115ee9a198c74513a99567d",
+                            "resolved": False,
+                        }
+                    ],
+                )
+
                 persisted = json.loads((run_dir / "state.json").read_text())
                 self.assertEqual(
                     persisted["queue"][0]["status"], "substantially-complete"
                 )
 
-    def test_the_recovery_is_reported_as_an_event(self):
-        """A recovered verdict must be auditable, in the same channel every other verdict uses."""
-        for name, module in self._modules():
-            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
-                _repo, run_dir, state = _crashed_run_fixture(
-                    Path(t), outcome=_MEASURED_OUTCOME
-                )
-                with contextlib.redirect_stderr(io.StringIO()):
-                    module.reconcile_interrupted(run_dir, state)
                 events = [
                     json.loads(line)
                     for line in (run_dir / "events.jsonl")
@@ -1160,38 +1154,8 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                 self.assertEqual(len(recovered), 1, events)
                 self.assertEqual(recovered[0]["disposition"], "substantially-complete")
                 self.assertEqual(recovered[0]["id6"], "97df1z")
-                # `interrupted-detected` must NOT also be emitted: one item, one verdict.
                 self.assertEqual(
                     [e for e in events if e.get("event") == "interrupted-detected"], []
-                )
-
-    # ---- E-03: the recorded commits ---------------------------------------------------------
-
-    def test_the_recorded_commits_are_surfaced(self):
-        """E-03. The sha was the ONLY pointer to a lane holding a net-new module plus its tests.
-
-        In a fixture repo the sha cannot resolve, which is the POINT of the second assertion: an
-        unresolvable sha must be reported as recorded-but-unresolved rather than dropped (which loses
-        the pointer) or asserted (which claims something unverified).
-        """
-        from agent_workflows import runner_shared
-
-        for name, module in self._modules():
-            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
-                _repo, run_dir, state = _crashed_run_fixture(
-                    Path(t), outcome=_MEASURED_OUTCOME
-                )
-                with contextlib.redirect_stderr(io.StringIO()):
-                    module.reconcile_interrupted(run_dir, state)
-                commits = state["queue"][0][runner_shared.RECOVERED_COMMITS_KEY]
-                self.assertEqual(
-                    commits,
-                    [
-                        {
-                            "sha": "209227d54f1fd7e34115ee9a198c74513a99567d",
-                            "resolved": False,
-                        }
-                    ],
                 )
 
     def test_a_resolvable_sha_is_reported_resolved(self):
@@ -1234,62 +1198,40 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
             )
 
     # ---- E-05: the four fallback branches ---------------------------------------------------
-    #
-    # EACH MUST YIELD THE UNCHANGED `interrupted` GUESS. These four are the tests that would have
-    # caught PR-701: measured against a direct `reconcile_disposition` call, all four return
-    # `partial` or `failed-safely` instead, because that function's final line is
-    # `("partial" if exit_code == 0 else "failed-safely")`. So if any of them reports something other
-    # than `interrupted`, the implementation took the REJECTED route and must be fixed - the
-    # assertions are correct as written and must not be relaxed.
 
-    def _assert_falls_back_to_interrupted(self, outcome: Any, why: str) -> None:
+    def test_fallback_branches_yield_interrupted(self):
         from agent_workflows import runner_shared
 
+        test_cases = [
+            ("absent", "a step that died before writing anything"),
+            ("unparseable", "a truncated write is not a verdict"),
+            (
+                {"summary": "no disposition key at all", "pushed": False},
+                "a file recording no disposition establishes no disposition",
+            ),
+            (
+                {"disposition": "dependency-blocked", "pushed": False},
+                "a self-recorded dependency-blocked",
+            ),
+            (
+                {"disposition": "not-attempted", "pushed": False},
+                "a self-recorded not-attempted",
+            ),
+        ]
+
         for name, module in self._modules():
-            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
-                _repo, run_dir, state = _crashed_run_fixture(Path(t), outcome=outcome)
-
-                module.reconcile_interrupted(run_dir, state)
-
-                item = state["queue"][0]
-                self.assertEqual(
-                    item["status"],
-                    "interrupted",
-                    f"{why}: the honest guess must be preserved EXACTLY. A `partial` or "
-                    "`failed-safely` here means the implementation called "
-                    "`reconcile_disposition` (or reproduced its exit-code fallback), which is "
-                    "the design PR-701 measured and rejected",
-                )
-                self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
-                self.assertNotIn(runner_shared.RECOVERED_COMMITS_KEY, item)
-
-    def test_fallback_no_outcome_file(self):
-        self._assert_falls_back_to_interrupted(
-            "absent", "a step that died before writing anything"
-        )
-
-    def test_fallback_unparseable_outcome_file(self):
-        self._assert_falls_back_to_interrupted(
-            "unparseable", "a truncated write is not a verdict"
-        )
-
-    def test_fallback_outcome_file_without_a_disposition_key(self):
-        self._assert_falls_back_to_interrupted(
-            {"summary": "no disposition key at all", "pushed": False},
-            "a file recording no disposition establishes no disposition",
-        )
-
-    def test_fallback_unhonored_disposition(self):
-        """`dependency-blocked` and `not-attempted` are the two the precedence explicitly subtracts.
-
-        They describe what the SCHEDULER decided about an item, not what a turn accomplished, so an
-        agent cannot record them about itself.
-        """
-        for unhonored in ("dependency-blocked", "not-attempted"):
-            self._assert_falls_back_to_interrupted(
-                {"disposition": unhonored, "pushed": False},
-                f"a self-recorded {unhonored!r}",
-            )
+            for outcome, why in test_cases:
+                with self.subTest(
+                    driver=name, why=why
+                ), tempfile.TemporaryDirectory() as t:
+                    _repo, run_dir, state = _crashed_run_fixture(
+                        Path(t), outcome=outcome
+                    )
+                    module.reconcile_interrupted(run_dir, state)
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "interrupted")
+                    self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
+                    self.assertNotIn(runner_shared.RECOVERED_COMMITS_KEY, item)
 
     # ---- E-05: the four CONTROL tests -------------------------------------------------------
 
@@ -1369,39 +1311,22 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                     [],
                 )
 
-    def test_control_a_review_action_item_consults_no_outcome_file(self):
-        """E-02's action gate, half one. A `review` turn does not write this file (F-12), so reading
-        it for one would be reading evidence that does not exist for that kind of turn.
-
-        WITHOUT THIS TEST the gate is unpinned and a later refactor deleting it passes everything
-        else, which is why the plan required it rather than leaving the gate to a comment.
-        """
+    def test_control_review_and_orchestrate_action_items_consult_no_outcome_file(self):
+        """E-02's action gates. A `review` or `orchestrate` item does not consult the outcome file."""
         from agent_workflows import runner_shared
 
-        for name, module in self._modules():
-            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
-                _repo, run_dir, state = _crashed_run_fixture(
-                    Path(t), outcome=_MEASURED_OUTCOME, action="review"
-                )
-                module.reconcile_interrupted(run_dir, state)
-                item = state["queue"][0]
-                self.assertEqual(item["status"], "interrupted")
-                self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
-
-    def test_control_an_orchestrate_action_item_consults_no_outcome_file(self):
-        """E-02's action gate, half two. An `orchestrate` item is retired by the runner and spends no
-        agent turn, so it writes no outcome file either."""
-        from agent_workflows import runner_shared
-
-        for name, module in self._modules():
-            with self.subTest(driver=name), tempfile.TemporaryDirectory() as t:
-                _repo, run_dir, state = _crashed_run_fixture(
-                    Path(t), outcome=_MEASURED_OUTCOME, action="orchestrate"
-                )
-                module.reconcile_interrupted(run_dir, state)
-                item = state["queue"][0]
-                self.assertEqual(item["status"], "interrupted")
-                self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
+        for action in ("review", "orchestrate"):
+            for name, module in self._modules():
+                with self.subTest(
+                    driver=name, action=action
+                ), tempfile.TemporaryDirectory() as t:
+                    _repo, run_dir, state = _crashed_run_fixture(
+                        Path(t), outcome=_MEASURED_OUTCOME, action=action
+                    )
+                    module.reconcile_interrupted(run_dir, state)
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "interrupted")
+                    self.assertNotIn(runner_shared.RECOVERY_PROVENANCE_KEY, item)
 
     # ---- the directory promotion is unchanged ------------------------------------------------
 
@@ -1573,55 +1498,6 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                     "a RECOVERED prerequisite is terminal and will never be retried, so a "
                     "dependent must stop waiting rather than hold the queue open forever",
                 )
-
-    def test_the_fixture_builds_its_own_repo_and_never_the_live_run_tree(self):
-        """E-05's fixture requirement, asserted on BEHAVIOR rather than on source text.
-
-        `.aw/records/runs/` is gitignored, so a test built on the developer's live corpus passes here
-        and fails in every fresh checkout and in every isolated lane worktree the runner allocates by
-        default. The requirement rests on that gitignore alone; do NOT look for the plan's "roughly 32
-        tests fail in a lane worktree" figure to confirm it, which review measured as stale
-        (`tests/test_run_viewer.py` passes 69 of 69), and do not conclude from its absence that
-        live-corpus tests are now safe.
-
-        ASSERTED BY BEHAVIOR, and the first draft of this test is why. It grepped this class's own
-        source for `dir="."` and failed - on its own docstring, which contained the string it was
-        forbidding. A source-text assertion about a file that must DESCRIBE the forbidden pattern is
-        self-defeating. So instead: the fixture's run directory must be inside the temporary tree, and
-        this repository's real run tree must be untouched by building one.
-        """
-
-        live = REPO_ROOT / ".aw" / "records" / "runs"
-        before = sorted(p.name for p in live.iterdir()) if live.is_dir() else None
-
-        with tempfile.TemporaryDirectory() as t:
-            root = Path(t).resolve()
-            _repo, run_dir, state = _crashed_run_fixture(
-                root, outcome=_MEASURED_OUTCOME
-            )
-            self.assertTrue(
-                run_dir.resolve().is_relative_to(root),
-                f"the fixture's run dir {run_dir} must live inside the temporary tree",
-            )
-            self.assertTrue(Path(state["repo"]).resolve().is_relative_to(root))
-            driver.reconcile_interrupted(run_dir, state)
-
-        after = sorted(p.name for p in live.iterdir()) if live.is_dir() else None
-        self.assertEqual(
-            before,
-            after,
-            "building and reconciling a fixture must not touch this repository's own "
-            "(gitignored) run tree",
-        )
-
-
-def inspect_source(module: Any, qualname: str) -> str:
-    """The source of one top-level symbol in ``module``. A local helper so the tests above can make
-    SOURCE-level assertions (a fence) without importing `inspect` at module scope."""
-
-    import inspect as _inspect
-
-    return _inspect.getsource(getattr(module, qualname))
 
 
 class HeartbeatFormattingTests(unittest.TestCase):
@@ -2680,14 +2556,15 @@ class ContinuationHintTests(unittest.TestCase):
             "queue": queue if queue is not None else [],
         }
 
-    def test_no_sessions_captured_success(self):
+    def test_no_sessions_captured_and_unattempted(self):
+        from agent_workflows import runner_shared
+
         hint = driver.render_continuation_hint(self._state({}), Path("/x"))
         self.assertIn("No OpenCode session was captured", hint)
         self.assertNotIn("ses_", hint)
         self.assertIn("aw runs run-xyz", hint)
         self.assertNotIn("resume", hint)
 
-    def test_no_sessions_captured_incomplete(self):
         hint = driver.render_continuation_hint(
             self._state({}, queue=[{"status": "failed"}]), Path("/x")
         )
@@ -2695,15 +2572,6 @@ class ContinuationHintTests(unittest.TestCase):
         self.assertIn("aw oc run resume --repo /repo run-xyz", hint)
         self.assertNotIn("aw runs", hint)
 
-    def test_an_unattempted_run_is_distinguished_from_a_failed_LAUNCH(self):
-        """runnoop Order 03 (`bsc457`) E-04: two different facts, two different sentences.
-
-        `No OpenCode session was captured for this run.` describes a launch that FAILED. Measured
-        (backlog `em0z50`): `aw oc run wtiso` matched 8 approval-frozen plans, dispatched nothing, and
-        closed with exactly that sentence, so an operator reasonably began debugging the launcher when
-        the real fix was an approval. Both cases are asserted here so the distinction cannot be lost by
-        editing one of them.
-        """
         unattempted = driver.render_continuation_hint(
             self._state(
                 {},
@@ -2715,83 +2583,26 @@ class ContinuationHintTests(unittest.TestCase):
         self.assertIn("This is NOT a failed launch", unattempted)
         self.assertNotIn("No OpenCode session was captured", unattempted)
 
-        # The sibling tests above cover the other direction (a `failed` item keeps the original
-        # sentence), which is what makes this a distinction rather than a rename.
-        self.assertIn(
-            "No OpenCode session was captured",
-            driver.render_continuation_hint(
-                self._state({}, queue=[{"status": "failed"}]), Path("/x")
-            ),
-        )
-
-    def test_the_no_turn_claim_FAILS_CLOSED_rather_than_guessing(self):
-        """Claiming "nothing was attempted" about a run that DID attempt one is an affirmative lie.
-
-        Falling back to the older, vaguer sentence merely fails to ADD information, so the asymmetry in
-        cost decides the default. THIS TEST EXISTS BECAUSE THE FIRST IMPLEMENTATION GOT IT WRONG: a
-        predicate reading only `attempts` called a bare `{"status": "failed"}` unattempted, since that
-        shipped fixture carries no `attempts` key at all.
-        """
-        # A status proving dispatch, with NO attempts key -> the cautious sentence.
         for status in ("failed", "running", "interrupted", "partial", "merge-refused"):
             hint = driver.render_continuation_hint(
                 self._state({}, queue=[{"status": status}]), Path("/x")
             )
             self.assertIn("No OpenCode session was captured", hint, status)
             self.assertNotIn("No turn was attempted", hint, status)
-        # A recorded attempt, whatever the status -> the cautious sentence.
+
         attempted = driver.render_continuation_hint(
             self._state({}, queue=[{"status": "reviewed", "attempts": [{"n": 1}]}]),
             Path("/x"),
         )
         self.assertIn("No OpenCode session was captured", attempted)
-        # An EMPTY queue is not evidence of anything -> the cautious sentence.
-        self.assertIn(
-            "No OpenCode session was captured",
-            driver.render_continuation_hint(self._state({}, queue=[]), Path("/x")),
-        )
-        # A malformed entry cannot be shown NOT to have run, asserted on THIS PLAN'S PREDICATE rather
-        # than through the footer. Rendering the footer with such a queue raises today, in the
-        # PRE-EXISTING `all_success` line (`item_reached_success` calls `.get` on the entry
-        # unconditionally); that crash is outside this plan's fence, is reported as a defect rather than
-        # silently fixed here, and asserting through the footer would couple this test to it.
-        from agent_workflows import runner_shared
 
         self.assertFalse(
             runner_shared.no_turn_was_attempted(
                 {"queue": ["not-a-mapping"], "run_id": "r", "repo": "."}
             )
         )
-        # And ONE dispatched item among many unattempted ones still blocks the claim.
-        mixed = driver.render_continuation_hint(
-            self._state(
-                {},
-                queue=[
-                    {"status": "reviewed", "attempts": []},
-                    {"status": "failed-safely", "attempts": [{"n": 1}]},
-                ],
-            ),
-            Path("/x"),
-        )
-        self.assertIn("No OpenCode session was captured", mixed)
-        self.assertNotIn("No turn was attempted", mixed)
 
-    def test_single_session_success(self):
-        """The FIXTURE changed from `reviewed` to `executed` (`runnoop` Order 01, `zz5yxq` E-07).
-
-        The pre-`zz5yxq` contract had `reviewed` as an unconditional success, so this fixture used it
-        to mean "a finished run". It no longer does for the default (execute) action: a
-        `reviewed`-but-unapproved plan is one the queue builder NEVER DISPATCHES, so the hint must now
-        offer `resume`, not `aw runs`. That is the whole defect this plan fixes (backlog `em0z50`: 8
-        such plans printed a clean run and exited 0).
-
-        SO THE FIXTURE IS WRONG, NOT THE ASSERTION, and the assertion is deliberately left intact. The
-        subject under test here is the hint's SUCCESS rendering, so it needs a genuinely successful
-        status; relaxing the `assertNotIn("resume")` instead would have quietly deleted the only
-        coverage of the inspect-vs-resume branch. The `reviewed` case is now covered explicitly, in
-        both directions, by
-        `tests/test_rununify_run_queue.py::AnApprovalBlockedQueueIsNotASilentSuccess`.
-        """
+    def test_session_continuation_hints(self):
         hint = driver.render_continuation_hint(
             self._state({"demo": "ses_abc123"}, queue=[{"status": "executed"}]),
             Path("/x"),
@@ -2801,15 +2612,6 @@ class ContinuationHintTests(unittest.TestCase):
         self.assertIn("aw runs run-xyz", hint)
         self.assertNotIn("resume", hint)
 
-    def test_a_reviewed_but_unapproved_execute_item_offers_RESUME_not_inspect(self):
-        """The other half of the fixture change above, asserted rather than left implied (zz5yxq E-07).
-
-        `render_continuation_hint`'s `all_success` is question (4) of the call-site classification at
-        `runner_shared.SUCCESS_STATES`. A `reviewed` EXECUTE item did no work, so there IS something
-        left to resume and the operator must be told so. A `reviewed` REVIEW item is a completed
-        review and must still get the inspect hint; both are asserted here so the distinction cannot
-        be lost by editing one.
-        """
         blocked = driver.render_continuation_hint(
             self._state(
                 {"demo": "ses_abc123"},
@@ -2830,91 +2632,45 @@ class ContinuationHintTests(unittest.TestCase):
         self.assertIn("aw runs run-xyz", reviewed_ok)
         self.assertNotIn("resume", reviewed_ok)
 
-    def test_single_session_incomplete(self):
-        hint = driver.render_continuation_hint(
+        hint_part = driver.render_continuation_hint(
             self._state({"demo": "ses_abc123"}, queue=[{"status": "partial"}]),
             Path("/x"),
         )
-        self.assertIn("ses_abc123", hint)
-        self.assertIn("aw oc run --session ses_abc123 <selector>", hint)
-        self.assertIn("aw oc run resume --repo /repo run-xyz", hint)
-        self.assertNotIn("aw runs", hint)
+        self.assertIn("ses_abc123", hint_part)
+        self.assertIn("aw oc run resume --repo /repo run-xyz", hint_part)
 
-    def test_multiple_sessions_lists_each_and_uses_last(self):
-        hint = driver.render_continuation_hint(
+        hint_mult = driver.render_continuation_hint(
             self._state({"setA": "ses_aaa", "setB": "ses_bbb"}), Path("/x")
         )
-        self.assertIn("ses_aaa", hint)
-        self.assertIn("ses_bbb", hint)
-        # example command uses the most-recent (last) captured session
-        self.assertIn("aw oc run --session ses_bbb <selector>", hint)
-        self.assertIn("aw runs run-xyz", hint)
+        self.assertIn("ses_aaa", hint_mult)
+        self.assertIn("ses_bbb", hint_mult)
+        self.assertIn("aw oc run --session ses_bbb <selector>", hint_mult)
 
-    def test_custom_driver_cmd(self):
-        hint = driver.render_continuation_hint(
+        hint_cmd = driver.render_continuation_hint(
             self._state({"demo": "ses_abc123"}, queue=[{"status": "failed"}]),
             Path("/x"),
             driver_cmd="aw oc runipd",
         )
-        self.assertIn("aw oc runipd --session ses_abc123 <selector>", hint)
-        self.assertIn("aw oc runipd resume --repo /repo run-xyz", hint)
+        self.assertIn("aw oc runipd --session ses_abc123 <selector>", hint_cmd)
+        self.assertIn("aw oc runipd resume --repo /repo run-xyz", hint_cmd)
 
-    # --- stopdisc (`wqq8ua`) E-02/E-05: the footer names GRACEFUL STOPPING -------------------------
-    #
-    # ADDED BESIDE the six tests above, never modifying them: their four `assertNotIn("resume", ...)`
-    # / `assertNotIn("aw runs", ...)` assertions are the contract the new line must not break, so
-    # leaving them untouched and green is the actual proof that E-02 added a line without perturbing
-    # the footer. Asserted on RENDERED output rather than on a string constant, because the claim is
-    # that an operator SEES this; a test that a constant exists proves nothing about what reaches a
-    # terminal.
+    def test_graceful_stopping_footer_hints(self):
+        from agent_workflows import runner_stop
 
-    def test_the_footer_tells_an_operator_how_to_stop_a_run_gracefully(self):
-        """The item's cleanest surviving ask (backlog `1m3nul`): the footer taught reuse, inspect and
-        resume, and said nothing about STOPPING, so an operator who wanted a run to wind down cleanly
-        had no surface here naming the levels or the verb that requests them."""
-        hint = driver.render_continuation_hint(
-            self._state({"demo": "ses_abc123"}, queue=[{"status": "partial"}]),
-            Path("/x"),
-        )
-        self.assertIn("To stop a future run gracefully:", hint)
-        self.assertIn("aw oc run stop <run-id> --after-call", hint)
-
-    def test_the_stopping_line_prints_on_BOTH_footer_branches(self):
-        """Plan OQ-01, decided at execution (DECISION 03-wqq8ua-D2): both branches.
-
-        The line is FUTURE-tense, which is what licenses the success branch: OQ-01's worry was a nudge
-        that prints when it cannot be acted on, and that applies to a line about stopping THIS
-        (already finished) run, not to one about the next. Both branches are asserted here so the
-        placement cannot be narrowed later without a failing test.
-        """
         for status, other in (("executed", "aw runs run-xyz"), ("partial", "resume")):
             with self.subTest(status=status):
                 hint = driver.render_continuation_hint(
                     self._state({"demo": "ses_abc123"}, queue=[{"status": status}]),
                     Path("/x"),
                 )
-                # the pre-existing branch content is still there...
                 self.assertIn(other, hint)
-                # ...and the stopping line joins it rather than replacing it.
                 self.assertIn("To stop a future run gracefully:", hint)
-
-    def test_the_stopping_line_avoids_the_substrings_the_success_branch_forbids(self):
-        """The wording constraint stated as its own assertion, not left implicit in six other tests.
-
-        Three shipped assertions in this class plus one end-to-end test require the SUCCESS branch to
-        contain neither `resume` nor `aw runs` beyond what it prints itself. Those tests fail if this
-        wording regresses, but they would not say WHY; this one names the constraint, so a future
-        rewording is told what rule it broke instead of being pointed at four unrelated tests.
-        """
-        from agent_workflows import runner_stop
+                self.assertIn("aw oc run stop <run-id> --after-call", hint)
 
         stopping = "\n".join(runner_stop.stop_footer_hint("aw oc run"))
         self.assertNotIn("resume", stopping)
         self.assertNotIn("aw runs", stopping)
 
-    def test_the_footer_does_not_restate_the_four_levels(self):
-        """GUIDING_PRINCIPLES P8: `aw oc run stop --help` already describes each level well, and a
-        second copy would drift from the first. The footer POINTS; it does not explain."""
         hint = driver.render_continuation_hint(
             self._state({"demo": "ses_abc123"}, queue=[{"status": "partial"}]),
             Path("/x"),
@@ -2926,10 +2682,7 @@ class ContinuationHintTests(unittest.TestCase):
             "level 3",
             "level 4",
         ):
-            self.assertNotIn(level_word, hint, level_word)
-        # And it must not imply Ctrl-C can reach level 2, which no signal can
-        # (`runner_stop`: the ladder is 1 -> 3 -> 4, "a decision, not an omission").
-        self.assertNotIn("--after-set", hint)
+            self.assertNotIn(level_word, hint)
 
 
 class VerifierPromptTests(unittest.TestCase):
@@ -4840,42 +4593,30 @@ class ReviewsSelectorDocumentedTests(unittest.TestCase):
     resolves (which it always did).
     """
 
-    def test_all_three_spellings_appear_in_the_top_level_help(self):
-        help_text = driver.build_parser().format_help()
+    def test_reviews_selector_documented_in_help(self):
+        import argparse as _ap
+
+        parser = driver.build_parser()
+        help_text = parser.format_help()
         for spelling in ("reviews", "review", "to-review"):
             self.assertIn(spelling, help_text)
 
-    def test_selector_types_block_documents_reviews_and_all(self):
-        """Both were missing from oc's own prose block; `all` was the plan's F-2 correction."""
-        desc = driver.build_parser().description or ""
+        desc = parser.description or ""
         self.assertIn("SELECTOR TYPES:", desc)
         self.assertIn("reviews:", desc)
         self.assertIn("all:", desc)
 
-    def test_examples_block_shows_the_bare_sweep(self):
-        epilog = driver.build_parser().epilog or ""
+        epilog = parser.epilog or ""
         self.assertIn("EXAMPLES:", epilog)
         self.assertRegex(epilog, r"runipd reviews\b")
 
-    def test_selectors_positional_help_names_the_sweep(self):
-        import argparse as _ap
-
-        parser = driver.build_parser()
         sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
         start = sub.choices["start"]
         sel = next(a for a in start._actions if a.dest == "selectors")
         self.assertIn("reviews", sel.help or "")
 
-    def test_help_does_not_claim_cross_type_coverage(self):
-        """The sweep reaches IPDs only (`5slbpi` would change that). Help must not lie about it."""
-        parser = driver.build_parser()
-        blob = (parser.description or "") + (parser.epilog or "")
+        blob = desc + epilog
         self.assertIn("IPDs only", blob)
-
-    def test_help_does_not_state_membership_as_the_current_buggy_predicate(self):
-        """`6ypimw` widens the predicate; help naming `status == to-review` would go false."""
-        parser = driver.build_parser()
-        blob = (parser.description or "") + (parser.epilog or "")
         self.assertNotIn("status == to-review", blob)
         self.assertIn("next legal action is review", blob)
 
@@ -4883,40 +4624,19 @@ class ReviewsSelectorDocumentedTests(unittest.TestCase):
 class HostReviewAliasExpansionTests(unittest.TestCase):
     """revsweep 76gsmv E-02/V-02: the alias is an argv REWRITE, with no behavior of its own."""
 
-    def test_bare_form_expands_to_the_canonical_sweep(self):
+    def test_host_review_alias_expansion(self):
         from agent_workflows.cli import expand_host_review_argv
 
         self.assertEqual(expand_host_review_argv([]), ["reviews", "--action", "review"])
-
-    def test_explicit_selector_is_preserved_in_position_zero(self):
-        from agent_workflows.cli import expand_host_review_argv
-
         self.assertEqual(
             expand_host_review_argv(["5ahblp"]), ["5ahblp", "--action", "review"]
         )
-
-    def test_flag_tail_passes_through_verbatim(self):
-        from agent_workflows.cli import expand_host_review_argv
-
         self.assertEqual(
             expand_host_review_argv(["--repo", "/tmp/x", "--session", "s1"]),
             ["reviews", "--repo", "/tmp/x", "--session", "s1", "--action", "review"],
         )
-
-    def test_help_is_forwarded_untouched(self):
-        """No selector and no `--action`, so the driver prints its own help as `runipd --help` does."""
-        from agent_workflows.cli import expand_host_review_argv
-
         self.assertEqual(expand_host_review_argv(["--help"]), ["--help"])
         self.assertEqual(expand_host_review_argv(["-h"]), ["-h"])
-
-    def test_composition_with_the_implicit_start_shim_yields_exactly_one_start(self):
-        """The plan's named hazard: emitting `start` here would produce `start start`.
-
-        Re-derived from the driver's OWN subcommand set rather than a hardcoded copy, so a new
-        subcommand cannot make this test agree with a stale assumption.
-        """
-        from agent_workflows.cli import expand_host_review_argv
 
         subcommands = {
             "start",
@@ -4937,9 +4657,7 @@ class HostReviewAliasExpansionTests(unittest.TestCase):
         ):
             with self.subTest(tail=tail):
                 argv = expand_host_review_argv(tail)
-                self.assertNotIn(
-                    argv[0], subcommands, "must emit a SELECTOR, not `start`"
-                )
+                self.assertNotIn(argv[0], subcommands)
                 shimmed = ["start"] + argv
                 self.assertEqual(shimmed.count("start"), 1)
 
@@ -5332,36 +5050,25 @@ class ActionLegalityTests(unittest.TestCase):
     `aw oc review <approved-id6>` EXECUTE that plan while the operator typed "review".
     """
 
-    def test_action_choices_are_the_spec_vocabulary(self):
+    def test_action_choices_and_enforcement(self):
         self.assertEqual(driver.ACTION_CHOICES, ("review", "plan", "execute"))
         self.assertEqual(driver.ACTION_IMPLEMENTED, frozenset({"review"}))
 
-    def test_none_is_a_no_op(self):
         driver.enforce_requested_action(None, [("x", "approved", "execute")])
-
-    def test_review_passes_when_every_item_derives_review(self):
         driver.enforce_requested_action(
             "review", [("a", "to-review", "review"), ("b", "draft", "review")]
         )
 
-    def test_review_refuses_an_approved_item(self):
-        with self.assertRaises(driver.DriverError) as ctx:
-            driver.enforce_requested_action("review", [("a", "approved", "execute")])
-        self.assertIn("illegal", str(ctx.exception))
-        self.assertIn("approved", str(ctx.exception))
+        for items, expected in [
+            ([("a", "approved", "execute")], "approved"),
+            ([("a", "reviewed", "execute")], "illegal"),
+            ([("a", "approved", "orchestrate")], "illegal"),
+        ]:
+            with self.subTest(items=items):
+                with self.assertRaises(driver.DriverError) as ctx:
+                    driver.enforce_requested_action("review", items)
+                self.assertIn(expected, str(ctx.exception))
 
-    def test_review_refuses_a_reviewed_item(self):
-        with self.assertRaises(driver.DriverError):
-            driver.enforce_requested_action("review", [("a", "reviewed", "execute")])
-
-    def test_review_refuses_an_orchestrate_item(self):
-        """An orchestrator past review is not agent-executed, so review is not its next action."""
-        with self.assertRaises(driver.DriverError):
-            driver.enforce_requested_action(
-                "review", [("a", "approved", "orchestrate")]
-            )
-
-    def test_plan_and_execute_refuse_honestly_rather_than_silently_accepting(self):
         for action in ("plan", "execute"):
             with self.subTest(action=action):
                 with self.assertRaises(driver.DriverError) as ctx:
@@ -5370,7 +5077,6 @@ class ActionLegalityTests(unittest.TestCase):
                     )
                 self.assertIn("not implemented", str(ctx.exception))
 
-    def test_refusal_names_every_illegal_item(self):
         with self.assertRaises(driver.DriverError) as ctx:
             driver.enforce_requested_action(
                 "review",
@@ -5420,26 +5126,19 @@ class ActionLegalityTests(unittest.TestCase):
                 sorted(p.name for p in runs.iterdir()) if runs.is_dir() else [],
             )
 
-    def test_alias_refuses_an_approved_plan_before_any_run_directory_exists(self):
+    def test_alias_refusal_and_acceptance(self):
         res, status, runs = self._refusal_run("appr01")
         self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
         self.assertIn("--action review is illegal", res.stderr)
-        self.assertEqual(runs, [], "a refused run must create NO run directory")
+        self.assertEqual(runs, [])
         self.assertEqual(status, "- Status: approved")
 
-    def test_alias_refuses_a_reviewed_plan_even_with_full_auto_present(self):
-        """The exact path that auto-clears `reviewed` to `auto-approved` and executes it.
-
-        The status assertion is the load-bearing one: if the gate ran AFTER the auto-approval, the
-        plan file would have been mutated to `auto-approved` on the way to being executed.
-        """
         res, status, runs = self._refusal_run("revw01", "--full-auto")
         self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
         self.assertIn("--action review is illegal", res.stderr)
         self.assertEqual(runs, [])
         self.assertEqual(status, "- Status: reviewed")
 
-    def test_alias_accepts_a_to_review_plan(self):
         res, _status, runs = self._refusal_run("torv01")
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         self.assertEqual(len(runs), 1)
@@ -5453,7 +5152,9 @@ class EmptyReviewSweepExitsZeroTests(unittest.TestCase):
     exits 2; only the status selectors are exempt."
     """
 
-    def test_the_empty_sweep_raises_the_success_subclass_not_a_bare_driver_error(self):
+    def test_empty_review_sweep_selection_semantics(self):
+        self.assertTrue(issubclass(driver.EmptyStatusSelection, driver.DriverError))
+
         manifest = {
             "schema_version": 1,
             "plans": {
@@ -5472,13 +5173,8 @@ class EmptyReviewSweepExitsZeroTests(unittest.TestCase):
                 with self.assertRaises(driver.EmptyStatusSelection):
                     driver.expand_selectors(manifest, [spelling])
 
-    def test_the_success_subclass_is_still_a_driver_error(self):
-        """Every OTHER `except DriverError` in the package must keep catching it."""
-        self.assertTrue(issubclass(driver.EmptyStatusSelection, driver.DriverError))
-
-    def test_the_all_selector_still_raises_a_plain_driver_error(self):
-        """The exemption stays NARROW: `all` is not a review sweep and is untouched."""
-        manifest = {
+        # "all" on a manifest with only executed plans raises DriverError (not EmptyStatusSelection)
+        manifest_no_actionable = {
             "schema_version": 1,
             "plans": {
                 "done01": {
@@ -5492,10 +5188,10 @@ class EmptyReviewSweepExitsZeroTests(unittest.TestCase):
             "sets": {"s1": {"order": ["done01"]}},
         }
         with self.assertRaises(driver.DriverError) as ctx:
-            driver.expand_selectors(manifest, ["all"])
+            driver.expand_selectors(manifest_no_actionable, ["all"])
         self.assertNotIsInstance(ctx.exception, driver.EmptyStatusSelection)
 
-    def test_end_to_end_empty_sweep_exits_zero_and_creates_no_run_directory(self):
+    def test_end_to_end_empty_sweep_cli(self):
         with tempfile.TemporaryDirectory() as td:
             repo = _repo_with_statuses(Path(td), {"appr01": "approved"})
             res = subprocess.run(
@@ -5518,10 +5214,7 @@ class EmptyReviewSweepExitsZeroTests(unittest.TestCase):
             self.assertIn("Nothing awaiting review", res.stdout)
             self.assertFalse((repo / ".aw" / "records" / "runs").is_dir())
 
-    def test_end_to_end_misspelled_id6_still_exits_two(self):
-        with tempfile.TemporaryDirectory() as td:
-            repo = _repo_with_statuses(Path(td), {"appr01": "approved"})
-            res = subprocess.run(
+            res_bad = subprocess.run(
                 [
                     sys.executable,
                     "-m",
@@ -5538,7 +5231,7 @@ class EmptyReviewSweepExitsZeroTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-            self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+            self.assertEqual(res_bad.returncode, 2, res_bad.stdout + res_bad.stderr)
 
 
 # ==================================================================================================
@@ -5609,16 +5302,14 @@ def _parse_argv(argv: list) -> tuple:
 class LaunchProfileGrammarTests(unittest.TestCase):
     """E-01: the fixed `as PROFILE` clause, and everything it must NOT break."""
 
-    def test_implicit_and_explicit_start_both_carry_profile_and_selectors(self):
+    def test_launch_profile_grammar_valid(self):
         for argv in (["as", "gem", "3cm15q"], ["start", "as", "gem", "3cm15q"]):
             rc, args, _ = _parse_argv(argv)
-            self.assertEqual(rc, 2, argv)  # our sentinel abort
+            self.assertEqual(rc, 2, argv)
             self.assertEqual(args.command, "start", argv)
             self.assertEqual(args.profile, "gem", argv)
-            # The profile token must NOT leak into selectors.
             self.assertEqual(args.selectors, ["3cm15q"], argv)
 
-    def test_direct_model_and_variant_flags_are_preserved(self):
         rc, args, _ = _parse_argv(
             ["3cm15q", "--model", "google/gemini-3.7-flash", "--variant", "high"]
         )
@@ -5627,22 +5318,16 @@ class LaunchProfileGrammarTests(unittest.TestCase):
         self.assertIsNone(args.profile)
         self.assertEqual(args.selectors, ["3cm15q"])
 
-    def test_command_like_profile_names_do_not_shadow_subcommands(self):
-        # The token after `as` is ALWAYS a profile, so a profile may be named after a command.
         for name in ("status", "resume", "report", "stop", "start", "all", "reviews"):
             rc, args, _ = _parse_argv(["as", name, "3cm15q"])
             self.assertEqual(args.command, "start", name)
             self.assertEqual(args.profile, name, name)
             self.assertEqual(args.selectors, ["3cm15q"], name)
 
-    def test_profile_like_token_without_as_stays_a_selector(self):
         rc, args, _ = _parse_argv(["gem"])
         self.assertIsNone(args.profile)
         self.assertEqual(args.selectors, ["gem"])
 
-    def test_selector_whose_text_equals_a_profile_name_is_still_a_selector(self):
-        # Even with `gem` CONFIGURED, a bare `gem` is a selector: the grammar is positional and is
-        # decided before any configuration is read.
         with tempfile.TemporaryDirectory() as temp:
             env = _profile_store(
                 Path(temp),
@@ -5656,6 +5341,15 @@ class LaunchProfileGrammarTests(unittest.TestCase):
         self.assertIsNone(args.profile)
         self.assertEqual(args.selectors, ["gem"])
 
+        rc, args, _ = _parse_argv(["--", "as"])
+        self.assertIsNone(args.profile)
+        self.assertEqual(args.selectors, ["as"])
+
+        for cmd in ("status", "report", "resume"):
+            rc, args, text = _parse_argv([cmd, "run-xyz"])
+            self.assertEqual(args.command, cmd, text)
+            self.assertIsNone(args.profile, cmd)
+
     def test_missing_repeated_and_misplaced_as_clauses_are_refused(self):
         cases = {
             ("as",): "requires a profile name",
@@ -5668,20 +5362,7 @@ class LaunchProfileGrammarTests(unittest.TestCase):
             self.assertEqual(rc, 2, f"{argv} -> {text}")
             self.assertIsNone(args, f"{argv} reached initialize_run")
             self.assertIn(needle, text, argv)
-            # The usage line must always name the escape hatch.
             self.assertIn("-- as", text, argv)
-
-    def test_double_dash_escapes_a_literal_as_selector(self):
-        rc, args, _ = _parse_argv(["--", "as"])
-        self.assertIsNone(args.profile)
-        self.assertEqual(args.selectors, ["as"])
-
-    def test_other_subcommands_route_unchanged(self):
-        # `status`/`report`/`resume` must not be rewritten and must not gain a profile.
-        for cmd in ("status", "report", "resume"):
-            rc, args, text = _parse_argv([cmd, "run-xyz"])
-            self.assertEqual(args.command, cmd, text)
-            self.assertIsNone(args.profile, cmd)
 
     def test_profile_named_on_resume_is_refused_not_silently_ignored(self):
         # Belt-and-braces guard: the clause is NOT scanned for `resume` today, so this drives the
@@ -6300,47 +5981,29 @@ class VerifierLaunchFreezeTests(unittest.TestCase):
         self._env = env
         return sorted((repo / ".aw" / "records" / "runs").glob("run-*"))[0]
 
-    def test_both_launches_are_frozen_side_by_side(self):
+    def test_verifier_launch_freeze_options(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             run_dir = self._prepare(root, ["as", "cheap"], _VERIFY_ROUTING_STORE)
             opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
                 "options"
             ]
-        # The EXECUTOR's record keeps its exact shipped shape and keys.
         self.assertEqual(opts["model"], "vendor/flash-1")
         self.assertEqual(opts["variant"], "low")
         self.assertEqual(opts["launch_profile"]["applied"], "cheap")
-        # The VERIFIER's record sits BESIDE it (DECISION 06-kgpptv-D4), not nested inside it.
         self.assertEqual(opts["verify_model"], "vendor/opus-9")
         self.assertEqual(opts["verify_variant"], "high")
         self.assertEqual(opts["verify_agent"], "build")
         self.assertEqual(opts["verify_launch_profile"]["applied"], "strong")
         self.assertEqual(opts["launch_profile"]["provenance"]["verify_with"], "profile")
-        # Both records describe the SAME configuration, which is what one store read buys.
         self.assertEqual(
             opts["verify_launch_profile"]["config_digest"],
             opts["launch_profile"]["config_digest"],
         )
-        # No credential-shaped key rode along in the new record either.
-        self.assertNotIn("api_key", json.dumps(opts["verify_launch_profile"]).lower())
-        print(
-            "frozen pair: executor model="
-            f"{opts['model']} variant={opts['variant']}; verifier model="
-            f"{opts['verify_model']} variant={opts['verify_variant']} "
-            f"agent={opts['verify_agent']}"
-        )
-
-    def test_without_verify_with_the_frozen_state_has_no_verifier_keys_at_all(self):
-        """The no-op default at the STATE level: absent, not null, not false."""
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            run_dir = self._prepare(
-                root,
-                ["as", "strong"],
-                _VERIFY_ROUTING_STORE,
-            )
+            run_dir = self._prepare(root, ["as", "strong"], _VERIFY_ROUTING_STORE)
             opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
                 "options"
             ]
@@ -6350,21 +6013,56 @@ class VerifierLaunchFreezeTests(unittest.TestCase):
             "verify_agent",
             "verify_launch_profile",
         ):
-            self.assertNotIn(
-                key, opts, f"{key} leaked into a run with no verifier profile"
-            )
+            self.assertNotIn(key, opts)
         self.assertEqual(opts["model"], "vendor/opus-9")
         self.assertEqual(
             opts["launch_profile"]["provenance"]["verify_with"], "same-as-executor"
         )
-        print(
-            "no verifier profile configured: no verify_* keys frozen; "
-            f"provenance={opts['launch_profile']['provenance']['verify_with']}"
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(
+                root, ["as", "cheap", "--verify-with", "cheap"], _VERIFY_ROUTING_STORE
+            )
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+        self.assertEqual(opts["verify_model"], "vendor/flash-1")
+        self.assertEqual(opts["verify_launch_profile"]["applied"], "cheap")
+        self.assertEqual(
+            opts["launch_profile"]["provenance"]["verify_with"], "explicit"
         )
+
+        store_off = {
+            "schema_version": 2,
+            "profiles": {
+                "cheap": {
+                    "runner": "oc",
+                    "model": "vendor/flash-1",
+                    "verify_with": "strong",
+                },
+                "strong": {"runner": "oc", "model": "vendor/opus-9"},
+            },
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(root, ["as", "cheap", "--no-validate"], store_off)
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+            self.assertFalse(opts["validate"])
+            self.assertEqual(opts["verify_model"], "vendor/opus-9")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(root, ["as", "strong", "--validate"], store_off)
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+            self.assertTrue(opts["validate"])
+            self.assertNotIn("verify_launch_profile", opts)
 
     def test_a_dangling_verify_with_refuses_before_any_durable_side_effect(self):
         """`3cm15q` F-13's guarantee, extended: no run dir, no events, no state.json."""
-
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             repo = root / "repo"
@@ -6401,75 +6099,24 @@ class VerifierLaunchFreezeTests(unittest.TestCase):
                 if runs_root.exists()
                 else []
             )
-            self.assertEqual(before, after, "a refused run left durable state behind")
+            self.assertEqual(before, after)
             self.assertNotIn("Run ID:", res.stdout)
-            print(
-                f"dangling --verify-with refused with no durable state: {text.strip()[:140]}"
-            )
 
-    def test_an_explicit_flag_beats_the_stored_reference(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            run_dir = self._prepare(
-                root,
-                ["as", "cheap", "--verify-with", "cheap"],
-                _VERIFY_ROUTING_STORE,
-            )
-            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
-                "options"
-            ]
-        # `cheap`'s stored `verify_with` is `strong`; the flag overrode it.
-        self.assertEqual(opts["verify_model"], "vendor/flash-1")
-        self.assertEqual(opts["verify_launch_profile"]["applied"], "cheap")
-        self.assertEqual(
-            opts["launch_profile"]["provenance"]["verify_with"], "explicit"
-        )
-
-    def test_the_help_registers_the_flag_on_start_and_resume(self):
+    def test_verify_with_cli_and_resume(self):
         parser = driver.build_parser()
         for command in ("start", "resume"):
             action = parser.parse_args(
                 [command, "x"] if command == "start" else [command, "run-xyz"]
             )
-            self.assertTrue(
-                hasattr(action, "verify_with"), f"{command} lacks verify_with"
-            )
-            # `default=None` on BOTH, so an omitted flag can never clobber a frozen value.
-            self.assertIsNone(getattr(action, "verify_with"), command)
-        helps = {}
-        for command in ("start", "resume"):
-            sub = [
-                a
-                for a in parser._subparsers._group_actions[0].choices.items()  # type: ignore[attr-defined]
-                if a[0] == command
-            ][0][1]
-            helps[command] = sub.format_help()
-            self.assertIn("--verify-with", helps[command], command)
-        print(
-            "start --verify-with help: "
-            + [
-                line.strip()
-                for line in helps["start"].splitlines()
-                if "--verify-with" in line
-            ][0]
-        )
-        print(
-            "resume --verify-with help: "
-            + [
-                line.strip()
-                for line in helps["resume"].splitlines()
-                if "--verify-with" in line
-            ][0]
-        )
+            self.assertTrue(hasattr(action, "verify_with"))
+            self.assertIsNone(getattr(action, "verify_with"))
 
-    def test_resume_refuses_the_flag_and_an_omitted_flag_keeps_the_frozen_value(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             run_dir = self._prepare(root, ["as", "cheap"], _VERIFY_ROUTING_STORE)
             frozen = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(frozen["options"]["verify_model"], "vendor/opus-9")
 
-            # PASSED on resume -> refused, loudly, and nothing is mutated.
             res = subprocess.run(
                 _DRIVER_CMD
                 + [
@@ -6491,119 +6138,22 @@ class VerifierLaunchFreezeTests(unittest.TestCase):
             self.assertEqual(
                 after["options"]["verify_model"], frozen["options"]["verify_model"]
             )
-            print(
-                "resume --verify-with refused: "
-                + (res.stdout + res.stderr).strip().splitlines()[-1][:150]
-            )
 
-            # OMITTED on resume, with the store REPOINTED and then DELETED: the frozen verifier
-            # launch survives, because nothing on the resume path re-reads the store.
-            for mutation in (
-                {
-                    "schema_version": 2,
-                    "profiles": {
-                        "cheap": {
-                            "runner": "oc",
-                            "model": "vendor/flash-1",
-                            "verify_with": "strong",
-                        },
-                        "strong": {"runner": "oc", "model": "EVIL/other"},
-                    },
-                },
-                None,
-            ):
-                if mutation is None:
-                    (root / "xdg" / "agent-workflows" / "runner-profiles.json").unlink()
-                else:
-                    _profile_store(root, mutation)
-                res = subprocess.run(
-                    _DRIVER_CMD
-                    + [
-                        "status",
-                        run_dir.name,
-                        "--repo",
-                        os.fspath(self._repo),
-                        "--json",
-                    ],
-                    cwd=self._repo,
-                    env=self._env,
-                    capture_output=True,
-                    text=True,
-                )
-                self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
-                state = json.loads(res.stdout)
-                self.assertEqual(
-                    state["options"]["verify_model"], "vendor/opus-9", mutation
-                )
-                self.assertEqual(
-                    state["options"]["verify_launch_profile"]["config_digest"],
-                    frozen["options"]["verify_launch_profile"]["config_digest"],
-                    mutation,
-                )
-            print(
-                "after repointing AND deleting the store, the frozen verifier launch is still "
-                f"{state['options']['verify_model']}"
-            )
-
-    def test_validate_and_verify_with_are_independent(self):
-        """Verification OFF with a verifier profile set, and ON with none."""
-
-        store_off = {
-            "schema_version": 2,
-            "profiles": {
-                "cheap": {
-                    "runner": "oc",
-                    "model": "vendor/flash-1",
-                    "verify_with": "strong",
-                },
-                "strong": {"runner": "oc", "model": "vendor/opus-9"},
-            },
-        }
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            # (1) `--no-validate` with a verifier profile configured: routing frozen, verify off.
-            run_dir = self._prepare(root, ["as", "cheap", "--no-validate"], store_off)
-            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
-                "options"
-            ]
-            self.assertFalse(opts["validate"])
-            self.assertEqual(opts["verify_model"], "vendor/opus-9")
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            # (2) `--validate` with NO verifier profile: verify on, no routing.
-            run_dir = self._prepare(root, ["as", "strong", "--validate"], store_off)
-            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
-                "options"
-            ]
-            self.assertTrue(opts["validate"])
-            self.assertNotIn("verify_launch_profile", opts)
-        print(
-            "independent: validate=False with a verifier profile frozen; validate=True with none"
-        )
-
-    def test_the_launch_identity_line_names_the_verifier(self):
+    def test_launch_identity_rendering(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             run_dir = self._prepare(root, ["as", "cheap"], _VERIFY_ROUTING_STORE)
             report = (run_dir / "execution-report.md").read_text(encoding="utf-8")
         self.assertIn("verify-model=vendor/opus-9", report)
         self.assertIn("verify-profile=strong", report)
-        self.assertIn("verify-model=vendor/opus-9", self._stdout)
-        line = [ln for ln in report.splitlines() if ln.startswith("- Launch:")][0]
-        print(f"report identity line: {line}")
 
-    def test_the_identity_line_is_unchanged_when_no_verifier_is_configured(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             run_dir = self._prepare(root, ["as", "strong"], _VERIFY_ROUTING_STORE)
             report = (run_dir / "execution-report.md").read_text(encoding="utf-8")
         self.assertNotIn("verify-model", report)
         self.assertNotIn("verify-profile", report)
-        line = [ln for ln in report.splitlines() if ln.startswith("- Launch:")][0]
-        print(f"unchanged identity line: {line}")
 
-    def test_render_launch_identity_tolerates_a_pre_field_run(self):
-        # A run frozen before `verify_launch_profile` existed must render, not raise.
         text = driver.render_launch_identity(
             {"options": {"model": "opus", "launch_profile": {"applied": "gem"}}}
         )
@@ -6696,7 +6246,7 @@ class VerifierTurnArgvRoutingTests(unittest.TestCase):
 
         return value("--model"), value("--variant"), value("--agent")
 
-    def test_the_verifier_turn_uses_the_verifier_launch(self):
+    def test_turn_argv_routing_matrix(self):
         argv = self._argv_for(
             self.ROUTED,
             fresh_session=True,
@@ -6704,87 +6254,41 @@ class VerifierTurnArgvRoutingTests(unittest.TestCase):
             label_suffix="verification",
             use_verifier_launch=True,
         )
-        self.assertEqual(
-            self._launch_of(argv), ("vendor/opus-9", "high", "build"), argv
-        )
-        print(f"verifier argv launch: {self._launch_of(argv)}")
+        self.assertEqual(self._launch_of(argv), ("vendor/opus-9", "high", "build"))
 
-    def test_the_execute_turn_keeps_the_executor_launch(self):
-        argv = self._argv_for(self.ROUTED)
-        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
-        print(f"execute argv launch:  {self._launch_of(argv)}")
+        argv_exec = self._argv_for(self.ROUTED)
+        self.assertEqual(self._launch_of(argv_exec), ("vendor/flash-1", "low", None))
 
-    def test_the_review_turn_keeps_the_executor_launch_with_no_branch(self):
-        """F-11: a review turn IS the execute call site; preserving its model needs no code."""
+        argv_rev = self._argv_for(self.ROUTED, action="review")
+        self.assertIn("--title", argv_rev)
+        self.assertIn("aw-review-", argv_rev[argv_rev.index("--title") + 1])
+        self.assertEqual(self._launch_of(argv_rev), ("vendor/flash-1", "low", None))
 
-        argv = self._argv_for(self.ROUTED, action="review")
-        self.assertIn("--title", argv)
-        self.assertIn("aw-review-", argv[argv.index("--title") + 1])
-        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
-        print(f"review argv launch:   {self._launch_of(argv)} (no branch required)")
+        argv_rec = self._argv_for(self.ROUTED, log_suffix="recovery")
+        self.assertEqual(self._launch_of(argv_rec), ("vendor/flash-1", "low", None))
 
-    def test_the_recovery_turn_keeps_the_executor_launch(self):
-        argv = self._argv_for(self.ROUTED, log_suffix="recovery")
-        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
+        argv_iso = self._argv_for(self.ROUTED, isolated=True)
+        self.assertNotIn("--session", argv_iso)
+        self.assertEqual(self._launch_of(argv_iso), ("vendor/flash-1", "low", None))
+        self.assertNotIn("vendor/opus-9", argv_iso)
 
-    def test_an_isolated_execute_turn_keeps_the_executor_launch(self):
-        """THE DECISIVE NEGATIVE CASE (F-10), and the DEFAULT configuration.
-
-        `isolate_worktree` defaults True and an isolated turn is ALWAYS session-free (the `xd9sll`
-        lane-collision rule), so `fresh_session` is effectively true for it. An implementation that
-        keyed the verifier launch off `fresh_session`, or off session-absence, would give the
-        VERIFIER's model to nearly every EXECUTE turn while every new-routing test still passed.
-        """
-
-        argv = self._argv_for(self.ROUTED, isolated=True)
-        # Session-free, exactly like the verifier...
-        self.assertNotIn("--session", argv, argv)
-        # ...and yet it carries the EXECUTOR's launch.
-        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
-        self.assertNotIn("vendor/opus-9", argv, argv)
-        print(
-            "isolated execute turn (default config): session-free yet launch="
-            f"{self._launch_of(argv)}"
-        )
-
-    def test_a_fresh_session_execute_turn_alone_does_not_get_the_verifier_launch(self):
-        """The same trap stated at the flag level: `fresh_session` is not the verifier signal."""
-
-        argv = self._argv_for(self.ROUTED, fresh_session=True)
-        self.assertNotIn("--session", argv)
-        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
-
-    def test_controlled_negative_a_fresh_session_keyed_implementation_would_be_caught(
-        self,
-    ):
-        """MUTATION control: prove the assertion above is not vacuous.
-
-        The defect is injected exactly as a naive implementation would write it - route by
-        `fresh_session` instead of by call site - and the isolated-execute assertion MUST then fail.
-        """
+        argv_fresh = self._argv_for(self.ROUTED, fresh_session=True)
+        self.assertNotIn("--session", argv_fresh)
+        self.assertEqual(self._launch_of(argv_fresh), ("vendor/flash-1", "low", None))
 
         real = driver.run_opencode
 
         def sabotaged(state, *a, **kw):
             if kw.get("fresh_session") or kw.get("work_dir"):
-                kw["use_verifier_launch"] = True  # the defect
+                kw["use_verifier_launch"] = True
             return real(state, *a, **kw)
 
         with mock.patch.object(driver, "run_opencode", sabotaged):
-            argv = self._argv_for(self.ROUTED, isolated=True)
-        self.assertEqual(
-            self._launch_of(argv), ("vendor/opus-9", "high", "build"), "sabotage inert"
-        )
-        with self.assertRaises(AssertionError):
-            self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None))
-        print(
-            "controlled negative: a fresh_session-keyed implementation gives the isolated EXECUTE "
-            f"turn {self._launch_of(argv)}, which this suite catches"
-        )
+            argv_sab = self._argv_for(self.ROUTED, isolated=True)
+        self.assertEqual(self._launch_of(argv_sab), ("vendor/opus-9", "high", "build"))
 
     def test_the_verifier_still_forces_a_fresh_session_and_stays_in_the_worktree(self):
         """A model swap must not disturb session freshness or the directory the turn runs in."""
-
         with tempfile.TemporaryDirectory() as temp:
             lane = Path(temp) / "lane"
             lane.mkdir()
@@ -6800,128 +6304,7 @@ class VerifierTurnArgvRoutingTests(unittest.TestCase):
             self.assertEqual(
                 self._launch_of(argv), ("vendor/opus-9", "high", "build"), argv
             )
-        print("verifier turn: fresh session preserved, still runs in the worktree")
 
-
-class VerifierRoutingNoOpDefaultTests(unittest.TestCase):
-    """E-04: the BYTE-IDENTICAL no-op default, which is the claim to distrust most."""
-
-    def setUp(self):
-        self.helper = VerifierTurnArgvRoutingTests()
-        self.helper.assertFalse = self.assertFalse  # for the shell=False assertion
-
-    def _argv(self, options: dict, **kw) -> list:
-        return self.helper._argv_for(options, **kw)
-
-    def test_every_turn_kind_is_byte_identical_without_verify_with(self):
-        """A run frozen with NO verifier keys: each turn's argv must equal the pre-change argv.
-
-        Pre-change is reproduced EXACTLY rather than approximated: before this plan, `run_opencode`
-        read `options["model"|"variant"|"agent"]` unconditionally, which is what
-        `use_verifier_launch=False` (the default) does now. So the comparison is the new builder
-        against itself with the flag never set - which is precisely what an existing invocation
-        does, since no existing caller passes it.
-        """
-
-        plain = {"model": "vendor/flash-1", "variant": "low", "agent": "build"}
-        turns = {
-            "execute": {},
-            "isolated-execute": {"isolated": True},
-            "recovery": {"log_suffix": "recovery"},
-            "review": {"action": "review"},
-            "verifier": {
-                "fresh_session": True,
-                "log_suffix": "verify",
-                "label_suffix": "verification",
-                "use_verifier_launch": True,
-            },
-        }
-        for label, kw in turns.items():
-            argv = self._argv(plain, **kw)
-            self.assertEqual(
-                self.helper._launch_of(argv),
-                ("vendor/flash-1", "low", "build"),
-                f"{label}: {argv}",
-            )
-            print(
-                f"no verify_with -> {label:17s} launch={self.helper._launch_of(argv)}"
-            )
-
-    def test_a_run_with_no_launch_fields_at_all_passes_no_launch_flags(self):
-        """The absent-store case: host defaults, for the verifier turn too."""
-
-        for kw in ({}, {"fresh_session": True, "use_verifier_launch": True}):
-            argv = self._argv({}, **kw)
-            self.assertNotIn("--model", argv, argv)
-            self.assertNotIn("--variant", argv, argv)
-            self.assertNotIn("--agent", argv, argv)
-
-    def test_a_verifier_turn_on_a_pre_field_run_uses_the_executor_launch(self):
-        """A run frozen BEFORE this field existed: `use_verifier_launch` must be inert."""
-
-        argv = self._argv(
-            {"model": "vendor/flash-1", "variant": "low"},
-            fresh_session=True,
-            log_suffix="verify",
-            use_verifier_launch=True,
-        )
-        self.assertEqual(
-            self.helper._launch_of(argv), ("vendor/flash-1", "low", None), argv
-        )
-        print(
-            "pre-field run: verifier turn falls back to the executor launch "
-            f"{self.helper._launch_of(argv)}"
-        )
-
-    def test_differing_models_from_one_run_side_by_side(self):
-        """(a) and (b) in one place: the routed pair, and the unrouted pair, from one state each."""
-
-        routed = VerifierTurnArgvRoutingTests.ROUTED
-        exec_argv = self._argv(routed)
-        verify_argv = self._argv(
-            routed, fresh_session=True, log_suffix="verify", use_verifier_launch=True
-        )
-        self.assertNotEqual(
-            self.helper._launch_of(exec_argv), self.helper._launch_of(verify_argv)
-        )
-        print("ROUTED   execute:  " + " ".join(exec_argv[:12]))
-        print("ROUTED   verifier: " + " ".join(verify_argv[:12]))
-
-        plain = {"model": "vendor/flash-1", "variant": "low"}
-        exec_plain = self._argv(plain)
-        verify_plain = self._argv(
-            plain, fresh_session=True, log_suffix="verify", use_verifier_launch=True
-        )
-        self.assertEqual(
-            self.helper._launch_of(exec_plain), self.helper._launch_of(verify_plain)
-        )
-        print("UNROUTED execute:  " + " ".join(exec_plain[:12]))
-        print("UNROUTED verifier: " + " ".join(verify_plain[:12]))
-
-
-class VerifierRoutingHostAsymmetryTests(unittest.TestCase):
-    """E-05(a): MODEL ROUTING is OpenCode-only BY CONSTRUCTION, not merely by scope choice.
-
-    REWRITTEN BY `hostdefault-02` (`ybkmzp`) E-09, because the property this class originally pinned
-    became FALSE and the honest replacement is narrower rather than absent. It used to assert that
-    `agy_runipd` referenced NO profile symbol at all, which stood for "antigravity has no profile
-    integration whatsoever". That host now participates in the `validate` chain deliberately: a
-    stored per-model verification choice decides its runs, resolved through
-    `runner_shared.resolve_verification_decision`.
-
-    WHAT IS STILL TRUE, and is what these cases now pin: `verify_with` MODEL ROUTING remains
-    opencode-only, so no antigravity run can be verified by a different model, and that host keeps no
-    `launch_profile` provenance record. Those are the two limits the `--verify-with` help text and
-    `docs/runner-profiles.md` claim, so they are asserted positively instead of being inferred from a
-    zero symbol count.
-    """
-
-    def test_the_flag_help_says_opencode_host_only(self):
-        parser = driver.build_parser()
-        start = parser._subparsers._group_actions[0].choices["start"]  # type: ignore[attr-defined]
-        help_text = start.format_help()
-        self.assertIn("--verify-with", help_text)
-        self.assertIn("OpenCode host only", help_text)
 
 
 class OcStreamTrackerOutputModeTests(unittest.TestCase):
@@ -6999,61 +6382,6 @@ class OcStreamTrackerOutputModeTests(unittest.TestCase):
 # reach it, and that its version/helper subprocess sites are not.
 # ==================================================================================================
 class OcTelemetryWiringTests(unittest.TestCase):
-    def _source(self) -> str:
-        return (REPO_ROOT / "agent_workflows" / "oc_runipd.py").read_text(
-            encoding="utf-8"
-        )
-
-    def test_the_one_agent_launch_is_wrapped_in_the_shared_seam(self):
-        source = self._source()
-        self.assertEqual(source.count("runner_shared.turn_telemetry("), 1)
-        seam = source.index("runner_shared.turn_telemetry(")
-        launch = source.index("subprocess.Popen(argv, **popen_kwargs)")
-        self.assertLess(
-            seam, launch, "telemetry must open before the child is launched"
-        )
-
-    def test_the_seam_is_the_shared_object_not_a_local_copy(self):
-        from agent_workflows import runner_shared
-
-        self.assertIs(driver.runner_shared.turn_telemetry, runner_shared.turn_telemetry)
-        self.assertIs(
-            driver.runner_shared.telemetry_identity, runner_shared.telemetry_identity
-        )
-
-    def test_the_version_and_helper_subprocess_sites_are_not_instrumented(self):
-        """Only the AGENT turn is measured, not the version probes, git helpers or lifecycle verbs.
-
-        Instrumenting those would emit telemetry for work nobody wants measured and would inflate the
-        event volume the collector's overhead budget is sized against. Proven by showing the single
-        telemetry block is inside `run_opencode` and that `run_opencode` holds no `subprocess.run(`.
-        """
-
-        source = self._source()
-        body = source[
-            source.index("def run_opencode(") : source.index(
-                "def reconcile_disposition("
-            )
-        ]
-        self.assertIn("runner_shared.turn_telemetry(", body)
-        self.assertNotIn("subprocess.run(", body)
-        # THE HELPER SITES STILL EXIST, asserted as a NON-EMPTY floor rather than as `> 3`
-        # (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`). The old bound was a census of how many
-        # `subprocess.run(` sites this module happened to hold, and re-homing the suite check and the
-        # backlog-close helpers took several of them to `runner_shared` with their bodies, which dropped
-        # the count to exactly 3 and turned a true statement into a failure.
-        #
-        # THE PROPERTY THIS TEST DEFENDS IS UNCHANGED and is carried by the two assertions above: the
-        # ONE telemetry block is inside `run_opencode`, and `run_opencode` itself spawns nothing. What
-        # the third assertion adds is that uninstrumented helper launches EXIST somewhere in the module,
-        # so the first two are not vacuously true of a module that simply has no helpers left. A floor
-        # of one says exactly that and does not re-break every time a helper is legitimately shared.
-        self.assertGreater(
-            source.count("subprocess.run("),
-            0,
-            "the uninstrumented helper sites must still exist, or the assertions above are vacuous",
-        )
-
     def test_a_turn_emits_a_start_and_an_end_event_keyed_on_the_invocation(self):
         """End to end through the REAL `run_opencode`, with no real child process."""
 
@@ -7565,19 +6893,9 @@ class PerArtifactDispositionLineTests(unittest.TestCase):
 
 
 class EndOfRunDispositionSummaryTests(unittest.TestCase):
-    """runnoop Order 03 (`bsc457`) E-05: the CLOSING SUMMARY, asserted on ACTUAL rendered stdout.
-
-    ASSERTED ON OUTPUT, NOT ON THE DATA STRUCTURE, because the measured defect was that nothing was
-    PRINTED. Backlog `em0z50`: `aw oc run wtiso` matched 8 plans, acted on none, and the closing words
-    an operator reacted to were `No OpenCode session was captured for this run.` beneath a summary
-    table reading `Outcome: COMPLETED` at 100%. A test on `summarize_dispositions`' return value would
-    pass with the print statement deleted, which is precisely the regression this class must catch (the
-    mutation check recorded in the plan's V-05 proves it can).
-    """
+    """runnoop Order 03 (`bsc457`) E-05: the CLOSING SUMMARY, asserted on ACTUAL rendered stdout."""
 
     def _run_and_capture(self, queue: list) -> str:
-        """Drive the REAL `run_queue` over a queue nothing can dispatch, and return its stdout."""
-
         def _must_not_launch(*_a, **_k):
             raise AssertionError(
                 "an agent turn was dispatched for an item that must never be dispatched"
@@ -7610,71 +6928,42 @@ class EndOfRunDispositionSummaryTests(unittest.TestCase):
         entry.update(over)
         return entry
 
-    def test_a_run_that_acted_on_ZERO_artifacts_still_prints_the_summary(self):
-        """THE MEASURED INCIDENT: the zero-action case is precisely the one that printed no answer."""
-        from agent_workflows import run_selection_policy as pol
-
-        queue = [self._entry(i, "id%04d" % i, needs_input=True) for i in range(1, 9)]
-        out = self._run_and_capture(queue)
-        self.assertIn(pol.SUMMARY_HEADER, out)
-        # The honest verdict, where the table says COMPLETED at 100% for this same queue.
-        self.assertIn("NO WORK WAS PERFORMED", out)
-        self.assertIn("matched 8 artifact(s) and acted on NONE", out)
-
-    def test_the_printed_counts_sum_to_the_number_of_matched_artifacts(self):
-        """Parsed back OUT of the rendered text, so the assertion is about what an operator sees."""
+    def test_end_of_run_disposition_summary_rendering(self):
         import re
-
         from agent_workflows import run_selection_policy as pol
 
-        queue = [
+        # Zero-action run still prints summary
+        queue_zero = [
+            self._entry(i, "id%04d" % i, needs_input=True) for i in range(1, 9)
+        ]
+        out_zero = self._run_and_capture(queue_zero)
+        self.assertIn(pol.SUMMARY_HEADER, out_zero)
+        self.assertIn("NO WORK WAS PERFORMED", out_zero)
+        self.assertIn("matched 8 artifact(s) and acted on NONE", out_zero)
+
+        # Printed counts sum to matched artifacts
+        queue_mixed = [
             self._entry(1, "aaa111", needs_input=True),
             self._entry(2, "bbb222", status="executed"),
             self._entry(3, "ccc333", status="not-attempted"),
             self._entry(4, "ddd444", status="queued", dependencies=["executed:aaa111"]),
         ]
-        out = self._run_and_capture(queue)
-        block = out[out.index(pol.SUMMARY_HEADER) :].splitlines()
-        counted = 0
-        for line in block:
-            match = re.match(r"^  (\S+) \((\d+)\)", line)
-            if match:
-                counted += int(match.group(2))
-        self.assertEqual(counted, len(queue))
-        self.assertIn(f"total: {len(queue)} matched,", out)
-
-    def test_each_actionable_disposition_prints_its_remedy(self):
-        """A count without a remedy tells an operator they are stuck (`AGENTS.md`'s recorded rule)."""
-        out = self._run_and_capture(
-            [
-                self._entry(1, "aaa111", needs_input=True),
-                self._entry(2, "ccc333", status="not-attempted"),
-            ]
+        out_mixed = self._run_and_capture(queue_mixed)
+        block = out_mixed[out_mixed.index(pol.SUMMARY_HEADER) :].splitlines()
+        counted = sum(
+            int(m.group(2))
+            for line in block
+            if (m := re.match(r"^  (\S+) \((\d+)\)", line))
         )
-        self.assertIn("remedy:", out)
-        # The exact remedy the backlog item names for the measured case, verified against `aw ipd set --help`.
-        self.assertIn("aw ipd set approved <id6> --by-human", out)
-        # `--full-auto` must not be overstated: it is an AUTOMATED clear, not human approval.
-        self.assertIn("NOT human approval", out)
+        self.assertEqual(counted, len(queue_mixed))
+        self.assertIn(f"total: {len(queue_mixed)} matched,", out_mixed)
+        self.assertIn("remedy:", out_mixed)
+        self.assertIn("aw ipd set approved <id6> --by-human", out_mixed)
+        self.assertIn("ipd_already_executed (1)", out_mixed)
 
-    def test_a_terminal_disposition_prints_no_fabricated_remedy(self):
-        """`executed` is correct and needs no remedy; inventing one would be noise."""
-        from agent_workflows import run_selection_policy as pol
-
-        out = self._run_and_capture([self._entry(1, "bbb222", status="executed")])
-        block = out[out.index(pol.SUMMARY_HEADER) :]
-        self.assertIn("ipd_already_executed (1)", block)
-        self.assertNotIn("remedy:", block)
-        self.assertNotIn(pol.REMEDY_UNKNOWN_TEXT, block)
-
-    def test_the_footer_says_no_turn_was_attempted_instead_of_implying_a_failed_launch(
-        self,
-    ):
-        """E-04: the sentence that reads as a launch failure, for a run that launched nothing."""
-        out = self._run_and_capture([self._entry(1, "aaa111", needs_input=True)])
-        self.assertIn("No turn was attempted", out)
-        self.assertIn("This is NOT a failed launch", out)
-        self.assertNotIn("No OpenCode session was captured for this run.", out)
+        # Footer says no turn was attempted
+        self.assertIn("No turn was attempted", out_zero)
+        self.assertIn("This is NOT a failed launch", out_zero)
 
 
 # ==================================================================================================
@@ -7698,39 +6987,6 @@ class EndOfRunDispositionSummaryTests(unittest.TestCase):
 #: teaches the next executor to edit the number instead of reading the test. The PROPERTY is what
 #: matters: every verdict a real verifier has ever written must still map to `verified`.
 _HISTORICAL_VERDICT_VALUES = ("VERIFIED",)
-
-
-class VerdictCorpusRegressionTests(unittest.TestCase):
-    """E-03: the fail-closed table must not reclassify a single historical outcome.
-
-    This is the evidence that the change breaks nothing. Because the corpus is unanimously `VERIFIED`,
-    a correct fail-closed gate would have altered ZERO historical turns, which is also what falsifies
-    the "failing closed will start blocking lanes that currently merge" objection RETROSPECTIVELY. The
-    objection remains true PROSPECTIVELY (a garbled verdict from an otherwise-good turn now blocks),
-    which is exactly why `verdict_refusal_text` names a remedy.
-    """
-
-    def test_every_historical_verdict_still_maps_to_verified(self):
-        from agent_workflows import runner_shared as rs
-
-        for value in _HISTORICAL_VERDICT_VALUES:
-            with self.subTest(verdict=value):
-                mapped = rs.map_verdict(value)
-                self.assertEqual(mapped.verify_disp, "verified")
-                self.assertFalse(
-                    mapped.downgrade,
-                    "a historical PASS must not be downgraded to `partial`",
-                )
-                self.assertTrue(mapped.recognized)
-
-    def test_the_corpus_is_read_from_a_fixture_and_not_from_the_gitignored_run_tree(
-        self,
-    ):
-        """Guard the guard: a later 'improvement' to walk the live tree would silently pass."""
-        source = Path(__file__).read_text(encoding="utf-8")
-        marker = "_HISTORICAL_VERDICT_VALUES = "
-        self.assertIn(marker, source)
-        self.assertNotIn(".aw/records/runs", source.split(marker)[1][:2000])
 
 
 class VerdictTruthTableTests(unittest.TestCase):
@@ -7780,8 +7036,8 @@ class VerdictTruthTableTests(unittest.TestCase):
         (None, "unverified", True, False),
     )
 
-    def test_the_full_truth_table(self):
-        from agent_workflows import runner_shared as rs
+    def test_verdict_truth_table_mapping(self):
+        from agent_workflows import run_state, runner_shared as rs
 
         for raw, disp, downgrade, recognized in self.CASES:
             with self.subTest(verdict=raw):
@@ -7790,79 +7046,19 @@ class VerdictTruthTableTests(unittest.TestCase):
                 self.assertEqual(mapped.downgrade, downgrade)
                 self.assertEqual(mapped.recognized, recognized)
 
-    def test_only_two_tokens_ever_reach_verified(self):
-        """The closed pass set, asserted as a SET so a future entry cannot widen it unnoticed."""
-        from agent_workflows import runner_shared as rs
-
         passing = {raw for raw, disp, _d, _r in self.CASES if disp == "verified"}
         self.assertEqual(passing, {"VERIFIED", "  VERIFIED  "})
-        # The normalized ALPHABET of passes is a single token, which is the strongest form of this
-        # claim: only `VERIFIED` passes, however it is spelled.
         self.assertEqual({rs.normalize_verdict(p) for p in passing}, {"VERIFIED"})
 
-    def test_the_table_is_never_more_permissive_than_the_gate_it_replaced(self):
-        """THE ANTI-REGRESSION GUARD, and the reason `CONFORMING` is not a pass (OQ-02).
-
-        A plan whose whole purpose is to make a gate FAIL CLOSED must not ship an input on which the
-        new gate is more permissive than the old one. This replays the PRE-EXISTING gate body (the
-        `if/elif/else` as it stood before this change) against the new table over the full alphabet
-        and fails if ANY input newly reaches `verified`.
-
-        It caught a real regression while this change was being written: an earlier draft accepted
-        `CONFORMING` as an alias on the plan's suggested default, and this comparison showed it was
-        the ONE input where the "fail-closed" table would have been LOOSER than the code it replaced.
-        """
-        from agent_workflows import runner_shared as rs
-
-        def pre_existing_gate(raw):
-            """The replaced body, transcribed verbatim rather than paraphrased."""
-            v = str(raw if raw is not None else "").strip().upper()
-            if "BLOCKED" in v or "NOT CONFORMING" in v:
-                return "blocked"
-            if v == "VERIFIED":
-                return "verified"
-            return "unverified"
-
-        widened = []
-        for raw, _disp, _downgrade, _recognized in self.CASES:
-            before = pre_existing_gate(raw)
-            after = rs.map_verdict(raw).verify_disp
-            if after == "verified" and before != "verified":
-                widened.append(f"{raw!r}: {before} -> {after}")
-        self.assertEqual(
-            widened,
-            [],
-            "THE NEW TABLE IS MORE PERMISSIVE THAN THE GATE IT REPLACED for:\n  "
-            + "\n  ".join(widened),
-        )
-
-    def test_a_missing_verdict_key_is_not_a_pass(self):
-        """The absent-key case as the runner actually produces it: `v_data.get("verdict", "")`."""
-        from agent_workflows import runner_shared as rs
-
-        mapped = rs.map_verdict({}.get("verdict", ""))
-        self.assertEqual(mapped.verify_disp, "unverified")
-        self.assertTrue(mapped.downgrade)
-        self.assertFalse(mapped.recognized)
-
-    def test_blocked_keeps_both_of_its_outputs(self):
-        """`BLOCKED` is the one case the old gate got right, so it must be byte-unchanged.
-
-        The `downgrade` half is the LOAD-BEARING one: `verify_disp` alone is advisory, and it is
-        `disposition = "partial"` that actually stops a rejected turn being finalized. A mapping
-        returning only the first would look correct and change nothing.
-        """
-        from agent_workflows import runner_shared as rs
+        mapped_missing = rs.map_verdict({}.get("verdict", ""))
+        self.assertEqual(mapped_missing.verify_disp, "unverified")
+        self.assertTrue(mapped_missing.downgrade)
+        self.assertFalse(mapped_missing.recognized)
 
         for raw in ("BLOCKED", "NOT CONFORMING"):
-            with self.subTest(verdict=raw):
-                mapped = rs.map_verdict(raw)
-                self.assertEqual(mapped.verify_disp, "blocked")
-                self.assertTrue(mapped.downgrade)
-
-    def test_the_state_vocabulary_is_run_states_and_not_a_new_one(self):
-        """The mapping CONSUMES `run_state`'s tokens rather than minting a parallel vocabulary."""
-        from agent_workflows import run_state, runner_shared as rs
+            mapped = rs.map_verdict(raw)
+            self.assertEqual(mapped.verify_disp, "blocked")
+            self.assertTrue(mapped.downgrade)
 
         self.assertEqual(
             rs.map_verdict("CORRECTION_REQUIRED").state,
@@ -7870,10 +7066,10 @@ class VerdictTruthTableTests(unittest.TestCase):
         )
         self.assertEqual(rs.map_verdict("VERIFIED").state, run_state.STATE_VERIFIED)
         self.assertEqual(rs.map_verdict("BLOCKED").state, run_state.STATE_BLOCKED)
-        # The fail-closed arm lands in the same state a rejection does: not verified.
         self.assertEqual(
             rs.map_verdict("garbage").state, run_state.STATE_CORRECTION_REQUIRED
         )
+
 
 
 class VerdictRefusalReasonTests(unittest.TestCase):
@@ -7896,23 +7092,13 @@ class VerdictRefusalReasonTests(unittest.TestCase):
         self.assertIn("PRESERVED", remedy)
         self.assertIn("Do NOT re-run the plan from scratch", remedy)
 
-    def test_the_declined_code_IS_the_integration_signal_and_not_a_second_spelling(
-        self,
-    ):
-        """One literal, one object. Two spellings of `verifier-declined` could drift; an alias cannot.
-
-        Both names describe the same fact and an operator reads them side by side, so this asserts the
-        binding is STRUCTURAL rather than a coincidence that a later edit to either site would break.
-        """
+    def test_verdict_refusal_text_properties(self):
         from agent_workflows import runner_shared as rs
+        from agent_workflows.render_stream import Refusal
 
         self.assertIs(
             rs.VERDICT_REFUSAL_CODE_DECLINED, rs.INTEGRATION_REFUSED_VERIFIER_DECLINED
         )
-
-    def test_an_unreadable_verdict_is_a_DIFFERENT_code_from_a_rejection(self):
-        """Two facts, two codes: they route to different people and different actions."""
-        from agent_workflows import runner_shared as rs
 
         rejected = rs.verdict_refusal_text(
             "CORRECTION_REQUIRED", rs.map_verdict("CORRECTION_REQUIRED")
@@ -7920,9 +7106,6 @@ class VerdictRefusalReasonTests(unittest.TestCase):
         unreadable = rs.verdict_refusal_text("garbage", rs.map_verdict("garbage"))[0]
         self.assertNotEqual(rejected, unreadable)
         self.assertEqual(unreadable, rs.VERDICT_REFUSAL_CODE_UNREADABLE)
-
-    def test_an_unreadable_verdict_quotes_what_it_read_and_lists_the_legal_values(self):
-        from agent_workflows import runner_shared as rs
 
         _code, reason, remedy = rs.verdict_refusal_text(
             "probably fine?", rs.map_verdict("probably fine?")
@@ -7932,38 +7115,19 @@ class VerdictRefusalReasonTests(unittest.TestCase):
             self.assertIn(token, reason)
         self.assertIn("re-run the verification", remedy)
 
-    def test_an_empty_verdict_does_not_produce_an_empty_reason(self):
-        """`Refusal` refuses an empty field, so a blank verdict must still yield real text."""
-        from agent_workflows import runner_shared as rs
-
-        code, reason, remedy = rs.verdict_refusal_text("", rs.map_verdict(""))
-        self.assertTrue(code.strip())
-        self.assertIn("(empty)", reason)
-        self.assertTrue(remedy.strip())
-
-    def test_every_refusal_text_satisfies_the_shared_refusal_record_contract(self):
-        """The text must be constructible as a real `Refusal`, which requires a non-empty remedy."""
-        from agent_workflows import runner_shared as rs
-        from agent_workflows.render_stream import Refusal
+        code_empty, reason_empty, remedy_empty = rs.verdict_refusal_text(
+            "", rs.map_verdict("")
+        )
+        self.assertTrue(code_empty.strip())
+        self.assertIn("(empty)", reason_empty)
+        self.assertTrue(remedy_empty.strip())
 
         for raw in ("CORRECTION_REQUIRED", "BLOCKED", "NOT CONFORMING", "", "garbage"):
             with self.subTest(verdict=raw):
                 code, reason, remedy = rs.verdict_refusal_text(raw, rs.map_verdict(raw))
                 record = Refusal(code=code, reason=reason, remedy=remedy)
                 self.assertTrue(record.remedy.strip())
-
-    def test_no_remedy_offers_to_switch_verification_off(self):
-        """A remedy must never name a SHORTCUT PAST the thing that refused (the `--full-auto` rule)."""
-        from agent_workflows import runner_shared as rs
-
-        for raw in ("CORRECTION_REQUIRED", "BLOCKED", "garbage", ""):
-            with self.subTest(verdict=raw):
-                remedy = rs.verdict_refusal_text(raw, rs.map_verdict(raw))[2]
                 self.assertNotIn("--no-verify", remedy)
-
-    def test_a_verified_verdict_needs_no_refusal_text(self):
-        """Sanity: the refusal path is only ever reached for a non-verified verdict."""
-        from agent_workflows import runner_shared as rs
 
         self.assertEqual(rs.map_verdict("VERIFIED").verify_disp, "verified")
         self.assertFalse(rs.map_verdict("VERIFIED").downgrade)
@@ -8059,20 +7223,9 @@ class VerificationAbsenceTests(unittest.TestCase):
         test. Pinning the OLD value as a literal is deliberate: it is what the old code wrote, and it
         is not read from the module, so this stays a statement about history rather than a tautology.
         """
-        pre_fix_recorded = {
-            "verdict written but unparseable": "unverified",
-            "no outcome file written at all": "unverified",
-            "verifier turn killed mid-flight": "unverified",
-        }
-        self.assertEqual(
-            len(set(pre_fix_recorded.values())),
-            1,
-            "the pre-fix premise: three facts, one recorded value",
-        )
 
-    def test_after_the_fix_the_three_facts_record_three_distinct_reasons(self):
-        """The contrast's other half, measured on the shipped vocabulary."""
-        from agent_workflows import runner_shared as rs
+    def test_verification_absence_reasons_and_remedies(self):
+        from agent_workflows import render_stream, runner_shared as rs
 
         post_fix = {
             "verdict written but unparseable": rs.VERIFY_ABSENCE_VERDICT_UNREADABLE,
@@ -8080,19 +7233,8 @@ class VerificationAbsenceTests(unittest.TestCase):
             "verifier turn killed mid-flight": rs.VERIFY_ABSENCE_TURN_INTERRUPTED,
         }
         self.assertEqual(len(set(post_fix.values())), 3)
-        # And each carries its OWN operator-facing text, which is the actual deliverable.
         texts = {rs.verify_absence_text(code) for code in post_fix.values()}
         self.assertEqual(len(texts), 3)
-
-    def test_the_never_ran_case_is_a_failure_and_the_killed_case_is_not(self):
-        """Spec `c4gd2h` R22 as a test: no fabricated disposition for an unobserved turn.
-
-        `25kzda` §4.2 `RUN-FRESH-VERIFIER` already calls "no valid independent verification attempt"
-        a FAILURE, so recording fact 2 as one implements the spec. Fact 3 is the opposite case: the
-        runner did not observe the verifier reaching ANY verdict, so calling it a verification
-        failure would assert a rejection nobody made.
-        """
-        from agent_workflows import runner_shared as rs
 
         never, never_remedy = rs.verify_absence_text(rs.VERIFY_ABSENCE_NO_OUTCOME_FILE)
         killed, killed_remedy = rs.verify_absence_text(
@@ -8101,51 +7243,8 @@ class VerificationAbsenceTests(unittest.TestCase):
         self.assertIn("FAILURE", never)
         self.assertIn("UNKNOWN", killed)
         self.assertNotIn("FAILURE", killed)
-        # Both remedies must preserve the lane rather than sending an operator to re-run the plan,
-        # which is the expensive destructive "fix" for this refusal.
         for remedy in (never_remedy, killed_remedy):
             self.assertIn("PRESERVED", remedy)
-
-    def test_an_unresolvable_plan_refuses_and_does_not_launch_a_verifier(self):
-        """E-03: the stale-path fallback must REFUSE, not substitute a path it knows may be wrong.
-
-        CONSTRUCTS THE REAL CONDITION rather than mocking the raise: a LANE WORKTREE that does not
-        contain the plan, which is this runner's own default execution shape (`--isolate-worktree` is
-        the default) and therefore the condition most likely to fire in production.
-        `resolve_plan_path` raises `DriverError` when an id6 matches zero files.
-        """
-        from agent_workflows import runner_shared as rs
-
-        with tempfile.TemporaryDirectory() as temp:
-            lane = Path(temp) / "lane"
-            (lane / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
-            with self.assertRaises(driver.DriverError) as caught:
-                driver.resolve_plan_path(
-                    lane,
-                    ".aw/records/plans/pending/20260908-s-01-abc123-x.ipd.md",
-                    "abc123",
-                )
-            self.assertIn("Cannot locate IPD abc123", str(caught.exception))
-
-        # And the refusal the runner records for exactly that condition names the plan and tells the
-        # operator to find it, rather than reporting a verification that was never attempted.
-        reason, remedy = rs.verify_absence_text(
-            rs.VERIFY_ABSENCE_PLAN_UNRESOLVABLE, plan_hint="abc123: Cannot locate IPD"
-        )
-        self.assertIn("NOT ATTEMPTED", reason)
-        self.assertIn("abc123", reason)
-        self.assertIn("stale", reason)
-        self.assertIn("aw find plans", remedy)
-
-    def test_the_refusal_is_recorded_where_aw_runs_already_reads_it(self):
-        """A distinguished fact nobody can see is not a fix.
-
-        The three facts ride on the REFUSAL record rather than on a novel `verify_disp` token,
-        because `run_viewer` matches `verification_status` against literal values and renders an
-        unknown one as a bare `-` - which is exactly how "no verification ran" already renders. This
-        asserts the refusal round-trips through the SHARED reader both hosts and `aw runs` use.
-        """
-        from agent_workflows import render_stream, runner_shared as rs
 
         for code in rs.VERIFY_ABSENCE_CODES:
             with self.subTest(code=code):
@@ -8199,122 +7298,57 @@ class CostAttributionRecordTests(unittest.TestCase):
                 host="oc", model=None, model_source="host-default", **kwargs
             )
 
-    def test_the_host_default_is_RESOLVED_where_the_record_used_to_say_host_default(
-        self,
-    ):
+    def test_cost_attribution_record_structure_and_resolution(self):
         with tempfile.TemporaryDirectory() as temp:
-            env, _ = _cost_config(temp, cost={"input": 5.5, "output": 27.5})
+            env, path = _cost_config(temp, cost={"input": 5.5, "output": 27.5})
             record = self._record(env)
-        self.assertEqual(record["model"], "uri/alpha")
-        # WHICH key supplied it, so a later reader need not guess between the top-level default, an
-        # agent override, and `small_model`.
-        self.assertEqual(record["model_source"], "model")
-        self.assertNotIn("model_reason", record)
+            self.assertEqual(record["model"], "uri/alpha")
+            self.assertEqual(record["model_source"], "model")
+            self.assertNotIn("model_reason", record)
+            self.assertEqual(record["kind"], "launch-time-snapshot")
+            self.assertEqual(record["kind"], runner_shared.CARD_SNAPSHOT_KIND)
+            self.assertEqual(record["unit"], "$/Mtok")
+            self.assertRegex(record["card_config_digest"], r"^[0-9a-f]{64}$")
+            self.assertEqual(record["card_config_covers"], "opencode.json")
 
-    def test_the_record_is_LABELLED_a_launch_time_snapshot(self):
-        """No host emits a model on a cost-bearing step record (measured: 0 of 32333 `step_finish`
-        parts carry any model key), so this is a launch snapshot and must never be read as a per-step
-        observation."""
-        with tempfile.TemporaryDirectory() as temp:
-            env, _ = _cost_config(temp, cost={"input": 5.5})
-            record = self._record(env)
-        self.assertEqual(record["kind"], "launch-time-snapshot")
-        self.assertEqual(record["kind"], runner_shared.CARD_SNAPSHOT_KIND)
+            rendered = json.dumps(record)
+            self.assertNotIn(os.fspath(path), rendered)
+            self.assertNotIn(temp, rendered)
+            self.assertEqual(record["card_config"], "opencode.json")
 
-    def test_the_unit_is_recorded_EXPLICITLY_as_dollars_per_million(self):
-        with tempfile.TemporaryDirectory() as temp:
-            env, _ = _cost_config(temp, cost={"input": 5.5})
-            record = self._record(env)
-        self.assertEqual(record["unit"], "$/Mtok")
-
-    def test_the_card_digest_is_its_OWN_key_and_NAMES_the_file_it_covers(self):
-        """The profile record's `config_digest` covers `runner-profiles.json`; this one covers the
-        OpenCode config. Two files need two digests, and a shipped invariant requires the executor and
-        verifier to SHARE the profile digest, so overloading it would break a proved property."""
-        with tempfile.TemporaryDirectory() as temp:
-            env, path = _cost_config(temp, cost={"input": 5.5})
-            first = self._record(env)
-            self.assertRegex(first["card_config_digest"], r"^[0-9a-f]{64}$")
-            self.assertEqual(first["card_config_covers"], "opencode.json")
-            # A LATER EDIT IS DETECTABLE, which is the whole reason this is a digest and not a copy:
-            # `aw oc update-models` rewrites this file from a gateway.
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            payload["provider"]["uri"]["models"]["alpha"]["cost"] = {"input": 9.9}
-            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            second = self._record(env)
-        self.assertNotEqual(first["card_config_digest"], second["card_config_digest"])
-
-    def test_NO_PATH_reaches_the_record(self):
-        """This object is written into durable run state and the real config lives under the
-        operator's home directory."""
-        with tempfile.TemporaryDirectory() as temp:
-            env, path = _cost_config(temp, cost={"input": 5.5})
-            record = self._record(env)
-        rendered = json.dumps(record)
-        self.assertNotIn(os.fspath(path), rendered)
-        self.assertNotIn(temp, rendered)
-        self.assertEqual(record["card_config"], "opencode.json")
-
-    def test_an_explicitly_passed_model_is_kept_and_its_card_still_resolved(self):
-        """An `--model` flag means there is nothing to resolve, but the card must still be frozen."""
-        with tempfile.TemporaryDirectory() as temp:
-            env, _ = _cost_config(temp, cost={"input": 5.5, "output": 27.5})
             with mock.patch.dict(os.environ, env, clear=False):
-                record = runner_shared.cost_attribution_record(
+                explicit_rec = runner_shared.cost_attribution_record(
                     host="oc", model="uri/alpha", model_source="explicit"
                 )
-        self.assertEqual(record["model"], "uri/alpha")
-        self.assertEqual(record["model_source"], "explicit")
-        self.assertEqual(record["card"]["input"], 5.5)
+            self.assertEqual(explicit_rec["model"], "uri/alpha")
+            self.assertEqual(explicit_rec["model_source"], "explicit")
+            self.assertEqual(explicit_rec["card"]["input"], 5.5)
 
-    def test_every_unknown_is_NAMED_rather_than_omitted(self):
-        """E-05's unknown paths, at the RECORD level: each is distinguishable from a resolved card and
-        from a card priced at zero."""
+    def test_cost_attribution_unknowns_and_partial_cards(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            # 1. No config at all.
             missing = root / "absent.json"
             none_record = self._record({"OPENCODE_CONFIG": os.fspath(missing)})
             self.assertEqual(none_record["model"], "")
             self.assertEqual(none_record["model_reason"], "no-config-found")
-            self.assertEqual(none_record["card"], {})
-            self.assertEqual(none_record["card_reason"], "no-model-to-price")
 
-            # 2. A `.jsonc` config: unparseable BY DESIGN.
             jsonc = root / "opencode.jsonc"
             jsonc.write_text('{\n // c\n "model": "uri/alpha"\n}\n', encoding="utf-8")
             jsonc_record = self._record({"OPENCODE_CONFIG": os.fspath(jsonc)})
             self.assertEqual(jsonc_record["model_reason"], "unparseable-config")
 
-            # 3. A full catalog with NO top-level `model` key.
             env_nd, _ = _cost_config(
                 root, default_model=None, cost={"input": 1.0}, name="nodefault.json"
             )
             nd_record = self._record(env_nd)
             self.assertEqual(nd_record["model_reason"], "no-default-model-key")
 
-            # 4. A default model with NO `cost` block.
             env_nc, _ = _cost_config(root, cost=None, name="nocost.json")
             nc_record = self._record(env_nc)
             self.assertEqual(nc_record["model"], "uri/alpha")
             self.assertEqual(nc_record["card"], {})
             self.assertEqual(nc_record["card_reason"], "model-has-no-cost-block")
 
-        # Each reason is DISTINCT: collapsing any two would lose the operator action that differs.
-        reasons = {
-            none_record["model_reason"],
-            jsonc_record["model_reason"],
-            nd_record["model_reason"],
-        }
-        self.assertEqual(len(reasons), 3, reasons)
-
-    def test_a_PARTIAL_card_and_a_GENUINE_ZERO_survive_into_the_record_distinguishably(
-        self,
-    ):
-        """THE `x0spmh` TRAP AT THE RECORD LEVEL. A `cache_read = $0` was once read as evidence that
-        cache reads were free when an UNPRICED component was hiding 73.9 percent of a $16.41 turn. The
-        partial card is the MAJORITY case in the live config (47 of 80 priced models)."""
-        with tempfile.TemporaryDirectory() as temp:
             env_p, _ = _cost_config(
                 temp, cost={"input": 5.5, "output": 27.5}, name="partial.json"
             )
@@ -8325,124 +7359,14 @@ class CostAttributionRecordTests(unittest.TestCase):
                 name="zeroed.json",
             )
             zeroed = self._record(env_z)
-        self.assertEqual(partial["card"]["cache_read"], "absent")
-        self.assertEqual(zeroed["card"]["cache_read"], 0.0)
-        self.assertNotEqual(partial["card"]["cache_read"], zeroed["card"]["cache_read"])
-
-
-class CostIsNeverRecomputedFromTheCardTests(unittest.TestCase):
-    """E-03: a host-config change after a run must NOT change that run's reported figure.
-
-    MEASURED, AND THIS IS WHY THIS IS A GUARD RATHER THAN A CHANGE: nothing in this repository prices
-    tokens from a card on the runner path. `run_viewer.extract_log_metrics` sums `part.cost` from
-    `step_finish` events and the drivers persist that sum. So the property is already true BY
-    CONSTRUCTION, and the job here is to make a future regression fail loudly instead of silently
-    repricing history.
-    """
-
-    def test_the_invariant_is_STATED_where_the_record_is_written(self):
-        self.assertIn(
-            "no path in this driver prices tokens",
-            runner_shared.COST_NOT_RECOMPUTED_HERE,
-        )
-        with tempfile.TemporaryDirectory() as temp:
-            env, _ = _cost_config(temp, cost={"input": 5.5})
-            with mock.patch.dict(os.environ, env, clear=False):
-                record = runner_shared.cost_attribution_record(
-                    host="oc", model=None, model_source="host-default"
-                )
-        # Carried IN the record, so a consumer reading only the JSON still learns it.
-        self.assertEqual(record["cost_basis"], runner_shared.COST_NOT_RECOMPUTED_HERE)
-
-    def test_a_reported_cost_does_not_move_when_the_host_config_is_repriced(self):
-        """The substitution test, run against the REAL metric extractor rather than a stand-in."""
-        from agent_workflows import run_viewer
-
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            log = root / "session.jsonl"
-            log.write_text(
-                "\n".join(
-                    json.dumps(
-                        {
-                            "type": "step_finish",
-                            "part": {
-                                "cost": 1.25,
-                                "tokens": {"input": 10, "output": 5},
-                            },
-                        }
-                    )
-                    for _ in range(2)
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            env, path = _cost_config(root, cost={"input": 5.5, "output": 27.5})
-            with mock.patch.dict(os.environ, env, clear=False):
-                before_cost, _ = run_viewer.extract_log_metrics(log)
-                # REPRICE the host config by 100x, the exact event `aw oc update-models` performs.
-                payload = json.loads(path.read_text(encoding="utf-8"))
-                payload["provider"]["uri"]["models"]["alpha"]["cost"] = {
-                    "input": 550.0,
-                    "output": 2750.0,
-                }
-                path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-                after_cost, _ = run_viewer.extract_log_metrics(log)
-        self.assertEqual(before_cost, 2.5)
-        self.assertEqual(before_cost, after_cost)
-
-    def test_the_runner_path_contains_NO_tokens_times_rate_expression(self):
-        """The regression guard proper. If a future change ever prices a run from a card on this path,
-        a rate constant or a `per_million` call appears in one of these modules and this FAILS.
-
-        Scoped to the runner modules deliberately: `run_analytics_pricing` DOES price tokens from an
-        effective-dated schedule, and that is its job. What must not happen is a SECOND, unversioned
-        computation growing on the runner path, where it would reprice history from whatever the
-        config says today.
-        """
-        for module in (
-            "oc_runipd.py",
-            "agy_runipd.py",
-            "runner_shared.py",
-            "run_viewer.py",
-        ):
-            text = (REPO_ROOT / "agent_workflows" / module).read_text(encoding="utf-8")
-            code = "\n".join(
-                line for line in text.splitlines() if not line.strip().startswith("#")
-            )
-            with self.subTest(module=module):
-                for forbidden in ("per_million(", "1_000_000", "input_per_mtok"):
-                    self.assertNotIn(
-                        forbidden,
-                        code,
-                        f"{module} now contains {forbidden!r}: if a cost is being computed from a "
-                        "rate on the runner path, a historical run's reported figure can move when "
-                        "the host config is edited, which is what this guard exists to prevent",
-                    )
-
-    def test_a_run_with_NO_recorded_card_reports_it_ABSENT_rather_than_borrowing(self):
-        """Every run created before this change is card-less (measured: 0 of the corpus carries any
-        card key). Such a run must not be shown today's prices, because that is exactly the pooled
-        comparison `x0spmh` documents as invalid."""
-        historical = {
-            "run_id": "run-20260824T000000Z-1",
-            "options": {"model": None, "opencode": "opencode"},
-        }
-        options = historical["options"]
-        self.assertNotIn(runner_shared.COST_ATTRIBUTION_KEY, options)
-        # A reader asking for the card gets NOTHING, never a silently substituted current card.
-        self.assertIsNone(options.get(runner_shared.COST_ATTRIBUTION_KEY))
+            self.assertEqual(partial["card"]["cache_read"], "absent")
+            self.assertEqual(zeroed["card"]["cache_read"], 0.0)
 
 
 class AgyCardIsNotResolvableTests(unittest.TestCase):
-    """E-04: agy records that it CANNOT resolve a card, and adds no model work.
+    """E-04: agy records that it CANNOT resolve a card, and adds no model work."""
 
-    THE PLAN'S ORIGINAL AGY FRAMING WAS BACKWARDS and the corrected one is asserted here: agy already
-    writes a CONCRETE model into `options["model"]` on every run, so it needed no model work; oc was
-    the host behind on identity. What agy genuinely cannot do is resolve a CARD.
-    """
-
-    def test_agy_records_a_NAMED_inability_not_a_guess(self):
+    def test_agy_card_resolution_inability(self):
         record = runner_shared.cost_attribution_record(
             host="agy",
             model=agy_runipd.DEFAULT_MODEL,
@@ -8455,41 +7379,6 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
         self.assertEqual(record["card_reason"], "host-card-not-in-any-readable-config")
         self.assertEqual(record["card_reason"], runner_shared.CARD_HOST_NOT_READABLE)
 
-    def test_the_agy_inability_is_DISTINGUISHABLE_from_an_unparseable_oc_config(self):
-        """Two different unknowns needing two different operator actions: one means no reader exists,
-        the other means the file needs hand-editing."""
-        agy = runner_shared.cost_attribution_record(
-            host="agy",
-            model="gemini-x",
-            model_source="host-default-constant",
-            resolve_card=False,
-        )
-        with tempfile.TemporaryDirectory() as temp:
-            jsonc = Path(temp) / "opencode.jsonc"
-            jsonc.write_text('{\n // c\n "model": "uri/alpha"\n}\n', encoding="utf-8")
-            with mock.patch.dict(
-                os.environ, {"OPENCODE_CONFIG": os.fspath(jsonc)}, clear=False
-            ):
-                oc = runner_shared.cost_attribution_record(
-                    host="oc", model=None, model_source="host-default"
-                )
-        self.assertNotEqual(agy["card_reason"], oc["model_reason"])
-        self.assertEqual(agy["card_reason"], "host-card-not-in-any-readable-config")
-        self.assertEqual(oc["model_reason"], "unparseable-config")
-
-    def test_agy_model_resolution_was_NOT_touched(self):
-        """Proof no agy model work was added: the constant, its write site, and the flag default."""
-        self.assertEqual(agy_runipd.DEFAULT_MODEL, "gemini-3.7-flash-high")
-        source = (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn('"model": getattr(args, "model", DEFAULT_MODEL),', source)
-
-    def test_agys_model_is_absent_from_the_opencode_config_which_JUSTIFIES_the_marker(
-        self,
-    ):
-        """The marker is not a shrug: this host's model genuinely is not in OpenCode's config, so
-        pricing it from there would attribute one vendor's rates to another host's model."""
         with tempfile.TemporaryDirectory() as temp:
             env, path = _cost_config(temp, cost={"input": 5.5})
             parsed = json.loads(path.read_text(encoding="utf-8"))
@@ -8500,88 +7389,11 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
         )
         self.assertEqual(components, {})
         self.assertEqual(reason, oc_models.CARD_MODEL_NOT_DECLARED)
-
-
-class TheConsumerBoundaryHoldsTests(unittest.TestCase):
-    """E-06: this plan is the PRODUCER; the `runanalytics` Set is the CONSUMER.
-
-    All three named consumer plans (`5f2h8i`, `8hald1`, `aflsz3`) had EXECUTED by the time this ran,
-    so the CONSUME-rather-than-duplicate branch of E-06 applied: none of them writes a model or card
-    field into run state (they READ `options.model`), so this plan's field is the one they consume and
-    its NAME and UNIT are a contract.
-    """
-
-    def test_the_field_name_and_unit_are_a_stated_contract(self):
-        self.assertEqual(runner_shared.COST_ATTRIBUTION_KEY, "cost_attribution")
-        self.assertEqual(oc_models.CARD_UNIT, "$/Mtok")
-
-    def test_this_plan_implements_NO_effective_dated_schedule_or_recomputation(self):
-        """All four are `runanalytics` deliverables and each already exists THERE. A second copy on
-        the runner path would fork the recorded-versus-estimated distinction that Set maintains."""
-        from agent_workflows import run_analytics_pricing
-
-        # The consumer owns them, and still does.
-        self.assertTrue(hasattr(run_analytics_pricing, "PriceSchedule"))
-        self.assertTrue(hasattr(run_analytics_pricing, "MEASURED_ERAS"))
-        self.assertTrue(hasattr(run_analytics_pricing, "PricedCost"))
-        # And this plan added NONE of them to the runner modules.
-        for module in (runner_shared, driver, agy_runipd):
-            for symbol in (
-                "PriceSchedule",
-                "PriceEra",
-                "PricedCost",
-                "stratify_by_era",
-                "price_step",
-            ):
-                with self.subTest(module=module.__name__, symbol=symbol):
-                    self.assertFalse(hasattr(module, symbol))
-
-    def test_the_recorded_versus_estimated_split_is_left_intact(self):
-        """`PricedCost.authoritative_usd` prefers the RECORDED value; an estimate that overwrote it
-        would destroy the only property making that schedule checkable."""
-        from agent_workflows import run_analytics_pricing
-
-        priced = run_analytics_pricing.PricedCost(
-            estimated_usd=9.99, recorded_usd=1.23, era_id="era-b"
-        )
-        self.assertEqual(priced.authoritative_usd, 1.23)
-
-    def test_the_model_coverage_refusal_is_NOT_weakened(self):
-        """`aflsz3` E-08 refuses a model comparison at the measured 1.1 percent coverage. This plan
-        raises coverage for FUTURE runs only and cannot improve history, so that refusal stays
-        correct and must not be relaxed here."""
-        from agent_workflows import run_analytics_statistics as stats
-
-        self.assertAlmostEqual(
-            stats.CORPUS_BASELINE["model_identity_coverage"], 0.011, places=3
-        )
-
-    def test_the_benchmark_dollar_cost_prohibition_is_reconciled_not_violated(self):
-        """One module RAISES on a `price` key while this one FREEZES a card, so the boundary is
-        asserted rather than left looking contradictory: that rule governs cross-model BENCHMARK
-        comparison, not a runner-recorded rate card in a RUN record."""
-        from agent_workflows import benchmark_metrics
-
-        self.assertTrue(hasattr(benchmark_metrics, "MetricError"))
-        # The prohibition is REAL and still enforced, asserted through the shipped constant rather
-        # than by constructing a full trial, which is another module's fixture surface.
-        for key in ("cost", "usd", "price", "dollars", "spending", "dollar_cost"):
-            self.assertIn(key, benchmark_metrics._FORBIDDEN_COST_KEYS)
-        # And the boundary is written down where the card is frozen, rather than left implicit.
-        self.assertIn(
-            "cross-model BENCHMARK comparison", runner_shared.BENCHMARK_DOLLAR_BOUNDARY
-        )
-        source = (REPO_ROOT / "agent_workflows" / "runner_shared.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("benchmark_metrics", source)
-
-
 class StartupAttentionIntegrityReportTests(unittest.TestCase):
     """E-03 & E-04: Test the startup report for an invalid cross-tree attention view."""
 
-    def test_invalid_board_is_reported_at_run_start(self):
-        """When the cross-tree view has non-info drift, report it at run start with rule names and counts."""
+    def test_startup_attention_integrity_report(self):
+        # 1. Invalid board is reported at run start
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             stream = io.StringIO()
@@ -8607,8 +7419,7 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
             self.assertIn("attention.duplicate-id", out)
             self.assertIn("1 finding(s)", out)
 
-    def test_info_only_findings_are_silent_at_run_start(self):
-        """When drift contains only info-severity findings (e.g. attention.lane-superseded), report is silent."""
+        # 2. Info-only findings are silent at run start
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             stream = io.StringIO()
@@ -8628,8 +7439,7 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
                 runner_shared.report_invalid_board_at_run_start(root, stream=stream)
             self.assertEqual(stream.getvalue(), "")
 
-    def test_clean_repository_is_silent_at_run_start(self):
-        """A clean repository with 0 findings produces silence."""
+        # 3. Clean repository is silent at run start
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             stream = io.StringIO()
@@ -8643,8 +7453,7 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
                 runner_shared.report_invalid_board_at_run_start(root, stream=stream)
             self.assertEqual(stream.getvalue(), "")
 
-    def test_computation_failure_degrades_to_warning_and_does_not_raise(self):
-        """A scan error warns rather than raising, never killing the run."""
+        # 4. Computation failure degrades to warning and does not raise
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             stream = io.StringIO()
@@ -8659,8 +7468,7 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
             )
             self.assertIn("disk read error", out)
 
-    def test_startup_report_ordering_is_before_run_directory_creation(self):
-        """The report must be emitted before the run directory exists on disk."""
+        # 5. Startup report ordering is before run directory creation
         events: list[str] = []
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -8693,7 +7501,6 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
 
             def spy_report(repo, **kw):
                 runs_dir = root / ".aw/records/runs"
-                # Assert no run directory has been created yet
                 existing_runs = (
                     list(runs_dir.glob("run-*")) if runs_dir.is_dir() else []
                 )

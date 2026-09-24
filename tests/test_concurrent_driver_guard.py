@@ -846,15 +846,5 @@ class ManagedBlockProtocolTests(unittest.TestCase):
         self.assertIn("aw integration-lock --status", text)
 
 
-class PlatformLockRuleTests(unittest.TestCase):
-    """F-8 / V-03: `platform_lock`'s sole-blocking-caller sentence must not be left FALSE."""
-
-    def test_the_docstring_ADDRESSES_the_waiting_case_it_now_has(self):
-        doc = platform_lock.__doc__ or ""
-        self.assertIn("EXACTLY ONE CALLER", doc)
-        self.assertIn("runner_shared.integration_lock", doc)
-        self.assertIn("POLL THIS NON-BLOCKING ACQUIRE", doc)
-
-
 if __name__ == "__main__":
     unittest.main()

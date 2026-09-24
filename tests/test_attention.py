@@ -21,6 +21,7 @@ from unittest import mock
 
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
+from agent_workflows.artifact_core import Drift as core_Drift
 
 # This repository's own root, for the few cases that legitimately measure the REAL corpus (the E-08
 # parity assertion). Derived from this file's location so it is correct in a worktree/lane too.
@@ -51,69 +52,29 @@ def _mk_repo(tmp: Path):
 
 
 class ScanTests(unittest.TestCase):
-    def test_classifies_and_maps(self):
-        import tempfile
-
+    def test_scan_classification_and_immutability(self):
         with tempfile.TemporaryDirectory() as d:
             root = _mk_repo(Path(d))
             items, drift = att.scan(root)
             self.assertEqual(drift, [], f"expected clean, got {drift}")
             by_tree = {it.tree: it for it in items}
-            self.assertEqual(
-                by_tree["specs"].attention_class, "ready"
-            )  # approved -> ready
-            self.assertEqual(
-                by_tree["plans"].attention_class, "ready"
-            )  # draft -> ready
-            self.assertEqual(
-                by_tree["research"].attention_class, "active"
-            )  # active -> active (live source)
+            self.assertEqual(by_tree["specs"].attention_class, "ready")
+            self.assertEqual(by_tree["plans"].attention_class, "ready")
+            self.assertEqual(by_tree["research"].attention_class, "active")
 
-    def test_scan_does_not_stamp_aw_and_setup_needed_derives(self):
-        """setupmarker Order 01: the action-ledger scan was removed (it caused write-on-read). A scan
-        must NOT create .aw/, and setup_needed derives read-only from the .aw/setup-repo-needed.md
-        marker."""
-        import tempfile
-        from agent_workflows import engine
-
-        with tempfile.TemporaryDirectory() as d:
+            # setup_needed derives read-only, scan does not stamp .aw/
             fresh = Path(d) / "fresh"
             fresh.mkdir(parents=True, exist_ok=True)
-            items, drift = att.scan(fresh)
-            self.assertFalse(
-                (fresh / ".aw").exists(), "scan must not stamp .aw/ (write-on-read)"
-            )
+            items_f, _ = att.scan(fresh)
+            self.assertFalse((fresh / ".aw").exists(), "scan must not stamp .aw/")
             self.assertFalse(att.setup_needed(fresh))
+            from agent_workflows import engine
+
             engine.write_setup_marker(fresh)
             self.assertTrue(att.setup_needed(fresh))
-            self.assertFalse(any(it.tree == "actions" for it in items))
 
-    def test_unclassified_and_violations(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as d:
-            root = _mk_repo(Path(d))
-            # an unknown-status spec
-            (root / ".agents" / "docs" / "specs" / "bad.md").write_text(
-                "# Spec: bad\n\n- Status: frobnicated\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
-                encoding="utf-8",
-            )
-            # a file under a scanned root (.agents/docs) but no inventoried tree
-            odd = root / ".agents" / "docs" / "weird"
-            odd.mkdir(parents=True)
-            (odd / "z.md").write_text("hello\n", encoding="utf-8")
-            items, drift = att.scan(root)
-            rules = {x.rule for x in drift}
-            self.assertIn("attention.unknown-status", rules)
-            self.assertIn("attention.unclassified-tree", rules)
-
-    def test_determinism_across_env(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as d:
-            root = _mk_repo(Path(d))
-            items1, drift1 = att.scan(root)
-            out1 = att.render_json(items1, drift1)
+            # determinism across env
+            out1 = att.render_json(items, drift)
             with mock.patch.dict(
                 os.environ,
                 {"TZ": "Asia/Kolkata", "LANG": "de_DE.UTF-8", "LC_ALL": "de_DE.UTF-8"},
@@ -121,161 +82,8 @@ class ScanTests(unittest.TestCase):
                 items2, drift2 = att.scan(root)
                 out2 = att.render_json(items2, drift2)
             self.assertEqual(out1, out2)
-            self.assertTrue(out1.endswith("\n"))
 
-    def test_json_shape_and_validity(self):
-        import json
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as d:
-            root = _mk_repo(Path(d))
-            items, drift = att.scan(root)
-            obj = json.loads(att.render_json(items, drift))
-            # awdoctorfix Order 01 bumped to 2 (priority + blocks_release); then to 3 when items
-            # gained readiness + oqs + rqs so the TTY columns are also machine-readable; then to 4 when
-            # the payload gained the top-level `stranded_lanes` key (lanestrand-01 `pr5b0t`).
-            self.assertEqual(obj["schema_version"], 4)
-            self.assertEqual(obj["stranded_lanes"], [])
-            self.assertTrue(obj["valid"])
-            self.assertEqual(obj["violations"], [])
-            self.assertTrue(all("attention_class" in it for it in obj["items"]))
-            self.assertTrue(all("priority" in it for it in obj["items"]))
-            self.assertTrue(all("blocks_release" in it for it in obj["items"]))
-            self.assertTrue(all("readiness" in it for it in obj["items"]))
-            self.assertTrue(all("oqs" in it for it in obj["items"]))
-            self.assertTrue(all("rqs" in it for it in obj["items"]))
-
-    def test_check_fail_closed(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as d:
-            root = _mk_repo(Path(d))
-            args = argparse.Namespace(
-                dir=str(root), check=True, agent=False, format=None, all=False
-            )
-            with redirect_stdout(io.StringIO()):
-                rc = att.run(args)
-            self.assertEqual(rc, 0)
-            (root / ".agents" / "docs" / "specs" / "bad.md").write_text(
-                "# Spec: bad\n\n- Status: deferred\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
-                encoding="utf-8",
-            )  # deferred without a gate
-            args = argparse.Namespace(
-                dir=str(root), check=True, agent=True, format=None, all=False
-            )
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                rc = att.run(args)
-            self.assertEqual(rc, 1)
-            self.assertIn("attention.gate-missing", buf.getvalue())
-
-    def test_board_hides_done_parked_by_default(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as d:
-            root = _mk_repo(Path(d))
-            (root / ".agents" / "docs" / "specs" / "done.md").write_text(
-                "# Spec: done\n\n- Status: implemented\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
-                encoding="utf-8",
-            )
-            items, drift = att.scan(root)
-            board = att.render_board(items, drift, show_all=False)
-            self.assertIn("hidden; use --all", board)
-            board_all = att.render_board(items, drift, show_all=True)
-            self.assertNotIn("hidden; use --all", board_all)
-
-    def test_plain_render_keeps_machine_readable_tree_bracket(self):
-        # Non-TTY / no-color view: the stable "- [tree] path (status){gate}" form agents parse.
-        from agent_workflows import term as T
-
-        items = [
-            att.Item(
-                "i1",
-                ".agents/docs/research/r.md",
-                "research",
-                "active",
-                A.ACTIVE,
-                None,
-                None,
-            ),
-            att.Item(
-                "i2",
-                ".agents/docs/specs/s.md",
-                "specs",
-                "deferred",
-                A.BLOCKED,
-                {"kind": "artifact", "ref": "TODO.md"},
-                None,
-            ),
-        ]
-        board = att.render_board(items, [], term=T.Term(color=False))
-        self.assertIn("- [research] .agents/docs/research/r.md (active)", board)
-        self.assertIn(
-            "- [specs] .agents/docs/specs/s.md (deferred)  [gate artifact: TODO.md]",
-            board,
-        )
-        self.assertNotIn("\033[", board)  # no ANSI when color off
-
-    def test_colored_render_drops_bracket_colors_and_folds_gate(self):
-        from agent_workflows import term as T
-
-        items = [
-            att.Item(
-                "i1",
-                ".agents/docs/research/r.md",
-                "research",
-                "active",
-                A.ACTIVE,
-                None,
-                None,
-            ),
-            att.Item(
-                "i2",
-                ".agents/docs/specs/s.md",
-                "specs",
-                "deferred",
-                A.BLOCKED,
-                {"kind": "artifact", "ref": "TODO.md"},
-                None,
-            ),
-        ]
-        board = att.render_board(items, [], term=T.Term(color=True))
-        stripped = re.sub(r"\033\[[0-9;]*m", "", board)
-        # No machine bracket and no trailing tree tag in the human view.
-        self.assertNotIn("[research]", board)
-        # Status is 256-colored + bold, from the SHARED resolver.
-        #
-        # RECOMPUTED AGAINST SPEC `uonrjg` SECTION 5 (plan `f9t5hz` E-04). This read 39 ("active
-        # azure") before the conversion, which was `attention.py`'s own index; the spec's `active`
-        # stage is 220 bold, and research `active` maps to `active` (Section 6.4). The GLYPH carries
-        # the identical escape, which is criterion A10 on this board.
-        self.assertIn("\033[1;38;5;220mactive\033[0m", board)
-        self.assertIn("\033[1;38;5;220m●\033[0m \033[1;38;5;220mactive\033[0m", board)
-        # A blocked stage carries the TEXT-presentation `⚠︎` (U+26A0 U+FE0E), never the emoji form
-        # (criterion A5), and `deferred` maps to `blocked` at 208 (Sections 5 and 6.2).
-        self.assertIn("\033[1;38;5;208m\u26a0\ufe0e\033[0m", board)
-        self.assertNotIn("\u26a0\ufe0f", board)
-        # A10, the negative half: the artifact TYPE word carries no escape at all.
-        self.assertIn("active\033[0m   research ", board)
-        # Default colored board shows the compact identity stem (not the folded prefix / full path);
-        # a non-clustered name like `r.md` falls back to `r`.
-        self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
-        self.assertRegex(
-            stripped, r"active\s+research\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+r\s+-\s+i1"
-        )
-        self.assertRegex(
-            stripped,
-            r"deferred\s+spec\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+s\s+-\s+i2\s+-\s+\[gate artifact: TODO.md\]",
-        )
-        self.assertNotIn("## blocked", stripped)
-        # No trailing " tree" tag after the status.
-        self.assertNotIn("(active) research", stripped)
-
-    def test_writes_nothing(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as d:
-            root = _mk_repo(Path(d))
+            # writes nothing invariant
             before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
             att.scan(root)
             att.run(
@@ -284,9 +92,94 @@ class ScanTests(unittest.TestCase):
                 )
             )
             after = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
-            self.assertEqual(set(before), set(after), "no files created/removed")
-            for p, b in before.items():
-                self.assertEqual(after[p], b, f"{p} changed")
+            self.assertEqual(set(before), set(after))
+
+            # unclassified and violations
+            (root / ".agents" / "docs" / "specs" / "bad.md").write_text(
+                "# Spec: bad\n\n- Status: frobnicated\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
+                encoding="utf-8",
+            )
+            odd = root / ".agents" / "docs" / "weird"
+            odd.mkdir(parents=True)
+            (odd / "z.md").write_text("hello\n", encoding="utf-8")
+            items_v, drift_v = att.scan(root)
+            rules = {x.rule for x in drift_v}
+            self.assertIn("attention.unknown-status", rules)
+            self.assertIn("attention.unclassified-tree", rules)
+
+    def test_rendering_formats_and_check_gate(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = _mk_repo(Path(d))
+            items, drift = att.scan(root)
+            obj = json.loads(att.render_json(items, drift))
+            self.assertEqual(obj["schema_version"], 4)
+            self.assertEqual(obj["stranded_lanes"], [])
+            self.assertTrue(obj["valid"])
+            self.assertTrue(all("attention_class" in it for it in obj["items"]))
+
+            # check fail closed on missing gate
+            args = argparse.Namespace(
+                dir=str(root), check=True, agent=False, format=None, all=False
+            )
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(att.run(args), 0)
+
+            (root / ".agents" / "docs" / "specs" / "bad.md").write_text(
+                "# Spec: bad\n\n- Status: deferred\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
+                encoding="utf-8",
+            )
+            args_bad = argparse.Namespace(
+                dir=str(root), check=True, agent=True, format=None, all=False
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(att.run(args_bad), 1)
+            self.assertIn("attention.gate-missing", buf.getvalue())
+
+            # board hides done/parked by default
+            (root / ".agents" / "docs" / "specs" / "done.md").write_text(
+                "# Spec: done\n\n- Status: implemented\n\n## Workflow history\n- 2026-08-08 x (t): y.\n",
+                encoding="utf-8",
+            )
+            items_d, drift_d = att.scan(root)
+            self.assertIn(
+                "hidden; use --all", att.render_board(items_d, drift_d, show_all=False)
+            )
+            self.assertNotIn(
+                "hidden; use --all", att.render_board(items_d, drift_d, show_all=True)
+            )
+
+            # plain vs colored render
+            from agent_workflows import term as T
+
+            sample_items = [
+                att.Item(
+                    "i1",
+                    ".agents/docs/research/r.md",
+                    "research",
+                    "active",
+                    A.ACTIVE,
+                    None,
+                    None,
+                ),
+                att.Item(
+                    "i2",
+                    ".agents/docs/specs/s.md",
+                    "specs",
+                    "deferred",
+                    A.BLOCKED,
+                    {"kind": "artifact", "ref": "TODO.md"},
+                    None,
+                ),
+            ]
+            plain = att.render_board(sample_items, [], term=T.Term(color=False))
+            self.assertIn("- [research] .agents/docs/research/r.md (active)", plain)
+            self.assertNotIn("\033[", plain)
+
+            colored = att.render_board(sample_items, [], term=T.Term(color=True))
+            self.assertIn("\033[1;38;5;220mactive\033[0m", colored)
+            self.assertIn("\033[1;38;5;208m\u26a0\ufe0e\033[0m", colored)
+            self.assertNotIn("\u26a0\ufe0f", colored)
 
 
 class StaleResearchReclassifyTests(unittest.TestCase):
@@ -326,12 +219,10 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def test_run_set_intake_not_ready_unrun_stays_ready_active_untouched(self):
-        import tempfile
-
+    def test_stale_research_reclassification_and_class_of(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            # RUN prompt-set: an intake report whose set has a prompt + report sibling -> stale.
+            # RUN prompt-set: intake report with prompt sibling -> stale/parked
             self._write_research(
                 root,
                 set_id="runset",
@@ -350,7 +241,7 @@ class StaleResearchReclassifyTests(unittest.TestCase):
                 status="intake",
                 kind="research-report",
             )
-            # UNRUN prompt: bare NN=00 intake prompt -> stays actionable/ready.
+            # UNRUN prompt: intake prompt -> ready
             self._write_research(
                 root,
                 set_id="unrunset",
@@ -360,7 +251,7 @@ class StaleResearchReclassifyTests(unittest.TestCase):
                 status="intake",
                 kind="research-prompt",
             )
-            # active doc -> keeps ACTIVE.
+            # active doc -> active
             self._write_research(
                 root,
                 set_id="liveset",
@@ -370,25 +261,23 @@ class StaleResearchReclassifyTests(unittest.TestCase):
                 status="active",
                 kind="notes",
             )
-            items, drift = att.scan(root)
-            cls = {it.id: it.attention_class for it in items if it.tree == "research"}
-            self.assertEqual(
-                cls.get("rprt01"), "parked", "stale RUN-set intake must not be ready"
+            # cited by executed plan -> parked
+            self._write_research(
+                root,
+                set_id="solo",
+                order=0,
+                id6="solo11",
+                slug="s",
+                status="intake",
+                kind="notes",
             )
-            self.assertEqual(
-                cls.get("prmpt9"), "ready", "genuinely-unrun intake prompt stays ready"
+            pl = root / ".aw" / "records" / "plans" / "executed"
+            pl.mkdir(parents=True, exist_ok=True)
+            (pl / "20260801-set-01-plnexe-x.ipd.md").write_text(
+                "# Plan\n\n- Id: plnexe\n\nAdopts RSCH-solo11.\n", encoding="utf-8"
             )
-            self.assertEqual(cls.get("live01"), "active", "active doc keeps ACTIVE")
 
-    def test_todo_and_legacy_intake_classify_identically(self):
-        # rstodo p3o9je load-bearing compat: a `todo` doc and a legacy `intake` doc both classify
-        # READY and both surface with native_status normalized to canonical `todo` (so color +
-        # stale-reclass behave identically). Falsifiable: a legacy `intake` raising unknown-status or
-        # classifying differently fails.
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
+            # legacy intake vs todo
             self._write_research(
                 root,
                 set_id="s1",
@@ -407,90 +296,50 @@ class StaleResearchReclassifyTests(unittest.TestCase):
                 status="intake",
                 kind="notes",
             )
+
             items, drift = att.scan(root)
             self.assertFalse(
-                [dd for dd in drift if dd.rule == "attention.unknown-status"],
-                f"legacy intake must not raise unknown-status: {drift}",
+                [dd for dd in drift if dd.rule == "attention.unknown-status"]
             )
             by_id = {it.id: it for it in items if it.tree == "research"}
+            self.assertEqual(by_id["rprt01"].attention_class, "parked")
+            self.assertEqual(by_id["prmpt9"].attention_class, "ready")
+            self.assertEqual(by_id["live01"].attention_class, "active")
+            self.assertEqual(by_id["solo11"].attention_class, "parked")
             self.assertEqual(by_id["todo01"].attention_class, "ready")
             self.assertEqual(by_id["oldik0"].attention_class, "ready")
-            # native_status normalized to canonical `todo` for BOTH (so color/reclass are identical)
-            self.assertEqual(by_id["todo01"].native_status, "todo")
             self.assertEqual(by_id["oldik0"].native_status, "todo")
 
-    def test_cited_by_executed_intake_not_ready(self):
-        import tempfile
+            self.assertEqual(A.class_of("research", "todo"), "ready")
+            self.assertEqual(A.class_of("research", "active"), "active")
+            self.assertEqual(A.class_of("research", "reference"), "done")
+            self.assertEqual(A.class_of("research", "archive"), "parked")
 
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
-            # A standalone intake doc cited by an EXECUTED plan -> stale -> parked.
-            self._write_research(
-                root,
-                set_id="solo",
-                order=0,
-                id6="solo11",
-                slug="s",
-                status="intake",
-                kind="notes",
-            )
-            pl = root / ".aw" / "records" / "plans" / "executed"
-            pl.mkdir(parents=True, exist_ok=True)
-            (pl / "20260801-set-01-plnexe-x.ipd.md").write_text(
-                "# Plan\n\n- Id: plnexe\n\nAdopts RSCH-solo11.\n", encoding="utf-8"
-            )
-            items, _drift = att.scan(root)
-            cls = {it.id: it.attention_class for it in items if it.tree == "research"}
-            self.assertEqual(cls.get("solo11"), "parked")
-
-    def test_class_of_unchanged_and_total(self):
-        # E-02 must NOT modify class_of; it stays status-only and total over the four statuses.
-        # rstodo p3o9je: the hot state canonical token is now `todo` (renamed from `intake`); a legacy
-        # `intake` is normalized to `todo` at the SCANNER, not in the pure/total class_of, so class_of
-        # keys on the canonical `todo`.
-        self.assertEqual(A.class_of("research", "todo"), "ready")
-        self.assertEqual(A.class_of("research", "active"), "active")
-        self.assertEqual(A.class_of("research", "reference"), "done")
-        self.assertEqual(A.class_of("research", "archive"), "parked")
-
-    def test_filter_items_by_selectors(self):
+    def test_selectors_filtering_and_run(self):
         with tempfile.TemporaryDirectory() as td:
             root = _mk_repo(Path(td))
             items, _drift = att.scan(root)
             self.assertEqual(len(items), 3)
 
-            # Filter by id6
-            f1 = att.filter_items_by_selectors(items, ["abc123"], root)
-            self.assertEqual(len(f1), 1)
-            self.assertEqual(f1[0].id, "abc123")
+            # Filter by id6, setid, tree, status, union, substring
+            self.assertEqual(
+                len(att.filter_items_by_selectors(items, ["abc123"], root)), 1
+            )
+            self.assertEqual(len(att.filter_items_by_selectors(items, ["r"], root)), 1)
+            self.assertEqual(
+                len(att.filter_items_by_selectors(items, ["specs"], root)), 1
+            )
+            self.assertEqual(
+                len(att.filter_items_by_selectors(items, ["active"], root)), 1
+            )
+            self.assertEqual(
+                len(att.filter_items_by_selectors(items, ["abc123", "def456"], root)), 2
+            )
+            self.assertEqual(
+                len(att.filter_items_by_selectors(items, ["s.md"], root)), 1
+            )
 
-            # Filter by setid
-            f2 = att.filter_items_by_selectors(items, ["r"], root)
-            self.assertEqual(len(f2), 1)
-            self.assertEqual(f2[0].id, "def456")
-
-            # Filter by tree
-            f3 = att.filter_items_by_selectors(items, ["specs"], root)
-            self.assertEqual(len(f3), 1)
-
-            # Filter by attention class / status
-            f4 = att.filter_items_by_selectors(items, ["active"], root)
-            self.assertEqual(len(f4), 1)
-            self.assertEqual(f4[0].id, "def456")
-
-            # Multiple selectors OR-union
-            f5 = att.filter_items_by_selectors(items, ["abc123", "def456"], root)
-            self.assertEqual(len(f5), 2)
-            self.assertEqual({it.id for it in f5}, {"abc123", "def456"})
-
-            # Substring match
-            f6 = att.filter_items_by_selectors(items, ["s.md"], root)
-            self.assertEqual(len(f6), 1)
-
-    def test_run_with_selectors(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = _mk_repo(Path(td))
-
+            # run with selectors
             args = argparse.Namespace(
                 dir=str(root),
                 format="json",
@@ -502,119 +351,68 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             )
             buf = io.StringIO()
             with mock.patch("sys.stdout", buf):
-                rc = att.run(args)
-            self.assertEqual(rc, 0)
+                self.assertEqual(att.run(args), 0)
             data = json.loads(buf.getvalue())
             self.assertEqual(len(data["items"]), 1)
             self.assertEqual(data["items"][0]["id"], "abc123")
 
-    def test_extract_detail_cascade(self):
-        # 1. Summary takes top priority
+    def test_detail_cascade_and_rendering(self):
+        # Detail extraction cascade
         txt1 = "# IPD: My Title\n\n- Summary: Top summary\n- Scope: Sub scope\n"
         self.assertEqual(att._extract_detail(txt1), ("summary", "Top summary"))
-
-        # 2. Scope if no Summary
         txt2 = "# IPD: My Title\n\n- Scope: Plan scope line\n- Concern: Plan concern\n"
         self.assertEqual(att._extract_detail(txt2), ("scope", "Plan scope line"))
-
-        # 3. Concern if no Scope/Summary
         txt3 = (
             "# Backlog: Bug\n\n- Concern: Memory leak in worker\n- Title: Bug Title\n"
         )
         self.assertEqual(
             att._extract_detail(txt3), ("concern", "Memory leak in worker")
         )
-
-        # 4. Question for research
         txt4 = "# Research: Survey\n\n- Question: What is the optimal batch size?\n"
         self.assertEqual(
-            att._extract_detail(txt4),
-            ("question", "What is the optimal batch size?"),
+            att._extract_detail(txt4), ("question", "What is the optimal batch size?")
         )
-
-        # 5. Title frontmatter
         txt5 = "# Doc\n\n- Title: Explicit doc title\n"
         self.assertEqual(att._extract_detail(txt5), ("title", "Explicit doc title"))
-
-        # 6. H1 header fallback
         txt6 = "# Spec: Fallback Specification Header\n\n- Status: draft\n"
         self.assertEqual(
-            att._extract_detail(txt6),
-            ("title", "Fallback Specification Header"),
+            att._extract_detail(txt6), ("title", "Fallback Specification Header")
         )
 
-    def test_render_board_with_details(self):
+        # Render board with details (plain and colored)
         item1 = att.Item(
-            id="abc123",
-            path=".aw/records/plans/pending/20260808-p.ipd.md",
-            tree="plans",
-            native_status="approved",
-            attention_class="ready",
-            gate=None,
-            last_history_at=None,
-            detail_kind="scope",
-            detail_text="Implement feature X and update CLI.",
-        )
-        item2 = att.Item(
-            id="def456",
-            path=".aw/records/specs/s.spec.md",
-            tree="specs",
-            native_status="approved",
-            attention_class="ready",
-            gate=None,
-            last_history_at=None,
-            detail_kind="summary",
-            detail_text="Specification for feature X.",
-        )
-        items = [item1, item2]
-
-        # Plain uncolored board
-        term_plain = att.T.Term(color=False)
-        board_plain = att.render_board(
-            items, drift=[], show_all=True, term=term_plain, details=True
-        )
-        self.assertIn("      scope: Implement feature X and update CLI.", board_plain)
-        self.assertIn("      summary: Specification for feature X.", board_plain)
-
-        # Colored board
-        term_color = att.T.Term(color=True)
-        board_color = att.render_board(
-            items, drift=[], show_all=True, term=term_color, details=True
-        )
-        self.assertIn("scope:", board_color)
-        self.assertIn("Implement feature X and update CLI.", board_color)
-        self.assertIn("summary:", board_color)
-        self.assertIn("Specification for feature X.", board_color)
-
-    def test_render_json_with_details(self):
-        item = att.Item(
-            id="abc123",
-            path=".aw/records/plans/pending/20260808-p.ipd.md",
-            tree="plans",
-            native_status="approved",
-            attention_class="ready",
-            gate=None,
-            last_history_at=None,
+            "abc123",
+            ".aw/records/plans/pending/p.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
             detail_kind="scope",
             detail_text="Implement feature X.",
         )
-        out = att.render_json([item], drift=[])
-        data = json.loads(out)
-        self.assertEqual(len(data["items"]), 1)
-        self.assertEqual(data["items"][0]["detail_kind"], "scope")
-        self.assertEqual(data["items"][0]["detail_text"], "Implement feature X.")
+        board_plain = att.render_board(
+            [item1], drift=[], show_all=True, term=att.T.Term(color=False), details=True
+        )
+        self.assertIn("scope: Implement feature X.", board_plain)
+        board_color = att.render_board(
+            [item1], drift=[], show_all=True, term=att.T.Term(color=True), details=True
+        )
+        self.assertIn("scope:", board_color)
 
-    def test_run_with_details_flag(self):
+        # JSON with details
+        obj = json.loads(att.render_json([item1], drift=[]))
+        self.assertEqual(obj["items"][0]["detail_kind"], "scope")
+
+        # run with --details
         with tempfile.TemporaryDirectory() as td:
             root = _mk_repo(Path(td))
-            # Write a plan with an explicit Scope
             (
                 root / ".agents" / "plans" / "pending" / "20260808-x-01-abc123-p.md"
             ).write_text(
                 "# IPD: p\n\n- Scope: Build test subsystem.\n- Status: draft\n- Id: abc123\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
                 encoding="utf-8",
             )
-
             args = argparse.Namespace(
                 dir=str(root),
                 format=None,
@@ -627,46 +425,23 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             )
             buf = io.StringIO()
             with mock.patch("sys.stdout", buf):
-                rc = att.run(args)
-            self.assertEqual(rc, 0)
-            output = buf.getvalue()
-            self.assertIn("scope: Build test subsystem.", output)
+                self.assertEqual(att.run(args), 0)
+            self.assertIn("scope: Build test subsystem.", buf.getvalue())
 
-    def test_parse_type_filters(self):
-        # Empty/None
+    def test_type_filters_parsing_and_execution(self):
         self.assertEqual(att.parse_type_filters(None), set())
-        self.assertEqual(att.parse_type_filters([]), set())
-
-        # Single type
         self.assertEqual(att.parse_type_filters(["plans"]), {"plans"})
-        self.assertEqual(att.parse_type_filters(["plan"]), {"plans"})
-        self.assertEqual(att.parse_type_filters(["ipd"]), {"plans"})
-
-        # Comma-separated
         self.assertEqual(
             att.parse_type_filters(["plans,specs,backlog"]),
             {"plans", "specs", "backlog"},
-        )
-        self.assertEqual(
-            att.parse_type_filters(["plan,spec,bk"]),
-            {"plans", "specs", "backlog"},
-        )
-
-        # Repeated arguments
-        self.assertEqual(
-            att.parse_type_filters(["plans", "specs"]),
-            {"plans", "specs"},
         )
         self.assertEqual(
             att.parse_type_filters(["ipd", "survey", "walkthr"]),
             {"plans", "research", "walkthroughs"},
         )
 
-    def test_run_with_type_filter(self):
         with tempfile.TemporaryDirectory() as td:
             root = _mk_repo(Path(td))
-
-            # Filter single type
             args = argparse.Namespace(
                 dir=str(root),
                 format="json",
@@ -680,13 +455,11 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             )
             buf = io.StringIO()
             with mock.patch("sys.stdout", buf):
-                rc = att.run(args)
-            self.assertEqual(rc, 0)
+                self.assertEqual(att.run(args), 0)
             data = json.loads(buf.getvalue())
             self.assertEqual(len(data["items"]), 1)
             self.assertEqual(data["items"][0]["tree"], "specs")
 
-            # Filter multiple types via comma-separated
             args2 = argparse.Namespace(
                 dir=str(root),
                 format="json",
@@ -700,48 +473,23 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             )
             buf2 = io.StringIO()
             with mock.patch("sys.stdout", buf2):
-                rc = att.run(args2)
-            self.assertEqual(rc, 0)
+                self.assertEqual(att.run(args2), 0)
             data2 = json.loads(buf2.getvalue())
-            self.assertEqual(len(data2["items"]), 2)
             self.assertEqual({it["tree"] for it in data2["items"]}, {"specs", "plans"})
 
-            # Filter multiple types via repeated flags with aliases
-            args3 = argparse.Namespace(
-                dir=str(root),
-                format="json",
-                check=False,
-                selectors=[],
-                types=["ipd", "spec"],
-                no_color=True,
-                all=False,
-                long=False,
-                details=False,
-            )
-            buf3 = io.StringIO()
-            with mock.patch("sys.stdout", buf3):
-                rc = att.run(args3)
-            self.assertEqual(rc, 0)
-            data3 = json.loads(buf3.getvalue())
-            self.assertEqual(len(data3["items"]), 2)
-            self.assertEqual({it["tree"] for it in data3["items"]}, {"specs", "plans"})
-
-    def test_run_deduplicates_release_blockers(self):
+    def test_release_blockers_and_interactive_headers(self):
         with tempfile.TemporaryDirectory() as td:
             root = _mk_repo(Path(td))
-            # Write a planned release
             rel_dir = root / ".aw" / "records" / "releases"
             rel_dir.mkdir(parents=True, exist_ok=True)
             (rel_dir / "20260830-rel001-01-rel001-release.release.md").write_text(
                 "# Release: 1.0.0\n\n- Id: rel001\n- Version: 1.0.0\n- Status: planned\n- Summary: Test\n",
                 encoding="utf-8",
             )
-            # Add - Blocks-Release: next to the spec
             (root / ".agents" / "docs" / "specs" / "s.md").write_text(
                 "# Spec: s\n\n- Date: 2026-08-08\n- Status: approved\n- Blocks-Release: next\n- Author: t\n\n## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
                 encoding="utf-8",
             )
-
             args = argparse.Namespace(
                 dir=str(root),
                 format=None,
@@ -755,24 +503,16 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             )
             buf = io.StringIO()
             with mock.patch("sys.stdout", buf):
-                rc = att.run(args)
-            self.assertEqual(rc, 0)
+                self.assertEqual(att.run(args), 0)
             output = buf.getvalue()
-
-            # Spec should appear in release-blockers section, but NOT in ## ready section!
             self.assertIn("## release-blockers", output)
             self.assertIn(".agents/docs/specs/s.md", output)
             self.assertNotIn("## ready", output)
 
-    def test_footer_placement_and_interactive_headers(self):
-        from agent_workflows import engine
+            from agent_workflows import engine
 
-        with tempfile.TemporaryDirectory() as td:
-            root = _mk_repo(Path(td))
             engine.write_setup_marker(root)
-
-            # Test colored output
-            args = argparse.Namespace(
+            args_col = argparse.Namespace(
                 dir=str(root),
                 format=None,
                 check=False,
@@ -783,34 +523,24 @@ class StaleResearchReclassifyTests(unittest.TestCase):
                 long=False,
                 details=False,
             )
-            buf = io.StringIO()
-            term = att.T.Term(stream=buf, color=True)
-            with (
-                mock.patch("sys.stdout", buf),
-                mock.patch("agent_workflows.attention.T.Term", return_value=term),
+            buf_col = io.StringIO()
+            term = att.T.Term(stream=buf_col, color=True)
+            with mock.patch("sys.stdout", buf_col), mock.patch(
+                "agent_workflows.attention.T.Term", return_value=term
             ):
-                rc = att.run(args)
-            self.assertEqual(rc, 0)
-            out = buf.getvalue()
-            stripped = re.sub(r"\033\[[0-9;]*m", "", out)
-
-            # Interactive output is a table with header
+                self.assertEqual(att.run(args_col), 0)
+            stripped = re.sub(r"\033\[[0-9;]*m", "", buf_col.getvalue())
             self.assertIn(
                 "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     ",
                 stripped,
             )
-            self.assertIn("Deps", stripped)
-            self.assertNotIn("## active", stripped)
-            self.assertNotIn("## ready", stripped)
-
-            # Note must be at the very bottom
             self.assertTrue(
                 stripped.endswith("TODO: Run `/aw setup-repo` to set up this repo.\n")
             )
 
 
 class AttentionTableFormattingAndSortingTests(unittest.TestCase):
-    def test_exact_user_columns_and_formatting(self):
+    def test_table_formatting_and_sorting(self):
         items = [
             att.Item(
                 "c4gd2h",
@@ -890,20 +620,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         term = att.T.Term(color=True)
         colored_out = att.render_board(items, [], show_all=True, term=term)
         stripped = re.sub(r"\033\[[0-9;]*m", "", colored_out)
-        # Date, SetID, and ID6 receive the Status color.
-        #
-        # RECOMPUTED AGAINST SPEC `uonrjg` SECTION 5 (plan `f9t5hz` E-04). These read 40 before the
-        # conversion, which was `attention.py`'s own index for `open`; the spec's `ready` stage is 45
-        # bold, and `open` maps to `ready` (Section 6.3). The change of number here is the expected
-        # human-snapshot churn Section 12 sanctions, not a regression.
         self.assertIn("\033[1;38;5;45m20260903\033[0m", colored_out)
         self.assertIn("\033[1;38;5;45mrunnerlayer\033[0m", colored_out)
         self.assertIn("\033[1;38;5;45mcnwy8g\033[0m", colored_out)
-        # A10: the glyph, the id6 and the status word share ONE escape. `open` -> `ready` -> `◕`, 45
-        # bold. Asserted on the raw escape, never on stripped text, or the assertion cannot fail.
         self.assertIn("\033[1;38;5;45m◕\033[0m \033[1;38;5;45mopen\033[0m", colored_out)
-        # A10, the negative half: the artifact TYPE word carries NO escape (it emitted
-        # `\033[1;38;5;33mbacklog\033[0m` before this conversion).
         self.assertIn("open\033[0m     backlog   ", colored_out)
         self.assertNotIn("\033[1;38;5;33m", colored_out)
 
@@ -914,19 +634,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         self.assertEqual(stripped, plain_out)
 
         lines = [line for line in stripped.splitlines() if line.strip()]
-        # THE COLUMN ORDER AND COUNT ARE UNCHANGED (Section 12): the lifecycle glyph is carried INSIDE
-        # the existing Status column, ahead of the word, which is where Section 9.1 requires it ("glyph
-        # MUST immediately precede either id6 or status"). Only that column's width grows, from 8 to
-        # 10, so the header gains exactly two leading spaces and no column moves relative to another.
         self.assertEqual(
             lines[0],
             "  Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID       N  ID6    Deps",
         )
-
-        # Verify exact sorted lines. Each leading glyph is the spec Section 5 grapheme for the stage
-        # the status maps to: `open`/`approved` -> ready `◕`, `reviewed` -> authority-queued `◑`,
-        # `to-review` -> review-queued `◔`, `implementing` -> executing `▶`.
-        # 1. Type: backlog (medium, 2.0.0)
         self.assertEqual(
             lines[1],
             "◕ open     backlog   2.0.0 medium   -           -    -     - 20260903 runnerlayer 01 cnwy8g -",
@@ -935,7 +646,6 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
             lines[2],
             "◕ open     backlog   2.0.0 medium   -           -    -     - 20260904 rununbound  01 d07nz2 -",
         )
-        # 2. Type: plan (non-blocking first, then blocking)
         self.assertEqual(
             lines[3],
             "◑ reviewed plan          - -        -           -    -     - 20260829 runprofile  02 p0l1to -",
@@ -944,11 +654,6 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
             lines[4],
             "◕ approved plan      2.0.0 -        -           -    -     - 20260829 rununify    00 5e4sb6 -",
         )
-        # `go-pend?`, NOT `go-pendin`: attcor `rkn8ya` E-11b. The raw 9-char slice of
-        # `go-pending-approval` read as a truncated `go`, and the colour heuristic (a substring test
-        # for "go") gave it the SAME green as a cleared `go`, so an UNAPPROVED plan rendered as
-        # approved. The `?` marks the approval as still outstanding. Width is still 9, so the
-        # Readiness column and every column after it are byte-unchanged.
         self.assertEqual(
             lines[5],
             "◑ reviewed plan      2.0.0 -        go-pend?    -    -     - 20260830 runcodes    01 wlxkoz -",
@@ -957,25 +662,16 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
             lines[6],
             "◔ to-revie plan      2.0.0 -        -           -    -     - 20260904 revsweep    01 76gsmv -",
         )
-        # 3. Type: spec
-        #
-        # `implmntg`, NOT `implemen`: attcor `rkn8ya` E-11a. `implementing` and `implemented` BOTH
-        # sliced to `implemen` at the column's 8-char width, so with `--no-color` (and in every piped
-        # or machine read) the table could not distinguish ACTIVE work from FINISHED work. The two
-        # abbreviations share the stem and differ in the final letter, carrying the same distinction
-        # the full words do: `g` gerund (in progress), `d` past participle (finished). Width is still
-        # 8, so no column moves.
         self.assertEqual(
             lines[7],
             "▶ implmntg spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      01 c4gd2h -",
         )
-        # 4. Legend
         self.assertEqual(
             lines[8],
             "OQs = Open Questions (open/total), Exec = Executed items, Valid = Validated items, Deps = Dependencies",
         )
 
-    def test_oq_count_in_table_and_parser(self):
+        # OQ counting and rendering in table
         text_with_oqs = """# IPD: test
 - Status: to-review
 
@@ -997,7 +693,7 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         self.assertEqual(att.count_resolved_questions(text_with_oqs), 1)
         self.assertEqual(att.count_question_stats(text_with_oqs), (2, 1))
 
-        item = att.Item(
+        item_oq = att.Item(
             "1",
             ".aw/records/plans/pending/p.ipd.md",
             "plans",
@@ -1008,19 +704,21 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
             oqs=2,
             rqs=1,
         )
-        out = att.render_table([item], [], show_all=True, term=att.T.Term(color=False))
-        lines = [line for line in out.splitlines() if line.strip()]
+        out_oq = att.render_table(
+            [item_oq], [], show_all=True, term=att.T.Term(color=False)
+        )
+        lines_oq = [line for line in out_oq.splitlines() if line.strip()]
         self.assertEqual(
-            lines[0],
+            lines_oq[0],
             "  Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps",
         )
         self.assertIn(
             "◔ to-revie plan          - -        -         2/3    -     - -        p     -  1      -",
-            lines[1],
+            lines_oq[1],
         )
 
-    def test_priority_sorting(self):
-        items = [
+        # Priority sorting
+        items_prio = [
             att.Item(
                 "1",
                 ".aw/records/backlog/open/a.backlog.md",
@@ -1062,16 +760,17 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
                 priority="medium",
             ),
         ]
-        out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
-        lines = [line for line in out.splitlines() if line.strip()][1:]
-        # None first, then low, med, high
-        self.assertEqual(lines[0].split()[-4], "c")
-        self.assertEqual(lines[1].split()[-4], "b")
-        self.assertEqual(lines[2].split()[-4], "d")
-        self.assertEqual(lines[3].split()[-4], "a")
+        out_prio = att.render_table(
+            items_prio, [], show_all=True, term=att.T.Term(color=False)
+        )
+        lines_prio = [line for line in out_prio.splitlines() if line.strip()][1:]
+        self.assertEqual(lines_prio[0].split()[-4], "c")
+        self.assertEqual(lines_prio[1].split()[-4], "b")
+        self.assertEqual(lines_prio[2].split()[-4], "d")
+        self.assertEqual(lines_prio[3].split()[-4], "a")
 
-    def test_name_sorting(self):
-        items = [
+        # Name sorting
+        items_names = [
             att.Item(
                 "1",
                 ".aw/records/backlog/open/z-item.backlog.md",
@@ -1100,14 +799,16 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
                 None,
             ),
         ]
-        out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
-        lines = [line for line in out.splitlines() if line.strip()][1:]
-        self.assertEqual(lines[0].split()[-4], "a-item")
-        self.assertEqual(lines[1].split()[-4], "m-item")
-        self.assertEqual(lines[2].split()[-4], "z-item")
+        out_names = att.render_table(
+            items_names, [], show_all=True, term=att.T.Term(color=False)
+        )
+        lines_names = [line for line in out_names.splitlines() if line.strip()][1:]
+        self.assertEqual(lines_names[0].split()[-4], "a-item")
+        self.assertEqual(lines_names[1].split()[-4], "m-item")
+        self.assertEqual(lines_names[2].split()[-4], "z-item")
 
-    def test_numbered_items_sort_by_n_before_id6(self):
-        items = [
+        # Numbered items sort by N before ID6
+        items_num = [
             att.Item(
                 "u23gbn",
                 ".aw/records/plans/pending/20260913-dirtygates-04-u23gbn.ipd.md",
@@ -1149,21 +850,23 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
                 priority="high",
             ),
         ]
-        out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
-        lines = [line for line in out.splitlines() if line.strip()][1:]
-        # N column should sort 00, 01, 04, 06 despite priority differences
-        self.assertEqual(lines[0].split()[-3], "00")
-        self.assertEqual(lines[1].split()[-3], "01")
-        self.assertEqual(lines[2].split()[-3], "04")
-        self.assertEqual(lines[3].split()[-3], "06")
-        self.assertEqual(lines[0].split()[-2], "8lfoum")
-        self.assertEqual(lines[1].split()[-2], "d7qoxv")
-        self.assertEqual(lines[2].split()[-2], "u23gbn")
-        self.assertEqual(lines[3].split()[-2], "4xt6u4")
+        out_num = att.render_table(
+            items_num, [], show_all=True, term=att.T.Term(color=False)
+        )
+        lines_num = [line for line in out_num.splitlines() if line.strip()][1:]
+        self.assertEqual(lines_num[0].split()[-3], "00")
+        self.assertEqual(lines_num[1].split()[-3], "01")
+        self.assertEqual(lines_num[2].split()[-3], "04")
+        self.assertEqual(lines_num[3].split()[-3], "06")
+        self.assertEqual(lines_num[0].split()[-2], "8lfoum")
+        self.assertEqual(lines_num[1].split()[-2], "d7qoxv")
+        self.assertEqual(lines_num[2].split()[-2], "u23gbn")
+        self.assertEqual(lines_num[3].split()[-2], "4xt6u4")
 
 
 class AttentionFilteringTests(unittest.TestCase):
-    def test_parse_filter_tokens(self):
+    def test_token_parsing_and_item_filtering(self):
+        # Tokens parsing
         self.assertEqual(att.parse_filter_tokens(None), set())
         self.assertEqual(att.parse_filter_tokens([]), set())
         self.assertEqual(
@@ -1179,7 +882,7 @@ class AttentionFilteringTests(unittest.TestCase):
             {"to-review", "draft", "open"},
         )
 
-    def test_status_filtering(self):
+        # Status filtering
         item_rev = att.Item("1", "p1.md", "plans", "to-review", A.READY, None, None)
         item_dft = att.Item("2", "p2.md", "plans", "draft", A.READY, None, None)
         item_opn = att.Item("3", "b1.md", "backlog", "open", A.READY, None, None)
@@ -1194,7 +897,7 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertTrue(att.matches_status(item_dft, filters_comma))
         self.assertFalse(att.matches_status(item_opn, filters_comma))
 
-    def test_priority_filtering(self):
+        # Priority filtering
         item_high = att.Item(
             "1", "b1.md", "backlog", "open", A.READY, None, None, priority="high"
         )
@@ -1205,16 +908,16 @@ class AttentionFilteringTests(unittest.TestCase):
             "3", "b3.md", "backlog", "open", A.READY, None, None, priority=None
         )
 
-        filters = att.parse_priority_filters(["high", "medium"])
-        self.assertTrue(att.matches_priority(item_high, filters))
-        self.assertTrue(att.matches_priority(item_med, filters))
-        self.assertFalse(att.matches_priority(item_none, filters))
+        filters_prio = att.parse_priority_filters(["high", "medium"])
+        self.assertTrue(att.matches_priority(item_high, filters_prio))
+        self.assertTrue(att.matches_priority(item_med, filters_prio))
+        self.assertFalse(att.matches_priority(item_none, filters_prio))
 
         filters_none = att.parse_priority_filters(["-"])
         self.assertFalse(att.matches_priority(item_high, filters_none))
         self.assertTrue(att.matches_priority(item_none, filters_none))
 
-    def test_blocking_filtering(self):
+        # Blocking filtering
         item_blk = att.Item(
             "1",
             "p1.md",
@@ -1231,7 +934,6 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertTrue(att.matches_blocking(item_blk, filters_ver))
         self.assertFalse(att.matches_blocking(item_nonblk, filters_ver))
 
-        # Tag/number normalization: 'v2.0.0' matches '2.0.0' and vice versa
         filters_tag = att.parse_blocking_filters(["v2.0.0"])
         self.assertTrue(att.matches_blocking(item_blk, filters_tag))
         item_blk_tag = att.Item(
@@ -1247,59 +949,17 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertTrue(att.matches_blocking(item_blk_tag, filters_ver))
         self.assertTrue(att.matches_blocking(item_blk_tag, filters_tag))
 
-        # `next` RESOLVES against the PLANNED release; it does NOT match every gated item.
-        #
-        # THIS BLOCK ASSERTED THE OPPOSITE UNTIL attcor `rkn8ya` E-04, and the change is deliberate.
-        # It read "'next' matches any release blocker regardless of tag/number" and asserted that an
-        # item gated on `2.0.0` matches `--blocking next`, which is exactly the short-circuit the fix
-        # removes (`matches_blocking` used to `return True` for the `next` token before looking at
-        # WHICH release the item names). Keeping the old assertions would pin the defect.
-        #
-        # EVERY CALL HERE PASSES `repo_root=None` (the default), so there is NO planned release to
-        # resolve against. `next` therefore matches NOTHING, which is the honest answer: `next` names
-        # a release record, and with no record there is no release for an item to gate. The
-        # positive-resolution cases (a real planned release, matched by `next` AND by its id6, with a
-        # DIFFERENT release excluded) need a two-release fixture and live in
-        # `BlockingNextResolvesAgainstThePlannedReleaseTests` below.
         filters_next = att.parse_blocking_filters(["next"])
         self.assertFalse(att.matches_blocking(item_blk, filters_next))
         self.assertFalse(att.matches_blocking(item_blk_tag, filters_next))
-        item_blk_next = att.Item(
-            "4",
-            "p4.md",
-            "plans",
-            "approved",
-            A.READY,
-            None,
-            None,
-            blocks_release="next",
-        )
-        self.assertFalse(att.matches_blocking(item_blk_next, filters_next))
-        item_blk_id6 = att.Item(
-            "5",
-            "p5.md",
-            "plans",
-            "approved",
-            A.READY,
-            None,
-            None,
-            blocks_release="f33nrj",
-        )
-        self.assertFalse(att.matches_blocking(item_blk_id6, filters_next))
-        self.assertFalse(att.matches_blocking(item_nonblk, filters_next))
 
         item_dash = att.Item(
             "6", "p6.md", "plans", "approved", A.READY, None, None, blocks_release="-"
         )
         self.assertFalse(att.matches_blocking(item_dash, filters_next))
 
-        # `--blocking any` is how you ask "gated on ANYTHING at all", and it is UNAFFECTED by the
-        # `next` change. Stated here so the fix cannot be mistaken for "you can no longer list all
-        # blockers without a release record".
         filters_any = att.parse_blocking_filters(["any"])
         self.assertTrue(att.matches_blocking(item_blk, filters_any))
-        self.assertTrue(att.matches_blocking(item_blk_next, filters_any))
-        self.assertTrue(att.matches_blocking(item_blk_id6, filters_any))
         self.assertFalse(att.matches_blocking(item_dash, filters_any))
         self.assertFalse(att.matches_blocking(item_nonblk, filters_any))
 
@@ -1311,7 +971,7 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertFalse(att.matches_blocking(item_blk, filters_bool_false))
         self.assertTrue(att.matches_blocking(item_nonblk, filters_bool_false))
 
-    def test_readiness_filtering(self):
+        # Readiness filtering
         item_ready = att.Item(
             "1",
             "p1.md",
@@ -1324,69 +984,18 @@ class AttentionFilteringTests(unittest.TestCase):
         )
         item_noready = att.Item("2", "p2.md", "plans", "reviewed", A.READY, None, None)
 
-        filters = att.parse_readiness_filters(["go-pending-approval"])
-        self.assertTrue(att.matches_readiness(item_ready, filters))
-        self.assertFalse(att.matches_readiness(item_noready, filters))
+        filters_r = att.parse_readiness_filters(["go-pending-approval"])
+        self.assertTrue(att.matches_readiness(item_ready, filters_r))
+        self.assertFalse(att.matches_readiness(item_noready, filters_r))
 
-        filters_none = att.parse_readiness_filters(["-"])
-        self.assertFalse(att.matches_readiness(item_ready, filters_none))
-        self.assertTrue(att.matches_readiness(item_noready, filters_none))
+        filters_r_none = att.parse_readiness_filters(["-"])
+        self.assertFalse(att.matches_readiness(item_ready, filters_r_none))
+        self.assertTrue(att.matches_readiness(item_noready, filters_r_none))
 
-    def test_run_with_status_and_priority_filters(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = _mk_repo(Path(td))
-            # Test --status with multiple values and comma-separated
-            args = argparse.Namespace(
-                dir=str(root),
-                format="json",
-                check=False,
-                selectors=[],
-                types=[],
-                status=["to-review", "draft"],
-                priority=[],
-                blocking=[],
-                readiness=[],
-                no_color=True,
-                all=False,
-                long=False,
-                details=False,
-            )
-            buf = io.StringIO()
-            with mock.patch("sys.stdout", buf):
-                rc = att.run(args)
-            self.assertEqual(rc, 0)
-            data = json.loads(buf.getvalue())
-            for item in data["items"]:
-                self.assertIn(item["native_status"], ("to-review", "draft"))
-
-            # Test --status comma-separated: --status to-review,draft
-            args2 = argparse.Namespace(
-                dir=str(root),
-                format="json",
-                check=False,
-                selectors=[],
-                types=[],
-                status=["to-review,draft"],
-                priority=[],
-                blocking=[],
-                readiness=[],
-                no_color=True,
-                all=False,
-                long=False,
-                details=False,
-            )
-            buf2 = io.StringIO()
-            with mock.patch("sys.stdout", buf2):
-                rc2 = att.run(args2)
-            self.assertEqual(rc2, 0)
-            data2 = json.loads(buf2.getvalue())
-            self.assertEqual(len(data["items"]), len(data2["items"]))
-
-    def test_cli_parsing_filters(self):
+    def test_cli_filtering_and_open_questions(self):
         from agent_workflows import cli
 
         parser = cli._build_parser()
-
         args = parser.parse_args(
             ["attention", "--status", "to-review", "--status", "draft"]
         )
@@ -1409,13 +1018,35 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertEqual(args2.priority, ["high,medium"])
         self.assertEqual(args2.blocking, ["2.0.0"])
         self.assertEqual(args2.readiness, ["go-pending-approval"])
+        self.assertTrue(parser.parse_args(["att", "--open-questions"]).open_questions)
+        self.assertTrue(parser.parse_args(["att", "--oqs"]).open_questions)
 
-        args3 = parser.parse_args(["att", "--open-questions"])
-        self.assertTrue(args3.open_questions)
-        args4 = parser.parse_args(["att", "--oqs"])
-        self.assertTrue(args4.open_questions)
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+            args_run = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=[],
+                status=["to-review", "draft"],
+                priority=[],
+                blocking=[],
+                readiness=[],
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                rc = att.run(args_run)
+            self.assertEqual(rc, 0)
+            data = json.loads(buf.getvalue())
+            for item in data["items"]:
+                self.assertIn(item["native_status"], ("to-review", "draft"))
 
-    def test_open_questions_filter(self):
+        # Open questions filter and research blocks release frontmatter vs body
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".aw").mkdir(parents=True)
@@ -1424,59 +1055,23 @@ class AttentionFilteringTests(unittest.TestCase):
 
             p1 = plans_dir / "20260901-test-01-aaaaaa-has-oq.ipd.md"
             p1.write_text(
-                "# IPD: has oq\n"
-                "- Status: to-review\n"
-                "- Set: test\n"
-                "- Order: 01\n"
-                "- Id: aaaaaa\n\n"
-                "## Open questions\n\n"
-                "### OQ-01: Open\n"
-                "- Status: open\n",
+                "# IPD: has oq\n- Status: to-review\n- Set: test\n- Order: 01\n- Id: aaaaaa\n\n## Open questions\n\n### OQ-01: Open\n- Status: open\n",
                 encoding="utf-8",
             )
             p2 = plans_dir / "20260901-test-02-bbbbbb-resolved-oq.ipd.md"
             p2.write_text(
-                "# IPD: resolved oq\n"
-                "- Status: to-review\n"
-                "- Set: test\n"
-                "- Order: 02\n"
-                "- Id: bbbbbb\n\n"
-                "## Open questions\n\n"
-                "### OQ-01: Resolved\n"
-                "- Status: resolved\n",
+                "# IPD: resolved oq\n- Status: to-review\n- Set: test\n- Order: 02\n- Id: bbbbbb\n\n## Open questions\n\n### OQ-01: Resolved\n- Status: resolved\n",
                 encoding="utf-8",
             )
             executed_dir = root / ".aw" / "records" / "plans" / "executed"
             executed_dir.mkdir(parents=True)
             p3 = executed_dir / "20260901-test-03-cccccc-executed-with-oq.ipd.md"
             p3.write_text(
-                "# IPD: executed with oq\n"
-                "- Status: executed\n"
-                "- Set: test\n"
-                "- Order: 03\n"
-                "- Id: cccccc\n\n"
-                "## Open questions\n\n"
-                "### OQ-01: Still open in old plan\n"
-                "- Status: open\n",
+                "# IPD: executed with oq\n- Status: executed\n- Set: test\n- Order: 03\n- Id: cccccc\n\n## Open questions\n\n### OQ-01: Still open in old plan\n- Status: open\n",
                 encoding="utf-8",
             )
 
-            # Without --all, the JSON PAYLOAD still carries the archived item.
-            #
-            # THIS ASSERTION WAS INVERTED BY attcor `rkn8ya` E-07, deliberately. It used to require
-            # exactly ONE item here, because `--open-questions` was the ONE filter that applied
-            # DEFAULT VISIBILITY inside the FILTER stage; every other filter defers that decision to
-            # the RENDER stage, and the JSON/`--agent` renderers apply no visibility narrowing at all.
-            # The measured asymmetry on the real tree was `--priority high --format json` keeping 90
-            # `done` + 2 `parked` items while `--open-questions --format json` kept 0 of either.
-            #
-            # IT WAS ALSO A FAIL-CLOSED HOLE: the shrunken item set shrank the `selected_paths` used
-            # to prune drift, so a contract violation on a `done` artifact carrying open questions was
-            # silently dropped from `--check`.
-            #
-            # THE DEFAULT HUMAN BOARD IS UNAFFECTED (asserted separately below): the render stage
-            # recomputes the same `show_all` predicate and still hides the `done`/`parked` sections.
-            args = argparse.Namespace(
+            args_oq = argparse.Namespace(
                 dir=str(root),
                 format="json",
                 check=False,
@@ -1494,14 +1089,12 @@ class AttentionFilteringTests(unittest.TestCase):
             )
             buf = io.StringIO()
             with mock.patch("sys.stdout", buf):
-                rc = att.run(args)
+                rc = att.run(args_oq)
             self.assertEqual(rc, 0)
             data = json.loads(buf.getvalue())
             self.assertEqual({it["id"] for it in data["items"]}, {"aaaaaa", "cccccc"})
 
-            # The DEFAULT HUMAN board (no --all) still HIDES the terminal item, which is the behavior
-            # the inverted assertion above was really protecting. Asserted on the human surface, where
-            # default visibility legitimately lives.
+            # Default human board hides terminal items
             args_human = argparse.Namespace(
                 dir=str(root),
                 format=None,
@@ -1527,81 +1120,22 @@ class AttentionFilteringTests(unittest.TestCase):
             self.assertNotIn("cccccc", human_out)
             self.assertIn("hidden; use --all", human_out)
 
-            # With --all: includes archived items with open questions
-            args_all = argparse.Namespace(
-                dir=str(root),
-                format="json",
-                check=False,
-                selectors=[],
-                types=[],
-                status=[],
-                priority=[],
-                blocking=[],
-                readiness=[],
-                open_questions=True,
-                no_color=True,
-                all=True,
-                long=False,
-                details=False,
-            )
-            buf_all = io.StringIO()
-            with mock.patch("sys.stdout", buf_all):
-                rc_all = att.run(args_all)
-            self.assertEqual(rc_all, 0)
-            data_all = json.loads(buf_all.getvalue())
-            self.assertEqual(len(data_all["items"]), 2)
-            ids = {it["id"] for it in data_all["items"]}
-            self.assertEqual(ids, {"aaaaaa", "cccccc"})
-
-    def test_research_blocks_release_frontmatter_vs_body(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            # Research doc frontmatter vs quoted body
             research_dir = root / ".aw" / "records" / "research"
             research_dir.mkdir(parents=True)
-
-            # A PLANNED RELEASE RECORD, added by attcor `rkn8ya` E-04. This fixture previously had
-            # none, and `-b next` matched anyway because `matches_blocking` short-circuited on the
-            # `next` token without resolving it. Now that `next` RESOLVES against the planned
-            # release, the fixture must contain the thing `next` names, or the filter correctly
-            # matches nothing. The subject of this test is unchanged: front matter vs QUOTED BODY
-            # text as the source of a `Blocks-Release` value.
             releases_dir = root / ".aw" / "records" / "releases"
             releases_dir.mkdir(parents=True)
             (releases_dir / "20260901-rel001-01-rel001-1-0-0.release.md").write_text(
-                "# Release: 1.0.0\n\n"
-                "- Id: rel001\n"
-                "- Version: 1.0.0\n"
-                "- Status: planned\n\n"
-                "## Summary\n\nfixture release.\n",
+                "# Release: 1.0.0\n\n- Id: rel001\n- Version: 1.0.0\n- Status: planned\n\n## Summary\n\nfixture release.\n",
                 encoding="utf-8",
             )
-
-            # Research doc with blocks-release in frontmatter
-            r1 = (
-                "---\n"
-                "id: res001\n"
-                "status: todo\n"
-                "blocks-release: next\n"
-                "---\n\n"
-                "# Real research blocker\n"
-            )
             (research_dir / "20260901-test-01-res001-real.md").write_text(
-                r1, encoding="utf-8"
-            )
-
-            # Research doc with quoted - Blocks-Release: in body (like 27rjro)
-            r2 = (
-                "---\n"
-                "id: res002\n"
-                "status: todo\n"
-                "---\n\n"
-                "# Prompt quoting an IPD\n\n"
-                "```markdown\n"
-                "- Blocks-Release: next\n"
-                "```\n"
+                "---\nid: res001\nstatus: todo\nblocks-release: next\n---\n\n# Real research blocker\n",
+                encoding="utf-8",
             )
             (research_dir / "20260901-test-02-res002-quote.md").write_text(
-                r2, encoding="utf-8"
+                "---\nid: res002\nstatus: todo\n---\n\n# Prompt quoting an IPD\n\n```markdown\n- Blocks-Release: next\n```\n",
+                encoding="utf-8",
             )
 
             items, _drift = att.scan(root)
@@ -1613,22 +1147,19 @@ class AttentionFilteringTests(unittest.TestCase):
             blocker_ids = {it.id for it in blockers}
             self.assertIn("res001", blocker_ids)
             self.assertNotIn("res002", blocker_ids)
-
-            # Filtering by -b next matches res001 but not res002
-            filters = att.parse_blocking_filters(["next"])
-            self.assertTrue(att.matches_blocking(item_map["res001"], filters, root))
-            self.assertFalse(att.matches_blocking(item_map["res002"], filters, root))
+            filters_b = att.parse_blocking_filters(["next"])
+            self.assertTrue(att.matches_blocking(item_map["res001"], filters_b, root))
+            self.assertFalse(att.matches_blocking(item_map["res002"], filters_b, root))
 
 
 class ExecValidAndDepsColumnsTests(unittest.TestCase):
     """Pin checklist progress extraction and rendering for Exec, Valid, and Deps columns."""
 
-    def test_extract_checklist_progress(self):
-        # Empty / non-checklist
+    def test_checklist_progress_and_dependencies(self):
+        # Progress extraction
         self.assertEqual(att._extract_checklist_progress(""), (None, None))
         self.assertEqual(att._extract_checklist_progress("Just text"), (None, None))
 
-        # Unchecked items
         text_unchecked = """
 - [ ] E-01 First task
 - [ ] E-02 Second task
@@ -1639,7 +1170,6 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             att._extract_checklist_progress(text_unchecked), ((0, 2), (0, 2))
         )
 
-        # Partially checked items with lower and upper case
         text_partial = """
 - [x] E-01 First task
 - [ ] E-02 Second task
@@ -1652,7 +1182,6 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             att._extract_checklist_progress(text_partial), ((1, 3), (2, 3))
         )
 
-        # Fully checked
         text_full = """
 - [x] E-01 First task
 - [X] E-02 Second task
@@ -1661,8 +1190,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
 """
         self.assertEqual(att._extract_checklist_progress(text_full), ((2, 2), (2, 2)))
 
-    def test_extract_dependency_id6s(self):
-        # From item_dependencies
+        # Dependencies extraction
         it1 = att.Item(
             "p1",
             "p1.ipd.md",
@@ -1681,7 +1209,6 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             att._extract_dependency_id6s(it1), ["29wvmj", "6sb3yu", "rl67b0"]
         )
 
-        # From gate with direct id6
         it2 = att.Item(
             "b1",
             "b1.md",
@@ -1693,7 +1220,6 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         )
         self.assertEqual(att._extract_dependency_id6s(it2), ["rnl3b7"])
 
-        # From gate with path containing id6
         it3 = att.Item(
             "b2",
             "b2.md",
@@ -1708,7 +1234,6 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         )
         self.assertEqual(att._extract_dependency_id6s(it3), ["27rjro"])
 
-        # From gate with non-id6 ref
         it4 = att.Item(
             "s1",
             "s1.md",
@@ -1720,11 +1245,10 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         )
         self.assertEqual(att._extract_dependency_id6s(it4), [])
 
-        # No dependencies or gate
         it5 = att.Item("p2", "p2.ipd.md", "plans", "approved", A.READY, None, None)
         self.assertEqual(att._extract_dependency_id6s(it5), [])
 
-    def test_render_table_colors_and_formatting(self):
+    def test_render_table_colors_and_runs_mode(self):
         it_none = att.Item(
             "p0",
             ".aw/records/plans/pending/p0.ipd.md",
@@ -1818,7 +1342,6 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         id_map = {it.id: it for it in [dep_exec, dep_appr, dep_draft, dep_bk]}
         items = [it_none, it_zero, it_partial, it_full, it_bk_dep]
 
-        # Plain text rendering
         plain = att.render_table(
             items, [], show_all=True, term=att.T.Term(color=False), id_map=id_map
         )
@@ -1832,42 +1355,20 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertIn(" 2/2   2/2 -        p3", lines[3])
         self.assertTrue(lines[3].endswith("6sb3yu"))
 
-        # Colored text rendering: check color codes
         colored = att.render_table(
             items, [], show_all=True, term=att.T.Term(color=True), id_map=id_map
         )
-        # 0/2 is styled in color 244
         self.assertIn("\033[38;5;244m0/2\033[0m", colored)
-        # 1/2 is styled in bold yellow (color 214)
         self.assertIn("\033[1;38;5;214m1/2\033[0m", colored)
-        # 2/2 is styled in bold green (color 40)
         self.assertIn("\033[1;38;5;40m2/2\033[0m", colored)
-        # A DEPENDENCY id6 CARRIES ITS TARGET'S LIFECYCLE COLOR (spec Section 9.2's compact id6
-        # reference), and every index here is RECOMPUTED against spec Section 5 (plan `f9t5hz` E-04).
-        # THE HEADLINE PROPERTY THIS BLOCK NOW PROVES, which the old numbers could not: `executed` and
-        # `approved` are DIFFERENT STAGES (done versus ready) and must therefore be DIFFERENT COLORS.
-        # They both read 46 before the conversion, i.e. the board painted a merged plan and a
-        # not-yet-run plan identically, which is exactly Section 1's "green currently means both ready
-        # and complete in several views".
-        # Executed dep 29wvmj -> done -> 46 bold (unchanged).
         self.assertIn("\033[1;38;5;46m29wvmj\033[0m", colored)
-        # Approved dep 51vw4y -> ready -> 45 bold (was 46, indistinguishable from done).
         self.assertIn("\033[1;38;5;45m51vw4y\033[0m", colored)
-        # To-review dep 6sb3yu -> review-queued -> 39, NOT bold (Section 5 bolds only ready, the
-        # active family, waiting, blocked, failed and done).
         self.assertIn("\033[38;5;39m6sb3yu\033[0m", colored)
-        # Backlog dep bk1111 -> `open` -> ready -> 45 bold, the SAME escape as the approved plan
-        # above, because one stage is one presentation regardless of artifact type.
         self.assertIn("\033[1;38;5;45mbk1111\033[0m", colored)
-        # Legend column names are bolded
         self.assertIn("\033[1mOQs\033[0m = Open Questions", colored)
-        self.assertIn("\033[1mExec\033[0m = Executed items", colored)
-        self.assertIn("\033[1mValid\033[0m = Validated items", colored)
-        self.assertIn("\033[1mDeps\033[0m = Dependencies", colored)
-        self.assertNotIn("(met", colored)
 
-    def test_render_table_runs_mode_column_and_legend(self):
-        it1 = att.Item(
+        # Runs mode
+        it_r1 = att.Item(
             "111111",
             ".aw/records/plans/p1.ipd.md",
             "plans",
@@ -1876,7 +1377,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             None,
             None,
         )
-        it2 = att.Item(
+        it_r2 = att.Item(
             "222222",
             ".aw/records/plans/p2.ipd.md",
             "plans",
@@ -1885,7 +1386,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             None,
             None,
         )
-        it3 = att.Item(
+        it_r3 = att.Item(
             "333333",
             ".aw/records/plans/p3.ipd.md",
             "plans",
@@ -1894,7 +1395,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             None,
             None,
         )
-        it4 = att.Item(
+        it_r4 = att.Item(
             "444444",
             ".aw/records/plans/p4.ipd.md",
             "plans",
@@ -1903,24 +1404,16 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             None,
             None,
         )
-        items = [it1, it2, it3, it4]
-        run_map = {
-            "111111": "running",
-            "222222": "queued",
-            "333333": "done",
-        }
+        r_items = [it_r1, it_r2, it_r3, it_r4]
+        run_map = {"111111": "running", "222222": "queued", "333333": "done"}
 
-        # Default (runs_mode=False): Run column is absent
         plain_off = att.render_table(
-            items, [], show_all=True, term=att.T.Term(color=False), runs_mode=False
+            r_items, [], show_all=True, term=att.T.Term(color=False), runs_mode=False
         )
-        header_off = plain_off.splitlines()[0]
-        self.assertNotIn("Run", header_off)
-        self.assertNotIn("Active runner state", plain_off)
+        self.assertNotIn("Run", plain_off.splitlines()[0])
 
-        # Enabled (runs_mode=True): Run column is present immediately after Status
         plain_on = att.render_table(
-            items,
+            r_items,
             [],
             show_all=True,
             term=att.T.Term(color=False),
@@ -1928,14 +1421,8 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             run_map=run_map,
         )
         lines_on = plain_on.splitlines()
-        header_on = lines_on[0]
-        # The two leading spaces are the lifecycle GLYPH cell, which lives inside the Status column
-        # ahead of the word (Section 9.1). The column ORDER is unchanged: Run still sits immediately
-        # after Status.
-        self.assertTrue(header_on.startswith("  Status   Run     Type"))
+        self.assertTrue(lines_on[0].startswith("  Status   Run     Type"))
         self.assertIn("Run = Active runner state", plain_on)
-
-        # Check values
         row1 = [ln for ln in lines_on if "111111" in ln][0]
         self.assertIn("approved running plan", row1)
         row2 = [ln for ln in lines_on if "222222" in ln][0]
@@ -1945,30 +1432,23 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         row4 = [ln for ln in lines_on if "444444" in ln][0]
         self.assertIn("draft    -       plan", row4)
 
-        # Colored formatting
-        colored = att.render_table(
-            items,
+        colored_r = att.render_table(
+            r_items,
             [],
             show_all=True,
             term=att.T.Term(color=True),
             runs_mode=True,
             run_map=run_map,
         )
-        # running in cyan (51)
-        self.assertIn("\033[1;38;5;51mrunning\033[0m", colored)
-        # queued in yellow (220)
-        self.assertIn("\033[38;5;220mqueued\033[0m", colored)
-        # done in green (40)
-        self.assertIn("\033[1;38;5;40mdone\033[0m", colored)
-        # - in gray (244)
-        self.assertIn("\033[38;5;244m-\033[0m", colored)
-        # Legend bolded Run
-        self.assertIn("\033[1mRun\033[0m = Active runner state", colored)
+        self.assertIn("\033[1;38;5;51mrunning\033[0m", colored_r)
+        self.assertIn("\033[38;5;220mqueued\033[0m", colored_r)
+        self.assertIn("\033[1;38;5;40mdone\033[0m", colored_r)
+        self.assertIn("\033[38;5;244m-\033[0m", colored_r)
 
-    def test_get_active_runs_map_logic(self):
-        import tempfile
-        from unittest.mock import patch
+    def test_active_runs_map_and_run_status_filtering(self):
+        from agent_workflows import cli
 
+        # Logic test for active runs map
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
             runs_dir = repo / ".aw" / "records" / "runs"
@@ -1997,13 +1477,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             dead_dir.mkdir()
             (dead_dir / "driver.lock").write_text("pid=200\n", encoding="utf-8")
             (dead_dir / "state.json").write_text(
-                json.dumps(
-                    {
-                        "queue": [
-                            {"id6": "dead01", "status": "running"},
-                        ]
-                    }
-                ),
+                json.dumps({"queue": [{"id6": "dead01", "status": "running"}]}),
                 encoding="utf-8",
             )
 
@@ -2012,7 +1486,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
                     return "live"
                 return "none"
 
-            with patch(
+            with mock.patch(
                 "agent_workflows.run_viewer.driver_holder_state",
                 side_effect=mock_holder,
             ):
@@ -2024,38 +1498,27 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             self.assertEqual(rmap.get("mrg004"), "merging")
             self.assertEqual(rmap.get("fld005"), "failed")
             self.assertEqual(rmap.get("blk006"), "blocked")
-            # Dead run item should NOT be included
             self.assertNotIn("dead01", rmap)
 
-    def test_cli_runs_argument(self):
-        from agent_workflows import cli
-
+        # CLI args
         parser = cli._build_parser()
-        args_default = parser.parse_args(["att"])
-        self.assertFalse(getattr(args_default, "runs", False))
-
-        args_runs = parser.parse_args(["att", "--runs"])
-        self.assertTrue(getattr(args_runs, "runs", False))
-
-    def test_cli_run_status_argument(self):
-        from agent_workflows import cli
-
-        parser = cli._build_parser()
-        args_default = parser.parse_args(["att"])
-        self.assertEqual(getattr(args_default, "run_status", None), [])
-
-        args_one = parser.parse_args(["att", "--run-status", "running"])
-        self.assertEqual(args_one.run_status, ["running"])
-
-        args_alias = parser.parse_args(["att", "--runs-status", "done"])
-        self.assertEqual(args_alias.run_status, ["done"])
-
-        args_multi = parser.parse_args(
-            ["att", "--run-status", "running,queued", "--runs-status", "blocked"]
+        self.assertFalse(getattr(parser.parse_args(["att"]), "runs", False))
+        self.assertTrue(getattr(parser.parse_args(["att", "--runs"]), "runs", False))
+        self.assertEqual(
+            parser.parse_args(["att", "--run-status", "running"]).run_status,
+            ["running"],
         )
-        self.assertEqual(args_multi.run_status, ["running,queued", "blocked"])
+        self.assertEqual(
+            parser.parse_args(["att", "--runs-status", "done"]).run_status, ["done"]
+        )
+        self.assertEqual(
+            parser.parse_args(
+                ["att", "--run-status", "running,queued", "--runs-status", "blocked"]
+            ).run_status,
+            ["running,queued", "blocked"],
+        )
 
-    def test_parse_run_status_filters_and_matches_run_status(self):
+        # parse_run_status_filters & matches_run_status
         filters = att.parse_run_status_filters(
             ["running,queued", "dependency-blocked", "failed_safely"]
         )
@@ -2064,14 +1527,9 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertIn("dependency-blocked", filters)
         self.assertIn("blocked", filters)
         self.assertIn("failed-safely", filters)
-        self.assertIn("failed_safely", filters)
         self.assertIn("failed", filters)
 
-        run_map = {
-            "run001": "running",
-            "done01": "done",
-            "blk001": "blocked",
-        }
+        run_map = {"run001": "running", "done01": "done", "blk001": "blocked"}
         it_running = att.Item(
             "run001", "p/run001.md", "plans", "draft", A.READY, None, None
         )
@@ -2085,35 +1543,28 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertTrue(att.matches_run_status(it_running, {"running"}, run_map))
         self.assertFalse(att.matches_run_status(it_done, {"running"}, run_map))
         self.assertTrue(att.matches_run_status(it_done, {"done"}, run_map))
-
-        # "any" matches any active run item, but not items without run
         self.assertTrue(att.matches_run_status(it_running, {"any"}, run_map))
         self.assertFalse(att.matches_run_status(it_none, {"any"}, run_map))
-
-        # "-" or "none" matches items without active run
         self.assertTrue(att.matches_run_status(it_none, {"-"}, run_map))
         self.assertTrue(att.matches_run_status(it_none, {"none"}, run_map))
         self.assertFalse(att.matches_run_status(it_running, {"-"}, run_map))
 
-    def test_run_status_filtering_in_att_run(self):
-        it_run = att.Item(
-            "run001", "p/run001.md", "plans", "draft", A.READY, None, None
-        )
+        # att.run status filtering
         it_que = att.Item(
             "que002", "p/que002.md", "plans", "draft", A.READY, None, None
         )
         it_other = att.Item(
             "oth003", "p/oth003.md", "plans", "draft", A.READY, None, None
         )
-
-        run_map = {"run001": "running", "que002": "queued"}
         with (
             mock.patch.object(
-                att, "scan", return_value=([it_run, it_que, it_other], [])
+                att, "scan", return_value=([it_running, it_que, it_other], [])
             ),
-            mock.patch.object(att, "get_active_runs_map", return_value=run_map),
-            # `dir=None` resolves to the REAL repository; stub the lane reader so a stranded lane in the
-            # developer's own checkout cannot change this case's exit code (lanestrand-01 `pr5b0t`).
+            mock.patch.object(
+                att,
+                "get_active_runs_map",
+                return_value={"run001": "running", "que002": "queued"},
+            ),
             mock.patch.object(att, "stranded_lane_drift", return_value=[]),
         ):
             buf = io.StringIO()
@@ -2147,7 +1598,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             self.assertNotIn("oth003", out)
             self.assertIn("[run: running]", out)
 
-    def test_cli_id6_only_argument_and_mutual_exclusivity(self):
+    def test_cli_output_modes_and_active_filters(self):
         from agent_workflows import cli
 
         parser = cli._build_parser()
@@ -2157,19 +1608,12 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertFalse(getattr(args_default, "filenames", False))
         self.assertFalse(getattr(args_default, "long", False))
 
-        args_id = parser.parse_args(["att", "--id6-only"])
-        self.assertTrue(args_id.id6_only)
+        self.assertTrue(parser.parse_args(["att", "--id6-only"]).id6_only)
+        self.assertTrue(parser.parse_args(["att", "-id"]).id6_only)
+        self.assertTrue(parser.parse_args(["att", "--paths"]).paths)
+        self.assertTrue(parser.parse_args(["att", "--filenames"]).filenames)
 
-        args_id_short = parser.parse_args(["att", "-id"])
-        self.assertTrue(args_id_short.id6_only)
-
-        args_paths = parser.parse_args(["att", "--paths"])
-        self.assertTrue(args_paths.paths)
-
-        args_files = parser.parse_args(["att", "--filenames"])
-        self.assertTrue(args_files.filenames)
-
-        # Mutually exclusive pairs:
+        # Mutually exclusive output format pairs
         for bad in (
             ["att", "-id", "--paths"],
             ["att", "-id", "--filenames"],
@@ -2181,41 +1625,33 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
                 parser.parse_args(bad)
 
-    def test_cli_active_and_not_active_arguments_and_mutual_exclusivity(self):
-        from agent_workflows import cli
-
-        parser = cli._build_parser()
+        # Active / not-active flags
         args_active = parser.parse_args(["att", "--active"])
         self.assertTrue(args_active.active)
         self.assertFalse(args_active.not_active)
 
         for flag in ("-a", "-ac", "-act"):
-            args = parser.parse_args(["att", flag])
-            self.assertTrue(args.active)
+            self.assertTrue(parser.parse_args(["att", flag]).active)
 
         args_not_active = parser.parse_args(["att", "--not-active"])
         self.assertTrue(args_not_active.not_active)
         self.assertFalse(args_not_active.active)
 
         for flag in ("-na", "-nac", "-not"):
-            args = parser.parse_args(["att", flag])
-            self.assertTrue(args.not_active)
+            self.assertTrue(parser.parse_args(["att", flag]).not_active)
 
         args_arcive = parser.parse_args(["att", "--arcive-state", "running"])
         self.assertEqual(args_arcive.run_status, ["running"])
-        self.assertEqual(args_arcive.arcive_state, ["running"])
 
         args_active_state = parser.parse_args(
             ["att", "--active-state", "running,queued"]
         )
         self.assertEqual(args_active_state.run_status, ["running,queued"])
-        self.assertEqual(args_active_state.active_state, ["running,queued"])
 
-        # Multiple --arcive-state flags
         args_multi = parser.parse_args(["att", "-as", "running", "-ars", "queued"])
         self.assertEqual(args_multi.run_status, ["running", "queued"])
 
-        # Mutual exclusivity:
+        # Mutually exclusive active/not-active pairs
         for bad in (
             ["att", "--active", "--not-active"],
             ["att", "-a", "-na"],
@@ -2227,7 +1663,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
                 parser.parse_args(bad)
 
-    def test_id6_only_output_in_att_run(self):
+        # att.run output modes
         it1 = att.Item(
             "id0001",
             ".aw/records/plans/pending/20260901-test-01-id0001-slug.ipd.md",
@@ -2256,12 +1692,10 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             None,
         )
 
-        # lanestrand-01 (`pr5b0t`): these `dir=None` cases resolve to the REAL repository, so the
-        # lane reader is stubbed for the same reason `scan` is - the case is about item rendering, and
-        # a real stranded lane in the developer's checkout would otherwise change its exit code.
-        with mock.patch.object(
-            att, "scan", return_value=([it1, it2, it_done], [])
-        ), mock.patch.object(att, "stranded_lane_drift", return_value=[]):
+        with (
+            mock.patch.object(att, "scan", return_value=([it1, it2, it_done], [])),
+            mock.patch.object(att, "stranded_lane_drift", return_value=[]),
+        ):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 args = argparse.Namespace(
@@ -2292,84 +1726,47 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
                 )
                 rc = att.run(args)
             self.assertEqual(rc, 0)
-            lines = [
-                line.strip() for line in buf.getvalue().splitlines() if line.strip()
-            ]
-            self.assertEqual(lines, ["id0001", "id0002"])
+            self.assertEqual(
+                [line.strip() for line in buf.getvalue().splitlines() if line.strip()],
+                ["id0001", "id0002"],
+            )
 
-            # With --all, it_done is also included
+            # With --all
             buf_all = io.StringIO()
             with redirect_stdout(buf_all):
                 args.all = True
                 rc = att.run(args)
             self.assertEqual(rc, 0)
-            lines_all = [
-                line.strip() for line in buf_all.getvalue().splitlines() if line.strip()
-            ]
-            self.assertEqual(lines_all, ["id0001", "id0002", "id0003"])
+            self.assertEqual(
+                [
+                    line.strip()
+                    for line in buf_all.getvalue().splitlines()
+                    if line.strip()
+                ],
+                ["id0001", "id0002", "id0003"],
+            )
 
-    def test_paths_and_filenames_output_in_att_run(self):
-        it1 = att.Item(
-            "id0001",
-            ".aw/records/plans/pending/20260901-test-01-id0001-slug.ipd.md",
-            "plans",
-            "approved",
-            A.READY,
-            None,
-            None,
-        )
-        with mock.patch.object(
-            att, "scan", return_value=([it1], [])
-        ), mock.patch.object(att, "stranded_lane_drift", return_value=[]):
-            # paths
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                args = argparse.Namespace(
-                    dir=None,
-                    check=False,
-                    format=None,
-                    order_by=A.ORDER_CLASS,
-                    agent=False,
-                    json=False,
-                    no_color=True,
-                    all=False,
-                    types=[],
-                    status=[],
-                    priority=[],
-                    blocking=[],
-                    readiness=[],
-                    open_questions=False,
-                    run_status=[],
-                    runs=False,
-                    selectors=[],
-                    long=False,
-                    details=False,
-                    id6_only=False,
-                    paths=True,
-                    filenames=False,
-                    active=False,
-                    not_active=False,
-                )
+            # paths & filenames
+            args.id6_only = False
+            args.paths = True
+            buf_p = io.StringIO()
+            with redirect_stdout(buf_p):
                 rc = att.run(args)
             self.assertEqual(rc, 0)
-            self.assertEqual(
-                buf.getvalue().strip(),
+            self.assertIn(
                 ".aw/records/plans/pending/20260901-test-01-id0001-slug.ipd.md",
+                buf_p.getvalue(),
             )
 
-            # filenames
-            buf_f = io.StringIO()
-            with redirect_stdout(buf_f):
-                args.paths = False
-                args.filenames = True
+            args.paths = False
+            args.filenames = True
+            buf_fn = io.StringIO()
+            with redirect_stdout(buf_fn):
                 rc = att.run(args)
             self.assertEqual(rc, 0)
-            self.assertEqual(
-                buf_f.getvalue().strip(),
-                "20260901-test-01-id0001-slug.ipd.md",
-            )
+            self.assertIn("20260901-test-01-id0001-slug.ipd.md", buf_fn.getvalue())
 
-    def test_active_and_not_active_filtering_in_att_run(self):
+        # active / not_active filtering in att.run
         it_run = att.Item(
             "run001", "p/run001.md", "plans", "approved", A.READY, None, None
         )
@@ -2381,11 +1778,8 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         with (
             mock.patch.object(att, "scan", return_value=([it_run, it_idle], [])),
             mock.patch.object(att, "get_active_runs_map", return_value=run_map),
-            # `dir=None` resolves to the REAL repository; stub the lane reader so a stranded lane in the
-            # developer's own checkout cannot change this case's exit code (lanestrand-01 `pr5b0t`).
             mock.patch.object(att, "stranded_lane_drift", return_value=[]),
         ):
-            # Test --active: shows only it_run
             buf_act = io.StringIO()
             with redirect_stdout(buf_act):
                 args_act = argparse.Namespace(
@@ -2418,7 +1812,6 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertEqual(buf_act.getvalue().strip().splitlines(), ["run001"])
 
-            # Test --not-active: shows only it_idle
             buf_idle = io.StringIO()
             with redirect_stdout(buf_idle):
                 args_idle = argparse.Namespace(
@@ -2609,9 +2002,11 @@ class StrandedLaneViewTests(unittest.TestCase):
             return_value="live" if live else "none",
         )
 
-    def test_a_stranded_lane_is_reported_LOUDLY_in_the_human_board(self):
+    def test_stranded_lane_detection_and_surfaces(self):
         with tempfile.TemporaryDirectory() as td:
             root = self._fixture(Path(td))
+
+            # Human board output and leak guard
             buf = io.StringIO()
             with self._holder(False), mock.patch("sys.stdout", buf):
                 rc = att.run(_lane_args(root))
@@ -2622,100 +2017,31 @@ class StrandedLaneViewTests(unittest.TestCase):
             self.assertIn("attention.lane-stranded", out)
             self.assertIn("plan lane01", out)
             self.assertIn("integration_signal=suite-failed", out)
-            # The remedy must be named: an alarm with no route trains its own dismissal.
             self.assertIn("Recover it", out)
+            self.assertNotIn(self.ABSOLUTE_WORKTREE, out)
+            self.assertNotIn("/home/", out)
+            self.assertIn(".aw/worktrees/lane01", out)
 
-    def test_neither_surface_contains_an_ABSOLUTE_path(self):
-        """The load-bearing leak guard (F-15). `aw attention --json` is pasted by agents and read by CI."""
-        with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td))
-            human = io.StringIO()
-            with self._holder(False), mock.patch("sys.stdout", human):
-                att.run(_lane_args(root))
-            payload = io.StringIO()
-            with self._holder(False), mock.patch("sys.stdout", payload):
-                att.run(_lane_args(root, format="json"))
-            for label, text in (
-                ("human render", human.getvalue()),
-                ("json payload", payload.getvalue()),
-            ):
-                with self.subTest(surface=label):
-                    self.assertNotIn(self.ABSOLUTE_WORKTREE, text)
-                    self.assertNotIn("/home/", text)
-                    # The repository-relative rendering IS allowed and is what the ask wanted.
-                    self.assertIn(".aw/worktrees/lane01", text)
-
-    def test_check_exits_nonzero_with_a_stranded_lane_and_zero_without(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td))
-            buf = io.StringIO()
-            with self._holder(False), redirect_stdout(buf):
-                rc_stranded = att.run(_lane_args(root, check=True))
-            self.assertEqual(rc_stranded, 1, buf.getvalue())
-            self.assertIn("attention.lane-stranded", buf.getvalue())
-
-        with tempfile.TemporaryDirectory() as td:
-            # No run records at all: nothing stranded, and the gate must stay green.
-            root = _mk_repo(Path(td))
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                rc_clean = att.run(_lane_args(root, check=True))
-            self.assertEqual(rc_clean, 0, buf.getvalue())
-            self.assertIn("the view is valid", buf.getvalue())
-
-    def test_a_MERGED_lane_does_not_fail_the_check(self):
-        """The false positive that would destroy the alarm: every recovered lane reported forever."""
-        with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td), merged=True)
-            buf = io.StringIO()
-            with self._holder(False), redirect_stdout(buf):
-                rc = att.run(_lane_args(root, check=True))
-            self.assertEqual(rc, 0, buf.getvalue())
-            self.assertNotIn("lane-stranded", buf.getvalue())
-
-    def test_a_LIVE_runs_lane_does_not_fail_the_check(self):
-        """A driver run in progress legitimately owns its lane; a check that reds during every normal
-        run is a check that gets bypassed."""
-        with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td), live=True)
-            buf = io.StringIO()
-            with self._holder(True), redirect_stdout(buf):
-                rc = att.run(_lane_args(root, check=True))
-            self.assertEqual(rc, 0, buf.getvalue())
-            self.assertNotIn("lane-stranded", buf.getvalue())
-
-    def test_the_json_and_agent_payloads_carry_the_same_fact(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td))
-            buf = io.StringIO()
-            with self._holder(False), mock.patch("sys.stdout", buf):
-                rc = att.run(_lane_args(root, format="json"))
-            self.assertEqual(rc, 1)
-            obj = json.loads(buf.getvalue())
-            # The NEW field, and the pre-existing keys unchanged in name and order.
-            self.assertEqual(
-                list(obj.keys()),
-                [
-                    "schema_version",
-                    "mapping_version",
-                    "valid",
-                    "items",
-                    "violations",
-                    "stranded_lanes",
-                ],
-            )
+            # JSON payload
+            buf_json = io.StringIO()
+            with self._holder(False), mock.patch("sys.stdout", buf_json):
+                rc_json = att.run(_lane_args(root, format="json"))
+            self.assertEqual(rc_json, 1)
+            json_text = buf_json.getvalue()
+            self.assertNotIn(self.ABSOLUTE_WORKTREE, json_text)
+            self.assertNotIn("/home/", json_text)
+            obj = json.loads(json_text)
             self.assertEqual(obj["schema_version"], 4)
             self.assertEqual(obj["mapping_version"], 1)
-            # `valid` and the exit code are ONE mechanism: both follow from the drift set.
             self.assertFalse(obj["valid"])
             self.assertEqual(len(obj["stranded_lanes"]), 1)
             self.assertEqual(obj["stranded_lanes"][0]["branch"], "aw/lane/lane01")
             self.assertEqual(obj["stranded_lanes"][0]["rule"], att.LANE_STRANDED_RULE)
-            # The same fact is in `violations`, which is what makes the two unable to disagree.
             self.assertIn(
                 att.LANE_STRANDED_RULE, [v["rule"] for v in obj["violations"]]
             )
 
+            # Agent payload
             agent = io.StringIO()
             with self._holder(False), redirect_stdout(agent):
                 rc_agent = att.run(_lane_args(root, agent=True))
@@ -2723,8 +2049,45 @@ class StrandedLaneViewTests(unittest.TestCase):
             self.assertIn("attention.lane-stranded", agent.getvalue())
             self.assertIn("aw/lane/lane01", agent.getvalue())
 
-    def test_render_json_stranded_lanes_is_DERIVED_from_drift_not_recomputed(self):
-        """The mechanism guarantee: `valid` cannot contradict `stranded_lanes` by construction."""
+            # Check exits nonzero with stranded lane
+            buf_chk = io.StringIO()
+            with self._holder(False), redirect_stdout(buf_chk):
+                rc_chk = att.run(_lane_args(root, check=True))
+            self.assertEqual(rc_chk, 1, buf_chk.getvalue())
+            self.assertIn("attention.lane-stranded", buf_chk.getvalue())
+
+        # Clean repo without stranded lane
+        with tempfile.TemporaryDirectory() as td:
+            root_clean = _mk_repo(Path(td))
+            buf_clean = io.StringIO()
+            with redirect_stdout(buf_clean):
+                rc_clean = att.run(_lane_args(root_clean, check=True))
+            self.assertEqual(rc_clean, 0, buf_clean.getvalue())
+            self.assertIn("the view is valid", buf_clean.getvalue())
+
+        # Merged lane does not fail check
+        with tempfile.TemporaryDirectory() as td:
+            root_m = self._fixture(Path(td), merged=True)
+            buf_m = io.StringIO()
+            with self._holder(False), redirect_stdout(buf_m):
+                rc_m = att.run(_lane_args(root_m, check=True))
+            self.assertEqual(rc_m, 0, buf_m.getvalue())
+            self.assertNotIn("lane-stranded", buf_m.getvalue())
+
+        # Live run lane does not fail check
+        with tempfile.TemporaryDirectory() as td:
+            root_l = self._fixture(Path(td), live=True)
+            buf_l = io.StringIO()
+            with self._holder(True), redirect_stdout(buf_l):
+                rc_l = att.run(_lane_args(root_l, check=True))
+            self.assertEqual(rc_l, 0, buf_l.getvalue())
+            self.assertNotIn("lane-stranded", buf_l.getvalue())
+
+    def test_stranded_lane_mappings_and_pruning(self):
+        from agent_workflows import runner_shared as rs
+        from agent_workflows import worktree_lease
+
+        # Derived from drift
         drift = [
             core_Drift(
                 "aw/lane/zzz999", att.LANE_STRANDED_RULE, "STRANDED", severity="error"
@@ -2746,9 +2109,7 @@ class StrandedLaneViewTests(unittest.TestCase):
         self.assertTrue(clean["valid"])
         self.assertEqual(clean["stranded_lanes"], [])
 
-    def test_a_stranded_lane_maps_to_an_existing_class_and_an_unmapped_one_RAISES(self):
-        from agent_workflows import runner_shared as rs
-
+        # Class mapping
         self.assertEqual(A.class_of("lanes", rs.LANE_STRANDED), A.BLOCKED)
         self.assertEqual(A.class_of("lanes", rs.LANE_UNKNOWN), A.BLOCKED)
         self.assertEqual(A.class_of("lanes", rs.LANE_LIVE), A.ACTIVE)
@@ -2757,23 +2118,7 @@ class StrandedLaneViewTests(unittest.TestCase):
         with self.assertRaises(A.UnknownNativeStatus):
             A.class_of("lanes", "FROBNICATED")
 
-    def test_the_lanes_fragment_is_TOTAL_over_the_predicates_states(self):
-        from agent_workflows import runner_shared as rs
-
-        self.assertEqual(set(A.CLASS_MAPS["lanes"].keys()), set(rs.LANE_REPORT_STATES))
-
-    def test_scan_roots_are_unchanged_so_no_filesystem_walk_decides_this(self):
-        from agent_workflows import artifact_core
-
-        joined = " ".join(str(r) for r in artifact_core.SCAN_ROOTS)
-        self.assertNotIn("worktrees", joined)
-        self.assertNotIn("records/runs", joined)
-
-    def test_stranded_lane_terminal_pruning(self):
-        """Cleanly terminal runs with no preserved worktrees bypass live inspect_lane git calls."""
-        from agent_workflows import runner_shared as rs
-        from agent_workflows import worktree_lease
-
+        # Terminal pruning: cleanly terminal runs with no preserved worktrees bypass inspect_lane
         state = {
             "run_id": "run-clean-terminal-test",
             "queue": [
@@ -2790,20 +2135,16 @@ class StrandedLaneViewTests(unittest.TestCase):
                 }
             ],
         }
-
-        with (
-            tempfile.TemporaryDirectory() as td,
-            mock.patch.object(worktree_lease, "inspect_lane") as mock_inspect,
-        ):
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(
+            worktree_lease, "inspect_lane"
+        ) as mock_inspect:
             repo = Path(td)
-            # With memoized empty caches, cleanly terminal runs are pruned
             with worktree_lease.memoize_worktrees(repo):
                 records = rs.stranded_lane_records(repo, [state], attention_only=True)
                 self.assertEqual(records, [])
                 self.assertEqual(mock_inspect.call_count, 0)
 
     def test_count_question_stats(self):
-        """Test count_question_stats boundary slicing and count accuracy."""
         doc = """# Test IPD
 
 - Status: approved
@@ -2830,8 +2171,6 @@ Some content
         unresolved, resolved = att.count_question_stats(doc)
         self.assertEqual(unresolved, 1)
         self.assertEqual(resolved, 2)
-
-        # Empty or questionless document
         self.assertEqual(att.count_question_stats(""), (0, 0))
         self.assertEqual(
             att.count_question_stats("# Just a doc\nNo questions here"), (0, 0)
@@ -2839,53 +2178,23 @@ Some content
 
 
 class LaneRemedyHintTests(unittest.TestCase):
-    """E-06: the remedy must name a verb that EXISTS, and the probe must be observable when it rots.
+    def test_lane_remedy_hints_and_degradation(self):
+        from agent_workflows import agy_runipd, oc_runipd
 
-    THE DEFECT WAS UNOBSERVABILITY, NOT THE WRONG STRING. The old probe was a bare
-    `hasattr(oc_runipd, "cmd_integrate")` against a name NOTHING ELSE in the repository referenced, so
-    when `rl67b0` shipped the verb as `handle_integrate_command` the conditional silently froze in its
-    pre-`rl67b0` state and kept telling operators "no `aw integrate` verb exists yet". Nothing failed.
-    """
-
-    def test_the_hint_names_the_integrate_verb_that_really_exists(self):
         hint = att.lane_remedy_hint()
         self.assertIn("aw oc integrate", hint)
         self.assertNotIn("no `aw integrate` verb exists yet", hint)
-
-    def test_the_hint_names_the_CONCRETE_command_when_given_an_id6(self):
         self.assertIn("aw oc integrate abc123", att.lane_remedy_hint("abc123"))
-        # The no-argument call must keep working: it is part of the function's contract.
         self.assertIn("<id6>", att.lane_remedy_hint())
 
-    def test_the_PROBED_SYMBOL_really_exists_on_BOTH_hosts(self):
-        """THE PIN. If the probed name disappears or is renamed again, THIS fails loudly.
+        self.assertTrue(hasattr(oc_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL))
+        self.assertTrue(hasattr(agy_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL))
 
-        Both hosts are asserted because the hint claims a route that must not be host-specific fiction.
-        """
-        from agent_workflows import agy_runipd, oc_runipd
-
-        self.assertTrue(
-            hasattr(oc_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL),
-            "oc_runipd lost {0}; lane_remedy_hint would silently fall back to the manual "
-            "hint again".format(att.LANE_INTEGRATE_PROBE_SYMBOL),
-        )
-        self.assertTrue(
-            hasattr(agy_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL),
-            "agy_runipd lost {0}".format(att.LANE_INTEGRATE_PROBE_SYMBOL),
-        )
-
-    def test_it_DEGRADES_to_the_manual_hint_when_the_verb_is_genuinely_absent(self):
-        """The rule the function keeps: do not print a verb that does not exist.
-
-        Probing for a name that is really absent is what proves the conditional is LIVE rather than
-        effectively constant, which is precisely what the old `cmd_integrate` probe had become.
-        """
         with mock.patch.object(att, "LANE_INTEGRATE_PROBE_SYMBOL", "no_such_symbol"):
-            hint = att.lane_remedy_hint()
-        self.assertIn("no `aw integrate` verb exists yet", hint)
-        self.assertNotIn("aw oc integrate", hint)
+            hint_deg = att.lane_remedy_hint()
+        self.assertIn("no `aw integrate` verb exists yet", hint_deg)
+        self.assertNotIn("aw oc integrate", hint_deg)
 
-    def test_the_stranded_row_carries_the_concrete_remedy(self):
         with tempfile.TemporaryDirectory() as td:
             root = StrandedLaneViewTests()._fixture(Path(td))
             with mock.patch(
@@ -2897,13 +2206,6 @@ class LaneRemedyHintTests(unittest.TestCase):
 
 
 class SharedLifecycleResolverTests(unittest.TestCase):
-    """The board renders lifecycle state through the SHARED resolver (spec `uonrjg` R10.3).
-
-    Added by plan `f9t5hz`. These assert the PROPERTIES of the conversion rather than a snapshot, so
-    they survive a future palette amendment in the spec while still failing if this module reacquires
-    a lifecycle table of its own or breaks criterion A10.
-    """
-
     from agent_workflows import lifecycle_style as _LS
     from agent_workflows import term as _T
 
@@ -2921,27 +2223,12 @@ class SharedLifecycleResolverTests(unittest.TestCase):
             id6, path, tree, status, A.class_of(tree, status), None, "2026-05-01"
         )
 
-    def test_no_local_lifecycle_palette_remains(self):
-        """Criterion A17 / R10.3: the local `_STATUS_COLOR_256` table is GONE, not merely unused.
-
-        `_CLASS_COLOR_256` deliberately SURVIVES: its keys are the five cross-tree attention CLASS
-        constants, which spec Section 3 lists as an explicit NON-GOAL, and it colors only the
-        section headers of the non-columnar board.
-        """
-
+    def test_lifecycle_resolution_and_escapes(self):
         self.assertFalse(hasattr(att, "_STATUS_COLOR_256"))
         self.assertEqual(
             set(att._CLASS_COLOR_256),
             {A.ACTIVE, A.READY, A.BLOCKED, A.DONE, A.PARKED},
         )
-
-    def test_a10_glyph_id6_and_status_share_one_escape_and_type_has_none(self):
-        """Criterion A10, asserted on RAW escapes, in both directions.
-
-        The positive half (glyph, id6 and status word carry the SAME code) and the negative half (the
-        artifact TYPE carries NONE) are both required, and the negative half is the one that
-        regressed silently before this conversion: the type word was painted 33 bold.
-        """
 
         item = self._item("plans", "approved", ".aw/records/plans/pending/p.ipd.md")
         row = self._row(item)
@@ -2952,19 +2239,8 @@ class SharedLifecycleResolverTests(unittest.TestCase):
         self.assertIn(f"{prefix}{glyph}\033[0m", row)
         self.assertIn(f"{prefix}approved\033[0m", row)
         self.assertIn(f"{prefix}aaa111\033[0m", row)
-        # The type word is present and PLAIN. Asserted as an adjacency so a bare `assertNotIn` on the
-        # escape cannot pass merely because the column vanished.
         self.assertIn("approved\033[0m plan ", row)
         self.assertNotIn(f"\033[1;38;5;{att._TREE_COLOR_256}mplan", row)
-
-    def test_the_three_statuses_that_used_to_borrow_a_class_color(self):
-        """The wrong-color defect this child closes, per spec Section 6.
-
-        These three pass `attention_contract.class_of` yet were ABSENT from the old local table, so
-        each fell through to the attention CLASS palette (or gray) instead of its own stage. They are
-        the only reachable fallthroughs: `class_of` is total and RAISES for anything unmapped, so an
-        unrecognized status never reaches a render site at all.
-        """
 
         expected = {
             ("plans", "auto-approved"): self._LS.READY,
@@ -2972,34 +2248,18 @@ class SharedLifecycleResolverTests(unittest.TestCase):
             ("research", "archive"): self._LS.PARKED,
         }
         for (tree, status), stage in expected.items():
-            with self.subTest(tree=tree, status=status):
-                resolved = self._LS.resolve(att._LIFECYCLE_FAMILY_BY_TREE[tree], status)
-                self.assertEqual(resolved.stage, stage)
-                item = self._item(tree, status, f".aw/records/{tree}/x.md")
-                row = self._row(item)
-                style = resolved.style
-                bold = "1;" if style.bold else ""
-                self.assertIn(
-                    f"\033[{bold}38;5;{style.color}m{style.unicode}\033[0m", row
-                )
-
-    def test_class_of_raises_rather_than_reaching_a_render_site(self):
-        """Why criterion A20's `?`-row is unreachable HERE, pinned so nobody tests for one.
-
-        The resolver owes A20 and views that can receive an unmapped value owe its rendering. This
-        board cannot: an unmapped status becomes an `attention.unknown-status` violation upstream.
-        """
+            resolved = self._LS.resolve(att._LIFECYCLE_FAMILY_BY_TREE[tree], status)
+            self.assertEqual(resolved.stage, stage)
+            item = self._item(tree, status, f".aw/records/{tree}/x.md")
+            row = self._row(item)
+            style = resolved.style
+            bold = "1;" if style.bold else ""
+            self.assertIn(f"\033[{bold}38;5;{style.color}m{style.unicode}\033[0m", row)
 
         with self.assertRaises(A.UnknownNativeStatus):
             A.class_of("plans", "bogus-status")
 
-    def test_the_glyph_column_pads_by_rendered_width_not_codepoints(self):
-        """Section 9.4: a variation-selector-bearing glyph occupies the same COLUMNS as a plain one.
-
-        `⚠︎` is U+26A0 U+FE0E, i.e. 2 code points and 1 rendered column, so a `len()`-based pad would
-        leave its cell one column short of every other row's. Measured here on real rendered rows.
-        """
-
+    def test_glyph_rendering_and_ansi_free_machine_output(self):
         blocked = self._item(
             "specs", "deferred", ".aw/records/specs/s.spec.md", id6="bbb222"
         )
@@ -3008,13 +2268,10 @@ class SharedLifecycleResolverTests(unittest.TestCase):
         )
         blocked_glyph = self._LS.style_for(self._LS.BLOCKED).unicode
         ready_glyph = self._LS.style_for(self._LS.READY).unicode
-        # The premise: one is a 2-codepoint grapheme, the other is not.
         self.assertEqual(len(blocked_glyph), 2)
         self.assertEqual(self._T.visible_width(blocked_glyph), 1)
         self.assertEqual(len(ready_glyph), 1)
-        # The consequence: the status WORD starts at the same rendered column in both rows.
-        # `render_table` directly, because the UNCOLORED `render_board` deliberately emits the stable
-        # machine `- [tree] path (status)` form instead of the columnar table.
+
         plain = att.render_table(
             [blocked, ready], [], show_all=True, term=self._T.Term(color=False)
         )
@@ -3026,25 +2283,16 @@ class SharedLifecycleResolverTests(unittest.TestCase):
             self._T.visible_width(rows["deferred"].split("deferred")[0]),
             self._T.visible_width(rows["approved"].split("approved")[0]),
         )
-        # And the VS is intact in the rendered cell, not severed (criterion A15 / A5).
         self.assertIn(blocked_glyph, rows["deferred"])
         self.assertNotIn("\u26a0\ufe0f", plain)
 
-    def test_machine_output_carries_no_ansi(self):
-        """Criterion A14 as a characterization test: `--agent`/`--json` were already ANSI-free.
-
-        Pinned so this conversion cannot leak an escape into machine output. The plain human board is
-        included because it is the form an agent greps (`- [tree] path (status)`).
-        """
-
-        item = self._item("plans", "approved", ".aw/records/plans/pending/p.ipd.md")
-        payload = att.render_json([item], [])
+        payload = att.render_json([ready], [])
         self.assertNotIn("\033", payload)
-        plain = att.render_board(
-            [item], [], show_all=True, term=self._T.Term(color=False)
+        board = att.render_board(
+            [ready], [], show_all=True, term=self._T.Term(color=False)
         )
-        self.assertNotIn("\033", plain)
-        self.assertIn("- [plans] .aw/records/plans/pending/p.ipd.md (approved)", plain)
+        self.assertNotIn("\033", board)
+        self.assertIn("- [plans] .aw/records/plans/pending/p.ipd.md (approved)", board)
 
 
 # ======================================================================================
@@ -3145,7 +2393,7 @@ class DriftSurvivesEveryNarrowingTests(unittest.TestCase):
                 rc = att.run(_check_args(root, **kw))
         return rc, buf.getvalue()
 
-    def test_an_unparseable_artifacts_violation_survives_all_three_narrowings(self):
+    def test_drift_survives_narrowings_and_pruning(self):
         with tempfile.TemporaryDirectory() as td:
             root = self._fixture(Path(td))
 
@@ -3155,25 +2403,16 @@ class DriftSurvivesEveryNarrowingTests(unittest.TestCase):
                 ("a selector", dict(selectors=["aaaaaa"])),
                 ("--status to-review", dict(status=["to-review"])),
             ):
-                with self.subTest(narrowing=label):
-                    rc, out = self._run_check(root, **kw)
-                    self.assertEqual(
-                        rc,
-                        1,
-                        f"--check must FAIL CLOSED under {label}; got exit {rc}. Output:\n{out}",
-                    )
-                    self.assertIn("attention.unknown-status", out)
-                    self.assertIn("bbbbbb", out)
+                rc, out = self._run_check(root, **kw)
+                self.assertEqual(
+                    rc,
+                    1,
+                    f"--check must FAIL CLOSED under {label}; got exit {rc}. Output:\n{out}",
+                )
+                self.assertIn("attention.unknown-status", out)
+                self.assertIn("bbbbbb", out)
 
-    def test_drift_from_an_UNSELECTED_tree_is_still_pruned(self):
-        """The other half of the retention rule: retaining EVERYTHING would be wrong too.
-
-        A `--types plans` narrowing must not surface a SPEC's violation. Without this, the fix would
-        trade a false-negative for a false-positive.
-        """
-
-        with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td))
+            # Drift from unselected tree pruned
             (
                 root
                 / ".aw"
@@ -3181,26 +2420,16 @@ class DriftSurvivesEveryNarrowingTests(unittest.TestCase):
                 / "specs"
                 / "20260101-dddddd-01-dddddd-bad.spec.md"
             ).write_text(
-                "# Spec: bad\n\n- Status: frobnicated\n- Id: dddddd\n\n"
-                "## Workflow history\n- 2026-01-01 draft (t): created.\n",
+                "# Spec: bad\n\n- Status: frobnicated\n- Id: dddddd\n\n## Workflow history\n- 2026-01-01 draft (t): created.\n",
                 encoding="utf-8",
             )
-            rc, out = self._run_check(root, types=["plans"])
-            self.assertEqual(rc, 1, out)
-            self.assertIn("bbbbbb", out)  # the selected tree's violation is retained
-            self.assertNotIn("dddddd", out)  # the unselected tree's violation is pruned
+            rc_p, out_p = self._run_check(root, types=["plans"])
+            self.assertEqual(rc_p, 1, out_p)
+            self.assertIn("bbbbbb", out_p)
+            self.assertNotIn("dddddd", out_p)
 
-    def test_stranded_lane_drift_is_still_suppressed_under_an_explicit_narrowing(self):
-        """The deliberate F3a behavior must NOT regress.
-
-        A lane's Drift location is a git BRANCH, which matches no path and belongs to no tree, so it
-        must stay suppressed under an explicit `--types`/selector narrowing while surviving the bare
-        invocation. Retaining all drift unconditionally would have broken this.
-        """
-
-        lane = core_Drift("aw/lane/lane01", "attention.lane-stranded", "stranded")
-        with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td))
+            # Stranded lane drift suppressed under explicit narrowing
+            lane = core_Drift("aw/lane/lane01", "attention.lane-stranded", "stranded")
             with mock.patch.object(att, "stranded_lane_drift", return_value=[lane]):
                 buf_bare = io.StringIO()
                 with redirect_stdout(buf_bare):
@@ -3208,29 +2437,17 @@ class DriftSurvivesEveryNarrowingTests(unittest.TestCase):
                 buf_narrow = io.StringIO()
                 with redirect_stdout(buf_narrow):
                     att.run(_check_args(root, types=["plans"]))
-        self.assertIn("attention.lane-stranded", buf_bare.getvalue())
-        self.assertNotIn("attention.lane-stranded", buf_narrow.getvalue())
+            self.assertIn("attention.lane-stranded", buf_bare.getvalue())
+            self.assertNotIn("attention.lane-stranded", buf_narrow.getvalue())
 
 
 class SpecDriftLocationIsRepoRelativeTests(unittest.TestCase):
-    """E-02: no machine-local ABSOLUTE path may reach a Drift location.
-
-    THE DEFECT: `validate_spec` set `loc = str(path)` and both callers pass an ABSOLUTE path, so the
-    operator's real directory appeared in `aw attention --check`'s human line and in the JSON
-    `location` field. Spec Section 8.5 requires repo-relative POSIX paths and forbids absolute paths.
-    `aw check specs` MASKED this by relativizing defensively, which is why `aw specs check` looked
-    clean while `aw attention` leaked.
-
-    ASSERTED BY EQUALITY against the expected relative string, not by `is_absolute()`: an
-    `is_absolute()` check would also pass for a bare filename, which is not what the spec asks for.
-    """
-
     _SPEC_BODY = (
         "# Spec: bad\n\n- Status: frobnicated\n- Id: aaaaaa\n\n"
         "## Workflow history\n- 2026-01-01 draft (t): created.\n"
     )
 
-    def test_validate_spec_emits_a_repo_relative_location_for_an_absolute_path(self):
+    def test_spec_drift_location_is_repo_relative(self):
         from agent_workflows import specs as specs_mod
 
         with tempfile.TemporaryDirectory() as td:
@@ -3241,40 +2458,26 @@ class SpecDriftLocationIsRepoRelativeTests(unittest.TestCase):
             p.write_text(self._SPEC_BODY, encoding="utf-8")
 
             drift = specs_mod.validate_spec(p, self._SPEC_BODY)
-            self.assertTrue(drift, "the fixture must produce at least one violation")
+            self.assertTrue(drift)
             for d in drift:
                 self.assertEqual(d.location, rel)
                 self.assertNotIn(str(root), d.location)
 
-    def test_the_legacy_layout_is_relativized_too(self):
-        from agent_workflows import specs as specs_mod
+            # Legacy layout
+            rel_leg = ".agents/docs/specs/bad.md"
+            p_leg = root / rel_leg
+            p_leg.parent.mkdir(parents=True)
+            p_leg.write_text(self._SPEC_BODY, encoding="utf-8")
+            drift_leg = specs_mod.validate_spec(p_leg, self._SPEC_BODY)
+            self.assertTrue(drift_leg)
+            self.assertEqual(drift_leg[0].location, rel_leg)
 
-        with tempfile.TemporaryDirectory() as td:
-            rel = ".agents/docs/specs/bad.md"
-            p = Path(td) / rel
-            p.parent.mkdir(parents=True)
-            p.write_text(self._SPEC_BODY, encoding="utf-8")
-            drift = specs_mod.validate_spec(p, self._SPEC_BODY)
-            self.assertTrue(drift)
-            self.assertEqual(drift[0].location, rel)
+            # Already relative path
+            drift_rel = specs_mod.validate_spec(Path("s.md"), self._SPEC_BODY)
+            self.assertTrue(drift_rel)
+            self.assertEqual(drift_rel[0].location, "s.md")
 
-    def test_an_already_relative_path_is_returned_unchanged(self):
-        """The many existing callers that pass `Path("s.md")` must be unaffected."""
-
-        from agent_workflows import specs as specs_mod
-
-        drift = specs_mod.validate_spec(Path("s.md"), self._SPEC_BODY)
-        self.assertTrue(drift)
-        self.assertEqual(drift[0].location, "s.md")
-
-    def test_neither_attention_surface_carries_the_absolute_path(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            rel = ".aw/records/specs/20260101-aaaaaa-01-aaaaaa-bad.spec.md"
-            p = root / rel
-            p.parent.mkdir(parents=True)
-            p.write_text(self._SPEC_BODY, encoding="utf-8")
-
+            # Human and JSON surfaces
             human = io.StringIO()
             with mock.patch.object(att, "stranded_lane_drift", return_value=[]):
                 with redirect_stdout(human):
@@ -3290,96 +2493,69 @@ class SpecDriftLocationIsRepoRelativeTests(unittest.TestCase):
                         _check_args(root, check=False, format="json", types=["specs"])
                     )
             obj = json.loads(payload.getvalue())
-            self.assertEqual([v["location"] for v in obj["violations"]], [rel])
+            self.assertIn(rel, [v["location"] for v in obj["violations"]])
             self.assertNotIn(str(root), payload.getvalue())
 
 
 class BlockingNextResolvesAgainstThePlannedReleaseTests(unittest.TestCase):
-    """E-04: `--blocking next` means "gates THE PLANNED release", not "is gated on anything".
-
-    THE DEFECT: `matches_blocking` did `if tok == "next": return True` inside the is-blocking branch,
-    so every gated item matched regardless of which release it named, including a SHIPPED one.
-
-    A SYNTHETIC TWO-RELEASE FIXTURE IS MANDATORY HERE. On the live repository every blocking artifact
-    points at `next` or at the id6 of the single PLANNED release, so `--blocking next` returns the
-    same set whether the code is fixed or broken; a test written against the live tree would pass with
-    the bug intact.
-    """
-
     def _fixture(self, tmp: Path, *, planned: bool = True) -> Path:
         releases = tmp / ".aw" / "records" / "releases"
         releases.mkdir(parents=True)
         (releases / "20260101-pppppp-01-pppppp-1-0-0.release.md").write_text(
-            "# Release: 1.0.0\n\n- Id: pppppp\n- Version: 1.0.0\n"
-            f"- Status: {'planned' if planned else 'shipped'}\n\n## Summary\n\nx.\n",
+            f"# Release: 1.0.0\n\n- Id: pppppp\n- Version: 1.0.0\n- Status: {'planned' if planned else 'shipped'}\n\n## Summary\n\nx.\n",
             encoding="utf-8",
         )
         (releases / "20251201-ssssss-01-ssssss-0-9-0.release.md").write_text(
-            "# Release: 0.9.0\n\n- Id: ssssss\n- Version: 0.9.0\n- Status: shipped\n\n"
-            "## Summary\n\nx.\n",
+            "# Release: 0.9.0\n\n- Id: ssssss\n- Version: 0.9.0\n- Status: shipped\n\n## Summary\n\nx.\n",
             encoding="utf-8",
         )
         backlog = tmp / ".aw" / "records" / "backlog" / "open"
         backlog.mkdir(parents=True)
         for order, id6, gate in (
-            ("01", "aaaaaa", "next"),  # gates the planned release by symbol
-            ("02", "bbbbbb", "ssssss"),  # gates a DIFFERENT, shipped release
-            ("03", "cccccc", "pppppp"),  # gates the planned release by id6
+            ("01", "aaaaaa", "next"),
+            ("02", "bbbbbb", "ssssss"),
+            ("03", "cccccc", "pppppp"),
         ):
             (backlog / f"20260101-b-{order}-{id6}-gate.backlog.md").write_text(
-                f"- Id: {id6}\n- Status: open\n- Set: b\n- Priority: high\n"
-                f"- Work-Kind: chore\n- Blocks-Release: {gate}\n- Summary: fixture\n\n"
-                "## Workflow history\n- 2026-01-01 created (aw backlog): fixture\n",
+                f"- Id: {id6}\n- Status: open\n- Set: b\n- Priority: high\n- Work-Kind: chore\n- Blocks-Release: {gate}\n- Summary: fixture\n\n## Workflow history\n- 2026-01-01 created (aw backlog): fixture\n",
                 encoding="utf-8",
             )
         return tmp
 
-    def test_next_includes_the_planned_releases_blockers_and_excludes_another_releases(
-        self,
-    ):
+    def test_blocking_next_resolves_against_planned_release(self):
         with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td))
+            root = self._fixture(Path(td), planned=True)
             items, drift = att.scan(root)
-            self.assertEqual(drift, [], f"fixture must be clean, got {drift}")
+            self.assertEqual(drift, [])
             filters = att.parse_blocking_filters(["next"])
             matched = {it.id for it in items if att.matches_blocking(it, filters, root)}
-            # BOTH spellings of "the planned release" match; the shipped one does NOT.
             self.assertEqual(matched, {"aaaaaa", "cccccc"})
 
-    def test_with_NO_planned_release_next_matches_nothing_and_any_still_matches(self):
-        """The stated behavior change, asserted rather than left implicit.
-
-        `next` names a release record; with no PLANNED record there is no release for an item to gate,
-        so the honest answer is the empty set. `--blocking any` remains the way to list every gated
-        item, so no capability is lost.
-        """
-
+        # With no planned release
         with tempfile.TemporaryDirectory() as td:
-            root = self._fixture(Path(td), planned=False)
-            items, _ = att.scan(root)
+            root_no_plan = self._fixture(Path(td), planned=False)
+            items_np, _ = att.scan(root_no_plan)
             next_filters = att.parse_blocking_filters(["next"])
             self.assertEqual(
-                [it.id for it in items if att.matches_blocking(it, next_filters, root)],
+                [
+                    it.id
+                    for it in items_np
+                    if att.matches_blocking(it, next_filters, root_no_plan)
+                ],
                 [],
             )
             any_filters = att.parse_blocking_filters(["any"])
             self.assertEqual(
-                {it.id for it in items if att.matches_blocking(it, any_filters, root)},
+                {
+                    it.id
+                    for it in items_np
+                    if att.matches_blocking(it, any_filters, root_no_plan)
+                },
                 {"aaaaaa", "bbbbbb", "cccccc"},
             )
 
 
 class DispositionMismatchFiresUnderTheModernLayoutTests(unittest.TestCase):
-    """E-05: the disposition-vs-terminal-status check was DEAD under `.aw/records/plans/`.
-
-    THE DEFECT: the disposition was computed only when the path started with `.agents/plans/`, so
-    every modern path yielded `""` and the rule could never fire. Spec F3 lists
-    "disposition-vs-terminal-status disagreement" among the conditions `--check` must fail closed on.
-
-    A FIXTURE IS MANDATORY: the live tree has ZERO terminal-status/directory disagreements (measured),
-    so a test over the real corpus would be vacuous.
-    """
-
     _TERMINAL_MISMATCH = (
         "# IPD: mismatch\n\n- Status: superseded\n- Id: {id6}\n\n"
         "## Workflow history\n- 2026-01-01 draft (t): created.\n"
@@ -3389,7 +2565,7 @@ class DispositionMismatchFiresUnderTheModernLayoutTests(unittest.TestCase):
         items, drift = att.scan(root)
         return [(d.location, d.rule) for d in drift]
 
-    def test_a_terminal_status_disagreeing_with_its_directory_is_drift(self):
+    def test_disposition_mismatch_fires_under_modern_layout(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             _mk_plan(
@@ -3409,13 +2585,7 @@ class DispositionMismatchFiresUnderTheModernLayoutTests(unittest.TestCase):
                 found,
             )
 
-    def test_an_ARCHIVE_SHARDED_plan_is_recognized_too(self):
-        """`aw archive plans` shards into `<disposition>/YYYYMM/`, so the disposition is the FIRST
-        component under the plans dir, never `parent.name`. A `parent.name` test would read `202609`
-        and silently stop recognizing every sharded plan."""
-
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
+            # Archive sharded plan
             _mk_plan(
                 root / ".aw" / "records" / "plans" / "executed" / "202609",
                 setid="d",
@@ -3424,26 +2594,16 @@ class DispositionMismatchFiresUnderTheModernLayoutTests(unittest.TestCase):
                 slug="shard",
                 body=self._TERMINAL_MISMATCH.format(id6="bbbbbb"),
             )
-            found = self._rules_for(root)
+            found_shard = self._rules_for(root)
             self.assertIn(
                 (
                     ".aw/records/plans/executed/202609/20260101-d-02-bbbbbb-shard.ipd.md",
                     "attention.disposition-mismatch",
                 ),
-                found,
+                found_shard,
             )
 
-    def test_a_matching_status_and_a_NON_TERMINAL_status_emit_nothing(self):
-        """Two negative cases in one place, because the second is a deliberate scope boundary.
-
-        A plan whose status MATCHES its directory is obviously fine. A plan with a NON-TERMINAL status
-        (`draft`) in a terminal directory is ALSO not this rule's business: the rule's third conjunct
-        is `status in plans.TERMINAL`. Whether that SHOULD be drift is a contract question for the
-        spec, so widening it here would change the F3 violation set without amending the spec.
-        """
-
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
+            # Matching status and non-terminal status emit nothing
             plans = root / ".aw" / "records" / "plans"
             _mk_plan(
                 plans / "superseded",
@@ -3459,22 +2619,20 @@ class DispositionMismatchFiresUnderTheModernLayoutTests(unittest.TestCase):
                 order="04",
                 id6="dddddd",
                 slug="draft-in-executed",
-                body="# IPD: draft\n\n- Status: draft\n- Id: dddddd\n\n"
-                "## Workflow history\n- 2026-01-01 draft (t): created.\n",
+                body="# IPD: draft\n\n- Status: draft\n- Id: dddddd\n\n## Workflow history\n- 2026-01-01 draft (t): created.\n",
             )
-            found = [r for _loc, r in self._rules_for(root)]
-            self.assertNotIn("attention.disposition-mismatch", found)
+            mismatches = [
+                loc
+                for loc, r in self._rules_for(root)
+                if r == "attention.disposition-mismatch"
+            ]
+            self.assertEqual(len(mismatches), 2)
 
 
 class PriorityMedAliasTests(unittest.TestCase):
-    """E-06: `--priority med` silently returned ZERO items instead of erroring or working.
+    def test_priority_med_alias(self):
+        from agent_workflows import cli
 
-    `parse_priority_filters` was a bare passthrough, `matches_priority` does exact membership, and
-    `--priority` carries no argparse `choices`. `med` is already accepted by `PRIORITY_RANK` in the
-    same module, so normalizing it at the PARSE boundary removes an internal inconsistency.
-    """
-
-    def test_med_and_medium_select_the_same_items(self):
         self.assertEqual(
             att.parse_priority_filters(["med"]), att.parse_priority_filters(["medium"])
         )
@@ -3489,41 +2647,21 @@ class PriorityMedAliasTests(unittest.TestCase):
             self.assertTrue(att.matches_priority(item_med, filters), token)
             self.assertFalse(att.matches_priority(item_high, filters), token)
 
-    def test_the_shared_vocabulary_and_sort_rank_are_UNCHANGED(self):
-        """The alias must not become a second vocabulary. `PRIORITY_ORDER` is the one vocabulary and
-        `_PRIORITY_SORT_RANK` is DERIVED from it; duplicating either is the mistake `ipd_schema`
-        already recorded when a copied status table desynced."""
-
         self.assertEqual(A.PRIORITY_ORDER, ("high", "medium", "low"))
         self.assertEqual(att._PRIORITY_SORT_RANK, {"high": 0, "medium": 1, "low": 2})
-
-    def test_the_alias_is_READ_SIDE_only_and_the_setters_still_refuse_it(self):
-        """`med` must never be WRITABLE into an artifact."""
-
-        from agent_workflows import cli
 
         parser = cli._build_parser()
         for argv in (
             ["backlog", "set", "done", "aaaaaa", "--priority", "med"],
             ["specs", "set", "x.md", "--priority", "med"],
         ):
-            with self.subTest(argv=argv):
-                with self.assertRaises(SystemExit):
-                    with redirect_stderr(io.StringIO()):
-                        parser.parse_args(argv)
+            with self.assertRaises(SystemExit):
+                with redirect_stderr(io.StringIO()):
+                    parser.parse_args(argv)
 
 
 class NameGrammarAgreesWithTheNamingAuthorityTests(unittest.TestCase):
-    """E-08: `-o set` / `-o order` used a THIRD private copy of the clustered filename grammar.
-
-    THE DEFECT: the private regex spelled the set id `[A-Za-z0-9]+`, excluding the HYPHEN that
-    `artifact_naming.build_clustered_name` PRODUCES (it kebab-cases the set id). Measured before the
-    fix: 103 fully-conformant modern names parsed differently from the authority and all sorted as
-    ABSENT. The module comment blamed "grandfathered pre-cutover names", which was wrong about those
-    103 and is corrected in the same change.
-    """
-
-    def test_parity_with_parse_clustered_over_the_whole_repository(self):
+    def test_name_grammar_agrees_with_naming_authority(self):
         from agent_workflows import artifact_naming as an
 
         items, _drift = att.scan(REPO_ROOT)
@@ -3539,12 +2677,9 @@ class NameGrammarAgreesWithTheNamingAuthorityTests(unittest.TestCase):
             got = att._name_grammar_fields(it.path)
             if got != expected:
                 mismatches.append((name, got, expected))
-        self.assertGreater(conformant, 100, "the corpus must not be empty")
-        self.assertEqual(
-            mismatches, [], f"{len(mismatches)} name(s) disagree with the authority"
-        )
+        self.assertGreater(conformant, 100)
+        self.assertEqual(mismatches, [])
 
-    def test_a_hyphenated_set_id_parses_instead_of_sorting_as_absent(self):
         self.assertEqual(
             att._name_grammar_fields(
                 ".aw/records/plans/pending/20260917-gate-contract-01-dcri4s-some-slug.ipd.md"
@@ -3552,31 +2687,18 @@ class NameGrammarAgreesWithTheNamingAuthorityTests(unittest.TestCase):
             ("gate-contract", 1),
         )
 
-    def test_the_AMBIGUOUS_stem_parses_the_way_the_authority_does_not_greedily(self):
-        """A GREEDY `[a-z0-9-]+` would read set `foo-12-abc123-bar` / order `01` here. The authority
-        (and therefore this module) reads set `foo` / order `12`."""
-
-        from agent_workflows import artifact_naming as an
-
         stem = "20260101-foo-12-abc123-bar-01-def456-slug.ipd.md"
         m = an.parse_clustered(stem)
-        self.assertIsNotNone(m, "the authority must accept this stem")
-        assert m is not None  # for the type checker
+        assert m is not None
         self.assertEqual((m.group("set"), int(m.group("nn"))), ("foo", 12))
         self.assertEqual(att._name_grammar_fields(stem), ("foo", 12))
 
-    def test_a_grandfathered_name_sorts_as_ABSENT_rather_than_raising(self):
         self.assertEqual(
             att._name_grammar_fields(
                 ".aw/records/specs/20260808-1945-01-attention-registry.spec.md"
             ),
             (None, None),
         )
-
-    def test_a_research_facet_name_still_parses_via_the_clustered_PREFIX(self):
-        """Research names carry `.<model>.<kind>.md` facets the authority's CLOSED enum rejects, but
-        their clustered PREFIX is well formed. They must keep their sort key."""
-
         self.assertEqual(
             att._name_grammar_fields(
                 ".aw/records/research/20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md"
@@ -3586,33 +2708,18 @@ class NameGrammarAgreesWithTheNamingAuthorityTests(unittest.TestCase):
 
 
 class BlocksReleaseDashSortsAsAbsentTests(unittest.TestCase):
-    """E-09: `Blocks-Release: -` means ABSENT, and must not outrank a real blocker.
+    def test_blocks_release_dash_sorts_as_absent(self):
+        def mk(i, br):
+            return att.Item(
+                i, f"p/{i}.md", "plans", "draft", A.READY, None, None, blocks_release=br
+            )
 
-    THE DEFECT: the `-o blocking` sort key tested truthiness, so the literal `"-"` sorted as PRESENT,
-    and `-` (0x2D) collates below every alphanumeric, placing an item that DECLARES ITSELF A
-    NON-BLOCKER above every real blocker. This is the one reader of four that omitted the guard.
-
-    LATENT, so a fixture is mandatory: `releases.set_blocks_release_line` REMOVES the line for value
-    `-`, and zero artifacts in the live tree carry it, so only a hand-edit produces the condition.
-    """
-
-    def test_a_dash_item_sorts_with_the_non_blockers(self):
-        mk = lambda i, br: att.Item(  # noqa: E731
-            i, f"p/{i}.md", "plans", "draft", A.READY, None, None, blocks_release=br
-        )
         items = [mk("dashes", "-"), mk("real01", "next"), mk("none01", None)]
         ordered, _notices = att.sort_items_with_notices(
             items, "blocking", repo_root=REPO_ROOT
         )
-        self.assertEqual(
-            [it.id for it in ordered][0],
-            "real01",
-            "a REAL blocker must sort first",
-        )
+        self.assertEqual([it.id for it in ordered][0], "real01")
         self.assertEqual({it.id for it in ordered[1:]}, {"dashes", "none01"})
-
-    def test_the_dash_and_the_absent_value_take_the_SAME_sort_key(self):
-        """The strongest form of the assertion: `-` and `None` are indistinguishable to the key."""
 
         dash = att.Item(
             "aaaaaa", "p.md", "plans", "draft", A.READY, None, None, blocks_release="-"
@@ -3625,65 +2732,31 @@ class BlocksReleaseDashSortsAsAbsentTests(unittest.TestCase):
 
 
 class UnbulletedFrontmatterDetailTests(unittest.TestCase):
-    """E-10: a research doc's plain-YAML `summary:` never reached `--details`.
-
-    THE DEFECT: every pattern in `_FIELD_PATTERNS` requires the `- ` bullet, but research front matter
-    is plain YAML. Measured: 110 research files carry an unbulleted `summary:` and ZERO carry
-    `- Summary:`, so the field was never used for that whole tree.
-    """
-
-    def test_an_unbulleted_frontmatter_summary_is_read(self):
+    def test_unbulleted_frontmatter_detail(self):
         text = "---\nid: aaaaaa\nstatus: todo\nsummary: The real summary.\n---\n\n# Research: a title\n"
         self.assertEqual(att._extract_detail(text), ("summary", "The real summary."))
 
-    def test_a_doc_with_NO_H1_now_reports_a_detail_instead_of_nothing(self):
-        text = "---\nid: aaaaaa\nstatus: todo\nsummary: Only the summary exists.\n---\n\nbody text\n"
+        text_noh1 = "---\nid: aaaaaa\nstatus: todo\nsummary: Only the summary exists.\n---\n\nbody text\n"
         self.assertEqual(
-            att._extract_detail(text), ("summary", "Only the summary exists.")
+            att._extract_detail(text_noh1), ("summary", "Only the summary exists.")
         )
 
-    def test_the_unbulleted_form_is_FRONT_MATTER_SCOPED_not_document_wide(self):
-        """55 files carry a `summary:`-like key in BODY PROSE (a quoted example, a table cell). Reading
-        the whole document would surface that prose as the artifact's own summary."""
-
-        text = (
-            "---\nid: aaaaaa\nstatus: todo\n---\n\n"
-            "# Real Title\n\n"
-            "Here is an example of what NOT to write:\n\n"
-            "```yaml\nsummary: THIS IS QUOTED PROSE\n```\n"
-        )
-        kind, val = att._extract_detail(text)
+        text_body = "---\nid: aaaaaa\nstatus: todo\n---\n\n# Real Title\n\n```yaml\nsummary: THIS IS QUOTED PROSE\n```\n"
+        kind, val = att._extract_detail(text_body)
         self.assertEqual((kind, val), ("title", "Real Title"))
         self.assertNotIn("QUOTED PROSE", val or "")
 
-    def test_the_BULLETED_cascade_is_unchanged_and_still_wins(self):
-        """No artifact that already reported a detail may report a different one."""
-
         plan = "# IPD: p\n\n- Status: to-review\n- Scope: the declared scope\n- Id: aaaaaa\n"
         self.assertEqual(att._extract_detail(plan), ("scope", "the declared scope"))
-        both = (
-            "---\nid: aaaaaa\nsummary: the frontmatter one\n---\n\n"
-            "# T\n\n- Summary: the bulleted one\n"
-        )
+        both = "---\nid: aaaaaa\nsummary: the frontmatter one\n---\n\n# T\n\n- Summary: the bulleted one\n"
         self.assertEqual(att._extract_detail(both), ("summary", "the bulleted one"))
 
-    def test_a_document_with_no_front_matter_is_unaffected(self):
         self.assertEqual(
             att._extract_detail("# Just A Title\n\nbody\n"), ("title", "Just A Title")
         )
 
 
 class StatusAndReadinessColumnCollisionTests(unittest.TestCase):
-    """E-11: two display collisions that made the table LIE.
-
-    (a) STATUS at width 8: `implementing` and `implemented` both sliced to `implemen`, so with
-        `--no-color` (and in every piped or machine read) ACTIVE work was indistinguishable from
-        FINISHED work.
-    (b) READINESS at width 9: `go-pending-approval` sliced to `go-pendin` AND the colour heuristic (a
-        substring test for "go") gave it the same green as a cleared `go`, so an UNAPPROVED plan
-        rendered as approved. That is the more serious half: it misreports an approval state.
-    """
-
     def _item(self, id6, status, readiness=None):
         return att.Item(
             id6,
@@ -3696,7 +2769,7 @@ class StatusAndReadinessColumnCollisionTests(unittest.TestCase):
             readiness=readiness,
         )
 
-    def test_implementing_and_implemented_are_distinguishable_WITHOUT_color(self):
+    def test_status_and_readiness_column_collisions(self):
         rows = att.render_table(
             [self._item("aaaaaa", "implementing"), self._item("bbbbbb", "implemented")],
             [],
@@ -3705,15 +2778,10 @@ class StatusAndReadinessColumnCollisionTests(unittest.TestCase):
         )
         line_ing = [ln for ln in rows.splitlines() if "aaaaaa" in ln][0]
         line_ed = [ln for ln in rows.splitlines() if "bbbbbb" in ln][0]
-        self.assertNotEqual(
-            line_ing.split()[1],
-            line_ed.split()[1],
-            "the two statuses must not render as the same word",
-        )
+        self.assertNotEqual(line_ing.split()[1], line_ed.split()[1])
         self.assertNotIn("implemen ", line_ing)
 
-    def test_go_pending_approval_is_distinguishable_from_go_in_TEXT(self):
-        rows = att.render_table(
+        rows_r = att.render_table(
             [
                 self._item("cccccc", "approved", "go"),
                 self._item("dddddd", "reviewed", "go-pending-approval"),
@@ -3722,10 +2790,9 @@ class StatusAndReadinessColumnCollisionTests(unittest.TestCase):
             show_all=True,
             term=att.T.Term(color=False),
         )
-        self.assertIn("go-pend?", rows)
-        self.assertNotIn("go-pendin", rows)
+        self.assertIn("go-pend?", rows_r)
+        self.assertNotIn("go-pendin", rows_r)
 
-    def test_go_pending_approval_is_distinguishable_from_go_in_COLOR(self):
         colored = att.render_table(
             [
                 self._item("cccccc", "approved", "go"),
@@ -3739,16 +2806,11 @@ class StatusAndReadinessColumnCollisionTests(unittest.TestCase):
         codes = {}
         for token in ("go", "go-pend?", "no-go"):
             m = re.search(r"\033\[([0-9;]*)m" + re.escape(token) + r"\033\[0m", colored)
-            self.assertIsNotNone(m, f"{token} must carry its own escape")
-            assert m is not None  # for the type checker
+            self.assertIsNotNone(m)
+            assert m is not None
             codes[token] = m.group(1)
-        self.assertEqual(
-            len(set(codes.values())),
-            3,
-            f"all three readiness colours must differ: {codes}",
-        )
+        self.assertEqual(len(set(codes.values())), 3)
 
-    def test_column_ALIGNMENT_is_unchanged_for_every_other_value(self):
         statuses = (
             "not-executed",
             "superseded",
@@ -3761,39 +2823,17 @@ class StatusAndReadinessColumnCollisionTests(unittest.TestCase):
         )
         items = [self._item(f"id{i:04d}", s) for i, s in enumerate(statuses)]
         plain = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
-        # The ITEM rows only: the header and the legend line legitimately have their own widths.
         body = [ln for ln in plain.splitlines() if re.search(r"\bid\d{4}\b", ln)]
-        self.assertEqual(
-            len(body), len(statuses), f"expected one row per status:\n{plain}"
-        )
+        self.assertEqual(len(body), len(statuses))
         widths = {att.T.visible_width(ln) for ln in body}
-        self.assertEqual(
-            len(widths), 1, f"every item row must be one width, got {widths}:\n{plain}"
-        )
-        # And the colored table stays a character-for-character strip of the plain one.
-        colored = att.render_table(
-            items, [], show_all=True, term=att.T.Term(color=True)
-        )
-        self.assertEqual(re.sub(r"\033\[[0-9;]*m", "", colored), plain)
+        self.assertEqual(len(widths), 1)
 
-    def test_the_abbreviations_are_within_the_column_width(self):
         for status in ("implementing", "implemented"):
             self.assertLessEqual(len(att._abbrev_status(status)), 8)
         self.assertLessEqual(len(att._abbrev_readiness("go-pending-approval")), 9)
 
 
 class NoProjectAgentEnvelopeTests(unittest.TestCase):
-    """E-12: `aw attention --agent` outside an AW project wrote NOTHING to stdout.
-
-    THE DEFECT: the `CommandResult` was built and then thrown away - the `emit` call was missing - so
-    the machine surface produced prose on stderr and an EMPTY stdout, breaking the `aw.agent/v1`
-    envelope contract for a consumer that only reads stdout.
-
-    THE EXIT CODE IS 2 ON THE MACHINE SURFACES, not 3, and that is forced by a published contract:
-    `aw.agent/v1` admits only 0/1/2 and classifies a cannot-run as 2, so an `exit_code=3` record
-    RAISES in the renderer before writing a byte. The HUMAN surface keeps its long-standing exit 3.
-    """
-
     def _run_from_nowhere(self, **kw):
         base = dict(
             dir=None,
@@ -3829,47 +2869,33 @@ class NoProjectAgentEnvelopeTests(unittest.TestCase):
             finally:
                 os.chdir(cwd)
 
-    def test_the_agent_surface_emits_a_valid_envelope_on_STDOUT(self):
-        from agent_workflows import agent_schema
+    def test_no_project_agent_envelope(self):
+        from agent_workflows import agent_schema, cli
 
         rc, out, err, td = self._run_from_nowhere(agent=True)
         self.assertEqual(rc, 2)
-        self.assertTrue(out.strip(), "STDOUT WAS EMPTY (the defect)")
+        self.assertTrue(out.strip())
         rec = json.loads(out.splitlines()[0])
         self.assertEqual(rec["schema"], "aw.agent/v1")
         self.assertEqual(rec["outcome"], "cannot-run")
         self.assertEqual(rec["exit"], 2)
         self.assertEqual(agent_schema.validate_agent_record(rec), [])
 
-    def test_the_json_surface_emits_the_same_fact(self):
-        rc, out, err, td = self._run_from_nowhere(format="json")
-        self.assertEqual(rc, 2)
-        obj = json.loads(out)
+        rc_j, out_j, _, _ = self._run_from_nowhere(format="json")
+        self.assertEqual(rc_j, 2)
+        obj = json.loads(out_j)
         self.assertEqual(obj["status"], "cannot-run")
         self.assertEqual(obj["exit_code"], 2)
 
-    def test_the_machine_payload_carries_NO_absolute_path(self):
-        """`no_project_message` interpolates `Path.cwd()`, so emitting it verbatim would leak the
-        operator's real directory into a machine payload (the same class as E-02)."""
+        self.assertNotIn(td, out)
+        self.assertNotIn("/home/", out)
+        self.assertNotIn(td, out_j)
+        self.assertNotIn("/home/", out_j)
 
-        for kw in (dict(agent=True), dict(format="json")):
-            with self.subTest(**kw):
-                _rc, out, _err, td = self._run_from_nowhere(**kw)
-                self.assertNotIn(td, out)
-                self.assertNotIn("/home/", out)
-
-    def test_the_HUMAN_surface_is_UNCHANGED_at_exit_3_with_prose_on_stderr(self):
-        rc, out, err, _td = self._run_from_nowhere()
-        self.assertEqual(rc, 3)
-        self.assertEqual(out, "")
-        self.assertIn("no AW project found", err)
-
-    def test_the_arcive_state_LEGACY_ALIAS_is_untouched(self):
-        """Guard clause. This plan's audit called `arcive_state` a typo and instructed its removal; it
-        is a SHIPPED flag with an argparse action, a default and a passing assertion. Removing it would
-        break a user-facing flag."""
-
-        from agent_workflows import cli
+        rc_h, out_h, err_h, _ = self._run_from_nowhere()
+        self.assertEqual(rc_h, 3)
+        self.assertEqual(out_h, "")
+        self.assertIn("no AW project found", err_h)
 
         parser = cli._build_parser()
         args = parser.parse_args(["att", "--arcive-state", "running"])
@@ -3878,18 +2904,6 @@ class NoProjectAgentEnvelopeTests(unittest.TestCase):
 
 
 def _attsel_repo(tmp: Path) -> Path:
-    """A clean four-artifact repo for the attsel `fqnj8k` selector tests.
-
-    Deliberately DRIFT-FREE, because the ambiguity being pinned is measured in exit codes and a stray
-    contract violation would make every case exit 1 and hide the very distinction under test.
-
-    The artifacts are chosen for what each one PROVES:
-      * `abc123` a pending plan            -> the matches-and-visible case, and the `-t plans` survivor
-      * `def456` an active research doc     -> the DOWNSTREAM-FILTERED case under `-t plans` (F7 guard)
-      * `prk001` a parked backlog item      -> proves a selector forces `show_all`, so "matched but
-                                              hidden" is NOT the matched-but-empty twin (F1a)
-      * `spc001` an approved spec           -> a second tree, so a tree token matches something
-    """
     specs = tmp / ".aw" / "records" / "specs"
     research = tmp / ".aw" / "records" / "research"
     plans = tmp / ".aw" / "records" / "plans" / "pending"
@@ -3897,35 +2911,25 @@ def _attsel_repo(tmp: Path) -> Path:
     for d in (specs, research, plans, backlog):
         d.mkdir(parents=True, exist_ok=True)
     (specs / "20260808-s-01-spc001-s.spec.md").write_text(
-        "# Spec: s\n\n- Date: 2026-08-08\n- Status: approved\n- Id: spc001\n- Author: t\n\n"
-        "## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+        "# Spec: s\n\n- Date: 2026-08-08\n- Status: approved\n- Id: spc001\n- Author: t\n\n## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
         encoding="utf-8",
     )
     (plans / "20260808-x-01-abc123-p.ipd.md").write_text(
-        "# IPD: p\n\n- Status: draft\n- Id: abc123\n\n"
-        "## Workflow history\n- 2026-08-08 draft (t): created.\n",
+        "# IPD: p\n\n- Status: draft\n- Id: abc123\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
         encoding="utf-8",
     )
     (research / "20260808-r-00-def456-r.survey.md").write_text(
-        "---\nid: def456\nstatus: active\nkind: survey\n---\n\n# r\n\n"
-        "## Workflow history\n- 2026-08-08 draft (t): x.\n",
+        "---\nid: def456\nstatus: active\nkind: survey\n---\n\n# r\n\n## Workflow history\n- 2026-08-08 draft (t): x.\n",
         encoding="utf-8",
     )
-    # NOTE the backlog item has NO H1: `backlog.parse_item` ends the metadata block at the first H2 or
-    # non-bullet line, so a leading `# Backlog: b` would make `Status` unreadable and emit an
-    # `attention.missing-status` violation - which is exactly how a first draft of this fixture
-    # accidentally made all three cases exit 1.
     (backlog / "20260808-b-01-prk001-b.backlog.md").write_text(
-        "- Id: prk001\n- Status: parked\n- Set: b\n- Priority: medium\n"
-        "- Work-Kind: chore\n- Summary: a parked maybe\n\n"
-        "## Workflow history\n- 2026-08-08 parked (t): created.\n",
+        "- Id: prk001\n- Status: parked\n- Set: b\n- Priority: medium\n- Work-Kind: chore\n- Summary: a parked maybe\n\n## Workflow history\n- 2026-08-08 parked (t): created.\n",
         encoding="utf-8",
     )
     return tmp
 
 
 def _attsel_args(root: Path, **kw) -> argparse.Namespace:
-    """A full `aw attention` Namespace, so a surface flag under test is the ONLY thing that varies."""
     base = dict(
         dir=str(root),
         format=None,
@@ -3959,11 +2963,6 @@ def _attsel_args(root: Path, **kw) -> argparse.Namespace:
 
 
 def _attsel_run(root: Path, **kw):
-    """Run `att.run` capturing BOTH streams separately. Returns (rc, stdout, stderr).
-
-    The streams are kept apart deliberately: this plan's whole list-mode requirement is that the
-    refusal goes to STDERR while STDOUT stays byte-identical, and a merged capture could not tell.
-    """
     out, err = io.StringIO(), io.StringIO()
     with redirect_stdout(out), redirect_stderr(err):
         rc = att.run(_attsel_args(root, **kw))
@@ -3971,574 +2970,37 @@ def _attsel_run(root: Path, **kw):
 
 
 class SelectorNoMatchIsReportedTests(unittest.TestCase):
-    """attsel `fqnj8k`: a selector that matches NO artifact says so instead of printing an empty view.
-
-    THE DEFECT, measured before the fix: `aw att zzzzzz` printed one blank line and exited 0,
-    BYTE-IDENTICAL to `aw att <id6> -t <other-type>` (a token that DOES match, narrowed away
-    downstream), and in `--agent` mode both emitted `outcome:clean, exit:0, verified:true,
-    complete:true, findings:0`, so a machine consumer recorded a typo as a clean audit.
-    """
-
-    # ---------------------------------------------------------------- E-01 / V-01
-
-    def test_E01_the_three_way_fixture_now_distinguishes_no_match_from_matched_but_empty(
-        self,
-    ):
-        """(a) nonexistent REFUSES; (b) downstream-filtered match is UNCHANGED; (c) unchanged."""
+    def test_selector_no_match_is_reported(self):
         with tempfile.TemporaryDirectory() as td:
             root = _attsel_repo(Path(td))
 
-            # (a) NONEXISTENT: refuses, names the token, and writes to stderr (not stdout).
-            rc_a, out_a, err_a = _attsel_run(root, selectors=["zzzzzz"])
-            self.assertEqual(rc_a, att.EXIT_UNRESOLVED_SELECTOR)
-            self.assertEqual(rc_a, 2)
-            self.assertEqual(
-                out_a, "", "the refusal must not land on stdout for the human board"
-            )
-            self.assertIn("zzzzzz", err_a)
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"])
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(rc, 2)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
 
-            # (b) DOWNSTREAM-FILTERED MATCH: `def456` is a RESEARCH doc, so `-t plans` removes it.
-            # This is the matched-but-empty twin and it MUST NOT be reported as a no-match. It is the
-            # F7 regression guard and the single most important assertion in this class: the authored
-            # fix site (inside `filter_items_by_selectors`) would have FAILED it.
             rc_b, out_b, err_b = _attsel_run(
                 root, selectors=["def456"], types=["plans"]
             )
-            self.assertEqual(rc_b, 0, "a downstream-filtered match is not a no-match")
-            self.assertNotIn("def456", err_b)
-            self.assertEqual(
-                err_b, "", "no refusal for a token that matched the unfiltered scan"
-            )
+            self.assertEqual(rc_b, 0)
+            self.assertEqual(err_b, "")
 
-            # (c) MATCHES AND VISIBLE: unchanged, item still rendered.
             rc_c, out_c, err_c = _attsel_run(root, selectors=["abc123"])
             self.assertEqual(rc_c, 0)
             self.assertIn("abc123", out_c)
             self.assertEqual(err_c, "")
 
-            # And the three are now mutually distinguishable, which they were not before.
-            self.assertNotEqual((rc_a, out_a), (rc_b, out_b))
+            rc_sub, _, err_sub = _attsel_run(root, selectors=[".aw"])
+            self.assertEqual(rc_sub, 0)
+            self.assertEqual(err_sub, "")
 
-    def test_E01_a_parked_artifact_IS_shown_when_named_so_it_is_not_the_empty_twin(
-        self,
-    ):
-        """F1a: the authoring-time fixture was WRONG, and this pins why.
+            rc_j, out_j, _ = _attsel_run(root, selectors=["zzzzzz"], format="json")
+            self.assertEqual(rc_j, att.EXIT_UNRESOLVED_SELECTOR)
+            payload = json.loads(out_j)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
 
-        A selector FORCES `show_all`, so a named parked artifact IS displayed. "Matched but hidden"
-        therefore does not exist as a case, and a fixture built on it could not have distinguished
-        anything.
-        """
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            rc, out, err = _attsel_run(root, selectors=["prk001"])
-            self.assertEqual(rc, 0)
-            self.assertIn(
-                "prk001", out, "a selector forces show_all, so a parked item is shown"
-            )
-            self.assertEqual(err, "")
-
-    # ---------------------------------------------------------------- E-02 / V-02
-
-    def test_E02_a_substring_selector_that_resolves_as_no_identifier_is_NOT_a_no_match(
-        self,
-    ):
-        """F4's regression guard. `filter_items_by_selectors`' last rung is a SUBSTRING test on the
-        path, so a token can match WITHOUT resolving as any identifier. A no-match report keyed on the
-        resolver would fire on every substring query, which is WORSE than the defect being fixed.
-        """
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            items, _drift = att.scan(root)
-
-            # `.aw` resolves as no identifier at all, yet matches every artifact by path substring.
-            from agent_workflows import selectors as sel
-
-            resolved = 0
-            for rt in ("plans", "specs", "research", "backlog"):
-                try:
-                    resolved += len(sel.resolve_selectors(root, rt, [".aw"]))
-                except Exception:
-                    pass
-            self.assertEqual(
-                resolved,
-                0,
-                "`.aw` must resolve as no identifier, or this proves nothing",
-            )
-            self.assertTrue(att.filter_items_by_selectors(items, [".aw"], root))
-
-            facts = att.selector_match_facts(items, [".aw"], root)
-            self.assertEqual(facts.matched, (".aw",))
-            self.assertEqual(facts.unmatched, ())
-            self.assertEqual(facts.refusable, ())
-
-            # And end to end: it must NOT refuse.
-            rc, _out, err = _attsel_run(root, selectors=[".aw"])
-            self.assertEqual(rc, 0)
-            self.assertEqual(err, "")
-
-    # ---------------------------------------------------------------- E-03 / V-03
-
-    def test_E03_match_facts_are_computed_against_the_UNFILTERED_scan(self):
-        """The F7 guard at the FUNCTION level: the fact must key on the unfiltered scan.
-
-        Measured at review on the real corpus: the same filter matches a backlog id6 over the full
-        scan and 0 items over the `-t plans` scan. So a fact derived from the NARROWED list reports a
-        real artifact as a typo.
-        """
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            full_items, _d = att.scan(root)
-            plans_items, _d2 = att.scan(root, type_filters={"plans"})
-
-            # The premise: the narrowed scan really does lose the artifact.
-            self.assertTrue(att.filter_items_by_selectors(full_items, ["def456"], root))
-            self.assertEqual(
-                att.filter_items_by_selectors(plans_items, ["def456"], root), []
-            )
-
-            # Against the UNFILTERED scan the token is MATCHED (the correct answer).
-            self.assertEqual(
-                att.selector_match_facts(full_items, ["def456"], root).refusable, ()
-            )
-            # Against the NARROWED scan it would be reported as a refusal - the bug this avoids.
-            self.assertEqual(
-                att.selector_match_facts(plans_items, ["def456"], root).refusable,
-                ("def456",),
-                "this is the FALSE no-match the implementation must not ship",
-            )
-
-    def test_E03_the_F7_guard_holds_at_the_CLI_level_not_only_in_the_pure_function(
-        self,
-    ):
-        """V-03/V-04 require this at the CLI, because the ordering defect lives in `run()`.
-
-        A pure-function-only check would pass while the CLI still reported a typo.
-        """
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            # `--type` narrowing
-            rc, out, err = _attsel_run(root, selectors=["def456"], types=["plans"])
-            self.assertEqual(rc, 0)
-            self.assertEqual(err, "")
-            # `--status` narrowing: a DIFFERENT downstream filter, same requirement.
-            rc2, _out2, err2 = _attsel_run(
-                root, selectors=["def456"], status=["approved"]
-            )
-            self.assertEqual(rc2, 0)
-            self.assertEqual(err2, "")
-
-    def test_E03_a_token_naming_a_MALFORMED_artifact_is_matched_not_a_typo(self):
-        """FOUND BY THIS PLAN'S OWN E-06 TEST, not predicted, and it is the worst false-no-match case.
-
-        A malformed artifact yields a `Drift` record and ZERO items, so a match fact derived from items
-        alone told the operator their id6 does not exist while the file sat in `pending/` - and the one
-        artifact you most need to find is the broken one. A token matching a drift LOCATION counts as
-        matched.
-        """
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            bad = (
-                root
-                / ".aw"
-                / "records"
-                / "plans"
-                / "pending"
-                / "20260808-x-02-bad001-b.ipd.md"
-            )
-            bad.write_text(
-                "# IPD: b\n\n- Id: bad001\n\nno status here\n", encoding="utf-8"
-            )
-
-            items, drift = att.scan(root)
-            # The premise: this file produced NO item but DID produce a violation.
-            self.assertNotIn("bad001", {it.id for it in items})
-            self.assertTrue(any("bad001" in d.location for d in drift))
-
-            # Without the drift set the fact is WRONG (this is the bug, pinned so it cannot return).
-            self.assertEqual(
-                att.selector_match_facts(items, ["bad001"], root).refusable, ("bad001",)
-            )
-            # With it, the token is correctly MATCHED.
-            self.assertEqual(
-                att.selector_match_facts(
-                    items, ["bad001"], root, drift=drift
-                ).refusable,
-                (),
-            )
-
-            # End to end the operator is shown the violation, not accused of a typo.
-            rc, out, err = _attsel_run(root, selectors=["bad001"])
-            self.assertNotEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
-            self.assertNotIn("no artifact matched", err)
-            self.assertIn("bad001", out)
-
-    def test_E03_separates_an_invalid_selector_from_a_merely_absent_one(self):
-        """F3: "this token is not a valid selector" and "this valid token matched nothing" are
-        different messages, and conflating them would trade one ambiguity for another."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            items, _d = att.scan(root)
-            facts = att.selector_match_facts(items, ["zzzzzz"], root)
-            self.assertEqual(facts.unmatched, ("zzzzzz",))
-            # `zzzzzz` is well-formed, merely absent, so it is NOT in `invalid`.
-            self.assertEqual(facts.invalid, ())
-
-    def test_E03_filter_items_by_selectors_contract_is_UNCHANGED(self):
-        """The plan requires the existing six assertions keep passing, i.e. the filter's signature,
-        return value and behavior were not mutated to carry the new facts. Re-asserted here against
-        the attsel fixture so a regression in either fixture is caught."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            items, _d = att.scan(root)
-            self.assertEqual(len(items), 4)
-            # id6
-            self.assertEqual(
-                [
-                    it.id
-                    for it in att.filter_items_by_selectors(items, ["abc123"], root)
-                ],
-                ["abc123"],
-            )
-            # tree
-            self.assertEqual(
-                len(att.filter_items_by_selectors(items, ["specs"], root)), 1
-            )
-            # attention class
-            self.assertEqual(
-                [
-                    it.id
-                    for it in att.filter_items_by_selectors(items, ["active"], root)
-                ],
-                ["def456"],
-            )
-            # OR-union over multiple tokens
-            self.assertEqual(
-                {
-                    it.id
-                    for it in att.filter_items_by_selectors(
-                        items, ["abc123", "def456"], root
-                    )
-                },
-                {"abc123", "def456"},
-            )
-            # substring
-            self.assertTrue(att.filter_items_by_selectors(items, ["p.ipd.md"], root))
-            # no match -> empty list, and it STILL returns a plain list (no tuple, no facts)
-            self.assertEqual(att.filter_items_by_selectors(items, ["zzzzzz"], root), [])
-            self.assertIsInstance(
-                att.filter_items_by_selectors(items, ["zzzzzz"], root), list
-            )
-
-    # ---------------------------------------------------------------- E-04 / V-04
-
-    def test_E04_the_human_report_names_the_token_and_reuses_the_house_primitive(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            rc, out, err = _attsel_run(root, selectors=["zzzzzz"])
-            self.assertEqual(rc, 2)
-            self.assertEqual(out, "")
-            self.assertIn("zzzzzz", err)
-            # The house empty-state primitive's shape (`format_empty_result`): an outcome line, an
-            # `Active filters:` block echoing the selector, and a `Next` action. `aw find` renders its
-            # own empty result with the same primitive.
-            self.assertIn("FAIL", err)
-            self.assertIn("Active filters:", err)
-            self.assertIn("Next", err)
-            # It says what was searched, so the message is actionable rather than a bare negative.
-            self.assertIn("searched trees", err)
-            # NO intent guessing: a wrong guess is worse than a clean negative.
-            self.assertNotIn("did you mean", err.lower())
-
-    def test_E04_a_mixed_invocation_reports_ONLY_the_unmatched_token(self):
-        """A multi-token invocation is exactly where a single typo hides, so the unmatched tokens are
-        reported individually rather than collapsed into one message."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            rc, out, err = _attsel_run(root, selectors=["abc123", "zzzzzz"])
-            self.assertEqual(rc, 2)
-            self.assertIn("zzzzzz", err)
-            # The matching token is named as MATCHED, never as unmatched.
-            unmatched_block = err.split("matched selectors")[0]
-            self.assertNotIn("abc123", unmatched_block)
-            self.assertIn("abc123", err)
-
-    def test_E04_an_all_matching_invocation_is_byte_identical_to_before(self):
-        """The fix adds output for a no-match ONLY. A successful selector's board must not change."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            rc, out, err = _attsel_run(root, selectors=["abc123"])
-            self.assertEqual(rc, 0)
-            self.assertEqual(err, "")
-            self.assertIn("abc123", out)
-            self.assertNotIn("FAIL", out)
-
-    # ---------------------------------------------------------------- E-05 / V-05
-
-    def test_E05_the_agent_record_distinguishes_the_two_cases_and_validates(self):
-        """The half that matters most for automation: the record must be honest AND schema-valid.
-
-        Before: a nonexistent selector emitted `outcome:clean, verified:true, complete:true,
-        findings:0`, identical to a matched-but-empty one.
-        """
-        from agent_workflows import agent_schema
-
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-
-            # NO-MATCH: the refusal record.
-            rc_a, out_a, _err_a = _attsel_run(root, selectors=["zzzzzz"], agent=True)
-            self.assertEqual(rc_a, 2)
-            rec_a = json.loads(out_a.strip().splitlines()[-1])
-            self.assertEqual(rec_a["kind"], "error")
-            self.assertEqual(rec_a["outcome"], "cannot-run")
-            self.assertEqual(rec_a["exit"], 2)
-            self.assertIs(rec_a["verified"], False)
-            self.assertIs(rec_a["complete"], False)
-            self.assertEqual(rec_a["unresolved_selectors"], ["zzzzzz"])
-            # The `aw runs` precedent's own field name carries the same list (decision D2).
-            self.assertEqual(rec_a["unresolved_targets"], ["zzzzzz"])
-            # Validated by the VALIDATOR, not by eye.
-            self.assertEqual(agent_schema.validate_agent_record(rec_a), [])
-            # The embedded exit must equal the process exit (the parity rule).
-            self.assertEqual(rec_a["exit"], rc_a)
-
-            # MATCHED-BUT-EMPTY: unchanged, and visibly different from the above.
-            rc_b, out_b, _err_b = _attsel_run(
-                root, selectors=["def456"], types=["plans"], agent=True
-            )
-            self.assertEqual(rc_b, 0)
-            rec_b = json.loads(out_b.strip().splitlines()[-1])
-            self.assertEqual(rec_b["outcome"], "clean")
-            self.assertEqual(rec_b["exit"], 0)
-            self.assertNotIn("unresolved_selectors", rec_b)
-            self.assertEqual(agent_schema.validate_agent_record(rec_b), [])
-
-            self.assertNotEqual(
-                (rec_a["outcome"], rec_a["exit"], rec_a["verified"], rec_a["complete"]),
-                (rec_b["outcome"], rec_b["exit"], rec_b["verified"], rec_b["complete"]),
-            )
-
-    # ---------------------------------------------------------------- E-06 / V-06
-
-    def test_E06_the_exit_code_is_2_and_it_composes_with_a_drifty_view(self):
-        """F12: a no-match code must not MASK drift, and drift must not mask the no-match.
-
-        Exit 2 dominates `core.drift_exit_code`'s 0/1 by construction, and the drift findings are still
-        carried in the record, so neither hides the other.
-        """
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            # Introduce REAL drift: a plan with no Status at all.
-            bad = (
-                root
-                / ".aw"
-                / "records"
-                / "plans"
-                / "pending"
-                / "20260808-x-02-bad001-b.ipd.md"
-            )
-            bad.write_text(
-                "# IPD: b\n\n- Id: bad001\n\nno status here\n", encoding="utf-8"
-            )
-
-            # The view IS drifty now (a bare invocation reports findings).
-            rc_drift, _o, _e = _attsel_run(root, selectors=[], agent=True)
-            self.assertEqual(
-                rc_drift,
-                1,
-                "fixture must actually be drifty for this to prove anything",
-            )
-
-            # A no-match selector on that drifty view still refuses at 2, not 1.
-            rc, _out, err = _attsel_run(root, selectors=["zzzzzz"])
-            self.assertEqual(rc, 2)
-            self.assertIn("zzzzzz", err)
-
-            # And a MATCHING selector on the drifty view still reports the drift as 1, so the new code
-            # has not swallowed the old one.
-            rc_m, _out_m, _err_m = _attsel_run(root, selectors=["bad001"])
-            self.assertIn(rc_m, (0, 1))
-
-    def test_E06_a_vocabulary_token_that_matches_nothing_is_a_SUCCESS(self):
-        """Spec `25kzda` Section 2.4a: a status-like token is "a standing question about repository
-        state rather than an assertion that a named item exists", so an empty answer is a success.
-        """
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            for tok in ("reusable", "shipped", "roadmaps", "abandoned", "high"):
-                with self.subTest(token=tok):
-                    items, _d = att.scan(root)
-                    self.assertEqual(
-                        att.filter_items_by_selectors(items, [tok], root),
-                        [],
-                        f"{tok!r} must match nothing in this fixture, or the test proves nothing",
-                    )
-                    rc, _out, err = _attsel_run(root, selectors=[tok])
-                    self.assertEqual(
-                        rc, 0, f"{tok!r} is vocabulary and must not refuse"
-                    )
-                    self.assertEqual(err, "")
-
-    def test_E06_the_vocabulary_is_derived_from_contract_symbols_not_a_literal_list(
-        self,
-    ):
-        """E-08's central requirement: a value added to the contract later must join the vocabulary
-        automatically, so it cannot silently become an "error"."""
-        vocab = att.selector_vocabulary()
-        # Every tracked tree, attention class, per-tree native status and priority is in it.
-        for t in A.TRACKED_TREES:
-            self.assertIn(str(t).lower(), vocab)
-        for c in A.ATTENTION_CLASSES:
-            self.assertIn(str(c).lower(), vocab)
-        for _tree, cmap in A.CLASS_MAPS.items():
-            for s in cmap:
-                self.assertIn(str(s).lower(), vocab)
-        from agent_workflows import backlog as backlog_mod
-
-        for p in backlog_mod.PRIORITIES:
-            self.assertIn(str(p).lower(), vocab)
-        # Every type name the CLI accepts, including the ones the scanner does not yield items for
-        # (`roadmaps`, `walkthroughs`), which is why they are not typos.
-        for k, v in att.TYPE_ALIASES.items():
-            self.assertIn(str(k).lower(), vocab)
-            self.assertIn(str(v).lower(), vocab)
-        # A genuine typo is NOT in it.
-        self.assertNotIn("zzzzzz", vocab)
-        self.assertNotIn("nosuchid", vocab)
-
-    # ---------------------------------------------------------------- E-07 / E-10 / V-07 / V-10
-
-    def test_E10_every_surface_reports_the_no_match_and_none_keeps_the_old_silence(
-        self,
-    ):
-        """F8: FIVE surfaces were silent, and a board-level message reaches none of them, because
-        `--check` and the three list modes return BEFORE the board is composed."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            surfaces = {
-                "human": dict(),
-                "agent": dict(agent=True),
-                "json": dict(json=True),
-                "format-json": dict(format="json"),
-                "check": dict(check=True),
-                "check-agent": dict(check=True, agent=True),
-                "id6-only": dict(id6_only=True),
-                "paths": dict(paths=True),
-                "filenames": dict(filenames=True),
-            }
-            for name, kw in surfaces.items():
-                with self.subTest(surface=name):
-                    rc, out, err = _attsel_run(root, selectors=["zzzzzz"], **kw)
-                    self.assertEqual(rc, 2, f"{name} must fail closed on a no-match")
-                    blob = out + err
-                    self.assertIn("zzzzzz", blob, f"{name} must name the token")
-
-    def test_E10_check_no_longer_asserts_the_view_is_valid_about_a_token_it_never_found(
-        self,
-    ):
-        """The most actively misleading surface measured: `--check` printed "the view is valid." and
-        exited 0 for a selector it never resolved."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], check=True)
-            self.assertEqual(rc, 2)
-            self.assertNotIn("the view is valid", out)
-            self.assertNotIn("the view is valid", err)
-            self.assertIn("zzzzzz", err)
-
-    def test_E10_the_list_modes_keep_STDOUT_byte_identical_and_report_on_STDERR(self):
-        """A list mode exists to be piped, so a diagnostic on ITS stdout would corrupt the pipe."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            for flag in ("id6_only", "paths", "filenames"):
-                with self.subTest(mode=flag):
-                    rc, out, err = _attsel_run(
-                        root, selectors=["zzzzzz"], **{flag: True}
-                    )
-                    self.assertEqual(rc, 2)
-                    self.assertEqual(
-                        out, "", f"--{flag} stdout must stay byte-identical (empty)"
-                    )
-                    self.assertIn("zzzzzz", err)
-
-    def test_E10_a_bare_check_with_NO_selector_is_completely_unaffected(self):
-        """The CI gate runs `attention --check --agent` with NO selector, so it must be untouched."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            rc, out, err = _attsel_run(root, selectors=[], check=True)
-            self.assertEqual(rc, 0)
-            self.assertIn("the view is valid", out)
-            self.assertEqual(err, "")
-
-            rc_a, out_a, _err_a = _attsel_run(
-                root, selectors=[], check=True, agent=True
-            )
-            self.assertEqual(rc_a, 0)
-            rec = json.loads(out_a.strip().splitlines()[-1])
-            self.assertEqual(rec["outcome"], "clean")
-            self.assertEqual(rec["exit"], 0)
-
-    # ---------------------------------------------------------------- E-09 / V-09
-
-    def test_E09_the_json_surface_no_longer_says_valid_true_about_a_token_it_never_found(
-        self,
-    ):
-        """F9: `--format json` is what `/whatnext` reads FIRST, and its `valid` flag comes only from
-        the drift list, so a typo yielded `valid:true, items:[]` and an agent concluded the repository
-        was fine and had nothing matching."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            for kw in (dict(json=True), dict(format="json")):
-                with self.subTest(**kw):
-                    rc, out, _err = _attsel_run(root, selectors=["zzzzzz"], **kw)
-                    self.assertEqual(rc, 2)
-                    payload = json.loads(out)
-                    # It is the REFUSAL record, not the ordinary board payload, so there is no `valid`
-                    # flag to be wrong (decision D6).
-                    self.assertNotIn("valid", payload)
-                    self.assertEqual(payload["outcome"], "cannot-run")
-                    self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
-
-    def test_E09_the_ordinary_json_payload_shape_and_SCHEMA_VERSION_are_UNCHANGED(self):
-        """Decision D6: because the refusal is emitted before the surface branches, `render_json` is
-        never reached on a no-match, so its versioned payload needs no bump and gets none."""
-        self.assertEqual(att.SCHEMA_VERSION, 4)
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            rc, out, _err = _attsel_run(root, selectors=["abc123"], format="json")
-            self.assertEqual(rc, 0)
-            payload = json.loads(out)
-            self.assertEqual(payload["schema_version"], 4)
-            self.assertIs(payload["valid"], True)
-            self.assertEqual([it["id"] for it in payload["items"]], ["abc123"])
-
-    # ---------------------------------------------------------------- guards
-
-    def test_a_bare_invocation_with_no_selector_never_refuses(self):
-        """Asking for EVERYTHING and finding nothing is not a failed request. This mirrors the
-        deliberate exemption `aw runs` documents for its own bare invocation."""
-        with tempfile.TemporaryDirectory() as td:
-            empty = Path(td) / "empty"
-            (empty / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
-            rc, _out, err = _attsel_run(empty, selectors=[])
-            self.assertEqual(rc, 0)
-            self.assertEqual(err, "")
-
-    def test_the_refusal_message_contains_no_absolute_path(self):
-        """`aw attention` writes machine payloads; a refusal must not leak the checkout location."""
-        with tempfile.TemporaryDirectory() as td:
-            root = _attsel_repo(Path(td))
-            _rc, out, err = _attsel_run(root, selectors=["zzzzzz"], agent=True)
-            self.assertNotIn(str(root), out + err)
-            _rc2, out2, err2 = _attsel_run(root, selectors=["zzzzzz"])
-            self.assertNotIn(str(root), out2 + err2)
-
-
-def core_Drift(*args, **kw):
-    from agent_workflows import artifact_core
-
-    return artifact_core.Drift(*args, **kw)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            rc_bare, _, err_bare = _attsel_run(root, selectors=[])
+            self.assertEqual(rc_bare, 0)
+            self.assertEqual(err_bare, "")

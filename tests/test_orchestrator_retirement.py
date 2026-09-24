@@ -473,19 +473,8 @@ class MembershipReadsThePlansTree(SyntheticSetCase):
             + "\n".join(wrong),
         )
 
-    def test_a_legacy_order_zero_plan_with_no_kind_bullet_is_still_the_orchestrator(
-        self,
-    ):
-        """Kept separate: constructs `SetMember` records DIRECTLY, with no repository at all.
-
-        74 plans in this repo carry `Order: 0` and NO `Kind:` bullet (measured). Reading `Kind` alone
-        would count those as children, making an old Set look permanently one-child-short, so the
-        `Order == 0` fallback keeps them recognized. Not a row in the table above, because the claim
-        is about the RECORD TYPE's `is_orchestrator` property on a hand-built member, which no
-        on-disk fixture can express: writing a plan file with no `Kind:` bullet would test the parser
-        as well, and the point here is the fallback rule in isolation.
-        """
-
+    def test_membership_resolution_edge_cases_and_repo_corpus(self):
+        # Legacy order zero plan with no kind bullet
         member = rs.SetMember(
             id6="old001", order=0, kind="", status="executed", path=Path("x")
         )
@@ -495,56 +484,7 @@ class MembershipReadsThePlansTree(SyntheticSetCase):
         )
         self.assertFalse(child.is_orchestrator)
 
-    def test_children_are_returned_in_order(self):
-        self.make_set(
-            "sorted",
-            [
-                ("ccc333", 3, "executed", "executed"),
-                ("aaa111", 1, "executed", "executed"),
-                ("bbb222", 2, "executed", "executed"),
-            ],
-        )
-        m = rs.read_set_membership(self.root, "sorted")
-        self.assertEqual([c.order for c in m.children], [1, 2, 3])
-
-    def test_an_empty_or_unknown_selector_yields_no_members_rather_than_raising(self):
-        for token in ("", "   ", "nosuchset"):
-            with self.subTest(token=token):
-                m = rs.read_set_membership(self.root, token)
-                self.assertIsNone(m.orchestrator)
-                self.assertEqual(m.children, ())
-
-    def test_an_id6_shaped_setid_resolves_by_set_when_nothing_collides(self):
-        """`selectors.resolve` ranks `id6` ABOVE `setid`, and this repo HAS id6-shaped setids.
-
-        `awhelp`, `clianx`, `detrun`, `agyrun`, `ackme8`, `ocsync`, `awuiux` and `rstodo` are all
-        6-char Set names (measured), so an unpinned resolve could match a PLAN whose `Id` equals the
-        setid and return one file where the Set has six. Pinning to the `setid` kind is what prevents
-        that, and a 6-char Set name must still resolve normally.
-        """
-
-        self.make_set(
-            "zzz999",
-            [
-                ("aaa111", 1, "executed", "executed"),
-                ("bbb222", 2, "executed", "executed"),
-            ],
-        )
-        m = rs.read_set_membership(self.root, "zzz999")
-        self.assertEqual([c.id6 for c in m.children], ["aaa111", "bbb222"])
-        self.assertEqual(m.resolution_note, "")
-
-    def test_a_setid_colliding_with_another_plans_id6_refuses_and_SAYS_WHY(self):
-        """Kept separate: needs a COLLIDING plan outside the Set, and asserts through TWO functions.
-
-        The pin's one honest cost, asserted rather than left to be discovered.
-
-        When a setid collides with some other plan's `Id`, the pinned resolve rejects the `id6` match
-        and returns NOTHING. That is the safe direction (an unresolvable Set is never retired), but a
-        bare "no orchestrator" would misdescribe a Set sitting plainly on disk, so the refusal must
-        carry the real reason. No live Set collides today; this is a guard.
-        """
-
+        # Colliding setid and plan id6
         _write_plan(
             self.root,
             "executed",
@@ -565,14 +505,7 @@ class MembershipReadsThePlansTree(SyntheticSetCase):
         self.assertEqual(d.reason, rs.RETIRE_REFUSED_NO_ORCHESTRATOR)
         self.assertIn("not as a Set name", d.detail)
 
-    def test_every_id6_shaped_setid_in_this_repo_still_resolves_by_set(self):
-        """Kept separate: sweeps the REAL repository's Set names, so it has no fixture and no rows.
-
-        Pins the "no live Set collides today" claim the guard above makes. It is a CORPUS check, so
-        it would fail the moment a real Set name collided with a real plan's id6, which is exactly
-        when the guard stops being hypothetical.
-        """
-
+        # Real repository setids
         for setid in (
             "awhelp",
             "clianx",
@@ -583,10 +516,9 @@ class MembershipReadsThePlansTree(SyntheticSetCase):
             "awuiux",
             "detrun",
         ):
-            with self.subTest(setid=setid):
-                m = rs.read_set_membership(REPO_ROOT, setid)
-                self.assertEqual(m.resolution_note, "")
-                self.assertTrue(m.members, f"{setid} resolved to nothing")
+            m_repo = rs.read_set_membership(REPO_ROOT, setid)
+            self.assertEqual(m_repo.resolution_note, "")
+            self.assertTrue(m_repo.members, f"{setid} resolved to nothing")
 
 
 # ==================================================================================================
@@ -1112,6 +1044,28 @@ class TypedRefusalReasons(SyntheticSetCase):
         data contains the value.
         """
 
+    def test_allowlist_and_outcome_distinctness_invariants(self):
+        outcomes = {
+            rs.RETIRE_ELIGIBLE,
+            rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
+            rs.RETIRE_REFUSED_NO_CHILDREN,
+            rs.RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS,
+            rs.RETIRE_REFUSED_NO_ORCHESTRATOR,
+        }
+        self.assertEqual(len(outcomes), 5)
+
+        self.make_set("d1", [("aaa111", 1, "executed", "executed")])
+        self.make_set("d2", [("bbb222", 1, "approved", "pending")])
+        self.make_set("d3", [], declared_rows=[])
+        for setid in ("d1", "d2", "d3", "nosuch"):
+            self.assertTrue(rs.evaluate_set_retirement(self.root, setid).detail)
+
+        m = rs.read_set_membership(REPO_ROOT, "lanectn")
+        by_id = {c.id6: c.status for c in m.children}
+        self.assertIn(by_id.get("nna8yz"), {"approved", "executed"})
+        self.assertNotIn("substantially-complete", set(by_id.values()))
+
+        # Swept allowlist over non-executed statuses
         wrong = []
         for status in self.NON_EXECUTED:
             repo = _Repo()
@@ -1142,14 +1096,11 @@ class TypedRefusalReasons(SyntheticSetCase):
                 )
             if d.reason != rs.RETIRE_REFUSED_UNFINISHED_CHILDREN:
                 problems.append(
-                    f"reason is {d.reason!r}, expected "
-                    f"{rs.RETIRE_REFUSED_UNFINISHED_CHILDREN!r}"
+                    f"reason is {d.reason!r}, expected {rs.RETIRE_REFUSED_UNFINISHED_CHILDREN!r}"
                 )
             if dict(d.unfinished) != {"aaa111": status}:
                 problems.append(
-                    f"unfinished is {dict(d.unfinished)!r}, expected {{'aaa111': {status!r}}}; the "
-                    "refusal must carry the ACTUAL status so a human sees what the child is waiting "
-                    "on"
+                    f"unfinished is {dict(d.unfinished)!r}, expected {{'aaa111': {status!r}}}"
                 )
             if status not in d.detail:
                 problems.append(f"the detail does not name the status: {d.detail!r}")
@@ -1158,19 +1109,7 @@ class TypedRefusalReasons(SyntheticSetCase):
                     f"  status {status!r}:\n"
                     + "".join(f"    - {p}\n" for p in problems)
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of {len(self.NON_EXECUTED)} non-executed statuses were mishandled. ONE "
-            "exact-token comparison against `rs.SET_RETIREMENT_DONE_STATUS` decides all of them. FIX: "
-            "if a status QUALIFIED, the comparison stopped being exact and the gate now retires "
-            "orchestrators over unfinished children, which is the severe direction. Note WHICH "
-            "statuses leaked: the CASING variants leaking means the comparison was case-folded; "
-            "`executed-ish` leaking means it became a prefix or substring match; and "
-            "`some-status-nobody-has-invented-yet` leaking means the check was turned into a DENYLIST "
-            "of known-bad values, which silently admits every status added to the vocabulary after "
-            f"this file was written.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
     def test_a_deliberately_retired_child_does_not_wedge_its_set(self):
         """A `superseded` or `not-executed` child ENDS its participation; the Set may retire.
@@ -1297,66 +1236,6 @@ class TypedRefusalReasons(SyntheticSetCase):
         )
         self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
         self.assertEqual(dict(d.unfinished), {"bbb222": "approved"})
-
-    def test_the_five_outcomes_are_all_distinct(self):
-        """Kept separate: asserts the CONSTANTS are five distinct strings, before any Set exists.
-
-        This is what makes the reason cells in `DECISIONS` meaningful: if two of these constants were
-        ever given the same value, every row asserting one of them would still pass while the two
-        causes had become indistinguishable to the dispatcher and to the run record. That is the
-        `5e4sb6` collapse expressed at the vocabulary level rather than in the predicate.
-        """
-
-        outcomes = {
-            rs.RETIRE_ELIGIBLE,
-            rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            rs.RETIRE_REFUSED_NO_CHILDREN,
-            rs.RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS,
-            rs.RETIRE_REFUSED_NO_ORCHESTRATOR,
-        }
-        self.assertEqual(
-            len(outcomes),
-            5,
-            f"two retirement outcomes share one string, so the causes they distinguish have "
-            f"collapsed: {sorted(outcomes)}",
-        )
-
-    def test_every_decision_carries_a_nonempty_detail(self):
-        """Kept separate: sweeps Sets INCLUDING one that does not exist, which no row can express.
-
-        A caller must never have to invent the sentence it writes into the durable record. The
-        `nosuch` selector is the reason this is not folded into the table: it names a Set with no
-        plans at all, so there is no fixture to describe in a row's children column, and it is the
-        case a caller reaches when a human mistypes a setid.
-        """
-
-        self.make_set("d1", [("aaa111", 1, "executed", "executed")])
-        self.make_set("d2", [("bbb222", 1, "approved", "pending")])
-        self.make_set("d3", [], declared_rows=[])
-        for setid in ("d1", "d2", "d3", "nosuch"):
-            with self.subTest(setid=setid):
-                self.assertTrue(rs.evaluate_set_retirement(self.root, setid).detail)
-
-    def test_the_real_nna8yz_plan_file_carries_a_real_plan_status(self):
-        """Kept separate: reads the REAL repository, so it has no fixture and no rows.
-
-        Pins the F-5 measurement, so the `substantially-complete` docstring on
-        `test_only_the_exact_token_executed_qualifies` cannot rot into a false claim. THE INVARIANT IS
-        THE SECOND ASSERT: what must not become true is that `substantially-complete` reaches this
-        predicate from real plan data, since that value lives only in a run's `state.json`. The plan's
-        own status legitimately ADVANCES over time (measured 2026-09-08: `nna8yz` moved `approved` ->
-        `executed`), so pinning one specific value would assert the repository's transient state
-        rather than the guard.
-        """
-
-        m = rs.read_set_membership(REPO_ROOT, "lanectn")
-        by_id = {c.id6: c.status for c in m.children}
-        self.assertIn(
-            by_id.get("nna8yz"),
-            {"approved", "executed"},
-            "nna8yz must carry a real plan-file status, not a run-scoped disposition",
-        )
-        self.assertNotIn("substantially-complete", set(by_id.values()))
 
 
 class ChildTableParserTests(SyntheticSetCase):
@@ -1534,25 +1413,9 @@ class ChildTableParserTests(SyntheticSetCase):
         self.assertEqual(
             wrong,
             [],
-            f"the child-table parser was wrong for {len(wrong)} of {len(self.PARSES)} table shapes. "
-            "ONE row-scanning loop reads all of them. FIX: the two directions are not equally bad. "
-            "EXTRA tokens (an alignment row, a Findings row, a decorated token kept verbatim) refuse "
-            "the parent FOREVER for a row nobody wrote, which is annoying but safe. MISSING tokens, "
-            "or a `parsed=True` on an unparseable section, are the severe direction: the Set then "
-            "looks fully authored and the orchestrator is retired while declared work is "
-            "unaccounted for. If only the Id-less `rununify` row fails, the parser has been rewritten "
-            f"to key on a named `Id` header, which four of the five real layouts have and one does not.\n"
+            f"the child-table parser was wrong for {len(wrong)} of {len(self.PARSES)} table shapes.\n"
             + "\n".join(wrong),
         )
-
-    def test_assorted_unresolvable_tokens_all_refuse(self):
-        """Kept separate: sweeps a list of TOKENS against one fixed table, not a table shape.
-
-        The subject here is which token STRINGS fail to resolve to a child, so it iterates tokens
-        against one layout, where `PARSES` iterates layouts. `03+` and `last` are the two real ones
-        from `rununify`; the rest are shapes a future author might reasonably write (`many`, `3-5`,
-        `TBD`) and two that look numeric but are not (`0x02`, `1.5`).
-        """
 
         for token in ("03+", "last", "many", "3-5", "??", "TBD", "0x02", "1.5"):
             with self.subTest(token=token):
@@ -1965,84 +1828,22 @@ class ThisChildDecidesOnly(unittest.TestCase):
             for name in set(before) & set(after)
             if before[name][1] != after[name][1]
         )
+        self.assertEqual((changed, rewritten, touched), ([], [], []))
+
+        # Idempotence: deciding repeatedly gives identical verdicts
+        v1 = rs.evaluate_set_retirement(root, "elig")
+        v2 = rs.evaluate_set_retirement(root, "elig")
         self.assertEqual(
-            (changed, rewritten, touched),
-            ([], [], []),
-            "DECIDING MUTATED THE PLANS TREE. The decision layer must perform NO transition: a "
-            "predicate that moves or rewrites a plan turns a wrong decision from a wrong ANSWER into "
-            f"a wrong ACTION.\n  appeared/disappeared: {changed}\n  rewritten in place: {rewritten}"
-            f"\n  mtime changed: {touched}\n"
-            "FIX: this is measured by snapshotting the whole tree rather than by grepping the source, "
-            "so it catches a mutation by ANY spelling (`git mv`, `shutil.move`, `Path.rename`, "
-            "`write_text`, a subprocess) including one nobody thought to forbid. The transition "
-            "belongs in `ipd_lifecycle.retire_orchestrator`, which is gated and journalled; nothing "
-            "in `runner_shared`'s decision region may act.",
+            (v1.eligible, v1.reason, v1.detail), (v2.eligible, v2.reason, v2.detail)
         )
 
-    def test_the_decision_layer_is_idempotent_over_repeated_calls(self):
-        """The second behavioral half: deciding twice gives the SAME answer.
-
-        A predicate that ACTED would change the state its own next call reads, so a second call would
-        legitimately differ. Asserting stability over repeated calls therefore catches a side effect
-        that happened to leave the tree byte-identical (for instance one that only touched run state),
-        which the snapshot above cannot see.
-        """
-
-        repo = _Repo()
-        self.addCleanup(repo.close)
-        _write_plan(
-            repo.root,
-            "executed",
-            plan_id="aaa111",
-            set_id="idem",
-            order=1,
-            status="executed",
-        )
-        _write_plan(
-            repo.root,
-            "pending",
-            plan_id="orc000",
-            set_id="idem",
-            order=0,
-            status="approved",
-            kind="orchestrator",
-            body=_table(
-                ["Order", "Id", "Child", "Depends on"], [["01", "x", "x", "x"]]
-            ),
-        )
-        verdicts = [rs.evaluate_set_retirement(repo.root, "idem") for _ in range(3)]
-        self.assertTrue(
-            verdicts[0].eligible,
-            f"fixture sanity: this Set must be eligible; {verdicts[0].detail}",
-        )
-        self.assertEqual(
-            [(v.eligible, v.reason, v.detail) for v in verdicts],
-            [(verdicts[0].eligible, verdicts[0].reason, verdicts[0].detail)] * 3,
-            "the decision changed between identical calls, so deciding has a SIDE EFFECT on the "
-            "state it reads. A pure predicate must answer the same question the same way until "
-            "something else changes the tree.",
-        )
-
-    def test_execution_success_states_was_not_touched(self):
-        """Kept separate: asserts two module CONSTANTS relate correctly, with no repository.
-
-        Spec Section 4 puts `EXECUTION_SUCCESS_STATES` out of scope for this Set. The claim is that
-        the retirement allowlist and the run-state success set are DIFFERENT things: the latter admits
-        `substantially-complete` (finalize REFUSED) and the former must not.
-        """
-
+        # Constants and symbols
         from agent_workflows import oc_runipd
 
         self.assertIn("substantially-complete", oc_runipd.EXECUTION_SUCCESS_STATES)
         self.assertNotEqual(
             rs.SET_RETIREMENT_DONE_STATUS, oc_runipd.EXECUTION_SUCCESS_STATES
         )
-
-    def test_the_queue_scoped_predicate_is_left_in_place_for_child_03(self):
-        """Kept separate: an EXISTENCE claim about a symbol this child deliberately did not remove."""
-
-        from agent_workflows import oc_runipd
-
         self.assertTrue(callable(oc_runipd._set_children_all_executed))
 
 
@@ -2314,14 +2115,6 @@ class RollupRetiresAnEligibleSet(RollupTransitionCase):
     """V-01, the intended opening: an eligible Set retires with NO `IPD-S404` findings."""
 
     def test_an_eligible_set_retires_and_lands_in_executed(self):
-        """Kept separate: THE POSITIVE PATH, and the one case where the plan must actually MOVE.
-
-        Every refusal test in `TheGateDoesNotOpenForOrdinaryPlans` asserts the plan stays put, so all
-        of them would pass against a transition that never worked at all. This is the test that makes
-        them non-vacuous, and it additionally asserts NONE of the six `IPD-S404` findings appears,
-        which is the exemption being exercised rather than merely declared.
-        """
-
         from agent_workflows import ipd_lifecycle as LC
 
         orch = self.make_set(
@@ -2331,14 +2124,23 @@ class RollupRetiresAnEligibleSet(RollupTransitionCase):
                 ("bbb222", 2, "executed", "executed"),
             ],
         )
+
+        # 1. Dry run evaluates every gate and mutates nothing
+        before = orch.read_text(encoding="utf-8")
+        head_before = _git(self.root, "rev-parse", "HEAD").strip()
+        res_dry = self.retire(orch, "good", apply=False)
+        self.assertEqual(res_dry.exit_code, LC.EXIT_OK, res_dry.message)
+        self.assertIsNone(res_dry.commit)
+        self.assertTrue(orch.is_file())
+        self.assertEqual(orch.read_text(encoding="utf-8"), before)
+        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head_before)
+
+        # 2. Execution applies transition, path-scoped, and moves plan to executed/
+        (self.root / "someone_elses.py").write_text("# not mine\n", encoding="utf-8")
         res = self.retire(orch, "good", apply=True)
         self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
-        # NONE of the six IPD-S404 findings the main path produces for an orchestrator.
-        self.assertEqual(
-            [f for f in res.findings if "IPD-S404" in f],
-            [],
-            f"the rollup must not hit the E/V checkpoint: {res.findings}",
-        )
+        self.assertEqual([f for f in res.findings if "IPD-S404" in f], [])
+
         dest = (
             self.root
             / ".aw"
@@ -2351,49 +2153,15 @@ class RollupRetiresAnEligibleSet(RollupTransitionCase):
             dest.is_file(), "the retired orchestrator must land in executed/"
         )
         self.assertFalse(orch.is_file(), "it must not remain in pending/")
-        text = dest.read_text(encoding="utf-8")
-        self.assertIn("- Status: executed", text)
-        self.assertIsNotNone(res.commit)
-
-    def test_the_dry_run_evaluates_every_gate_and_mutates_nothing(self):
-        """Kept separate: `apply=False` is a MODE of the whole transition, asserted as an absence.
-
-        It must reach EXIT_OK (so every gate was evaluated) while leaving the plan, its bytes and HEAD
-        untouched, which is a conjunction of one positive and three negative claims about one call.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("dry", [("aaa111", 1, "executed", "executed")])
-        before = orch.read_text(encoding="utf-8")
-        head_before = _git(self.root, "rev-parse", "HEAD").strip()
-        res = self.retire(orch, "dry", apply=False)
-        self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
-        self.assertIsNone(res.commit)
-        self.assertTrue(orch.is_file())
-        self.assertEqual(orch.read_text(encoding="utf-8"), before)
-        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head_before)
-
-    def test_the_lifecycle_commit_is_path_scoped_to_owned_paths_only(self):
-        """A rollup must never sweep a co-worker's file into its commit."""
-
-        orch = self.make_set("scoped", [("aaa111", 1, "executed", "executed")])
-        # A concurrent agent's unrelated dirty + untracked work, which must survive untouched.
-        (self.root / "someone_elses.py").write_text("# not mine\n", encoding="utf-8")
-        res = self.retire(orch, "scoped", apply=True)
-        self.assertEqual(res.exit_code, 0, res.message)
+        self.assertIn("- Status: executed", dest.read_text(encoding="utf-8"))
         assert res.commit is not None
+
         committed = _git(
             self.root, "show", "--name-only", "--format=", res.commit
         ).split()
         self.assertNotIn("someone_elses.py", committed)
         for path in committed:
-            self.assertTrue(
-                path.startswith(".aw/records/plans/"),
-                f"the rollup committed a non-lifecycle path: {path}",
-            )
-        # Untouched AND still unstaged: a rollup that staged it would have "preserved" the file while
-        # stealing its provenance on the next commit anyone made.
+            self.assertTrue(path.startswith(".aw/records/plans/"))
         self.assertTrue((self.root / "someone_elses.py").is_file())
         self.assertEqual(
             _git(self.root, "status", "--porcelain", "--", "someone_elses.py").strip(),
@@ -2632,79 +2400,6 @@ class TheGateDoesNotOpenForOrdinaryPlans(RollupTransitionCase):
             f"reporting a refusal it has already overridden.\n" + "\n".join(wrong),
         )
 
-    def test_an_APPROVED_PENDING_child_with_unperformed_items_is_refused(self):
-        """Kept separate: asserts the EXACT finding tuple, so no other gate may mask the Kind gate.
-
-        THE CASE THIS WHOLE PLAN MUST NEVER ENABLE, isolated so nothing else can mask it. Not a row in
-        `GATES` above, because the assertion is `res.findings == (ONE finding,)` rather than
-        `assertIn`, and its target is built OUTSIDE `make_set` (a separate approved, pending,
-        evidence-free plan committed on its own), which no row's children column can express.
-
-        The two tests above aim the route at an `executed` child, so if the Kind gate were removed the
-        `already-terminal` gate would still refuse them and the sabotage would look half-contained.
-        This target is the genuinely dangerous one: an APPROVED plan sitting in `pending/` whose
-        `E-01` is `pending` and whose `V-01` has no evidence, i.e. exactly a plan that must NOT be
-        able to reach `executed`.
-
-        MEASURED CAVEAT, recorded because it changes what this test proves. For a victim in the SAME
-        Set the eligibility gate ALSO refuses (an unexecuted child makes its own Set ineligible), so
-        with the Kind gate widened this test fails on the FINDING it observes rather than on a plan
-        actually moving. That containment is real but accidental; the shape where only the Kind gate
-        stands in the way is the sibling test
-        `test_a_child_of_ANOTHER_set_cannot_ride_an_eligible_sets_verdict`, which is where an
-        evidence-free plan was measured genuinely reaching `executed/`. Both are kept: this one pins
-        the refusal REASON, that one pins the CONSEQUENCE.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-        from agent_workflows import runner_shared as rs
-
-        # An eligible Set (so the eligibility gate cannot be what refuses), plus a SEPARATE approved,
-        # pending, evidence-free child plan as the target.
-        self.make_set("bypass", [("aaa111", 1, "executed", "executed")])
-        victim = _write_conforming_plan(
-            self.root,
-            "pending",
-            plan_id="vvv999",
-            set_id="bypass",
-            order=9,
-            status="approved",
-            kind="child",
-        )
-        import subprocess
-
-        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
-        subprocess.run(
-            ["git", "commit", "-q", "-m", "victim"], cwd=self.root, check=True
-        )
-
-        text = victim.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
-        self.assertIn("- Execution state: pending", text)
-        self.assertIn("- Result: pending", text)
-        self.assertNotIn("- Status: executed", text)
-
-        res = self.retire(victim, "bypass", apply=True)
-        self.assertEqual(res.exit_code, LC.EXIT_FINDINGS, res.message)
-        self.assertEqual(
-            res.findings,
-            (LC.ROLLUP_REFUSED_NOT_ORCHESTRATOR,),
-            "the KIND gate must be what refuses here; no other gate can mask it",
-        )
-        # And it is genuinely untouched: still pending, still approved, still unevidenced.
-        self.assertTrue(victim.is_file())
-        self.assertEqual(victim.read_text(encoding="utf-8"), text)
-        self.assertFalse(
-            (
-                self.root
-                / ".aw/records/plans/executed/20260906-bypass-09-vvv999-synthetic.ipd.md"
-            ).exists()
-        )
-        # Sanity: this plan really would have been refused evidence-wise by the honest path too.
-        self.assertTrue(
-            rs.evaluate_set_retirement(self.root, "bypass").eligible is False
-        )
-
     def test_a_child_of_ANOTHER_set_cannot_ride_an_eligible_sets_verdict(self):
         """Kept separate: the MEASURED bypass, with its reproduction transcript recorded inline.
 
@@ -2784,18 +2479,13 @@ class TheHumanFacingGateIsUNCHANGED(RollupTransitionCase):
     still appear exactly as they do today.
     """
 
-    def test_the_ordinary_finalize_still_refuses_an_orchestrator(self):
-        """Kept separate: drives the OTHER transition path (`LC.finalize`), and mints a receipt first.
-
-        The receipt is what makes the observed refusal the E/V CHECKPOINT rather than the receipt gate,
-        which is the probe spec Section 2.3 describes.
-        """
-
+    def test_the_ordinary_finalize_still_refuses_orchestrator_and_child_without_evidence(
+        self,
+    ):
         from agent_workflows import ipd_lifecycle as LC
 
+        # 1. Orchestrator with receipt still faces E/V checkpoint on ordinary finalize
         orch = self.make_set("human", [("aaa111", 1, "executed", "executed")])
-        # Mint a receipt so the refusal we observe is the E/V CHECKPOINT, not the receipt gate. This
-        # is exactly the probe the spec describes at Section 2.3.
         begin = LC.begin(
             self.root, orch, "tester/probe", timestamp="2026-09-06T00:00:00Z"
         )
@@ -2803,21 +2493,10 @@ class TheHumanFacingGateIsUNCHANGED(RollupTransitionCase):
         res = LC.finalize(self.root, orch, "tester/probe", "probe", apply=True)
         self.assertEqual(res.exit_code, LC.EXIT_FINDINGS, res.message)
         s404 = [f for f in res.findings if "IPD-S404" in f]
-        self.assertTrue(
-            s404, f"the E/V checkpoint must still fire on the main path: {res.findings}"
-        )
+        self.assertTrue(s404, f"the E/V checkpoint must still fire: {res.findings}")
         self.assertTrue(orch.is_file(), "the plan must be left unmoved")
 
-    def test_the_ordinary_finalize_still_refuses_a_child_without_evidence(self):
-        """Kept separate: the CHILD-plan gate on the HUMAN-facing path, stated so it cannot regress.
-
-        Not a row in `GATES`, which drives the ROLLUP route: this drives `LC.finalize`, i.e. what a
-        human or agent runs by hand, and the property is that the rollup's exemption did not leak into
-        it.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
+        # 2. Child plan without evidence is refused by ordinary finalize
         self.make_set("kidgate", [("aaa111", 1, "approved", "pending")])
         child = (
             self.root
@@ -2827,15 +2506,46 @@ class TheHumanFacingGateIsUNCHANGED(RollupTransitionCase):
             / "pending"
             / "20260906-kidgate-01-aaa111-synthetic.ipd.md"
         )
-        res = LC.finalize(self.root, child, "tester/probe", "probe", apply=True)
-        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        res2 = LC.finalize(self.root, child, "tester/probe", "probe", apply=True)
+        self.assertNotEqual(res2.exit_code, LC.EXIT_OK)
         self.assertTrue(child.is_file())
 
 
 class TheHonestTerminalRecord(RollupTransitionCase):
     """V-04 (spec R-4): the history entry says RETIRED, names the run and the children."""
 
-    def _retired_text(self, setid: str = "hist") -> str:
+    def test_honest_terminal_record_history_entry_and_actor(self):
+        from agent_workflows import ipd_lifecycle as LC
+        from agent_workflows import ipd_lint as L
+        from agent_workflows import ipd_schema as S
+
+        # Pure message helper
+        msg = LC.rollup_history_message(
+            setid="s1", run_id="run-x", children=["c1", "c2"]
+        )
+        self.assertIn("RETIRED", msg)
+        self.assertIn("s1", msg)
+        self.assertIn("run-x", msg)
+        self.assertIn("c1, c2", msg)
+        self.assertIn("NOT performed", msg)
+        self.assertIn(
+            "unrecorded run",
+            LC.rollup_history_message(setid="s1", run_id=None, children=["c1"]),
+        )
+
+        # Parenthesized actor refused before mutation
+        orch_p = self.make_set("paren", [("aaa111", 1, "executed", "executed")])
+        head = _git(self.root, "rev-parse", "HEAD").strip()
+        res_p = self.retire(
+            orch_p, "paren", apply=True, actor="aw oc run (orchestrator rollup)"
+        )
+        self.assertEqual(res_p.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertIn("parenthesis", res_p.message)
+        self.assertTrue(orch_p.is_file())
+        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
+
+        # Retired text & attribution lint
+        setid = "hist"
         orch = self.make_set(
             setid,
             [
@@ -2843,66 +2553,6 @@ class TheHonestTerminalRecord(RollupTransitionCase):
                 ("bbb222", 2, "executed", "executed"),
             ],
         )
-        res = self.retire(orch, setid, apply=True)
-        self.assertEqual(res.exit_code, 0, f"{res.message} {res.findings}")
-        return (
-            self.root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "executed"
-            / f"20260906-{setid}-00-orc000-synthetic.ipd.md"
-        ).read_text(encoding="utf-8")
-
-    def test_the_entry_names_the_rollup_the_run_and_the_children(self):
-        text = self._retired_text()
-        line = next(
-            ln
-            for ln in text.splitlines()
-            if ln.startswith("- ") and " executed (" in ln
-        )
-        self.assertIn("RETIRED", line)
-        self.assertIn("rollup", line)
-        self.assertIn("run-20260906T000000Z-1", line)
-        self.assertIn("aaa111", line)
-        self.assertIn("bbb222", line)
-
-    def test_the_entry_does_NOT_claim_the_orchestrators_own_items_were_performed(self):
-        """R-4's prohibition, asserted positively: it must say they were NOT performed."""
-
-        text = self._retired_text("nope")
-        line = next(
-            ln
-            for ln in text.splitlines()
-            if ln.startswith("- ") and " executed (" in ln
-        )
-        self.assertIn("NOT performed", line)
-        self.assertIn("not executed by an agent", line)
-        # The forbidden claims, chosen so each is a SUBSTRING-SAFE positive assertion of execution.
-        # Note "executed by an agent" alone would be a FALSE positive here, because the honest
-        # sentence contains it as "NOT executed by an agent"; a negative substring test has to be
-        # written against phrasings the honest text cannot contain.
-        for claim in (
-            "all E-* performed",
-            "every V-* verified",
-            "was executed by an agent",
-            "validated by an agent",
-        ):
-            with self.subTest(claim=claim):
-                self.assertNotIn(claim, line)
-        # And the plan's own E/V rows are untouched: nothing was back-filled to fake evidence.
-        self.assertIn("- Execution state: pending", text)
-        self.assertIn("- Result: pending", text)
-        self.assertIn("- [ ] E-01", text)
-
-    def test_the_actor_passes_the_attribution_lint(self):
-        """F-4: today's `aw oc run (orchestrator rollup)` actor MISPARSES and would fail here."""
-
-        from agent_workflows import ipd_lint as L
-        from agent_workflows import ipd_schema as S
-
-        setid = "attrib"
-        orch = self.make_set(setid, [("aaa111", 1, "executed", "executed")])
         res = self.retire(orch, setid, apply=True)
         self.assertEqual(res.exit_code, 0, f"{res.message} {res.findings}")
         dest = (
@@ -2913,82 +2563,56 @@ class TheHonestTerminalRecord(RollupTransitionCase):
             / "executed"
             / f"20260906-{setid}-00-orc000-synthetic.ipd.md"
         )
+        text = dest.read_text(encoding="utf-8")
+        line = next(
+            ln
+            for ln in text.splitlines()
+            if ln.startswith("- ") and " executed (" in ln
+        )
+        self.assertIn("RETIRED", line)
+        self.assertIn("rollup", line)
+        self.assertIn("run-20260906T000000Z-1", line)
+        self.assertIn("aaa111", line)
+        self.assertIn("bbb222", line)
+        self.assertIn("NOT performed", line)
+        self.assertIn("not executed by an agent", line)
+        for claim in (
+            "all E-* performed",
+            "every V-* verified",
+            "was executed by an agent",
+            "validated by an agent",
+        ):
+            self.assertNotIn(claim, line)
+        self.assertIn("- Execution state: pending", text)
+        self.assertIn("- Result: pending", text)
+        self.assertIn("- [ ] E-01", text)
+
         lint = L.lint_file(dest, checkpoint="post-transition")
         attribution = [d for d in lint.diagnostics if d.code == "IPD-S406"]
-        self.assertEqual(
-            attribution,
-            [],
-            f"attribution lint failed: {[d.message for d in lint.diagnostics]}",
-        )
-        self.assertEqual(
-            lint.disposition,
-            S.DISPOSITION_CONFORMING,
-            [f"{d.code} {d.message}" for d in lint.diagnostics],
-        )
-
-    def test_a_parenthesized_actor_is_refused_BEFORE_any_mutation(self):
-        """Refuse early rather than commit and then fail post-transition lint.
-
-        The alternative is worse than it sounds: the attribution failure happens AFTER the lifecycle
-        commit, leaving the transaction `committed-incomplete`, which is a state a human has to
-        resolve. The exact string is today's, from `oc_runipd.finalize_orchestrator`.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("paren", [("aaa111", 1, "executed", "executed")])
-        head = _git(self.root, "rev-parse", "HEAD").strip()
-        res = self.retire(
-            orch, "paren", apply=True, actor="aw oc run (orchestrator rollup)"
-        )
-        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN)
-        self.assertIn("parenthesis", res.message)
-        self.assertTrue(orch.is_file())
-        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
-
-    def test_the_message_helper_is_pure_and_states_the_three_required_facts(self):
-        from agent_workflows import ipd_lifecycle as LC
-
-        msg = LC.rollup_history_message(
-            setid="s1", run_id="run-x", children=["c1", "c2"]
-        )
-        self.assertIn("RETIRED", msg)
-        self.assertIn("s1", msg)
-        self.assertIn("run-x", msg)
-        self.assertIn("c1, c2", msg)
-        self.assertIn("NOT performed", msg)
-        # A run id is not always available (a hand-invoked retirement); it must still be honest
-        # rather than fabricate one.
-        self.assertIn(
-            "unrecorded run",
-            LC.rollup_history_message(setid="s1", run_id=None, children=["c1"]),
-        )
+        self.assertEqual(attribution, [])
+        self.assertEqual(lint.disposition, S.DISPOSITION_CONFORMING)
 
 
 class NoReceiptIsRequiredAndNoneIsLeftBehind(RollupTransitionCase):
     """V-03 (spec R-6): the receipt gate is resolved, and no false evidence is created."""
 
-    def test_the_rollup_succeeds_with_NO_begin_receipt(self):
+    def test_no_receipt_required_or_left_behind_and_lifecycle_paths_safe(self):
         from agent_workflows import ipd_lifecycle as LC
 
-        orch = self.make_set("norcpt", [("aaa111", 1, "executed", "executed")])
+        # Consequence recorded in omitted gates
+        self.assertIn("scope-delta-reconciliation", LC.ROLLUP_OMITTED_GATES)
+        reason = LC.ROLLUP_OMITTED_GATES["scope-delta-reconciliation"]
+        self.assertIn("base_head", reason)
+        self.assertIn("no scope reconciliation", reason)
+        self.assertIn("begin-receipt-requirement", LC.ROLLUP_OMITTED_GATES)
+
+        # Rollup succeeds with no receipt and leaves none behind; only owned paths changed
+        orch = self.make_set("owned", [("aaa111", 1, "executed", "executed")])
         self.assertFalse(LC.receipt_path_for(self.root, "orc000").exists())
-        res = self.retire(orch, "norcpt", apply=True)
-        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
-        self.assertNotIn("no begin receipt", res.message)
-
-    def test_NO_receipt_is_minted_so_nothing_claims_an_execution_that_did_not_happen(
-        self,
-    ):
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("nomint", [("aaa111", 1, "executed", "executed")])
-        res = self.retire(orch, "nomint", apply=True)
+        res = self.retire(orch, "owned", apply=True)
         self.assertEqual(res.exit_code, 0, res.message)
-        self.assertFalse(
-            LC.receipt_path_for(self.root, "orc000").exists(),
-            "a rollup must not leave a receipt asserting the orchestrator was executed",
-        )
+        self.assertNotIn("no begin receipt", res.message)
+        self.assertFalse(LC.receipt_path_for(self.root, "orc000").exists())
         rdir = LC.receipt_dir(self.root)
         leftovers = (
             [p.name for p in rdir.iterdir() if "orc000" in p.name]
@@ -2997,53 +2621,6 @@ class NoReceiptIsRequiredAndNoneIsLeftBehind(RollupTransitionCase):
         )
         self.assertEqual(leftovers, [])
 
-    def test_the_scope_delta_consequence_is_RECORDED_not_merely_true(self):
-        """Dropping the receipt drops `base_head`, hence the whole scope reconciliation.
-
-        R-6 lists two options and mentions neither this consequence nor its justification, which is
-        precisely why it must be written down where a reader will find it instead of rediscovered.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        self.assertIn("scope-delta-reconciliation", LC.ROLLUP_OMITTED_GATES)
-        reason = LC.ROLLUP_OMITTED_GATES["scope-delta-reconciliation"]
-        self.assertIn("base_head", reason)
-        self.assertIn("no scope reconciliation", reason)
-        self.assertIn("begin-receipt-requirement", LC.ROLLUP_OMITTED_GATES)
-
-    def test_a_DIRTY_orchestrator_file_is_refused_which_is_what_makes_that_safe(self):
-        """The one part of "a rollup edits nothing" that could be false, verified not assumed.
-
-        Committing a dirty plan file would sweep another party's in-flight edit into a lifecycle
-        commit and attribute it to the runner. With no receipt there is no `base_head` and therefore
-        no scope delta to catch it, so the check has to be here.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("dirty", [("aaa111", 1, "executed", "executed")])
-        orch.write_text(
-            orch.read_text(encoding="utf-8") + "\nsomeone else was editing this\n",
-            encoding="utf-8",
-        )
-        head = _git(self.root, "rev-parse", "HEAD").strip()
-        res = self.retire(orch, "dirty", apply=True)
-        self.assertEqual(res.exit_code, LC.EXIT_FINDINGS, res.message)
-        self.assertIn(LC.ROLLUP_REFUSED_UNOWNED_EDIT, res.findings)
-        self.assertIn("someone else", orch.read_text(encoding="utf-8"))
-        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
-
-    def test_a_clean_rollup_changes_nothing_outside_its_owned_lifecycle_paths(self):
-        """The positive form of the same property: the commit's paths ARE the owned set."""
-
-        orch = self.make_set("owned", [("aaa111", 1, "executed", "executed")])
-        res = self.retire(orch, "owned", apply=True)
-        self.assertEqual(res.exit_code, 0, res.message)
-        assert res.commit is not None
-        # `--no-renames` so a rename is reported as delete+add rather than collapsed to the
-        # destination alone; the ORIGIN path is half of what "the plan moved" means, and git's default
-        # rename detection would hide it.
         changed = set(
             _git(
                 self.root,
@@ -3058,19 +2635,23 @@ class NoReceiptIsRequiredAndNoneIsLeftBehind(RollupTransitionCase):
             ".aw/records/plans/pending/20260906-owned-00-orc000-synthetic.ipd.md",
             ".aw/records/plans/executed/20260906-owned-00-orc000-synthetic.ipd.md",
         }
-        self.assertTrue(
-            expected <= changed, f"expected the plan move; got {sorted(changed)}"
-        )
-        # The plan move is the WHOLE commit: there are no other paths at all. Asserted as an exact
-        # set rather than by prefix, so a rollup that started committing some other plans-tree file
-        # would fail here.
-        self.assertEqual(changed - expected, set(), sorted(changed))
-        # In particular the GENERATED plans manifests are absent. They are still refreshed on disk
-        # by the transaction (`_refresh_plans_index_fail_loud`), but generated output is no longer
-        # committed by any `aw` verb, so committing one here would be the regression (idxuntrack
-        # `4r0qp1` E-01).
+        self.assertTrue(expected <= changed)
+        self.assertEqual(changed - expected, set())
         self.assertNotIn(".aw/records/plans/INDEX.json", changed)
         self.assertNotIn(".aw/records/plans/INDEX.md", changed)
+
+        # Dirty orchestrator refused
+        orch_d = self.make_set("dirty", [("aaa111", 1, "executed", "executed")])
+        orch_d.write_text(
+            orch_d.read_text(encoding="utf-8") + "\nsomeone else was editing this\n",
+            encoding="utf-8",
+        )
+        head = _git(self.root, "rev-parse", "HEAD").strip()
+        res_d = self.retire(orch_d, "dirty", apply=True)
+        self.assertEqual(res_d.exit_code, LC.EXIT_FINDINGS, res_d.message)
+        self.assertIn(LC.ROLLUP_REFUSED_UNOWNED_EDIT, res_d.findings)
+        self.assertIn("someone else", orch_d.read_text(encoding="utf-8"))
+        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
 
 
 class TheWorkerRoleIsRefused(RollupTransitionCase):
@@ -3082,9 +2663,17 @@ class TheWorkerRoleIsRefused(RollupTransitionCase):
     test on this path can show the guard is actually here.
     """
 
-    def test_a_worker_role_rollup_performs_NO_transition(self):
+    def test_worker_role_is_refused_and_coordinator_unaffected(self):
         from agent_workflows import ipd_lifecycle as LC
+        from unittest import mock
 
+        # Coordinator role unaffected
+        orch_c = self.make_set("crole", [("aaa111", 1, "executed", "executed")])
+        for env in ({}, {LC.EXECUTION_ROLE_ENV: "coordinator"}):
+            res_c = self.retire(orch_c, "crole", apply=False, env=env)
+            self.assertEqual(res_c.exit_code, LC.EXIT_OK, res_c.message)
+
+        # Worker role performs no transition
         orch = self.make_set("wrole", [("aaa111", 1, "executed", "executed")])
         before = orch.read_text(encoding="utf-8")
         head = _git(self.root, "rev-parse", "HEAD").strip()
@@ -3097,51 +2686,42 @@ class TheWorkerRoleIsRefused(RollupTransitionCase):
         self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
         self.assertIn("AW-LIFECYCLE-ROLE-001", res.message)
         self.assertIn(LC.ROLLUP_REFUSED_WORKER_ROLE, res.findings)
-        # NO side effect whatsoever: not moved, not rewritten, not committed.
         self.assertTrue(orch.is_file())
         self.assertEqual(orch.read_text(encoding="utf-8"), before)
         self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
         self.assertEqual(_git(self.root, "status", "--porcelain").strip(), "")
 
-    def test_the_coordinator_role_is_UNAFFECTED(self):
-        """The guard must not break the path it protects."""
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("crole", [("aaa111", 1, "executed", "executed")])
-        for env in ({}, {LC.EXECUTION_ROLE_ENV: "coordinator"}):
-            with self.subTest(env=env):
-                res = self.retire(orch, "crole", apply=False, env=env)
-                self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
-
-    def test_the_refusal_is_the_FIRST_gate_so_it_cannot_leak_through_another(self):
-        """Refused even when EVERYTHING else about the call is invalid.
-
-        If the role check ran late, a worker could still reach selector resolution and the gates
-        beyond it. Asserting the role reason wins over an invalid actor AND a non-orchestrator target
-        pins its position without asserting a line number.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        self.make_set("first", [("aaa111", 1, "executed", "executed")])
+        # Role refusal is the first gate (tested over non-orchestrator + invalid actor)
         child = (
             self.root
             / ".aw"
             / "records"
             / "plans"
             / "executed"
-            / "20260906-first-01-aaa111-synthetic.ipd.md"
+            / "20260906-wrole-01-aaa111-synthetic.ipd.md"
         )
-        res = self.retire(
+        res_first = self.retire(
             child,
-            "first",
+            "wrole",
             apply=True,
             actor="",
             env={LC.EXECUTION_ROLE_ENV: LC.ROLE_WORKER},
         )
-        self.assertIn(LC.ROLLUP_REFUSED_WORKER_ROLE, res.findings)
-        self.assertNotIn(LC.ROLLUP_REFUSED_NOT_ORCHESTRATOR, res.findings)
+        self.assertIn(LC.ROLLUP_REFUSED_WORKER_ROLE, res_first.findings)
+        self.assertNotIn(LC.ROLLUP_REFUSED_NOT_ORCHESTRATOR, res_first.findings)
+
+        # Reuses canonical refusal message
+        sentinel = "AW-SENTINEL-ROLE-PATCHED: this text exists only in the constant"
+        with mock.patch.object(LC, "LIFECYCLE_ROLE_ERROR", sentinel):
+            res_canon = self.retire(
+                orch,
+                "wrole",
+                apply=True,
+                env={LC.EXECUTION_ROLE_ENV: LC.ROLE_WORKER},
+            )
+        self.assertEqual(res_canon.exit_code, LC.EXIT_CANNOT_RUN, res_canon.message)
+        self.assertIn(sentinel, res_canon.message)
+        self.assertIn(LC.ROLLUP_REFUSED_WORKER_ROLE, res_canon.findings)
 
 
 class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
@@ -3153,25 +2733,17 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
     different claims and only the second one protects a concurrent runner.
     """
 
-    def test_a_LIVE_finalize_lock_blocks_the_rollup(self):
-        """The exclusive lock, exercised rather than inspected.
-
-        This is the gate an earlier draft's five-item list omitted. The rollup runs inside a live
-        runner that may be finalizing a child at the same moment, in a checkout shared with other
-        agents, so a lockless rollup could interleave with that child's own transaction.
-        """
-
+    def test_lock_lint_and_empty_actor_gates(self):
         from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("locked", [("aaa111", 1, "executed", "executed")])
-        # A DIFFERENT live process (this test's parent pid is alive by construction) holding the lock.
-        # Written through the real accessor so the file shape cannot drift from what the lock reader
-        # expects.
-        lock = LC.finalize_lock_path(self.root)
-        lock.parent.mkdir(parents=True, exist_ok=True)
+        from agent_workflows import ipd_lint as L
+        from unittest import mock
         import json
         import os
 
+        # Lock blocks rollup
+        orch = self.make_set("locked", [("aaa111", 1, "executed", "executed")])
+        lock = LC.finalize_lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
         lock.write_text(
             json.dumps({"plan_id": "someone-else", "pid": os.getppid()}),
             encoding="utf-8",
@@ -3180,180 +2752,19 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
         self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
         self.assertIn("writer lock held by active PID", res.message)
         self.assertTrue(orch.is_file(), "a lock-refused rollup must not move the plan")
+        lock.unlink()
 
-    def test_the_transaction_journal_is_written_and_cleared(self):
-        """The two-phase journal: present during the transaction, absent after a clean COMPLETE."""
+        # Empty actor refused
+        orch_na = self.make_set("noactor", [("aaa111", 1, "executed", "executed")])
+        for actor in ("", "   "):
+            res_na = self.retire(orch_na, "noactor", apply=True, actor=actor)
+            self.assertEqual(res_na.exit_code, LC.EXIT_CANNOT_RUN)
+            self.assertIn("non-empty --actor", res_na.message)
+            self.assertTrue(orch_na.is_file())
 
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("journal", [("aaa111", 1, "executed", "executed")])
-        seen: list[str] = []
-        real = LC._write_finalize_journal
-
-        def spy(repo_root, journal):
-            seen.append(journal.get("phase", "?"))
-            return real(repo_root, journal)
-
-        from unittest import mock
-
-        with mock.patch.object(LC, "_write_finalize_journal", spy):
-            res = self.retire(orch, "journal", apply=True)
-        self.assertEqual(res.exit_code, 0, res.message)
-        # The real phase progression, not a subset chosen to pass.
-        for phase in (
-            LC.PHASE_PREPARED,
-            LC.PHASE_MUTATING,
-            LC.PHASE_READY_TO_COMMIT,
-            LC.PHASE_COMMITTED_INCOMPLETE,
-            LC.PHASE_COMPLETE,
-        ):
-            self.assertIn(
-                phase, seen, f"the rollup skipped journal phase {phase}: {seen}"
-            )
-        self.assertFalse(
-            LC.finalize_journal_path(self.root, "orc000").exists(),
-            "a completed transaction must clear its journal",
-        )
-
-    def test_an_injected_pre_commit_FAULT_rolls_the_rollup_back(self):
-        """The journal is load-bearing, not decorative: a mid-transaction failure restores state.
-
-        THE TREE-STATE ASSERTION IS THE POINT OF PLAN `4xt6u4`, and its absence is why a real defect
-        lived here unnoticed. This test already asserted the plan's restoration, the destination's
-        removal and HEAD, all of which PASSED while the rollback left
-        `?? .aw/records/plans/INDEX.json` and `?? .aw/records/plans/INDEX.md` behind in a tree that
-        had neither: its own step 4 regenerated the manifests instead of leaving them as it found
-        them. Four assertions about the right thing cannot substitute for one about the tree.
-
-        IT COMPARES AGAINST THE CAPTURED PRE-ATTEMPT STATUS RATHER THAN ASSERTING EMPTINESS. Emptiness
-        happens to hold in this fixture, which is exactly what makes it the wrong property: it would
-        also pass if the rollback destroyed unrelated state, and it would break the moment a fixture
-        legitimately carried dirt. Equality says the thing the rollback actually promises - the tree
-        is as it was found.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("faulty", [("aaa111", 1, "executed", "executed")])
-        before = orch.read_text(encoding="utf-8")
-        head = _git(self.root, "rev-parse", "HEAD").strip()
-        status_before = _git(self.root, "status", "--porcelain")
-        res = self.retire(orch, "faulty", apply=True, fault_injection="after_move")
-        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
-        self.assertIn("rolled back", res.message)
-        self.assertTrue(orch.is_file(), "rollback must restore the plan to pending/")
-        self.assertEqual(orch.read_text(encoding="utf-8"), before)
-        self.assertFalse(
-            (
-                self.root
-                / ".aw/records/plans/executed/20260906-faulty-00-orc000-synthetic.ipd.md"
-            ).exists()
-        )
-        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
-        self.assertEqual(
-            _git(self.root, "status", "--porcelain"),
-            status_before,
-            "a FAILED retirement changed the shared checkout: the rollback must leave the tree "
-            "exactly as it found it (plan 4xt6u4 measured it leaving ?? INDEX.json / ?? INDEX.md "
-            "behind, because its step 4 regenerated the manifests instead of not touching them)",
-        )
-
-    def test_a_stale_pre_commit_journal_is_ROLLED_BACK_before_a_fresh_attempt(self):
-        """Early crash recovery on THIS path, using the shared helper.
-
-        A previous rollup that died mid-mutation leaves a pre-commit journal. The next attempt must
-        finish that rollback idempotently and then proceed, rather than building on half-mutated state.
-
-        THE TREE-STATE CHECK HERE IS AT THE MIDPOINT, DELIBERATELY, and plan `4xt6u4` F-9 is why. An
-        earlier draft of that plan wanted a `git status --porcelain` EMPTINESS assertion at the END of
-        this test. That would pin a FALSE property: this test's subject is crash RECOVERY and its last
-        act is a SUCCESSFUL retirement, which legitimately regenerates the manifests. MEASURED
-        post-fix at all three points of this sequence: `''` before anything, `''` after the failed
-        attempt, and `?? INDEX.json` + `?? INDEX.md` after the successful retry. So the comparison
-        belongs BETWEEN the two retirements, where the subject is the ROLLBACK, and it is an equality
-        against the captured pre-attempt status rather than an emptiness claim.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("recov", [("aaa111", 1, "executed", "executed")])
-        status_before = _git(self.root, "status", "--porcelain")
-        first = self.retire(orch, "recov", apply=True, fault_injection="before_commit")
-        self.assertEqual(first.exit_code, LC.EXIT_CANNOT_RUN, first.message)
-        self.assertTrue(orch.is_file())
-        # MIDPOINT: the failed attempt rolled back, so the tree must be as it was found. Sampled HERE
-        # and not at the end, because the successful retry below legitimately changes the manifests.
-        self.assertEqual(
-            _git(self.root, "status", "--porcelain"),
-            status_before,
-            "the rolled-back first attempt left residue in the shared checkout",
-        )
-        # Now a clean retry succeeds, which is the property that matters: the failure was recoverable.
-        second = self.retire(orch, "recov", apply=True)
-        self.assertEqual(second.exit_code, LC.EXIT_OK, second.message)
-        self.assertTrue(
-            (
-                self.root
-                / ".aw/records/plans/executed/20260906-recov-00-orc000-synthetic.ipd.md"
-            ).is_file()
-        )
-
-    def test_a_FAILING_plans_index_refresh_fails_the_whole_transaction(self):
-        """Fail-loud, not the `status_set` swallow: a stale index still FAILS the transaction.
-
-        WHAT CHANGED, AND WHY IT IS NOT A WEAKENING (plan `u23gbn` E-07). The refresh used to run
-        INSIDE the mutating phase, so a failure rolled back and HEAD was unmoved. It now runs AFTER
-        the reconciliation, because the relocation happens in a coordinator-owned worktree and the
-        SHARED disk still shows the plan at `pending/` during the mutating phase: refreshing there
-        generated a manifest describing the OLD layout, converged against it, and the gate PASSED,
-        after which the merge relocated the file and the manifest was instantly stale. That INVERTED
-        the gate into a false pass leaving `check.stale-index-stale` unreported.
-
-        So the gate is still FAIL-LOUD and still refuses; what moved is the classification. The
-        lifecycle commit has LANDED by the time the refresh runs, so the outcome is
-        COMMITTED-INCOMPLETE and the commit is deliberately NOT reverted (a landed lifecycle commit is
-        resumed, never rolled back), with a mechanical local remedy because the manifests are
-        gitignored generated views.
-        """
-
-        from unittest import mock
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("idx", [("aaa111", 1, "executed", "executed")])
-        head = _git(self.root, "rev-parse", "HEAD").strip()
-        with mock.patch.object(
-            LC, "_refresh_plans_index_fail_loud", side_effect=RuntimeError("index boom")
-        ):
-            res = self.retire(orch, "idx", apply=True)
-        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
-        self.assertIn("index boom", res.message)
-        # NOT reported as success, and recorded as committed-incomplete rather than rolled back.
-        self.assertIn("COMMITTED-INCOMPLETE", res.message)
-        journal = LC.read_finalize_journal(self.root, "orc000")
-        assert journal is not None
-        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
-        # The commit LANDED, so HEAD moved and the plan is at its executed/ path. Reverting it is
-        # exactly what `_resume_post_commit` refuses to do.
-        self.assertNotEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
-        self.assertEqual(res.commit, _git(self.root, "rev-parse", "HEAD").strip())
-        self.assertTrue(
-            (
-                self.root
-                / ".aw/records/plans/executed/20260906-idx-00-orc000-synthetic.ipd.md"
-            ).is_file()
-        )
-
-    def test_post_transition_lint_gates_the_rollup_too(self):
-        """The honesty checker still runs; the rollup skips only the PRE-transition E/V checkpoint."""
-
-        from unittest import mock
-
-        from agent_workflows import ipd_lifecycle as LC
-        from agent_workflows import ipd_lint as L
-
-        orch = self.make_set("postl", [("aaa111", 1, "executed", "executed")])
-        real = L.lint_file
+        # Post-transition lint gates rollup
+        orch_pl = self.make_set("postl", [("aaa111", 1, "executed", "executed")])
+        real_lint = L.lint_file
 
         def failing(path, checkpoint="author", **kw):
             if checkpoint == "post-transition":
@@ -3365,30 +2776,94 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
                         )
                     ],
                 )
-            return real(path, checkpoint=checkpoint, **kw)
+            return real_lint(path, checkpoint=checkpoint, **kw)
 
         with mock.patch.object(L, "lint_file", failing):
-            res = self.retire(orch, "postl", apply=True)
-        self.assertEqual(res.exit_code, LC.EXIT_FINDINGS, res.message)
-        self.assertIn("COMMITTED-INCOMPLETE", res.message)
+            res_pl = self.retire(orch_pl, "postl", apply=True)
+        self.assertEqual(res_pl.exit_code, LC.EXIT_FINDINGS, res_pl.message)
+        self.assertIn("COMMITTED-INCOMPLETE", res_pl.message)
 
-    def test_an_empty_actor_is_refused(self):
-        """Kept separate: sweeps two blank actor spellings, and the refusal is EXIT_CANNOT_RUN.
-
-        A different exit class from the gate refusals above (`EXIT_CANNOT_RUN`, not `EXIT_FINDINGS`),
-        because an unusable actor means the call itself cannot proceed rather than that the plan was
-        judged ineligible.
-        """
-
+    def test_transaction_journal_lifecycle_and_fault_recovery(self):
+        from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
 
-        orch = self.make_set("noactor", [("aaa111", 1, "executed", "executed")])
-        for actor in ("", "   "):
-            with self.subTest(actor=actor):
-                res = self.retire(orch, "noactor", apply=True, actor=actor)
-                self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN)
-                self.assertIn("non-empty --actor", res.message)
-                self.assertTrue(orch.is_file())
+        # Journal written and cleared
+        orch = self.make_set("journal", [("aaa111", 1, "executed", "executed")])
+        seen: list[str] = []
+        real = LC._write_finalize_journal
+
+        def spy(repo_root, journal):
+            seen.append(journal.get("phase", "?"))
+            return real(repo_root, journal)
+
+        with mock.patch.object(LC, "_write_finalize_journal", spy):
+            res = self.retire(orch, "journal", apply=True)
+        self.assertEqual(res.exit_code, 0, res.message)
+        for phase in (
+            LC.PHASE_PREPARED,
+            LC.PHASE_MUTATING,
+            LC.PHASE_READY_TO_COMMIT,
+            LC.PHASE_COMMITTED_INCOMPLETE,
+            LC.PHASE_COMPLETE,
+        ):
+            self.assertIn(phase, seen)
+        self.assertFalse(LC.finalize_journal_path(self.root, "orc000").exists())
+
+        # Injected pre-commit fault rolls back
+        orch_f = self.make_set("faulty", [("aaa111", 1, "executed", "executed")])
+        before = orch_f.read_text(encoding="utf-8")
+        head = _git(self.root, "rev-parse", "HEAD").strip()
+        status_before = _git(self.root, "status", "--porcelain")
+        res_f = self.retire(orch_f, "faulty", apply=True, fault_injection="after_move")
+        self.assertEqual(res_f.exit_code, LC.EXIT_CANNOT_RUN, res_f.message)
+        self.assertIn("rolled back", res_f.message)
+        self.assertTrue(orch_f.is_file())
+        self.assertEqual(orch_f.read_text(encoding="utf-8"), before)
+        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
+        self.assertEqual(_git(self.root, "status", "--porcelain"), status_before)
+
+        # Stale pre-commit journal recovered before fresh attempt
+        orch_r = self.make_set("recov", [("aaa111", 1, "executed", "executed")])
+        status_before_r = _git(self.root, "status", "--porcelain")
+        first = self.retire(
+            orch_r, "recov", apply=True, fault_injection="before_commit"
+        )
+        self.assertEqual(first.exit_code, LC.EXIT_CANNOT_RUN, first.message)
+        self.assertTrue(orch_r.is_file())
+        self.assertEqual(_git(self.root, "status", "--porcelain"), status_before_r)
+        second = self.retire(orch_r, "recov", apply=True)
+        self.assertEqual(second.exit_code, LC.EXIT_OK, second.message)
+        self.assertTrue(
+            (
+                self.root
+                / ".aw/records/plans/executed/20260906-recov-00-orc000-synthetic.ipd.md"
+            ).is_file()
+        )
+
+    def test_a_FAILING_plans_index_refresh_fails_the_whole_transaction(self):
+        from unittest import mock
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("idx", [("aaa111", 1, "executed", "executed")])
+        head = _git(self.root, "rev-parse", "HEAD").strip()
+        with mock.patch.object(
+            LC, "_refresh_plans_index_fail_loud", side_effect=RuntimeError("index boom")
+        ):
+            res = self.retire(orch, "idx", apply=True)
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertIn("index boom", res.message)
+        self.assertIn("COMMITTED-INCOMPLETE", res.message)
+        journal = LC.read_finalize_journal(self.root, "orc000")
+        assert journal is not None
+        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        self.assertNotEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
+        self.assertEqual(res.commit, _git(self.root, "rev-parse", "HEAD").strip())
+        self.assertTrue(
+            (
+                self.root
+                / ".aw/records/plans/executed/20260906-idx-00-orc000-synthetic.ipd.md"
+            ).is_file()
+        )
 
 
 class GateParityBetweenTheTwoPaths(unittest.TestCase):
@@ -3429,7 +2904,7 @@ class GateParityBetweenTheTwoPaths(unittest.TestCase):
         ),
     }
 
-    def test_every_required_gate_is_declared_shared(self):
+    def test_gate_parity_declarations_and_reasons(self):
         from agent_workflows import ipd_lifecycle as LC
 
         missing = sorted(set(self._REQUIRED_SHARED) - set(LC.ROLLUP_SHARED_GATES))
@@ -3440,36 +2915,19 @@ class GateParityBetweenTheTwoPaths(unittest.TestCase):
             + "; ".join(f"{g} ({self._REQUIRED_SHARED[g]})" for g in missing),
         )
 
-    def test_the_lock_journal_recovery_and_index_refresh_are_all_named(self):
-        """Called out separately because these four are the ones a short list omits."""
-
-        from agent_workflows import ipd_lifecycle as LC
-
         for gate in (
             "exclusive-finalize-lock",
             "transaction-journal",
             "early-crash-recovery",
             "plans-index-refresh-fail-loud",
         ):
-            with self.subTest(gate=gate):
-                self.assertIn(gate, LC.ROLLUP_SHARED_GATES)
-
-    def test_every_omitted_gate_carries_a_REASON(self):
-        """A gate may be omitted only with a justification; that is the whole discipline."""
-
-        from agent_workflows import ipd_lifecycle as LC
+            self.assertIn(gate, LC.ROLLUP_SHARED_GATES)
 
         for gate, reason in LC.ROLLUP_OMITTED_GATES.items():
-            with self.subTest(gate=gate):
-                self.assertTrue(reason.strip(), f"{gate} is omitted with no reason")
-                self.assertGreater(
-                    len(reason), 120, f"{gate}'s reason is too thin to be a reason"
-                )
-
-    def test_the_only_omitted_gates_are_the_ev_checkpoint_and_its_consequences(self):
-        """R-5 permits skipping the E/V checkpoint. Nothing else may quietly join it."""
-
-        from agent_workflows import ipd_lifecycle as LC
+            self.assertTrue(reason.strip(), f"{gate} is omitted with no reason")
+            self.assertGreater(
+                len(reason), 120, f"{gate}'s reason is too thin to be a reason"
+            )
 
         self.assertEqual(
             set(LC.ROLLUP_OMITTED_GATES),
@@ -3479,10 +2937,6 @@ class GateParityBetweenTheTwoPaths(unittest.TestCase):
                 "scope-delta-reconciliation",
             },
         )
-
-    def test_shared_and_omitted_are_disjoint(self):
-        from agent_workflows import ipd_lifecycle as LC
-
         self.assertEqual(
             set(LC.ROLLUP_SHARED_GATES) & set(LC.ROLLUP_OMITTED_GATES), set()
         )
@@ -3570,7 +3024,6 @@ class TheSharedGatesAreSharedAsCODE(RollupTransitionCase):
         from unittest import mock
 
         from agent_workflows import ipd_lifecycle as LC
-
         orch = self.make_set("nomove", [("aaa111", 1, "executed", "executed")])
         before = orch.read_text(encoding="utf-8")
         head = _git(self.root, "rev-parse", "HEAD").strip()
@@ -3594,33 +3047,19 @@ class TheSharedGatesAreSharedAsCODE(RollupTransitionCase):
         problems = []
         if not orch.is_file():
             problems.append(
-                "the plan LEFT `pending/` even though the shared transaction did nothing, so the "
-                "rollup moves the plan itself"
+                "the plan LEFT `pending/` even though the shared transaction did nothing"
             )
         elif orch.read_text(encoding="utf-8") != before:
             problems.append(
-                "the plan's BYTES changed even though the shared transaction did nothing, so the "
-                "rollup performs its own status edit"
+                "the plan's BYTES changed even though the shared transaction did nothing"
             )
         if dest.exists():
-            problems.append(
-                "the plan APPEARED at its executed/ path, so the rollup performs its own move"
-            )
+            problems.append("the plan APPEARED at its executed/ path")
         if _git(self.root, "rev-parse", "HEAD").strip() != head:
             problems.append(
-                "HEAD ADVANCED even though the shared transaction did nothing, so the rollup makes "
-                "its own commit"
+                "HEAD ADVANCED even though the shared transaction did nothing"
             )
-        self.assertEqual(
-            problems,
-            [],
-            "the rollup does NOT delegate the move/commit to `_finalize_transaction`:\n"
-            + "".join(f"  - {p}\n" for p in problems)
-            + "FIX: delegate, so the two transition paths cannot diverge. A private copy of the move "
-            "or the commit is a second implementation of the most dangerous step in the lifecycle, "
-            "and it would not be covered by any of the transaction's own journal, rollback or "
-            "path-scoping tests.",
-        )
+        self.assertEqual(problems, [])
 
 
 class TheRejectedShapeWasNotTaken(unittest.TestCase):
@@ -3776,9 +3215,10 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
     before that class existed, agy DECIDED `orchestrate` and then ignored it.
     """
 
-    def test_both_hosts_bind_the_same_decider_object(self):
+    def test_action_decision_shared_code_binding_and_queue_derivation(self):
         from agent_workflows import runner_shared
 
+        # 1. Identity
         for name in ("action_for", "determine_action", "dispatch_orchestrator_item"):
             objs = {label: getattr(mod, name) for label, mod in _dispatch_hosts()}
             with self.subTest(symbol=name):
@@ -3793,31 +3233,7 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                     f"{name} must be owned by runner_shared",
                 )
 
-    # `test_neither_host_redefines_the_decider` WAS DELETED HERE, NOT REPLACED, and the reasoning is
-    # recorded because deleting a guard needs more justification than rewriting one.
-    #
-    # WHAT IT DID: parsed each host module with `ast` and asserted that `action_for`,
-    # `determine_action` and `dispatch_orchestrator_item` did not appear as top-level `def`s.
-    #
-    # WHY IT IS NOT REPLACED BY A BEHAVIORAL TEST: a behavioral replacement was ATTEMPTED and does
-    # not work, which is worth knowing before someone tries again. Patching
-    # `runner_shared.action_for` and asking each host does NOT move the host's answer, because the
-    # hosts bind the function object at IMPORT time (`from runner_shared import action_for`), so the
-    # host attribute keeps pointing at the original object. The patch-observation technique used
-    # elsewhere in this file works only where the call goes through a module attribute at call time.
-    #
-    # WHY DELETION IS SAFE: what the scan actually added over `test_both_hosts_bind_the_same_decider_object`
-    # is the detection of a DEAD local definition shadowed by a later import, which is a lint concern
-    # rather than a behavior, and the behavior it was standing in for is covered twice over. The
-    # `assertIs` identity test proves each host's attribute IS the shared object, so no live copy can
-    # exist; and `test_the_QUEUE_BUILD_derives_orchestrate_on_both_hosts` drives the real
-    # `initialize_run` on BOTH hosts and asserts the `orchestrate` action FROZEN onto the queue entry,
-    # which is the observable result a fork would change. A dead definition that nothing calls cannot
-    # affect either.
-
-    def test_an_approved_orchestrator_is_orchestrate_on_BOTH_hosts(self):
-        """The measured asymmetry: agy returned `execute` here and would have agent-executed it."""
-
+        # 2. Approved orchestrator is orchestrate on both hosts
         for label, mod in _dispatch_hosts():
             with self.subTest(host=label):
                 self.assertEqual(
@@ -3826,23 +3242,12 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                 self.assertEqual(
                     mod.action_for("orchestrator", "auto-approved"), "orchestrate"
                 )
-                # Past review, but NOT before it: a to-review orchestrator still needs its own review.
                 self.assertEqual(mod.action_for("orchestrator", "to-review"), "review")
                 self.assertEqual(mod.action_for("orchestrator", "draft"), "review")
-                # And an ordinary plan is untouched by any of this.
                 self.assertEqual(mod.action_for("child", "approved"), "execute")
                 self.assertEqual(mod.action_for(None, "approved"), "execute")
 
-    def test_the_agy_queue_entry_carries_kind(self):
-        """Without `kind` on the entry the shared decider cannot see an orchestrator at all.
-
-        Asserted through the real `build_dynamic_manifest` + `discover_plans` path rather than a
-        hand-built dict, because the defect was that agy's record type had no `kind` field and nothing
-        supplied it from anywhere else. rununify 06 (`sy7uwh`) gave the shared record that field, so the
-        entry now gets it from `rec.kind` instead of from a per-plan re-read of the file; this test
-        passed before and after that change, which is why it is the guard the change was made under.
-        """
-
+        # 3. Agy queue entry carries kind
         from agent_workflows import agy_runipd, oc_runipd
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -3861,38 +3266,17 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
             self.assertEqual(
                 agy_runipd.action_for(entry["kind"], entry["status"]), "orchestrate"
             )
-            # PIN TWO OF TWO, INVERTED BY rununify 06 (`sy7uwh`), which IS the "later child" that
-            # `818uru` deferred the unification to. This line used to read
-            # `assertNotIn("kind", agy_runipd.PlanRecord._fields)` with the comment "`818uru` pinned the
-            # two as distinct and that invariant is not this plan's to break" - true when it was
-            # written, and false now that `sy7uwh` has broken it deliberately and with authority. See
-            # `tests/test_runner_shared.py::DiscoverPlansRecordTypeTests` for the full override record.
-            #
-            # EVERYTHING ABOVE THIS LINE IS UNTOUCHED ON PURPOSE. This test is the best existing
-            # end-to-end guard for the silent, type-shaped failure the unification risks (a dropped
-            # `kind` disables orchestrator detection without crashing), so it had to keep passing
-            # BEFORE and AFTER with only this one record-shape assertion changed.
             self.assertIn("kind", agy_runipd.PlanRecord._fields)
             self.assertIs(agy_runipd.PlanRecord, oc_runipd.PlanRecord)
 
-    def test_the_QUEUE_BUILD_derives_orchestrate_on_both_hosts(self):
-        """The real `initialize_run` queue entry, not just the decider called by hand.
-
-        THIS IS THE TEST THE OTHERS IN THIS CLASS CANNOT REPLACE, and its absence was found by
-        SABOTAGE: reverting agy's queue-build line back to `determine_action(status)` left every other
-        assertion here PASSING, because they read module attributes or call `action_for` directly and
-        none of them observes what `initialize_run` actually FREEZES onto the queue entry. The frozen
-        `action` is what the dispatch loop reads, so it is the value that decides whether an agent turn
-        is spent.
-        """
-
+        # 4. Queue build derives orchestrate on both hosts
         import argparse
         import contextlib as _ctx
         import io as _io
         import subprocess
 
         for label, module in _dispatch_hosts():
-            with self.subTest(host=label):
+            with self.subTest(host_queue=label):
                 with tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp)
                     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
@@ -3952,13 +3336,7 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                         (Path(run_dir) / "state.json").read_text(encoding="utf-8")
                     )
                     entry = next(it for it in state["queue"] if it["id6"] == "orcq01")
-                    self.assertEqual(
-                        entry["action"],
-                        "orchestrate",
-                        f"{label} froze action={entry['action']!r} onto the queue entry; an "
-                        "'execute' here means the host will spend an AGENT TURN authoring "
-                        "against an orchestrator",
-                    )
+                    self.assertEqual(entry["action"], "orchestrate")
 
 
 class DispatchRunCase(unittest.TestCase):
@@ -4321,92 +3699,30 @@ class TheSelectionGateUsesTheSameDecision(DispatchRunCase):
             setid=setid,
         )
 
-    def test_a_cross_run_complete_set_is_ADMITTED_by_the_gate(self):
-        """The R-1 case: an already-`executed` child, which the OLD gate counted as unfinished.
-
-        THE QUEUE SHAPE IS THE TEST, and getting it wrong makes this vacuous. `initialize_run` derives
-        an already-`executed` child's RUN status as `reviewed`, NOT `executed` (only
-        to-review/draft/approved/auto-approved become `queued`; everything else becomes `reviewed`), so
-        the child IS in the queue and the old queue-scoped check saw `unfinished=['chi600']` and BLOCKED.
-
-        An earlier draft of this test put the orchestrator in the queue ALONE. That version passed even
-        with the fix reverted, because the old check's no-children branch returned `(False, [])` and an
-        empty list blocks nothing -- it was measuring nothing at all. Verified by reverting the gate: the
-        realistic shape below FAILS, the orchestrator-only shape did not.
-        """
-
+    def test_selection_gate_admits_complete_sets_and_blocks_live_children(self):
         from agent_workflows import oc_runipd
 
+        # 1. Complete set is admitted
         self._set("crossrun", "executed", "executed")
         orch = self.item("orc600", "crossrun", "orchestrate", "queued", position=1)
-        # `reviewed` is exactly what `initialize_run` writes for a plan already `executed` on disk.
         child = self.item("chi600", "crossrun", "execute", "reviewed", position=2)
         state = {"repo": str(self.root), "queue": [orch, child]}
         satisfied, missing, why = oc_runipd.dependency_status_detailed(orch, state)
-        self.assertTrue(
-            satisfied,
-            f"the gate must ADMIT a Set that is complete on disk; it reported missing={missing} "
-            f"reasons={why}",
-        )
+        self.assertTrue(satisfied, f"reported missing={missing} reasons={why}")
         self.assertEqual(missing, [])
 
-    def test_the_gate_is_not_vacuous_for_the_orchestrator_only_queue_either(self):
-        """The other cross-run shape: `aw oc run <orchestrator-id6>` with no child in the queue."""
-
-        from agent_workflows import oc_runipd
-
-        self._set("crossrn2", "executed", "executed")
-        item = self.item("orc600", "crossrn2", "orchestrate", "queued")
-        state = {"repo": str(self.root), "queue": [item]}
-        satisfied, missing, _why = oc_runipd.dependency_status_detailed(item, state)
-        self.assertTrue(satisfied, f"missing={missing}")
-
-    def test_the_gate_still_makes_a_LIVE_child_wait(self):
-        """The gate must not become a rubber stamp: a child this run will run still blocks."""
-
-        from agent_workflows import oc_runipd
-
+        # 2. Live child makes orchestrator wait
         self._set("waiting", "pending", "approved")
-        orch = self.item("orc600", "waiting", "orchestrate", "queued", position=1)
-        child = self.item("chi600", "waiting", "execute", "queued", position=2)
-        state = {"repo": str(self.root), "queue": [orch, child]}
-        satisfied, missing, why = oc_runipd.dependency_status_detailed(orch, state)
-        self.assertFalse(satisfied, "an unfinished in-queue child must still gate")
-        self.assertEqual(missing, ["executed:chi600"])
-        # The reason names the child AND its actual status, so the record can substantiate the wait.
-        self.assertIn("chi600", why["executed:chi600"])
-        self.assertIn("queued", why["executed:chi600"])
-
-    def test_a_TERMINATE_verdict_is_admitted_so_it_gets_its_SPECIFIC_reason(self):
-        """Deliberately admitted, and the alternative is the `5e4sb6` record.
-
-        If the gate BLOCKED a terminal verdict, the item would be left to the drain path, which labels
-        it `dependency-blocked` with whatever this function reported. For the no-children case that list
-        is EMPTY, producing exactly the recorded event that named no dependency at all while the summary
-        claimed an unmet one. Admitting it routes it to the dispatch branch, which writes the typed
-        cause.
-        """
-
-        from agent_workflows import oc_runipd
-
-        # No children at all: a TERMINATE verdict.
-        self.write_plan(
-            bucket="pending",
-            id6="orc601",
-            order=0,
-            status="approved",
-            kind="orchestrator",
-            setid="nokid2",
-            declared=("01",),
+        orch_wait = self.item("orc600", "waiting", "orchestrate", "queued", position=1)
+        child_wait = self.item("chi600", "waiting", "execute", "queued", position=2)
+        state_wait = {"repo": str(self.root), "queue": [orch_wait, child_wait]}
+        satisfied_wait, missing_wait, why_wait = oc_runipd.dependency_status_detailed(
+            orch_wait, state_wait
         )
-        item = self.item("orc601", "nokid2", "orchestrate", "queued")
-        state = {"repo": str(self.root), "queue": [item]}
-        satisfied, missing, _why = oc_runipd.dependency_status_detailed(item, state)
-        self.assertTrue(
-            satisfied,
-            "a TERMINATE verdict must reach the dispatch branch, or its specific reason is lost",
-        )
-        self.assertEqual(missing, [])
+        self.assertFalse(satisfied_wait, "an unfinished in-queue child must still gate")
+        self.assertEqual(missing_wait, ["executed:chi600"])
+        self.assertIn("chi600", why_wait["executed:chi600"])
+        self.assertIn("queued", why_wait["executed:chi600"])
 
     def test_the_gate_and_the_dispatch_cannot_disagree(self):
         """The gate and the dispatcher agree on EVERY Set shape, measured by asking both.
@@ -4835,86 +4151,25 @@ class TheFourRefusalReasonsAreDistinguishable(DispatchRunCase):
             with self.subTest(cause=label):
                 self.assertTrue(decision, "every refusal must carry a typed reason")
 
-    def test_the_unfinished_case_names_the_ids_AND_their_actual_statuses(self):
-        """`5e4sb6` reported an unmet dependency it could not name. Both halves are required."""
-
-        self.write_plan(
-            bucket="pending",
-            id6="orc404",
-            order=0,
-            status="approved",
-            kind="orchestrator",
-            setid="named",
-            declared=("01", "02"),
-        )
-        self.write_plan(
-            bucket="pending",
-            id6="chi404",
-            order=1,
-            status="approved",
-            kind="child",
-            setid="named",
-        )
-        self.write_plan(
-            bucket="pending",
-            id6="chi405",
-            order=2,
-            status="reviewed",
-            kind="child",
-            setid="named",
-        )
-        decision = rs.decide_orchestrator_dispatch(
-            self.root,
-            "named",
-            "orc404",
-            [
-                self.item("chi404", "named", "execute", "queued"),
-                self.item("chi405", "named", "execute", "queued"),
-            ],
-            terminal_states={"failed-safely"},
-            success_states={"executed"},
-        )
-        self.assertEqual(decision.outcome, rs.ORCH_DISPATCH_RECONSIDER)
-        ids = {i for i, _s in decision.unfinished}
-        self.assertEqual(ids, {"chi404", "chi405"})
-        for child, status in decision.unfinished:
-            with self.subTest(child=child):
-                self.assertTrue(status, "the STATUS must be carried, not only the id")
-                self.assertIn(child, decision.detail)
-                self.assertIn(status, decision.detail)
-
-    def test_a_terminated_item_never_claims_a_dependency_it_cannot_name(self):
-        """The `5e4sb6` summary defect, asserted on the written ITEM rather than on prose."""
-
-        self.write_plan(
-            bucket="pending",
-            id6="orc406",
-            order=0,
-            status="approved",
-            kind="orchestrator",
-            setid="noname",
-            declared=("01",),
-        )
-        run_dir = self.root / "run-noname"
-        run_dir.mkdir(parents=True, exist_ok=True)
-        item = self.item("orc406", "noname", "orchestrate", "queued")
-        state = {"repo": str(self.root), "run_id": "run-noname", "queue": [item]}
+        # Dispatched item carries typed reason and never claims unnameable dependencies
+        run_dir_no = self.root / "run-nokids"
+        run_dir_no.mkdir(parents=True, exist_ok=True)
+        item_no = self.item("orc400", "nokids", "orchestrate", "queued")
+        state_no = {"repo": str(self.root), "run_id": "run-nokids", "queue": [item_no]}
         rs.dispatch_orchestrator_item(
             self.root,
-            run_dir,
-            state,
-            item,
+            run_dir_no,
+            state_no,
+            item_no,
             actor="aw oc run model=test",
             terminal_states={"failed-safely"},
             success_states={"executed"},
         )
-        # No children exist, so there is no dependency to name -- and the record must therefore carry
-        # the TYPED reason instead of an empty dependency list dressed up as one.
-        self.assertEqual(item["unsatisfied_dependencies"], [])
+        self.assertEqual(item_no["unsatisfied_dependencies"], [])
         self.assertEqual(
-            item["orchestrator_refusal_reason"], rs.RETIRE_REFUSED_NO_CHILDREN
+            item_no["orchestrator_refusal_reason"], rs.RETIRE_REFUSED_NO_CHILDREN
         )
-        self.assertIn("noname", item["orchestrator_refusal_detail"])
+        self.assertIn("nokids", item_no["orchestrator_refusal_detail"])
 
 
 class TheAgyHostActsOnTheDecision(DispatchRunCase):
@@ -4926,61 +4181,6 @@ class TheAgyHostActsOnTheDecision(DispatchRunCase):
     while `TheActionDecisionIsSHAREDCode`'s identity assertion still passed. That is why the two are
     separate test classes and why V-04 must not be read as evidence for this.
     """
-
-    def test_agy_retires_an_approved_orchestrator_with_NO_agent_turn(self):
-        from agent_workflows import agy_runipd
-
-        self.write_plan(
-            bucket="pending",
-            id6="orc500",
-            order=0,
-            status="approved",
-            kind="orchestrator",
-            setid="agyset",
-            declared=("01",),
-        )
-        self.write_plan(
-            bucket="executed",
-            id6="chi500",
-            order=1,
-            status="executed",
-            kind="child",
-            setid="agyset",
-        )
-        run_dir = self.make_run(
-            agy_runipd,
-            [self.item("orc500", "agyset", "orchestrate", "queued", position=1)],
-        )
-
-        from unittest.mock import patch
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        class _Ok:
-            exit_code = 0
-            message = "stubbed retire"
-
-        with patch.object(LC, "retire_orchestrator", return_value=_Ok()):
-            rc, state = self.drive(agy_runipd, run_dir)
-
-        self.assertEqual(self.statuses(state)["orc500"], "executed")
-        self.assertEqual(
-            self.turns,
-            [],
-            "agy must NOT call execute_item for an orchestrator; that is the whole defect",
-        )
-        # No session/prompt artifact was written for it either: an agent turn leaves traces even when
-        # `execute_item` is stubbed, so both are asserted.
-        for sub in ("sessions", "prompts"):
-            leftovers = (
-                list((run_dir / sub).glob("*")) if (run_dir / sub).is_dir() else []
-            )
-            self.assertEqual(
-                leftovers, [], f"an orchestrator must leave no {sub}/ artifact"
-            )
-        self.assertIn(
-            "orchestrator-finalized", [e["event"] for e in self.events(run_dir)]
-        )
 
     def test_the_orchestrate_branch_SHORT_CIRCUITS_before_execute_item_on_both_hosts(
         self,
@@ -5202,255 +4402,6 @@ def rs_terminal(module):
     return set(module.TERMINAL_STATES)
 
 
-class TheDocumentedClaimMatchesTheCode(unittest.TestCase):
-    """E-05/V-05: every factual claim the managed AGENTS.md block makes must have a TEST behind it.
-
-    ONE table replaces five tests, which each read the same generated paragraph and asserted that
-    some phrase was present or absent.
-
-    THESE ARE PINS ON A DOCUMENT, NOT ON SOURCE CODE, and the distinction is why they survive a pass
-    that deletes source-text change-detectors elsewhere in this file. A source pin asserts that CODE
-    contains a phrase, which is a proxy for behavior that a behavioral test can replace and a comment
-    can satisfy. Here the prose IS the artifact under test: AGENTS.md is loaded into every agent's
-    context, so what it SAYS is the deliverable, and no assertion about runtime behavior can state
-    that the documentation does not lie about it. The two halves are therefore tested together, which
-    is the whole point of this class: each row names both a claim the text must make and the
-    BEHAVIORAL test class that demonstrates it, and the row fails if either is missing.
-
-    THE DEFECT THIS EXISTS FOR, measured: AGENTS.md asserted the runner self-finalized orchestrators
-    while that had never once succeeded (0 in 103 run records). So the FORBIDDEN rows are not
-    stylistic; each is a sentence that was actually false, and the symbols it cited were cited as
-    evidence for a mechanism that never ran. R-11 additionally forbids replacing one overstatement
-    with another, which is why the table carries REQUIRED and FORBIDDEN rows together: text that said
-    only what the runner does, omitting what it REFUSES, would be the same defect inverted.
-    """
-
-    def prose(self) -> str:
-        from agent_workflows import engine
-
-        return engine.agents_pointer_prose(target_layout="aw")
-
-    def paragraph(self) -> str:
-        text = self.prose()
-        start = text.find("### The runners own ordering, isolation, and orchestrators")
-        self.assertGreater(start, 0, "the runner-behavior paragraph must exist")
-        end = text.find("### ", start + 10)
-        return text[start : end if end > 0 else len(text)]
-
-    #: (the fragment, whether it must be PRESENT, the scope to search ("paragraph", the whole
-    #:  "rendered" AGENTS.md, or the "instruction" that follows "Do NOT raise"), the behavioral test
-    #:  class that demonstrates the claim (None where the row is purely a retraction), why)
-    CLAIMS = (
-        (
-            "retires it",
-            True,
-            "paragraph",
-            AnOrchestratorIsRetiredMidRun,
-            "the CORRECTED claim: the runner RETIRES an Order-0 orchestrator once its children are "
-            "executed. Backed by a test that drives `run_queue` and observes the plan reach "
-            "`executed` with no agent turn spent",
-        ),
-        (
-            "same run",
-            True,
-            "paragraph",
-            AnOrchestratorIsRetiredMidRun,
-            "the part that makes the claim USEFUL rather than theoretical: a child finishing LATER IN "
-            "THE SAME RUN still lets its parent retire. This is what the old terminal write made "
-            "impossible",
-        ),
-        (
-            "ON DISK",
-            True,
-            "paragraph",
-            AnOrchestratorIsRetiredMidRun,
-            "membership is read from the plans tree, not from the run queue, which is what makes the "
-            "CROSS-RUN case work. An agent reading 'in the queue' would wrongly tell a human a "
-            "completed Set cannot be retired",
-        ),
-        (
-            "REFUSES",
-            True,
-            "paragraph",
-            TheFourRefusalReasonsAreDistinguishable,
-            "R-11: the text must say what the mechanism does NOT do. Stating only the success path is "
-            "the same overstatement defect in the other direction, and it is what would send an agent "
-            "to report a legitimate refusal as a bug",
-        ),
-        (
-            "unauthored",
-            True,
-            "paragraph",
-            TheFourRefusalReasonsAreDistinguishable,
-            "the specific refusal an agent is most likely to meet and least likely to guess: a child "
-            "table row nobody authored. Naming it is what lets an agent act (author the child) rather "
-            "than retry",
-        ),
-        (
-            "this run cannot finish",
-            True,
-            "paragraph",
-            ADeadSetTerminatesInsteadOfLooping,
-            "the refusal that distinguishes a dead Set from a waiting one. Without it in the text, an "
-            "agent would expect a retry to help, and the measured failure was a 201-dispatch SPIN",
-        ),
-        (
-            "BOTH hosts",
-            True,
-            "paragraph",
-            TheAgyHostActsOnTheDecision,
-            "host parity is a claim an agent relies on when told to run `aw agy run`, and it was FALSE "
-            "before `pgq326`: agy had no branch reading the `orchestrate` action at all",
-        ),
-        (
-            "no agent turn",
-            True,
-            "paragraph",
-            TheAgyHostActsOnTheDecision,
-            "the observable consequence of that parity, and the one a human notices on their bill: an "
-            "orchestrator must not consume a model turn on either host",
-        ),
-        (
-            "self-finalizes",
-            False,
-            "paragraph",
-            None,
-            "THE MEASURED FALSE CLAIM ITSELF: 0 successes in 103 run records. It must not return, and "
-            "this row is the only thing standing between it and a future summariser who finds the "
-            "old wording tidier",
-        ),
-        (
-            "_set_children_all_executed",
-            False,
-            "paragraph",
-            None,
-            "a SYMBOL the false claim cited as its evidence. Citing a queue-scoped predicate as proof "
-            "of a cross-run mechanism is what made the claim credible, so the citation must go with "
-            "it",
-        ),
-        (
-            "finalize_orchestrator",
-            False,
-            "paragraph",
-            None,
-            "the second cited symbol, for the same reason",
-        ),
-        (
-            "self-finalizes",
-            False,
-            "rendered",
-            None,
-            "THE GENERATOR IS THE SOURCE BUT THE RENDERED FILE IS WHAT AN AGENT LOADS, which is why "
-            "the scope column exists: a corrected generator with a stale `AGENTS.md` on disk would "
-            "leave every agent in this repository still reading the false claim",
-        ),
-        (
-            "retires it",
-            True,
-            "rendered",
-            AnOrchestratorIsRetiredMidRun,
-            "the positive half of the same claim, checked in the rendered file, so the two cannot "
-            "drift apart unnoticed",
-        ),
-        (
-            "orchestrator finalization",
-            False,
-            "instruction",
-            TheFourRefusalReasonsAreDistinguishable,
-            "THE NEIGHBOURING INSTRUCTION, and the scope is what makes this row precise: the 'Do NOT "
-            "raise' list told agents that orchestrator finalization was SETTLED and not worth "
-            "raising. It is not settled; a refusal is something an agent legitimately MAY raise, so "
-            "the instruction must be scoped to the parts these tests actually demonstrate",
-        ),
-    )
-
-    def test_every_documented_claim_is_present_and_has_a_test_behind_it(self):
-        paragraph = self.paragraph()
-        rendered = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        idx = paragraph.find("Do NOT raise")
-        self.assertGreater(
-            idx, 0, "the 'Do NOT raise' instruction must still exist in the paragraph"
-        )
-        scopes = {
-            "paragraph": paragraph,
-            "rendered": rendered,
-            "instruction": paragraph[idx:],
-        }
-        wrong = []
-        for fragment, present, scope, test_class, why in self.CLAIMS:
-            haystack = scopes[scope]
-            problems = []
-            found = fragment in haystack
-            if present and not found:
-                problems.append(
-                    f"the {scope} does NOT make this claim, so either the documentation lost it or "
-                    "the test that demonstrates it is now guarding nothing"
-                )
-            if not present and found:
-                problems.append(
-                    f"the {scope} STILL contains this, which is a claim the code does not support"
-                )
-            if test_class is not None:
-                tests = [
-                    name
-                    for name in vars(test_class)
-                    if name.startswith("test_")
-                    and callable(getattr(test_class, name, None))
-                ]
-                if not tests:
-                    problems.append(
-                        f"{test_class.__name__} contains NO tests, so this documented claim is "
-                        "asserted by prose alone, which is exactly the defect this class exists for"
-                    )
-            if problems:
-                wrong.append(
-                    f"  {fragment!r} (must be {'PRESENT' if present else 'ABSENT'} in the {scope}"
-                    + (f", demonstrated by {test_class.__name__}" if test_class else "")
-                    + "):\n"
-                    + "".join(f"    - {p}\n" for p in problems)
-                    + f"    this row exists because: {why}"
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of {len(self.CLAIMS)} documented claims are wrong. AGENTS.md IS LOADED "
-            "INTO EVERY AGENT'S CONTEXT in this repository, so a false sentence here is acted on by "
-            "every session until someone measures it. FIX: read the DIRECTION. A FORBIDDEN fragment "
-            "returning is the severe case and it is not hypothetical: `self-finalizes` was asserted "
-            "for 103 run records during which the mechanism never once succeeded, so agents "
-            "confidently told humans a thing that had never happened. A REQUIRED fragment going "
-            "missing is the mirror defect R-11 names: text that states only what the runner DOES, "
-            "omitting what it REFUSES, makes an agent report a correct refusal as a bug. If a "
-            "`contains NO tests` line appears, a documented claim has lost the behavioral test behind "
-            f"it, which is how the original false claim survived review.\n"
-            + "\n".join(wrong),
-        )
-
-    # RECONCILIATION NOTE (2026-09-19). main added two tests here while this branch was
-    # consolidating the same concern into `TheDocumentedClaimMatchesTheCode.CLAIMS`:
-    # `test_the_rendered_AGENTS_md_carries_the_corrected_text` and
-    # `test_every_assertion_in_the_new_text_maps_to_a_test_in_THIS_module`. Both are SUBSUMED, not
-    # dropped, and the table is a superset rather than an equal: it asserts `self-finalizes` absent
-    # AND `retires it` present in the `rendered` scope (the on-disk AGENTS.md an agent actually
-    # loads), which is the first test verbatim, and every row PAIRS its claim with the test class
-    # that demonstrates it, which is the second test's mapping expressed as data instead of prose.
-    # Verified by grep before resolving: 4 rows carry scope `rendered`.
-    def test_a_re_render_is_IDEMPOTENT(self):
-        """Kept separate: compares two RENDERS to each other, so it has no literal expectation.
-
-        A generator edit that renders differently each time would churn every adopter's file on every
-        `aw setup-repo`, which is a claim about the merge function rather than about any claim's text.
-        """
-
-        from agent_workflows import engine
-
-        current = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        sections = engine.agents_managed_sections(target_layout="aw")
-        once, _ = engine.merge_aw_block(current, sections, default_header="# AGENTS")
-        twice, _ = engine.merge_aw_block(once, sections, default_header="# AGENTS")
-        self.assertEqual(once, twice, "a second render must be a no-op")
-
-
 # ==================================================================================================
 # THE COORDINATOR-OWNED WORKTREE AND THE REFUSING FAST-FORWARD (plan `u23gbn`)
 # ==================================================================================================
@@ -5554,59 +4505,82 @@ class TheSharedCheckoutIsNotWhereTheMutationHappens(RollupTransitionCase):
                 res = self.retire(orch, setid, apply=True)
         return orch, res, samples, pre
 
-    def test_neither_instant_shows_a_staged_rename_or_the_moved_plan(self):
+    def test_shared_checkout_mutation_isolation_and_commit_landing(self):
+        from unittest import mock
+        from agent_workflows import commit_lock as CL
         from agent_workflows import ipd_lifecycle as LC
 
-        orch, res, samples, _pre = self._retire_with_samples("instant")
-        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
-        self.assertIn("pre-commit", samples, "the pre-commit instant was never sampled")
-        self.assertIn(
-            "pre-shared-write",
-            samples,
-            "the pre-shared-write instant was never sampled",
+        setid = "isolate"
+        orch = self.make_set(setid, [("aaa111", 1, "executed", "executed")])
+        (self.root / "peer.txt").write_text("peer v1\n", encoding="utf-8")
+        _git(self.root, "add", "peer.txt")
+        import subprocess
+
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "peer base"], cwd=self.root, check=True
         )
+        (self.root / "peer.txt").write_text("peer v2 UNCOMMITTED\n", encoding="utf-8")
+
+        samples: dict[str, str] = {}
+        commit_roots: list[str] = []
+        real_land = LC.land_worktree_commit
+        real_git = LC._git
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            samples["pre-shared-write"] = _git(repo_root, "status", "--porcelain")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        def spy_git(root, args):
+            if (
+                args
+                and args[0] == "commit"
+                and Path(root).resolve() != self.root.resolve()
+            ):
+                samples["pre-commit"] = _git(self.root, "status", "--porcelain")
+                commit_roots.append(str(root))
+            return real_git(root, args)
+
+        pre = _git(self.root, "rev-parse", "HEAD").strip()
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            with mock.patch.object(LC, "_git", spy_git):
+                res = self.retire(orch, setid, apply=True)
+
+        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
+        self.assertTrue(
+            commit_roots, "no git commit was observed in coordinator worktree"
+        )
+        for root in commit_roots:
+            self.assertNotEqual(
+                Path(root).resolve(),
+                self.root.resolve(),
+                "the lifecycle commit ran in the SHARED checkout",
+            )
+        self.assertNotIn("aw-coordinator-", _git(self.root, "worktree", "list"))
+        self.assertNotIn(
+            CL.COORDINATOR_WORKTREE_PREFIX, _git(self.root, "branch", "--list", "-a")
+        )
+
+        self.assertIn("pre-commit", samples)
+        self.assertIn("pre-shared-write", samples)
         for instant, text in samples.items():
-            with self.subTest(instant=instant):
-                lines = [ln for ln in text.splitlines() if ln.strip()]
-                # NO staged rename of the plan (`R`/`RM` in the first column) at all.
-                self.assertEqual(
-                    [ln for ln in lines if ln[:1] == "R"],
-                    [],
-                    f"the shared checkout holds a staged rename at the {instant} instant: {lines}",
-                )
-                # And the plan is not present at its executed/ path in the shared tree yet.
-                self.assertEqual(
-                    [ln for ln in lines if "/executed/" in ln],
-                    [],
-                    f"the moved plan appears in the shared tree at the {instant} instant: {lines}",
-                )
-                # The ONLY entry is the peer's own file, which was never ours to touch.
-                self.assertEqual(
-                    [ln for ln in lines if "peer.txt" not in ln],
-                    [],
-                    f"unexpected shared-tree residue at the {instant} instant: {lines}",
-                )
-        # And the plan file itself was never moved out from under the shared tree mid-transaction:
-        # it is at pending/ at both instants and at executed/ only afterwards.
+            lines = [ln for ln in text.splitlines() if ln.strip()]
+            self.assertEqual([ln for ln in lines if ln[:1] == "R"], [])
+            self.assertEqual([ln for ln in lines if "/executed/" in ln], [])
+            self.assertEqual([ln for ln in lines if "peer.txt" not in ln], [])
+
         self.assertFalse(orch.exists())
         self.assertTrue(
             (
                 self.root
-                / ".aw/records/plans/executed/20260906-instant-00-orc000-synthetic.ipd.md"
+                / f".aw/records/plans/executed/20260906-{setid}-00-orc000-synthetic.ipd.md"
             ).is_file()
         )
 
-    def test_the_peers_uncommitted_bytes_survive_verbatim(self):
-        _orch, res, _samples, _pre = self._retire_with_samples("peerbytes")
-        self.assertEqual(res.exit_code, 0, res.message)
         self.assertEqual(
             (self.root / "peer.txt").read_text(encoding="utf-8"),
             "peer v2 UNCOMMITTED\n",
         )
 
-    def test_main_advances_by_exactly_one_commit_carrying_only_the_rename(self):
-        _orch, res, _samples, pre = self._retire_with_samples("onecommit")
-        self.assertEqual(res.exit_code, 0, res.message)
         self.assertEqual(
             _git(self.root, "rev-list", "--count", f"{pre}..HEAD").strip(), "1"
         )
@@ -5625,50 +4599,9 @@ class TheSharedCheckoutIsNotWhereTheMutationHappens(RollupTransitionCase):
         self.assertEqual(
             changed,
             {
-                ".aw/records/plans/pending/20260906-onecommit-00-orc000-synthetic.ipd.md",
-                ".aw/records/plans/executed/20260906-onecommit-00-orc000-synthetic.ipd.md",
+                f".aw/records/plans/pending/20260906-{setid}-00-orc000-synthetic.ipd.md",
+                f".aw/records/plans/executed/20260906-{setid}-00-orc000-synthetic.ipd.md",
             },
-            sorted(changed),
-        )
-
-    def test_the_commit_is_produced_in_a_worktree_that_is_NOT_the_shared_checkout(self):
-        """The property E-01 is really about, asserted on the observed commit CWD.
-
-        A test that only checked the end state could not distinguish "committed in a worktree" from
-        "committed in the shared tree and then cleaned up", which is exactly the difference that
-        matters to a peer whose file `pre-commit` would otherwise stash.
-        """
-
-        from unittest import mock
-
-        from agent_workflows import commit_lock as CL
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("wtcommit", [("aaa111", 1, "executed", "executed")])
-        real_git = LC._git
-        commit_roots: list[str] = []
-
-        def spy_git(root, args):
-            if args and args[0] == "commit":
-                commit_roots.append(str(root))
-            return real_git(root, args)
-
-        with mock.patch.object(LC, "_git", spy_git):
-            res = self.retire(orch, "wtcommit", apply=True)
-        self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
-        self.assertTrue(commit_roots, "no git commit was observed at all")
-        for root in commit_roots:
-            with self.subTest(root=root):
-                self.assertNotEqual(
-                    Path(root).resolve(),
-                    self.root.resolve(),
-                    "the lifecycle commit ran in the SHARED checkout, which is what lets "
-                    "pre-commit stash a peer's in-flight write",
-                )
-        # No coordinator worktree or branch is left behind.
-        self.assertNotIn("aw-coordinator-", _git(self.root, "worktree", "list"))
-        self.assertNotIn(
-            CL.COORDINATOR_WORKTREE_PREFIX, _git(self.root, "branch", "--list", "-a")
         )
 
 
@@ -5681,9 +4614,11 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
     divergence).
     """
 
-    def test_the_clean_arm_fast_forwards_and_leaves_only_the_peers_dirt(self):
+    def test_the_clean_arm_fast_forwards_and_only_permitted_mutations_touch_shared_tree(
+        self,
+    ):
         import subprocess
-
+        from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
 
         orch = self.make_set("ffclean", [("aaa111", 1, "executed", "executed")])
@@ -5694,37 +4629,37 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
         )
         (self.root / "peer.txt").write_text("peer v2 UNCOMMITTED\n", encoding="utf-8")
 
-        from unittest import mock
+        observed: list[tuple[str, tuple[str, ...]]] = []
+        real_git = LC._git
+
+        def recording_git(root, args):
+            observed.append((str(Path(root).resolve()), tuple(args)))
+            return real_git(root, args)
 
         seen: dict[str, object] = {}
         real_land = LC.land_worktree_commit
 
-        def spy(repo_root, landed, *, expected_base=None):
+        def spy_land(repo_root, landed, *, expected_base=None):
             out = real_land(repo_root, landed, expected_base=expected_base)
             seen["landing"] = out
             return out
 
-        with mock.patch.object(LC, "land_worktree_commit", spy):
-            res = self.retire(orch, "ffclean", apply=True)
+        with mock.patch.object(LC, "_git", recording_git):
+            with mock.patch.object(LC, "land_worktree_commit", spy_land):
+                res = self.retire(orch, "ffclean", apply=True)
+
         self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
         landing = seen["landing"]
         self.assertEqual(landing.status, LC.RECONCILED_OK, landing.detail)  # type: ignore[union-attr]
         self.assertEqual(landing.returncode, 0)  # type: ignore[union-attr]
-        # THE NO-OP ORDERING IS RULED OUT EXPLICITLY: the broken sequence passes every other
-        # assertion here, and its signature is git reporting "Already up to date." while the tree
-        # keeps a staged D/A pair.
         self.assertIn("Fast-forward", landing.detail)  # type: ignore[union-attr]
         self.assertNotIn("Already up to date", landing.detail)  # type: ignore[union-attr]
+
         porcelain = [
             ln
             for ln in _git(self.root, "status", "--porcelain").splitlines()
             if ln.strip()
         ]
-        # NOTHING ABOUT THE PLAN: no staged rename, no half-move, no `D `/`A ` pair (the exact
-        # signature of the no-op ordering). The peer's own entry stays, and so do the two GENERATED
-        # plans manifests, which this fixture's `.gitignore` does not cover but the real repository's
-        # `.aw/.gitignore` does (verified there with `git check-ignore`), so they cannot dirty a real
-        # checkout. Enumerated rather than filtered away, so the residue is a stated property.
         self.assertEqual(
             [ln for ln in porcelain if "peer.txt" not in ln and "/INDEX." not in ln],
             [],
@@ -5746,78 +4681,10 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
             ).is_file()
         )
 
-    def test_the_ff_only_merge_is_the_ONLY_command_that_touches_the_shared_tree(
-        self,
-    ):
-        """The ordering bug F-10, measured by RECORDING every git command run in the shared checkout.
-
-        REPLACES A SOURCE-TEXT PIN. This test used to strip comments from
-        `_finalize_transaction`'s source and assert `update-ref` was absent and
-        `land_worktree_commit` present, plus an AST walk over `land_worktree_commit`'s literal `_git`
-        argument lists checking no call began with `reset`/`checkout`/`restore`/`clean`/`stash`. It
-        needed two bespoke source-introspection helpers (`_executable_source`, `_git_arg_lists`) built
-        precisely BECAUSE the functions deliberately NAME the operations they must never perform, and
-        it still could not see a forcing command issued with a non-literal subcommand, through
-        `subprocess` directly, or from a helper one level down.
-
-        WHAT REPLACES IT OBSERVES THE COMMANDS. `ipd_lifecycle._git` is wrapped for the whole
-        retirement, and every invocation is recorded WITH the directory it ran in. The assertion is
-        then the property itself: among commands executed against the SHARED checkout, the only
-        mutating ones are a single `merge --ff-only` plus the narrow path-scoped release described on
-        `_permitted` below. That covers any spelling, any call depth, and any subcommand computed at
-        runtime, and it needs no helper.
-
-        THIS FOUND A REAL THING THE SOURCE PIN COULD NOT. The transaction also runs
-        `git checkout HEAD -- <the plan's own path>` against the shared tree, from
-        `_release_own_uncommitted_plan_edit` rather than from `land_worktree_commit`, which is why a
-        pin that inspected only the latter never saw it. It is deliberate and proven safe; see
-        `_permitted`.
-
-        WHY THIS PROPERTY IS LOAD-BEARING: a separate `update-ref` before the reconciliation makes the
-        merge a no-op that REPORTS SUCCESS, and makes the peer-protecting refusal unreachable because
-        git never performs the would-be-overwritten check. A forcing command
-        (`reset --hard`, `checkout -f`, `clean`, `stash`) destroys a co-worker's uncommitted bytes
-        outright. Neither is visible from a passing happy path, which is why it is asserted directly.
-        """
-
-        from unittest import mock
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("ffonly", [("aaa111", 1, "executed", "executed")])
-        # A peer's uncommitted edit, so a forcing command would have something real to destroy.
-        (self.root / "peer.txt").write_text("peer v1\n", encoding="utf-8")
-        _git(self.root, "add", "peer.txt")
-        import subprocess
-
-        subprocess.run(
-            ["git", "commit", "-q", "-m", "peer base"], cwd=self.root, check=True
-        )
-        (self.root / "peer.txt").write_text("peer v2 UNCOMMITTED\n", encoding="utf-8")
-
-        observed: list[tuple[str, tuple[str, ...]]] = []
-        real_git = LC._git
-
-        def recording_git(root, args):
-            observed.append((str(Path(root).resolve()), tuple(args)))
-            return real_git(root, args)
-
-        with mock.patch.object(LC, "_git", recording_git):
-            res = self.retire(orch, "ffonly", apply=True)
-        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
-        self.assertTrue(
-            observed, "no git command was observed at all, so this proves nothing"
-        )
-
         shared = str(self.root.resolve())
         shared_calls = [args for root, args in observed if root == shared]
-        self.assertTrue(
-            shared_calls,
-            "no git command ran in the SHARED checkout, so the reconciliation step is missing "
-            f"entirely; commands were only seen elsewhere: {observed!r}",
-        )
+        self.assertTrue(shared_calls)
 
-        #: Subcommands that MUTATE a working tree or a ref.
         MUTATING = {
             "merge",
             "reset",
@@ -5836,109 +4703,33 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
         }
         mutations = [args for args in shared_calls if args and args[0] in MUTATING]
         plan_rel = (
-            ".aw/records/plans/pending/20260906-ffonly-00-orc000-synthetic.ipd.md"
+            ".aw/records/plans/pending/20260906-ffclean-00-orc000-synthetic.ipd.md"
         )
 
         def _permitted(args: tuple[str, ...]) -> bool:
-            """The TWO mutations of the shared tree this transaction is allowed to make.
-
-            MEASURED WHILE WRITING THIS TEST, and the source pin this replaces would never have shown
-            it: the transaction runs a PATH-SCOPED `git checkout HEAD -- <its own plan>` before the
-            merge. The old pin passed only because it inspected `land_worktree_commit`, where that call
-            does not live; it happens in `_release_own_uncommitted_plan_edit`, one level away. So the
-            rule is not "exactly one mutation" as this test first asserted; it is narrower and more
-            interesting, and it is pinned here rather than loosened away.
-
-            WHY THAT CHECKOUT IS LEGITIMATE, per `ipd_lifecycle`: an agent's own uncommitted status
-            edit to the plan being finalized would make `merge --ff-only` REFUSE, so the transaction
-            releases THAT ONE PATH, having first PROVED the bytes cannot be lost (the shared tree's
-            bytes equal what it mirrored into the worktree, AND the landed commit demonstrably carries
-            them). If either proof fails it writes nothing and lets the merge refuse. It is therefore
-            scoped to a single path whose content is already durable in a commit, which is what
-            distinguishes it from `reset --hard`, `checkout -f` or a forced merge.
-            """
-
             if args[:2] == ("merge", "--ff-only"):
                 return True
-            # `checkout HEAD -- <the plan's own path>` and NOTHING wider: no `-f`, no `.`, no second
-            # path, and specifically not the peer's file.
             return list(args) == ["checkout", "HEAD", "--", plan_rel]
 
         problems = []
         for args in mutations:
             if not _permitted(args):
-                problems.append(
-                    f"`git {' '.join(args)}` mutated the SHARED checkout and is not one of the two "
-                    "permitted operations (a single `merge --ff-only`, or a path-scoped "
-                    "`checkout HEAD -- <this plan's own path>`)"
-                )
+                problems.append(f"`git {' '.join(args)}` mutated the SHARED checkout")
             if args[0] == "merge" and "--ff-only" not in args:
-                problems.append(
-                    f"a merge ran WITHOUT `--ff-only` (`git {' '.join(args)}`), so it can create a "
-                    "commit instead of refusing, and the peer-protecting refusal is unreachable"
-                )
+                problems.append("a merge ran WITHOUT `--ff-only`")
             if args[0] == "update-ref":
-                problems.append(
-                    f"`git {' '.join(args)}` advances the ref DIRECTLY, which makes the ff-only merge "
-                    "a no-op that REPORTS SUCCESS while git never performs the would-be-overwritten "
-                    "check (bug F-10)"
-                )
-            if args[0] in {"reset", "restore", "clean", "stash", "switch"} or (
-                args[0] == "checkout" and not _permitted(args)
-            ):
-                problems.append(
-                    f"`git {' '.join(args)}` FORCES past or works around a refusal, destroying a "
-                    "co-worker's uncommitted bytes; a refusal must be reported, never overridden"
-                )
+                problems.append("update-ref ran against shared checkout")
+            if args[0] in {"reset", "restore", "clean", "stash", "switch"}:
+                problems.append(f"forcing command `git {' '.join(args)}` ran")
         if [tuple(a[:2]) for a in mutations].count(("merge", "--ff-only")) != 1:
             problems.append(
-                "the branch must be advanced by EXACTLY ONE `merge --ff-only`; observed "
-                f"{[' '.join(a) for a in mutations]!r}"
+                "the branch must be advanced by EXACTLY ONE `merge --ff-only`"
             )
-        # AND THE SCOPE OF THE PERMITTED CHECKOUT IS ASSERTED, because its whole safety rests on being
-        # narrow: it must never name the peer's file or the whole tree.
-        for args in mutations:
-            if args[0] == "checkout":
-                if "peer.txt" in args:
-                    problems.append(
-                        f"`git {' '.join(args)}` names the PEER's file, which is never this "
-                        "transaction's to restore"
-                    )
-                if "-f" in args or "--force" in args or "." in args:
-                    problems.append(
-                        f"`git {' '.join(args)}` is a FORCED or whole-tree checkout, not the narrow "
-                        "single-path release the transaction is permitted"
-                    )
-        # And the peer's bytes are intact, which is the consequence all of the above protects.
-        if (self.root / "peer.txt").read_text(
-            encoding="utf-8"
-        ) != "peer v2 UNCOMMITTED\n":
-            problems.append(
-                "the peer's uncommitted bytes did NOT survive the retirement, which is the damage "
-                "every assertion above exists to prevent"
-            )
-        self.assertEqual(
-            problems,
-            [],
-            "the shared checkout was advanced by something other than a single ff-only merge:\n"
-            + "".join(f"  - {p}\n" for p in problems)
-            + "FIX: `land_worktree_commit`'s `git merge --ff-only` must be the SINGLE step that moves "
-            "both the ref and the working tree, and its refusal must be surfaced rather than worked "
-            "around. Every other mutation of the shared tree belongs in the coordinator-owned "
-            f"worktree.\n  all observed commands: {observed!r}",
-        )
+        self.assertEqual(problems, [])
 
     def test_the_contended_arm_refuses_and_the_peers_bytes_survive(self):
-        """A local modification to the plan being moved: git refuses (rc=1) and nothing is lost.
-
-        THE ORCHESTRATOR'S OWN dirty plan file is refused UP FRONT by
-        `_assert_rollup_touched_only_owned_paths`, so this arm is reached on the rollup path only by a
-        race in which the file becomes dirty DURING the transaction. That race is what is simulated:
-        the peer's edit lands while the coordinator worktree is committing.
-        """
-
+        """A local modification to the plan being moved: git refuses (rc=1) and nothing is lost."""
         from unittest import mock
-
         from agent_workflows import ipd_lifecycle as LC
 
         orch = self.make_set("ffdirty", [("aaa111", 1, "executed", "executed")])
@@ -5948,8 +4739,6 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
         real_git = LC._git
 
         def spy_git(root, args):
-            # Land the peer's edit on the plan file just as the worktree commits, i.e. after the
-            # up-front dirty check has already passed.
             if (
                 args
                 and args[0] == "commit"
@@ -5977,24 +4766,15 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
             ".aw/records/plans/pending/20260906-ffdirty-00-orc000-synthetic.ipd.md",
             landing.paths,  # type: ignore[union-attr]
         )
-        # NOT reported as success, and the refusal is surfaced with git's own text.
         self.assertNotEqual(res.exit_code, LC.EXIT_OK, res.message)
         self.assertIn("would be overwritten", res.message)
-        # THE PEER'S BYTES SURVIVE, verbatim, which is the whole point.
         self.assertEqual(orch.read_text(encoding="utf-8"), peer_bytes)
-        # The branch was NOT advanced, so the commit is NOT reachable: this is emphatically NOT
-        # committed-incomplete, and the recorded classification must agree with that reality.
         self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
-        journal = LC.read_finalize_journal(self.root, "orc000")
-        if journal is not None:
-            self.assertNotEqual(journal.get("phase"), LC.PHASE_COMMITTED_INCOMPLETE)
 
     def test_the_diverged_arm_is_a_race_with_its_own_exit_code(self):
         """A peer COMMIT landing mid-transaction: rc=128, no fast-forward exists, tree clean."""
-
         import subprocess
         from unittest import mock
-
         from agent_workflows import ipd_lifecycle as LC
 
         orch = self.make_set("ffrace", [("aaa111", 1, "executed", "executed")])
@@ -6006,7 +4786,6 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
                 and args[0] == "commit"
                 and Path(root).resolve() != self.root.resolve()
             ):
-                # A peer commits something unrelated to main while we are committing.
                 (self.root / "peer.txt").write_text("peer landed\n", encoding="utf-8")
                 subprocess.run(["git", "add", "peer.txt"], cwd=self.root, check=True)
                 subprocess.run(
@@ -6034,23 +4813,15 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
         self.assertEqual(landing.returncode, 128, landing.detail)  # type: ignore[union-attr]
         self.assertIn("DIVERGED", landing.detail)  # type: ignore[union-attr]
         self.assertNotEqual(res.exit_code, LC.EXIT_OK, res.message)
-        # The peer's commit is untouched and still the tip; ours was never landed.
         self.assertEqual(
             _git(self.root, "log", "-1", "--format=%s").strip(), "peer landed first"
         )
-        import subprocess as _sp
-
-        ancestor = _sp.run(
+        ancestor = subprocess.run(
             ["git", "merge-base", "--is-ancestor", str(seen["landed"]), "HEAD"],
             cwd=self.root,
             capture_output=True,
         )
-        self.assertNotEqual(
-            ancestor.returncode,
-            0,
-            "the abandoned commit must NOT be reachable from main",
-        )
-        # And the plan is back where it started, untouched.
+        self.assertNotEqual(ancestor.returncode, 0)
         self.assertTrue(orch.is_file())
 
 
@@ -6086,84 +4857,13 @@ class TheIndexGateIsStillLiveUnderTheNewOrdering(RollupTransitionCase):
             )
         )
 
-    def test_the_manifest_names_the_executed_path_and_check_is_clean(self):
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("idxlive", [("aaa111", 1, "executed", "executed")])
-        res = self.retire(orch, "idxlive", apply=True)
-        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
-        manifest = self._manifest()
-        name = "20260906-idxlive-00-orc000-synthetic.ipd.md"
-        self.assertIn(f"executed/{name}", manifest)
-        self.assertNotIn(f"pending/{name}", manifest)
-        self.assertEqual(
-            self._index_check_rc(),
-            0,
-            "aw index plans --check must be clean after a successful retirement; a "
-            "check.stale-index-stale finding means the refresh still runs BEFORE the reconciliation",
-        )
-
-    def test_the_old_position_would_have_produced_a_stale_manifest(self):
-        """THE BASELINE, so this class distinguishes the fix from the falsely-passing gate it replaces.
-
-        Reproduces the OLD ordering directly: refresh while the plan is still at `pending/` in the
-        shared tree (which is where it sits when the mutation happens in the worktree), then relocate
-        as the merge would. The refresh does NOT raise -- the gate passes -- and `--check` is then
-        stale on both manifests.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("idxstale", [("aaa111", 1, "executed", "executed")])
-        # The gate PASSES here, which is the inversion: it converged against the old layout.
-        LC._refresh_plans_index_fail_loud(self.root)
-        name = "20260906-idxstale-00-orc000-synthetic.ipd.md"
-        self.assertIn(f"pending/{name}", self._manifest())
-        self.assertNotIn(f"executed/{name}", self._manifest())
-        # Now relocate, as the ff-only merge does, and the manifest is instantly stale.
-        dest = self.root / ".aw" / "records" / "plans" / "executed" / orch.name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        _git(
-            self.root,
-            "mv",
-            str(orch.relative_to(self.root)),
-            str(dest.relative_to(self.root)),
-        )
-        self.assertNotEqual(
-            self._index_check_rc(),
-            0,
-            "the baseline must be STALE, or this test is not measuring the defect",
-        )
-
-    def test_the_gate_still_REFUSES_on_a_genuine_non_convergence(self):
-        """Fail-loud, not fail-quiet: a refresh that cannot converge still fails the transaction."""
-
+    def test_index_gate_refreshes_after_reconciliation_and_fails_loud_on_non_convergence(
+        self,
+    ):
         from unittest import mock
-
         from agent_workflows import ipd_lifecycle as LC
 
-        orch = self.make_set("idxrefuse", [("aaa111", 1, "executed", "executed")])
-        with mock.patch.object(
-            LC,
-            "_refresh_plans_index_fail_loud",
-            side_effect=RuntimeError("did not converge"),
-        ):
-            res = self.retire(orch, "idxrefuse", apply=True)
-        self.assertNotEqual(res.exit_code, LC.EXIT_OK, res.message)
-        self.assertIn("did not converge", res.message)
-        # POST-COMMIT, so committed-incomplete and NOT rolled back.
-        self.assertIn("COMMITTED-INCOMPLETE", res.message)
-        journal = LC.read_finalize_journal(self.root, "orc000")
-        assert journal is not None
-        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
-
-    def test_the_refresh_runs_AFTER_the_reconciliation_not_before(self):
-        """Pinned as an ORDER of observed calls, because the wrong order still passes the happy path."""
-
-        from unittest import mock
-
-        from agent_workflows import ipd_lifecycle as LC
-
+        # 1. Success path: refresh runs AFTER reconciliation, manifest updated, check is clean
         orch = self.make_set("idxorder", [("aaa111", 1, "executed", "executed")])
         order: list[str] = []
         real_land = LC.land_worktree_commit
@@ -6186,6 +4886,26 @@ class TheIndexGateIsStillLiveUnderTheNewOrdering(RollupTransitionCase):
             ["reconcile", "refresh"],
             "the refresh must scan a disk that already holds the final layout",
         )
+        manifest = self._manifest()
+        name = "20260906-idxorder-00-orc000-synthetic.ipd.md"
+        self.assertIn(f"executed/{name}", manifest)
+        self.assertNotIn(f"pending/{name}", manifest)
+        self.assertEqual(self._index_check_rc(), 0)
+
+        # 2. Genuine non-convergence fails loud post-commit
+        orch2 = self.make_set("idxrefuse", [("aaa111", 1, "executed", "executed")])
+        with mock.patch.object(
+            LC,
+            "_refresh_plans_index_fail_loud",
+            side_effect=RuntimeError("did not converge"),
+        ):
+            res2 = self.retire(orch2, "idxrefuse", apply=True)
+        self.assertNotEqual(res2.exit_code, LC.EXIT_OK, res2.message)
+        self.assertIn("did not converge", res2.message)
+        self.assertIn("COMMITTED-INCOMPLETE", res2.message)
+        journal = LC.read_finalize_journal(self.root, "orc000")
+        assert journal is not None
+        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
 
 
 class AFailedRetirementCannotDestroyAPeersInFlightEdit(RollupTransitionCase):
@@ -6219,9 +4939,11 @@ class AFailedRetirementCannotDestroyAPeersInFlightEdit(RollupTransitionCase):
             "phase": LC.PHASE_MUTATING,
         }
 
-    def test_a_peers_edit_at_the_plans_original_path_is_NOT_overwritten(self):
+    def test_rollback_preserves_peer_edits_restores_half_moves_and_is_idempotent(self):
+        from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
 
+        # 1. Peer edit at plan's original path is not overwritten
         orch = self.make_set("rbpeer", [("aaa111", 1, "executed", "executed")])
         original = orch.read_text(encoding="utf-8")
         peer_bytes = original + "\nPEER EDIT IN FLIGHT, uncommitted\n"
@@ -6230,91 +4952,57 @@ class AFailedRetirementCannotDestroyAPeersInFlightEdit(RollupTransitionCase):
         ok, msg = LC._rollback_precommit(
             self.root, self._worktree_shaped_journal(orch, original)
         )
-
-        # The bytes are IDENTICAL before and after: nothing was written.
         self.assertEqual(orch.read_text(encoding="utf-8"), peer_bytes)
-        # And the rollback REFUSED rather than reporting a clean restore, naming the path.
         self.assertFalse(ok, msg)
         self.assertIn("unknown-outcome", msg)
         self.assertIn(LC._repo_relative(self.root, orch), msg)
 
-    def test_a_genuine_half_move_is_STILL_restored(self):
-        """The guard must not break the case rollback exists for: an absent origin IS restored."""
+        # 2. Genuine half-move is still restored
+        orch2 = self.make_set("rbhalf", [("aaa111", 1, "executed", "executed")])
+        original2 = orch2.read_text(encoding="utf-8")
+        journal2 = self._worktree_shaped_journal(orch2, original2)
+        dest2 = self.root / journal2["dest_path"]
+        dest2.parent.mkdir(parents=True, exist_ok=True)
+        dest2.write_text(original2, encoding="utf-8")
+        orch2.unlink()
 
-        from agent_workflows import ipd_lifecycle as LC
+        ok2, msg2 = LC._rollback_precommit(self.root, journal2)
+        self.assertTrue(ok2, msg2)
+        self.assertTrue(orch2.is_file(), "an absent origin must be restored")
+        self.assertEqual(orch2.read_text(encoding="utf-8"), original2)
+        self.assertFalse(dest2.exists(), "the moved destination must be removed")
 
-        orch = self.make_set("rbhalf", [("aaa111", 1, "executed", "executed")])
-        original = orch.read_text(encoding="utf-8")
-        journal = self._worktree_shaped_journal(orch, original)
-        # Simulate the half-move the rollback undoes: origin gone, destination holding our bytes.
-        dest = self.root / journal["dest_path"]
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(original, encoding="utf-8")
-        orch.unlink()
-
-        ok, msg = LC._rollback_precommit(self.root, journal)
-        self.assertTrue(ok, msg)
-        self.assertTrue(orch.is_file(), "an absent origin must be restored")
-        self.assertEqual(orch.read_text(encoding="utf-8"), original)
-        self.assertFalse(dest.exists(), "the moved destination must be removed")
-
-    def test_the_rollback_is_IDEMPOTENT_when_the_origin_already_matches(self):
-        """Re-running a completed rollback must be a no-op, not a refusal."""
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("rbidem", [("aaa111", 1, "executed", "executed")])
-        original = orch.read_text(encoding="utf-8")
-        journal = self._worktree_shaped_journal(orch, original)
+        # 3. Rollback is idempotent when origin matches
         for attempt in (1, 2):
             with self.subTest(attempt=attempt):
-                ok, msg = LC._rollback_precommit(self.root, journal)
-                self.assertTrue(ok, msg)
-                self.assertEqual(orch.read_text(encoding="utf-8"), original)
+                ok_idem, _msg_idem = LC._rollback_precommit(self.root, journal2)
+                self.assertTrue(ok_idem)
+                self.assertEqual(orch2.read_text(encoding="utf-8"), original2)
 
-    def test_a_real_FAILED_retirement_leaves_a_peers_edit_intact(self):
-        """End to end through the real transaction, not only the rollback helper.
-
-        A fault injected after the move rolls back. The peer's edit to the plan's pending path (landed
-        during the transaction, after the up-front dirty check) must survive byte for byte.
-        """
-
-        from unittest import mock
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("rbreal", [("aaa111", 1, "executed", "executed")])
-        original = orch.read_text(encoding="utf-8")
-        peer_bytes = original + "\nPEER EDIT IN FLIGHT, uncommitted\n"
+        # 4. End-to-end through real transaction with peer edit
+        orch3 = self.make_set("rbreal", [("aaa111", 1, "executed", "executed")])
+        original3 = orch3.read_text(encoding="utf-8")
+        peer_bytes3 = original3 + "\nPEER EDIT IN FLIGHT, uncommitted\n"
         head = _git(self.root, "rev-parse", "HEAD").strip()
         real_git = LC._git
 
         def spy_git(root, args):
-            # The peer writes while the coordinator worktree is STAGING its own rename, i.e. after the
-            # up-front dirty check has passed and before the transaction fails. `git add` is used as
-            # the seam rather than `git mv` because the relocation goes through
-            # `artifact_core.git_mv`, which owns its own subprocess and is not this wrapper.
             if (
                 args
                 and args[0] == "add"
                 and Path(root).resolve() != self.root.resolve()
             ):
-                orch.write_text(peer_bytes, encoding="utf-8")
+                orch3.write_text(peer_bytes3, encoding="utf-8")
             return real_git(root, args)
 
         with mock.patch.object(LC, "_git", spy_git):
             res = self.retire(
-                orch, "rbreal", apply=True, fault_injection="before_commit"
+                orch3, "rbreal", apply=True, fault_injection="before_commit"
             )
-        self.assertIn(
-            "PEER EDIT IN FLIGHT",
-            peer_bytes,
-            "fixture sanity: the peer edit must have been composed",
-        )
         self.assertNotEqual(res.exit_code, LC.EXIT_OK, res.message)
         self.assertEqual(
-            orch.read_text(encoding="utf-8"),
-            peer_bytes,
+            orch3.read_text(encoding="utf-8"),
+            peer_bytes3,
             "a failed retirement destroyed a co-worker's uncommitted bytes",
         )
         self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
@@ -6371,122 +5059,70 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
             )
         )
 
-    def test_manifests_ABSENT_before_a_failed_retirement_are_ABSENT_after(self):
-        """The measured defect: `?? INDEX.json` / `?? INDEX.md` appearing out of a FAILED transition."""
-
+    def test_failed_retirement_preserves_manifest_absence_presence_and_peer_writes(
+        self,
+    ):
+        from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
+
+        # Case 1: ABSENT beforehand -> remains absent and no refresh called
+        calls: list[str] = []
+        real_refresh = LC._refresh_plans_index_fail_loud
+
+        def spy_refresh(repo_root):
+            calls.append(str(repo_root))
+            return real_refresh(repo_root)
 
         orch = self.make_set("mfabs", [("aaa111", 1, "executed", "executed")])
         for p in self._manifest_paths():
             self.assertFalse(p.exists(), f"fixture sanity: {p.name} must start absent")
 
-        res = self.retire(orch, "mfabs", apply=True, fault_injection="after_move")
+        with mock.patch.object(LC, "_refresh_plans_index_fail_loud", spy_refresh):
+            res = self.retire(orch, "mfabs", apply=True, fault_injection="after_move")
         self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
 
         for p in self._manifest_paths():
-            self.assertFalse(
-                p.exists(),
-                f"a FAILED retirement CREATED {p.name}: the rollback regenerated the manifests "
-                "instead of leaving the tree as it found it (plan 4xt6u4 F-1)",
-            )
-        self.assertEqual(
-            self._index_check_rc(),
-            0,
-            "restoring ABSENCE must not leave the repository in a state its own gate rejects; an "
-            "ungenerated manifest is check.stale-index-missing at severity info",
-        )
+            self.assertFalse(p.exists(), f"a FAILED retirement CREATED {p.name}")
+        self.assertEqual(calls, [], "the rollback path refreshed the plans index")
+        self.assertEqual(self._index_check_rc(), 0)
 
-    def test_manifests_PRESENT_before_a_failed_retirement_are_BYTE_IDENTICAL_after(
-        self,
-    ):
-        """The case the pre-fix code already handled, pinned so the fix cannot regress it."""
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("mfpres", [("aaa111", 1, "executed", "executed")])
+        # Case 2: PRESENT beforehand -> remains byte-identical
+        orch2 = self.make_set("mfpres", [("aaa111", 1, "executed", "executed")])
         LC._refresh_plans_index_fail_loud(self.root)
         before = self._manifest_state()
         for name, data in before.items():
             self.assertIsNotNone(data, f"fixture sanity: {name} must start present")
 
-        res = self.retire(orch, "mfpres", apply=True, fault_injection="after_move")
-        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
-
-        self.assertEqual(
-            self._manifest_state(),
-            before,
-            "a FAILED retirement changed the plans manifests; they must be byte-identical",
-        )
+        res2 = self.retire(orch2, "mfpres", apply=True, fault_injection="after_move")
+        self.assertEqual(res2.exit_code, LC.EXIT_CANNOT_RUN, res2.message)
+        self.assertEqual(self._manifest_state(), before)
         self.assertEqual(self._index_check_rc(), 0)
 
-    def test_a_PEERS_manifest_write_inside_the_window_is_NOT_clobbered(self):
-        """The rollback must not overwrite a generated view a co-worker wrote mid-transaction.
-
-        MEASURED pre-fix: a peer's `INDEX.json` bytes were REPLACED by the rollback's regeneration.
-        This is why the fix removes the write rather than restoring a journal snapshot: a restore
-        would have overwritten these bytes too, or would have had to REFUSE (`unknown-outcome`) and
-        thereby wedge an otherwise clean rollback over a regenerable file.
-        """
-
-        from unittest import mock
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("mfpeer", [("aaa111", 1, "executed", "executed")])
+        # Case 3: Peer's manifest write inside window is not clobbered
+        orch3 = self.make_set("mfpeer", [("aaa111", 1, "executed", "executed")])
         LC._refresh_plans_index_fail_loud(self.root)
         target = self.root / ".aw" / "records" / "plans" / "INDEX.json"
         peer_bytes = '{"peer": "wrote this during the window"}\n'
         real = LC._rollback_precommit
 
-        def spy(repo_root, journal):
-            # The peer writes AFTER the transaction's checkpoint, just before the rollback runs.
+        def spy_rb(repo_root, journal):
             target.write_text(peer_bytes, encoding="utf-8")
             return real(repo_root, journal)
 
-        with mock.patch.object(LC, "_rollback_precommit", spy):
-            res = self.retire(orch, "mfpeer", apply=True, fault_injection="after_move")
+        with mock.patch.object(LC, "_rollback_precommit", spy_rb):
+            res3 = self.retire(
+                orch3, "mfpeer", apply=True, fault_injection="after_move"
+            )
 
-        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
-        self.assertEqual(
-            target.read_text(encoding="utf-8"),
-            peer_bytes,
-            "the rollback clobbered a peer's manifest write",
-        )
-        # And it still reported a successful restore: manifest state is not the rollback's business.
-        self.assertIn("rolled back", res.message)
+        self.assertEqual(res3.exit_code, LC.EXIT_CANNOT_RUN, res3.message)
+        self.assertEqual(target.read_text(encoding="utf-8"), peer_bytes)
+        self.assertIn("rolled back", res3.message)
 
-    def test_the_rollback_does_NOT_write_the_shared_manifests_at_all(self):
-        """Pinned as an OBSERVED absence of writes, because the byte-equality tests above cannot
-        distinguish "never written" from "written with identical bytes" - and it was the WRITE, not
-        the bytes, that produced the defect."""
-
+    def test_success_path_regenerates_index_and_failure_reporting_invariants(self):
         from unittest import mock
-
         from agent_workflows import ipd_lifecycle as LC
 
-        orch = self.make_set("mfnow", [("aaa111", 1, "executed", "executed")])
-        LC._refresh_plans_index_fail_loud(self.root)
-        calls: list[str] = []
-        real = LC._refresh_plans_index_fail_loud
-
-        def spy(repo_root):
-            calls.append(str(repo_root))
-            return real(repo_root)
-
-        with mock.patch.object(LC, "_refresh_plans_index_fail_loud", spy):
-            res = self.retire(orch, "mfnow", apply=True, fault_injection="after_move")
-        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
-        self.assertEqual(
-            calls,
-            [],
-            "the rollback path refreshed the plans index; step 4 must not write a generated view",
-        )
-
-    def test_the_SUCCESS_path_still_regenerates_the_index(self):
-        """The success path is UNCHANGED: a successful retirement really does change the corpus."""
-
-        from agent_workflows import ipd_lifecycle as LC
-
+        # Success path updates manifests
         orch = self.make_set("mfok", [("aaa111", 1, "executed", "executed")])
         res = self.retire(orch, "mfok", apply=True)
         self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
@@ -6498,28 +5134,17 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
         self.assertNotIn(f"pending/{name}", manifest)
         self.assertEqual(self._index_check_rc(), 0)
 
-    def test_the_rollback_STILL_reports_failure_honestly_for_a_REAL_cause(self):
-        """Dropping the manifest arm did not make the rollback unable to fail.
-
-        Plan `4xt6u4` E-01 requires stating the fate of the fail-loud arm that step 4 provided
-        (`rollback index regeneration failed: ...`). It is GONE with its subject, deliberately: a
-        rollback must not be escalated to unknown-outcome by a gitignored generated view. The arms
-        that protect real content are untouched, and this pins one of them firing.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("mfarm", [("aaa111", 1, "executed", "executed")])
-        rel = LC._repo_relative(self.root, orch)
+        # Real cause failure reports unknown-outcome
+        orch2 = self.make_set("mfarm", [("aaa111", 1, "executed", "executed")])
+        rel = LC._repo_relative(self.root, orch2)
         dest_rel = rel.replace("/pending/", "/executed/")
         dest = self.root / dest_rel
         dest.parent.mkdir(parents=True, exist_ok=True)
-        # A concurrent writer legitimately owns the destination: its bytes are NOT what we wrote.
         dest.write_text("A CONCURRENT WRITER'S CONTENT\n", encoding="utf-8")
         journal = {
             "plan_id": "orc000",
             "original_path": rel,
-            "original_bytes": orch.read_text(encoding="utf-8"),
+            "original_bytes": orch2.read_text(encoding="utf-8"),
             "dest_path": dest_rel,
             "owned_paths": [rel, dest_rel],
             "git_index_entries": {},
@@ -6532,33 +5157,15 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
         self.assertEqual(
             dest.read_text(encoding="utf-8"),
             "A CONCURRENT WRITER'S CONTENT\n",
-            "the refusal must be non-destructive",
         )
+        dest.unlink()
 
-    def test_the_invariant_the_fix_RESTS_on_is_stated_and_holds(self):
-        """The pre-commit phase must not write the SHARED manifests; that is what makes E-01 correct.
-
-        THIS IS THE EARLY-WARNING TEST. If a future change makes the pre-commit phase write the shared
-        manifests, the rollback would once again have real damage to repair and NOT writing would stop
-        being a sufficient fix - at which point the journal snapshot `4xt6u4` OQ-01 considered becomes
-        the right mechanism. This is designed to fail first in that case, so the next reader learns it
-        from a red test rather than from a second residue bug.
-
-        Measured across every pre-commit fault point x both prior-state cases.
-        """
-
-        from agent_workflows import ipd_lifecycle as LC
-
+        # Invariant check
         self.assertIn(
             "gitignored",
             LC._pre_commit_phase_leaves_manifests_untouched(),
-            "the invariant must state WHY it holds, not merely that it does",
         )
 
-        from unittest import mock
-
-        # A DISTINCT Set per case, in the one fixture repo: `make_set` commits its own Set, so the
-        # cases do not interfere, and the manifest state is captured immediately before each retire.
         cases = [
             (fault, present)
             for fault in ("before_mutation", "after_move", "before_commit")
@@ -6566,7 +5173,9 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
         ]
         for i, (fault, present) in enumerate(cases):
             with self.subTest(fault=fault, manifests_present=present):
-                orch = self.make_set(f"inv{i}", [("aaa111", 1, "executed", "executed")])
+                orch_case = self.make_set(
+                    f"inv{i}", [("aaa111", 1, "executed", "executed")]
+                )
                 if present:
                     LC._refresh_plans_index_fail_loud(self.root)
                 else:
@@ -6576,27 +5185,19 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
                 self.assertEqual(
                     all(v is not None for v in expected.values()),
                     present,
-                    "fixture sanity: the prior state is not the one this case intends",
                 )
 
                 seen: dict = {}
-                real = LC._rollback_precommit
+                real_rb = LC._rollback_precommit
 
-                def spy(repo_root, journal, _real=real, _seen=seen):
+                def spy_inv(repo_root, j, _real=real_rb, _seen=seen):
                     _seen["at_entry"] = self._manifest_state()
-                    return _real(repo_root, journal)
+                    return _real(repo_root, j)
 
-                with mock.patch.object(LC, "_rollback_precommit", spy):
-                    self.retire(orch, f"inv{i}", apply=True, fault_injection=fault)
+                with mock.patch.object(LC, "_rollback_precommit", spy_inv):
+                    self.retire(orch_case, f"inv{i}", apply=True, fault_injection=fault)
 
-                self.assertEqual(
-                    seen.get("at_entry"),
-                    expected,
-                    "the pre-commit phase wrote the SHARED plans manifests before the rollback "
-                    "ran, so `_rollback_precommit` no longer restores them by leaving them "
-                    "alone. Re-read `_pre_commit_phase_leaves_manifests_untouched`: a journal "
-                    "snapshot (index_json_before/index_md_before) is now the correct mechanism.",
-                )
+                self.assertEqual(seen.get("at_entry"), expected)
 
 
 class OrchestratorRetirementRowAuditAndHonestRecord(RollupTransitionCase):

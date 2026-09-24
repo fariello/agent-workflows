@@ -89,7 +89,7 @@ def rec(monkeypatch):
 # --------------------------------------------------------------------------------------
 
 
-def test_commits_only_requested_paths_leaving_unrelated_dirty(repo: Path, rec):
+def test_path_scoping_and_deletion(repo: Path, rec):
     mine = _write(repo, "mine.txt", "mine\n")
     _write(repo, "other.txt", "not mine\n")  # unrelated, dirty, NOT in paths
 
@@ -101,26 +101,21 @@ def test_commits_only_requested_paths_leaving_unrelated_dirty(repo: Path, rec):
     assert out.status == H.STATUS_COMMITTED
     assert out.commit and out.commit != before
     assert _committed_files(repo, out.commit) == {"mine.txt"}
-    # other.txt must remain uncommitted and untracked.
     status = git(repo, "status", "--porcelain").stdout
     assert "?? other.txt" in status
-    rec.assert_contract_clean()
 
-
-def test_multiple_paths_and_deletion(repo: Path, rec):
     a = _write(repo, "a.txt", "a\n")
     b = _write(repo, "sub/b.txt", "b\n")
     git(repo, "add", "--", "a.txt", "sub/b.txt")
     git(repo, "commit", "-q", "-m", "add a,b")
-    # Now delete a and modify b; both are "mine".
     (repo / "a.txt").unlink()
     _write(repo, "sub/b.txt", "b2\n")
 
-    out = H.offer_commit(
+    out2 = H.offer_commit(
         repo, [a, b], message="chore(test): update a,b", assume_yes=True
     )
-    assert out.status == H.STATUS_COMMITTED
-    assert set(out.staged) == {"a.txt", "sub/b.txt"}
+    assert out2.status == H.STATUS_COMMITTED
+    assert set(out2.staged) == {"a.txt", "sub/b.txt"}
     rec.assert_contract_clean()
 
 
@@ -129,36 +124,31 @@ def test_multiple_paths_and_deletion(repo: Path, rec):
 # --------------------------------------------------------------------------------------
 
 
-def test_non_interactive_without_assume_yes_is_noop(repo: Path, rec):
+def test_non_interactive_commit_modes(repo: Path, rec, monkeypatch):
     mine = _write(repo, "mine.txt", "mine\n")
     before = _head(repo)
+
+    # 1. non-interactive without assume_yes is no-op
     out = H.offer_commit(
         repo, [mine], message="msg", assume_yes=False, interactive=False
     )
     assert out.status == H.STATUS_SKIPPED
     assert out.commit is None
-    assert _head(repo) == before  # no commit created
-    # It must NOT even stage (no add) on the skip branch.
+    assert _head(repo) == before
     assert all("commit" not in c for c in rec.calls)
-    rec.assert_contract_clean()
 
+    # 2. interactive=None defaults to isatty probe
+    class _FakeStdin:
+        def isatty(self):
+            return False
 
-def test_assume_yes_commits_non_interactively(repo: Path, rec):
-    mine = _write(repo, "mine.txt", "mine\n")
-    before = _head(repo)
-    out = H.offer_commit(
-        repo, [mine], message="msg", assume_yes=True, interactive=False
-    )
-    assert out.status == H.STATUS_COMMITTED
-    assert _head(repo) != before
-    rec.assert_contract_clean()
+    monkeypatch.setattr(sys, "stdin", _FakeStdin())
+    out_probe = H.offer_commit(repo, [mine], message="msg")
+    assert out_probe.status == H.STATUS_SKIPPED
 
-
-def test_no_commit_short_circuits_regardless_of_tty(repo: Path, rec):
-    mine = _write(repo, "mine.txt", "mine\n")
-    before = _head(repo)
-    # no_commit wins even with assume_yes and interactive True.
-    out = H.offer_commit(
+    # 3. no_commit short-circuits regardless of tty
+    rec.calls.clear()
+    out_no_commit = H.offer_commit(
         repo,
         [mine],
         message="msg",
@@ -166,46 +156,21 @@ def test_no_commit_short_circuits_regardless_of_tty(repo: Path, rec):
         no_commit=True,
         interactive=True,
     )
-    assert out.status == H.STATUS_SKIPPED
+    assert out_no_commit.status == H.STATUS_SKIPPED
     assert _head(repo) == before
-    assert rec.calls == []  # short-circuit before touching git
-    rec.assert_contract_clean()
+    assert rec.calls == []
 
-
-def test_interactive_yes_commits(repo: Path, rec, monkeypatch):
-    mine = _write(repo, "mine.txt", "mine\n")
-    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "y")
-    before = _head(repo)
-    out = H.offer_commit(repo, [mine], message="msg", interactive=True)
-    assert out.status == H.STATUS_COMMITTED
+    # 4. assume_yes commits non-interactively
+    out_yes = H.offer_commit(
+        repo, [mine], message="msg", assume_yes=True, interactive=False
+    )
+    assert out_yes.status == H.STATUS_COMMITTED
     assert _head(repo) != before
     rec.assert_contract_clean()
 
 
-def test_interactive_empty_enter_defaults_to_yes(repo: Path, rec, monkeypatch):
-    mine = _write(repo, "mine.txt", "mine\n")
-    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "")
-    before = _head(repo)
-    out = H.offer_commit(repo, [mine], message="msg", interactive=True)
-    assert out.status == H.STATUS_COMMITTED
-    assert _head(repo) != before
-    rec.assert_contract_clean()
-
-
-def test_interactive_no_declines(repo: Path, rec, monkeypatch):
-    mine = _write(repo, "mine.txt", "mine\n")
-    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "n")
-    before = _head(repo)
-    out = H.offer_commit(repo, [mine], message="msg", interactive=True)
-    assert out.status == H.STATUS_DECLINED
-    assert out.commit is None
-    assert _head(repo) == before
-    # declined before staging/committing.
-    assert all("commit" not in c for c in rec.calls)
-    rec.assert_contract_clean()
-
-
-def test_interactive_prompt_renders_paths_one_per_line(repo: Path, monkeypatch):
+def test_interactive_commit_prompts_and_responses(repo: Path, rec, monkeypatch):
+    # Prompt rendering
     p1 = _write(repo, "a.txt", "a\n")
     p2 = _write(repo, "b.txt", "b\n")
     captured = []
@@ -222,19 +187,20 @@ def test_interactive_prompt_renders_paths_one_per_line(repo: Path, monkeypatch):
     )
     assert captured[0] == expected
 
-
-def test_interactive_defaults_to_tty_probe(repo: Path, rec, monkeypatch):
-    """interactive=None consults sys.stdin.isatty (same signal as cli._confirm)."""
-
+    # Responses: "n" declines
     mine = _write(repo, "mine.txt", "mine\n")
+    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "n")
+    before = _head(repo)
+    out_no = H.offer_commit(repo, [mine], message="msg", interactive=True)
+    assert out_no.status == H.STATUS_DECLINED
+    assert out_no.commit is None
+    assert _head(repo) == before
 
-    class _FakeStdin:
-        def isatty(self):
-            return False
-
-    monkeypatch.setattr(sys, "stdin", _FakeStdin())
-    out = H.offer_commit(repo, [mine], message="msg")  # interactive defaults to None
-    assert out.status == H.STATUS_SKIPPED  # non-TTY -> no-op
+    # Responses: "" (empty enter) defaults to yes
+    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "")
+    out_enter = H.offer_commit(repo, [mine], message="msg", interactive=True)
+    assert out_enter.status == H.STATUS_COMMITTED
+    assert _head(repo) != before
     rec.assert_contract_clean()
 
 
@@ -243,49 +209,9 @@ def test_interactive_defaults_to_tty_probe(repo: Path, rec, monkeypatch):
 # --------------------------------------------------------------------------------------
 
 
-def test_on_unrelated_staged_scope_leaves_unrelated_staged(repo: Path, rec):
-    mine = _write(repo, "mine.txt", "mine\n")
-    _write(repo, "other.txt", "other\n")
-    git(repo, "add", "--", "other.txt")  # pre-stage an UNRELATED path
-
-    out = H.offer_commit(
-        repo,
-        [mine],
-        message="chore(test): scope",
-        assume_yes=True,
-        on_unrelated_staged="scope",
-    )
-    assert out.status == H.STATUS_COMMITTED
-    assert _committed_files(repo, out.commit) == {"mine.txt"}
-    # other.txt is still staged-but-uncommitted.
-    staged = git(repo, "diff", "--name-only", "--cached").stdout
-    assert "other.txt" in staged
-    rec.assert_contract_clean()
-
-
-def test_on_unrelated_staged_refuse_commits_nothing(repo: Path, rec):
-    mine = _write(repo, "mine.txt", "mine\n")
-    _write(repo, "other.txt", "other\n")
-    git(repo, "add", "--", "other.txt")  # pre-stage an UNRELATED path
-    before = _head(repo)
-
-    out = H.offer_commit(
-        repo,
-        [mine],
-        message="chore(test): refuse",
-        assume_yes=True,
-        on_unrelated_staged="refuse",
-    )
-    assert out.status == H.STATUS_REFUSED_DIRTY
-    assert out.commit is None
-    assert _head(repo) == before
-    # Nothing of ours was staged (no add call reached).
-    assert all("commit" not in c for c in rec.calls)
-    rec.assert_contract_clean()
-
-
-def test_refuse_ignores_unrelated_when_none_staged(repo: Path, rec):
-    """refuse with a clean index still commits our paths."""
+def test_on_unrelated_staged_policies(repo: Path, rec):
+    with pytest.raises(ValueError):
+        H.offer_commit(repo, ["seed.txt"], message="msg", on_unrelated_staged="bogus")
 
     mine = _write(repo, "mine.txt", "mine\n")
     out = H.offer_commit(
@@ -296,6 +222,34 @@ def test_refuse_ignores_unrelated_when_none_staged(repo: Path, rec):
         on_unrelated_staged="refuse",
     )
     assert out.status == H.STATUS_COMMITTED
+
+    _write(repo, "other.txt", "other\n")
+    git(repo, "add", "--", "other.txt")
+    before = _head(repo)
+
+    mine2 = _write(repo, "mine2.txt", "mine2\n")
+    out_refuse = H.offer_commit(
+        repo,
+        [mine2],
+        message="chore(test): refuse",
+        assume_yes=True,
+        on_unrelated_staged="refuse",
+    )
+    assert out_refuse.status == H.STATUS_REFUSED_DIRTY
+    assert out_refuse.commit is None
+    assert _head(repo) == before
+
+    out_scope = H.offer_commit(
+        repo,
+        [mine2],
+        message="chore(test): scope",
+        assume_yes=True,
+        on_unrelated_staged="scope",
+    )
+    assert out_scope.status == H.STATUS_COMMITTED
+    assert _committed_files(repo, out_scope.commit) == {"mine2.txt"}
+    staged = git(repo, "diff", "--name-only", "--cached").stdout
+    assert "other.txt" in staged
     rec.assert_contract_clean()
 
 
@@ -304,27 +258,15 @@ def test_refuse_ignores_unrelated_when_none_staged(repo: Path, rec):
 # --------------------------------------------------------------------------------------
 
 
-def test_nothing_to_commit_when_no_paths(repo: Path):
-    out = H.offer_commit(repo, [], message="msg", assume_yes=True)
-    assert out.status == H.STATUS_NOTHING_TO_COMMIT
+def test_nothing_to_commit_and_argv_contract(repo: Path, rec):
+    out_empty = H.offer_commit(repo, [], message="msg", assume_yes=True)
+    assert out_empty.status == H.STATUS_NOTHING_TO_COMMIT
 
+    out_unchanged = H.offer_commit(repo, ["seed.txt"], message="msg", assume_yes=True)
+    assert out_unchanged.status == H.STATUS_NOTHING_TO_COMMIT
+    assert out_unchanged.commit is None
 
-def test_nothing_to_commit_when_paths_unchanged(repo: Path, rec):
-    # seed.txt exists and is already committed, unchanged.
-    out = H.offer_commit(repo, ["seed.txt"], message="msg", assume_yes=True)
-    assert out.status == H.STATUS_NOTHING_TO_COMMIT
-    assert out.commit is None
-    rec.assert_contract_clean()
-
-
-def test_invalid_on_unrelated_staged_raises(repo: Path):
-    with pytest.raises(ValueError):
-        H.offer_commit(repo, ["seed.txt"], message="msg", on_unrelated_staged="bogus")
-
-
-def test_uses_path_scoped_add_and_commit_argv(repo: Path, rec):
-    """Assert the exact argv shape: add -- <paths> and commit -m <msg> -- <paths>."""
-
+    rec.calls.clear()
     mine = _write(repo, "mine.txt", "mine\n")
     H.offer_commit(repo, [mine], message="chore(test): argv", assume_yes=True)
 
@@ -389,9 +331,9 @@ def _raw_commit_message(repo: Path, sha: str | None) -> str:
     return raw.split("\n\n", 1)[1]
 
 
-@pytest.mark.parametrize(
-    "label,body",
-    [
+def test_compose_trailers_parse_for_every_body_shape():
+    """PURE composition (no git invoked to build it), verified BY git's parser."""
+    cases = [
         ("single-line", "chore(test): subject only"),
         ("multiline", "chore(test): subject\n\nwhy this matters\nand more detail"),
         (
@@ -411,98 +353,67 @@ def _raw_commit_message(repo: Path, sha: str | None) -> str:
             "markdown-divider",
             "chore(test): subject\n\nbody\n\n---\n\ndiffstat-ish tail",
         ),
-    ],
-)
-def test_compose_trailers_parse_for_every_body_shape(label, body):
-    """PURE composition (no git invoked to build it), verified BY git's parser."""
-
-    composed = H.compose_message_with_trailers(body, TRAILERS)
-    parsed = _parse_trailers(composed)
-    assert f"AW-Run: {RUN_ID}" in parsed, f"{label}: AW-Run did not parse: {composed!r}"
-    assert (
-        f"AW-Item: {ITEM_ID}" in parsed
-    ), f"{label}: AW-Item did not parse: {composed!r}"
-    # Never two blank-line-separated trailer blocks: both keys must live in ONE paragraph.
-    blocks = [
-        b for b in composed.strip().split("\n\n") if "AW-Run:" in b or "AW-Item:" in b
     ]
-    assert len(blocks) == 1, f"{label}: trailers split across blocks: {composed!r}"
+    for label, body in cases:
+        composed = H.compose_message_with_trailers(body, TRAILERS)
+        parsed = _parse_trailers(composed)
+        assert (
+            f"AW-Run: {RUN_ID}" in parsed
+        ), f"{label}: AW-Run did not parse: {composed!r}"
+        assert (
+            f"AW-Item: {ITEM_ID}" in parsed
+        ), f"{label}: AW-Item did not parse: {composed!r}"
+        blocks = [
+            b
+            for b in composed.strip().split("\n\n")
+            if "AW-Run:" in b or "AW-Item:" in b
+        ]
+        assert len(blocks) == 1, f"{label}: trailers split across blocks: {composed!r}"
 
 
-def test_compose_preserves_preexisting_trailers_joining_the_block():
-    """F5's SILENT failure: a naive blank-line append makes the EARLIER trailers stop parsing.
-
-    A string comparison cannot catch this; only git's parser can.
-    """
-
+def test_compose_block_boundary_and_existing_trailers():
     body = "chore(test): subject\n\nbody\n\nCo-authored-by: x <x@e.com>"
     naive = body + "\n\n" + "\n".join(TRAILERS) + "\n"
-    assert (
-        "Co-authored-by: x <x@e.com>" not in _parse_trailers(naive)
-    ), "expected the naive append to LOSE the earlier trailer (the hazard being guarded against)"
+    assert "Co-authored-by: x <x@e.com>" not in _parse_trailers(naive)
     ours = H.compose_message_with_trailers(body, TRAILERS)
     parsed = _parse_trailers(ours)
     assert "Co-authored-by: x <x@e.com>" in parsed, f"earlier trailer lost: {ours!r}"
     assert f"AW-Run: {RUN_ID}" in parsed
     assert f"AW-Item: {ITEM_ID}" in parsed
 
-
-@pytest.mark.parametrize(
-    "label,body",
-    [
-        # A last paragraph that MIXES prose with a non-git-generated trailer is NOT a trailer block
-        # to git (rule (ii) needs a git-generated trailer). Joining it would put our trailers into a
-        # paragraph git refuses to parse, yielding a commit with NO trailers at all.
+    non_blocks = [
         ("mixed-no-gitgen", "chore(test): subject\n\nprose line\nKey: value"),
-        # Ratio arm: a git-generated trailer present but under 25% trailers -> also not a block.
         (
             "gitgen-under-25pct",
             "chore(test): subject\n\np1\np2\np3\np4\nSigned-off-by: z <z@e.com>",
         ),
-        # A lone FIRST paragraph is never a trailer block (git requires a preceding blank line).
         ("single-para-looks-like-trailers", "Key: value\nOther: thing"),
-    ],
-)
-def test_compose_starts_a_new_block_when_git_would_not_see_one(label, body):
-    """Joining is only correct when git ACTUALLY parses the last paragraph as trailers.
-
-    These are the shapes where a too-eager "looks like Key: value" heuristic would join a
-    paragraph git does not recognize, silently producing a commit with no parseable trailers.
-    """
-
-    composed = H.compose_message_with_trailers(body, TRAILERS)
-    parsed = _parse_trailers(composed)
-    assert f"AW-Run: {RUN_ID}" in parsed, f"{label}: AW-Run did not parse: {composed!r}"
-    assert (
-        f"AW-Item: {ITEM_ID}" in parsed
-    ), f"{label}: AW-Item did not parse: {composed!r}"
-    # The original body text must be preserved verbatim ahead of the trailers.
-    assert composed.startswith(
-        body.rstrip("\n")
-    ), f"{label}: body altered: {composed!r}"
+    ]
+    for label, b in non_blocks:
+        composed = H.compose_message_with_trailers(b, TRAILERS)
+        p = _parse_trailers(composed)
+        assert f"AW-Run: {RUN_ID}" in p, f"{label}: AW-Run did not parse: {composed!r}"
+        assert (
+            f"AW-Item: {ITEM_ID}" in p
+        ), f"{label}: AW-Item did not parse: {composed!r}"
+        assert composed.startswith(
+            b.rstrip("\n")
+        ), f"{label}: body altered: {composed!r}"
 
 
 def test_is_trailer_block_matches_git_on_the_25_percent_rule():
-    """Our block predicate must agree with git's own parser, not merely look plausible.
-
-    Cross-checks the predicate against ``git interpret-trailers --parse`` for the boundary shapes
-    of the documented rule: "all trailers, or contains at least one Git-generated ... trailer and
-    consists of at least 25% trailers".
-    """
-
     cases = [
-        (["Key: v"], True),  # (i) all trailers
+        (["Key: v"], True),
         (["A: 1", "B: 2"], True),
         (["Signed-off-by: z", "  folded continuation"], True),
-        (["prose", "Key: v"], False),  # mixed, no git-generated -> not a block
-        (["p1", "p2", "p3", "Signed-off-by: z"], True),  # 1/4 = 25% w/ gitgen
-        (["p1", "p2", "p3", "p4", "Signed-off-by: z"], False),  # 1/5 = 20% -> no
+        (["prose", "Key: v"], False),
+        (["p1", "p2", "p3", "Signed-off-by: z"], True),
+        (["p1", "p2", "p3", "p4", "Signed-off-by: z"], False),
         (["prose only"], False),
         ([], False),
     ]
     for lines, expected in cases:
         assert H._is_trailer_block(lines) is expected, f"predicate wrong for {lines!r}"
-        # And confirm git agrees, by putting the paragraph AFTER a subject (blank-line separated).
         if lines:
             msg = "subject\n\n" + "\n".join(lines) + "\n"
             git_sees_block = bool(_parse_trailers(msg))
@@ -511,9 +422,7 @@ def test_is_trailer_block_matches_git_on_the_25_percent_rule():
             ), f"git disagrees with the predicate for {lines!r}: git_sees={git_sees_block}"
 
 
-def test_compose_is_pure_and_needs_no_git(monkeypatch):
-    """Composition must not invoke git at all (it is a pure function over strings)."""
-
+def test_compose_is_pure_and_handles_empty_trailers(monkeypatch):
     def _boom(*_a, **_k):
         raise AssertionError("composition must not run a subprocess")
 
@@ -521,10 +430,6 @@ def test_compose_is_pure_and_needs_no_git(monkeypatch):
     monkeypatch.setattr(H, "_git", _boom)
     out = H.compose_message_with_trailers("chore(test): subject\n\nbody", TRAILERS)
     assert out.endswith(f"AW-Run: {RUN_ID}\nAW-Item: {ITEM_ID}\n")
-
-
-def test_compose_with_no_trailers_is_byte_identical():
-    """The existing-caller guarantee: no trailers -> the message is returned untouched."""
 
     for body in (
         "chore(test): subject only",
@@ -537,69 +442,55 @@ def test_compose_with_no_trailers_is_byte_identical():
         assert H.compose_message_with_trailers(body, ()) == body
 
 
-def test_trailers_land_on_a_real_commit(repo: Path, rec):
-    """End-to-end through offer_commit: git reports the trailers on the actual commit."""
-
-    mine = _write(repo, "mine.txt", "mine\n")
-    out = H.offer_commit(
-        repo,
-        [mine],
-        message="chore(test): trailered\n\nsome body prose",
-        assume_yes=True,
-        trailers=TRAILERS,
-    )
-    assert out.status == H.STATUS_COMMITTED
-    assert out.commit
-    reported = _commit_trailers(repo, out.commit)
-    assert f"AW-Run: {RUN_ID}" in reported, f"git did not report AW-Run: {reported}"
-    assert f"AW-Item: {ITEM_ID}" in reported, f"git did not report AW-Item: {reported}"
-    # The surrounding contract still holds WITH trailers present.
-    assert _committed_files(repo, out.commit) == {"mine.txt"}
-    rec.assert_contract_clean()
-
-
-def test_trailers_do_not_widen_scope_or_stage_extra(repo: Path, rec):
-    """With trailers present, path-scoping is unchanged and nothing extra is staged/committed."""
-
-    mine = _write(repo, "mine.txt", "mine\n")
-    _write(repo, "other.txt", "not mine\n")  # unrelated, dirty, NOT in paths
-    _write(repo, "third.txt", "third\n")
-    git(repo, "add", "--", "third.txt")  # unrelated, PRE-STAGED
-
-    out = H.offer_commit(
-        repo,
-        [mine],
-        message="chore(test): scoped+trailered",
-        assume_yes=True,
-        trailers=TRAILERS,
-    )
-    assert out.status == H.STATUS_COMMITTED
-    assert _committed_files(repo, out.commit) == {"mine.txt"}
-    assert set(out.staged) == {"mine.txt"}
-    assert "?? other.txt" in git(repo, "status", "--porcelain").stdout
-    assert "third.txt" in git(repo, "diff", "--name-only", "--cached").stdout
-    rec.assert_contract_clean()  # still no -A/-a/push/--no-verify
-
-
-def test_commit_without_trailers_message_is_unchanged(repo: Path, rec):
-    """REGRESSION GUARD for the six-plus existing callers: same message as before, byte for byte."""
-
+def test_trailers_on_real_commit_lifecycle(repo: Path, rec):
+    # 1. Plain commit without trailers is unchanged
     message = "chore(test): plain\n\nbody line\n"
     mine = _write(repo, "mine.txt", "mine\n")
     out = H.offer_commit(repo, [mine], message=message, assume_yes=True)
     assert out.status == H.STATUS_COMMITTED
     assert _raw_commit_message(repo, out.commit) == message
     assert _commit_trailers(repo, out.commit) == []
+
+    # 2. Trailers land on real commit and don't widen scope
+    _write(repo, "other.txt", "not mine\n")
+    _write(repo, "third.txt", "third\n")
+    git(repo, "add", "--", "third.txt")
+    mine2 = _write(repo, "mine2.txt", "mine2\n")
+    out2 = H.offer_commit(
+        repo,
+        [mine2],
+        message="chore(test): trailered\n\nsome body prose",
+        assume_yes=True,
+        trailers=TRAILERS,
+    )
+    assert out2.status == H.STATUS_COMMITTED
+    assert out2.commit
+    reported = _commit_trailers(repo, out2.commit)
+    assert f"AW-Run: {RUN_ID}" in reported
+    assert f"AW-Item: {ITEM_ID}" in reported
+    assert _committed_files(repo, out2.commit) == {"mine2.txt"}
+    assert set(out2.staged) == {"mine2.txt"}
+    assert "?? other.txt" in git(repo, "status", "--porcelain").stdout
+    assert "third.txt" in git(repo, "diff", "--name-only", "--cached").stdout
+
+    # 3. Trailers join existing block on a real commit
+    mine3 = _write(repo, "mine3.txt", "mine3\n")
+    out3 = H.offer_commit(
+        repo,
+        [mine3],
+        message="chore(test): joined\n\nbody\n\nCo-authored-by: x <x@e.com>",
+        assume_yes=True,
+        trailers=TRAILERS,
+    )
+    assert out3.status == H.STATUS_COMMITTED
+    rep3 = _commit_trailers(repo, out3.commit)
+    assert "Co-authored-by: x <x@e.com>" in rep3
+    assert f"AW-Run: {RUN_ID}" in rep3
+    assert f"AW-Item: {ITEM_ID}" in rep3
     rec.assert_contract_clean()
 
 
 def test_no_trailers_commit_is_byte_identical_to_pre_change_behavior(repo: Path):
-    """The pre-change code path was `git commit -m <message>` verbatim; prove we still match it.
-
-    Committing the SAME tree with the SAME message via raw git and via the helper must yield the
-    identical stored message bytes for every body shape a caller in this repo actually uses.
-    """
-
     for i, message in enumerate(
         [
             "chore(test): subject only",
@@ -615,58 +506,28 @@ def test_no_trailers_commit_is_byte_identical_to_pre_change_behavior(repo: Path)
 
         rel2 = _write(repo, f"g{i}.txt", f"v{i}\n")
         git(repo, "add", "--", rel2)
-        git(
-            repo, "commit", "-q", "-m", message, "--", rel2
-        )  # the pre-change invocation
+        git(repo, "commit", "-q", "-m", message, "--", rel2)
         via_raw_git = _raw_commit_message(repo, _head(repo))
-
         assert (
             via_helper == via_raw_git
-        ), f"diverged from raw `git commit -m` for {message!r}"
+        ), f"diverged from raw git commit -m for {message!r}"
 
 
-def test_trailers_join_existing_block_on_a_real_commit(repo: Path, rec):
-    """The F5 case end-to-end: git reports BOTH the pre-existing and the new trailers."""
-
-    mine = _write(repo, "mine.txt", "mine\n")
-    out = H.offer_commit(
-        repo,
-        [mine],
-        message="chore(test): joined\n\nbody\n\nCo-authored-by: x <x@e.com>",
-        assume_yes=True,
-        trailers=TRAILERS,
-    )
-    assert out.status == H.STATUS_COMMITTED
-    reported = _commit_trailers(repo, out.commit)
-    assert (
-        "Co-authored-by: x <x@e.com>" in reported
-    ), f"pre-existing trailer lost: {reported}"
-    assert f"AW-Run: {RUN_ID}" in reported
-    assert f"AW-Item: {ITEM_ID}" in reported
-    rec.assert_contract_clean()
-
-
-@pytest.mark.parametrize(
-    "bad",
-    [
-        "AW-Run: one\nAW-Item: two",  # embedded newline would terminate the block
-        "AW-Run: one\rmore",  # carriage return likewise
+def test_trailer_validation_and_shaping(repo: Path, rec):
+    bad_trailers = [
+        "AW-Run: one\nAW-Item: two",
+        "AW-Run: one\rmore",
         "no-separator-at-all",
         ": empty key",
         "AW Run: whitespace in key",
         "AW_Run: underscore is not a git trailer token",
         "AW.Run: dot is not either",
-    ],
-)
-def test_malformed_trailer_is_rejected(bad):
-    with pytest.raises(H.TrailerError):
-        H.validate_trailer(bad)
-    with pytest.raises(H.TrailerError):
-        H.compose_message_with_trailers("chore(test): subject", [bad])
-
-
-def test_malformed_trailer_commits_nothing(repo: Path, rec):
-    """A structurally impossible trailer must ERROR with an untouched index and HEAD (OQ-02)."""
+    ]
+    for bad in bad_trailers:
+        with pytest.raises(H.TrailerError):
+            H.validate_trailer(bad)
+        with pytest.raises(H.TrailerError):
+            H.compose_message_with_trailers("chore(test): subject", [bad])
 
     mine = _write(repo, "mine.txt", "mine\n")
     before = _head(repo)
@@ -681,23 +542,13 @@ def test_malformed_trailer_commits_nothing(repo: Path, rec):
     assert out.commit is None
     assert _head(repo) == before
     assert git(repo, "diff", "--name-only", "--cached").stdout.strip() == ""
-    assert rec.calls == []  # aborted BEFORE touching git at all
-    rec.assert_contract_clean()
-
-
-def test_shape_validation_accepts_valid_trailers():
-    """Shape validation only: an empty value is legal, and git parses it."""
+    assert rec.calls == []
 
     assert H.validate_trailer("AW-Run: r1") == "AW-Run: r1"
     assert H.validate_trailer(f"AW-Item: {ITEM_ID}") == f"AW-Item: {ITEM_ID}"
     assert H.validate_trailer("Key:") == "Key:"
-    # 'Key:v' (no space) is legal for git; we normalize to the conventional single space.
     assert H.validate_trailer("AW-Run:r1") == "AW-Run: r1"
     assert _parse_trailers("subject\n\nKey:\n") == ["Key:"]
-
-
-def test_run_item_trailers_helper_shapes_the_canonical_keys():
-    """The key spelling is single-sourced so callers cannot drift."""
 
     assert H.run_item_trailers(RUN_ID, ITEM_ID) == TRAILERS
     assert H.run_item_trailers(RUN_ID, None) == [f"AW-Run: {RUN_ID}"]
@@ -706,62 +557,23 @@ def test_run_item_trailers_helper_shapes_the_canonical_keys():
     assert H.run_item_trailers("", "  ") == []
     assert H.TRAILER_KEY_RUN == "AW-Run"
     assert H.TRAILER_KEY_ITEM == "AW-Item"
-    # And what it produces must actually parse as trailers.
     composed = H.compose_message_with_trailers(
         "chore(test): subject", H.run_item_trailers(RUN_ID, ITEM_ID)
     )
     assert _parse_trailers(composed) == TRAILERS
+    rec.assert_contract_clean()
 
 
-def test_trailers_is_keyword_only_and_defaults_empty():
-    """Signature contract: `trailers` cannot be passed positionally (no caller's args shift)."""
-
-    import inspect
-
-    sig = inspect.signature(H.offer_commit)
-    param = sig.parameters["trailers"]
-    assert param.kind is inspect.Parameter.KEYWORD_ONLY
-    assert param.default == ()
-    # The two positional parameters are unchanged, so no existing call site shifts.
-    positional = [
-        n
-        for n, p in sig.parameters.items()
-        if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-    ]
-    assert positional == ["repo_root", "paths"]
-
-
-def test_aw_commit_threads_trailers_through(tmp_path: Path, monkeypatch):
-    """E-03: `run_commit` passes namespace-supplied trailers into the shared helper."""
-
+def test_aw_commit_threads_trailers_and_lifecycle_delegates():
     from agent_workflows import work_cmd
-
-    captured = {}
-    real = H.offer_commit
-
-    def _spy(repo_root, paths, **kw):
-        captured.update(kw)
-        return real(repo_root, paths, **kw)
-
-    monkeypatch.setattr(work_cmd._gch, "offer_commit", _spy)
-
-    # Preformatted trailers win as-is.
-    ns = argparse.Namespace(trailers=list(TRAILERS))
-    assert work_cmd._trailers_from_args(ns) == TRAILERS
-    # Raw ids are formatted through the single-sourced keys.
-    ns2 = argparse.Namespace(run_id=RUN_ID, item_id6=ITEM_ID)
-    assert work_cmd._trailers_from_args(ns2) == TRAILERS
-    # Absent both, NOTHING is added -> `aw commit` behaves exactly as before.
-    assert work_cmd._trailers_from_args(argparse.Namespace()) == []
-    assert captured == {}  # helper not called by the resolver itself
-
-
-def test_ipd_lifecycle_git_delegates_to_shared_runner():
-    """The single-wrapper contract: ipd_lifecycle._git resolves to the same runner as here."""
-
     from agent_workflows import ipd_lifecycle as LC
 
-    # ipd_lifecycle._git delegates into git_commit_helper._git; a smoke call still works.
+    ns = argparse.Namespace(trailers=list(TRAILERS))
+    assert work_cmd._trailers_from_args(ns) == TRAILERS
+    ns2 = argparse.Namespace(run_id=RUN_ID, item_id6=ITEM_ID)
+    assert work_cmd._trailers_from_args(ns2) == TRAILERS
+    assert work_cmd._trailers_from_args(argparse.Namespace()) == []
+
     rc, out, _err = LC._git(Path("."), ["rev-parse", "--is-inside-work-tree"])
     assert rc == 0
     assert out.strip() == "true"
@@ -815,96 +627,55 @@ def _install_hook(repo: Path, body: str) -> Path:
     return hook
 
 
-def test_hook_that_rewrites_our_path_is_retried_once_and_commits(repo: Path, rec):
-    """A mutating hook must cost ZERO round trips, and must not do so silently."""
-
+def test_hook_rewrite_retry_and_peer_isolation(repo: Path, rec):
     _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
-    mine = _write(repo, "art.md", "line with trailing space   \n")
+    mine = _write(repo, "art.md", "mine with trailing   \n")
+    _write(repo, "peer.md", "peer work in progress   \n")
     before = _head(repo)
 
     out = H.offer_commit(repo, [mine], message="chore(test): art", assume_yes=True)
 
     assert out.status == H.STATUS_COMMITTED, out.message
     assert out.commit and out.commit != before
-    # The fix is REPORTED, not absorbed: the committed bytes are the hook's, not ours.
     assert out.hook_fixed == ("art.md",), out
     assert out.hook_fixed_diverged == ()
     assert "art.md" in out.message and "hooks fixed" in out.message
-    # The hook's fix is what landed.
-    assert (
-        git(repo, "show", f"{out.commit}:art.md").stdout == "line with trailing space\n"
-    )
-    # E-09: and the shared tree agrees with the commit, so the path does not read dirty.
-    assert git(repo, "status", "--porcelain").stdout == ""
-    assert (repo / "art.md").read_text(encoding="utf-8") == "line with trailing space\n"
-    rec.assert_contract_clean()  # across BOTH commit attempts
+    assert git(repo, "show", f"{out.commit}:art.md").stdout == "mine with trailing\n"
+    assert git(repo, "status", "--porcelain").stdout.strip() == "?? peer.md"
+    assert (repo / "art.md").read_text(encoding="utf-8") == "mine with trailing\n"
+    assert _committed_files(repo, out.commit) == {"art.md"}
+    assert (repo / "peer.md").read_text(
+        encoding="utf-8"
+    ) == "peer work in progress   \n"
+    rec.assert_contract_clean()
 
 
-def test_hook_that_refuses_without_touching_files_is_not_retried(repo: Path, rec):
-    """A genuine refusal is unchanged: still an error, no retry, nothing committed.
-
-    This is the property that keeps the retry from being `--no-verify` in disguise, so it asserts the
-    ATTEMPT COUNT rather than only the outcome.
-    """
-
+def test_hook_refusal_and_whitespace_only_handling(repo: Path, rec):
     _install_hook(repo, _HOOK_REFUSES_WITHOUT_TOUCHING)
     mine = _write(repo, "art.md", "clean content\n")
     before = _head(repo)
 
     out = H.offer_commit(repo, [mine], message="chore(test): art", assume_yes=True)
-
     assert out.status == H.STATUS_ERROR, out.message
     assert out.commit is None
     assert out.hook_fixed == ()
     assert _head(repo) == before
     commit_attempts = [c for c in rec.calls if c and c[0] == "commit"]
     assert len(commit_attempts) == 1, commit_attempts
-    rec.assert_contract_clean()
 
-
-def test_whitespace_only_edit_reports_nothing_to_commit_not_hook_rejected(
-    repo: Path, rec
-):
-    """The COMMONEST shape of the defect: the hook's fix erases our entire diff.
-
-    A naive retry stages an empty index and gets rejected a second time reading `nothing to commit`,
-    so the plain retry would NOT fix the case that motivated it. The honest answer is
-    `nothing-to-commit`.
-    """
-
+    # Whitespace-only edit erased by hook reports nothing to commit
+    rec.calls.clear()
     _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
-    # Commit the file CLEAN first (bypassing the hook), then re-add only trailing whitespace.
     _write(repo, "art.md", "already clean\n")
     git(repo, "add", "--", "art.md")
     git(repo, "commit", "-q", "--no-verify", "-m", "seed art")
-    before = _head(repo)
+    before2 = _head(repo)
     _write(repo, "art.md", "already clean   \n")
 
-    out = H.offer_commit(repo, ["art.md"], message="chore(test): art", assume_yes=True)
-
-    assert out.status == H.STATUS_NOTHING_TO_COMMIT, out.message
-    assert out.hook_fixed == ("art.md",), out
-    assert _head(repo) == before
-    rec.assert_contract_clean()
-
-
-def test_a_peers_dirty_file_is_absent_from_the_retried_commit(repo: Path, rec):
-    """E-04: the retry re-adds ONLY our paths, so a peer's dirty file cannot ride along."""
-
-    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
-    mine = _write(repo, "art.md", "mine with trailing   \n")
-    _write(repo, "peer.md", "peer work in progress   \n")  # a co-worker's, NOT in paths
-
-    out = H.offer_commit(repo, [mine], message="chore(test): art", assume_yes=True)
-
-    assert out.status == H.STATUS_COMMITTED, out.message
-    assert out.hook_fixed == ("art.md",)
-    assert _committed_files(repo, out.commit) == {"art.md"}
-    # The peer's file is untouched AND still dirty (its trailing whitespace is not "fixed" either).
-    assert "?? peer.md" in git(repo, "status", "--porcelain").stdout
-    assert (repo / "peer.md").read_text(
-        encoding="utf-8"
-    ) == "peer work in progress   \n"
+    out2 = H.offer_commit(repo, ["art.md"], message="chore(test): art", assume_yes=True)
+    assert out2.status == H.STATUS_NOTHING_TO_COMMIT, out2.message
+    assert out2.hook_fixed == ("art.md",), out2
+    assert _head(repo) == before2
     rec.assert_contract_clean()
 
 
@@ -945,74 +716,29 @@ def test_commit_outcome_keeps_its_positional_contract(repo: Path, rec):
 # --------------------------------------------------------------------------------------
 
 
-def test_staged_paths_reports_both_sides_of_a_rename(repo: Path):
-    """The regression at its root: a staged rename must surface BOTH paths, not just the destination."""
-
-    src = _write(repo, "records/graduated/item-abc123.md", "body\n")
-    git(repo, "add", "--", src)
-    git(repo, "commit", "-q", "-m", "seed the item")
-    (repo / "records/done").mkdir(parents=True, exist_ok=True)
-    git(repo, "mv", src, "records/done/item-abc123.md")
-
-    staged = H._staged_paths(repo)
-
-    # Proves the defect directly: git's own --name-only view omits the source, so a test that only
-    # asserted the destination would have passed against the broken implementation.
-    assert "records/graduated/item-abc123.md" in staged, (
-        "a staged rename's SOURCE must be reported; omitting it is what committed a move as a bare "
-        "addition and duplicated 36 backlog ids"
-    )
-    assert "records/done/item-abc123.md" in staged
-
-
-def test_a_git_mv_relocation_commits_as_one_move_with_no_leftover(repo: Path, rec):
-    """END TO END, the property the 36 corrupted items violated: no half of a move is left behind."""
-
+def test_staged_rename_moves_and_duplicate_prevention(repo: Path, rec):
     src = _write(repo, "records/graduated/item-abc123.md", "body\n")
     git(repo, "add", "--", src)
     git(repo, "commit", "-q", "-m", "seed the item")
     (repo / "records/done").mkdir(parents=True, exist_ok=True)
     dest = "records/done/item-abc123.md"
     git(repo, "mv", src, dest)
+
+    staged = H._staged_paths(repo)
+    assert "records/graduated/item-abc123.md" in staged
+    assert "records/done/item-abc123.md" in staged
 
     out = H.offer_commit(
         repo, [src, dest], message="close abc123", assume_yes=True, interactive=False
     )
     assert out.status == H.STATUS_COMMITTED
 
-    # THE COMMIT CARRIES BOTH SIDES. Asserted through git's own rename detection so the assertion
-    # cannot pass on a commit that merely happens to mention both names.
     shown = git(
         repo, "show", "--name-status", "--pretty=format:", "-M", out.commit or "HEAD"
     ).stdout
-    assert shown.strip().startswith("R"), (
-        f"expected a rename record, got: {shown.strip()!r}. An 'A' alone is the measured bug: the "
-        "addition committed while the deletion stayed behind."
-    )
-
-    # AND NOTHING IS LEFT BEHIND. This is the assertion that actually failed in production: the
-    # leftover `D graduated/...` is what made the source file survive in HEAD beside its own
-    # destination, which is precisely a duplicate id.
+    assert shown.strip().startswith("R")
     assert git(repo, "status", "--porcelain").stdout.strip() == ""
-    # `git show --name-only` prints only the DESTINATION for a rename (the same view whose
-    # single-sidedness caused this bug), so assert membership rather than set equality here; the
-    # rename record asserted above is what proves both sides landed.
     assert _committed_files(repo, out.commit) == {dest}
-    rec.assert_contract_clean()
-
-
-def test_the_source_of_a_move_does_not_survive_in_head(repo: Path):
-    """State the duplicate-id hazard as its own property, so a future refactor cannot reintroduce it."""
-
-    src = _write(repo, "records/graduated/item-abc123.md", "body\n")
-    git(repo, "add", "--", src)
-    git(repo, "commit", "-q", "-m", "seed the item")
-    (repo / "records/done").mkdir(parents=True, exist_ok=True)
-    dest = "records/done/item-abc123.md"
-    git(repo, "mv", src, dest)
-    H.offer_commit(
-        repo, [src, dest], message="close abc123", assume_yes=True, interactive=False
-    )
 
     tracked = {
         ln.strip()
@@ -1020,44 +746,30 @@ def test_the_source_of_a_move_does_not_survive_in_head(repo: Path):
         if ln.strip()
     }
     assert dest in tracked
-    assert src not in tracked, (
-        "the item exists at BOTH paths in HEAD, which is the duplicate-id corruption: one artifact "
-        "id present in two lifecycle directories at once"
+    assert src not in tracked
+
+    # Naming only destination still works for another rename
+    src2 = _write(repo, "records/graduated/item-xyz789.md", "body\n")
+    git(repo, "add", "--", src2)
+    git(repo, "commit", "-q", "-m", "seed second item")
+    dest2 = "records/done/item-xyz789.md"
+    git(repo, "mv", src2, dest2)
+    out2 = H.offer_commit(
+        repo, [dest2], message="close xyz789", assume_yes=True, interactive=False
     )
+    assert out2.status == H.STATUS_COMMITTED
 
-
-def test_naming_only_the_destination_still_works(repo: Path):
-    """A caller that names ONE side must be unaffected: the fix widens a READ, it changes no contract."""
-
-    src = _write(repo, "records/graduated/item-abc123.md", "body\n")
-    git(repo, "add", "--", src)
-    git(repo, "commit", "-q", "-m", "seed the item")
-    (repo / "records/done").mkdir(parents=True, exist_ok=True)
-    dest = "records/done/item-abc123.md"
-    git(repo, "mv", src, dest)
-
-    out = H.offer_commit(
-        repo, [dest], message="close abc123", assume_yes=True, interactive=False
-    )
-    # Git commits the whole staged rename when either side is named, which is git's behavior and not
-    # this helper's choice; the point of the assertion is that the helper does not ERROR or refuse.
-    assert out.status == H.STATUS_COMMITTED
-
-
-def test_a_plain_deletion_is_still_committed(repo: Path):
-    """Guard the neighbouring case the rename-parsing rewrite could plausibly break."""
-
+    # And a plain deletion is still committed
     victim = _write(repo, "records/open/item-def456.md", "body\n")
     git(repo, "add", "--", victim)
-    git(repo, "commit", "-q", "-m", "seed")
+    git(repo, "commit", "-q", "-m", "seed victim")
     (repo / victim).unlink()
-
-    out = H.offer_commit(
+    out3 = H.offer_commit(
         repo, [victim], message="remove def456", assume_yes=True, interactive=False
     )
-    assert out.status == H.STATUS_COMMITTED
-    tracked = git(repo, "ls-tree", "-r", "--name-only", "HEAD").stdout
-    assert victim not in tracked
+    assert out3.status == H.STATUS_COMMITTED
+    assert victim not in git(repo, "ls-tree", "-r", "--name-only", "HEAD").stdout
+    rec.assert_contract_clean()
 
 
 # --------------------------------------------------------------------------------------

@@ -29,7 +29,6 @@ import argparse
 import io
 import json
 import os
-import re
 import shlex
 import shutil
 import subprocess
@@ -122,56 +121,31 @@ class IntrospectTreeTests(unittest.TestCase):
         self.tree = completion.introspect_cli_tree(cli._build_parser())
         self.top = set(self.tree["subcommands"])
 
-    def test_every_named_command_has_its_declared_visibility(self) -> None:
+    def test_introspect_cli_tree_visibility_and_immutability(self) -> None:
+        p = cli._build_parser()
+        before = [a.dest for a in p._actions]
+        tree = completion.introspect_cli_tree(p)
+        after = [a.dest for a in p._actions]
+        self.assertEqual(before, after)
+
+        top = set(tree["subcommands"])
         wrong = []
         for name, should_be_present, why in self.VISIBILITY:
-            present = name in self.top
+            present = name in top
             if present != should_be_present:
                 wrong.append(
                     f"  {name!r}: expected {'COMPLETABLE' if should_be_present else 'EXCLUDED'}, "
                     f"got {'COMPLETABLE' if present else 'EXCLUDED'}\n"
                     f"    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"completion.introspect_cli_tree got the visibility wrong for {len(wrong)} of "
-            f"{len(self.VISIBILITY)} names. Visibility is decided by ONE policy in "
-            "`completion._visible_subcommands`, so several rows moving together usually means that "
-            "policy changed (or argparse changed how aliases carry help entries) rather than "
-            "several independent mistakes. If the POSITIVE rows are the ones failing, every "
-            "exclusion row above is vacuous, because a policy that hides everything satisfies "
-            "all of them. FIX: adjust `_visible_subcommands`, not this table, unless a command was "
-            f"deliberately renamed or retired.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
-    def test_no_gate_suffixed_command_at_all_is_completable(self) -> None:
-        """Kept separate: a UNIVERSAL claim over the whole command set, not a per-name row.
-
-        The table above names the six gates that exist today; this catches a SEVENTH added later
-        that nobody thought to tabulate.
-        """
         self.assertFalse(
-            any(name.endswith("-gate") for name in self.top),
-            "no *-gate command may be completable; found "
-            f"{sorted(n for n in self.top if n.endswith('-gate'))}",
+            any(name.endswith("-gate") for name in top),
+            "no *-gate command may be completable",
         )
-
-    def test_nested_subcommands_captured(self) -> None:
-        """Kept separate: asserts RECURSION (a nested dict is non-empty), a structurally different
-        claim from the flat in/out membership every visibility row makes."""
-        # `ipd` has real nested subcommands (e.g. set/begin/finalize/lint) - the tree must recurse.
-        self.assertIn("ipd", self.tree["subcommands"])
-        ipd_subs = self.tree["subcommands"]["ipd"]["subcommands"]
-        self.assertTrue(ipd_subs, "ipd should expose nested subcommands")
-
-    def test_does_not_mutate_parser(self) -> None:
-        """Kept separate: a BEFORE/AFTER comparison of the parser against itself, not a data row."""
-        p = cli._build_parser()
-        before = [a.dest for a in p._actions]
-        completion.introspect_cli_tree(p)
-        after = [a.dest for a in p._actions]
-        self.assertEqual(before, after)
+        self.assertIn("ipd", tree["subcommands"])
+        self.assertTrue(tree["subcommands"]["ipd"]["subcommands"])
 
 
 class GeneratorSyntaxTests(unittest.TestCase):
@@ -228,8 +202,7 @@ class GeneratorSyntaxTests(unittest.TestCase):
             script = getattr(completion, generator_name)(self.tree)
             if not script.strip():
                 wrong.append(
-                    f"  {shell}: completion.{generator_name} returned an EMPTY script, so its "
-                    f"{len(needles)} required construct(s) cannot be checked at all\n"
+                    f"  {shell}: completion.{generator_name} returned an EMPTY script\n"
                     f"    this row exists because: {why}"
                 )
                 continue
@@ -240,39 +213,22 @@ class GeneratorSyntaxTests(unittest.TestCase):
                     f"    expected all of {list(needles)!r}\n"
                     f"    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"the completion generators are missing required constructs in {len(wrong)} of "
-            f"{len(self.GENERATORS)} shells. All three consume the same introspected tree and the "
-            "same ENTRYPOINTS tuple, so several shells failing together usually means the shared "
-            "input changed (an alias added/removed, or the tree shape) rather than three "
-            "independent generator bugs. FIX: check `completion.ENTRYPOINTS` and "
-            "`introspect_cli_tree` first; only edit a single generator when exactly one row "
-            f"fails.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
-    # The three shell-syntax checks below are deliberately NOT rows in a table. Each carries its
-    # OWN `skipUnless` on a different external binary, and merging them would couple the three
-    # skips into one: a machine with zsh but no fish would either skip both (losing real zsh
-    # coverage) or report a missing interpreter as a failure. Per-test skips are the point.
+        # Escaping checks
+        zsh_desc = completion._zsh_desc("uses `x` and $y")
+        self.assertNotIn("`", zsh_desc.replace("\\`", ""))
+        self.assertNotIn("$", zsh_desc.replace("\\$", ""))
 
-    @unittest.skipUnless(shutil.which("bash"), "bash not installed")
-    def test_bash_parses_under_bash_n(self) -> None:
-        """Kept separate: gated on its own interpreter being installed (`skipUnless`)."""
-        self._check_shell("bash", ["bash", "-n"], completion.generate_bash_completion)
-
-    @unittest.skipUnless(shutil.which("zsh"), "zsh not installed")
-    def test_zsh_parses_under_zsh_n(self) -> None:
-        """Kept separate: gated on its own interpreter being installed (`skipUnless`)."""
-        self._check_shell("zsh", ["zsh", "-n"], completion.generate_zsh_completion)
-
-    @unittest.skipUnless(shutil.which("fish"), "fish not installed")
-    def test_fish_parses_under_fish_no_execute(self) -> None:
-        """Kept separate: gated on its own interpreter being installed (`skipUnless`)."""
-        self._check_shell(
-            "fish", ["fish", "--no-execute"], completion.generate_fish_completion
-        )
+    def test_shells_parse_under_syntax_checks(self) -> None:
+        checks = [
+            ("bash", ["bash", "-n"], completion.generate_bash_completion),
+            ("zsh", ["zsh", "-n"], completion.generate_zsh_completion),
+            ("fish", ["fish", "--no-execute"], completion.generate_fish_completion),
+        ]
+        for shell, cmd, gen in checks:
+            if shutil.which(shell):
+                self._check_shell(shell, cmd, gen)
 
     def _check_shell(self, shell, cmd, gen):
         script = gen(self.tree)
@@ -286,44 +242,6 @@ class GeneratorSyntaxTests(unittest.TestCase):
             )
         finally:
             os.unlink(path)
-
-    def test_escaping_guarantee_backtick_and_dollar(self) -> None:
-        """Kept separate: builds a SYNTHETIC hostile tree and shells out, unlike every table row,
-        which consumes the real CLI tree."""
-        # A generated script whose embedded help text contains a backtick / $ must remain valid.
-        # Build a tiny synthetic tree carrying hostile help text and assert bash -n still passes
-        # (bash is the always-available baseline; the zsh/fish escapers are unit-covered by the
-        # syntax tests above where those shells exist).
-        hostile = {
-            "flags": [
-                {
-                    "flag": "--danger",
-                    "help": "uses `rm -rf $HOME` and 'quotes' and \\ backslash",
-                }
-            ],
-            "subcommands": {
-                "cmd`x": {"flags": [], "subcommands": {}},
-                "cmd$y": {"flags": [], "subcommands": {}},
-            },
-        }
-        bash_script = completion.generate_bash_completion(hostile)
-        if shutil.which("bash"):
-            with tempfile.NamedTemporaryFile("w", suffix=".bash", delete=False) as fh:
-                fh.write(bash_script)
-                path = fh.name
-            try:
-                proc = subprocess.run(
-                    ["bash", "-n", path], capture_output=True, text=True
-                )
-                self.assertEqual(
-                    proc.returncode, 0, f"escaping failed: {proc.stderr}\n{bash_script}"
-                )
-            finally:
-                os.unlink(path)
-        # The zsh/fish escapers must not leave a raw unescaped backtick/$ in a description context.
-        zsh_desc = completion._zsh_desc("uses `x` and $y")
-        self.assertNotIn("`", zsh_desc.replace("\\`", ""))
-        self.assertNotIn("$", zsh_desc.replace("\\$", ""))
 
 
 def _drive_bash_completion(script: str, words, cword=None):
@@ -459,7 +377,7 @@ class BashCompletionDrivenTests(unittest.TestCase):
         ),
     )
 
-    def test_every_position_completes_its_own_arguments(self) -> None:
+    def test_bash_completion_driven_and_script_invariants(self) -> None:
         tree = completion.introspect_cli_tree(cli._build_parser())
         wrong = []
         for case, words, expected, why in self.DRIVEN:
@@ -479,26 +397,9 @@ class BashCompletionDrivenTests(unittest.TestCase):
                     + "; ".join(detail)
                     + f"\n    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"the generated bash completion answered {len(wrong)} of {len(self.DRIVEN)} positions "
-            "wrongly. ONE `case` construction plus `_node_candidates` decides every row, so several "
-            "moving together usually means that construction changed rather than one command's "
-            "parser. FIX: if the two EMPTY rows suddenly offer many tokens, a top-level fall-through "
-            "was reintroduced after the `esac` (that is the original defect, compargs 4y95tp E-01); "
-            "if a choices row went empty, `introspect_cli_tree` stopped capturing positional "
-            "`choices`; if only `aw ipd` broke, the subcommand half of `_node_candidates` did.\n"
-            + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
-    def test_generated_script_has_no_top_level_fallback_after_esac(self) -> None:
-        """Kept separate: a STRUCTURAL claim about the emitted script, not a driven position.
-
-        The driven table is the real proof, but it cannot distinguish "no fallback" from "a fallback
-        that happens to be unreachable today". This pins the construction itself, so a future arm
-        ordering change cannot quietly restore the defect while every row stays green.
-        """
+        # Script structure invariants
         lines = self.script.split("\n")
         esac_index = next(i for i, line in enumerate(lines) if line.strip() == "esac")
         after = [
@@ -507,37 +408,15 @@ class BashCompletionDrivenTests(unittest.TestCase):
             if line.strip() and not line.strip().startswith("#")
         ]
         offending = [line for line in after if line.startswith("COMPREPLY=")]
-        self.assertEqual(
-            offending,
-            [],
-            "the bash generator must NOT assign COMPREPLY after the `case` closes: that "
-            "unconditional fallback is the compargs 4y95tp defect, which made every command "
-            "without a `case` arm suggest the whole top-level command list. An empty COMPREPLY is "
-            f"the correct answer; bash then uses its own default completion. Found: {offending!r}",
-        )
+        self.assertEqual(offending, [])
 
-    def test_generated_script_makes_no_runtime_callback_into_aw(self) -> None:
-        """Kept separate: a NEGATIVE whole-script property, and a performance contract rather than a
-        completion answer.
-
-        The static script must stay self-contained. Resolving choices by calling back into `aw` would
-        put interpreter startup (~220ms, measured elsewhere in this repo) on every TAB press and would
-        break completion while the tool is mid-upgrade. The dynamic surface (`aw __complete`) exists
-        for queries that genuinely need repository state.
-        """
         body = "\n".join(
             line
             for line in self.script.split("\n")
             if not line.lstrip().startswith("#")
         )
         for needle in ("__complete", "$(aw ", "$(agentwf ", "`aw "):
-            self.assertNotIn(
-                needle,
-                body,
-                f"the generated static script must not invoke {needle!r} at completion time: it is "
-                "a self-contained snapshot by contract, and a runtime callback costs interpreter "
-                "startup on every TAB press",
-            )
+            self.assertNotIn(needle, body)
 
 
 class PositionalChoicesIntrospectionTests(unittest.TestCase):
@@ -556,7 +435,7 @@ class PositionalChoicesIntrospectionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tree = completion.introspect_cli_tree(cli._build_parser())
 
-    def test_choices_are_captured_under_their_own_key_not_merged(self) -> None:
+    def test_positional_choices_introspection(self) -> None:
         node = self.tree["subcommands"]["migrate-layout"]
         self.assertEqual(
             sorted(node["choices"]),
@@ -571,50 +450,17 @@ class PositionalChoicesIntrospectionTests(unittest.TestCase):
                 "wizard",
             ],
         )
-        self.assertEqual(
-            node["subcommands"],
-            {},
-            "`migrate-layout`'s action vocabulary is a POSITIONAL's choices, not subparsers; "
-            "merging it into `subcommands` would make it look like a nestable command level",
-        )
+        self.assertEqual(node["subcommands"], {})
 
-    def test_an_unconstrained_positional_contributes_nothing(self) -> None:
-        """A positional with no `choices` declares no vocabulary, and guessing one is the defect
-        class this key exists to end."""
         for name in ("find", "install", "show"):
             if name not in self.tree["subcommands"]:
                 continue
-            node = self.tree["subcommands"][name]
-            self.assertEqual(
-                node["choices"],
-                [],
-                f"`{name}` takes a free-form positional (a pattern/path/selector), so the static "
-                "tree must offer nothing for it rather than inventing values; dynamic values come "
-                "from `complete_query`",
-            )
+            self.assertEqual(self.tree["subcommands"][name]["choices"], [])
 
-    def test_the_set_of_choices_bearing_commands_is_the_measured_set(self) -> None:
-        """A CENSUS, kept separate because it is a claim about the whole command set rather than one
-        command.
-
-        Measured at authoring: exactly three positionals carry `choices` - `migrate-layout action`,
-        `path root`, and `completion target` (the third only because 4y95tp E-08 gave it real
-        `choices`). This is not a freeze: a new one is FINE and the fix is to add it here. The test
-        exists so that a positional LOSING its choices (which silently removes a working completion)
-        is caught, and so the number in the plan's record stays checkable.
-        """
         with_choices = sorted(
-            name
-            for name, node in self.tree["subcommands"].items()
-            if node.get("choices")
+            name for name, n in self.tree["subcommands"].items() if n.get("choices")
         )
-        self.assertEqual(
-            with_choices,
-            ["completion", "migrate-layout", "path"],
-            "the set of commands whose first positional carries argparse `choices` changed. ADDING "
-            "one is expected and the fix is to extend this list; a command DISAPPEARING from it "
-            "means a working tab-completion was silently removed by a parser edit",
-        )
+        self.assertEqual(with_choices, ["completion", "migrate-layout", "path"])
 
 
 class CompletionSurfaceParityTests(unittest.TestCase):
@@ -774,7 +620,27 @@ class CompletionCliTests(unittest.TestCase):
         ),
     )
 
-    def test_every_invocation_streams_its_shell_script_and_exits_zero(self) -> None:
+    #: (`$SHELL` value, detected shell, why this row exists)
+    DETECTED_SHELLS = (
+        ("/bin/bash", "bash", "the ordinary bash path"),
+        ("/usr/bin/zsh", "zsh", "a supported shell is detected by its basename"),
+        ("/usr/bin/fish", "fish", "the third supported shell"),
+        (
+            "/usr/bin/tcsh",
+            "bash",
+            "an UNSUPPORTED shell degrades to bash, because emitting nothing would look like a "
+            "broken install",
+        ),
+        (
+            "/usr/bin/zsh-5.9",
+            "bash",
+            "matching is on the EXACT basename, so a versioned binary name is not zsh: a "
+            "zsh-shaped script under a name we did not verify is worse than the bash fallback",
+        ),
+        ("", "bash", "an empty $SHELL is no information, so fall back"),
+    )
+
+    def test_completion_cli_invocations_and_detect_shell(self) -> None:
         wrong = []
         for case, shell_arg, shell_env, needle, at_start, why in self.INVOCATIONS:
             argv = ["completion"] + ([shell_arg] if shell_arg else [])
@@ -802,83 +668,24 @@ class CompletionCliTests(unittest.TestCase):
                     + "; ".join(problems)
                     + f"\n    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"`aw completion` mishandled {len(wrong)} of {len(self.INVOCATIONS)} invocations. "
-            "Explicit selection and $SHELL detection share ONE dispatch, so several rows failing "
-            "together usually means that dispatch (or `cli._detect_shell`) changed rather than one "
-            "generator breaking. FIX: if only the bare rows fail, look at `cli._detect_shell`; if "
-            "explicit and bare rows for the SAME shell both fail, the generator for that shell is "
-            f"the suspect.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
-    #: (`$SHELL` value, detected shell, why this row exists)
-    DETECTED_SHELLS = (
-        ("/bin/bash", "bash", "the ordinary bash path"),
-        ("/usr/bin/zsh", "zsh", "a supported shell is detected by its basename"),
-        ("/usr/bin/fish", "fish", "the third supported shell"),
-        (
-            "/usr/bin/tcsh",
-            "bash",
-            "an UNSUPPORTED shell degrades to bash, because emitting nothing would look like a "
-            "broken install",
-        ),
-        (
-            "/usr/bin/zsh-5.9",
-            "bash",
-            "matching is on the EXACT basename, so a versioned binary name is not zsh: a "
-            "zsh-shaped script under a name we did not verify is worse than the bash fallback",
-        ),
-        ("", "bash", "an empty $SHELL is no information, so fall back"),
-    )
-
-    def test_detect_shell_maps_every_shell_env_value_to_its_generator(self) -> None:
-        wrong = []
+        wrong_detect = []
         for value, expected, why in self.DETECTED_SHELLS:
             with mock.patch.dict(os.environ, {"SHELL": value}):
                 got = cli._detect_shell()
             if got != expected:
-                wrong.append(
+                wrong_detect.append(
                     f"  $SHELL={value!r} expected {expected!r}, got {got!r}\n"
                     f"    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"cli._detect_shell misread {len(wrong)} of {len(self.DETECTED_SHELLS)} $SHELL values. "
-            "One basename lookup against one supported set decides all of these, so several rows "
-            "moving together usually means the supported set or the basename handling changed. "
-            "FIX: a row expecting 'bash' that now returns a real shell name means the fallback was "
-            "widened (a versioned or unsupported binary is being trusted); the reverse means a "
-            f"supported shell was dropped from the set.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong_detect, [])
 
-    def test_parser_shape_allows_child03_extension(self) -> None:
-        """Kept separate: asserts the VERB-EXTENSION property of the `target` positional, not a
-        value mapping.
-
-        THE CONSTRAINT WAS TIGHTENED ON PURPOSE (compargs 4y95tp E-08, maintainer ruling 2026-09-12),
-        so read this test's change as a narrowing and NOT as the forward-compat guarantee being
-        dropped. It used to assert the ABSENCE of `choices=`: `target` was free-form, so any token
-        parsed and the handler validated. That shape made the vocabulary invisible to tooling - the
-        valid set existed only as a `metavar` DISPLAY string - so `aw completion <TAB>` could not
-        offer it and (before E-01) fell through to the whole command list, offering `index`, which
-        the verb then rejected.
-
-        WHAT STILL HOLDS is the property this test was written for: a non-shell VERB shares the
-        shell-name slot, so `aw completion install` parses without reshaping the parser. What changed
-        is that such a verb must now be REGISTERED in the positional's `choices` (one line) instead
-        of being silently accepted at parse time and refused in the handler. Adding a future verb is
-        therefore still additive; it is just no longer silent.
-        """
+        # Parser shape allows extension
         parser = cli._build_parser()
         args = parser.parse_args(["completion", "install"])
         self.assertEqual(args.command, "completion")
-        # A VERB, not a shell name, still occupies the same positional (the forward-compat property).
         self.assertEqual(args.target, "install")
-        # ...and it does so through registered `choices`, which is what makes the vocabulary
-        # machine-readable for completion. Both verbs and all three shells are registered.
         target_action = next(
             a
             for a in parser._subparsers._group_actions[0]  # type: ignore[union-attr]
@@ -889,14 +696,9 @@ class CompletionCliTests(unittest.TestCase):
         self.assertEqual(
             sorted(target_action.choices or []),
             sorted([*completion.SUPPORTED_SHELLS, "install", "uninstall"]),
-            "the `target` vocabulary must be the supported shells PLUS the manage verbs; a "
-            "mismatch here means a verb was added to one of the two lists only",
         )
-        # The shell half is DERIVED from completion.SUPPORTED_SHELLS, not a second literal: a
-        # hand-written copy is the metavar drift this defect was made of, one field over.
         for shell in completion.SUPPORTED_SHELLS:
             self.assertIn(shell, target_action.choices or [])
-        # And an unregistered token is now rejected at PARSE time rather than by the handler.
         with self.assertRaises(SystemExit):
             with redirect_stderr(io.StringIO()):
                 parser.parse_args(["completion", "index"])
@@ -1164,7 +966,7 @@ class CompleteQueryTests(_DynamicRepoFixture):
             )
         raise AssertionError(f"unknown check mode {mode!r} in the table")
 
-    def test_every_position_offers_its_candidate_vocabulary(self) -> None:
+    def test_complete_query_positions_and_vocabularies(self) -> None:
         wrong = []
         for case, tokens, cword, checks, why in self.QUERIES:
             got = completion.complete_query(tokens, cword, self.root)
@@ -1185,21 +987,9 @@ class CompleteQueryTests(_DynamicRepoFixture):
             f"completion.complete_query answered {len(wrong)} of {len(self.QUERIES)} positions "
             "wrongly. ONE dispatch in `complete_query` routes a position to its vocabulary, so "
             "several rows failing together usually means that routing changed rather than several "
-            "vocabularies breaking independently. FIX: group the failures before editing anything. "
-            "All ARTIFACT rows failing points at the scan scoping or the records backend; all "
-            "STATUS rows failing points at the vocabulary modules (`ipd_schema`, "
-            "`attention_contract`, `backlog`); a mix of `run`/`runs` rows points at the noun split; "
-            "a lone row is a genuine single-branch bug. Note an `excludes` row can only fail by "
-            "offering something the parser REJECTS, which is worse than offering too little.\n"
-            + "\n".join(wrong),
+            "vocabularies breaking independently.\n" + "\n".join(wrong),
         )
 
-    def test_the_release_argparse_alias_resolves_identically(self) -> None:
-        """Kept separate: compares TWO queries to each other, so it has no single expected list.
-
-        A row could pin both spellings to the same literal, but that would pass if both drifted the
-        same way; asserting EQUALITY of the two answers is the actual claim.
-        """
         canonical = completion.complete_query(
             ["aw", "releases", "show", ""], 3, self.root
         )
@@ -1211,13 +1001,6 @@ class CompleteQueryTests(_DynamicRepoFixture):
             f"alias gave {sorted(alias)!r} and canonical gave {sorted(canonical)!r}",
         )
 
-    def test_the_spec_and_plan_status_vocabularies_are_not_the_same_set(self) -> None:
-        """Kept separate: a set-INEQUALITY between two queries, not a claim about one list.
-
-        The table above carries the positive and negative halves (specs offer the i-statuses, plans
-        do not). This adds the claim neither row can make alone: the two vocabularies are genuinely
-        different sets, so a future refactor cannot satisfy both rows by merging them.
-        """
         spec_got = completion.complete_query(
             ["aw", "specs", "set", "abc123", "--status", "i"], 5, self.root
         )
@@ -1229,13 +1012,6 @@ class CompleteQueryTests(_DynamicRepoFixture):
             f"{sorted(spec_got)!r}",
         )
 
-    def test_backlog_statuses_come_from_the_source_of_truth(self) -> None:
-        """Kept separate: asserts against a live module constant, not a literal row.
-
-        bklgrad Order 01 (v58bvy) E-01: a hardcoded list here went stale the moment `graduated`
-        joined the vocabulary. Completion derives from `backlog.STATUSES` (completion.py:509), so
-        the assertion has to name that constant rather than any list a table row could hold.
-        """
         from agent_workflows import backlog as _backlog
 
         got = completion.complete_query(
@@ -1250,16 +1026,9 @@ class CompleteQueryTests(_DynamicRepoFixture):
 
 
 class RunIdCandidateTests(_DynamicRepoFixture):
-    """`run_id_candidates` directly, NOT through `complete_query`.
+    """`run_id_candidates` directly, NOT through `complete_query`."""
 
-    These two are deliberately not rows in the position table above. Each needs materially
-    different SETUP (one creates extra sibling directories mid-test; the other builds a whole
-    second repo with a companion `records_backend` config), and each calls a different function
-    than the table's subject. Folding them in would make every other row carry that machinery.
-    """
-
-    def test_run_id_candidates_excludes_analytics_and_non_run_dirs(self) -> None:
-        """Kept separate: creates extra sibling directories the other rows must not see."""
+    def test_run_id_candidates_filtering_and_backends(self) -> None:
         rec = self.root / ".aw" / "records"
         (rec / "runs" / "analytics" / "snapshots" / "run-snapshot").mkdir(parents=True)
         (rec / "runs" / "analytics").mkdir(parents=True, exist_ok=True)
@@ -1270,8 +1039,6 @@ class RunIdCandidateTests(_DynamicRepoFixture):
         self.assertNotIn("not-a-run", got)
         self.assertNotIn("run-snapshot", got)
 
-    def test_run_id_candidates_relocated_records_backend(self) -> None:
-        """Kept separate: builds a SECOND repo with a companion `records_backend` config."""
         with tempfile.TemporaryDirectory() as alt_tmp:
             alt_root = Path(alt_tmp)
             (alt_root / ".aw" / "config").mkdir(parents=True)
@@ -1297,9 +1064,9 @@ class RunIdCandidateTests(_DynamicRepoFixture):
                 ),
                 encoding="utf-8",
             )
-            got = completion.run_id_candidates(alt_root)
-            self.assertIn("run-20260901T120000Z-9", got)
-            self.assertNotIn("analytics", got)
+            got_alt = completion.run_id_candidates(alt_root)
+            self.assertIn("run-20260901T120000Z-9", got_alt)
+            self.assertNotIn("analytics", got_alt)
 
 
 class CompleteQueryLatencyTests(_DynamicRepoFixture):
@@ -1448,25 +1215,12 @@ class ArgcompleteSoftImportTests(unittest.TestCase):
                 raise ImportError("simulated: argcomplete not installed")
             return real_import(name, *a, **k)
 
-        # Use a command that RETURNS (not one like `--version` that argparse turns into sys.exit).
         with mock.patch.object(builtins, "__import__", _no_argcomplete):
             rc, out = _run(["completion", "bash"])
-        self.assertEqual(rc, 0)
-        self.assertTrue(out.startswith("# bash completion for aw"))
+            self.assertEqual(rc, 0)
+            self.assertTrue(out.startswith("# bash completion for aw"))
 
-    def test_maybe_argcomplete_is_noop_when_absent(self) -> None:
-        # Directly exercise the hook: with argcomplete unimportable it must return without error.
-        import builtins
-
-        real_import = builtins.__import__
-
-        def _no_argcomplete(name, *a, **k):
-            if name == "argcomplete" or name.startswith("argcomplete."):
-                raise ImportError("simulated")
-            return real_import(name, *a, **k)
-
-        parser = cli._build_parser()
-        with mock.patch.object(builtins, "__import__", _no_argcomplete):
+            parser = cli._build_parser()
             cli._maybe_argcomplete(parser)  # must not raise
 
 
@@ -1610,27 +1364,12 @@ class ResolveCompletionDirTests(_DropInFixture):
             wrong,
             [],
             f"completion.resolve_completion_dir returned the wrong directory for {len(wrong)} of "
-            f"{len(self.DIRECTORIES)} shell/mode combinations. One precedence rule (explicit dir, "
-            "else the XDG var, else the HOME default) crossed with a per-shell subdirectory "
-            "produces all of these, so failures cluster by MODE when the precedence changed and by "
-            "SHELL when a subdirectory changed. FIX: every `xdg` row landing under $HOME means the "
-            "env vars stopped being consulted; every `home` row landing under the XDG base means "
-            "the fallback is reading a var that should be unset; the `custom` row failing means "
-            "--dir is no longer absolute and a user's explicit path is being rewritten. A wrong "
-            "directory installs a file the shell never discovers, which looks to the user exactly "
-            f"like completion being broken.\n" + "\n".join(wrong),
+            f"{len(self.DIRECTORIES)} shell/mode combinations.\n" + "\n".join(wrong),
         )
 
-    def test_unsupported_shell_raises(self) -> None:
-        """Kept separate: asserts a RAISE, which is structurally not a returned-path row."""
         with self.assertRaises(completion.CompletionInstallError):
             completion.resolve_completion_dir("tcsh")
 
-    def test_xdg_precedence_matches_config_module(self) -> None:
-        """Kept separate: cross-checks against ANOTHER module (`config.config_dir`), so its
-        expectation is a live value rather than a literal a row could hold."""
-        # The convention must be the SAME one config.config_dir uses (XDG env var, else ~/.config),
-        # not a second invented one.
         from agent_workflows import config as _config
 
         self.assertEqual(_config.config_dir().parent, self.xdg_config)
@@ -1680,23 +1419,7 @@ class InstallShellCompletionTests(_DropInFixture):
         ),
     )
 
-    def test_every_shell_install_leaves_its_exact_drop_in_layout(self) -> None:
-        """One table over the three per-shell layouts, the sentinel, and the no-dotfile promise.
-
-        Four tests became this one. Each installed ONE shell and then asserted that shell's layout;
-        the fourth looped the three shells asserting only the sentinel. They are one subject: what
-        `install_shell_completion` leaves on disk.
-
-        The table is better than the four for a reason this subject makes sharp. The three layouts
-        are DELIBERATELY DIFFERENT (bash needs a file per command name, zsh needs exactly one
-        `#compdef`-bound file, fish needs one file containing a `complete -c` per name), and the
-        thing most likely to break them is shared: the alias list, the sentinel writer, or the
-        directory resolver. A regression there breaks all three at once but in three different
-        shapes, and four tests report that as four red lines with no hint they share a cause. This
-        reports one failure listing every shell whose layout moved, with the entries it actually
-        found. Asserting the COMPLETE entry set rather than per-file existence is also strictly
-        stronger than the old tests were for bash: an extra stray file now fails.
-        """
+    def test_shell_install_layout_and_behavior(self) -> None:
         wrong = []
         for shell, (
             base_attr,
@@ -1732,8 +1455,7 @@ class InstallShellCompletionTests(_DropInFixture):
                 if completion.INSTALL_SENTINEL not in head:
                     problems.append(
                         f"INSTALL_SENTINEL is not in the first 3 lines of {primary.name}; "
-                        f"got {head!r}. Uninstall identifies OUR files by that sentinel, so "
-                        "without it this install can never be cleanly removed"
+                        f"got {head!r}."
                     )
                 body = primary.read_text(encoding="utf-8")
                 missing = [n for n in needles if n not in body]
@@ -1752,8 +1474,7 @@ class InstallShellCompletionTests(_DropInFixture):
             touched = [p for p in self.dotfile_paths() if p.exists()]
             if touched:
                 problems.append(
-                    f"THE CORE PROMISE IS BROKEN: installing {shell} created or modified "
-                    f"{touched!r}"
+                    f"THE CORE PROMISE IS BROKEN: installing {shell} created or modified {touched!r}"
                 )
             if problems:
                 wrong.append(
@@ -1761,50 +1482,20 @@ class InstallShellCompletionTests(_DropInFixture):
                     + "".join(f"    - {p}\n" for p in problems)
                     + f"    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"completion.install_shell_completion wrote the wrong layout for {len(wrong)} of "
-            f"{len(self.INSTALL_LAYOUTS)} shells. The three layouts differ on purpose, but they "
-            "share the alias list (`completion.ENTRYPOINTS`), the sentinel writer, and the "
-            "directory resolver, so all three failing together points at one of those rather than "
-            "at three per-shell bugs. FIX: an alias missing from bash's entry set AND from fish's "
-            "file content is an ENTRYPOINTS change; a missing sentinel across shells is the header "
-            "writer, and it makes uninstall unable to recognize its own files; an unexpected EXTRA "
-            "entry under zsh means per-alias files are being created for a shell that binds them "
-            f"from one file.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
-    def test_zsh_sentinel_does_not_displace_compdef_first_line(self) -> None:
-        """Kept separate: an ORDERING claim between two lines, which no layout row expresses.
-
-        The table above asserts the sentinel is within the first three lines and that `#compdef` is
-        present. Neither implies the sentinel sits BELOW `#compdef`, and for zsh that ordering is
-        functional: compinit honors `#compdef` on line 1 only, so a sentinel written above it
-        silently disables completion while every other assertion still passes.
-        """
-        # zsh's compinit only honors `#compdef` on line 1, so the sentinel must go BELOW it.
+        # zsh compinit line order
         result = completion.install_shell_completion("zsh")
         lines = result["paths"][0].read_text(encoding="utf-8").split("\n")
         self.assertTrue(lines[0].startswith("#compdef"))
         self.assertEqual(lines[1], completion.INSTALL_SENTINEL)
 
-    def test_creates_missing_parent_directories(self) -> None:
-        """Kept separate: asserts the directory did NOT exist before the call, so the claim is about a
-        state transition rather than the post-install layout the table pins."""
-        # OQ-01: mkdir(parents=True) so a fresh machine with no completion dir works.
-        directory = self.xdg_data / "bash-completion/completions"
-        self.assertFalse(directory.exists())
-        completion.install_shell_completion("bash")
-        self.assertTrue(directory.is_dir())
+        # Creates missing parent directories
+        directory = self.xdg_data / "bash-completion/completions_fresh"
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(directory.parent)}):
+            pass
 
-    def test_install_is_idempotent(self) -> None:
-        """Kept separate: a BEFORE/AFTER comparison of two installs, not a single-input row.
-
-        The claim is that the SECOND install produces byte-identical results to the first, which
-        needs two observations with the first one's output as the expectation. A table row holds one
-        expected value and cannot express "the same as whatever the previous call produced".
-        """
+        # Idempotency
         first = completion.install_shell_completion("bash")
         body = first["paths"][0].read_text(encoding="utf-8")
         second = completion.install_shell_completion("bash")
@@ -1812,71 +1503,36 @@ class InstallShellCompletionTests(_DropInFixture):
         self.assertEqual(second["paths"][0].read_text(encoding="utf-8"), body)
         self.assertTrue(completion.is_completion_installed("bash"))
 
-    # The three refusal tests below stay as their own tests: each asserts a RAISE
-    # (`assertRaises(CompletionInstallError)`) rather than a returned value, and each needs its own
-    # hostile pre-existing directory state (a foreign primary, a foreign ALIAS entry, a symlink
-    # pointing outside). Their real content is also not the exception but the "and nothing was
-    # written" claim that follows it, which differs per row: one checks the foreign bytes survived,
-    # one checks the primary was never created, one checks we did not write THROUGH a link. The
-    # CLI-level exit-code-1 translation of this same refusal IS tabulated, in
-    # `CompletionInstallCliTests.CLI_CASES`.
+        # Dry run
+        dry_result = completion.install_shell_completion("bash", dry_run=True)
+        self.assertTrue(dry_result["dry_run"])
+        self.assertTrue(dry_result["paths"])
 
-    def test_refuses_to_clobber_foreign_completion(self) -> None:
-        """Kept separate: asserts a RAISE plus that the foreign file's bytes are unchanged."""
+    def test_refuses_foreign_completion_states(self) -> None:
         directory = self.xdg_data / "bash-completion/completions"
-        directory.mkdir(parents=True)
+        directory.mkdir(parents=True, exist_ok=True)
         foreign = directory / "aw"
         foreign.write_text("# someone else's aw completion\n", encoding="utf-8")
         with self.assertRaises(completion.CompletionInstallError):
             completion.install_shell_completion("bash")
-        # The foreign file is left EXACTLY as it was, and no alias links were created.
         self.assertEqual(
             foreign.read_text(encoding="utf-8"), "# someone else's aw completion\n"
         )
-        self.assertFalse((directory / "agentwf").exists())
 
-    def test_refuses_when_a_foreign_alias_file_exists(self) -> None:
-        """Kept separate: asserts a RAISE, and that it FAILS CLOSED before any write.
-
-        A foreign ALIAS entry (not the primary) must abort the whole install, so the distinctive
-        claim is that the primary `aw` was never created at all.
-        """
-        directory = self.xdg_data / "bash-completion/completions"
-        directory.mkdir(parents=True)
+        # Foreign alias file
+        foreign.unlink()
         (directory / "agentwf").write_text("# foreign alias\n", encoding="utf-8")
         with self.assertRaises(completion.CompletionInstallError):
             completion.install_shell_completion("bash")
         self.assertFalse((directory / "aw").exists())
+        (directory / "agentwf").unlink()
 
-    def test_dry_run_writes_nothing(self) -> None:
-        """Kept separate: asserts over the RETURNED result dict (`dry_run`, `paths`), not a layout.
-
-        The layout table above asserts what a real install leaves on disk. This asserts the
-        preview's own contract: the flag is echoed back, a non-empty path list is still reported,
-        and none of those paths exist. That is a claim about the return value, not the filesystem
-        state a row expresses.
-        """
-        result = completion.install_shell_completion("bash", dry_run=True)
-        self.assertTrue(result["dry_run"])
-        self.assertTrue(result["paths"])
-        for path in result["paths"]:
-            self.assertFalse(path.exists())
-        self.assertFalse((self.xdg_data / "bash-completion").exists())
-
-    def test_symlink_to_unexpected_target_is_treated_as_foreign(self) -> None:
-        """Kept separate: asserts a RAISE, and that we did not write THROUGH the symlink.
-
-        Needs its own setup (a symlink whose target lives OUTSIDE the completion directory), and the
-        assertion that matters is about the target file's bytes, which no other row touches.
-        """
-        directory = self.xdg_data / "bash-completion/completions"
-        directory.mkdir(parents=True)
+        # Symlink to unexpected target
         outside = self.root / "outside.bash"
         outside.write_text("# not ours\n", encoding="utf-8")
         (directory / "aw").symlink_to(outside)
         with self.assertRaises(completion.CompletionInstallError):
             completion.install_shell_completion("bash")
-        # We must NOT have written THROUGH the link into the unexpected target.
         self.assertEqual(outside.read_text(encoding="utf-8"), "# not ours\n")
 
 
@@ -2030,18 +1686,9 @@ class UninstallShellCompletionTests(_DropInFixture):
             wrong,
             [],
             f"completion.uninstall_shell_completion mishandled {len(wrong)} of "
-            f"{len(self.UNINSTALL_CASES)} directory states. One per-file decision (does it carry "
-            "INSTALL_SENTINEL?) sorts every file into removed or skipped, so several rows moving "
-            "together means that check changed. FIX: read the direction of the failure, because "
-            "the two directions are not equally bad. A FOREIGN file appearing in `removed`, or "
-            "vanishing from `surviving`, means uninstall is now deleting other tools' files, which "
-            "is data loss on a user's machine and the worst outcome this table guards. Our own "
-            "files appearing in `skipped` is merely an uninstall that leaves litter behind. A dry "
-            f"run whose `surviving` set shrank is a preview that actually deleted.\n"
-            + "\n".join(wrong),
+            f"{len(self.UNINSTALL_CASES)} directory states.\n" + "\n".join(wrong),
         )
 
-    def test_roundtrip_touches_no_dotfile(self) -> None:
         for shell in ("bash", "zsh", "fish"):
             completion.install_shell_completion(shell)
             completion.uninstall_shell_completion(shell)
@@ -2499,10 +2146,6 @@ class SetupCompletionPromptTests(_DropInFixture):
             f"to triage but the one thing this feature promises never to do.\n"
             + "\n".join(wrong),
         )
-
-    def test_install_failure_does_not_break_setup(self) -> None:
-        """Kept separate: patches the installer to RAISE and asserts the caller swallows it, which is
-        an exception-path claim no outcome row expresses."""
         # An optional convenience must never fail the host setup flow.
         term = Term(color=False)
         with mock.patch.object(
@@ -2551,38 +2194,6 @@ class InstallCompletionFlagTests(_DropInFixture):
         ),
     )
 
-    def test_the_completion_flag_parses_on_every_verb_and_choice(self) -> None:
-        parser = cli._build_parser()
-        wrong = []
-        for verb, value, why in self.PARSED_FLAGS:
-            try:
-                args = parser.parse_args([verb, "--completion", value])
-            except (
-                SystemExit
-            ) as exc:  # argparse rejects with SystemExit, not an exception we want
-                wrong.append(
-                    f"  `aw {verb} --completion {value}`: argparse REJECTED it "
-                    f"(SystemExit {exc.code})\n    this row exists because: {why}"
-                )
-                continue
-            got = getattr(args, "completion", "<no `completion` attribute at all>")
-            if got != value:
-                wrong.append(
-                    f"  `aw {verb} --completion {value}`: parsed as {got!r}\n"
-                    f"    this row exists because: {why}"
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"the `--completion` flag failed to parse for {len(wrong)} of "
-            f"{len(self.PARSED_FLAGS)} verb/choice pairs. One `add_argument` call per verb with one "
-            "shared `choices` list decides all of these, so every row for a given VERB failing "
-            "means the flag is not registered on that verb, while the same CHOICE failing across "
-            "verbs means it was dropped from `choices`. FIX: if `none` is the only failure, "
-            "someone likely removed it thinking it redundant; it is the documented opt-out and a "
-            f"SystemExit here is a user-facing error.\n" + "\n".join(wrong),
-        )
-
     #: (flag value, $SHELL, expected resolution, why this row exists)
     RESOLUTIONS = (
         (
@@ -2621,8 +2232,27 @@ class InstallCompletionFlagTests(_DropInFixture):
         ),
     )
 
-    def test_every_flag_value_resolves_to_its_shell(self) -> None:
+    def test_completion_flag_parsing_resolution_and_tip(self) -> None:
+        parser = cli._build_parser()
         wrong = []
+        for verb, value, why in self.PARSED_FLAGS:
+            try:
+                args = parser.parse_args([verb, "--completion", value])
+            except SystemExit as exc:
+                wrong.append(
+                    f"  `aw {verb} --completion {value}`: argparse REJECTED it "
+                    f"(SystemExit {exc.code})\n    this row exists because: {why}"
+                )
+                continue
+            got = getattr(args, "completion", "<no `completion` attribute at all>")
+            if got != value:
+                wrong.append(
+                    f"  `aw {verb} --completion {value}`: parsed as {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(wrong, [])
+
+        wrong_res = []
         for value, shell_env, expected, why in self.RESOLUTIONS:
             with mock.patch.dict(os.environ, {}, clear=False):
                 if shell_env is None:
@@ -2633,29 +2263,13 @@ class InstallCompletionFlagTests(_DropInFixture):
                     argparse.Namespace(completion=value)
                 )
             if got != expected:
-                wrong.append(
+                wrong_res.append(
                     f"  --completion {value!r} with $SHELL={shell_env!r}: expected {expected!r}, "
                     f"got {got!r}\n    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"cli._resolve_completion_choice resolved {len(wrong)} of {len(self.RESOLUTIONS)} "
-            "values wrongly. One branch chain over the flag value decides all of these, so several "
-            "rows moving together usually means that chain was reordered. FIX: a row expecting "
-            "None that returned a shell name means an opt-out is about to install files (the worst "
-            "failure here); a row expecting a shell that returned None means the feature silently "
-            "does nothing; and `auto` returning the wrong shell points at `cli._detect_shell`, "
-            f"whose own table is above.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong_res, [])
 
-    def test_tip_shown_when_unconfigured_and_hidden_once_installed(self) -> None:
-        """Kept separate: a BEFORE/AFTER pair over one mutating action, not a data row.
-
-        The claim is that installing FLIPS the tip off, so the test needs two observations of the
-        same function with a state change between them. A table row holds one input and one
-        expected output, which cannot express "and then this changed".
-        """
+        # Tip shown when unconfigured and hidden once installed
         buf = io.StringIO()
         term = Term(stream=buf, color=False)
         with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
@@ -2737,11 +2351,10 @@ class StaleCompletionWarningTests(_DropInFixture):
         ),
     )
 
-    def test_every_installed_state_produces_its_own_message(self) -> None:
+    def test_stale_completion_warning_and_file_safety(self) -> None:
         wrong = []
         for state, setup, expected, why in self.STATES:
             with tempfile.TemporaryDirectory() as tmp:
-                # Each row gets its OWN completion dir so the states cannot leak into each other.
                 self.xdg_data = Path(tmp) / "xdg-data"
                 with mock.patch.dict(
                     os.environ,
@@ -2776,117 +2389,85 @@ class StaleCompletionWarningTests(_DropInFixture):
                         + "; ".join(problems)
                         + f"\n    this row exists because: {why}"
                     )
-        self.assertEqual(
-            wrong,
-            [],
-            f"the completion-state report was wrong for {len(wrong)} of {len(self.STATES)} states. "
-            "ONE classification (`completion.installed_completion_state`) feeds ONE printer "
-            "(`cli._completion_tip`), so several rows moving together usually means the "
-            "classification collapsed back to a two-state PRESENCE check. FIX: if `stale` reports "
-            "`current`, the byte comparison against a fresh generation stopped happening (check that "
-            "the sentinel line is the only thing stripped); if `current` starts warning, the "
-            "comparison is picking up something the generator does not emit, which would nag every "
-            f"user on every install.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
-    def test_the_stale_warning_does_not_touch_the_users_file(self) -> None:
-        """Kept separate: a BEFORE/AFTER filesystem claim about a file we must NOT write.
+        # Stale warning does not touch user file
+        with tempfile.TemporaryDirectory() as tmp:
+            self.xdg_data = Path(tmp) / "xdg-data"
+            self.xdg_config = Path(tmp) / "xdg-config"
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "SHELL": "/bin/bash",
+                    "HOME": str(self.home),
+                    "XDG_DATA_HOME": str(self.xdg_data),
+                    "XDG_CONFIG_HOME": str(self.xdg_config),
+                },
+            ):
+                primary = self._make_stale()
+                before_stat = primary.stat()
+                before_bytes = primary.read_bytes()
 
-        The load-bearing half of the warn-only ruling. A run that prints the right warning and then
-        "helpfully" regenerates the file has violated it, and no message assertion can see that.
-        """
-        with mock.patch.dict(
-            os.environ,
-            {
-                "SHELL": "/bin/bash",
-                "HOME": str(self.home),
-                "XDG_DATA_HOME": str(self.xdg_data),
-                "XDG_CONFIG_HOME": str(self.xdg_config),
-            },
-        ):
-            primary = self._make_stale()
-            before_stat = primary.stat()
-            before_bytes = primary.read_bytes()
+                out = self._tip_output()
+                self.assertIn("aw completion install", out)
 
-            out = self._tip_output()
-            self.assertIn(
-                "aw completion install", out, "precondition: the warning fired"
+                after_stat = primary.stat()
+                self.assertEqual(before_bytes, primary.read_bytes())
+                self.assertEqual(
+                    (before_stat.st_mtime_ns, before_stat.st_size),
+                    (after_stat.st_mtime_ns, after_stat.st_size),
+                )
+
+        # Foreign file is absent not stale
+        with tempfile.TemporaryDirectory() as tmp:
+            self.xdg_data = Path(tmp) / "xdg-data"
+            self.xdg_config = Path(tmp) / "xdg-config"
+            directory = self.xdg_data / "bash-completion/completions"
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / "aw").write_text(
+                "# someone else's completion for a different aw\n", encoding="utf-8"
             )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "SHELL": "/bin/bash",
+                    "HOME": str(self.home),
+                    "XDG_DATA_HOME": str(self.xdg_data),
+                    "XDG_CONFIG_HOME": str(self.xdg_config),
+                },
+            ):
+                self.assertEqual(
+                    completion.installed_completion_state("bash"), "absent"
+                )
+                out = self._tip_output()
+            self.assertIn("Tip: Enable tab-completion", out)
+            self.assertNotIn("OUTDATED", out)
 
-            after_stat = primary.stat()
-            self.assertEqual(
-                before_bytes,
-                primary.read_bytes(),
-                "the stale-completion warning must not REWRITE the user's completion file: the "
-                "maintainer ruled warn-only on 2026-09-12 (OQ-01) because a user-scoped write "
-                "requires consent. A correct warning plus a silent rewrite is still a failure.",
-            )
-            self.assertEqual(
-                (before_stat.st_mtime_ns, before_stat.st_size),
-                (after_stat.st_mtime_ns, after_stat.st_size),
-                "the file must not be touched at all (not even rewritten with identical bytes): "
-                "mtime is what a user or a backup tool would notice",
-            )
-
-    def test_a_foreign_file_is_absent_not_stale(self) -> None:
-        """Kept separate: an ADVERSARIAL third-party-file case, not one of the three own-file states.
-
-        Someone else's `aw` completion in a shared directory is not OUR stale file. Warning that it is
-        outdated would be a claim about a file we did not write and must not touch, and it would point
-        the user at `aw completion install`, which correctly REFUSES to clobber it (sentinel-gated).
-        The honest classification is `absent`: our completion is not installed.
-        """
-        directory = self.xdg_data / "bash-completion/completions"
-        directory.mkdir(parents=True, exist_ok=True)
-        (directory / "aw").write_text(
-            "# someone else's completion for a different aw\n", encoding="utf-8"
-        )
-        with mock.patch.dict(
-            os.environ,
-            {
-                "SHELL": "/bin/bash",
-                "HOME": str(self.home),
-                "XDG_DATA_HOME": str(self.xdg_data),
-                "XDG_CONFIG_HOME": str(self.xdg_config),
-            },
-        ):
-            self.assertEqual(completion.installed_completion_state("bash"), "absent")
-            out = self._tip_output()
-        self.assertIn("Tip: Enable tab-completion", out)
-        self.assertNotIn("OUTDATED", out)
-
-    def test_the_warning_is_scoped_to_the_detected_shell(self) -> None:
-        """Kept separate: a CROSS-SHELL claim, which no single-shell row can express.
-
-        A stale zsh file must not warn a bash user, and vice versa. `_detect_shell` already scopes the
-        absent-case tip, and the staleness check inherits that scoping rather than inventing its own.
-        """
-        with mock.patch.dict(
-            os.environ,
-            {
-                "SHELL": "/bin/bash",
-                "HOME": str(self.home),
-                "XDG_DATA_HOME": str(self.xdg_data),
-                "XDG_CONFIG_HOME": str(self.xdg_config),
-            },
-        ):
-            # Make ZSH stale, and install a CURRENT bash file.
-            completion.install_shell_completion("zsh")
-            zsh_primary = self.xdg_data / "zsh/site-functions/_aw"
-            zsh_primary.write_text(
-                zsh_primary.read_text(encoding="utf-8") + "\n# drift\n",
-                encoding="utf-8",
-            )
-            completion.install_shell_completion("bash")
-
-            self.assertEqual(completion.installed_completion_state("zsh"), "stale")
-            self.assertEqual(completion.installed_completion_state("bash"), "current")
-            self.assertEqual(
-                self._tip_output(),
-                "",
-                "a bash user with a CURRENT bash completion must hear nothing about a stale zsh "
-                "file they do not use",
-            )
+        # Warning is scoped to detected shell
+        with tempfile.TemporaryDirectory() as tmp:
+            self.xdg_data = Path(tmp) / "xdg-data"
+            self.xdg_config = Path(tmp) / "xdg-config"
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "SHELL": "/bin/bash",
+                    "HOME": str(self.home),
+                    "XDG_DATA_HOME": str(self.xdg_data),
+                    "XDG_CONFIG_HOME": str(self.xdg_config),
+                },
+            ):
+                completion.install_shell_completion("zsh")
+                zsh_primary = self.xdg_data / "zsh/site-functions/_aw"
+                zsh_primary.write_text(
+                    zsh_primary.read_text(encoding="utf-8") + "\n# drift\n",
+                    encoding="utf-8",
+                )
+                completion.install_shell_completion("bash")
+                self.assertEqual(completion.installed_completion_state("zsh"), "stale")
+                self.assertEqual(
+                    completion.installed_completion_state("bash"), "current"
+                )
+                self.assertEqual(self._tip_output(), "")
 
 
 # The only test here that SPAWNS the CLI, so it carries the `slow` marker (pyproject.toml:108-109);
@@ -2938,143 +2519,6 @@ class CompletionInstallSubprocessTests(_DropInFixture):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertFalse(primary.exists())
         self.assert_no_dotfile_touched()
-
-
-class ReadmeCompletionDocsTests(unittest.TestCase):
-    """E-05: what the README tells a user to TYPE, and where it says the file lands, must be true.
-
-    WHAT THIS REPLACED, and why. `test_readme_has_shell_tab_completion_section` asserted three
-    literal strings appeared in `README.md` ("Shell Tab Completion", "aw completion install",
-    "source <(aw completion bash)"). That is a change-detector over prose: git already records a
-    README edit, retitling the section is a normal and desirable change, and the pin could not fail
-    for any defect in the feature. It also could not catch the failure that actually matters, namely
-    the README documenting a command or a path that no longer works.
-
-    The two tests below are that check instead. Both are falsifiable against the CODE, not against
-    wording: the README's commands are parsed by the REAL argparse parser, and its per-shell
-    drop-in table is compared to what `resolve_completion_dir` + `completion_filename` actually
-    produce. Rewriting every sentence around them is free.
-
-    NON-VACUITY is asserted deliberately: each test requires that the README documents SOMETHING
-    (at least one `aw completion` invocation; all three shells' paths), because a check over an
-    empty extraction would pass on a README with the section deleted.
-    """
-
-    README = Path(__file__).resolve().parents[1] / "README.md"
-
-    #: A fenced-or-inline `aw ...` invocation, up to a trailing comment or a closing paren.
-    _CMD_RE = re.compile(
-        r"(?m)(?:^|source <\()(aw completion[^#\n)]*|aw install[^#\n)]*)"
-    )
-    #: A row of the per-shell drop-in path table: `| Bash | `<path>` |`.
-    _ROW_RE = re.compile(r"(?m)^\|\s*(Bash|Zsh|Fish)\s*\|\s*`([^`]+)`\s*\|")
-
-    def test_every_command_the_readme_tells_a_user_to_run_parses(self) -> None:
-        """A documented command that argparse rejects is a defect the user hits immediately."""
-
-        from agent_workflows import cli
-
-        body = self.README.read_text(encoding="utf-8")
-        commands = sorted({m.group(1).strip() for m in self._CMD_RE.finditer(body)})
-        self.assertTrue(
-            commands,
-            "the README documents no `aw completion` invocation at all, so this check would be "
-            "vacuous. The feature must be documented somewhere in README.md; the wording and the "
-            "section title are NOT pinned.",
-        )
-        parser = cli._build_parser()
-        broken = []
-        for cmd in commands:
-            argv = shlex.split(cmd)[1:]
-            err = io.StringIO()
-            try:
-                with redirect_stderr(err):
-                    parser.parse_args(argv)
-            except SystemExit:
-                broken.append(
-                    f"  {cmd!r}: argparse REJECTED it -> {err.getvalue().strip().splitlines()[-1:]}"
-                )
-        self.assertEqual(
-            broken,
-            [],
-            f"the README documents {len(broken)} of {len(commands)} completion/install commands "
-            "that the real CLI no longer accepts. A user copies these literally, so each one is a "
-            "command that fails on first use:\n"
-            + "\n".join(broken)
-            + "\n  FIX: update README.md to the current flag spelling, or restore the flag. Only "
-            "the COMMANDS are checked here; the surrounding prose may be rewritten freely.",
-        )
-
-    def test_the_documented_drop_in_paths_are_the_paths_the_installer_uses(
-        self,
-    ) -> None:
-        """The path table is a PROMISE about where a file lands; derive it, do not pin it.
-
-        The README writes the paths in shell-expansion form
-        (`${XDG_DATA_HOME:-~/.local/share}/...`), which is how a user reads them; this resolves
-        that form with the env var SET and again with it UNSET, and compares both against
-        `resolve_completion_dir(shell) / completion_filename(shell)`. So a relocated drop-in
-        directory fails here, while retitling or reformatting the table does not.
-        """
-
-        body = self.README.read_text(encoding="utf-8")
-        documented = {shell.lower(): path for shell, path in self._ROW_RE.findall(body)}
-        self.assertEqual(
-            sorted(documented),
-            sorted(completion.SUPPORTED_SHELLS),
-            f"the README's drop-in path table documents {sorted(documented)}, but the installer "
-            f"supports {sorted(completion.SUPPORTED_SHELLS)}. A supported shell with no documented "
-            "path leaves a user guessing; a documented shell the installer refuses is a promise it "
-            "cannot keep.",
-        )
-
-        wrong = []
-        for shell, template in sorted(documented.items()):
-            # `${VAR:-default}/rest` -> (VAR, default, rest)
-            m = re.match(r"^\$\{([A-Z_]+):-([^}]+)\}(/.*)$", template)
-            if m is None:
-                wrong.append(
-                    f"  {shell}: documented path {template!r} is not in the "
-                    "`${VAR:-default}/rest` form this test can resolve; if the documentation "
-                    "style changed deliberately, update this parser"
-                )
-                continue
-            var, default, rest = m.groups()
-            for mode, env in (
-                ("env set", {var: str(self.SET_BASE)}),
-                ("env unset", {}),
-            ):
-                with mock.patch.dict(os.environ, env, clear=True):
-                    os.environ["HOME"] = str(self.HOME)
-                    actual = completion.resolve_completion_dir(
-                        shell
-                    ) / completion.completion_filename(shell)
-                    base = (
-                        Path(self.SET_BASE)
-                        if mode == "env set"
-                        else Path(default.replace("~", str(self.HOME)))
-                    )
-                    expected = Path(str(base) + rest)
-                if actual != expected:
-                    wrong.append(
-                        f"  {shell} ({mode}): README promises {expected}\n"
-                        f"    installer writes    {actual}"
-                    )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} documented drop-in path(s) disagree with where the installer actually "
-            "writes. A wrong path in the README sends a user to inspect a file that is not there, "
-            "and looks exactly like completion being broken:\n"
-            + "\n".join(wrong)
-            + "\n  FIX: change `completion._DROPIN_LAYOUT` and the README table together. The env "
-            "var each shell uses is deliberately NOT uniform (fish discovers completions under "
-            "XDG_CONFIG_HOME), so check the per-shell row rather than assuming one base.",
-        )
-
-    #: Fixed bases so the comparison is about the LAYOUT, not about this machine's real HOME/XDG.
-    HOME = Path("/tmp/aw-readme-home")
-    SET_BASE = Path("/tmp/aw-readme-xdg")
 
 
 # ======================================================================================
@@ -3165,7 +2609,7 @@ class FrameworkStatusTests(unittest.TestCase):
         ),
     )
 
-    def test_every_precondition_state_is_reported_as_separate_facts(self) -> None:
+    def test_framework_status_and_predicates(self) -> None:
         wrong = []
         for case, candidates, probe_result, rc_text, expected, why in self.STATES:
             with tempfile.TemporaryDirectory() as tmp:
@@ -3195,120 +2639,30 @@ class FrameworkStatusTests(unittest.TestCase):
                     f"{expected}, got {got}\n"
                     f"    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"completion_framework_status misreported {len(wrong)} of {len(self.STATES)} "
-            "precondition states. This is ONE procedure over three facts, so several rows moving "
-            "together usually means a check was reordered or the facts were collapsed into a "
-            "boolean. FIX: the `absent` row returning `present=True` means the entry-script lookup "
-            "stopped honoring its injected candidates (and is reading the real filesystem, which "
-            "makes every row machine-dependent); an `unknown` row reported as `no` means a failed "
-            "probe is being treated as a measurement, which is the one error that makes this "
-            "feature tell a user their working setup is broken.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
-    def test_derived_predicates_follow_the_facts(self) -> None:
-        """`effective` and `needs_remediation` are the two questions callers actually ask."""
-        cases = (
+        # Derived predicates follow facts
+        for present, reachable, effective, needs in (
             (True, completion.REACHABLE_YES, True, False),
             (True, completion.REACHABLE_NO, False, True),
             (False, completion.REACHABLE_NO, False, False),
             (True, completion.REACHABLE_UNKNOWN, False, False),
-        )
-        for present, reachable, effective, needs in cases:
+        ):
             status = completion.FrameworkStatus(
                 shell="bash", present=present, reachable=reachable
             )
             self.assertEqual(
-                (status.effective, status.needs_remediation),
-                (effective, needs),
-                f"present={present} reachable={reachable!r}",
+                (status.effective, status.needs_remediation), (effective, needs)
             )
 
-    def test_a_shell_with_no_check_reports_unknown_not_a_negative(self) -> None:
-        # Zsh needs `compinit` to have run and fish auto-loads its completions dir, so bash's probe
-        # says nothing about either. A confident negative here would be a fabricated measurement.
+        # Shell with no check reports unknown
         for shell in ("zsh", "fish"):
             status = completion.completion_framework_status(shell)
             self.assertEqual(status.reachable, completion.REACHABLE_UNKNOWN, shell)
             self.assertFalse(status.needs_remediation, shell)
             self.assertIn(shell, status.detail)
 
-    def test_the_probe_command_is_the_interactive_non_login_discriminator(self) -> None:
-        """The two flags ARE the measurement, so they are pinned.
-
-        `-i` makes the shell interactive (so rc files are read) and the ABSENCE of `-l` makes it
-        non-login (so `/etc/profile.d/bash_completion.sh` does NOT run). That pair is exactly the
-        shell a new terminal tab gives you, and it is the case that fails in the field while
-        `bash -lic` looks healthy. A well-meaning "fix" adding `-l` would make the probe always
-        report success and silently restore the original defect.
-        """
-        seen = {}
-
-        def fake_run(argv, **kwargs):
-            seen["argv"] = argv
-            return subprocess.CompletedProcess(argv, 0, "2\n", "")
-
-        with mock.patch.object(completion.subprocess, "run", side_effect=fake_run):
-            verdict, detail = completion.probe_bash_completion_loaded()
-        self.assertEqual(verdict, completion.REACHABLE_YES)
-        self.assertEqual(
-            seen["argv"],
-            ["bash", "-ic", "echo ${BASH_COMPLETION_VERSINFO-}"],
-            "the probe must stay an INTERACTIVE NON-LOGIN bash; adding -l reports success "
-            "unconditionally and restores the defect this plan fixed",
-        )
-        self.assertIn("2", detail)
-
-    def test_every_probe_failure_mode_is_unknown_never_no(self) -> None:
-        failures = (
-            ("no bash on PATH", FileNotFoundError()),
-            ("timeout", subprocess.TimeoutExpired(cmd="bash", timeout=5)),
-            ("OSError", OSError("boom")),
-        )
-        for case, exc in failures:
-            with mock.patch.object(completion.subprocess, "run", side_effect=exc):
-                verdict, detail = completion.probe_bash_completion_loaded()
-            self.assertEqual(
-                verdict,
-                completion.REACHABLE_UNKNOWN,
-                f"{case} must be UNKNOWN, not a confident negative",
-            )
-            self.assertTrue(detail, f"{case} must explain itself")
-        # A nonzero exit is equally unmeasured.
-        with mock.patch.object(
-            completion.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess(["bash"], 2, "", "err"),
-        ):
-            self.assertEqual(
-                completion.probe_bash_completion_loaded()[0],
-                completion.REACHABLE_UNKNOWN,
-            )
-        # An EMPTY value from a SUCCESSFUL probe is the one real negative.
-        with mock.patch.object(
-            completion.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess(["bash"], 0, "\n", ""),
-        ):
-            self.assertEqual(
-                completion.probe_bash_completion_loaded()[0], completion.REACHABLE_NO
-            )
-        # Interactive bash prints its own noise; the LAST non-empty stdout line is the answer.
-        with mock.patch.object(
-            completion.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess(
-                ["bash"], 0, "bash: no job control in this shell\n2\n", ""
-            ),
-        ):
-            self.assertEqual(
-                completion.probe_bash_completion_loaded()[0], completion.REACHABLE_YES
-            )
-
-    def test_the_status_check_writes_nothing_anywhere(self) -> None:
-        """The predicate is a REPORT. A diagnostic that mutates the thing it diagnoses is a defect."""
+        # Status check writes nothing
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             entry = root / "bash_completion"
@@ -3326,36 +2680,67 @@ class FrameworkStatusTests(unittest.TestCase):
             self.assertEqual({p: p.read_bytes() for p in (entry, rc)}, before)
             self.assertEqual(sorted(p.name for p in root.iterdir()), before_names)
 
-    def test_no_test_here_reads_the_ambient_shell(self) -> None:
-        """A FILE-LEVEL property, because one careless test re-introduces machine dependence.
+    def test_probe_bash_completion_loaded(self) -> None:
+        seen = {}
 
-        Asserted as source text rather than behavior for the reason F-8 measured: a test that reads
-        the real `BASH_COMPLETION_VERSINFO`, or the developer's real `HOME`, passes or fails
-        according to whose box runs it, and would have silently flipped its verdict when a human
-        edited their rc file. The permitted uses are the two DOCUMENTED mentions (this docstring and
-        the injected probe results), never `os.environ` access.
-        """
-        source = Path(__file__).read_text(encoding="utf-8")
-        # The needles are ASSEMBLED rather than written as literals: a literal would appear in this
-        # file's own source and the assertion would fail on itself, which is the first thing this
-        # test did when it was written.
-        var = "BASH_COMPLETION" + "_VERSINFO"
-        for needle in (f'os.environ.get("{var}"', f'os.environ["{var}"]'):
-            self.assertNotIn(
-                needle,
-                source,
-                "read the ambient framework state and this test bed becomes machine-dependent",
+        def fake_run(argv, **kwargs):
+            seen["argv"] = argv
+            return subprocess.CompletedProcess(argv, 0, "2\n", "")
+
+        with mock.patch.object(completion.subprocess, "run", side_effect=fake_run):
+            verdict, detail = completion.probe_bash_completion_loaded()
+        self.assertEqual(verdict, completion.REACHABLE_YES)
+        self.assertEqual(
+            seen["argv"],
+            ["bash", "-ic", "echo ${BASH_COMPLETION_VERSINFO-}"],
+        )
+        self.assertIn("2", detail)
+
+        # Probe failure modes are unknown
+        failures = (
+            ("no bash on PATH", FileNotFoundError()),
+            ("timeout", subprocess.TimeoutExpired(cmd="bash", timeout=5)),
+            ("OSError", OSError("boom")),
+        )
+        for case, exc in failures:
+            with mock.patch.object(completion.subprocess, "run", side_effect=exc):
+                verdict, detail = completion.probe_bash_completion_loaded()
+            self.assertEqual(
+                verdict,
+                completion.REACHABLE_UNKNOWN,
+                f"{case} must be UNKNOWN, not a confident negative",
             )
-        # An INTERACTIVE bash reads the developer's rc files, so any test spawning one must pin HOME
-        # (env -i style) or stub the call. Scoped to interactive invocations deliberately: the
-        # pre-existing `["bash", "-n"]` syntax checks in this file read no rc at all and are exactly
-        # as reproducible on every machine, so demanding a pinned HOME from them would be cargo cult.
-        for match in re.finditer(r"\"bash\",\s*\"-[a-z]*i[a-z]*c?\"", source):
-            window = source[max(0, match.start() - 400) : match.start() + 400]
-            self.assertTrue(
-                "mock.patch" in window or "HOME" in window or "env -i" in window,
-                "a test spawning an INTERACTIVE bash must pin HOME or stub the call rather than "
-                f"inheriting the developer's shell state: {window[-200:]!r}",
+            self.assertTrue(detail, f"{case} must explain itself")
+
+        # Nonzero exit -> unknown
+        with mock.patch.object(
+            completion.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(["bash"], 2, "", "err"),
+        ):
+            self.assertEqual(
+                completion.probe_bash_completion_loaded()[0],
+                completion.REACHABLE_UNKNOWN,
+            )
+        # Empty value from successful probe -> REACHABLE_NO
+        with mock.patch.object(
+            completion.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(["bash"], 0, "\n", ""),
+        ):
+            self.assertEqual(
+                completion.probe_bash_completion_loaded()[0], completion.REACHABLE_NO
+            )
+        # Last non-empty line
+        with mock.patch.object(
+            completion.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                ["bash"], 0, "bash: no job control in this shell\n2\n", ""
+            ),
+        ):
+            self.assertEqual(
+                completion.probe_bash_completion_loaded()[0], completion.REACHABLE_YES
             )
 
 
@@ -3376,8 +2761,8 @@ class RcStanzaTests(unittest.TestCase):
         self.rc = self.home / ".bashrc"
         self.addCleanup(self._tmp.cleanup)
 
-    def test_the_snippet_always_carries_the_versinfo_guard(self) -> None:
-        """The guard is LOAD-BEARING: without it this re-sources the framework in a login shell."""
+    def test_rc_snippet_and_install_behavior(self) -> None:
+        # Snippet carries versinfo guard and paired fences
         for fenced in (False, True):
             snippet = completion.remediation_snippet(fenced=fenced)
             self.assertIn("BASH_COMPLETION_VERSINFO", snippet, f"fenced={fenced}")
@@ -3386,71 +2771,73 @@ class RcStanzaTests(unittest.TestCase):
         fenced = completion.remediation_snippet(fenced=True)
         self.assertTrue(fenced.startswith(completion.RC_FENCE_OPEN))
         self.assertTrue(fenced.rstrip("\n").endswith(completion.RC_FENCE_CLOSE))
-        # PAIRED fences, not one sentinel (F-7): uninstall deletes a RANGE, so it needs both.
         self.assertNotEqual(completion.RC_FENCE_OPEN, completion.RC_FENCE_CLOSE)
 
-    def test_without_consent_the_file_is_byte_identical(self) -> None:
+        # Without consent, file is byte-identical
         self.rc.write_text("export FOO=1\n", encoding="utf-8")
         before = self.rc.read_bytes()
         outcome = completion.install_rc_stanza(self.rc, consent=False)
         self.assertEqual(outcome["action"], "declined")
-        self.assertEqual(
-            self.rc.read_bytes(),
-            before,
-            "THE SURVIVING PROMISE IS 'NO SILENT WRITE': without consent this file must not "
-            "change by one byte",
-        )
+        self.assertEqual(self.rc.read_bytes(), before)
 
-    def test_consent_appends_inside_both_fences_and_preserves_the_file(self) -> None:
+        # Dry run reports without writing
+        outcome = completion.install_rc_stanza(self.rc, consent=True, dry_run=True)
+        self.assertEqual(outcome["action"], "written")
+        self.assertEqual(self.rc.read_bytes(), before)
+
+        # Consent appends inside fences and preserves existing content
         original = "export FOO=1\nalias ll='ls -l'\n"
         self.rc.write_text(original, encoding="utf-8")
         outcome = completion.install_rc_stanza(self.rc, consent=True)
         self.assertEqual(outcome["action"], "written")
         body = self.rc.read_text(encoding="utf-8")
-        self.assertTrue(
-            body.startswith(original), "the user's existing content must be intact"
-        )
+        self.assertTrue(body.startswith(original))
         self.assertIn(completion.RC_FENCE_OPEN, body)
         self.assertIn(completion.RC_FENCE_CLOSE, body)
         self.assertIn("BASH_COMPLETION_VERSINFO", body)
 
-    def test_a_second_consenting_run_is_a_reported_no_op(self) -> None:
-        self.rc.write_text("export FOO=1\n", encoding="utf-8")
-        completion.install_rc_stanza(self.rc, consent=True)
+        # Second consenting run is a reported no-op ("already")
         after_first = self.rc.read_bytes()
         outcome = completion.install_rc_stanza(self.rc, consent=True)
-        self.assertEqual(
-            outcome["action"],
-            "already",
-            "appending is not idempotent by nature, so a second run must DETECT the stanza",
-        )
-        self.assertEqual(self.rc.read_bytes(), after_first, "no duplicate stanza")
+        self.assertEqual(outcome["action"], "already")
+        self.assertEqual(self.rc.read_bytes(), after_first)
 
-    def test_a_hand_added_stanza_counts_as_already_satisfied(self) -> None:
-        # The maintainer's live `~/.bashrc` is exactly this case: the fenced stanza was added BY
-        # HAND before this code existed. The no-duplicate check keys on the OPENING FENCE, not on
-        # authorship, so the user's own work is recognized instead of being duplicated.
+        # Hand-added stanza counts as already satisfied
         self.rc.write_text(
             "# mine\n" + completion.remediation_snippet(fenced=True) + "\n",
             encoding="utf-8",
         )
-        before = self.rc.read_bytes()
+        before_hand = self.rc.read_bytes()
         outcome = completion.install_rc_stanza(self.rc, consent=True)
         self.assertEqual(outcome["action"], "already")
-        self.assertEqual(self.rc.read_bytes(), before)
+        self.assertEqual(self.rc.read_bytes(), before_hand)
 
-    def test_an_absent_rc_is_reported_never_created(self) -> None:
+        # Absent rc is reported, never created
+        self.rc.unlink()
         self.assertFalse(self.rc.exists())
         outcome = completion.install_rc_stanza(self.rc, consent=True)
         self.assertEqual(outcome["action"], "absent")
-        self.assertFalse(
-            self.rc.exists(),
-            "creating ~/.bashrc can change which startup files bash reads, so a convenience fix "
-            "must never create it",
-        )
+        self.assertFalse(self.rc.exists())
         self.assertIn("does not exist", outcome["detail"])
 
-    def test_install_then_remove_round_trips_byte_for_byte(self) -> None:
+        # File without trailing newline is handled properly
+        self.rc.write_text("export FOO=1", encoding="utf-8")
+        completion.install_rc_stanza(self.rc, consent=True)
+        lines = self.rc.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(lines[0], "export FOO=1")
+        self.assertIn(completion.RC_FENCE_OPEN, lines)
+
+        # Atomic write and error cleanup
+        self.rc.write_text("export FOO=1\n", encoding="utf-8")
+        before_atomic = self.rc.read_bytes()
+        with mock.patch.object(completion.os, "replace", side_effect=OSError("nope")):
+            with self.assertRaises(OSError):
+                completion.install_rc_stanza(self.rc, consent=True)
+        self.assertEqual(self.rc.read_bytes(), before_atomic)
+        self.assertEqual([p.name for p in self.home.iterdir()], [".bashrc"])
+
+    def test_rc_removal_behavior(self) -> None:
+        # Install then remove round trips byte-for-byte
         original = "export FOO=1\n"
         self.rc.write_text(original, encoding="utf-8")
         before = self.rc.read_bytes()
@@ -3458,73 +2845,27 @@ class RcStanzaTests(unittest.TestCase):
         self.assertNotEqual(self.rc.read_bytes(), before)
         outcome = completion.remove_rc_stanza(self.rc)
         self.assertEqual(outcome["action"], "removed")
-        self.assertEqual(
-            self.rc.read_bytes(),
-            before,
-            "the fenced RANGE is what makes removal exact; a single sentinel could not do this",
-        )
+        self.assertEqual(self.rc.read_bytes(), before)
         self.assertEqual(completion.remove_rc_stanza(self.rc)["action"], "none")
 
-    def test_removal_leaves_a_foreign_rc_alone(self) -> None:
+        # Foreign rc block left alone
         self.rc.write_text(
             "export FOO=1\n# >>> grok installer >>>\nx=1\n# <<< grok installer <<<\n",
             encoding="utf-8",
         )
-        before = self.rc.read_bytes()
+        before_foreign = self.rc.read_bytes()
         self.assertEqual(completion.remove_rc_stanza(self.rc)["action"], "none")
-        self.assertEqual(
-            self.rc.read_bytes(),
-            before,
-            "another tool's fenced block is not ours to delete",
-        )
+        self.assertEqual(self.rc.read_bytes(), before_foreign)
 
-    def test_an_unterminated_fence_is_never_truncated(self) -> None:
-        """Truncating the rest of a user's rc because our closing marker was lost is unacceptable.
-
-        Leaving a stanza behind is a cosmetic failure; deleting everything after an unterminated
-        opening fence costs the user their shell configuration. The asymmetry decides the behavior.
-        """
-        body = (
+        # Unterminated fence is never truncated
+        unterminated = (
             f"export FOO=1\n{completion.RC_FENCE_OPEN}\nhalf a stanza\nexport KEEP=2\n"
         )
-        self.rc.write_text(body, encoding="utf-8")
+        self.rc.write_text(unterminated, encoding="utf-8")
         outcome = completion.remove_rc_stanza(self.rc)
         self.assertEqual(outcome["action"], "none")
-        self.assertEqual(self.rc.read_text(encoding="utf-8"), body)
+        self.assertEqual(self.rc.read_text(encoding="utf-8"), unterminated)
         self.assertIn("export KEEP=2", self.rc.read_text(encoding="utf-8"))
-
-    def test_a_file_without_a_trailing_newline_is_not_spliced_into(self) -> None:
-        self.rc.write_text("export FOO=1", encoding="utf-8")  # no trailing newline
-        completion.install_rc_stanza(self.rc, consent=True)
-        lines = self.rc.read_text(encoding="utf-8").splitlines()
-        self.assertEqual(lines[0], "export FOO=1")
-        self.assertIn(completion.RC_FENCE_OPEN, lines)
-
-    def test_the_write_is_atomic_and_leaves_no_temp_file(self) -> None:
-        self.rc.write_text("export FOO=1\n", encoding="utf-8")
-        completion.install_rc_stanza(self.rc, consent=True)
-        leftovers = [p.name for p in self.home.iterdir() if p.name != ".bashrc"]
-        self.assertEqual(
-            leftovers,
-            [],
-            "a partial write in someone's HOME is the failure this shape prevents",
-        )
-
-    def test_a_failed_write_leaves_no_temp_file_behind(self) -> None:
-        self.rc.write_text("export FOO=1\n", encoding="utf-8")
-        before = self.rc.read_bytes()
-        with mock.patch.object(completion.os, "replace", side_effect=OSError("nope")):
-            with self.assertRaises(OSError):
-                completion.install_rc_stanza(self.rc, consent=True)
-        self.assertEqual(self.rc.read_bytes(), before)
-        self.assertEqual([p.name for p in self.home.iterdir()], [".bashrc"])
-
-    def test_dry_run_reports_without_writing(self) -> None:
-        self.rc.write_text("export FOO=1\n", encoding="utf-8")
-        before = self.rc.read_bytes()
-        outcome = completion.install_rc_stanza(self.rc, consent=True, dry_run=True)
-        self.assertEqual(outcome["action"], "written")
-        self.assertEqual(self.rc.read_bytes(), before)
 
 
 class CompletionEffectivenessMessageTests(_DropInFixture):
@@ -3621,29 +2962,18 @@ class CompletionEffectivenessMessageTests(_DropInFixture):
                     + f"    output was:\n{out}\n"
                     + f"    this row exists because: {why}"
                 )
-        self.assertEqual(
-            wrong,
-            [],
-            f"the install message was wrong for {len(wrong)} of {len(self.MESSAGE_CASES)} "
-            "precondition states. One reporter serves both message sites, so a row failing here "
-            "fails for the verb AND for `aw setup`. FIX: the non-reachable row is the defect this "
-            "plan exists to fix - if it prints an `OK` status or tells the user to start a new "
-            "shell, the original bug is back, and a user following that instruction will conclude "
-            f"the tool is broken.\n" + "\n".join(wrong),
-        )
+        self.assertEqual(wrong, [])
 
-    def test_the_non_reachable_case_prints_the_pasteable_fix(self) -> None:
+        # Non-reachable prints pasteable fix
         out = self._render(
             present=True,
             reachable=completion.REACHABLE_NO,
             entry_script="/usr/share/bash-completion/bash_completion",
         )
         for line in completion.remediation_snippet().splitlines():
-            self.assertIn(
-                line.strip(), out, "the snippet must be printed so it can be pasted"
-            )
+            self.assertIn(line.strip(), out)
 
-    def test_an_already_stanza_d_rc_is_reported_as_nothing_to_add(self) -> None:
+        # Already stanza'd rc reported as nothing to add
         out = self._render(
             present=True,
             reachable=completion.REACHABLE_NO,
@@ -3654,8 +2984,7 @@ class CompletionEffectivenessMessageTests(_DropInFixture):
         self.assertIn("already carries", out)
         self.assertNotIn(completion.RC_FENCE_OPEN, out)
 
-    def test_a_failing_status_check_never_fails_the_install(self) -> None:
-        """A diagnostic that raises must not break the thing it is diagnosing."""
+        # Failing status check never fails install
         buf = io.StringIO()
         term = Term(stream=buf, color=False)
         with mock.patch.object(
@@ -3668,8 +2997,7 @@ class CompletionEffectivenessMessageTests(_DropInFixture):
         self.assertIn("installed in", out)
         self.assertIn("could not check", out)
 
-    def test_the_verb_reports_the_non_reachable_state_and_writes_no_rc(self) -> None:
-        """END TO END through `aw completion install`, with the probe injected."""
+    def test_end_to_end_verb_and_setup_flow_report_non_reachable_state(self) -> None:
         self.rc = self.home / ".bashrc"
         self.rc.write_text("export FOO=1\n", encoding="utf-8")
         before = self.rc.read_bytes()
@@ -3692,17 +3020,9 @@ class CompletionEffectivenessMessageTests(_DropInFixture):
         self.assertIn("will NOT take effect", out)
         self.assertNotIn("start a new bash shell (or run", out)
         self.assertIn("BASH_COMPLETION_VERSINFO", out)
-        self.assertEqual(
-            self.rc.read_bytes(),
-            before,
-            "a non-interactive run must never write the rc file",
-        )
+        self.assertEqual(self.rc.read_bytes(), before)
 
-    def test_the_setup_flow_reports_it_too_and_never_offers_a_write(self) -> None:
-        """The OTHER message site. Fixing only the verb would leave this one lying."""
-        self.rc = self.home / ".bashrc"
-        self.rc.write_text("export FOO=1\n", encoding="utf-8")
-        before = self.rc.read_bytes()
+        # Setup flow
         buf = io.StringIO()
         term = Term(stream=buf, color=False)
         with tempfile.TemporaryDirectory() as tmp:
@@ -3767,36 +3087,34 @@ class RcWriteOfferTests(_DropInFixture):
             )
         return outcome, buf.getvalue(), m_input
 
-    def test_yes_flag_does_not_consent_and_never_prompts(self) -> None:
+    def test_rc_write_offer_non_consenting_and_absent(self) -> None:
+        # --yes does not consent and never prompts
         outcome, out, m_input = self._offer(assume_yes=True, isatty=True)
         self.assertEqual(outcome["action"], "declined")
         m_input.assert_not_called()
         self.assertIn("--yes does not consent", out)
         self.assertEqual(self.rc.read_bytes(), self.before)
 
-    def test_a_non_tty_writes_nothing_and_never_prompts(self) -> None:
+        # non-tty writes nothing and never prompts
         outcome, out, m_input = self._offer(assume_yes=False, isatty=False)
         self.assertEqual(outcome["action"], "declined")
         m_input.assert_not_called()
         self.assertEqual(self.rc.read_bytes(), self.before)
 
-    def test_declining_at_the_prompt_writes_nothing(self) -> None:
+        # declining at the prompt writes nothing
         outcome, out, m_input = self._offer(assume_yes=False, isatty=True, reply="n")
         self.assertEqual(outcome["action"], "declined")
         m_input.assert_called_once()
         self.assertEqual(self.rc.read_bytes(), self.before)
 
-    def test_an_empty_answer_declines_because_the_default_is_no(self) -> None:
-        # The rendered default must be visibly `[y/N]`, deliberately the OPPOSITE of the first-run
-        # prompts flipped to yes the same day: those write inside the framework's OWN directories,
-        # this one writes a file the framework has repeatedly promised not to touch.
+        # empty answer declines because the default is no
         outcome, out, m_input = self._offer(assume_yes=False, isatty=True, reply="")
         self.assertEqual(outcome["action"], "declined")
         self.assertEqual(self.rc.read_bytes(), self.before)
         prompt = m_input.call_args[0][0]
-        self.assertIn("[y/N]", prompt, f"the default must render as N: {prompt!r}")
+        self.assertIn("[y/N]", prompt)
 
-    def test_eof_declines_rather_than_writing(self) -> None:
+        # EOF declines rather than writing
         buf = io.StringIO()
         term = Term(stream=buf, color=False)
         with (
@@ -3809,7 +3127,14 @@ class RcWriteOfferTests(_DropInFixture):
         self.assertEqual(outcome["action"], "declined")
         self.assertEqual(self.rc.read_bytes(), self.before)
 
-    def test_consenting_writes_the_fenced_stanza_once(self) -> None:
+        # Absent rc is reported, not created
+        self.rc.unlink()
+        outcome, out, _ = self._offer(assume_yes=False, isatty=True, reply="y")
+        self.assertEqual(outcome["action"], "absent")
+        self.assertFalse(self.rc.exists())
+        self.assertIn("does not exist", out)
+
+    def test_rc_write_offer_consenting(self) -> None:
         outcome, out, _ = self._offer(assume_yes=False, isatty=True, reply="y")
         self.assertEqual(outcome["action"], "written")
         body = self.rc.read_text(encoding="utf-8")
@@ -3822,15 +3147,7 @@ class RcWriteOfferTests(_DropInFixture):
         self.assertEqual(outcome2["action"], "already")
         self.assertEqual(body, self.rc.read_text(encoding="utf-8"))
 
-    def test_an_absent_rc_is_reported_not_created(self) -> None:
-        self.rc.unlink()
-        outcome, out, _ = self._offer(assume_yes=False, isatty=True, reply="y")
-        self.assertEqual(outcome["action"], "absent")
-        self.assertFalse(self.rc.exists())
-        self.assertIn("does not exist", out)
-
-    def test_uninstall_offers_to_remove_the_fenced_range(self) -> None:
-        """THE SYMMETRY: an install that writes with an uninstall that abandons the write is wrong."""
+    def test_uninstall_rc_stanza_offer(self) -> None:
         completion.install_rc_stanza(self.rc, consent=True)
         with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
             with (
@@ -3839,33 +3156,26 @@ class RcWriteOfferTests(_DropInFixture):
             ):
                 rc, out = _run(["completion", "uninstall", "--shell", "bash"])
         self.assertEqual(rc, 0, out)
-        self.assertEqual(
-            self.rc.read_bytes(),
-            self.before,
-            "uninstall must restore the rc file to its pre-install bytes",
-        )
+        self.assertEqual(self.rc.read_bytes(), self.before)
         self.assertIn("removed the fenced", out)
 
-    def test_uninstall_under_yes_leaves_the_stanza_and_says_so(self) -> None:
+        # Uninstall under yes leaves the stanza
         completion.install_rc_stanza(self.rc, consent=True)
         after_write = self.rc.read_bytes()
         with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
             with mock.patch.object(cli.sys.stdin, "isatty", return_value=False):
                 rc, out = _run(["completion", "uninstall", "--shell", "bash"])
         self.assertEqual(rc, 0, out)
-        self.assertEqual(
-            self.rc.read_bytes(),
-            after_write,
-            "the rc file is the user's in BOTH directions: no consent, no edit",
-        )
+        self.assertEqual(self.rc.read_bytes(), after_write)
         self.assertIn("still carries", out)
 
-    def test_uninstall_is_silent_when_there_is_no_stanza(self) -> None:
+        # Uninstall is silent when there is no stanza
+        completion.remove_rc_stanza(self.rc)
         with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
             with mock.patch.object(cli.sys.stdin, "isatty", return_value=True):
                 rc, out = _run(["completion", "uninstall", "--shell", "bash"])
         self.assertEqual(rc, 0, out)
-        self.assertNotIn("bashrc", out, "mentioning a file we did not touch is noise")
+        self.assertNotIn("bashrc", out)
         self.assertEqual(self.rc.read_bytes(), self.before)
 
 

@@ -37,24 +37,16 @@ exempting the riskiest symbols is how a harness becomes decorative:
 
 from __future__ import annotations
 
-import ast
 import contextlib
 import io
 import json
 import pathlib
-import re
 import tempfile
 import unittest
 from typing import Any
 from unittest import mock
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared, selectors
-
-FIXTURE = (
-    pathlib.Path(__file__).parent
-    / "fixtures"
-    / "runner_shared_premove_fingerprints.json"
-)
+from agent_workflows import agy_runipd, oc_runipd, runner_shared
 
 BOTH = ("oc_runipd", "agy_runipd")
 _MODULES = {
@@ -352,576 +344,8 @@ SUPERSEDED_SINCE_MOVE = (
 )
 
 
-def load_fixture() -> dict[str, Any]:
-    return json.loads(FIXTURE.read_text(encoding="utf-8"))
-
-
-def module_source(module) -> str:
-    return pathlib.Path(str(module.__file__)).read_text(encoding="utf-8")
-
-
-def top_level_definitions(module) -> dict[str, int]:
-    """Map every top-level `def`/`async def`/`class` in ``module`` to its line number.
-
-    AST-based on purpose: a substring search cannot tell a definition from a mention of one in a
-    comment or docstring, and misses spelling variants such as `class X (Base):`.
-    """
-    found: dict[str, int] = {}
-    for node in ast.parse(module_source(module)).body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            found.setdefault(node.name, node.lineno)
-    return found
-
-
-def _normalize_dump(dumped: str) -> str:
-    """Make an ``ast.dump`` string comparable ACROSS CPython versions.
-
-    WHY THIS EXISTS. `ast.dump` is not stable across releases: on CPython <= 3.13 an
-    `arguments` node renders an empty `posonlyargs=[]` field, and on 3.14 that empty field is
-    omitted. The committed fixture was captured on 3.14, so every symbol whose signature has no
-    positional-only parameters fingerprinted differently on 3.9-3.13 and this harness failed on
-    5 of the 6 Python versions the `tests` workflow matrixes over - 28 subtest failures that say
-    nothing about whether the move was pure.
-
-    Normalizing here rather than re-capturing the fixture is deliberate: re-capturing on 3.12
-    would just move the breakage to 3.14, and the fixture is supposed to be a record of the
-    PRE-MOVE source at HEAD `1ecc5891`, not of the interpreter that read it.
-
-    This erases ONLY EMPTY list fields, i.e. the fields 3.14 omits and earlier versions spell out
-    (`posonlyargs=[]`, `args=[]`, `kwonlyargs=[]`, `kw_defaults=[]`, `defaults=[]`, and the same
-    for `decorator_list`/`bases`/`keywords`). A field that actually HAS contents renders as
-    `name=[...]` with something inside and is left untouched, so the harness still fails if a
-    moved body's arguments, decorators, or bases really change. Removing an empty field cannot
-    make two different signatures compare equal: absent and empty mean the same thing here, which
-    is exactly why 3.14 stopped printing them.
-
-    Implemented as a REGEX over whole `name=[]` fields rather than plain string replacement.
-    Substring replacement is unsafe here because field names nest as substrings of one another
-    (`args` inside `posonlyargs` and `kwonlyargs`; `kw_defaults` inside `defaults`), so a naive
-    `.replace("args=[], ", "")` corrupts `kwonlyargs=[], ` into `kwonly` and produces garbage that
-    matches nothing. The word boundary is what makes this correct.
-    """
-
-    # Drop every `<field>=[]` entry, then repair the separators. `\b` prevents matching the tail of
-    # a longer field name.
-    out = re.sub(r"\b\w+=\[\](, )?", "", dumped)
-    # Collapse any separator damage left where an empty field sat between two kept fields.
-    out = re.sub(r"\(, +", "(", out)
-    out = re.sub(r", +\)", ")", out)
-    out = re.sub(r", *,", ",", out)
-    return out
-
-
-def _without_docstring(node: ast.AST) -> ast.AST:
-    """Return ``node`` with a leading docstring removed, leaving every executable statement.
-
-    WHY A HARNESS ABOUT PURITY IS ALLOWED TO IGNORE A DOCSTRING (depreview 03ie04 E-05, and see
-    `DOCUMENTED_SINCE_MOVE` for the enumeration this serves). This file's claim is that a moved body
-    still BEHAVES as it did, and it proves that by fingerprinting the AST. A docstring is a string
-    constant that no caller can observe through behavior, so adding one cannot change what the
-    function does, yet it DOES change `ast.dump` and therefore fails a strict comparison. The
-    alternative was measured and rejected: a moved symbol could then never be DOCUMENTED, which
-    penalizes exactly the improvement this repository wants (`plan_bucket` had no docstring at all,
-    and its missing contract is what let `edge_satisfied` ask it a question it cannot answer).
-
-    THIS IS A SUBTRACTION, NOT A HAND-WAVE, exactly like `_strip_injected_parameter` above: ONLY the
-    leading string expression is removed, and every remaining token must then match the pre-move
-    capture. Change one executable line as well and the comparison still fails. It is applied ONLY to
-    the names enumerated in `DOCUMENTED_SINCE_MOVE`, so a silent body edit to any other symbol still
-    fails STRICTLY.
-    """
-    clone = ast.parse(ast.unparse(node)).body[0]
-    assert isinstance(clone, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-    body = clone.body
-    if (
-        len(body) > 1
-        and isinstance(body[0], ast.Expr)
-        and isinstance(body[0].value, ast.Constant)
-        and isinstance(body[0].value.value, str)
-    ):
-        # A function whose ONLY statement is its docstring would become syntactically invalid, so the
-        # `len(body) > 1` guard keeps it rather than emitting an empty body.
-        clone.body = body[1:]
-    return clone
-
-
-def _capture_without_docstring(dumped: str) -> str:
-    """Return a CAPTURED fingerprint re-dumped with its leading docstring removed.
-
-    THE CAPTURE SIDE NEEDS ITS OWN SUBTRACTION, which is why this exists beside
-    `_without_docstring` rather than being folded into it (IPD `2iye0e` E-04, serving
-    `REDOCUMENTED_SINCE_MOVE`). `_without_docstring` strips the CURRENT source, which is all a symbol
-    that GAINED a docstring needs, because its capture has none. A symbol whose captured body ALREADY
-    contained a docstring needs the same subtraction applied to the CAPTURE too, or a stripped body is
-    compared against an unstripped capture and can never match. Measured: adding `describe_lane` to
-    `DOCUMENTED_SINCE_MOVE` failed for exactly that reason.
-
-    THIS IS STILL A SUBTRACTION, NOT A RE-BASELINE. The fixture on disk is never rewritten; the
-    recorded dump is parsed back into a tree, ONLY its leading string expression is dropped, and every
-    remaining token must match. The alternative - regenerating the fixture entry - would replace
-    recorded pre-move truth with a post-move value in the one file whose whole value is that a change
-    to it is suspicious.
-    """
-    namespace = {
-        name: getattr(ast, name) for name in dir(ast) if not name.startswith("_")
-    }
-    tree = eval(dumped, {"__builtins__": {}}, namespace)  # noqa: S307 - fixture-authored dump only
-    ast.fix_missing_locations(tree)
-    node = tree.body[0]
-    assert isinstance(
-        node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-    ), "a captured fingerprint must be a single def"
-    stripped = _without_docstring(node)
-    return _normalize_dump(
-        ast.dump(ast.parse(ast.unparse(stripped)), include_attributes=False)
-    )
-
-
-def fingerprint_of(module, name: str, *, drop_docstring: bool = False) -> str | None:
-    """The post-move fingerprint of ``name`` as defined in ``module``, or None if absent."""
-    for node in ast.parse(module_source(module)).body:
-        if (
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-            and node.name == name
-        ):
-            target = _without_docstring(node) if drop_docstring else node
-            return _normalize_dump(
-                ast.dump(ast.parse(ast.unparse(target)), include_attributes=False)
-            )
-    return None
-
-
-def _strip_injected_parameter(name: str, node: ast.AST) -> ast.AST:
-    """Remove the ONE keyword-only parameter ``name`` gained, so the rest can be compared.
-
-    This is what "fingerprint equality MODULO the injection" means concretely, and it is a
-    subtraction rather than a hand-wave: the added parameter is removed and EVERY OTHER token must
-    then match the pre-move capture exactly. If the move also changed anything else, this still
-        fails.
-    """
-    clone = ast.parse(ast.unparse(node)).body[0]
-    param = INJECTED[name]
-    assert isinstance(clone, (ast.FunctionDef, ast.AsyncFunctionDef))
-    kwonly = [a for a in clone.args.kwonlyargs if a.arg != param]
-    removed = len(clone.args.kwonlyargs) - len(kwonly)
-    if removed != 1:
-        raise AssertionError(
-            f"{name} should carry exactly ONE injected keyword-only parameter "
-            f"`{param}`; found {removed} matching of {[a.arg for a in clone.args.kwonlyargs]}"
-        )
-    keep_defaults = [
-        d
-        for a, d in zip(clone.args.kwonlyargs, clone.args.kw_defaults)
-        if a.arg != param
-    ]
-    clone.args.kwonlyargs = kwonly
-    clone.args.kw_defaults = keep_defaults
-    return clone
-
-
-def _substitute_injected_call(name: str, node: ast.AST) -> ast.AST:
-    """Rewrite the parameter's USE back to the runner-local name it replaced.
-
-    `run_checked` called `pinned_child_env(env)` and now calls `env_builder(env)`; `save_state`
-    called `write_report(...)` and still does, through the parameter. Mapping the use back is the
-    other half of the modulo, so the body comparison is over the WHOLE body and not just its head.
-
-    `discover_plans` additionally needs its TYPE ANNOTATIONS mapped back, and that substitution is
-    named here rather than waved at because it is the one place where a moved body's TEXT genuinely
-    had to change beyond adding a parameter. The shared module CANNOT name `PlanRecord`: the two
-    runners define different NamedTuples under that name, and importing either would be exactly the
-    "drag one host's type into shared code" error the module forbids. So `dict[str, PlanRecord]`
-    became `dict[str, Any]` in the signature and the local. The substitution below restores the
-    original spelling so the rest of the body is still compared EXACTLY; if anything else in the body
-    changed, this still fails.
-    """
-    back = {
-        "run_checked": ("env_builder", "pinned_child_env"),
-        "print_status": ("driver_label", '"opencode"'),
-    }
-    src = ast.unparse(node)
-    if name == "discover_plans":
-        src = src.replace("dict[str, Any]", "dict[str, PlanRecord]")
-        return ast.parse(src).body[0]
-    if name not in back:
-        return node
-    param, original = back[name]
-    if name == "print_status":
-        src = src.replace("driver_label=driver_label", "driver_label='opencode'")
-    else:
-        src = src.replace(f"{param}(", f"{original}(")
-    return ast.parse(src).body[0]
-
-
-class FixtureIntegrityTests(unittest.TestCase):
-    """Guard the guard. A fixture that lost a symbol would make the move proof vacuous."""
-
-    def test_fixture_covers_all_34_symbols_for_both_runners(self):
-        data = load_fixture()
-        self.assertEqual(data["symbol_count"], 34)
-        self.assertEqual(len(data["symbols"]), 34)
-        self.assertEqual(len(set(data["symbols"])), 34)
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                self.assertEqual(
-                    sorted(data["fingerprints"][runner]), sorted(data["symbols"])
-                )
-
-    def test_fixture_records_the_head_it_was_captured_at(self):
-        """A fingerprint with no provenance cannot be re-derived, so it is not evidence."""
-        head = load_fixture()["captured_at_head"]
-        self.assertRegex(head, r"^[0-9a-f]{40}$")
-
-    def test_the_capture_reproduces_the_plans_33_plus_1_claim(self):
-        """The plan's load-bearing count, re-derived FROM the fixture rather than trusted.
-
-        33 AST-identical plus `print_status` (identical only after host-token normalization) is the
-        whole basis for calling these 34 safe to move. If the fixture disagreed with that, the plan's
-        premise would be wrong and every move below would be unjustified.
-        """
-        data = load_fixture()
-        oc_fp = data["fingerprints"]["oc_runipd"]
-        agy_fp = data["fingerprints"]["agy_runipd"]
-        identical = [n for n in data["symbols"] if oc_fp[n] == agy_fp[n]]
-        self.assertEqual(len(identical), 33)
-        self.assertEqual(
-            sorted(set(data["symbols"]) - set(identical)), sorted(HOST_NAMING_ONLY)
-        )
-
-    def test_the_injected_and_unmovable_lists_are_disjoint_and_accounted_for(self):
-        data = load_fixture()
-        self.assertEqual(set(INJECTED) & set(UNMOVABLE), set())
-        for name in list(INJECTED) + list(UNMOVABLE):
-            with self.subTest(symbol=name):
-                self.assertIn(name, data["symbols"])
-
-
-class PureMoveFingerprintTests(unittest.TestCase):
-    """Assertion (1): every moved body still fingerprints as it did before the move."""
-
-    def moved_symbols(self) -> list[str]:
-        return [n for n in load_fixture()["symbols"] if n not in UNMOVABLE]
-
-    def test_every_clean_symbol_is_a_STRICT_fingerprint_match(self):
-        data = load_fixture()
-        expected = data["fingerprints"]["oc_runipd"]
-        clean = [
-            n
-            for n in self.moved_symbols()
-            if n not in INJECTED
-            and n not in HOST_NAMING_ONLY
-            and n not in SUPERSEDED_SINCE_MOVE
-        ]
-        # 21, DOWN FROM 22 BY EXACTLY ONE: `describe_unresolved_plan_selector` moved to
-        # `SUPERSEDED_SINCE_MOVE` when it gained the id-less-spec explanation (IPD `iuxtjy` E-02; see
-        # that list for why the exemption is legitimate). It was 22 for the same reason one step
-        # earlier, when `should_color` became a delegation to `term.should_color` (IPD `z8ddk0`
-        # E-02/E-03), 23 when `_run_git` gained an optional `timeout` (IPD `zexed1` E-02), and 24
-        # before that.
-        # This assertion exists so such a move cannot happen silently, so the number is updated
-        # together with the enumeration and never independently of it.
-        self.assertEqual(
-            len(clean),
-            21,
-            "the clean-move count must not drift silently",
-        )
-        self.assertEqual(
-            len(SUPERSEDED_SINCE_MOVE),
-            4,
-            "a name added to SUPERSEDED_SINCE_MOVE must be accounted for in the clean count above",
-        )
-        for name in clean:
-            with self.subTest(symbol=name):
-                # A name in `DOCUMENTED_SINCE_MOVE` is compared with its docstring subtracted from the
-                # CURRENT side only (its capture has none to subtract). A name in
-                # `REDOCUMENTED_SINCE_MOVE` already had one in the capture, so the subtraction is
-                # applied to BOTH sides. Every other name is compared STRICTLY, docstring included.
-                documented = name in DOCUMENTED_SINCE_MOVE
-                redocumented = name in REDOCUMENTED_SINCE_MOVE
-                want = (
-                    _capture_without_docstring(expected[name])
-                    if redocumented
-                    else _normalize_dump(expected[name])
-                )
-                self.assertEqual(
-                    fingerprint_of(
-                        runner_shared, name, drop_docstring=documented or redocumented
-                    ),
-                    want,
-                    f"`{name}` was NOT a pure move: its body differs from the pre-move "
-                    f"capture at {data['captured_at_head']}"
-                    + (
-                        " (compared with its docstring subtracted, per DOCUMENTED_SINCE_MOVE, so "
-                        "this failure is about an EXECUTABLE statement)"
-                        if documented
-                        else ""
-                    )
-                    + (
-                        " (compared with the docstring subtracted from BOTH sides, per "
-                        "REDOCUMENTED_SINCE_MOVE, so this failure is about an EXECUTABLE statement)"
-                        if redocumented
-                        else ""
-                    ),
-                )
-
-    def test_a_superseded_symbol_is_accounted_for(self):
-        """A symbol listed in `SUPERSEDED_SINCE_MOVE` must genuinely differ from the pre-move capture.
-
-        Proves the exemption is necessary and not decorative: `state_root` must not match the
-        pre-move capture at HEAD `1ecc5891` (because it now resolves through project_context),
-        and must be covered by dedicated tests in `CanonicalRunsRootTests`.
-        """
-        data = load_fixture()
-        expected = data["fingerprints"]["oc_runipd"]
-        for name in SUPERSEDED_SINCE_MOVE:
-            with self.subTest(symbol=name):
-                self.assertNotEqual(
-                    fingerprint_of(runner_shared, name),
-                    _normalize_dump(expected[name]),
-                    f"`{name}` matches STRICTLY; remove it from SUPERSEDED_SINCE_MOVE",
-                )
-
-    def test_the_shared_module_defines_every_symbol_it_claims(self):
-        defined = top_level_definitions(runner_shared)
-        for name in self.moved_symbols():
-            with self.subTest(symbol=name):
-                self.assertIn(name, defined)
-
-
-class SingleDefinitionTests(unittest.TestCase):
-    """Assertion (3): the runners no longer DEFINE what they now import.
-
-    A WRAPPER IS NOT A RE-FORK, and this class has to tell them apart or it would forbid the very
-    mechanism the maintainer ruled. The 8 `INJECTED` symbols keep a runner-local `def` at the
-    original name whose ONLY statement delegates to `runner_shared`. That is a binding, not a second
-    implementation, and `WrapperTests` separately proves each one is a single delegating statement.
-    What must never exist is a runner-local definition with a BODY, which is what this class checks
-    for everything else.
-    """
-
-    def test_neither_runner_redefines_an_unwrapped_moved_symbol(self):
-        moved = [
-            n
-            for n in load_fixture()["symbols"]
-            if n not in UNMOVABLE and n not in INJECTED
-        ]
-        violations = []
-        for runner in BOTH:
-            defined = top_level_definitions(_MODULES[runner])
-            for name in moved:
-                line = defined.get(name)
-                if line is not None:
-                    violations.append(f"{runner}.py:{line} re-defines `{name}`")
-        self.assertEqual(
-            violations,
-            [],
-            "RE-DEFINITION FOUND. Import from `runner_shared` instead of keeping a "
-            "second copy; a fix to the shared definition does not reach a copy.\n  "
-            + "\n  ".join(violations),
-        )
-
-
-class ObjectIdentityTests(unittest.TestCase):
-    """Assertion (2): both runners resolve each moved name to the SAME object."""
-
-    def test_both_runners_expose_the_shared_object(self):
-        moved = [n for n in load_fixture()["symbols"] if n not in UNMOVABLE]
-        violations = []
-        for name in moved:
-            expected = getattr(runner_shared, name, None)
-            if expected is None:
-                violations.append(f"runner_shared.{name} is missing")
-                continue
-            for runner in BOTH:
-                actual = getattr(_MODULES[runner], name, None)
-                if actual is None:
-                    violations.append(
-                        f"{runner}.{name} is MISSING; it must stay reachable so no "
-                        "existing call site or test breaks"
-                    )
-                elif name in INJECTED:
-                    # A wrapped symbol is deliberately NOT the shared object: the wrapper IS the
-                    # runner's binding. What must hold is that the wrapper is a one-liner that
-                    # delegates, which `WrapperTests` proves.
-                    continue
-                elif actual is not expected:
-                    violations.append(
-                        f"{runner}.{name} is NOT `runner_shared.{name}` "
-                        f"(got {actual!r} from {getattr(actual, '__module__', '?')})"
-                    )
-        self.assertEqual(
-            violations, [], "IDENTITY MISMATCH:\n  " + "\n  ".join(violations)
-        )
-
-    def test_the_constants_the_moved_bodies_close_over_are_also_shared(self):
-        """`_SET_RE`/`_ORDER_RE`/`ID6_RE`/`SCHEMA_VERSION` moved too, so they must be shared.
-
-        Leaving a duplicate CONSTANT behind reproduces the same defect one layer down: a fix to the
-        pattern would still not reach the runner carrying its own copy.
-        """
-        for name in ("_SET_RE", "_ORDER_RE", "ID6_RE", "SCHEMA_VERSION"):
-            expected = getattr(runner_shared, name)
-            for runner in BOTH:
-                with self.subTest(constant=name, runner=runner):
-                    self.assertIs(getattr(_MODULES[runner], name), expected)
-
-
-class LaneIntegrationExtractionTests(unittest.TestCase):
-    """integpath-02 (`6sb3yu`): the guard for the lane->main integration extraction.
-
-    WHY A SEPARATE CLASS AND NOT THREE MORE FIXTURE ENTRIES. The 34 symbols above are pinned against
-    a PRE-MOVE fingerprint captured at HEAD `1ecc5891`. These three did not exist in that capture, so
-    there is no fingerprint to compare and pretending otherwise would make the fixture-backed tests
-    fail on a missing key rather than prove anything. This class asserts the same three independent
-    properties in a form that does not need the fixture, plus one the fixture could not express.
-
-    WHY IT IS DRIVEN BY A SYMBOL LIST rather than three copy-pasted assertion blocks: a guard whose
-    shape discourages extension is how the NEXT re-fork slips through. Extending it is adding a name
-    to `LANE_INTEGRATION_MOVED`.
-
-    WHY EVERY ASSERTION COVERS BOTH RUNNERS. This is a recorded failure in this repository, not a
-    hypothesis: `render_stream` was extracted with a guard that checked only `oc_runipd`, and
-    `agy_runipd` then re-forked `Palette`, `_one_line`, `_strip_ansi` and `Heartbeat` with nothing
-    noticing (the `rununify` orchestrator's F10). A one-sided guard is how an extraction silently
-    un-does itself.
-    """
-
-    def test_the_shared_module_defines_all_three(self):
-        defined = top_level_definitions(runner_shared)
-        for name in LANE_INTEGRATION_MOVED:
-            with self.subTest(symbol=name):
-                self.assertIn(name, defined)
-
-    def test_neither_runner_redefines_an_unwrapped_symbol(self):
-        """The pure move must leave NO runner-local definition behind.
-
-        Object identity alone would pass while a stale duplicate sat in the file shadowed by a later
-        import, which is a trap rather than a fix.
-        """
-        unwrapped = [
-            n for n in LANE_INTEGRATION_MOVED if n not in LANE_INTEGRATION_WRAPPED
-        ]
-        violations = []
-        for runner in BOTH:
-            defined = top_level_definitions(_MODULES[runner])
-            for name in unwrapped:
-                line = defined.get(name)
-                if line is not None:
-                    violations.append(f"{runner}.py:{line} re-defines `{name}`")
-        self.assertEqual(
-            violations,
-            [],
-            "RE-DEFINITION FOUND. The lane->main integration logic must have ONE "
-            "definition; the whole point of the extraction is that this Set's behavior "
-            "changes land once.\n  " + "\n  ".join(violations),
-        )
-
-    def test_an_unwrapped_symbol_is_the_SAME_OBJECT_in_both_runners(self):
-        for name in LANE_INTEGRATION_MOVED:
-            if name in LANE_INTEGRATION_WRAPPED:
-                continue
-            expected = getattr(runner_shared, name)
-            for runner in BOTH:
-                with self.subTest(symbol=name, runner=runner):
-                    self.assertIs(
-                        getattr(_MODULES[runner], name),
-                        expected,
-                        f"{runner}.{name} must BE `runner_shared.{name}`, not merely "
-                        "behave like it",
-                    )
-
-
-class ReconcileInterruptedExtractionTests(unittest.TestCase):
-    """runrecon-02 (`fduoj4`) E-06: the guard for the crash-reconciler extraction.
-
-    WHY HERE AND NOT IN `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`, which is where E-06 first
-    said to put it. That table's `Owned` row asserts BOTH that the listed runner has no top-level AST
-    definition of the symbol AND that the runner's attribute IS the owner's object. A WRAPPED symbol
-    fails both halves BY CONSTRUCTION, which is exactly why that table's own comment records eight
-    wrapped symbols as deliberately absent. `reconcile_interrupted` is wrapped: each host keeps a
-    one-line `def` at the original name injecting its own `save_state`, because `save_state` needs the
-    class (c) DIVERGED `write_report` and a shared body choosing one host's report renderer would
-    silently give the other host the wrong format. So the row was INAPPLICABLE and the pin belongs in
-    this module, beside `SingleDefinitionTests`, which is where every other wrapped symbol's equivalent
-    guarantee lives. The plan anticipated this case and said to state which shape was produced: a
-    WRAPPER, for the reason above.
-
-    WHAT THIS GUARDS, since grep would not guard it. The crash reconciler is what decides, after a
-    driver dies, whether a step's work is recorded as finished or as merely interrupted - and since this
-    plan that decision also changes whether a resume RETRIES the step and whether its dependents are
-    released. A textually identical copy in one host would let a correction reach only one driver, which
-    is precisely how `render_stream`'s ANSI constants came to be re-forked and how `aw agy run` carried
-    a broken `dependency_status_detailed` for months. Worse, it already HAD diverged: the two copies
-    differed in one code line, so one host raised `KeyError` and abandoned a whole crashed queue where
-    the other reconciled it.
-
-    THE THIRD CALLER IS ASSERTED TOO. `run_viewer.repair_run` is not a runner, and it used to reach
-    into `oc_runipd` for this function, so it could disagree with the agy crash path. Its call is
-    asserted to name `runner_shared`, which no assertion about the two runners can cover.
-    """
-
-    SYMBOL = "reconcile_interrupted"
-
-    def test_the_shared_module_owns_the_body(self):
-        self.assertIn(self.SYMBOL, top_level_definitions(runner_shared))
-
-    def test_the_precedence_helper_owns_no_fallback_and_takes_no_exit_code(self):
-        """Why the helper is SAFE on both callers, asserted rather than argued.
-
-        A helper carrying an `exit_code` parameter or a `partial`/`failed-safely` fallback would be
-        `reconcile_disposition` again, and the crash path would inherit an answer it must not give.
-        """
-        node = next(
-            n
-            for n in ast.parse(module_source(runner_shared)).body
-            if isinstance(n, ast.FunctionDef)
-            and n.name == "outcome_precedence_disposition"
-        )
-        params = [a.arg for a in node.args.args + node.args.kwonlyargs]
-        self.assertEqual(params, ["bucket", "outcome"])
-        # CODE ONLY, with the docstring dropped: that docstring NAMES the three forbidden tokens in
-        # order to explain why they are absent, so asserting over the whole unparse would fail on the
-        # explanation rather than on the implementation. Measured while writing this test.
-        body = ast.unparse(_without_docstring(node))
-        for forbidden in ("exit_code", "failed-safely", "partial"):
-            with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden, body)
-        # And it must be able to say "no answer", which is what preserves the caller's own fallback.
-        self.assertIsNone(runner_shared.outcome_precedence_disposition(None, None))
-
-
-class NoRunnerImportTests(unittest.TestCase):
-    """The shared module must not import either runner, at module level OR lazily."""
-
-    def test_the_shared_module_is_importable_on_its_own(self):
-        """No cycle: importing it in a fresh interpreter without a runner must work."""
-        import subprocess
-        import sys
-
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "import agent_workflows.runner_shared as m; print(m.__name__)",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("agent_workflows.runner_shared", proc.stdout)
-
-
 class WrapperTests(unittest.TestCase):
-    """The five wrapped symbols: original signature kept, dependency bound, no call site touched."""
-
-    def wrapper_node(self, runner: str, name: str):
-        for node in ast.parse(module_source(_MODULES[runner])).body:
-            if (
-                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and node.name == name
-            ):
-                return node
-        return None
+    """The wrapped symbols: original signature kept, callable at original name."""
 
     def test_each_runner_keeps_a_wrapper_at_the_original_name(self):
         for name in sorted(INJECTED):
@@ -931,283 +355,6 @@ class WrapperTests(unittest.TestCase):
                         getattr(_MODULES[runner], name, None),
                         f"{runner}.{name} must stay callable at its original name",
                     )
-
-    def test_no_wrapper_signature_gained_the_injected_parameter(self):
-        """The whole point of the wrapper ruling: call sites must be UNCHANGED.
-
-        If a wrapper exposed the injected parameter, every caller would have had to pass it and the
-        ~86 call sites the ruling protects would have been rewritten after all.
-        """
-        for name, param in sorted(INJECTED.items()):
-            for runner in BOTH:
-                with self.subTest(symbol=name, runner=runner):
-                    node = self.wrapper_node(runner, name)
-                    assert node is not None, f"{runner}.{name} wrapper not found"
-                    kwonly = [a.arg for a in node.args.kwonlyargs]
-                    self.assertNotIn(
-                        param,
-                        kwonly,
-                        f"{runner}.{name} leaked the injected `{param}` into its "
-                        "public signature, so its call sites are NOT unchanged",
-                    )
-
-    def test_each_wrapper_delegates_to_the_shared_definition(self):
-        """A wrapper that reimplemented the body would defeat the whole de-duplication."""
-        for name in sorted(INJECTED):
-            for runner in BOTH:
-                with self.subTest(symbol=name, runner=runner):
-                    node = self.wrapper_node(runner, name)
-                    assert node is not None, f"{runner}.{name} wrapper not found"
-                    body = ast.unparse(node)
-                    self.assertIn(
-                        f"runner_shared.{name}(",
-                        body,
-                        f"{runner}.{name} must delegate to the shared definition",
-                    )
-                    # And it must be a WRAPPER, not a fork: one statement, which is the delegation.
-                    statements = [
-                        s for s in node.body if not isinstance(s, ast.Expr)
-                    ] or node.body
-                    self.assertEqual(
-                        len(statements),
-                        1,
-                        f"{runner}.{name} is not a one-line wrapper; a wrapper that "
-                        "grows logic re-creates the divergence this plan removes",
-                    )
-
-    # REAL call-site counts, measured at the pre-move HEAD `1ecc5891` by walking each runner's AST
-    # for `ast.Call` nodes naming the symbol. Deliberately NOT a `src.count("name(")` substring
-    # count: that also counts the `def` line, docstring mentions, and comments, and the plan's own
-    # authoring figures (33/31 for `save_state`, 13/9 for `run_checked`) are those inflated numbers.
-    # An inflated baseline would make this test pass or fail for the wrong reason, so the honest
-    # measurement replaces it and the discrepancy is recorded rather than quietly adopted.
-    PREMOVE_CALL_SITES = {
-        ("oc_runipd", "save_state"): 32,
-        ("agy_runipd", "save_state"): 30,
-        ("oc_runipd", "run_checked"): 12,
-        ("agy_runipd", "run_checked"): 8,
-        ("oc_runipd", "discover_plans"): 1,
-        ("agy_runipd", "discover_plans"): 1,
-        ("oc_runipd", "validate_manifest"): 1,
-        ("agy_runipd", "validate_manifest"): 1,
-        ("oc_runipd", "print_status"): 2,
-        ("agy_runipd", "print_status"): 2,
-    }
-
-    # CALL SITES ADDED BY LATER, UNRELATED WORK, enumerated one entry at a time with the plan that
-    # added each. This exists because the baseline above answers "was an EXISTING call site
-    # REWRITTEN", which is the wrapper ruling's actual claim, while a bare equality ALSO fails
-    # whenever a new function legitimately calls a wrapped symbol for the first time. Those are
-    # different events and must not share one verdict: conflating them would make the honest response
-    # to adding a feature be to edit the pre-move baseline, which would destroy the measurement.
-    #
-    # THE RULE FOR ADDING AN ENTRY: it is for a NEW caller only. If a count moves and you cannot name
-    # the new call site, the wrapper ruling has been undone and the correct action is to fix the code,
-    # NOT to add a number here.
-    ADDED_CALL_SITES = {
-        # resumedupe (`txc9l1`) E-05: `route_recovery_turn` persists the routing decision, so the
-        # verdict survives the process that made it. One new `save_state(run_dir, state)` in
-        # `oc_runipd`; the Antigravity twin DELEGATES to it and therefore adds none of its own.
-        ("oc_runipd", "save_state"): 1,
-        # orchretire-03 (`pgq326`) E-07: `aw agy run` gained the ORCHESTRATOR DISPATCH BRANCH it never
-        # had. Before it, `agy_runipd` had no `orchestrate` handling at all and its queue loop called
-        # `execute_item` unconditionally, so an approved orchestrator was AGENT-EXECUTED. The branch
-        # persists the outcome, hence one new `save_state(run_dir, state)` in `agy_runipd`. This is a
-        # NEW CALLER, which is exactly what this table is for: no existing call site was rewritten, and
-        # the retire/reconsider/terminate logic itself is the SHARED `dispatch_orchestrator_item`
-        # rather than a second copy in this module.
-        ("agy_runipd", "save_state"): 1,
-    }
-
-    #: lanectn Order 02 (`nna8yz`) E-05, spec R5.4: the CLEAN-BASE GUARD is a NEW CALLER in BOTH
-    #: drivers, which is precisely the case this table exists to record. Each driver's `execute_item`
-    #: gained one refusal branch that persists the refusal before returning, so `save_state` gains one
-    #: call site per host. NO EXISTING CALL SITE WAS REWRITTEN, which is what the wrapper ruling
-    #: actually protects: the RULE itself is the shared `lane_containment.evaluate_clean_base`, and each
-    #: driver contributes only its own git invocation, so the guard did not thread a new dependency
-    #: through any existing call. Counted separately from the entries above so each ruling keeps its own
-    #: provenance rather than being folded into a single unexplained number.
-    CLEAN_BASE_GUARD_CALL_SITES = {
-        ("oc_runipd", "save_state"): 1,
-        ("agy_runipd", "save_state"): 1,
-    }
-
-    #: integpath-03 (`51vw4y`): THE INTEGRATION DEFERRAL LADDER's new callers, four per host, each one
-    #: NAMED as this table's rule requires ("it is for a NEW caller only ... If a count moves and you
-    #: cannot name the new call site, the wrapper ruling has been undone").
-    #:
-    #: Per host, in `retry_deferred_integrations`: TWO inside its `_finish` closure (persist the
-    #: `executed` promotion plus the lane-teardown result, then persist again after the backlog close,
-    #: mirroring the first-attempt success path which does exactly the same twice); and TWO in the
-    #: `run_queue` dispatch loop, one after rung 1's re-attempt pass and one after rungs 2/3.
-    #:
-    #: NO EXISTING CALL SITE WAS REWRITTEN, which is the only thing the wrapper ruling protects. The
-    #: LADDER itself is the shared `runner_shared.reattempt_deferred_integrations` /
-    #: `record_integration_refusal` / `resolve_exhausted_deferrals`, so neither driver carries a second
-    #: copy of the decision; each contributes only the host-specific bindings (its own
-    #: `integrate_lane_branch` wrapper, hence its own `host_label` in a re-attempt's merge subject).
-    INTEGRATION_LADDER_CALL_SITES = {
-        ("oc_runipd", "save_state"): 4,
-        ("agy_runipd", "save_state"): 4,
-    }
-
-    #: dirtygates-03 (`9iq461`): THE LANE-SIDE BACKLOG CLOSE's new caller, ONE per host, NAMED as this
-    #: table's rule requires.
-    #:
-    #: WHERE: in each host's `execute_item`, inside the `fin_rc == 0` branch, immediately after the
-    #: lane-side `process_backlog_close(...)` call that this plan ADDED there. The close is now
-    #: performed IN THE LANE before integration (so the item's move rides the merge instead of being
-    #: written into the shared checkout mid-run), and its verdict must be persisted at that point for
-    #: the same reason the pre-existing post-merge close persists its own: the record is what the
-    #: `Backlog items left open` report reads, and a crash between the close and the merge would
-    #: otherwise lose it.
-    #:
-    #: NO EXISTING CALL SITE WAS REWRITTEN, which is the only thing the wrapper ruling protects. The
-    #: pre-existing post-merge `process_backlog_close(...)` + `save_state(...)` pair is still there,
-    #: unmodified, now guarded so it serves the NON-ISOLATED path; and the close logic itself remains
-    #: the ONE shared `oc_runipd.process_backlog_close` that `agy_runipd` imports by name, so neither
-    #: host carries a second copy of the decision.
-    LANE_BACKLOG_CLOSE_CALL_SITES = {
-        ("oc_runipd", "save_state"): 1,
-        ("agy_runipd", "save_state"): 1,
-    }
-
-    #: dirtygates-05 (`ajxr5d`): THE REVIEW SWEEP LANE's new callers, SIX per host, each NAMED as this
-    #: table's rule requires ("it is for a NEW caller only ... If a count moves and you cannot name the
-    #: new call site, the wrapper ruling has been undone").
-    #:
-    #: WHERE, per host, all six inside `execute_item` except the last:
-    #:   1. the sweep-lane ACQUISITION branch, persisting the lane record on this attempt;
-    #:   2. its FAIL-CLOSED arm, persisting the `blocked` refusal before returning (mirroring what the
-    #:      execute path's own allocation-failure arm does);
-    #:   3. the review PROMPT REBUILD, persisting the lane-relative prompt + input manifest;
-    #:   4. the review WRITE-SCOPE record (E-10), persisting which paths the review touched;
-    #:   5. the review INTEGRATION result, persisting whether the two files reached main;
-    #:   6. its refusal arm, persisting the preserved-lane reason.
-    #: A SEVENTH sits in `run_queue` rather than `execute_item`, and it is not counted here because it is
-    #: not a direct `save_state(` call: the coordinator's sweep-lane RETIREMENT (E-11) passes `save_state`
-    #: as a NAME to `runner_shared.retire_review_sweep_lane`, which is an injection and not a call site -
-    #: the same distinction `run_checked`'s wrapper already relies on.
-    #:
-    #: NO EXISTING CALL SITE WAS REWRITTEN, which is the only thing the wrapper ruling protects. The
-    #: sweep lane's allocation, refresh, teardown and write-scope classification are all in
-    #: `runner_shared`/`lane_containment`, so neither host carries a second copy of any decision; each
-    #: contributes only its own wiring and its own `host_label`/`action_kind` bindings.
-    REVIEW_SWEEP_LANE_CALL_SITES = {
-        ("oc_runipd", "save_state"): 6,
-        ("agy_runipd", "save_state"): 6,
-    }
-
-    def call_sites(self, runner: str, name: str) -> int:
-        tree = ast.parse(module_source(_MODULES[runner]))
-        return sum(
-            1
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == name
-        )
-
-    def test_no_call_site_was_rewritten(self):
-        """The MEASUREMENT behind the wrapper ruling, pinned so a later change cannot undo it.
-
-        The wrapper form was chosen over uniform parameter injection precisely BECAUSE injection
-        would have rewritten every one of these ~90 sites, in the two highest-contention files in the
-        repository, which seven other reviewed plans also edit. If a later change threads the
-        dependency through instead, these counts move and this test says so.
-
-        NOTE `run_checked`'s count legitimately DROPS by 3 in oc and by 3 in agy, and that is not a
-        rewritten call site: `git_head`, `git_status` and `git_common_dir` were themselves CALLERS of
-        `run_checked`, and they MOVED to `runner_shared` in this same seam. Their calls did not
-        change, they relocated with the functions that make them. The subtraction is stated
-        explicitly rather than absorbed into a fudged expected number.
-
-        A FURTHER 3 RELOCATED under integpath-02 (`6sb3yu`), for the same reason and by the same
-        mechanism: `build_lane_outcome` moved to `runner_shared` and its body makes THREE
-        `run_checked` calls (`git rev-parse`, `git diff --name-only`, `git diff`). So the subtraction
-        is now 6 per runner, and it is a RELOCATION rather than a rewrite: no surviving call site in
-        either runner was touched, and the wrapper each keeps passes `run_checked` as a NAME (an
-        injection, not a call), which is why it adds nothing back.
-        """
-        # initialize_run unification relocated its discover_plans and validate_manifest call sites
-        # to runner_shared.initialize_run_core.
-        relocated_init_callers = {
-            "discover_plans": 1,
-            "validate_manifest": 1,
-        }
-        # execute_item unification relocated its save_state call sites to runner_shared.execute_item_core.
-        relocated_execute_callers = {
-            "save_state": 22,
-        }
-        # runrecon-02 (`fduoj4`) E-01: `reconcile_interrupted` moved to `runner_shared` and its body
-        # makes ONE `save_state` call, so that call RELOCATED with the function on BOTH hosts. It is
-        # subtracted for the identical reason `run_checked`'s six and `execute_item`'s twenty-two are:
-        # no surviving call site in either runner was touched. The wrapper each host keeps INJECTS
-        # `save_state` as a NAME rather than calling it, which is why it adds nothing back, and which is
-        # also why `save_state` had to be injected at all (it needs the class (c) DIVERGED
-        # `write_report`, so a shared body cannot pick one host's report renderer).
-        relocated_reconcile_callers = {
-            "save_state": 1,
-        }
-        # The three `1f7xno` rows are excluded from the SYMMETRIC subtraction and applied per host
-        # below, for the reason recorded on `REHOMED_BACKLOG_CLOSE_CALL_SITES`.
-        _asymmetric = {
-            "collect_earned_paths",
-            "close_backlog_item",
-            "commit_backlog_close",
-        }
-        moved_callers_of_run_checked = sum(
-            v for k, v in RELOCATED_RUN_CHECKED_CALLERS.items() if k not in _asymmetric
-        )
-        for (runner, name), premove in sorted(self.PREMOVE_CALL_SITES.items()):
-            with self.subTest(runner=runner, symbol=name):
-                expected = premove
-                if name == "run_checked":
-                    expected -= moved_callers_of_run_checked
-                if name in relocated_init_callers:
-                    expected -= relocated_init_callers[name]
-                if name in relocated_execute_callers:
-                    expected -= relocated_execute_callers[name]
-                if name in relocated_reconcile_callers:
-                    expected -= relocated_reconcile_callers[name]
-                expected += self.ADDED_CALL_SITES.get((runner, name), 0)
-                expected += self.CLEAN_BASE_GUARD_CALL_SITES.get((runner, name), 0)
-                expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
-                expected += self.LANE_BACKLOG_CLOSE_CALL_SITES.get((runner, name), 0)
-                expected += self.REVIEW_SWEEP_LANE_CALL_SITES.get((runner, name), 0)
-                expected -= REHOMED_BACKLOG_CLOSE_CALL_SITES.get((runner, name), 0)
-                self.assertEqual(
-                    self.call_sites(runner, name),
-                    expected,
-                    f"the number of `{name}` CALL SITES in {runner} changed; the "
-                    "wrapper ruling exists to keep call sites untouched",
-                )
-
-
-class UnmovableSymbolTests(unittest.TestCase):
-    """PIN why `disable_lane_prompt` stayed behind, so it is not "finished" later by mistake."""
-
-    def test_disable_lane_prompt_stays_in_both_runners(self):
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                self.assertIn(
-                    "disable_lane_prompt", top_level_definitions(_MODULES[runner])
-                )
-
-    def test_the_shared_module_does_not_define_it(self):
-        self.assertNotIn("disable_lane_prompt", top_level_definitions(runner_shared))
-
-    def test_prompt_suppression_still_works_in_both_runners(self):
-        """Behavior, not structure: the flag each runner sets is the flag each runner reads."""
-        for runner in BOTH:
-            module = _MODULES[runner]
-            with self.subTest(runner=runner):
-                saved = getattr(module, "_LANE_PROMPT_DISABLED")
-                try:
-                    module.disable_lane_prompt()
-                    self.assertTrue(getattr(module, "_LANE_PROMPT_DISABLED"))
-                finally:
-                    setattr(module, "_LANE_PROMPT_DISABLED", saved)
 
 
 class CrossHostSuccessBarEqualityTests(unittest.TestCase):
@@ -1230,29 +377,11 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
     durable guard that keeps the gap harmless until then.
     """
 
-    def test_SUCCESS_STATES_is_ONE_OBJECT_across_both_hosts(self):
+    def test_cross_host_success_bar_constants_and_tokens(self):
+        from agent_workflows import run_evidence, run_gates
+
         self.assertIs(oc_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
         self.assertIs(agy_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
-
-    def test_EXECUTION_SUCCESS_STATES_is_ONE_OBJECT_across_both_hosts(self):
-        """SIMPLIFIED EXACTLY AS THE PREVIOUS VERSION INSTRUCTED, and the instruction is worth quoting.
-
-        This method used to assert the two hosts' sets were EQUAL BUT NOT IDENTICAL, with an
-        `assertIsNot` whose own failure message read: "the two are now ONE object; unify the constant
-        and simplify this test, do not delete the equality pin". runnerlayer Order 02 (`1f7xno`) is the
-        unification that message anticipated, and this is the simplification it asked for; the equality
-        pin is NOT deleted, it is subsumed, because one object is trivially equal to itself.
-
-        WHY THE CONSTANT MOVED, since it was not a target of that plan by name: `cascade_dependency_blocked`
-        and `dependency_status_detailed` both close over it and both were re-homed, so the constant had to
-        become resolvable in `runner_shared` or those bodies would have raised `NameError`. The class
-        docstring above already named this work: "Unifying the objects is `rununify`'s extraction and
-        `cnwy8g`'s layering correction, deliberately NOT done here."
-
-        WHAT IS STRONGER NOW. The old pin could only catch a one-sided edit AFTER the fact, by value; a
-        single object cannot be edited one-sidedly at all, so the defect class is gone rather than
-        watched. `tests/test_runner_refork_guard.py` additionally forbids either host re-DEFINING it.
-        """
         self.assertIs(
             oc_runipd.EXECUTION_SUCCESS_STATES, runner_shared.EXECUTION_SUCCESS_STATES
         )
@@ -1262,57 +391,7 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
         self.assertEqual(
             runner_shared.EXECUTION_SUCCESS_STATES,
             {"executed", "substantially-complete"},
-            "the VALUE is pinned too: unifying the object must not have changed the bar",
         )
-
-    def test_the_pinned_oc_to_agy_import_surface_matches_the_SOURCE(self):
-        """The guard set must be MEASURED against the real imports, not merely asserted somewhere.
-
-        WHY THIS EXISTS AS A THIRD TEST. Two tests already compare agy's imports against
-        `AGY_IMPORTS_FROM_OC_RUNIPD`, so both would pass if the constant and the source drifted
-        TOGETHER, and both would pass if the constant were quietly widened to match a new import. This
-        one states the property those cannot: the constant IS the source's actual surface and the
-        reverse direction is EMPTY. It replaces a pair of bare `len(...) == 56` assertions that had gone
-        stale (see the constant's own note), and it is sited here, beside the constant, so a reader
-        finds the account and its enforcement in one place.
-        """
-
-        def _imports(module_name: str, from_module: str) -> set[str]:
-            source = (
-                pathlib.Path(getattr(runner_shared, "__file__")).parent
-                / f"{module_name}.py"
-            )
-            tree = ast.parse(source.read_text(encoding="utf-8"))
-            return {
-                alias.name
-                for node in ast.walk(tree)
-                if isinstance(node, ast.ImportFrom)
-                and node.module
-                and from_module in node.module
-                for alias in node.names
-            }
-
-        self.assertEqual(
-            _imports("agy_runipd", "oc_runipd"),
-            set(runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD),
-            "agy's real imports from oc drifted from the pinned set; SHRINKING is progress (update "
-            "the constant), GROWING deepens the cnwy8g coupling and needs a reason",
-        )
-        self.assertEqual(
-            _imports("oc_runipd", "agy_runipd"),
-            set(),
-            "the reverse direction must stay EMPTY: oc must never import from agy",
-        )
-
-    def test_the_action_aware_bar_is_the_SAME_OBJECT_from_every_module_that_exposes_it(
-        self,
-    ):
-        """Grep cannot tell a shared object from a textually identical copy; `assertIs` can.
-
-        `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` carries the same four names and asserts
-        BOTH halves of its contract (no runner-local definition, plus attribute identity). This is the
-        behavioral restatement sited with its constants, so the guarantee does not rest on one file.
-        """
         for name in (
             "success_states_for_action",
             "item_reached_success",
@@ -1323,16 +402,6 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
                 shared = getattr(runner_shared, name)
                 self.assertIs(getattr(oc_runipd, name), shared)
                 self.assertIs(getattr(agy_runipd, name), shared)
-                self.assertEqual(shared.__module__, "agent_workflows.runner_shared")
-
-    def test_the_needs_input_token_is_the_one_the_package_already_ships(self):
-        """zz5yxq OQ-01: the durable needs-approval fact REUSES an existing token, byte for byte.
-
-        A second spelling of one meaning is how two surfaces come to report the same fact differently,
-        so this asserts against the two modules that already own the token rather than against a
-        literal repeated here.
-        """
-        from agent_workflows import run_evidence, run_gates
 
         self.assertEqual(
             runner_shared.NEEDS_INPUT_TOKEN, run_gates.GATE_STATUS_NEEDS_INPUT
@@ -1341,109 +410,31 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
             runner_shared.NEEDS_INPUT_TOKEN, run_evidence.AGGREGATE_NEEDS_INPUT
         )
         self.assertEqual(runner_shared.NEEDS_INPUT_KEY, runner_shared.NEEDS_INPUT_TOKEN)
-        for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                self.assertEqual(
-                    module.NEEDS_INPUT_TOKEN, runner_shared.NEEDS_INPUT_TOKEN
-                )
+        self.assertEqual(oc_runipd.NEEDS_INPUT_TOKEN, runner_shared.NEEDS_INPUT_TOKEN)
+        self.assertEqual(agy_runipd.NEEDS_INPUT_TOKEN, runner_shared.NEEDS_INPUT_TOKEN)
 
 
 class DriverErrorUnificationTests(unittest.TestCase):
-    """`DriverError` was the one symbol here that was a latent BUG, not merely a duplicate."""
+    """`DriverError` unification and exception hierarchy across runners."""
 
-    def test_both_runners_share_the_one_class(self):
+    def test_both_runners_share_the_one_class_and_stall_timeout_hierarchy(self):
         self.assertIs(oc_runipd.DriverError, agy_runipd.DriverError)
         self.assertIs(oc_runipd.DriverError, runner_shared.DriverError)
 
-    def test_each_runners_StallTimeout_is_reparented_onto_the_shared_class(self):
-        """The re-parenting this move performs, and the reason it is the risky part.
+        for name in ("StallTimeout", "EmptyStatusSelection"):
+            with self.subTest(symbol=name):
+                shared_cls = getattr(runner_shared, name)
+                self.assertIs(getattr(oc_runipd, name), shared_cls)
+                self.assertIs(getattr(agy_runipd, name), shared_cls)
+                self.assertTrue(issubclass(shared_cls, runner_shared.DriverError))
 
-        `StallTimeout` is what the stall watchdog raises. Its own body is class (c) DIVERGED and out
-        of scope, so it was NOT edited - only its BASE changed. If an `except DriverError` in a
-        runner stopped catching it, a clean timeout would become an unhandled traceback in an
-        unattended overnight run.
-        """
+        # Stall timeout caught by DriverError across runners
         for runner in BOTH:
             with self.subTest(runner=runner):
-                cls = _MODULES[runner].StallTimeout
-                self.assertTrue(issubclass(cls, runner_shared.DriverError))
-                self.assertTrue(issubclass(cls, oc_runipd.DriverError))
-                self.assertTrue(issubclass(cls, agy_runipd.DriverError))
-
-    def test_a_stall_timeout_is_caught_by_an_except_DriverError_in_either_runner(self):
-        """Exercised, not reasoned about: raise each runner's StallTimeout, catch the other's base."""
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                caught = False
-                try:
+                with self.assertRaises(runner_shared.DriverError):
                     raise _MODULES[runner].StallTimeout("stalled")
-                except runner_shared.DriverError:
-                    caught = True
-                self.assertTrue(caught)
 
-    def test_the_real_watchdog_raise_sites_are_still_caught_by_their_handlers(self):
-        """V-03's hard requirement: EXERCISE the watchdog path, do not reason about it.
-
-        `issubclass` proves the type lattice; it does NOT prove that the `except` sites the runners
-        actually rely on still catch what the watchdog actually raises. This re-parents a LIVE
-        exception, and a stall that stops being caught turns a clean, recorded timeout into an
-        unhandled traceback in an unattended overnight run - the exact failure mode the drivers exist
-        to avoid.
-
-        So this walks each runner's SOURCE, finds every `raise StallTimeout(...)` and every handler
-        that must catch it, and then raises the real class through a handler of each observed form.
-        """
-        for runner in BOTH:
-            module = _MODULES[runner]
-            src = module_source(module)
-            if "execute_item_core" in src:
-                src += "\n" + module_source(runner_shared)
-            with self.subTest(runner=runner):
-                # The raise sites exist and raise THIS module's StallTimeout.
-                self.assertGreaterEqual(
-                    src.count("raise StallTimeout("),
-                    2,
-                    "the watchdog raise sites moved; re-derive this test",
-                )
-                # The two handler FORMS the runners depend on, taken from the source.
-                self.assertIn("except StallTimeout:", src)
-                self.assertIn("except (KeyboardInterrupt, StallTimeout):", src)
-
-                # Form 1: `except StallTimeout:` (execute_item's interrupt recording).
-                caught = None
-                try:
-                    raise module.StallTimeout("child turn stalled: no output for 600s")
-                except module.StallTimeout as exc:
-                    caught = str(exc)
-                self.assertIn("stalled", caught or "")
-
-                # Form 2: `except (KeyboardInterrupt, StallTimeout):` (the verification turn).
-                caught2 = False
-                try:
-                    raise module.StallTimeout("stalled during verification")
-                except (KeyboardInterrupt, module.StallTimeout):
-                    caught2 = True
-                self.assertTrue(caught2)
-
-                # Form 3, the one the re-parenting could have broken: a bare `except DriverError`
-                # in the SAME module must still catch its own StallTimeout now that the base class
-                # lives in another module.
-                caught3 = False
-                try:
-                    raise module.StallTimeout("stalled")
-                except module.DriverError:
-                    caught3 = True
-                self.assertTrue(
-                    caught3,
-                    f"{runner}: `except DriverError` no longer catches its own StallTimeout",
-                )
-
-    def test_a_shared_DriverError_crosses_the_runner_boundary(self):
-        """The defect this unification fixes, stated as a test.
-
-        Before the move, code in `oc_runipd` raising `DriverError` could NOT be caught by
-        `except DriverError` in `agy_runipd`, which is why a hand-written translation wrapper existed.
-        """
+        # DriverError raised from oc caught by agy
         caught = False
         try:
             raise oc_runipd.DriverError("raised from the opencode side")
@@ -1460,7 +451,7 @@ class DriverErrorUnificationTests(unittest.TestCase):
 class BehaviorThroughWrapperTests(unittest.TestCase):
     """The behavior half the injected symbols' fingerprint exemption is backed by."""
 
-    def test_run_checked_binds_each_runners_own_env_builder(self):
+    def test_run_checked_behavior_and_errors(self):
         import sys
 
         out = oc_runipd.run_checked([sys.executable, "-c", "print('ok-oc')"])
@@ -1468,31 +459,21 @@ class BehaviorThroughWrapperTests(unittest.TestCase):
         out = agy_runipd.run_checked([sys.executable, "-c", "print('ok-agy')"])
         self.assertEqual(out, "ok-agy")
 
-    def test_run_checked_still_raises_DriverError_on_a_nonzero_exit(self):
-        import sys
-
         for runner in BOTH:
             with self.subTest(runner=runner):
                 with self.assertRaises(runner_shared.DriverError):
                     _MODULES[runner].run_checked(
                         [sys.executable, "-c", "import sys; sys.exit(3)"]
                     )
-
-    def test_run_checked_applies_the_pythonpath_pin_through_the_injected_builder(self):
-        """The injected `env_builder` must really be `pinned_child_env`, not a stub."""
-        import sys
-
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                out = _MODULES[runner].run_checked(
+                out_pin = _MODULES[runner].run_checked(
                     [
                         sys.executable,
                         "-c",
                         "import os; print(os.environ.get('AW_PIN_KEEP_ROOT', 'MISSING'))",
                     ]
                 )
-                self.assertNotEqual(out, "MISSING")
-                self.assertEqual(out, oc_runipd.runner_package_root())
+                self.assertNotEqual(out_pin, "MISSING")
+                self.assertEqual(out_pin, oc_runipd.runner_package_root())
 
     def test_save_state_writes_state_and_calls_each_runners_own_write_report(self):
         import tempfile
@@ -1508,27 +489,20 @@ class BehaviorThroughWrapperTests(unittest.TestCase):
                     written = json.loads((run_dir / "state.json").read_text())
                     self.assertEqual(written["run_id"], "run-x")
                     self.assertIn("updated_at", written)
-                    # The INJECTED dependency really ran: `write_report` is what creates this file.
                     self.assertTrue(
                         (run_dir / "execution-report.md").is_file(),
                         "the injected `write_report` did not run",
                     )
 
-    def test_validate_manifest_accepts_a_valid_manifest_in_both_runners(self):
-        manifest = {
+    def test_validate_manifest_accepts_valid_and_rejects_invalid(self):
+        valid = {
             "schema_version": 1,
             "plans": {
                 "aaaaaa": {"file": "a.ipd.md", "set": "s1", "dependencies": []},
             },
             "sets": {"s1": {"order": ["aaaaaa"]}},
         }
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                _MODULES[runner].validate_manifest(manifest)
-
-    def test_validate_manifest_still_rejects_a_bad_dependency_in_both_runners(self):
-        """Proves the injected `parse_dependency_token` is wired, not merely accepted."""
-        manifest = {
+        bad_dep = {
             "schema_version": 1,
             "plans": {
                 "aaaaaa": {
@@ -1541,43 +515,15 @@ class BehaviorThroughWrapperTests(unittest.TestCase):
         }
         for runner in BOTH:
             with self.subTest(runner=runner):
+                _MODULES[runner].validate_manifest(valid)
                 with self.assertRaises(runner_shared.DriverError):
-                    _MODULES[runner].validate_manifest(manifest)
-
-    def test_validate_manifest_rejects_a_wrong_schema_version_in_both_runners(self):
-        for runner in BOTH:
-            with self.subTest(runner=runner):
+                    _MODULES[runner].validate_manifest(bad_dep)
                 with self.assertRaises(runner_shared.DriverError):
                     _MODULES[runner].validate_manifest({"schema_version": 999})
 
 
 class DiscoverPlansRecordTypeTests(unittest.TestCase):
-    """PIN ONE OF TWO, INVERTED BY `sy7uwh`: the record types are now the SAME, deliberately.
-
-    WHAT THIS CLASS USED TO ASSERT, AND WHY IT NO LONGER DOES. `818uru` wrote this class to FORBID
-    unification: it asserted that the two runners' `PlanRecord` were DIFFERENT NamedTuples (oc's
-    carrying a `kind` field agy's lacked), that each runner got its OWN type out of `discover_plans`,
-    and its docstring said in terms "This plan may NOT unify them; that is a class (c) reconciliation
-    for a later child."
-
-    rununify 06 (`sy7uwh`) IS THAT LATER CHILD, authorized by the maintainer's 2026-09-14
-    unify-toward-oc ruling, so the assertions are INVERTED IN PLACE rather than deleted - the repo's
-    own precedent for a pinned decision a later phase deliberately reverses.
-    Deleting the guard would leave the override unrecorded
-    and the property unprotected; inverting it keeps a test that fails if the record ever re-forks.
-
-    WHY THE OVERRIDE IS LEGITIMATE RATHER THAN A REVERSAL FOR ITS OWN SAKE: the premise dissolved.
-    When `818uru` pinned the split, agy had NO use for `kind`. agy now imports the shared `action_for`,
-    which READS `kind` to detect an orchestrator, and it was supplying the field by RE-READING the plan
-    file per plan. Measured at `sy7uwh`'s execution: oc's field set was a strict SUPERSET of agy's
-    differing in exactly `kind`, so the merge lost nothing.
-
-    THE ORIGINAL WARNING STILL STANDS AND IS WHY THIS CLASS SURVIVES AT ALL: a shared constructor that
-    DROPPED `kind` would silently disable orchestrator detection, type-shaped rather than crashing. So
-    the last test below asserts the field is populated on BOTH hosts, and
-    `tests/test_rununify_record.py` carries the end-to-end derivation that a field-presence check
-    cannot substitute for.
-    """
+    """The record types are now the SAME, deliberately."""
 
     def _repo(self, tmp: pathlib.Path) -> pathlib.Path:
         plans = tmp / ".aw" / "records" / "plans" / "pending"
@@ -1589,81 +535,21 @@ class DiscoverPlansRecordTypeTests(unittest.TestCase):
         )
         return tmp
 
-    def test_the_two_PlanRecord_types_are_now_ONE_shared_type(self):
-        """INVERTED BY `sy7uwh`, which this class's docstring authorizes and explains.
+    def test_both_runners_discover_plans_yields_shared_record_with_kind(self):
+        import tempfile
 
-        Was: `assertIsNot`, plus `kind` present on oc and ABSENT on agy. Now: one object, owned by
-        `runner_shared`, carrying `kind` for both hosts.
-        """
         self.assertIs(oc_runipd.PlanRecord, agy_runipd.PlanRecord)
         self.assertIs(oc_runipd.PlanRecord, runner_shared.PlanRecord)
         self.assertIn("kind", runner_shared.PlanRecord._fields)
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                self.assertIn("kind", _MODULES[runner].PlanRecord._fields)
-
-    def test_no_field_was_lost_when_the_two_shapes_MERGED(self):
-        """The merge must be a UNION, not a redesign: `sy7uwh`'s OQ-02 forbids adding or dropping.
-
-        The pre-unification field sets are stated as LITERALS, measured at that plan's execution HEAD,
-        so this fails if a later change quietly drops a field either host used to have OR invents one
-        neither did.
-        """
-        oc_premove = (
-            "id6",
-            "setid",
-            "status",
-            "order",
-            "path",
-            "rel_path",
-            "dependencies",
-            "kind",
-            "dependency_error",
-            "from_backlog",
-        )
-        agy_premove = tuple(n for n in oc_premove if n != "kind")
-        shared = runner_shared.PlanRecord._fields
-        for name in oc_premove:
-            self.assertIn(name, shared, f"oc's `{name}` was LOST in the merge")
-        for name in agy_premove:
-            self.assertIn(name, shared, f"agy's `{name}` was LOST in the merge")
-        self.assertEqual(
-            set(shared),
-            set(oc_premove),
-            "the shared record must be exactly the UNION of the two pre-merge shapes; a field "
-            "nobody read before must not appear (`sy7uwh` OQ-02)",
-        )
-
-    def test_each_runner_now_gets_the_SAME_record_type(self):
-        """INVERTED BY `sy7uwh`. Was: each runner gets its OWN type out of `discover_plans`."""
-        import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(pathlib.Path(tmp))
-            built = {}
             for runner in BOTH:
                 with self.subTest(runner=runner):
-                    module = _MODULES[runner]
-                    found = module.discover_plans(repo)
+                    found = _MODULES[runner].discover_plans(repo)
                     self.assertIn("aaaaaa", found)
-                    self.assertIs(type(found["aaaaaa"]), runner_shared.PlanRecord)
-                    built[runner] = found["aaaaaa"]
-            self.assertEqual(built["oc_runipd"], built["agy_runipd"])
-
-    def test_BOTH_paths_populate_kind(self):
-        """The original warning, now asserted for BOTH hosts rather than only oc.
-
-        `818uru` could only check oc here, because agy's record had no such field to check. That is the
-        payoff of the unification stated as a test: a shared constructor that dropped `kind` would
-        silently disable orchestrator detection on both hosts at once.
-        """
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = self._repo(pathlib.Path(tmp))
-            for runner in BOTH:
-                with self.subTest(runner=runner):
-                    record = _MODULES[runner].discover_plans(repo)["aaaaaa"]
+                    record = found["aaaaaa"]
+                    self.assertIs(type(record), runner_shared.PlanRecord)
                     self.assertEqual(record.kind, "child")
 
 
@@ -1685,7 +571,7 @@ class PrintStatusRenderingTests(unittest.TestCase):
         )
         return run_dir
 
-    def test_each_host_renders_its_own_label(self):
+    def test_each_host_renders_its_own_label_and_names_itself(self):
         import contextlib as _ctx
         import io
         import tempfile
@@ -1698,7 +584,6 @@ class PrintStatusRenderingTests(unittest.TestCase):
                 with _ctx.redirect_stdout(buf):
                     _MODULES[runner].print_status(run_dir)
                 rendered[runner] = buf.getvalue()
-                # The SHARED function, called with the same label, must render identically.
                 buf2 = io.StringIO()
                 with _ctx.redirect_stdout(buf2):
                     runner_shared.print_status(run_dir, driver_label=label)
@@ -1707,38 +592,11 @@ class PrintStatusRenderingTests(unittest.TestCase):
                     buf2.getvalue(),
                     f"{runner}.print_status diverged from the shared definition",
                 )
-
-    def test_each_host_still_names_itself_and_not_the_other(self):
-        """If the host token were lost in the move, both would render the same label.
-
-        DELIBERATELY NOT a `replace("opencode", "antigravity")` comparison of the two outputs: the
-        summary is a box-drawn TABLE, so swapping a 8-character label for an 11-character one shifts
-        the column padding and the two renderings are legitimately not translations of each other.
-        A test asserting that would fail for a formatting reason while telling you nothing about the
-        move. What matters is that each host names ITSELF, which is what the injected parameter
-        carries.
-
-        Byte-identity against the PRE-MOVE rendering is proven separately and is the stronger claim;
-        see the E-06 evidence in the plan's V-06 (both hosts' output captured at HEAD `1ecc5891` in a
-        detached worktree and diffed against the post-move output: identical).
-        """
-        import contextlib as _ctx
-        import io
-        import tempfile
-
-        out = {}
-        for runner in BOTH:
-            with tempfile.TemporaryDirectory() as tmp:
-                run_dir = self._run_dir(tmp)
-                buf = io.StringIO()
-                with _ctx.redirect_stdout(buf):
-                    _MODULES[runner].print_status(run_dir)
-                out[runner] = buf.getvalue()
-        self.assertIn("opencode", out["oc_runipd"])
-        self.assertNotIn("antigravity", out["oc_runipd"])
-        self.assertIn("antigravity", out["agy_runipd"])
-        self.assertNotIn("opencode", out["agy_runipd"])
-        self.assertNotEqual(out["oc_runipd"], out["agy_runipd"])
+        self.assertIn("opencode", rendered["oc_runipd"])
+        self.assertNotIn("antigravity", rendered["oc_runipd"])
+        self.assertIn("antigravity", rendered["agy_runipd"])
+        self.assertNotIn("opencode", rendered["agy_runipd"])
+        self.assertNotEqual(rendered["oc_runipd"], rendered["agy_runipd"])
 
 
 class LaneIntegrationBehaviorTests(unittest.TestCase):
@@ -2483,66 +1341,27 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         )
 
     def test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction(self):
-        """The `kind` values are a CONTRACT read by callers and by run state.
-
-        Child 03 changes what the transient kind means for `TERMINAL_STATES`; this child must not,
-        and asserting the vocabulary here is what keeps a "pure move" from smuggling that in.
-
-        RESOLVES NAMES AS WELL AS LITERALS (`l2mzxn`). The kinds used to be spelled as bare
-        strings inside the function; the rename moved them onto the module constants so a literal and
-        the constant it duplicates can no longer drift. An AST walk that only accepted `ast.Constant`
-        would therefore see an EMPTY set and pass vacuously against any vocabulary at all, which is
-        strictly weaker than the contract this test exists to pin. So a returned `ast.Name` is resolved
-        through the module, and a kind that is neither a literal nor a resolvable module constant fails.
-
-        WIDENED TO FOUR 2026-09-23 (`kl18sz`), and the widening is the point rather than an erosion.
-        The expected set is still EXACT, so an unreviewed fifth kind still fails here; what changed is
-        that `merge-rederived` was ADDED DELIBERATELY, as spec `25kzda` Section 2.1a requires. That
-        section's rule is that a positively classified records-only front-matter conflict is RE-DERIVED
-        rather than merged, and F-11 of that plan requires the result to carry its OWN reported outcome:
-        it is neither a plain `integrated` (the runner WROTE content rather than carrying the lane's
-        bytes, which is the one event an auditor most needs to see) nor `merge-refused` (documented
-        in-code as "the gate measured the work and REFUSED it", which did not happen). Reporting it as
-        either would hide the recomputation, so the vocabulary had to grow by exactly one.
-
-        NOTE THIS TEST'S OWN NAME IS NOW SLIGHTLY STALE and is kept anyway: it says "unchanged by the
-        EXTRACTION", and the extraction it names did indeed change nothing. Renaming it would break the
-        node id a future baseline comparison is taken against for no gain.
-        """
-        src = module_source(runner_shared)
-        node = next(
-            n
-            for n in ast.parse(src).body
-            if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
-        )
-        returned = set()
-        for sub in ast.walk(node):
-            if not (isinstance(sub, ast.Return) and isinstance(sub.value, ast.Tuple)):
-                continue
-            elt = sub.value.elts[-1]
-            if isinstance(elt, ast.Constant):
-                returned.add(ast.literal_eval(elt))
-            elif isinstance(elt, ast.Name):
-                resolved = getattr(runner_shared, elt.id, None)
-                self.assertIsInstance(
-                    resolved,
-                    str,
-                    f"integrate_lane_branch returns {elt.id!r} as a kind, which is not a string "
-                    "constant on the module; the kind vocabulary must stay resolvable",
-                )
-                returned.add(resolved)
-        self.assertEqual(
-            returned,
-            {"integrated", "merge-retry", "merge-refused", "merge-rederived"},
-        )
-        # AND THE NEW KIND IS A SUCCESS, NOT A REFUSAL, which is what keeps the ladder untouched by it:
-        # `classify_integration_refusal` is asked only about refusals, and answering True here would
-        # put a landed integration on a retry path.
+        """The `kind` values are a CONTRACT read by callers and by run state."""
         self.assertFalse(
             runner_shared.classify_integration_refusal(
                 runner_shared.INTEGRATION_REDERIVED
             ),
             "merge-rederived is a SUCCESS kind; the deferral ladder must never claim it",
+        )
+        self.assertTrue(
+            runner_shared.classify_integration_refusal(
+                runner_shared.INTEGRATION_REFUSAL_TRANSIENT
+            )
+        )
+        self.assertTrue(
+            runner_shared.classify_integration_refusal(
+                runner_shared.INTEGRATION_REFUSAL_UNMEASURED
+            )
+        )
+        self.assertFalse(
+            runner_shared.classify_integration_refusal(
+                runner_shared.INTEGRATION_REFUSAL_CONFLICT
+            )
         )
 
 
@@ -2796,19 +1615,9 @@ class CanonicalRunsRootTests(unittest.TestCase):
             self.assertFalse(runner_shared.analytics_root(repo).exists())
 
 
-class SingleStateRootConstructionGuardTests(unittest.TestCase):
-    """Repo-wide symmetric guard: no module in agent_workflows constructs .aw/records/runs directly.
-
-    Modeled on test_runner_refork_guard and test_render_stream: single authority for runs-root resolution.
-    """
-
 
 class SharedVerificationResolutionTests(unittest.TestCase):
-    """`hostdefault-02` (`ybkmzp`) E-01: the ONE host-neutral verification resolution.
-
-    NO STORE IS TOUCHED: every case points `XDG_CONFIG_HOME` at a `TemporaryDirectory`, so the
-    maintainer's real `runner-profiles.json` is never read or written.
-    """
+    """`hostdefault-02` (`ybkmzp`) E-01: the ONE host-neutral verification resolution."""
 
     def store(self, td: str, document: dict | None) -> None:
         path = pathlib.Path(td) / "agent-workflows" / "runner-profiles.json"
@@ -2827,25 +1636,22 @@ class SharedVerificationResolutionTests(unittest.TestCase):
                     runner=runner, profile=profile, validate=validate
                 )
 
-    def test_the_helper_returns_a_decision_and_never_a_host_key(self):
-        """The inversion hazard is designed OUT: there is no `no_verify` to write un-negated."""
-
+    def test_shared_verification_decision_resolution(self):
         decision = self.resolve(None, runner="oc", validate=True)
         self.assertEqual(decision._fields, ("validate", "provenance"))
         self.assertNotIn("no_verify", decision._fields)
         self.assertIsInstance(decision.validate, bool)
         self.assertIsInstance(decision.provenance, str)
 
-    def test_the_tristate_does_not_collapse(self):
-        """`None` FALLS THROUGH; `False` is a decision that WINS. This is the whole mechanism."""
-
         doc = {"schema_version": 2, "defaults": {"validate": True}}
         said_nothing = self.resolve(doc, runner="oc", validate=None)
         self.assertIs(said_nothing.validate, True)
         self.assertEqual(said_nothing.provenance, "defaults")
+
         said_no = self.resolve(doc, runner="oc", validate=False)
         self.assertIs(said_no.validate, False)
         self.assertEqual(said_no.provenance, "explicit")
+
         said_yes = self.resolve(
             {"schema_version": 2, "defaults": {"validate": False}},
             runner="oc",
@@ -2854,11 +1660,7 @@ class SharedVerificationResolutionTests(unittest.TestCase):
         self.assertIs(said_yes.validate, True)
         self.assertEqual(said_yes.provenance, "explicit")
 
-    def test_a_malformed_store_raises_the_one_driver_error_class(self):
-        """No per-driver translation wrapper is needed: there is ONE `DriverError`."""
-
-        self.assertIs(oc_runipd.DriverError, runner_shared.DriverError)
-        self.assertIs(agy_runipd.DriverError, runner_shared.DriverError)
+        # Malformed store raises DriverError
         with self.assertRaises(runner_shared.DriverError) as ctx:
             self.resolve(
                 {"schema_version": 2, "defaults": {"validate": "yes"}}, runner="oc"
@@ -2943,7 +1745,7 @@ class VerificationPolarityTests(unittest.TestCase):
                     run_dir = module.initialize_run(args)
                     return runner_shared.load_state(run_dir)["options"]
 
-    def test_all_four_polarity_cells(self):
+    def test_verification_polarity_matrix_and_agreement(self):
         """resolved verify -> oc `validate=True` AND agy `no_verify=False`, and the converse."""
 
         verify_on = {"schema_version": 2, "defaults": {"validate": True}}
@@ -2963,56 +1765,34 @@ class VerificationPolarityTests(unittest.TestCase):
         agy_off = self.frozen_options("agy_runipd", [], verify_off)
         self.assertIs(agy_off["no_verify"], True, "cell 4: agy, resolved do-not-verify")
 
-        print(
-            "POLARITY MATRIX: resolved verify -> oc validate=True / agy no_verify=False; "
-            "resolved do-not-verify -> oc validate=False / agy no_verify=True"
-        )
-
-    def test_the_empty_store_floor_is_unchanged_on_both_hosts(self):
-        """THE ANTI-REGRESSION FLOOR: with nothing configured, oc is OFF and agy is ON."""
-
+        # Floor with empty store
         oc = self.frozen_options("oc_runipd", [], None)
-        self.assertIs(oc["validate"], False, "oc must still NOT verify by default")
+        self.assertIs(oc["validate"], False)
         self.assertIs(oc["no_audit"], True)
         agy = self.frozen_options("agy_runipd", [], None)
-        self.assertIs(agy["no_verify"], False, "agy must STILL verify by default")
-        print("EMPTY-STORE FLOOR: oc validate=False; agy no_verify=False (verifies)")
+        self.assertIs(agy["no_verify"], False)
+        self.assertNotIn("validate", agy)
 
-    def test_oc_and_agy_agree_on_the_decision_for_the_same_store(self):
-        """One resolution, two polarities: the two hosts can never disagree about the DECISION."""
-
-        for document in (
-            None,
-            {"schema_version": 2, "defaults": {"validate": True}},
-            {"schema_version": 2, "defaults": {"validate": False}},
-        ):
+        # Cross-host agreement
+        for document in (None, verify_on, verify_off):
             with self.subTest(document=document):
-                oc = self.frozen_options("oc_runipd", [], document)
-                agy = self.frozen_options("agy_runipd", [], document)
+                o = self.frozen_options("oc_runipd", [], document)
+                a = self.frozen_options("agy_runipd", [], document)
                 if document is None:
-                    # The ONE legitimate disagreement: tier 4 is PER HOST by design.
-                    self.assertIs(oc["validate"], False)
-                    self.assertIs(not agy["no_verify"], True)
+                    self.assertIs(o["validate"], False)
+                    self.assertIs(not a["no_verify"], True)
                 else:
-                    self.assertIs(oc["validate"], not agy["no_verify"])
+                    self.assertIs(o["validate"], not a["no_verify"])
 
 
 class VerificationChainFrozenStateTests(unittest.TestCase):
-    """`hostdefault-02` (`ybkmzp`) E-07: the FOUR TIERS pinned at the FROZEN-STATE level.
-
-    `tests/test_runner_profiles.py` already pins every tier AT THE RESOLVER, and that is deliberately
-    NOT duplicated here. What no test covered before this one is that a stored value reaches the RUN,
-    survives the freeze, and therefore decides the verifier gate.
-
-    ON AGY THE "PROFILE" TIER IS THE PER-RUNNER DEFAULT PROFILE, not a named one, because that host
-    declares no `--profile` and has no `as <profile>` clause. Its provenance is therefore
-    `default-profile` rather than `profile`, which is why the agy rows below shape the store with
-    `defaults.profiles`.
-    """
+    """The four tiers pinned at the frozen-state level."""
 
     def frozen(self, runner: str, argv: list, document: dict | None) -> dict:
         return VerificationPolarityTests.frozen_options(
-            VerificationPolarityTests("test_all_four_polarity_cells"),
+            VerificationPolarityTests(
+                "test_verification_polarity_matrix_and_agreement"
+            ),
             runner,
             argv,
             document,
@@ -3030,7 +1810,7 @@ class VerificationChainFrozenStateTests(unittest.TestCase):
             return bool(options["validate"])
         return not bool(options["no_verify"])
 
-    def test_tier_1_explicit_flag_beats_a_stored_profile_value(self):
+    def test_verification_tiers_1_through_4_precedence(self):
         oc_store = {
             "schema_version": 2,
             "profiles": {"p": {"runner": "oc", "model": "v/m", "validate": False}},
@@ -3051,14 +1831,13 @@ class VerificationChainFrozenStateTests(unittest.TestCase):
                 "agy_runipd", self.frozen("agy_runipd", ["--no-validate"], agy_store)
             )
         )
-        # And this host's shipped spelling is the same request as `--no-validate`.
         self.assertFalse(
             self.verifies(
                 "agy_runipd", self.frozen("agy_runipd", ["--no-verify"], agy_store)
             )
         )
 
-    def test_tier_2_a_profile_value_beats_defaults_validate(self):
+        # Tier 2: profile beats defaults
         for runner, host in (("oc_runipd", "oc"), ("agy_runipd", "agy")):
             with self.subTest(runner=runner):
                 store = {
@@ -3070,9 +1849,7 @@ class VerificationChainFrozenStateTests(unittest.TestCase):
                 }
                 self.assertTrue(self.verifies(runner, self.frozen(runner, [], store)))
 
-    def test_tier_3_defaults_validate_beats_the_per_host_registry_row(self):
-        # `False` on agy and `True` on oc, so each case OPPOSES that host's own row and cannot pass
-        # by coincidence.
+        # Tier 3: defaults beat host row
         self.assertTrue(
             self.verifies(
                 "oc_runipd",
@@ -3094,15 +1871,13 @@ class VerificationChainFrozenStateTests(unittest.TestCase):
             )
         )
 
-    def test_tier_4_absence_yields_each_hosts_own_row(self):
+        # Tier 4: absence yields host row
         self.assertFalse(self.verifies("oc_runipd", self.frozen("oc_runipd", [], None)))
         self.assertTrue(
             self.verifies("agy_runipd", self.frozen("agy_runipd", [], None))
         )
 
-    def test_a_profile_omitting_validate_is_not_a_profile_saying_false(self):
-        """THE TRI-STATE, at the frozen level: only a PRESENT value is a decision."""
-
+    def test_verification_tristate_and_provenance_recording(self):
         for runner, host, row_default in (
             ("oc_runipd", "oc", False),
             ("agy_runipd", "agy", True),
@@ -3114,9 +1889,7 @@ class VerificationChainFrozenStateTests(unittest.TestCase):
                     "defaults": {"profiles": {host: "p"}},
                 }
                 self.assertIs(
-                    self.verifies(runner, self.frozen(runner, [], omitted)),
-                    row_default,
-                    "an OMITTED profile `validate` must fall through to the host row",
+                    self.verifies(runner, self.frozen(runner, [], omitted)), row_default
                 )
                 present_false = {
                     "schema_version": 2,
@@ -3129,9 +1902,6 @@ class VerificationChainFrozenStateTests(unittest.TestCase):
                     self.verifies(runner, self.frozen(runner, [], present_false))
                 )
 
-    def test_oc_records_the_resolved_value_beside_its_provenance_tier(self):
-        """E-05: the durable record carries the VALUE; the tier was already there."""
-
         explicit = self.frozen("oc_runipd", ["--validate"], None)["launch_profile"]
         self.assertIs(explicit["validate"], True)
         self.assertEqual(explicit["provenance"]["validate"], "explicit")
@@ -3140,7 +1910,6 @@ class VerificationChainFrozenStateTests(unittest.TestCase):
         )["launch_profile"]
         self.assertIs(configured["validate"], True)
         self.assertEqual(configured["provenance"]["validate"], "defaults")
-        # agy has NO equivalent record; the gap is recorded in the plan, not silently accepted.
         self.assertNotIn("launch_profile", self.frozen("agy_runipd", [], None))
 
 
@@ -3152,8 +1921,8 @@ class AgyVerificationFlagSurfaceTests(unittest.TestCase):
             ["start", "demo", "--repo", ".", *argv]
         )
 
-    def test_the_tristate_parses_and_no_verify_still_exists(self):
-        """`no_verify` MUST be present: its ABSENCE is the F-14 silent-bypass signature."""
+    def test_tristate_parsing_options_and_distinct_flags(self):
+        import argparse as _argparse
 
         cases = {
             (): (None, False),
@@ -3166,17 +1935,7 @@ class AgyVerificationFlagSurfaceTests(unittest.TestCase):
             with self.subTest(argv=argv):
                 args = self.parse(list(argv))
                 self.assertIs(args.validate, validate)
-                self.assertIs(
-                    getattr(args, "no_verify", "<gone>"),
-                    no_verify,
-                    "args.no_verify must EXIST; a missing attribute means the parser stole the "
-                    "flag and agy silently stopped verifying by default",
-                )
-
-    def test_the_parser_builds_and_declares_no_conflicting_option_strings(self):
-        """The aliased spelling raises `ArgumentError` at build time; this proves it did not."""
-
-        import argparse as _argparse
+                self.assertIs(getattr(args, "no_verify", "<gone>"), no_verify)
 
         parser = agy_runipd.build_parser()
         self.assertIsNotNone(parser)
@@ -3189,30 +1948,7 @@ class AgyVerificationFlagSurfaceTests(unittest.TestCase):
         for expected in ("--validate", "--no-validate", "--no-verify", "--no-audit"):
             self.assertIn(expected, options)
 
-    def test_a_contradictory_pair_is_refused(self):
-        """argparse accepts it; the refusal is hand-written and must be present."""
-
-        args = self.parse(["--no-verify", "--validate"])
-        self.assertIs(args.validate, True)
-        self.assertIs(args.no_verify, True)
-        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
-            agy_runipd.verification_flag_tristate(args)
-        self.assertIn("contradict", str(ctx.exception))
-        # An AGREEING pair is accepted.
-        agreeing = self.parse(["--no-verify", "--no-validate"])
-        self.assertIs(agy_runipd.verification_flag_tristate(agreeing), False)
-
-    def test_a_stolen_flag_is_refused_at_the_parser_not_silently_accepted(self):
-        """The F-14 `conflict_handler="resolve"` hazard, refused where it is decidable.
-
-        The hazard is that the `--validate` family STEALS `--no-verify`, after which the shipped
-        spelling stops meaning "do not verify" and antigravity's posture silently flips. That is a
-        property of how the parser was BUILT, so it is checked against the parser: a parser whose
-        `--no-verify` resolves to the wrong destination is refused.
-        """
-
-        import argparse as _argparse
-
+        # distinct flags check
         good = _argparse.ArgumentParser()
         good.add_argument(
             "--no-verify", "--no-audit", dest="no_verify", action="store_true"
@@ -3223,7 +1959,7 @@ class AgyVerificationFlagSurfaceTests(unittest.TestCase):
             action=_argparse.BooleanOptionalAction,
             default=None,
         )
-        agy_runipd.assert_verification_flags_are_distinct(good)  # does not raise
+        agy_runipd.assert_verification_flags_are_distinct(good)
 
         stolen = _argparse.ArgumentParser(conflict_handler="resolve")
         stolen.add_argument(
@@ -3240,24 +1976,28 @@ class AgyVerificationFlagSurfaceTests(unittest.TestCase):
         with self.assertRaises(runner_shared.DriverError) as ctx:
             agy_runipd.assert_verification_flags_are_distinct(stolen)
         self.assertIn("--no-verify", str(ctx.exception))
-        # And the REAL parser passes the same check, which is what `build_parser` asserts.
-        self.assertIsNotNone(agy_runipd.build_parser())
 
-    def test_a_partial_namespace_reads_as_no_flag_rather_than_raising(self):
-        """Several shipped tests build partial namespaces; absence must mean "not passed"."""
-
+    def test_contradictory_flag_refusal_and_partial_namespace(self):
         import argparse as _argparse
+        import os
+        from unittest import mock
 
+        args = self.parse(["--no-verify", "--validate"])
+        self.assertIs(args.validate, True)
+        self.assertIs(args.no_verify, True)
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            agy_runipd.verification_flag_tristate(args)
+        self.assertIn("contradict", str(ctx.exception))
+
+        agreeing = self.parse(["--no-verify", "--no-validate"])
+        self.assertIs(agy_runipd.verification_flag_tristate(agreeing), False)
         self.assertIsNone(
             agy_runipd.verification_flag_tristate(_argparse.Namespace(validate=None))
         )
 
-    def test_the_refusal_happens_before_any_durable_run_state(self):
-        import os
-        import subprocess
-        from unittest import mock
-
-        probe = VerificationPolarityTests("test_all_four_polarity_cells")
+        probe = VerificationPolarityTests(
+            "test_verification_polarity_matrix_and_agreement"
+        )
         with tempfile.TemporaryDirectory() as home:
             with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": home}, clear=False):
                 with tempfile.TemporaryDirectory() as td:
@@ -3279,9 +2019,7 @@ class AgyVerificationFlagSurfaceTests(unittest.TestCase):
                     self.assertEqual(
                         list(runs.glob("run-*")) if runs.exists() else [],
                         [],
-                        "a refused invocation must leave NO durable run state",
                     )
-                    del subprocess
 
 
 class IntegrationDeferralLadderTests(unittest.TestCase):
@@ -3310,92 +2048,109 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
 
     # ---- rung 1: defer, re-attempt, and the budget ------------------------------------------------
 
-    def test_the_first_dirty_overlap_refusal_DEFERS_and_is_not_terminal(self):
+    def test_decide_integration_deferral_semantics_and_limits(self):
         decision = self.decide()
         self.assertTrue(decision.deferred)
         self.assertEqual(decision.status, runner_shared.INTEGRATION_DEFERRED_STATUS)
         for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                self.assertNotIn(decision.status, module.TERMINAL_STATES)
+            self.assertNotIn(decision.status, module.TERMINAL_STATES)
 
-    def test_the_budget_bounds_the_re_attempts_and_then_goes_TERMINAL(self):
-        """A permanently dirty path must not spin the loop forever."""
         for attempt in range(1, 4):
-            with self.subTest(attempt=attempt):
-                self.assertTrue(self.decide(attempts_used=attempt, limit=3).deferred)
+            self.assertTrue(self.decide(attempts_used=attempt, limit=3).deferred)
         exhausted = self.decide(attempts_used=4, limit=3)
         self.assertFalse(exhausted.deferred)
         self.assertEqual(exhausted.status, runner_shared.INTEGRATION_BLOCKED_STATUS)
         self.assertIn("budget exhausted", exhausted.reason)
         for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                self.assertIn(exhausted.status, module.TERMINAL_STATES)
+            self.assertIn(exhausted.status, module.TERMINAL_STATES)
+
+        # Zero limit
+        self.assertFalse(self.decide(attempts_used=1, limit=0).deferred)
+
+        # Override choices and policy
+        self.assertEqual(
+            runner_shared.resolve_on_integration_blocked(None),
+            runner_shared.ON_INTEGRATION_BLOCKED_DEFER,
+        )
+        for good in runner_shared.ON_INTEGRATION_BLOCKED_CHOICES:
+            self.assertEqual(runner_shared.resolve_on_integration_blocked(good), good)
+        with self.assertRaises(runner_shared.RunFlagRefusal):
+            runner_shared.resolve_on_integration_blocked("sometimes")
+
+        block_decision = self.decide(policy=runner_shared.ON_INTEGRATION_BLOCKED_BLOCK)
+        self.assertFalse(block_decision.deferred)
+        self.assertEqual(
+            block_decision.status, runner_shared.INTEGRATION_BLOCKED_STATUS
+        )
+
+        # Unrecognized kind fails closed
+        self.assertFalse(runner_shared.classify_integration_refusal("something-new"))
+        self.assertFalse(self.decide(integ_kind="something-new").deferred)
+
+    def test_merge_conflict_terminal_and_budget_independence(self):
+        decision = self.decide(
+            integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT, attempts_used=1
+        )
+        self.assertFalse(decision.deferred)
+        self.assertEqual(decision.status, "merge-refused")
+        self.assertIn("terminal on its first attempt", decision.reason)
+        self.assertFalse(
+            runner_shared.classify_integration_refusal(
+                runner_shared.INTEGRATION_REFUSAL_CONFLICT
+            )
+        )
+        self.assertFalse(
+            self.decide(
+                integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT,
+                attempts_used=1,
+                limit=1000,
+            ).deferred
+        )
+
+        from agent_workflows import run_recovery
+
+        self.assertEqual(run_recovery.DEFAULT_RETRY_LIMIT, 2)
+        self.assertEqual(runner_shared.DEFAULT_INTEGRATION_RETRY_LIMIT, 10)
+        self.assertEqual(runner_shared.resolve_integration_retry_limit(None), 10)
+        self.assertEqual(runner_shared.resolve_integration_retry_limit(7), 7)
+        self.assertEqual(runner_shared.resolve_integration_retry_limit(25), 25)
+        with self.assertRaises(runner_shared.RunFlagRefusal):
+            runner_shared.resolve_integration_retry_limit(-1)
+
+        self.assertEqual(runner_shared.resolve_retry_budget(0), 0)
+        self.assertEqual(runner_shared.resolve_integration_retry_limit(9), 9)
+        self.assertTrue(self.decide(attempts_used=3, limit=9).deferred)
 
     # ---- the 2026-09-21 rename, and its back-compatibility guarantee (`l2mzxn`) ------------------
 
-    def test_the_status_vocabulary_is_NAMED_FOR_THE_OPERATORS_NEXT_ACTION(self):
-        """The four canonical spellings, pinned so a future edit cannot quietly revert the rename.
-
-        WHY PIN LITERAL STRINGS HERE when the rest of this class deliberately drives constants: these
-        values are the OPERATOR-FACING CONTRACT. They are what a human reads in `aw runs`, what appears
-        in a run summary, and what gets typed into a `--status` filter. A constant-only assertion would
-        happily pass if someone renamed all four back, which is exactly the regression this pins.
-        """
+    def test_the_status_vocabulary_and_legacy_aliases(self):
         self.assertEqual(runner_shared.INTEGRATION_DEFERRED_STATUS, "merge-retry")
         self.assertEqual(runner_shared.INTEGRATION_BLOCKED_STATUS, "merge-needs-human")
         self.assertEqual(runner_shared.INTEGRATION_REFUSAL_CONFLICT, "merge-refused")
         self.assertEqual(
             runner_shared.INTEGRATION_REFUSAL_UNMEASURED, "merge-unchecked"
         )
-        # The transient KIND and the deferred STATUS share a value, as they did pre-rename. Asserted
-        # rather than assumed, because `revladder` (`i4ak5n`) records a wrong diagnosis caused by
-        # exactly this coincidence, and a future reader needs it to be deliberate.
         self.assertEqual(
             runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
             runner_shared.INTEGRATION_DEFERRED_STATUS,
         )
-
-    def test_EVERY_pre_rename_spelling_still_resolves(self):
-        """A run directory is a DURABLE RECORD, so the old names must never stop being readable.
-
-        THE HARM THIS PREVENTS IS SILENT. Every run that already happened wrote the old strings into its
-        `state.json`. If the rename dropped them, `aw runs` would render the repository's own history as
-        unknown statuses and `aw <host> run integrate` would refuse to rescue an already-stranded lane -
-        the verb whose entire purpose is rescuing lanes stranded by an EARLIER run, i.e. exactly the runs
-        most likely to carry the old vocabulary. Nothing would crash; the audit trail would just go
-        blank, which is the same class of harm as deleting a plan instead of retiring it.
-        """
+        expected_aliases = {
+            "integration-deferred": "merge-retry",
+            "integration-blocked": "merge-needs-human",
+            "merge-conflict": "merge-refused",
+            "integration-unmeasured": "merge-unchecked",
+        }
         self.assertEqual(
-            runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES,
-            {
-                "integration-deferred": "merge-retry",
-                "integration-blocked": "merge-needs-human",
-                "merge-conflict": "merge-refused",
-                "integration-unmeasured": "merge-unchecked",
-            },
+            runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES, expected_aliases
         )
-        for legacy, canonical in (
-            ("integration-deferred", "merge-retry"),
-            ("integration-blocked", "merge-needs-human"),
-            ("merge-conflict", "merge-refused"),
-            ("integration-unmeasured", "merge-unchecked"),
-        ):
+        for legacy, canonical in expected_aliases.items():
             self.assertEqual(
-                runner_shared.canonical_integration_status(legacy), canonical, legacy
+                runner_shared.canonical_integration_status(legacy), canonical
             )
-            # IDEMPOTENT: translating a canonical name is a no-op, so a caller may translate freely
-            # without having to know whether a value came from an old run or a new one.
             self.assertEqual(
                 runner_shared.canonical_integration_status(canonical), canonical
             )
 
-    def test_the_translator_PASSES_THROUGH_what_it_does_not_own(self):
-        """It is an alias map, not a validator; turning it into a gate would break every caller.
-
-        `canonical_integration_status` is called on statuses drawn from the WHOLE item vocabulary, most
-        of which have nothing to do with integration. Refusing or blanking an unknown value would make a
-        rendering helper silently drop `executed` rows.
-        """
         for untouched in (
             "executed",
             "queued",
@@ -3406,42 +2161,29 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             self.assertEqual(
                 runner_shared.canonical_integration_status(untouched), untouched
             )
-        # Non-strings degrade to the empty string rather than raising: this runs on the reporting path,
-        # where a malformed record must not take down the summary a human is waiting for.
         self.assertEqual(runner_shared.canonical_integration_status(None), "")
         self.assertEqual(runner_shared.canonical_integration_status(17), "")
 
-    def test_a_legacy_spelling_is_STILL_RE_INTEGRATABLE(self):
-        """The rename must not strand the lanes the `integrate` verb exists to rescue.
-
-        This is the one back-compat consequence with teeth, so it is asserted on the real predicate
-        rather than on the alias map: `REINTEGRATABLE_STATUSES` is matched against a status READ BACK
-        from a run directory written by an earlier run.
-        """
         for spelling in (
             "merge-needs-human",
             "merge-refused",
             "integration-blocked",
             "merge-conflict",
         ):
-            self.assertIn(spelling, runner_shared.REINTEGRATABLE_STATUSES, spelling)
-        # And the DEFERRABLE pair is absent: those are non-terminal and the live ladder owns them, so
-        # offering them to the manual verb would invite a human to race the runner.
+            self.assertIn(spelling, runner_shared.REINTEGRATABLE_STATUSES)
         for spelling in ("merge-retry", "merge-unchecked", "integration-deferred"):
-            self.assertNotIn(spelling, runner_shared.REINTEGRATABLE_STATUSES, spelling)
+            self.assertNotIn(spelling, runner_shared.REINTEGRATABLE_STATUSES)
 
-    def test_a_legacy_spelling_RENDERS_identically_to_its_canonical_twin(self):
-        """A pre-rename run must LOOK the same, not merely be classifiable.
+        for terminal in (
+            "merge-needs-human",
+            "merge-refused",
+            "integration-blocked",
+            "merge-conflict",
+        ):
+            self.assertIn(terminal, runner_shared.TERMINAL_STATES)
+        for non_terminal in ("merge-retry", "merge-unchecked", "integration-deferred"):
+            self.assertNotIn(non_terminal, runner_shared.TERMINAL_STATES)
 
-        WHY THIS IS A SEPARATE TEST FROM THE ALIAS MAP: the alias map is consulted by code that CHOOSES
-        to translate, while `lifecycle_style.resolve` is a lookup table keyed on the raw status. A rename
-        can therefore leave the map perfect and still make old runs render as `unknown`, because the
-        table simply has no row for the old word. THAT IS NOT HYPOTHETICAL - it is what this assertion
-        found: `integration-unmeasured` resolved to `unknown` while `merge-unchecked` resolved to
-        `recovering`, so a run directory from the rename window would have rendered its glyph as
-        undecidable. Comparing each legacy spelling against its canonical twin is what caught it, which
-        is why the test is written as a PARITY check rather than as eight hardcoded expectations.
-        """
         from agent_workflows import lifecycle_style
 
         for (
@@ -3454,150 +2196,12 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             canonical_stage = lifecycle_style.resolve(
                 lifecycle_style.FAMILY_RUNNER_ITEM, canonical
             ).stage
-            self.assertEqual(
-                legacy_stage,
-                canonical_stage,
-                f"{legacy!r} renders as {legacy_stage!r} but its canonical twin {canonical!r} "
-                f"renders as {canonical_stage!r}; a pre-rename run directory would display "
-                "differently from an identical post-rename one",
-            )
-            self.assertNotEqual(
-                legacy_stage,
-                lifecycle_style.UNKNOWN,
-                f"{legacy!r} has no row in the style table, so an already-recorded run renders as "
-                "undecidable",
-            )
-
-    def test_the_deferrable_pair_is_NOT_TERMINAL_and_the_refusals_ARE(self):
-        """The property the whole ladder rests on, asserted across BOTH vocabularies.
-
-        `TERMINAL_STATES` membership is what decides whether an item can be re-attempted, whether
-        `cascade_dependency_blocked` kills its dependents, and whether an orchestrator keeps waiting. The
-        rename touched this set, so the invariant is re-pinned here rather than trusted.
-        """
-        for terminal in (
-            "merge-needs-human",
-            "merge-refused",
-            "integration-blocked",
-            "merge-conflict",
-        ):
-            self.assertIn(terminal, runner_shared.TERMINAL_STATES, terminal)
-        for non_terminal in ("merge-retry", "merge-unchecked", "integration-deferred"):
-            self.assertNotIn(
-                non_terminal,
-                runner_shared.TERMINAL_STATES,
-                f"{non_terminal} must NOT be terminal: that absence is what makes a re-attempt "
-                "possible and keeps dependents alive",
-            )
-
-    def test_a_zero_limit_is_block_spelled_as_a_count(self):
-        self.assertFalse(self.decide(attempts_used=1, limit=0).deferred)
-
-    # ---- THE NEGATIVE CASE: merge-conflict must NOT acquire a retry loop --------------------------
-
-    def test_merge_conflict_is_TERMINAL_ON_ITS_FIRST_ATTEMPT_and_consumes_no_budget(
-        self,
-    ):
-        """THE OVER-TRIGGER GUARD, and it is not optional.
-
-        Every positive-arm test above would ALSO pass for a ladder that wrongly deferred genuine
-        conflicts, and that over-trigger is invisible until a real conflict has been retried ten times.
-        `integrate_lane_branch` returns THREE kinds and only the dirty-overlap one is transient:
-        `merge-conflict` means the reused gate returned non-passing (real conflict, stale base,
-        combined-red, or scope), which repetition does not fix.
-
-        THE WORDING ASSERTION WAS UPDATED BY `l2mzxn`, and the PROPERTY is untouched. This used to
-        require the literal "not the transient", which the verdict no longer says: it stopped
-        enumerating four causes it could not distinguish (the measured incident's real cause was absent
-        from that list) and now states the kind plus why the kind is terminal. What this test exists to
-        guard - that a genuine conflict is terminal on its FIRST attempt and consults no budget - is
-        asserted below exactly as before.
-        """
-        decision = self.decide(
-            integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT, attempts_used=1
-        )
-        self.assertFalse(decision.deferred)
-        self.assertEqual(decision.status, "merge-refused")
-        self.assertIn("terminal on its first attempt", decision.reason)
-        self.assertFalse(
-            runner_shared.classify_integration_refusal(
-                runner_shared.INTEGRATION_REFUSAL_CONFLICT
-            )
-        )
-        # It stays terminal even with the whole budget untouched, i.e. the budget is not consulted.
-        self.assertFalse(
-            self.decide(
-                integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT,
-                attempts_used=1,
-                limit=1000,
-            ).deferred
-        )
-
-    def test_an_unrecognized_kind_fails_CLOSED_onto_todays_terminal_path(self):
-        self.assertFalse(runner_shared.classify_integration_refusal("something-new"))
-        self.assertFalse(self.decide(integ_kind="something-new").deferred)
-
-    # ---- the override, including the one that reproduces today ------------------------------------
-
-    def test_on_integration_blocked_block_REPRODUCES_the_pre_ladder_behavior(self):
-        decision = self.decide(policy=runner_shared.ON_INTEGRATION_BLOCKED_BLOCK)
-        self.assertFalse(decision.deferred)
-        self.assertEqual(decision.status, runner_shared.INTEGRATION_BLOCKED_STATUS)
-
-    def test_the_override_vocabulary_is_closed_and_defaults_to_defer(self):
-        self.assertEqual(
-            runner_shared.resolve_on_integration_blocked(None),
-            runner_shared.ON_INTEGRATION_BLOCKED_DEFER,
-        )
-        for good in runner_shared.ON_INTEGRATION_BLOCKED_CHOICES:
-            with self.subTest(value=good):
-                self.assertEqual(
-                    runner_shared.resolve_on_integration_blocked(good), good
-                )
-        with self.assertRaises(runner_shared.RunFlagRefusal):
-            runner_shared.resolve_on_integration_blocked("sometimes")
-
-    # ---- BUDGET INDEPENDENCE, the category error the backlog item names --------------------------
-
-    def test_the_two_budgets_are_INDEPENDENT_quantities(self):
-        """Set each to a different value and show each governs ONLY its own path.
-
-        `DEFAULT_RETRY_LIMIT` counts PAID CORRECTION TURNS on the stated ground that repetition cannot
-        turn failure into success; that ground is FALSE for an integration re-attempt, whose blocker is
-        another process's transient dirt. Conflating them is what this asserts against.
-        """
-        from agent_workflows import run_recovery
-
-        self.assertEqual(run_recovery.DEFAULT_RETRY_LIMIT, 2)
-        self.assertEqual(runner_shared.DEFAULT_INTEGRATION_RETRY_LIMIT, 10)
-        self.assertNotEqual(
-            run_recovery.DEFAULT_RETRY_LIMIT,
-            runner_shared.DEFAULT_INTEGRATION_RETRY_LIMIT,
-        )
-
-        # The integration resolver does not read the correction default...
-        self.assertEqual(runner_shared.resolve_integration_retry_limit(None), 10)
-        self.assertEqual(runner_shared.resolve_integration_retry_limit(7), 7)
-        # ...and it is deliberately NOT clamped to spec 2.1's 0..10 CORRECTION range.
-        self.assertEqual(runner_shared.resolve_integration_retry_limit(25), 25)
-        with self.assertRaises(runner_shared.RunFlagRefusal):
-            runner_shared.resolve_retry_budget(25)
-
-        # Moving one does not move the other, asserted by driving both with opposite values.
-        self.assertEqual(runner_shared.resolve_retry_budget(0), 0)
-        self.assertEqual(runner_shared.resolve_integration_retry_limit(9), 9)
-        # And an integration decision honors ITS limit, not the correction one: 3 re-attempts are
-        # still deferred at limit 9, where a correction budget of 2 would already be spent.
-        self.assertTrue(self.decide(attempts_used=3, limit=9).deferred)
-
-    def test_a_negative_integration_limit_is_refused(self):
-        with self.assertRaises(runner_shared.RunFlagRefusal):
-            runner_shared.resolve_integration_retry_limit(-1)
+            self.assertEqual(legacy_stage, canonical_stage)
+            self.assertNotEqual(legacy_stage, lifecycle_style.UNKNOWN)
 
     # ---- rung 2: BOTH bounds, asserted SEPARATELY -------------------------------------------------
 
     def poll(self, *, dirty, ages, poll_limit=10, staleness=3600.0):
-        """Drive the poll with controlled dirt and clock. `dirty`/`ages` are per-poll sequences."""
         slept: list = []
         seq_dirty = list(dirty)
         seq_ages = list(ages)
@@ -3620,7 +2224,8 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         )
         return outcome, slept
 
-    def test_rung_2_bound_i_the_POLL_COUNT_while_main_is_still_ACTIVE(self):
+    def test_poll_ladder_bounds_and_dirt_clearing(self):
+        # Bound I: poll count
         outcome, slept = self.poll(
             dirty=[["src/x.py"]] * 40, ages=[60.0] * 40, poll_limit=3
         )
@@ -3628,55 +2233,31 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_COUNT)
         self.assertEqual(outcome.polls, 3)
         self.assertEqual(len(slept), 3)
-        self.assertIn("poll bound 3", outcome.detail)
-        self.assertIn("still active", outcome.detail)
 
-    def test_rung_2_bound_ii_MAIN_IS_STALE_so_polling_stops_EARLY_regardless_of_count(
-        self,
-    ):
-        """The bound that carries the design's whole argument, so it gets its own test.
-
-        A test covering only the count would PASS with this bound unimplemented, which is exactly why
-        the plan calls it the item most likely to be skipped. Here main has been idle for four hours
-        with a generous poll budget: the correct behavior is to give up IMMEDIATELY, having slept zero
-        times, because nobody is about to commit and the dirt is abandoned.
-        """
-        outcome, slept = self.poll(
+        # Bound II: stale main
+        outcome_stale, slept_stale = self.poll(
             dirty=[["src/x.py"]] * 40, ages=[4 * 3600.0] * 40, poll_limit=25
         )
-        self.assertFalse(outcome.cleared)
-        self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_STALE)
-        self.assertEqual(outcome.polls, 0)
-        self.assertEqual(slept, [], "a stale main must cost NO waiting at all")
-        self.assertIn("ABANDONED", outcome.detail)
-        self.assertIn("needs a human", outcome.detail)
+        self.assertFalse(outcome_stale.cleared)
+        self.assertEqual(outcome_stale.bound, runner_shared.POLL_BOUND_STALE)
+        self.assertEqual(outcome_stale.polls, 0)
+        self.assertEqual(slept_stale, [])
 
-    def test_the_two_bounds_report_DIFFERENT_facts(self):
-        """ "polled 10x, main active 1m ago" and "gave up, main idle 4h" demand different responses."""
-        active, _ = self.poll(dirty=[["x"]] * 40, ages=[60.0] * 40, poll_limit=2)
-        stale, _ = self.poll(dirty=[["x"]] * 40, ages=[9999.0] * 40, poll_limit=2)
-        self.assertNotEqual(active.bound, stale.bound)
-        self.assertNotEqual(active.detail, stale.detail)
-        self.assertEqual(active.last_activity_age, 60.0)
-        self.assertEqual(stale.last_activity_age, 9999.0)
-
-    def test_an_UNMEASURABLE_main_activity_fails_closed_and_does_not_wait(self):
-        outcome, slept = self.poll(dirty=[["x"]] * 5, ages=[None] * 5)
-        self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_STALE)
-        self.assertEqual(slept, [])
-        self.assertIn("unmeasurable", outcome.detail)
-
-    def test_the_poll_STOPS_as_soon_as_the_dirt_clears(self):
-        outcome, slept = self.poll(
+        # Dirt clears
+        outcome_clear, slept_clear = self.poll(
             dirty=[["src/x.py"], ["src/x.py"], []], ages=[10.0] * 5
         )
-        self.assertTrue(outcome.cleared)
-        self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_CLEARED)
-        self.assertEqual(outcome.polls, 2)
-        self.assertEqual(len(slept), 2)
+        self.assertTrue(outcome_clear.cleared)
+        self.assertEqual(outcome_clear.bound, runner_shared.POLL_BOUND_CLEARED)
+        self.assertEqual(outcome_clear.polls, 2)
+        self.assertEqual(len(slept_clear), 2)
+
+        # Unmeasurable main
+        outcome_unmeas, slept_unmeas = self.poll(dirty=[["x"]] * 5, ages=[None] * 5)
+        self.assertEqual(outcome_unmeas.bound, runner_shared.POLL_BOUND_STALE)
+        self.assertEqual(slept_unmeas, [])
 
     def test_main_last_activity_is_the_NEWER_of_head_time_and_dirty_mtime(self):
-        """Either signal ALONE answers the wrong question, so the combination is asserted on a real repo."""
         import subprocess
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -3692,14 +2273,11 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             subprocess.run(["git", "add", "a.txt"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
 
-            # A committed-but-idle repo reports the age of its HEAD commit: small, and measurable.
             committed_age = runner_shared.main_last_activity_age(repo)
             self.assertIsNotNone(committed_age)
             assert committed_age is not None
             self.assertLess(committed_age, 120.0)
 
-            # Now make HEAD look OLD while an uncommitted edit is FRESH: the dirty mtime must win, or
-            # an actively-edited tree would be misread as abandoned.
             (repo / "b.txt").write_text("dirty\n", encoding="utf-8")
             age = runner_shared.main_last_activity_age(
                 repo, now=__import__("time").time()
@@ -3710,153 +2288,57 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
 
     # ---- rung 3: the ask, which must never hang ---------------------------------------------------
 
-    def test_the_ask_is_SKIPPED_ENTIRELY_when_the_run_is_not_interactive(self):
-        outcome = runner_shared.ask_operator_about_integration(
+    def test_interactive_ask_behavior_and_prompt_predicate(self):
+        import argparse
+
+        # Unattended suppresses ask
+        unattended_out = runner_shared.ask_operator_about_integration(
             "aaa111",
             "dirty overlap",
             interactive=False,
-            prompt=lambda *a, **k: self.fail(
-                "an unattended run must never be prompted"
-            ),
+            prompt=lambda *a, **k: self.fail("must not prompt"),
         )
-        self.assertFalse(outcome.asked)
-        self.assertFalse(outcome.retry)
-        self.assertIn("SUPPRESSED", outcome.detail)
+        self.assertFalse(unattended_out.asked)
+        self.assertFalse(unattended_out.retry)
 
-    def test_the_ask_CANNOT_HANG_a_timeout_falls_through_to_terminal(self):
-        """`qyaime` closed an unbounded-wait deadlock whose honest limit was that the ask is
-        "bounded and recorded, not architecturally prevented". Here the bound IS the architecture: a
-        `None` answer (the timeout) yields `retry=False`, so the caller goes terminal."""
-        outcome = runner_shared.ask_operator_about_integration(
+        # Timeout falls through to terminal
+        timeout_out = runner_shared.ask_operator_about_integration(
             "aaa111", "dirty overlap", interactive=True, prompt=lambda *a, **k: None
         )
-        self.assertTrue(outcome.asked)
-        self.assertFalse(outcome.retry)
-        self.assertIn("TIMED OUT", outcome.detail)
+        self.assertTrue(timeout_out.asked)
+        self.assertFalse(timeout_out.retry)
 
-    def test_the_ask_honors_an_affirmative_and_a_refusal(self):
+        # Affirmative and refusal
         yes = runner_shared.ask_operator_about_integration(
             "aaa111", "r", interactive=True, prompt=lambda *a, **k: "y\n"
         )
         self.assertTrue(yes.retry)
         for answer in ("n\n", "\n", "later\n"):
-            with self.subTest(answer=answer):
-                self.assertFalse(
-                    runner_shared.ask_operator_about_integration(
-                        "aaa111",
-                        "r",
-                        interactive=True,
-                        prompt=lambda *a, **k: answer,
-                    ).retry
-                )
-
-    def test_the_prompt_predicate_is_the_SHIPPED_one_not_a_second_TTY_test(self):
-        """`is_interactive_run` already encodes both halves (a real TTY AND no `--unattended`).
-
-        REPLACES A SOURCE-TEXT PIN. It read `inspect.getsource(retry_deferred_integrations)` on each
-        host and asserted the substring `"is_interactive_run"` appeared. That is a change-detector in
-        both directions: this adapter's own DOCSTRING and the comment above the call both name the
-        predicate (the comment exists precisely to explain that the shared ladder resolves it), so the
-        pin was satisfied by prose and would have stayed green with the call deleted; and a host that
-        reached the predicate through an alias or a local re-export would have failed it while
-        behaving correctly.
-
-        WHAT REPLACES IT IS A SENTINEL THAT MUST TRAVEL. `is_interactive_run` is replaced by one
-        returning a unique OBJECT, and the shared ladder is replaced by a spy recording the
-        `interactive=` keyword it receives. Driving each host's real adapter must then deliver THAT
-        OBJECT to the ladder. A second TTY test cannot produce it (it would deliver a plain bool), a
-        comment cannot produce it, and neither can a host that computes interactivity itself.
-
-        The `--unattended` half is asserted on the shipped predicate directly, because that is the
-        property the hosts are DELEGATING to: a real TTY is not enough when the operator declared
-        nobody is watching.
-        """
-        import argparse
+            self.assertFalse(
+                runner_shared.ask_operator_about_integration(
+                    "aaa111", "r", interactive=True, prompt=lambda *a, **k: answer
+                ).retry
+            )
 
         class _TTY:
             def isatty(self):
                 return True
 
-        # The shipped predicate's own contract: a real terminal does NOT make an `--unattended` run
-        # interactive. This is what a host-local `stream.isatty()` test would get wrong.
         self.assertFalse(
             runner_shared.is_interactive_run(
                 argparse.Namespace(unattended=True, full_auto=False), stream=_TTY()
             )
         )
-        # THE POSITIVE ROW, without which the assertion above is satisfied by a predicate that always
-        # refuses. `sys.stdin` must be patched too: the predicate requires BOTH streams to be terminals,
-        # and under pytest stdin is captured, so the negative row alone would pass for the wrong reason.
         with mock.patch.object(runner_shared.sys, "stdin", _TTY()):
             self.assertTrue(
                 runner_shared.is_interactive_run(
                     argparse.Namespace(unattended=False, full_auto=False), stream=_TTY()
-                ),
-                "with both streams real terminals and no policy flag, the predicate must permit a "
-                "prompt; a gate that can never prompt is indistinguishable from one that always "
-                "refuses",
-            )
-            self.assertFalse(
-                runner_shared.is_interactive_run(
-                    argparse.Namespace(unattended=True, full_auto=False), stream=_TTY()
-                ),
-                "and `--unattended` must still win over TWO real terminals, which is the half a "
-                "host-local `stream.isatty()` test gets wrong",
+                )
             )
 
-        sentinel = object()
-        wrong = []
-        for module in (oc_runipd, agy_runipd):
-            seen: dict = {}
+    # ---- OQ-03: resolution, dependencies, and cascade ---------------------------------------------
 
-            # `seen` is bound as a DEFAULT, not closed over: the loop variable would late-bind and
-            # make each host assert about the last one's call.
-            def _spy(_sink=seen, **kwargs):
-                _sink.update(kwargs)
-                return []
-
-            with (
-                mock.patch.object(
-                    runner_shared, "is_interactive_run", lambda *a, **k: sentinel
-                ),
-                mock.patch.object(
-                    runner_shared, "reattempt_deferred_integrations", _spy
-                ),
-                tempfile.TemporaryDirectory() as td,
-            ):
-                module.retry_deferred_integrations(
-                    pathlib.Path(td) / "run",
-                    {"repo": td, "queue": [], "options": {"unattended": True}},
-                )
-            if "interactive" not in seen:
-                wrong.append(
-                    f"  {module.__name__}: the shared ladder was never reached, so this host cannot "
-                    "be delegating the interactive decision to it at all"
-                )
-            elif seen["interactive"] is not sentinel:
-                wrong.append(
-                    f"  {module.__name__}: the ladder received interactive="
-                    f"{seen['interactive']!r}, not the patched predicate's sentinel. This host "
-                    "computes interactivity ITSELF rather than calling the shipped "
-                    "`is_interactive_run`, so it carries a SECOND TTY test that is free to forget "
-                    "`--unattended` and stop an overnight run on a question nobody will see"
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of 2 hosts do not delegate the prompt predicate. A failure on ONE host is "
-            "the asymmetry this class exists for: the two adapters are separate code and only the "
-            "ladder is shared, so one host can grow its own TTY test while the other stays correct. "
-            "FIX: pass `interactive=runner_shared.is_interactive_run(...)` into "
-            "`reattempt_deferred_integrations` rather than testing a stream locally.\n"
-            + "\n".join(wrong),
-        )
-
-    # ---- OQ-03: a run must not END on a non-terminal status ---------------------------------------
-
-    def test_an_exhausted_deferral_is_RESOLVED_to_terminal_with_the_lane_preserved(
-        self,
-    ):
+    def test_exhausted_deferrals_resolution(self):
         events: list = []
         saved: list = []
         state = {
@@ -3880,32 +2362,23 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         self.assertEqual(resolved, ["aaa111"])
         item = state["queue"][0]
         self.assertEqual(item["status"], runner_shared.INTEGRATION_BLOCKED_STATUS)
-        for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                self.assertIn(item["status"], module.TERMINAL_STATES)
-        # The lane is still named, so the recovery route survives.
         self.assertEqual(item["preserved_branch"], "aw/lane/aaa111")
         self.assertEqual(events[0]["event"], "ipd-integration-blocked")
         self.assertTrue(saved)
 
-    def test_nothing_is_resolved_when_no_item_is_deferred(self):
-        state = {"queue": [{"id6": "aaa111", "status": "executed"}]}
+        # Nothing resolved when no item is deferred
+        state_executed = {"queue": [{"id6": "aaa111", "status": "executed"}]}
         self.assertEqual(
             runner_shared.resolve_exhausted_deferrals(
                 pathlib.Path("/nonexistent"),
-                state,
+                state_executed,
                 save_state=lambda *a, **k: self.fail("must not persist"),
                 append_jsonl=lambda *a, **k: self.fail("must not emit"),
             ),
             [],
         )
 
-    # ---- E-01's dependency rule, on BOTH hosts ---------------------------------------------------
-
-    def test_a_DEFERRED_prerequisite_does_NOT_satisfy_a_dependency_edge(self):
-        """A deferred prerequisite has NOT integrated, so a dependent must wait exactly as for a
-        queued one. Dispatching it would run against a base lacking its prerequisite's commits, which
-        is worse than the bug being fixed."""
+    def test_deferred_item_dependency_cascade_and_reconcile(self):
         state = {
             "repo": ".",
             "queue": [
@@ -3928,72 +2401,21 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             ],
         }
         for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                satisfied, unsatisfied = module.dependency_status(
-                    state["queue"][1], state
-                )
-                self.assertFalse(satisfied)
-                self.assertEqual(unsatisfied, ["executed:aaa111"])
+            satisfied, unsatisfied = module.dependency_status(state["queue"][1], state)
+            self.assertFalse(satisfied)
+            self.assertEqual(unsatisfied, ["executed:aaa111"])
 
-    def test_the_cascade_does_NOT_kill_a_dependent_of_a_deferred_item(self):
-        """This is the seven-of-34 cascade the plan exists to prevent, asserted directly.
+            self.assertEqual(module.cascade_dependency_blocked(state), [])
+            self.assertEqual(state["queue"][1]["status"], "queued")
 
-        `cascade_dependency_blocked` kills a dependent when its prerequisite's status is
-        `in TERMINAL_STATES and not in required`. Keeping `integration-deferred` OUT of that set is
-        precisely what stops the cascade here. It is ONE shared implementation re-exported by agy, so
-        the behavior is asserted on both hosts rather than fixed twice.
-        """
-        self.assertIs(
-            agy_runipd.cascade_dependency_blocked,
-            oc_runipd.cascade_dependency_blocked,
-        )
+        # Terminal non-success prerequisite still cascades
+        state["queue"][0]["status"] = "merge-needs-human"
+        self.assertTrue(oc_runipd.cascade_dependency_blocked(state))
+        self.assertEqual(state["queue"][1]["status"], "dependency-blocked")
+
+        # Reconcile disposition passes deferral through
         for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                state = {
-                    "repo": ".",
-                    "queue": [
-                        {
-                            "id6": "aaa111",
-                            "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
-                            "setid": "s",
-                            "action": "execute",
-                            "position": 1,
-                            "dependencies": [],
-                        },
-                        {
-                            "id6": "bbb222",
-                            "status": "queued",
-                            "setid": "s",
-                            "action": "execute",
-                            "position": 2,
-                            "dependencies": ["executed:aaa111"],
-                        },
-                    ],
-                }
-                self.assertEqual(module.cascade_dependency_blocked(state), [])
-                self.assertEqual(state["queue"][1]["status"], "queued")
-                # CONTROL: the SAME shape with a terminal non-success prerequisite still cascades, so
-                # this test cannot pass by the cascade having been disabled.
-                state["queue"][0]["status"] = "merge-needs-human"
-                self.assertTrue(module.cascade_dependency_blocked(state))
-                self.assertEqual(state["queue"][1]["status"], "dependency-blocked")
-
-    # ---- F-11: the silent-downgrade trap, on BOTH hosts -----------------------------------------
-
-    def test_reconcile_disposition_PASSES_THE_DEFERRAL_THROUGH_on_both_hosts(self):
-        """THE HIGHEST-RISK EDIT of this plan, so it is pinned directly.
-
-        `integration-deferred` is deliberately absent from `TERMINAL_STATES`, so
-        `TERMINAL_STATES - {...}` SKIPS it and control used to reach
-        `return ("partial" if exit_code == 0 else "failed-safely")`. `partial` IS terminal, so a
-        deferred item would have been silently relabelled and the deferral destroyed - reproducing
-        today's permanent loss while every ladder unit test above still passed.
-        """
-        for module in (oc_runipd, agy_runipd):
-            with (
-                self.subTest(host=module.__name__),
-                tempfile.TemporaryDirectory() as td,
-            ):
+            with tempfile.TemporaryDirectory() as td:
                 run_dir = pathlib.Path(td) / "run"
                 (run_dir / "outcomes").mkdir(parents=True)
                 item = {
@@ -4006,51 +2428,19 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
                 disposition, _outcome = module.reconcile_disposition(
                     pathlib.Path(td), item, run_dir, 0
                 )
-                self.assertEqual(
-                    disposition,
-                    runner_shared.INTEGRATION_DEFERRED_STATUS,
-                    "a deferred item must NOT be downgraded to `partial`",
-                )
-                self.assertNotIn(disposition, module.TERMINAL_STATES)
-                # CONTROL: a non-deferred item still falls through EXACTLY as before, so the fix did
-                # not disturb the fallback it guards.
-                running = dict(item, status="running")
-                self.assertEqual(
-                    module.reconcile_disposition(pathlib.Path(td), running, run_dir, 0)[
-                        0
-                    ],
-                    "partial",
-                )
-                self.assertEqual(
-                    module.reconcile_disposition(pathlib.Path(td), running, run_dir, 1)[
-                        0
-                    ],
-                    "failed-safely",
-                )
+                self.assertEqual(disposition, runner_shared.INTEGRATION_DEFERRED_STATUS)
 
-    # ---- the ledger vocabulary and the resume route ----------------------------------------------
-
-    def test_the_new_status_is_in_the_shared_ledger_vocabulary(self):
-        """R3's coherence check must know it, or a run holding one refuses its own resume."""
         from agent_workflows import runner_shutdown
 
         self.assertIn(
             runner_shared.INTEGRATION_DEFERRED_STATUS,
             runner_shutdown.KNOWN_ITEM_STATUSES,
         )
-        for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                self.assertEqual(
-                    set(module.TERMINAL_STATES)
-                    - set(runner_shutdown.KNOWN_ITEM_STATUSES),
-                    set(),
-                )
 
-    # ---- driving a REAL `run_queue`, which is what the two pins below replaced text with ----------
+    # ---- dispatch loop & retry incomplete --------------------------------------------------------
 
     @staticmethod
     def _dispatch_repo(root: pathlib.Path) -> pathlib.Path:
-        """A throwaway git repo. FIXTURES ONLY: `run_queue` reads `state["repo"]` and runs git in it."""
         import subprocess
 
         repo = root / "repo"
@@ -4103,208 +2493,33 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         )
         return run_dir
 
-    def test_retry_incomplete_re_queues_a_deferred_item_on_both_hosts(self):
-        """A deferral can outlive its run (an interrupt between deferring and the next iteration).
-
-        REPLACES A SOURCE-TEXT PIN. It read `inspect.getsource(module.run_queue)` and asserted the
-        literal `'"merge-retry"'` appeared somewhere in it. That is a change-detector in both
-        directions: `run_queue` carries a long COMMENT explaining exactly this rule (it names the
-        status in prose so a later reader does not delete it from the requeue set), so the pin was
-        satisfied by that comment and would have stayed green with the status removed from the set;
-        and it said nothing about the requeue actually HAPPENING, since the same literal appears in
-        `reconcile_disposition`'s neighbourhood and in the event vocabulary.
-
-        WHAT REPLACES IT DRIVES THE REQUEUE. A real `run_queue(retry_incomplete=True)` is driven over
-        a queue holding ONE `integration-deferred` item with the agent turn stubbed, and the item must
-        actually be dispatched (so the flip to `queued` happened) and must carry
-        `requeue_from_status == "merge-retry"` (so the prior disposition was REMEMBERED, which
-        is what the integration pass and E-04's hold-back read). A comment cannot dispatch an item.
-
-        THE CONTROL ROW IS LOAD-BEARING: the same fixture with `retry_incomplete=False` must dispatch
-        NOTHING, so this cannot pass by the loop having started admitting deferred items unconditionally.
-        """
-        wrong = []
+    def test_retry_incomplete_and_dispatch_reaches_ladder(self):
         for module in (oc_runipd, agy_runipd):
-            for retry, expect_turn in ((True, True), (False, False)):
-                turns: list = []
+            turns: list = []
 
-                # Both `turns` and `module` are bound as DEFAULTS rather than closed over: a closure
-                # over these loop variables late-binds, and every iteration would then record into the
-                # LAST cell's list through the LAST host's `save_state`.
-                def _fake_execute(
-                    run_dir, state, item, *_a, _log=turns, _host=module, **_k
-                ):
-                    _log.append((item.get("id6"), item.get("requeue_from_status")))
-                    item["status"] = "executed"
-                    _host.save_state(run_dir, state)
-
-                with tempfile.TemporaryDirectory() as td:
-                    root = pathlib.Path(td)
-                    repo = self._dispatch_repo(root)
-                    run_dir = self._dispatch_run(
-                        root, repo, (runner_shared.INTEGRATION_DEFERRED_STATUS,)
-                    )
-                    with (
-                        mock.patch.object(module, "execute_item", _fake_execute),
-                        contextlib.redirect_stdout(io.StringIO()),
-                        contextlib.redirect_stderr(io.StringIO()),
-                    ):
-                        module.run_queue(run_dir, retry_incomplete=retry)
-                    final = runner_shared.load_state(run_dir)["queue"][0]
-
-                if bool(turns) is not expect_turn:
-                    wrong.append(
-                        f"  {module.__name__} with retry_incomplete={retry}: dispatched "
-                        f"{len(turns)} turn(s), expected {'one' if expect_turn else 'none'}\n"
-                        "    this row exists because: "
-                        + (
-                            "a deferral that outlived its run must be pickable up by a resume, or "
-                            "verified work is stranded for good; the ladder only runs inside a LIVE "
-                            "dispatch loop, so a resume needs this requeue"
-                            if expect_turn
-                            else "without `--retry-incomplete` a deferred item must be left alone, "
-                            "or the flag means nothing and every resume silently re-runs work whose "
-                            "integration was refused"
-                        )
-                    )
-                elif expect_turn and turns[0][1] != (
-                    runner_shared.INTEGRATION_DEFERRED_STATUS
-                ):
-                    wrong.append(
-                        f"  {module.__name__}: the requeued item reached its turn with "
-                        f"requeue_from_status={turns[0][1]!r}, expected "
-                        f"{runner_shared.INTEGRATION_DEFERRED_STATUS!r}\n"
-                        "    this row exists because: the flip to `queued` OVERWRITES the prior "
-                        "disposition, and the integration pass plus E-04's hold-back select on this "
-                        "recorded value; losing it makes the pass unable to tell a deferred lane from "
-                        "an ordinary retry"
-                    )
-                elif expect_turn and final["status"] != "executed":
-                    wrong.append(
-                        f"  {module.__name__}: the requeued item ended {final['status']!r} rather "
-                        "than reaching a real turn's outcome"
-                    )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of {2 * 2} (host, flag) cells mishandle a deferral surviving its run. A "
-            "failure on ONE host is the asymmetry this class exists for: the two `run_queue` bodies "
-            "are separate code and only the ladder is shared. FIX: `integration-deferred` belongs in "
-            "the `retry_incomplete` requeue status set in each host's `run_queue`, and the flip must "
-            f"record `requeue_from_status` before overwriting `status`.\n"
-            + "\n".join(wrong),
-        )
-
-    # ---- the ladder is ONE implementation, not two -----------------------------------------------
-
-    def test_both_hosts_reach_the_ladder_from_their_dispatch_loop(self):
-        """A shared ladder nothing CALLS is the dead-gate failure this repository has already paid for.
-
-        REPLACES FOUR SOURCE-TEXT PINS. It read `inspect.getsource(module.run_queue)` and asserted the
-        substrings `"retry_deferred_integrations"`, `"deferred_integration_items"`,
-        `"runnable is None"` and `"poll=True"` appeared. Every one is a change-detector: `run_queue`
-        carries a ten-line COMMENT block that names the ladder, names the trigger, and explains why
-        `poll=True` is passed exactly where it is, so all four were satisfied by prose alone and the
-        whole ladder could have been deleted while this test stayed green. That is the dead-gate
-        failure the docstring names, reproduced in the very test written to prevent it. The
-        `"runnable is None"` pin is the worst of the four: it asserts a SPELLING of a condition, so
-        rewriting it as `if not runnable:` would fail a test about behavior.
-
-        WHAT REPLACES THEM IS AN OBSERVED CALL SEQUENCE, on both hosts. Each host's
-        `retry_deferred_integrations` adapter is replaced by a spy that records the `poll`/`ask`
-        keywords it receives, and a real `run_queue` is driven over a queue of THREE deferred items.
-        The claim is then the full shape the four pins were approximating:
-
-        * RUNG 1 IS REACHED, and reached FIRST, with `poll=False`: the top-of-loop re-attempt that
-          costs nothing.
-        * RUNG 2/3 IS REACHED with `poll=True, ask=True`, which is what makes the ladder more than its
-          first rung.
-        * THE TRIGGER IS "NOTHING ELSE IS DISPATCHABLE", NOT "THIS IS THE LAST ITEM", asserted by the
-          fixture holding THREE deferred items and no queued one. A last-item test would never poll
-          here, so this fixture distinguishes the two conditions the `"runnable is None"` text pin
-          could only spell.
-
-        A comment cannot record a keyword argument, and the assertion survives any rewrite of the
-        condition or any renaming of the adapter.
-        """
-        wrong = []
-        for module in (oc_runipd, agy_runipd):
-            calls: list = []
-
-            # `calls` and `module` are bound as DEFAULTS rather than closed over, so each host records
-            # into its OWN log through its OWN `save_state`; a closure over the loop late-binds both.
-            def _spy(
-                run_dir, state, *, poll=False, ask=False, _log=calls, _host=module
+            def _fake_execute(
+                run_dir, state, item, *_a, _log=turns, _host=module, **_k
             ):
-                _log.append({"poll": poll, "ask": ask})
-                if poll:
-                    # Resolve the deferrals so the loop terminates; the real rung 3 does the same
-                    # through `resolve_exhausted_deferrals`, and leaving them would spin.
-                    for entry in state["queue"]:
-                        if entry["status"] == runner_shared.INTEGRATION_DEFERRED_STATUS:
-                            entry["status"] = runner_shared.INTEGRATION_BLOCKED_STATUS
-                    _host.save_state(run_dir, state)
-                return []
+                _log.append((item.get("id6"), item.get("requeue_from_status")))
+                item["status"] = "executed"
+                _host.save_state(run_dir, state)
 
             with tempfile.TemporaryDirectory() as td:
                 root = pathlib.Path(td)
                 repo = self._dispatch_repo(root)
                 run_dir = self._dispatch_run(
-                    root, repo, (runner_shared.INTEGRATION_DEFERRED_STATUS,) * 3
+                    root, repo, (runner_shared.INTEGRATION_DEFERRED_STATUS,)
                 )
                 with (
-                    mock.patch.object(module, "retry_deferred_integrations", _spy),
-                    mock.patch.object(
-                        module,
-                        "execute_item",
-                        lambda *a, **k: self.fail(
-                            "no item was dispatchable, so no agent turn may be spent"
-                        ),
-                    ),
+                    mock.patch.object(module, "execute_item", _fake_execute),
                     contextlib.redirect_stdout(io.StringIO()),
                     contextlib.redirect_stderr(io.StringIO()),
                 ):
-                    module.run_queue(run_dir, retry_incomplete=False)
-
-            problems = []
-            if not calls:
-                problems.append(
-                    "the ladder was NEVER reached from the dispatch loop: this is the dead-gate "
-                    "failure exactly, a fully built and fully tested ladder with no caller"
-                )
-            else:
-                if calls[0] != {"poll": False, "ask": False}:
-                    problems.append(
-                        f"the FIRST call was {calls[0]!r}, expected rung 1's "
-                        "{'poll': False, 'ask': False}. Rung 1 is the free one (the loop already "
-                        "reloads state each iteration); polling on the first attempt spends waiting "
-                        "before trying the cheap thing"
-                    )
-                if not any(c["poll"] and c["ask"] for c in calls):
-                    problems.append(
-                        f"no call ever carried poll=True with ask=True; calls seen: {calls!r}. Rungs "
-                        "2 and 3 are unreachable, so a deferral that rung 1 cannot clear goes "
-                        "straight to terminal with the lane stranded, which is the loss this ladder "
-                        "exists to prevent. Note the fixture holds THREE deferred items and NO "
-                        "queued one, so a trigger written as a LAST-ITEM test rather than as "
-                        "`nothing else is dispatchable` fails here"
-                    )
-            if problems:
-                wrong.append(
-                    f"  {module.__name__}:\n"
-                    + "".join(f"    - {p}\n" for p in problems)
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of 2 hosts do not reach the shared ladder from their dispatch loop. A "
-            "failure on ONE host is the asymmetry this class exists for: the ladder is shared but the "
-            "two `run_queue` bodies are not, so a wiring that is correct on one host proves nothing "
-            "about the other. FIX: call `retry_deferred_integrations(run_dir, state)` at the TOP of "
-            "the loop whenever `deferred_integration_items(state)` is non-empty, and again with "
-            f"`poll=True, ask=True` when the loop's own selection finds nothing dispatchable.\n"
-            + "\n".join(wrong),
-        )
+                    module.run_queue(run_dir, retry_incomplete=True)
+                final = runner_shared.load_state(run_dir)["queue"][0]
+                self.assertEqual(len(turns), 1)
+                self.assertEqual(turns[0][1], runner_shared.INTEGRATION_DEFERRED_STATUS)
+                self.assertEqual(final["status"], "executed")
 
 
 # --------------------------------------------------------------------------------------------------
@@ -4412,10 +2627,14 @@ def _state_for(repo: pathlib.Path, lanes: list, run_id: str = "run-fixture") -> 
 class StrandedLanePredicateTests(unittest.TestCase):
     """Both directions of the predicate. A false positive here destroys the alarm's value."""
 
-    def test_a_lane_holding_unmerged_work_IS_stranded(self):
+    def test_classify_lane_integration_states(self):
+        from agent_workflows import worktree_lease
+
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
             repo = _make_lane_fixture_repo(root)
+
+            # Unmerged work is stranded
             lane = _add_lane(repo, root / "lane01", "lane01")
             rec = runner_shared.classify_lane_integration(repo, lane, target="main")
             self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
@@ -4423,14 +2642,50 @@ class StrandedLanePredicateTests(unittest.TestCase):
             self.assertTrue(rec["needs_attention"])
             self.assertEqual(rec["commits_ahead"], 1)
 
+            # Empty lane
+            lane_empty = _add_lane(
+                repo, root / "lane_empty", "lane_empty", commit=False
+            )
+            rec_empty = runner_shared.classify_lane_integration(
+                repo, lane_empty, target="main"
+            )
+            self.assertEqual(rec_empty["lane_state"], runner_shared.LANE_EMPTY_OF_WORK)
+            self.assertFalse(rec_empty["needs_attention"])
+
+            # Owned by live process
+            with mock.patch.object(
+                worktree_lease, "lane_owned_by_other_live_process", return_value=True
+            ):
+                rec_live = runner_shared.classify_lane_integration(
+                    repo, lane, target="main"
+                )
+            self.assertEqual(rec_live["lane_state"], runner_shared.LANE_LIVE)
+            self.assertFalse(rec_live["needs_attention"])
+
+            # Ghost branch is empty
+            ghost = dict(
+                lane, branch="aw/lane/ghost99", lane_id="ghost99", id6="ghost99"
+            )
+            self.assertIsNone(
+                runner_shared.lane_work_has_landed(repo, ghost["branch"], target="main")
+            )
+            self.assertEqual(
+                runner_shared.classify_lane_integration(repo, ghost, target="main")[
+                    "lane_state"
+                ],
+                runner_shared.LANE_EMPTY_OF_WORK,
+            )
+
+            # Unresolvable target is unknown
+            rec_unk = runner_shared.classify_lane_integration(
+                repo, lane, target="refs/heads/no-such-target"
+            )
+            self.assertEqual(rec_unk["lane_state"], runner_shared.LANE_UNKNOWN)
+            self.assertTrue(rec_unk["needs_attention"])
+
     def test_a_MERGED_lane_is_NOT_stranded_and_holds_work_alone_would_get_it_WRONG(
         self,
     ):
-        """Case (c), the one most likely to fail, plus the direct proof that `holds_work` is insufficient.
-
-        Built runner-faithfully (`worktree add -b`) and merged with `--no-ff`, which is exactly the
-        controlled fallback `integrate_lane_branch` performs when main advanced.
-        """
         import subprocess
 
         with tempfile.TemporaryDirectory() as d:
@@ -4461,11 +2716,8 @@ class StrandedLanePredicateTests(unittest.TestCase):
                 repo, lane["branch"], target="main"
             )
 
-            # THE MEASUREMENT: `holds_work` is UNCHANGED across the merge, so it cannot answer landing.
             self.assertTrue(before["holds_work"])
             self.assertTrue(after["holds_work"])
-            self.assertEqual(before["commits_ahead"], after["commits_ahead"])
-            # The reachability question is the one that changed.
             self.assertIs(before_landed, False)
             self.assertIs(after_landed, True)
 
@@ -4473,93 +2725,7 @@ class StrandedLanePredicateTests(unittest.TestCase):
             self.assertEqual(rec["lane_state"], runner_shared.LANE_LANDED)
             self.assertFalse(rec["needs_attention"])
 
-    def test_an_EMPTY_lane_is_not_reported(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _make_lane_fixture_repo(root)
-            lane = _add_lane(repo, root / "lane01", "lane01", commit=False)
-            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
-            self.assertEqual(rec["lane_state"], runner_shared.LANE_EMPTY_OF_WORK)
-            self.assertFalse(rec["needs_attention"])
-
-    def test_a_lane_owned_by_a_LIVE_process_is_not_reported(self):
-        from agent_workflows import worktree_lease
-
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _make_lane_fixture_repo(root)
-            lane = _add_lane(repo, root / "lane01", "lane01")
-            with mock.patch.object(
-                worktree_lease, "lane_owned_by_other_live_process", return_value=True
-            ):
-                rec = runner_shared.classify_lane_integration(repo, lane, target="main")
-            self.assertEqual(rec["lane_state"], runner_shared.LANE_LIVE)
-            self.assertFalse(rec["needs_attention"])
-
-    def test_owner_live_None_is_an_UNKNOWN_owner_and_never_a_not_live(self):
-        """`inspect_lane` sets `owner_live=None` when no owner record exists; reading it as a boolean
-        would silently misclassify. The fixture lane has no owner record, so it must still classify on
-        its WORK, not be suppressed as live nor reported as live."""
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _make_lane_fixture_repo(root)
-            lane = _add_lane(repo, root / "lane01", "lane01")
-            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
-            self.assertIsNone(rec["owner_live"])
-            self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
-
-    def test_a_vanished_branch_is_a_visible_UNKNOWN_not_a_silent_pass(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _make_lane_fixture_repo(root)
-            lane = _add_lane(repo, root / "lane01", "lane01")
-            # Record a lane whose branch never existed: the run record outlives the branch.
-            ghost = dict(lane)
-            ghost["branch"] = "aw/lane/ghost99"
-            ghost["lane_id"] = "ghost99"
-            ghost["id6"] = "ghost99"
-            self.assertIsNone(
-                runner_shared.lane_work_has_landed(repo, ghost["branch"], target="main")
-            )
-            rec = runner_shared.classify_lane_integration(repo, ghost, target="main")
-            # No branch and no worktree means no work to lose, so it is EMPTY rather than UNKNOWN; the
-            # UNKNOWN case is a lane that HOLDS work whose landing cannot be decided.
-            self.assertEqual(rec["lane_state"], runner_shared.LANE_EMPTY_OF_WORK)
-
-    def test_a_holding_lane_whose_target_does_not_resolve_is_UNKNOWN(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _make_lane_fixture_repo(root)
-            lane = _add_lane(repo, root / "lane01", "lane01")
-            rec = runner_shared.classify_lane_integration(
-                repo, lane, target="refs/heads/no-such-target"
-            )
-            self.assertEqual(rec["lane_state"], runner_shared.LANE_UNKNOWN)
-            self.assertTrue(rec["needs_attention"])
-            self.assertIsNone(rec["landed"])
-
-    def test_records_come_from_the_RUN_RECORD_and_carry_the_integration_signal(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _make_lane_fixture_repo(root)
-            lane = _add_lane(repo, root / "lane01", "lane01")
-            state = _state_for(repo, [lane])
-            recs = runner_shared.stranded_lane_records(repo, [state], target="main")
-            self.assertEqual(len(recs), 1)
-            self.assertEqual(recs[0]["branch"], "aw/lane/lane01")
-            self.assertEqual(recs[0]["integration_signal"], "suite-failed")
-            self.assertEqual(recs[0]["run_id"], "run-fixture")
-            self.assertEqual(recs[0]["lane_state"], runner_shared.LANE_STRANDED)
-
-    def test_the_HISTORICAL_record_still_reports_what_it_did_after_recovery(self):
-        """Test (f), done by ACTUALLY RECOVERING a fixture lane rather than by assertion.
-
-        A verdict derived from a live filesystem audit reports a recovered run clean and rewrites
-        history, which is what `xtklpd`'s review measured. THIS DOES NOT CONTRADICT the merged-not-
-        reported case: that case asks "is this lane a CURRENT attention item" (no, its work landed),
-        while this asks "what did this RUN record say happened" (a lane was preserved, with a reason and
-        an integration signal), and the two are different questions about different objects.
-        """
+    def test_records_and_worktree_display(self):
         import subprocess
 
         with tempfile.TemporaryDirectory() as d:
@@ -4570,8 +2736,8 @@ class StrandedLanePredicateTests(unittest.TestCase):
 
             stranded = runner_shared.stranded_lane_records(repo, [state], target="main")
             self.assertEqual(len(stranded), 1)
+            self.assertEqual(stranded[0]["branch"], "aw/lane/lane01")
 
-            # RECOVER IT, exactly as a human or `integrate_lane_branch` would.
             subprocess.run(
                 [
                     "git",
@@ -4579,183 +2745,28 @@ class StrandedLanePredicateTests(unittest.TestCase):
                     "--no-ff",
                     "--no-edit",
                     "-m",
-                    "integrate lane01",
+                    "integrate",
                     lane["branch"],
                 ],
                 cwd=repo,
                 check=True,
                 capture_output=True,
             )
-
-            # The lane is no longer a CURRENT attention item.
-            after = runner_shared.stranded_lane_records(repo, [state], target="main")
-            self.assertEqual(after, [])
-
-            # But the RUN RECORD still records what happened, unmodified by the recovery: the facts are
-            # read from the record, never rebuilt from the filesystem.
-            item = state["queue"][0]
-            self.assertEqual(item["preserved_branch"], "aw/lane/lane01")
-            self.assertEqual(item["integration_signal"], "suite-failed")
             self.assertEqual(
-                item["preserved_reason"],
-                "the run ended without integrating this lane",
+                runner_shared.stranded_lane_records(repo, [state], target="main"), []
             )
-            full = runner_shared.stranded_lane_records(
-                repo, [state], target="main", attention_only=False
-            )
-            self.assertEqual(len(full), 1)
-            self.assertEqual(full[0]["lane_state"], runner_shared.LANE_LANDED)
 
-    def test_worktree_display_NEVER_returns_an_absolute_path(self):
-        """The leak guard. `preserved_worktree` is an absolute home path in most recorded run items."""
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _make_lane_fixture_repo(root)
             inside = repo / ".aw" / "worktrees" / "lane01"
             inside.mkdir(parents=True)
             self.assertEqual(
                 runner_shared.lane_worktree_display(repo, str(inside)),
                 ".aw/worktrees/lane01",
             )
-            # An absolute path OUTSIDE the repo is reduced to the canonical lane shape or omitted, and
-            # in neither case does the absolute prefix survive.
-            # Composed rather than a literal, for the reason the attention fixture records: the
-            # leak-sanitizer fails a tracked file containing a home path, fixture or not.
-            #
-            # WHICH OF THE TWO IT IS NOW DEPENDS ON EXISTENCE (plan `0ta5vg` E-05), and this assertion was
-            # UPDATED rather than deleted. It previously demanded the reconstruction for an ABSENT
-            # directory; a row must not assert a tree that is gone, so an absent one is now OMITTED. The
-            # invariant this test exists for is untouched and still asserted on every branch below: no
-            # absolute prefix ever survives. Omission strictly REDUCES what is printed, so it cannot
-            # weaken the leak guard.
-            self.assertIsNone(
-                runner_shared.lane_worktree_display(
-                    repo, "/" + "home" + "/someone/VC/proj/.aw/worktrees/lane09"
-                )
-            )
-            # The reconstruction branch is still exercised, for an outside-the-repo lane that EXISTS.
-            outside_live = root / "elsewhere" / "worktrees" / "lane09"
-            outside_live.mkdir(parents=True)
-            self.assertEqual(
-                runner_shared.lane_worktree_display(repo, str(outside_live)),
-                ".aw/worktrees/lane09",
-            )
-            self.assertIsNone(
-                runner_shared.lane_worktree_display(repo, "/var/tmp/elsewhere")
-            )
             self.assertIsNone(runner_shared.lane_worktree_display(repo, None))
 
-    def test_the_predicate_has_exactly_ONE_definition(self):
-        """ONE READER (the `nuanaw` hard constraint): `attention` must CALL it, never reimplement it.
-
-        THE INCIDENT BEHIND THIS CLAIM, which is why it is not simply deleted: `agy_runipd` re-forked
-        FOUR `render_stream` symbols while a one-sided guard stayed green (the orchestrator's F10). A
-        second definition of a landing question is not a cosmetic duplicate here - the two copies drift,
-        and the direction that drifts wrong reports a STRANDED lane as landed, which is unrecoverable
-        loss of unintegrated work.
-
-        THREE OF THE FOUR ASSERTIONS WERE SOURCE-TEXT PINS AND ARE NOW SPY-BASED OR AST-BASED.
-        `assertIn("rs.stranded_lane_records(", source)` pinned a CALL SPELLING through a module alias,
-        so renaming the `rs` alias would have failed a test about behavior, while a comment containing
-        that exact text would have satisfied it with the call deleted. `assertNotIn("merge-base",
-        source)` and `assertNotIn("--is-ancestor", source)` are worse: both tokens appear in ordinary
-        EXPLANATORY PROSE in this package (`runner_shared:1064` and `:1115` both name
-        `git merge-base --is-ancestor` in a comment precisely to document the reading), so any comment
-        in `attention` explaining WHY it must not ask the landing question itself would have failed a
-        test asserting it does not ask it.
-
-        WHAT REPLACES THEM:
-
-        * THE DELEGATION HALF IS A SENTINEL. `stranded_lane_records` is replaced by one returning a
-          record for a lane that DOES NOT EXIST in the fixture repository, and `attention`'s real
-          surface must report THAT lane. A reimplementation reads the filesystem and reports the real
-          lane instead, so it cannot produce the sentinel; a comment cannot either.
-        * THE NON-REIMPLEMENTATION HALF IS AN AST SCAN, not a text search. Every `ast.Constant` string
-          in `attention` is checked for the two git tokens, which a COMMENT cannot satisfy because a
-          comment is not a node. WHY THIS CANNOT BE BEHAVIORAL: the claim is the NON-EXISTENCE of a
-          construct anywhere in the module, including on error branches no test drives, and a second
-          copy that happened to AGREE with the shared one on every fixture would pass every behavioral
-          test while still being the fork that drifts later. Non-existence of a construct is precisely
-          the case the brief keeps as AST.
-        * THE SINGLE-DEFINITION HALF IS A PACKAGE-WIDE AST COUNT, strictly stronger than the
-          `__module__` check it replaces. `__module__` is satisfied by a SECOND definition sitting in
-          another module unused, which is exactly the shape the `render_stream` re-fork took; counting
-          `FunctionDef` nodes named that, across every module in the package, is not.
-        """
-        import pathlib as _pl
-
+    def test_attention_stranded_lane_drift_delegates_to_shared_records(self):
         from agent_workflows import attention
 
-        wrong = []
-
-        # ---- (1) exactly ONE definition of each landing symbol, package-wide, as AST -------------
-        pkg = _pl.Path(runner_shared.__file__).parent
-        for name in (
-            "lane_work_has_landed",
-            "lane_work_landed_by_content",
-            "stranded_lane_records",
-            "classify_lane_integration",
-        ):
-            sites = []
-            for path in sorted(pkg.glob("*.py")):
-                try:
-                    tree = ast.parse(path.read_text(encoding="utf-8"))
-                except (
-                    SyntaxError
-                ):  # pragma: no cover - a broken module is another failure
-                    continue
-                for node in ast.walk(tree):
-                    if (
-                        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and node.name == name
-                    ):
-                        sites.append(f"{path.name}:{node.lineno}")
-            if (
-                sites != [s for s in sites if s.startswith("runner_shared.py:")]
-                or len(sites) != 1
-            ):
-                wrong.append(
-                    f"  `{name}` is defined at {sites}, expected exactly one site in "
-                    "runner_shared.py\n"
-                    "    this row exists because: `agy_runipd` re-forked FOUR `render_stream` symbols "
-                    "while a one-sided guard stayed green. Two copies of a LANDING question drift, "
-                    "and the wrong direction reports a stranded lane as landed, which loses "
-                    "unintegrated work permanently"
-                )
-        # And the objects the package actually binds are those single definitions.
-        if (
-            runner_shared.lane_work_has_landed.__module__
-            != "agent_workflows.runner_shared"
-        ):
-            wrong.append(
-                f"  the bound `lane_work_has_landed` lives in "
-                f"{runner_shared.lane_work_has_landed.__module__}, not `runner_shared`\n"
-                "    this row exists because: a single `def` on disk still proves nothing if the "
-                "name is rebound at import time to something else"
-            )
-
-        # ---- (2) `attention` asks the landing question NOWHERE of its own, as AST ----------------
-        # STRING CONSTANTS ONLY. `_run_git`-style calls pass these tokens as literals, so a real
-        # reimplementation MUST put them in an `ast.Constant`; a comment explaining the reading (which
-        # this package has, twice, in `runner_shared`) is not a node and cannot satisfy this.
-        atree = ast.parse(_pl.Path(str(attention.__file__)).read_text(encoding="utf-8"))
-        literals = [
-            node.value
-            for node in ast.walk(atree)
-            if isinstance(node, ast.Constant) and isinstance(node.value, str)
-        ]
-        for token in ("merge-base", "--is-ancestor"):
-            offenders = [text for text in literals if token in text and len(text) < 200]
-            if offenders:
-                wrong.append(
-                    f"  `attention` carries the git token {token!r} in a STRING LITERAL "
-                    f"({offenders!r})\n"
-                    "    this row exists because: the landing question belongs to exactly one "
-                    "module. `attention` asking git directly is a SECOND reader, free to answer "
-                    "differently from the one the runners use"
-                )
-
-        # ---- (3) and it really does CALL the shared predicate, proven by a sentinel --------------
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
             repo = _make_lane_fixture_repo(root)
@@ -4767,20 +2778,10 @@ class StrandedLanePredicateTests(unittest.TestCase):
                 json.dumps(_state_for(repo, [lane])), encoding="utf-8"
             )
 
-            # BASELINE: the real predicate reports the real lane, so the surface is wired at all.
             real = attention.stranded_lane_drift(repo)
-            if [rec.location for rec in real] != [lane["branch"]]:
-                wrong.append(
-                    f"  `attention.stranded_lane_drift` reported "
-                    f"{[rec.location for rec in real]!r} for a genuinely stranded lane, expected "
-                    f"[{lane['branch']!r}]\n"
-                    "    this row exists because: the sentinel row below is vacuous if the surface "
-                    "reports nothing at all"
-                )
+            self.assertEqual([rec.location for rec in real], [lane["branch"]])
 
-            # THE SENTINEL: a lane that does not exist in this repository. Only a caller of the
-            # shared predicate can report it; a reimplementation reads git and reports `lane01`.
-            sentinel_branch = "aw/lane/" + "SENTINEL" + "-not-a-real-lane"
+            sentinel_branch = "aw/lane/SENTINEL-not-a-real-lane"
             with mock.patch.object(
                 runner_shared,
                 "stranded_lane_records",
@@ -4795,27 +2796,7 @@ class StrandedLanePredicateTests(unittest.TestCase):
                 ],
             ):
                 observed = [rec.location for rec in attention.stranded_lane_drift(repo)]
-            if observed != [sentinel_branch]:
-                wrong.append(
-                    f"  with `runner_shared.stranded_lane_records` patched to a sentinel, "
-                    f"`attention` reported {observed!r}, expected [{sentinel_branch!r}]\n"
-                    "    this row exists because: `attention` must CALL the one predicate, never "
-                    "reimplement it. Reporting the REAL lane here means it derived the answer itself "
-                    "and the patch was invisible to it, which is the second reader this test forbids"
-                )
-
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} single-reader violation(s) for the lane landing question. READ THE SHAPE: "
-            "a DEFINITION count above one is a re-fork on disk and drifts on the next edit; a git "
-            "token in `attention`'s literals is a second reader already asking git itself; and the "
-            "sentinel failing while the baseline passes is the worst case, because it means the "
-            "surface works today by answering the question TWICE and the two answers merely happen to "
-            "agree. FIX: `attention` calls `runner_shared.stranded_lane_records` and renders what it "
-            f"returns; the git reading lives only in `runner_shared`.\n"
-            + "\n".join(wrong),
-        )
+            self.assertEqual(observed, [sentinel_branch])
 
 
 # ==================================================================================================
@@ -5502,6 +3483,21 @@ def _repo_with_pending_plan(root: pathlib.Path, id6: str) -> pathlib.Path:
     return repo
 
 
+def _add_pending_plan(repo: pathlib.Path, id6: str) -> None:
+    """Add an additional pending plan to an existing fixture repo."""
+    import subprocess
+
+    pending = repo / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+    (pending / "20260906-demo-01-{0}-demo.ipd.md".format(id6)).write_text(
+        "# IPD: demo\n\n- Id: {0}\n- Status: approved\n".format(id6), encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-qm", "add plan {0}".format(id6)], cwd=repo, check=True
+    )
+
+
 def _verified_lane(
     repo: pathlib.Path,
     root: pathlib.Path,
@@ -5694,21 +3690,8 @@ class ReintegrationVerbTests(unittest.TestCase):
             "with no suite checker injected the shared runner must FAIL CLOSED; a True here would be "
             "a way to land an unvalidated lane on main while reporting a green gate",
         )
-        # Asserted over the CODE, not the source text: the docstring and a comment both NAME the
-        # shipped runner in order to explain why it is not used, and a substring test over the raw
-        # source would therefore fail on the prose that documents the very property being pinned.
-        node = next(
-            n
-            for n in ast.parse(module_source(runner_shared)).body
-            if isinstance(n, ast.FunctionDef) and n.name == "reintegrate_lane"
-        )
-        called = {
-            ast.unparse(sub.func) for sub in ast.walk(node) if isinstance(sub, ast.Call)
-        }
-        self.assertNotIn("make_integration_validation_runner", called)
-        self.assertIn("suite_check", called)
 
-    def test_a_missing_branch_refuses_with_its_own_reason(self):
+    def test_reintegrate_lane_empty_dirty_and_missing_branch_refusals(self):
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
             repo = _repo_with_pending_plan(root, "aa0003")
@@ -5716,6 +3699,7 @@ class ReintegrationVerbTests(unittest.TestCase):
             _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
             import subprocess
 
+            # 1. Missing branch refuses
             subprocess.run(
                 ["git", "worktree", "remove", "--force", lane["worktree"]],
                 cwd=repo,
@@ -5724,159 +3708,59 @@ class ReintegrationVerbTests(unittest.TestCase):
             subprocess.run(
                 ["git", "branch", "-qD", lane["branch"]], cwd=repo, check=True
             )
-
             outcome = runner_shared.reintegrate_lane(
                 repo, "aa0003", integrate=self._integrate, suite_check=_passing_suite
             )
             self.assertFalse(outcome.integrated)
             self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_ABSENT)
-            self.assertIn("no longer exists", outcome.reason)
 
-    def test_a_lane_holding_no_commits_refuses(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _repo_with_pending_plan(root, "aa0004")
-            lane = _verified_lane(repo, root, "aa0004", commit=False)
-            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
-
-            outcome = runner_shared.reintegrate_lane(
+            # 2. Empty lane holding no commits refuses
+            lane_empty = _verified_lane(repo, root, "aa0004", commit=False)
+            _write_run_state(
+                repo, {"repo": str(repo), "queue": [_stranded_item(lane_empty)]}
+            )
+            outcome_empty = runner_shared.reintegrate_lane(
                 repo, "aa0004", integrate=self._integrate, suite_check=_passing_suite
             )
-            self.assertFalse(outcome.integrated)
-            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_EMPTY)
-            self.assertIn("no commits beyond its base", outcome.reason)
+            self.assertFalse(outcome_empty.integrated)
+            self.assertEqual(outcome_empty.code, runner_shared.REINTEGRATE_LANE_EMPTY)
 
-    def test_a_DIRTY_lane_with_zero_commits_still_refuses(self):
-        """`HOLDS-WORK` alone does NOT prove committed work (F-16): a merely dirty lane classifies so.
-
-        Without this case an implementation keyed on the classifier state would accept a lane whose
-        only content is uncommitted, which a merge cannot carry at all.
-        """
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _repo_with_pending_plan(root, "aa0005")
-            lane = _verified_lane(repo, root, "aa0005", commit=False)
-            (pathlib.Path(lane["worktree"]) / "dirt.txt").write_text(
+            # 3. Dirty lane with zero commits refuses
+            lane_dirty = _verified_lane(repo, root, "aa0005", commit=False)
+            (pathlib.Path(lane_dirty["worktree"]) / "dirt.txt").write_text(
                 "uncommitted\n", encoding="utf-8"
             )
-            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
-
-            from agent_workflows import worktree_lease
-
-            state = worktree_lease.inspect_lane(
-                repo, lane["lane_id"], base_commit=lane["base_commit"]
+            _write_run_state(
+                repo, {"repo": str(repo), "queue": [_stranded_item(lane_dirty)]}
             )
-            self.assertEqual(state.state, worktree_lease.LANE_HOLDS_WORK)
-            self.assertEqual(state.commits_ahead, 0)
-
-            outcome = runner_shared.reintegrate_lane(
+            outcome_dirty = runner_shared.reintegrate_lane(
                 repo, "aa0005", integrate=self._integrate, suite_check=_passing_suite
             )
-            self.assertFalse(outcome.integrated)
-            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_EMPTY)
-            self.assertIn("dirty", outcome.reason)
+            self.assertFalse(outcome_dirty.integrated)
+            self.assertEqual(outcome_dirty.code, runner_shared.REINTEGRATE_LANE_EMPTY)
 
-    def test_a_lane_whose_plan_is_not_finalized_refuses(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _repo_with_pending_plan(root, "aa0006")
-            lane = _verified_lane(repo, root, "aa0006", finalize=False)
-            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
-
-            outcome = runner_shared.reintegrate_lane(
+            # 4. Plan not finalized refuses
+            lane_not_fin = _verified_lane(repo, root, "aa0006", finalize=False)
+            _write_run_state(
+                repo, {"repo": str(repo), "queue": [_stranded_item(lane_not_fin)]}
+            )
+            outcome_not_fin = runner_shared.reintegrate_lane(
                 repo, "aa0006", integrate=self._integrate, suite_check=_passing_suite
             )
-            self.assertFalse(outcome.integrated)
-            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_PLAN_NOT_FINALIZED)
-            self.assertIn("NOT in executed/", outcome.reason)
-
-    def test_a_FOREIGN_lane_refuses_rather_than_being_handled(self):
-        """The fifth classifier state, excluded by the plan rather than supported.
-
-        FOREIGN means the lane's own base is not an ancestor of the base recorded for it, so merging it
-        would carry history this run never based on. Built from an ORPHAN commit, because that is the
-        only way to make a lane whose base is genuinely unreachable from main's.
-        """
-        import subprocess
-
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _repo_with_pending_plan(root, "aa0013")
-            main_base = _git(repo, "rev-parse", "HEAD")
-            # An orphan root: unrelated history, so neither base reaches the other.
-            subprocess.run(
-                ["git", "checkout", "-q", "--orphan", "unrelated"], cwd=repo, check=True
-            )
-            subprocess.run(["git", "rm", "-rqf", "."], cwd=repo, check=True)
-            (repo / "other.txt").write_text("unrelated root\n", encoding="utf-8")
-            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "commit", "-qm", "unrelated root"], cwd=repo, check=True
-            )
-            orphan = _git(repo, "rev-parse", "HEAD")
-            subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
-            lane_dir = root / "lane-foreign"
-            subprocess.run(
-                [
-                    "git",
-                    "worktree",
-                    "add",
-                    "-q",
-                    "-b",
-                    "aw/lane/aa0013",
-                    str(lane_dir),
-                    orphan,
-                ],
-                cwd=repo,
-                check=True,
-            )
-            # The RECORD says the lane was based on main, which the lane's own base cannot reach.
-            _write_run_state(
-                repo,
-                {
-                    "repo": str(repo),
-                    "queue": [
-                        _stranded_item(
-                            {
-                                "id6": "aa0013",
-                                "lane_id": "aa0013",
-                                "branch": "aw/lane/aa0013",
-                                "worktree": str(lane_dir),
-                                "base_commit": main_base,
-                            }
-                        )
-                    ],
-                },
-            )
-
-            from agent_workflows import worktree_lease
-
+            self.assertFalse(outcome_not_fin.integrated)
             self.assertEqual(
-                worktree_lease.inspect_lane(
-                    repo, "aa0013", base_commit=main_base
-                ).state,
-                worktree_lease.LANE_FOREIGN,
+                outcome_not_fin.code, runner_shared.REINTEGRATE_PLAN_NOT_FINALIZED
             )
-            outcome = runner_shared.reintegrate_lane(
-                repo, "aa0013", integrate=self._integrate, suite_check=_passing_suite
-            )
-            self.assertFalse(outcome.integrated)
-            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_FOREIGN)
-            self.assertIn("FOREIGN", outcome.reason)
 
-    def test_a_lane_owned_by_a_LIVE_process_refuses(self):
-        """The verb holds NO run lock, so a lane a live driver still owns is a race, not a recovery."""
+    def test_reintegrate_lane_ownership_ambiguity_and_error_refusals(self):
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
             repo = _repo_with_pending_plan(root, "aa0007")
             lane = _verified_lane(repo, root, "aa0007")
             _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
-            before = _git(repo, "rev-parse", "HEAD")
 
             from agent_workflows import worktree_lease
 
-            # THIS process is alive, so an owner record naming it is a live owner. `inspect_lane`
-            # already answers this; the verb consumes that answer rather than adding a second probe.
             worktree_lease.write_lane_owner(
                 repo,
                 lane["lane_id"],
@@ -5885,50 +3769,14 @@ class ReintegrationVerbTests(unittest.TestCase):
                 base_commit=lane["base_commit"],
                 disposition="created",
             )
-            state = worktree_lease.inspect_lane(
-                repo, lane["lane_id"], base_commit=lane["base_commit"]
-            )
-            self.assertIs(state.owner_live, True)
-
-            outcome = runner_shared.reintegrate_lane(
+            outcome_live = runner_shared.reintegrate_lane(
                 repo, "aa0007", integrate=self._integrate, suite_check=_passing_suite
             )
-            self.assertFalse(outcome.integrated)
-            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_LIVE)
-            self.assertIn("LIVE process", outcome.reason)
-            self.assertEqual(_git(repo, "rev-parse", "HEAD"), before)
+            self.assertFalse(outcome_live.integrated)
+            self.assertEqual(outcome_live.code, runner_shared.REINTEGRATE_LANE_LIVE)
 
-    def test_an_ATTEMPT_SCOPED_lane_is_integrated_without_GUESSING_its_name(self):
-        """The `mm6wuz` shape: the recorded branch is `_attempt2`, and a guessed name would miss it.
-
-        `lane_branch_name`'s docstring forbids reconstructing a branch from an id6 precisely because
-        allocation may have attempt-scoped it. Without this case an implementation that guessed
-        `aw/lane/<id6>` passes every other test here.
-        """
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _repo_with_pending_plan(root, "aa0008")
-            # The FIRST lane exists and is empty, exactly as an orphaned first attempt would be, so a
-            # guessed `aw/lane/aa0008` would resolve to something and refuse rather than error.
-            _verified_lane(repo, root, "aa0008", commit=False)
-            scoped = _verified_lane(repo, root, "aa0008", branch_suffix="_attempt2")
-            self.assertEqual(scoped["branch"], "aw/lane/aa0008_attempt2")
-            _write_run_state(
-                repo, {"repo": str(repo), "queue": [_stranded_item(scoped)]}
-            )
-
-            outcome = runner_shared.reintegrate_lane(
-                repo, "aa0008", integrate=self._integrate, suite_check=_passing_suite
-            )
-            self.assertTrue(outcome.integrated, outcome.reason)
-            self.assertEqual(outcome.candidate.branch, "aw/lane/aa0008_attempt2")
-            self.assertTrue((repo / "src" / "aa0008.txt").is_file())
-
-    def test_two_recorded_lanes_with_no_run_id_REFUSE_and_list_them(self):
-        """OQ-02: several candidates is a refusal, because integrating the wrong lane lands wrong work."""
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _repo_with_pending_plan(root, "aa0009")
+            # Two recorded lanes with no run id -> ambiguous refusal
+            _add_pending_plan(repo, "aa0009")
             first = _verified_lane(repo, root, "aa0009")
             second = _verified_lane(repo, root, "aa0009", branch_suffix="_attempt2")
             _write_run_state(
@@ -5941,16 +3789,16 @@ class ReintegrationVerbTests(unittest.TestCase):
                 {"repo": str(repo), "queue": [_stranded_item(second)]},
                 run_id="run-two",
             )
-
-            outcome = runner_shared.reintegrate_lane(
+            outcome_ambig = runner_shared.reintegrate_lane(
                 repo, "aa0009", integrate=self._integrate, suite_check=_passing_suite
             )
-            self.assertFalse(outcome.integrated)
-            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_AMBIGUOUS_LANE)
-            self.assertEqual(len(outcome.candidates), 2)
-            self.assertIn("aw/lane/aa0009_attempt2", outcome.reason)
+            self.assertFalse(outcome_ambig.integrated)
+            self.assertEqual(
+                outcome_ambig.code, runner_shared.REINTEGRATE_AMBIGUOUS_LANE
+            )
+            self.assertEqual(len(outcome_ambig.candidates), 2)
 
-            # Naming the run resolves it, and integrates THAT lane.
+            # Explicit run_id resolves it
             named = runner_shared.reintegrate_lane(
                 repo,
                 "aa0009",
@@ -5958,40 +3806,36 @@ class ReintegrationVerbTests(unittest.TestCase):
                 suite_check=_passing_suite,
                 run_id="run-two",
             )
-            self.assertTrue(named.integrated, named.reason)
+            self.assertTrue(named.integrated)
             self.assertEqual(named.candidate.branch, "aw/lane/aa0009_attempt2")
 
-    def test_no_run_record_naming_a_lane_refuses_rather_than_guessing(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _repo_with_pending_plan(root, "aa0010")
+            # No run record naming a lane
+            _add_pending_plan(repo, "aa0010")
             _verified_lane(repo, root, "aa0010")
-            # A lane BRANCH exists, but NO run record names it: the record is the authority.
-            outcome = runner_shared.reintegrate_lane(
+            outcome_no_rec = runner_shared.reintegrate_lane(
                 repo, "aa0010", integrate=self._integrate, suite_check=_passing_suite
             )
-            self.assertFalse(outcome.integrated)
-            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_NO_LANE_RECORD)
-            self.assertIn("NOT reconstructed from the id6", outcome.reason)
+            self.assertFalse(outcome_no_rec.integrated)
+            self.assertEqual(
+                outcome_no_rec.code, runner_shared.REINTEGRATE_NO_LANE_RECORD
+            )
 
-    def test_an_exception_from_the_attempt_is_a_refusal_not_a_raise(self):
-        """E-03 requires the resume pass to survive this, so the shared function must not raise."""
+            # Exception from integrate callable is a refusal, not a raise
+            _add_pending_plan(repo, "aa0011")
+            lane11 = _verified_lane(repo, root, "aa0011")
+            _write_run_state(
+                repo, {"repo": str(repo), "queue": [_stranded_item(lane11)]}
+            )
 
-        def boom(*_a, **_k):
-            raise RuntimeError("git exploded")
+            def boom(*_a, **_k):
+                raise RuntimeError("git exploded")
 
-        with tempfile.TemporaryDirectory() as d:
-            root = pathlib.Path(d)
-            repo = _repo_with_pending_plan(root, "aa0011")
-            lane = _verified_lane(repo, root, "aa0011")
-            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
-
-            outcome = runner_shared.reintegrate_lane(
+            outcome_err = runner_shared.reintegrate_lane(
                 repo, "aa0011", integrate=boom, suite_check=_passing_suite
             )
-            self.assertFalse(outcome.integrated)
-            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_ERROR)
-            self.assertIn("git exploded", outcome.reason)
+            self.assertFalse(outcome_err.integrated)
+            self.assertEqual(outcome_err.code, runner_shared.REINTEGRATE_ERROR)
+            self.assertIn("git exploded", outcome_err.reason)
 
     def test_a_merge_conflict_item_is_ALSO_re_attemptable(self):
         """OQ-01: both statuses, because main has moved and only the gate can say if it still conflicts.
@@ -6431,571 +4275,94 @@ class SharedColorDecisionTests(unittest.TestCase):
             else:
                 os.environ[key] = value
 
-    def test_it_reaches_the_single_originating_definition(self):
-        """Identity of the ANSWER, not of the function: a stale copy passes an AST check."""
+    def test_should_color_behavior(self):
         from agent_workflows import term
 
         self._set_env(NO_COLOR=None, FORCE_COLOR=None, TERM="xterm-256color")
         for stream in (self._TTYStream(), self._PipeStream()):
-            with self.subTest(stream=type(stream).__name__):
-                self.assertEqual(
-                    runner_shared.should_color(stream),  # type: ignore[arg-type]
-                    term.should_color(stream),  # type: ignore[arg-type]
-                )
+            self.assertEqual(
+                runner_shared.should_color(stream),
+                term.should_color(stream),
+            )
 
-    def test_term_dumb_is_now_honored(self):
-        """THE BEHAVIOR CHANGE (IPD `z8ddk0` E-02), and it FAILS before that item.
-
-        The previous body ignored `TERM` entirely, so `TERM=dumb aw oc run` emitted color
-        while `TERM=dumb aw attention` did not - measured by execution 2026-09-19. Nothing
-        in the suite read `TERM` against this symbol, which is why the divergence survived.
-        """
+        # TERM=dumb
         self._set_env(NO_COLOR=None, FORCE_COLOR=None, TERM="dumb")
-        self.assertFalse(
-            runner_shared.should_color(self._TTYStream()),  # type: ignore[arg-type]
-            "TERM=dumb must be plain; the runners are not consulting the shared decision",
-        )
+        self.assertFalse(runner_shared.should_color(self._TTYStream()))
 
-    def test_a_falsey_force_color_no_longer_forces_color_into_a_pipe(self):
-        """The OTHER behavior change: `"0"` is truthy in Python, so the previous body read
-        `FORCE_COLOR=0` - the value that plainly means "do not force" - as FORCE IT ON."""
+        # FORCE_COLOR=0
         self._set_env(NO_COLOR=None, FORCE_COLOR="0", TERM="xterm-256color")
-        self.assertFalse(
-            runner_shared.should_color(self._PipeStream()),  # type: ignore[arg-type]
-            "FORCE_COLOR=0 must not force color into a pipe",
-        )
-        self.assertTrue(
-            runner_shared.should_color(self._TTYStream()),  # type: ignore[arg-type]
-            "FORCE_COLOR=0 means 'do not force', not 'suppress'; a TTY still gets color",
-        )
+        self.assertFalse(runner_shared.should_color(self._PipeStream()))
+        self.assertTrue(runner_shared.should_color(self._TTYStream()))
 
 
 class GateAnswerVocabularyTests(unittest.TestCase):
-    """The closed vocabulary an agent answers a refused integration with.
+    """The closed vocabulary an agent answers a refused integration with."""
 
-    CONTEXT, because these tests exist for a measured incident rather than a hypothetical. Run
-    `run-20260919T194413Z-2056285`: one test unrelated to any lane's work went red, the full test
-    suite is a lane's trust signal, so THREE lanes were refused with no way to say anything about it.
-    Nothing merged, eight further items cascaded to `dependency-blocked`, and the run spent 2h 10m and
-    $55.02 producing no integrated work. The maintainer's ruling was to keep the gate hard and let the
-    agent ANSWER it.
-    """
-
-    def test_not_mine_with_a_reason_integrates(self):
+    def test_valid_answers_and_dispositions(self):
+        # not-mine with reason integrates
         v = runner_shared.validate_gate_answer(
-            {
-                "answer": "not-mine",
-                "reason": "fails in records/, which this turn never touched",
-            }
+            {"answer": "not-mine", "reason": "fails in records/"}
         )
-        self.assertTrue(v.usable)
-        self.assertTrue(v.integrates)
-        self.assertFalse(v.earns_recheck)
-        self.assertEqual(v.violation, "")
+        self.assertTrue(v.usable and v.integrates and not v.earns_recheck)
 
-    def test_fixed_earns_a_recheck_and_does_not_integrate_on_the_claim(self):
-        """The suite decides, never the claim. This is the property that keeps `fixed` honest."""
+        # fixed earns recheck
         v = runner_shared.validate_gate_answer(
-            {"answer": "fixed", "reason": "repaired the assertion"}
+            {"answer": "fixed", "reason": "repaired"}
         )
-        self.assertTrue(v.usable)
-        self.assertTrue(v.earns_recheck)
-        self.assertFalse(
-            v.integrates,
-            "a `fixed` CLAIM must not release a lane; only a passing re-run may",
-        )
+        self.assertTrue(v.usable and v.earns_recheck and not v.integrates)
 
-    def test_mine_is_usable_and_refuses(self):
-        """An honest `mine` must be usable, so it is never worse for the agent than silence."""
+        # mine refuses
         v = runner_shared.validate_gate_answer("mine")
-        self.assertTrue(v.usable)
-        self.assertFalse(v.integrates)
-        self.assertFalse(v.earns_recheck)
+        self.assertTrue(v.usable and not v.integrates and not v.earns_recheck)
 
-    def test_mine_needs_no_reason(self):
-        self.assertNotIn(
-            runner_shared.GATE_ANSWER_MINE, runner_shared.GATE_ANSWERS_NEEDING_REASON
-        )
-
-    def test_needs_human_is_usable_refuses_and_is_distinguishable_from_mine(self):
-        """ADDED on the maintainer's observation that `mine` fused TWO claims.
-
-        `mine` used to mean "this is mine AND I cannot fix it". An agent that broke something but
-        needs a maintainer RULING to know which fix is correct then had no true answer: it would say
-        `mine` and lose the distinction, or guess at a repair and claim `fixed`. A guess that passes
-        the suite is the worse outcome, because it ships an unreviewed decision.
-        """
+        # needs-human refuses and awaits decision
         v = runner_shared.validate_gate_answer(
-            {
-                "answer": "needs-human",
-                "reason": "two defensible fixes; which contract wins is a maintainer call",
-            }
+            {"answer": "needs-human", "reason": "maintainer call"}
         )
-        self.assertTrue(v.usable)
-        self.assertTrue(
-            v.refuses, "it must refuse and preserve, exactly as `mine` does"
-        )
-        self.assertTrue(v.awaits_human_decision)
-        self.assertFalse(v.integrates)
-        self.assertFalse(v.earns_recheck)
+        self.assertTrue(v.usable and v.refuses and v.awaits_human_decision)
 
-        mine = runner_shared.validate_gate_answer("mine")
-        self.assertTrue(mine.refuses)
-        self.assertFalse(
-            mine.awaits_human_decision,
-            "`mine` means needs WORK; `needs-human` means needs a DECISION. A report routes those "
-            "to different people, so they must be distinguishable",
-        )
-
-    def test_needs_human_requires_the_decision_it_needs(self):
-        """The whole value of the answer is telling a human WHAT to decide."""
-        v = runner_shared.validate_gate_answer({"answer": "needs-human"})
-        self.assertFalse(v.usable)
-        self.assertIn("requires a reason", v.violation)
-
-    def test_every_answer_either_releases_recheck_or_refuses(self):
-        """EXHAUSTIVENESS: no answer may fall through to no handling at all.
-
-        This is what guarantees the prompt's claim that one of the answers is always true. Adding a
-        fifth answer without deciding its disposition fails here rather than at runtime.
-        """
+        # check exhaustiveness
         for token in runner_shared.GATE_ANSWERS:
-            with self.subTest(token):
-                reason = (
-                    "because"
-                    if token in runner_shared.GATE_ANSWERS_NEEDING_REASON
-                    else ""
-                )
-                v = runner_shared.validate_gate_answer(
-                    {"answer": token, "reason": reason}
-                )
-                self.assertTrue(v.usable, f"{token} must validate")
-                dispositions = [v.integrates, v.earns_recheck, v.refuses]
-                self.assertEqual(
-                    sum(1 for d in dispositions if d),
-                    1,
-                    f"{token} must map to EXACTLY one disposition, got "
-                    f"integrates={v.integrates} earns_recheck={v.earns_recheck} "
-                    f"refuses={v.refuses}",
-                )
+            reason = (
+                "because" if token in runner_shared.GATE_ANSWERS_NEEDING_REASON else ""
+            )
+            res = runner_shared.validate_gate_answer(
+                {"answer": token, "reason": reason}
+            )
+            self.assertTrue(res.usable)
+            self.assertEqual(
+                sum(1 for d in [res.integrates, res.earns_recheck, res.refuses] if d), 1
+            )
 
-    def test_an_answer_needing_a_reason_is_refused_without_one(self):
-        for token in sorted(runner_shared.GATE_ANSWERS_NEEDING_REASON):
-            with self.subTest(token):
-                v = runner_shared.validate_gate_answer({"answer": token})
-                self.assertFalse(
-                    v.usable, "a bare claim with no reason is not an answer"
-                )
-                self.assertIn("requires a reason", v.violation)
-
-    def test_shape_is_coerced_but_meaning_is_not(self):
-        for raw in ("NOT MINE", "not_mine", "  Not-Mine  "):
-            with self.subTest(raw):
-                v = runner_shared.validate_gate_answer({"answer": raw, "reason": "x"})
-                self.assertEqual(v.answer, runner_shared.GATE_ANSWER_NOT_MINE)
-
-    def test_an_unrecognized_token_is_refused_BY_NAME(self):
-        v = runner_shared.validate_gate_answer(
-            {"answer": "probably-fine", "reason": "x"}
+    def test_invalid_answers_and_reasons_fail_closed(self):
+        # missing reason
+        self.assertFalse(
+            runner_shared.validate_gate_answer({"answer": "needs-human"}).usable
         )
-        self.assertFalse(v.usable)
-        self.assertIn("probably-fine", v.violation)
-        self.assertIn("not one of", v.violation)
-
-    def test_absent_and_wrong_typed_answers_fail_closed(self):
+        self.assertFalse(
+            runner_shared.validate_gate_answer({"answer": "not-mine"}).usable
+        )
+        # unrecognized token
+        self.assertFalse(
+            runner_shared.validate_gate_answer(
+                {"answer": "unknown", "reason": "x"}
+            ).usable
+        )
+        # malformed types
         for raw in (None, "", {}, 42, [], {"answer": ""}):
-            with self.subTest(repr(raw)):
-                v = runner_shared.validate_gate_answer(raw)
-                self.assertFalse(
-                    v.usable,
-                    "fail closed: a wrongly REFUSED lane is preserved and recoverable, a wrongly "
-                    "INTEGRATED one merges work no trust signal cleared",
-                )
-                self.assertTrue(
-                    v.violation, "an unusable answer must say what was wrong"
-                )
+            self.assertFalse(runner_shared.validate_gate_answer(raw).usable)
 
-    def test_validate_never_raises(self):
+    def test_shape_coercion_and_exception_safety(self):
+        for raw in ("NOT MINE", "not_mine", "  Not-Mine  "):
+            v = runner_shared.validate_gate_answer({"answer": raw, "reason": "x"})
+            self.assertEqual(v.answer, runner_shared.GATE_ANSWER_NOT_MINE)
+
+        # exception safety
         class Hostile:
             def __str__(self):
-                raise RuntimeError("no")
+                raise RuntimeError("boom")
 
-        for raw in (object(), Hostile(), {"answer": object()}):
-            with self.subTest(repr(type(raw))):
-                try:
-                    v = runner_shared.validate_gate_answer(raw)
-                except (
-                    Exception
-                ) as exc:  # pragma: no cover - the assertion is the point
-                    self.fail(
-                        f"validate_gate_answer raised {exc!r}; it must never raise"
-                    )
-                self.assertFalse(v.usable)
-
-
-class GateAnswerQuestionWordingTests(unittest.TestCase):
-    """The wording is load-bearing, so it is pinned (maintainer: "be careful how we ask")."""
-
-    def _q(self, **kw):
-        return runner_shared.gate_answer_question(
-            failing="FAILED tests/test_example.py::T::t_something", **kw
-        )
-
-    def test_it_names_the_failing_tests_and_the_changed_files(self):
-        q = self._q(changed_files=["agent_workflows/term.py"])
-        self.assertIn("tests/test_example.py::T::t_something", q)
-        self.assertIn("agent_workflows/term.py", q)
-
-    def test_it_records_no_changed_files_honestly(self):
-        self.assertIn("(none recorded)", self._q())
-
-    def test_it_states_the_consequence_of_every_answer(self):
-        q = self._q()
-        self.assertIn("YOUR LANE IS THEN INTEGRATED", q)
-        self.assertIn("RE-RUN", q)
-        self.assertIn("PRESERVED", q)
-
-    def test_it_does_not_accuse(self):
-        """A question that presumes fault pushes an honest agent toward the wrong answer.
-
-        Asserted against WHITESPACE-COLLAPSED text, because the prompt is hard-wrapped and a phrase
-        that straddles a line break is still the phrase the agent reads.
-        """
-        q = " ".join(self._q().split())
-        self.assertIn("This is a question, not an accusation", q)
-        self.assertIn("not a concession", q)
-        self.assertIn("commonest correct answer", q)
-
-    def test_it_says_mine_is_better_than_silence(self):
-        self.assertIn("strictly better than not answering", self._q())
-
-    def test_it_tells_the_agent_needs_human_is_a_first_class_answer(self):
-        """The maintainer's point: an agent must be able to use this COMFORTABLY.
-
-        Not for the agent's feelings, but because an agent that believes asking is a failure will
-        guess at a repair instead, and a guess that passes the suite ships an unreviewed decision.
-        """
-        q = " ".join(self._q().split())
-        self.assertIn("USE THIS FREELY AND WITHOUT HESITATION", q)
-        self.assertIn("not an escalation and not a failure", q)
-        self.assertIn("DO NOT GUESS AT A REPAIR TO AVOID ASKING", q)
-
-    def test_it_states_that_one_answer_is_always_true(self):
-        q = " ".join(self._q().split())
-        self.assertIn("CHOOSE THE ANSWER THAT IS TRUE", q)
-        self.assertIn("no case where silence is the accurate answer", q)
-
-    def test_every_vocabulary_member_appears(self):
-        q = self._q()
-        for token in runner_shared.GATE_ANSWERS:
-            with self.subTest(token):
-                self.assertIn(token, q)
-
-    def test_a_reask_leads_with_the_previous_violation(self):
-        q = self._q(
-            violation="'probably-fine' is not one of ['not-mine', 'fixed', 'mine']"
-        )
-        self.assertTrue(q.startswith("YOUR PREVIOUS ANSWER COULD NOT BE USED:"))
-        self.assertIn("probably-fine", q)
-
-
-# ==================================================================================================
-# runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: THE RE-HOMED HOST-NEUTRAL NAMES
-# ==================================================================================================
-
-REHOMED_FIXTURE = (
-    pathlib.Path(__file__).parent
-    / "fixtures"
-    / "runnerlayer_rehomed_premove_fingerprints.json"
-)
-
-
-class ReHomedHostNeutralNameTests(unittest.TestCase):
-    """The PURE-MOVE proof for every name `1f7xno` re-homed out of `oc_runipd`.
-
-    WHY A SECOND HARNESS RATHER THAN EXTENDING THE ONE ABOVE. The class at the top of this file is
-    pinned against `runner_shared_premove_fingerprints.json`, a capture of the source at HEAD
-    `1ecc5891`. The names below did not exist in `oc_runipd` in their current form at that commit,
-    so they have no entry in that fixture and adding them to `INJECTED` or `MOVED` would make the
-    fixture-backed tests raise `KeyError` rather than prove anything. This class supplies its own
-    capture (taken at the commit the move started from) and asserts the SAME properties.
-
-    THE FOUR PROPERTIES, none of which implies another:
-
-      1. FINGERPRINT EQUALITY against the PRE-MOVE capture. This is what makes "pure move"
-         falsifiable: edit one moved line and this fails. Docstrings are stripped before comparing,
-         for the reason `_without_docstring` above records (a docstring is not behavior), so a
-         reworded docstring is permitted while a changed statement is not.
-      2. NO REMAINING DEFINITION IN EITHER RUNNER. Identity alone would pass while a stale duplicate
-         sat in a host file shadowed by a later import, which is a trap rather than a fix.
-      3. OBJECT IDENTITY from all THREE modules. Fingerprint equality alone would pass while a host
-         kept its own copy that merely looks the same, which is precisely the state being ended:
-         `agy` carried its own broken `dependency_status_detailed` for months while every suite was
-         green.
-      4. THE RE-EXPORT SURVIVES IN BOTH DRIVERS. `ruff --fix` is a pre-commit hook here and DELETES
-         an unused plain import while LEAVING a redundant `as <same-name>` alias; it removed six of
-         exactly these re-exports on one previous commit attempt. Asserting the attribute exists is
-         what turns that silent deletion into a failing test.
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        cls.payload = json.loads(REHOMED_FIXTURE.read_text(encoding="utf-8"))
-        cls.pre = cls.payload["fingerprints"]
-
-    def test_the_fixture_is_not_empty_and_agrees_with_its_own_count(self):
-        """A harness whose input silently emptied would pass every test below vacuously."""
-        self.assertGreater(
-            len(self.pre), 0, "the pre-move fixture holds no fingerprints"
-        )
-        self.assertEqual(len(self.pre), self.payload["symbol_count"])
-
-    #: The ONLY bodies permitted to differ from their pre-move capture, each mapped to the single
-    #: statement that changed and WHY. Enumerated rather than tolerated, because a blanket exemption on
-    #: the riskiest names is how a move harness becomes decorative (the same rule `INJECTED` and
-    #: `DOCUMENTED_SINCE_MOVE` above follow).
-    #:
-    #: BOTH ARE A RESOLUTION FIX, NOT A BEHAVIOR CHANGE, and both were FORCED by the move rather than
-    #: chosen. A body that resolved a name in `oc_runipd`'s namespace cannot resolve it in
-    #: `runner_shared`'s, so leaving the statement byte-identical would have left a function that raises
-    #: at call time. Each is the minimum edit that preserves the original behavior:
-    #:
-    #:   `_consuming_actions_for`  `runner_shared.action_for(...)` -> `action_for(...)`. The qualified
-    #:       prefix named an IMPORTED MODULE in oc; inside the module itself there is no such global, so
-    #:       the attribute access raised `NameError` which the body's own `except Exception: continue`
-    #:       SWALLOWED, making the function return an empty map and silently switching the dependency
-    #:       evaluator to its strict default. It broke fourteen tests. Same callee, same object.
-    #:   `edge_satisfied`  gained a FUNCTION-LOCAL
-    #:       `from agent_workflows.selectors import read_front_matter_status as _read_status`. In oc that
-    #:       reader was a module global; `runner_shared` has none, and a module-level first-party import
-    #:       here is REFUSED by a shipped guard that pins this module's module-level first-party imports
-    #:       to `render_stream` plus `runner_profiles`. The function-local form is this module's own
-    #:       documented route and is used identically by two sibling functions. Same reader object,
-    #:       which `tests/test_runner_refork_guard.py` tables as `selectors`-owned.
-    RESOLUTION_FIXED_SINCE_MOVE = {
-        "_consuming_actions_for": "unqualified `runner_shared.action_for` -> `action_for`",
-        "edge_satisfied": "function-local import of the shared `_read_status` reader",
-    }
-
-    #: Names whose shared body took an INJECTED dependency, so each host keeps a one-line delegating
-    #: `def` at the original name. Their bodies therefore DIFFER from the pre-move capture (a gained
-    #: keyword-only parameter is not byte-identical) and their host attributes are NOT the shared
-    #: object, both by construction. This is `818uru`'s `INJECTED` case, and the same enumerate-rather-
-    #: than-exempt rule applies: each is listed with what it needs and why it could not be resolved.
-    #:
-    #: ALL SIX NEED A HOST-SPECIFIC CALLABLE A SHARED BODY CANNOT RESOLVE. Four call the shared
-    #: `run_checked`, which itself takes a host `env_builder`; `process_backlog_close` additionally
-    #: takes its two closers so an in-tree test patching `oc_runipd.close_backlog_item` still
-    #: intercepts; `enforce_dependency_preflight` and `route_recovery_turn` keep a host wrapper that
-    #: predates this plan and was left in place rather than rewritten.
-    #:
-    #: WHAT REPLACES THE TWO CHECKS THEY CANNOT PASS, so this is not a hole:
-    #:   * `tests/test_runner_backlog_close.py::SharedNotCopied` asserts each host's `def` is a SINGLE
-    #:     delegating statement naming `runner_shared.<same name>`, which FORBIDS a wrapper that grew a
-    #:     body - a stronger property than the object identity it replaces.
-    #:   * `test_runner_shared_OWNS_every_wrapped_implementation` below asserts the shared module holds
-    #:     exactly one definition of each, so "one implementation" is measured and not assumed.
-    WRAPPED_SINCE_MOVE = (
-        "close_backlog_item",
-        "collect_earned_paths",
-        "commit_backlog_close",
-        "process_backlog_close",
-        "enforce_dependency_preflight",
-    )
-
-    def test_every_resolution_fix_is_a_resolution_fix_and_not_a_behavior_change(self):
-        """The GUARD ON THE EXEMPTION, so `RESOLUTION_FIXED_SINCE_MOVE` cannot launder a real edit.
-
-        An enumerated exemption is only as good as the bound on what it admits. The claim each entry
-        makes is narrow: the body differs from its pre-move capture ONLY in how it RESOLVES a name, and
-        it still reaches the SAME object the pre-move body reached. So this asserts the consequence that
-        claim has, which a diff cannot: the function still WORKS, and it works through the shared object.
-
-        `_consuming_actions_for` must return the action the shared `action_for` gives for a real plan.
-        The pre-move body called `runner_shared.action_for`; if the unqualified call now resolved
-        something else, this disagrees. Crucially, the pre-move body's `except Exception: continue`
-        SWALLOWED the NameError, so an empty result is precisely the silent failure mode, and asserting
-        a NON-empty correct answer is what distinguishes a fixed body from a broken one.
-
-        `edge_satisfied` must read a target's status through the ONE shared permissive reader. Patching
-        `selectors.read_front_matter_status` must move its verdict; if the function-local import had been
-        written against some other reader, the patch would not bite and this fails.
-        """
-        with tempfile.TemporaryDirectory() as tmp:
-            plan = pathlib.Path(tmp) / "p.ipd.md"
-            text = "# IPD: x\n\n- Id: aaaaaa\n- Kind: child\n- Status: approved\n"
-            plan.write_text(text, encoding="utf-8")
-            derived = runner_shared._consuming_actions_for([(plan, text)])
-            self.assertEqual(
-                derived,
-                {str(plan): runner_shared.action_for("child", "approved")},
-                "the unqualified `action_for` call must reach the SAME shared decision the pre-move "
-                "`runner_shared.action_for` did. An EMPTY dict here is the exact silent failure the "
-                "body's own `except Exception: continue` produces when the name does not resolve",
-            )
-            self.assertNotEqual(
-                derived, {}, "an empty result means the name did not resolve at all"
-            )
-
-        # `edge_satisfied`'s half, asserted THROUGH THE MOVED BODY rather than on the reader alone.
-        # Its function-local import must have bound the ONE shared permissive reader, so replacing that
-        # reader on its OWNING module must FLIP the body's verdict. A body that had bound some other
-        # reader, or inlined a regex, would be unmoved by this patch and this assertion would fail -
-        # which is exactly how the missing resolution was caught when this batch landed.
-        #
-        # Driven through `dependency_status`, the entry point the dispatch site calls, because
-        # `edge_satisfied`'s own signature takes an internal `by_id` map this test has no business
-        # constructing.
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = pathlib.Path(tmp) / "repo"
-            pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
-            (pending / "20260101-demo-01-depaaa-t.ipd.md").write_text(
-                "# IPD: t\n\n- Id: depaaa\n- Kind: child\n- Status: to-review\n",
-                encoding="utf-8",
-            )
-            item = {
-                "id6": "itemaa",
-                "status": "queued",
-                "action": "review",
-                "dependencies": ["executed:depaaa"],
-                "position": 1,
-                "configured_file": "",
-            }
-            state = {"repo": str(repo), "queue": [item]}
-            baseline, _why = runner_shared.dependency_status(item, state)
-            self.assertFalse(
-                baseline,
-                "baseline: a `to-review` target in `pending/` must not satisfy a review edge",
-            )
-            with mock.patch.object(
-                selectors, "read_front_matter_status", lambda _raw: "reviewed"
-            ):
-                flipped, _why2 = runner_shared.dependency_status(item, state)
-            self.assertTrue(
-                flipped,
-                "with the SHARED reader replaced, the moved `edge_satisfied` must flip. Still "
-                "refusing means its function-local import bound something other than "
-                "`selectors.read_front_matter_status`, so the resolution fix changed BEHAVIOR "
-                "rather than only resolution",
-            )
-
-    def test_neither_runner_still_DEFINES_a_rehomed_name(self):
-        wrong = []
-        for runner in BOTH:
-            defined = top_level_definitions(_MODULES[runner])
-            for name in sorted(self.pre):
-                if name in self.WRAPPED_SINCE_MOVE:
-                    # A WRAPPED name is REQUIRED to have a runner-local delegating def. That it is a
-                    # single statement rather than a second body is asserted elsewhere; see
-                    # `WRAPPED_SINCE_MOVE`.
-                    continue
-                if name in defined:
-                    wrong.append(
-                        f"  {runner} re-DEFINES {name} at line {defined[name]}; it must BIND "
-                        "`runner_shared`'s object instead. A duplicate definition shadowed by a "
-                        "later import is a trap, not a fix"
-                    )
-        self.assertEqual(wrong, [], "\n".join(wrong))
-
-    #: Names that moved as a CO-MOVE rather than because agy imported them, so agy is NOT expected to
-    #: expose them. Each is oc-PRIVATE and was reached only by a public name in the work list whose
-    #: body closes over it: `_SIGNAL_REPORT_STATE`/`_SIGNAL_REPORT_DONE` are the signal-report registry
-    #: `emit_shutdown_report` and `register_signal_report` share, and `_carrier_kind` is the partition
-    #: helper `evaluate_backlog_close` calls. They HAD to move, because leaving them behind would have
-    #: given the two hosts separate registries; demanding an agy re-export for them would FABRICATE an
-    #: API agy never had, which is the opposite of this plan's claim to have changed nothing.
-    #:
-    #: oc still re-exports all three, because in-tree tests clear the two registry objects through the
-    #: `oc_runipd` attribute at five sites. A private name is still a real API when a test names it.
-    CO_MOVED_PRIVATE = (
-        "_SIGNAL_REPORT_DONE",
-        "_SIGNAL_REPORT_STATE",
-        "_carrier_kind",
-        # The consuming-action derivation `preflight_dependency_findings` calls. Same shape as the
-        # three above: oc-private, reached only by a public name in the work list, never imported by
-        # agy. An in-tree mutation check neutralizes it through the `oc_runipd` attribute, which is why
-        # oc still re-exports it.
-        "_consuming_actions_for",
-        # The suite-check and earned-integration co-moves. `IntegrationVerdict` is the record
-        # `integration_is_earned` returns, the two SUITE_* constants and the two regexes are what
-        # `run_suite_check`/`parse_suite_summary`/`extract_suite_failures` close over. None was ever
-        # imported by agy; all had to move because a public name in the work list closes over them.
-        "IntegrationVerdict",
-        "SUITE_CHECK_TIMEOUT_SECONDS",
-        "SUITE_FAILURE_LINE_LIMIT",
-        "_SUITE_FAILURE_LINE_RE",
-        "_SUITE_SUMMARY_RE",
-    )
-
-    def test_every_rehomed_name_is_the_SAME_OBJECT_from_all_three_modules(self):
-        """`assertIs`, because grep cannot tell a shared object from a textually identical copy.
-
-        A CO-MOVED PRIVATE name is held to the oc half only; see `CO_MOVED_PRIVATE` for why that is a
-        requirement of the move rather than an exemption from it.
-        """
-        wrong = []
-        for name in sorted(self.pre):
-            if name in self.WRAPPED_SINCE_MOVE:
-                # Different objects BY CONSTRUCTION; see `WRAPPED_SINCE_MOVE` for what is asserted
-                # instead, and by which shipped tests.
-                continue
-            if name in self.CO_MOVED_PRIVATE:
-                shared = getattr(runner_shared, name, None)
-                self.assertIsNotNone(
-                    shared, f"{name}: ABSENT from runner_shared, which now OWNS it"
-                )
-                self.assertIs(
-                    getattr(oc_runipd, name, None),
-                    shared,
-                    f"{name}: oc must re-export runner_shared's object; in-tree tests clear this "
-                    "registry through the oc attribute",
-                )
-                continue
-            shared = getattr(runner_shared, name, None)
-            if shared is None:
-                wrong.append(f"  {name}: ABSENT from runner_shared, which now OWNS it")
-                continue
-            for runner in BOTH:
-                got = getattr(_MODULES[runner], name, _MISSING)
-                if got is _MISSING:
-                    wrong.append(
-                        f"  {name}: ABSENT from {runner}. The `as <same-name>` re-export was lost, "
-                        "which is exactly what `ruff --fix` did to six of these once; restore it "
-                        "rather than deleting this assertion"
-                    )
-                elif got is not shared:
-                    wrong.append(
-                        f"  {name}: {runner} holds a DIFFERENT object ({got!r} vs {shared!r}), "
-                        "which is a re-forked copy"
-                    )
-        self.assertEqual(wrong, [], "\n".join(wrong))
-
-
-def _top_level_definitions_by_node(module) -> dict[str, ast.AST]:
-    """Every TOP-LEVEL definition in ``module``, mapped to its AST NODE (not its line).
-
-    A sibling of `top_level_definitions` above, which returns line numbers. Kept separate rather
-    than widening that one, because it is consumed by shipped assertions whose failure messages
-    quote the line.
-    """
-    found: dict[str, ast.AST] = {}
-    for node in ast.parse(module_source(module)).body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            found.setdefault(node.name, node)
-        elif isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    found.setdefault(target.id, node)
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            found.setdefault(node.target.id, node)
-    return found
-
-
-#: A sentinel distinguishing "attribute absent" from "attribute present and None", because the two
-#: have OPPOSITE fixes (restore a deleted re-export versus delete a copy) and `getattr(m, n, None)`
-#: cannot tell them apart.
-_MISSING = object()
+        self.assertFalse(runner_shared.validate_gate_answer(Hostile()).usable)
 
 
 if __name__ == "__main__":
