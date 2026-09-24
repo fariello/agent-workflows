@@ -714,17 +714,14 @@ def same_status_message_is_duplicate(
 ) -> bool:
     """Whether writing ``message`` as a ``status``/``date`` record would merely REPEAT the newest one.
 
-    True when the artifact's NEWEST existing history record already carries the same status token, the
-    same date, and a byte-identical message. Pure; ``text`` is whole artifact text.
+    True when the artifact's NEWEST existing history record already carries the same status token
+    (or ``same-status`` tag), the same date, and a byte-identical message. Pure; ``text`` is whole artifact text.
 
-    WHY THIS PREDICATE EXISTS (plan ``vhbvwz`` E-01, finding F-10). Making a same-status
-    ``--message`` write its history record - the ``x6tk1u`` fix directly below - cannot key on message
-    PRESENCE alone, because that grows duplicate history on an idempotent re-assertion. Measured
-    before the rule was added: running the identical ``aw ipd set reviewed <id6> -m "identical note"``
-    three times produced THREE identical records. That is not hypothetical; both runners call
-    ``set_plan_approved`` with the hardcoded constant ``FULL_AUTO_APPROVAL_MESSAGE``
-    (``oc_runipd.py``, ``agy_runipd.py``) from two call sites each, so a re-run over an
-    already-``auto-approved`` plan would append one duplicate per run forever.
+    WHY THIS PREDICATE EXISTS (plan ``vhbvwz`` E-01, finding F-10; plan ``1i300e`` E-03, finding F-9).
+    Making a same-status write record its history - the ``x6tk1u`` fix - cannot key on message
+    PRESENCE alone or bypass defaulted messages, because that grows duplicate history on idempotent
+    re-assertions or repeated metadata writes. Both explicit ``--message`` and defaulted same-status
+    records are deduplicated here against the newest existing entry.
 
     DELIBERATELY COMPARED AGAINST THE NEWEST RECORD ONLY, not against every record in the file. The
     rule must distinguish "I am re-asserting the state I just asserted" (silent) from "I am adding a
@@ -748,9 +745,13 @@ def same_status_message_is_duplicate(
     m = _readiness._HISTORY_RECORD_PARTS_RE.match(newest)
     if m is None:
         return False
+    mid = m.group("mid").strip()
+    status_match = (
+        (mid == status) or (mid == "same-status") or (status == "same-status")
+    )
     return (
         m.group("date") == date
-        and m.group("mid").strip() == status
+        and status_match
         and m.group("msg").strip() == (message or "").strip()
     )
 
@@ -762,10 +763,31 @@ def apply_status_change(
     args: argparse.Namespace,
 ) -> tuple[Path, str]:
     """Apply the status change on disk, recording workflow history (NEWEST-FIRST: the record is
-    PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed."""
+    PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed.
+
+    For a genuine status transition (old != target), the status token is the target status and the
+    default message is `status set to <status>`. For a same-status write (old == target), the history
+    record is tagged with `same-status` so verdict readers do not mistake it for a review record, and
+    its default message is `status unchanged (<status>)`. Pure no-ops (no field or message changes)
+    write nothing. Same-status writes (both defaulted and explicit messages) are deduplicated against
+    the newest record via `same_status_message_is_duplicate`."""
     norm_status = normalize_target_status(target_status, rec.record_type)
+    old_status = (
+        normalize_target_status((rec.status or "draft"), rec.record_type)
+        .strip()
+        .lower()
+    )
+    is_same_status = old_status == norm_status.strip().lower()
     today = datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
-    message = getattr(args, "message", None) or f"status set to {norm_status}"
+
+    if is_same_status:
+        status_tag = "same-status"
+        default_message = f"status unchanged ({norm_status})"
+    else:
+        status_tag = norm_status
+        default_message = f"status set to {norm_status}"
+
+    message = getattr(args, "message", None) or default_message
     actor = getattr(args, "actor", None) or "aw set"
     # THE BACKSTOP for the actor-shape gate (plan fn2l1u E-07). `validate_transition_allowed` refuses
     # this in the CLI pre-flight with a clean one-line message; this raise catches a DIRECT caller of
@@ -1144,11 +1166,14 @@ def apply_status_change(
     # `same_status_message_is_duplicate` for the measured three-identical-records run and for the two
     # runner call sites that would otherwise append a duplicate on every re-run.
     _explicit_message = (getattr(args, "message", None) or "").strip()
-    _write_history_anyway = bool(_explicit_message) and not (
+    is_dup = (
         same_status_message_is_duplicate(
-            text, status=norm_status, date=today, message=message
+            text, status=status_tag, date=today, message=message
         )
+        if is_same_status
+        else False
     )
+    _write_history_anyway = bool(_explicit_message) and not is_dup
 
     if not content_changed and not path_changed and not _write_history_anyway:
         return rec.path, norm_status
@@ -1161,23 +1186,28 @@ def apply_status_change(
     # reordering every existing plan's history would be a destructive rewrite. Any reader wanting
     # "the latest entry" must take the FIRST record of the BOUNDED section - use the shared
     # `plan_readiness.extract_newest_history_entry`, and do not hand-roll another parser.
-    hist_entry = f"- {today} {norm_status} ({actor}): {message}"
-    has_hist_section = False
-    for i, line in enumerate(new_lines):
-        if _HISTORY_HDR_RE.match(line):
-            has_hist_section = True
-            new_lines.insert(i + 1, hist_entry)
-            break
-
-    if not has_hist_section:
-        insert_idx = len(new_lines)
+    #
+    # A same-status write is tagged `same-status` and is deduplicated so successive metadata-only
+    # writes on the same day do not accumulate duplicate records (plan `1i300e` E-02, E-03).
+    should_write_history = not (is_same_status and is_dup)
+    if should_write_history:
+        hist_entry = f"- {today} {status_tag} ({actor}): {message}"
+        has_hist_section = False
         for i, line in enumerate(new_lines):
-            if line.startswith("## "):
-                insert_idx = i
+            if _HISTORY_HDR_RE.match(line):
+                has_hist_section = True
+                new_lines.insert(i + 1, hist_entry)
                 break
-        new_lines.insert(insert_idx, "")
-        new_lines.insert(insert_idx, hist_entry)
-        new_lines.insert(insert_idx, "## Workflow history")
+
+        if not has_hist_section:
+            insert_idx = len(new_lines)
+            for i, line in enumerate(new_lines):
+                if line.startswith("## "):
+                    insert_idx = i
+                    break
+            new_lines.insert(insert_idx, "")
+            new_lines.insert(insert_idx, hist_entry)
+            new_lines.insert(insert_idx, "## Workflow history")
 
     updated_text = "\n".join(new_lines).rstrip() + "\n"
 

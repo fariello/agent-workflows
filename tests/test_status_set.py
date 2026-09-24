@@ -2494,9 +2494,9 @@ class SameStatusMessageIsRecordedTests(StatusSetTestBase):
             len(before) + 1,
             f"expected exactly ONE new record; got {after}",
         )
-        # NEWEST-FIRST: the new record leads, and it carries the message verbatim.
+        # NEWEST-FIRST: the new record leads, is tagged `same-status`, and carries the message verbatim.
         self.assertIn("the reasoning that must survive", after[0])
-        self.assertIn("reviewed", after[0])
+        self.assertIn("same-status", after[0])
 
     def test_the_same_message_repeated_records_once(self):
         """THE MEASURED DUPLICATE-GROWTH TRAP (F-10): three identical calls, ONE record."""
@@ -2573,14 +2573,119 @@ class SameStatusMessageIsRecordedTests(StatusSetTestBase):
             "a same-status call with NO message must remain a true no-op",
         )
 
+    def test_same_status_field_write_defaulted_message_is_truthful_and_tagged(self):
+        """E-02, E-03: a metadata-only same-status write emits `same-status` and `status unchanged`."""
+        plan = self.create_plan(
+            "20260822-testset-01-ms0005-test-plan.ipd.md",
+            "ms0005",
+            "testset",
+            "reviewed",
+        )
+        rc = cli.main(
+            [
+                "ipd",
+                "set",
+                "reviewed",
+                "ms0005",
+                "--priority",
+                "high",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        after = self._history_records(plan)
+        self.assertIn("same-status", after[0])
+        self.assertIn("status unchanged (reviewed)", after[0])
+        self.assertNotIn("status set to reviewed", after[0])
+
+    def test_same_status_field_write_defaulted_message_deduplicates(self):
+        """E-03 (F-9): two successive field-changing same-status writes on one day yield ONE record."""
+        plan = self.create_plan(
+            "20260822-testset-01-ms0006-test-plan.ipd.md",
+            "ms0006",
+            "testset",
+            "reviewed",
+        )
+        base = len(self._history_records(plan))
+        rc1 = cli.main(
+            [
+                "ipd",
+                "set",
+                "reviewed",
+                "ms0006",
+                "--priority",
+                "high",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc1, 0)
+        rc2 = cli.main(
+            [
+                "ipd",
+                "set",
+                "reviewed",
+                "ms0006",
+                "--work-kind",
+                "bug",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc2, 0)
+        after = self._history_records(plan)
+        self.assertEqual(
+            len(after),
+            base + 1,
+            f"two same-status field writes must produce ONE record, not two; got {after}",
+        )
+        text = plan.read_text(encoding="utf-8")
+        self.assertIn("- Priority: high", text)
+        self.assertIn("- Work-Kind: bug", text)
+
+    def test_backlog_same_status_tag_and_dedup(self):
+        """E-04: Backlog same-status writes are tagged with `same-status` and follow the same rule."""
+        bk = self.create_backlog(
+            "20260822-testset-01-bk0002-test-item.backlog.md",
+            "bk0002",
+            "testset",
+            "open",
+        )
+        rc = cli.main(
+            [
+                "backlog",
+                "set",
+                "open",
+                "bk0002",
+                "--message",
+                "backlog note",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        after = self._history_records(bk)
+        self.assertIn("same-status", after[0])
+        self.assertIn("backlog note", after[0])
+
     def test_the_dedup_predicate_is_exposed_and_pure(self):
         """The rule is a named predicate, so it is testable without a file and cannot be re-guessed."""
         from agent_workflows import status_set as ss
 
         text = (
             "# IPD: x\n\n- Status: reviewed\n\n## Workflow history\n"
-            "- 2026-09-22 reviewed (aw set): identical note\n"
+            "- 2026-09-22 same-status (aw set): identical note\n"
             "- 2026-09-01 draft (aw set): created.\n\n## Goal\n"
+        )
+        self.assertTrue(
+            ss.same_status_message_is_duplicate(
+                text, status="same-status", date="2026-09-22", message="identical note"
+            )
         )
         self.assertTrue(
             ss.same_status_message_is_duplicate(
@@ -2596,11 +2701,6 @@ class SameStatusMessageIsRecordedTests(StatusSetTestBase):
         self.assertFalse(
             ss.same_status_message_is_duplicate(
                 text, status="reviewed", date="2026-09-23", message="identical note"
-            )
-        )
-        self.assertFalse(
-            ss.same_status_message_is_duplicate(
-                text, status="approved", date="2026-09-22", message="identical note"
             )
         )
         # AND it compares only against the NEWEST record: the older one does not silence a repeat.

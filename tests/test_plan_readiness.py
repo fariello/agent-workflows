@@ -1451,6 +1451,11 @@ class ReviewEntryDiscriminatorTests(unittest.TestCase):
         ),
         ("executed", False, "a terminal transition is not a review"),
         ("superseded", False, "nor is a retirement"),
+        (
+            "same-status",
+            False,
+            "a setter same-status metadata write is not a review record (plan 1i300e)",
+        ),
     )
 
     def test_only_a_review_bearing_middle_marks_a_record_as_a_review_record(self):
@@ -2489,6 +2494,54 @@ class AClearedNoGoIsNotAssertedTests(unittest.TestCase):
 
     def test_an_empty_message_asserts_nothing(self):
         self.assertFalse(PR.negative_readiness_asserted(""))
+
+
+class SameStatusSetterWriteDoesNotShadowReviewVerdictTests(unittest.TestCase):
+    """Regression tests for verdshadow Order 01 (plan 1i300e, findings F-1, F-2, F-7).
+
+    A same-status write (defaulted or with explicit --message) prepends a `same-status` record
+    that is NOT a review record. On a `- Readiness:`-ABSENT plan holding a positive review verdict,
+    `is_review_history_entry` returns False for the tagged line, `newest_verdict` skips it and
+    returns the real review verdict, and `approval_refusals` emits no refusals.
+    """
+
+    def test_tagged_same_status_record_is_not_review_history_entry_at_this_head(self):
+        self.assertFalse(
+            PR.is_review_history_entry(
+                "- 2026-09-24 same-status (aw set): status unchanged (reviewed)"
+            )
+        )
+        self.assertFalse(
+            PR.is_review_history_entry(
+                "- 2026-09-24 same-status (aw set): deliberate operator note"
+            )
+        )
+
+    def test_newest_verdict_preserves_real_verdict_across_same_status_writes(self):
+        real_review = "- 2026-09-21 /plan-review (opencode/test): APPROVE WITH REVISIONS APPLIED; PR-001 FIXED"
+        draft_entry = "- 2026-09-20 draft (author): created"
+
+        # Defaulted message case (F-1)
+        hist_defaulted = (
+            f"## Workflow history\n"
+            f"- 2026-09-24 same-status (aw set): status unchanged (reviewed)\n"
+            f"{real_review}\n"
+            f"{draft_entry}\n"
+        )
+        pol_def, raw_def = PR.newest_verdict(hist_defaulted)
+        self.assertEqual(pol_def, PR.POSITIVE)
+        self.assertEqual(raw_def, real_review)
+
+        # Explicit --message case (F-7)
+        hist_explicit = (
+            f"## Workflow history\n"
+            f"- 2026-09-24 same-status (aw set): deliberate operator note\n"
+            f"{real_review}\n"
+            f"{draft_entry}\n"
+        )
+        pol_exp, raw_exp = PR.newest_verdict(hist_explicit)
+        self.assertEqual(pol_exp, PR.POSITIVE)
+        self.assertEqual(raw_exp, real_review)
 
 
 if __name__ == "__main__":
