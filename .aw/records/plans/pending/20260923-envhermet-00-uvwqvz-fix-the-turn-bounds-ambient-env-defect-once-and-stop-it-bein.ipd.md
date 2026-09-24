@@ -11,6 +11,7 @@
 - Scope-Paths: .aw/records/plans/pending/20260923-envhermet-01-heglfv-make-the-turn-bounds-policy-assertions-read-the-constructed.ipd.md, .aw/records/plans/pending/20260923-envhermet-02-fwgq2u-give-aw-backlog-new-a-near-duplicate-guard-so-one-defect-can.ipd.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: envhermet
 - Order: 0
 - Highest E allocated: 02
@@ -20,6 +21,11 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-106, all FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260923-envhermet-00-uvwqvz-fix-the-turn-bounds-ambient-env-defect-once-and-stop-it-bein.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural; the `IPD-S407` typed child-tracking row check reports CONFORMING for both rows, so no repair loop was entered. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them.
+  THE CORE DEFECT IS CONFIRMED BY DIRECT MEASUREMENT, which is the most important thing a reviewer of this plan can establish. In a lane at HEAD `a16698cc`: `python3 -m pytest tests/test_turn_bounds.py` -> `1 failed, 147 passed`; `env -u OPENCODE_CONFIG_CONTENT -u AW_EXECUTION_ROLE python3 -m pytest tests/test_turn_bounds.py` -> `148 passed`, no code change between the two. The failing assertion is `policy_key not in main_env`. So the premise is real and the Set is worth running.
+  TWO MEASUREMENTS HAD DRIFTED, AND THE DIRECTION MATTERS. The suite counts moved `144`/`143` to `148`/`147`, and the filing corpus moved 23 to 25, of which TWENTY-FOUR are now already `graduated` carrying `- Graduated-To: envhermet`. That retires F-3 (the "23 live release blockers" claim) to INFO and adds CID-4 requiring both children to re-derive rather than quote, since the plan's own numbers went stale twice within days.
+  THE FINDING A HUMAN SHOULD READ IS PR-103. Exactly one member of the family is still `open`: `wnabns`, which carries `- Blocks-Release: next`, has NO `- Graduated-To:`, and is cited by NO plan (child 01 carries `mepbmp` instead). Measured: `evaluate_blocking_close` REFUSES its close because that "would silently drop that release gate". So as authored, this Set fixes the defect `wnabns` describes and then leaves it as a permanent `ready` release blocker that cannot legitimately be closed. Added as completion criterion 6, verified by V-01, resolved in OQ-02 to a HANDOFF, with the mechanical trap named: `--from-backlog` SETS rather than appends, so the fix is to ADD a second bullet, not to overwrite `mepbmp` and strand that gate instead.
+  PR-104 IS THE SUBTLER ONE AND IT UNDERCUT THIS PLAN'S OWN F-4. Four deferred rows named no durable carrier, so `aw check` reported `check.ipd-uncarried-obligation` at `error` and this plan would have blocked its own finalize. The sharpest case is the consolidation task F-4 was written to protect: declaring it out of scope does NOT make it survive, because once this plan reaches `executed` it classes `done` in `aw attention` and the obligation vanishes unrecorded. Carrier fields added throughout; re-measured to 0 findings.
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-101..PR-106 all FIXED; readiness go-pending-approval
 - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 
