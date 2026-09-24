@@ -1,5 +1,5 @@
 - Id: mx1b4v
-- Status: graduated
+- Status: done
 - Graduated-To: movehalf
 - Blocks-Release: next
 - Set: closemove
@@ -8,6 +8,7 @@
 - Summary: The runner's backlog-close commit lands the addition but not the deletion, duplicating 22 items across graduated/ and done/
 
 ## Workflow history
+- 2026-09-24 set (aw backlog): closed by aw oc run: IPD hv9gar executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260923-movehalf-01-hv9gar-refuse-or-expand-a-directory-argument-in-the-commit-path-so.ipd.md); evidence .aw/records/plans/executed/20260923-movehalf-01-hv9gar-refuse-or-expand-a-directory-argument-in-the-commit-path-so.ipd.md
 - 2026-09-23 graduated (aw set): Graduated to IPD hv9gar (movehalf Order 01), NARROWED and RE-AIMED. This item's STATED cause is FIXED: commit 26519096 replaced 'git diff --name-only --cached' with '--name-status --cached -z' and parses R/C records as two paths. Verified at HEAD 22cf67d9 on a realistic 30-line record: naming both sides as explicit FILES commits one R095 rename and leaves git status --porcelain EMPTY. WHAT SURVIVES is a route the rename fix cannot reach: aw backlog set relocates by atomic_write + unlink with no git mv, so the destination is UNTRACKED and NO rename record forms for the parser to pair. A DIRECTORY argument then contributes zero paths to the intersection and the call still reports success. MEASURED FOR REAL while graduating this very item: commit ca8e22e4 landed ten 'D open/...' lines and zero 'A done/...' lines, so all ten items existed in NEITHER tree until 65109c8c repaired it. Reproduced in isolation to isolate the discriminator as directory-versus-file, not rename detection. Strictly worse per occurrence than the duplicate this item reports: a duplicated record is caught by attention.duplicate-id, while a record that exists nowhere is caught by nothing.
 - 2026-09-22 created (aw backlog): The runner's backlog-close commit lands the addition but not the deletion, duplicating 22 items across graduated/ and done/
 
