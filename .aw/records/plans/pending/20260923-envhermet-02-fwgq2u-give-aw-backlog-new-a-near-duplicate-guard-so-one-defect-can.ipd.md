@@ -12,6 +12,7 @@
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog_duplicate_guard.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: envhermet
 - Order: 2
 - Highest E allocated: 03
@@ -21,6 +22,10 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-307, all FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260923-envhermet-02-fwgq2u-give-aw-backlog-new-a-near-duplicate-guard-so-one-defect-can.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them.
+  THE PREMISE HOLDS AND THE GUARD IS WORTH BUILDING: `aw backlog new --help` exposes no duplicate option and `inspect.getsource(backlog.run_new)` contains `duplicate`/`similar`/`candidates` zero times, its only read of existing items being the id6 collision set. `aw graduation`'s advisory precedent is quoted verbatim and is exactly as described.
+  THREE MEASUREMENTS CHANGED THE PLAN'S DESIGN INPUTS. FIRST (PR-301), the naive discriminator is NOT false-positive-free as F-5 predicted: `test_turn_bounds` catches 23 of 23 but also matches 12 unrelated items, for 66 percent precision, several being genuine mentions rather than substring artifacts (`q6bbdb` quotes the full node id while being a triage item). OQ-01's literal bar was therefore unreachable, and it is resolved to token overlap PLUS a cheap discriminator with prose similarity rejected, by the inverse of the original reasoning. SECOND (PR-302), the motivating corpus is no longer `open`: all 23 enumerated items are now `graduated` and class `active`, with one family member still `open` (`wnabns`), which is itself a 24th filing of the same defect rather than a negative control. E-01's open-only count would return ONE today and E-02's open-only search would surface NONE of the 23. THIRD (PR-303), the latency budget is inverted: `aw backlog new` already costs 1.9 to 2.7 seconds, of which `mint_id6` is 1.7 to 1.9 seconds, while the whole backlog corpus walk is 22 to 50ms and `run_new` ALREADY performs it.
+  THAT THIRD MEASUREMENT IS ALSO A FINDING IN ITS OWN RIGHT AND IS RAISED RATHER THAN SWALLOWED (OQ-02): by this repository's `59t9x5` ruling a user-perceptible delay on a waited-on command is a `bug`, and `mint_id6` is roughly 90 percent of this command's wall time. It is deliberately NOT fixed here (it lives in undeclared `artifact_core`/`artifact_adopt` and touches id6 collision correctness), and the caveat is recorded honestly: I did not establish whether the scan is redundant or merely expensive, so the filing is about COST with the open question being whether it can be cached without weakening the guarantee.
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-301..PR-307 all FIXED; readiness go-pending-approval
 
 - 2026-09-23 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `uj5g58`, whose `- Blocks-Release: next` is INHERITED. RE-MEASURED its central number rather than repeating it: the item says 18, the live count is 23, so six were filed after it was written. The rising count is the argument.
