@@ -11,18 +11,18 @@
 - Scope: Make filing a duplicate harder than filing a new item, without refusing anything. IN: (a) at `aw backlog new`, report existing OPEN items that plausibly describe the same defect, advisory-only, following `aw graduation`'s precedent of stating its own limits; (b) prefer distinctive-token overlap (test node ids, symbol names, error strings) over prose similarity, per OQ-01; (c) a test proving the twenty-three-item corpus would have been caught. OUT: refusing or blocking a filing; auto-merging or auto-closing existing duplicates; retroactively consolidating the twenty-three (that is a records act, and `uj5g58` plus this plan record the reasoning, but a bulk close is deliberately a separate human-approved change); and any change to `aw attention`'s ranking.
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog_duplicate_guard.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: envhermet
 - Order: 2
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: fwgq2u
-- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: uj5g58
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: fwgq2u verified (set envhermet, attempt 1).
 - 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-307, all FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260923-envhermet-02-fwgq2u-give-aw-backlog-new-a-near-duplicate-guard-so-one-defect-can.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them.
   THE PREMISE HOLDS AND THE GUARD IS WORTH BUILDING: `aw backlog new --help` exposes no duplicate option and `inspect.getsource(backlog.run_new)` contains `duplicate`/`similar`/`candidates` zero times, its only read of existing items being the id6 collision set. `aw graduation`'s advisory precedent is quoted verbatim and is exactly as described.
