@@ -1605,19 +1605,35 @@ class RealRepositorySets(unittest.TestCase):
             "one",
         ),
         (
-            "commitguard",
+            "orchprobe",
             False,
             rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            {"2s0iym": "approved"},
+            {"m7gvuz": "approved"},
             (),
             3,
             {"executed", "approved"},
-            "THE UNFINISHED-CHILDREN REFUSAL, pinned against a Set that HAS one today. `commitguard` "
-            "is the right carrier because its child table is FULLY AUTHORED, so a refusal here can "
-            "ONLY be the unfinished-children rule and never the unauthored-rows rule that `runstop` "
-            "pins, which keeps the two reasons independently tested. WHEN THIS GOES RED, re-point it "
-            "at another Set with a real unfinished child rather than deleting it; `runnoop` "
-            "(`zz5yxq`) is the obvious successor. "
+            "THE UNFINISHED-CHILDREN REFUSAL, pinned against a Set that HAS one today. The carrier "
+            "must have a FULLY AUTHORED child table, so a refusal here can ONLY be the "
+            "unfinished-children rule and never the unauthored-rows rule that `runstop` pins, which "
+            "keeps the two reasons independently tested. WHEN THIS GOES RED, re-point it at another "
+            "Set with a real unfinished child rather than deleting it. "
+            "RE-POINTED 2026-09-23 FROM `commitguard` TO `orchprobe`, and the whole history below is "
+            "kept because it is the evidence that this row tracks a moving corpus correctly rather "
+            "than being nursed. `commitguard`'s LAST unfinished child `2s0iym` reached `executed` "
+            "when its lane was integrated, so that Set became `eligible` with child statuses "
+            "`{'executed'}` and could no longer carry an unfinished-children refusal AT ALL - a "
+            "terminal exit from this property, not another within-lifecycle advance like the three "
+            "re-measurements below. Re-pointed rather than loosened, exactly as this row's own "
+            "guidance instructs. `orchprobe` was chosen by MEASURING every live Set (twelve are "
+            "refused for unfinished children today) and taking the one whose profile matches what "
+            "`commitguard` had: fully authored table, three children, statuses "
+            "`{'executed','approved'}`, and a single `approved` holdout (`m7gvuz`), so the row keeps "
+            "its exact shape and its discriminating power. The named successor `runnoop` (`zz5yxq`) "
+            "was NOT used: it does not currently carry this refusal, so pinning it would have "
+            "asserted a state the repository does not have. NOTE `m7gvuz` HAS THREE ABANDONED LANES "
+            "holding re-validation records, so when it lands this row goes red again; the next "
+            "carrier should be picked by re-running the same measurement rather than guessed. "
+            "THE HISTORY OF THE PREVIOUS CARRIER, `commitguard`, FOLLOWS. "
             "RE-MEASURED 2026-09-20: a THIRD child (`2s0iym`, `to-review`) was AUTHORED, so the "
             "unfinished map and the status set both grew and the child count went 2 -> 3. This is a "
             "child APPEARING, not a child completing, which is exactly the `lanectn` history above "
