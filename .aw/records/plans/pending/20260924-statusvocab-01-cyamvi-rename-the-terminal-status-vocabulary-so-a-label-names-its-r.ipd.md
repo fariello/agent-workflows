@@ -17,9 +17,9 @@
 - Id: cyamvi
 
 ## Workflow history
+- 2026-09-24 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored from a maintainer-designed vocabulary. The maintainer specified the ten labels and rejected a two-column (landed + needs) design on the measured ground that no terminal state can be cleared without a human, so a second column would always read the same value. Verified in code before accepting: the retry paths requeue with recovery_next BEFORE terminality. Two corrections to the draft list are recorded in Findings: fail-depend/not-run overlapped, and unknown/failed were one bucket.
 
 - 2026-09-24 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
-- 2026-09-24 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): authored from a maintainer-designed vocabulary. The maintainer specified the ten labels and rejected a two-column (landed + needs) design on the measured ground that no terminal state can be cleared without a human, so a second column would always read the same value and carry no information. Verified in code before accepting: the zero-work retry path requeues with `recovery_next` BEFORE terminality, so by the time any terminal label is displayed its budget is spent. Two corrections were made to the maintainer's draft list and are recorded in Findings: `fail-depend` and `not-run` overlapped, and `unknown` and `failed` were one bucket.
 
 ## Goal
 
