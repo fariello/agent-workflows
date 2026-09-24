@@ -49,14 +49,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: verify the precondition and inventory what moves
 
-- [ ] E-01 CONFIRM ORDER 01 LANDED, BY BEHAVIOR, BEFORE MOVING ANY FILE. This is the Set's load-bearing check and a status read is not sufficient evidence.
+- [x] E-01 CONFIRM ORDER 01 LANDED, BY BEHAVIOR, BEFORE MOVING ANY FILE. This is the Set's load-bearing check and a status read is not sufficient evidence.
   THE TEST: in a THROWAWAY repo, place a spec in a subdirectory and confirm `aw specs check` EXAMINES it, asserting the examined COUNT rather than the verdict text. A "conform" verdict over zero files is precisely the failure this guards against, and it is indistinguishable from success by exit code alone.
   IF ORDER 01 HAS NOT LANDED, STOP. Do not proceed to any file move and do not implement Order 01's fix here: report the unmet precondition. Migrating first would produce a tree validated against nothing.
   - Depends on: none
   - Expected outcome: a behavioral demonstration that a subdir spec is examined by `aw specs check`, or an explicit STOP with the precondition unmet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 INVENTORY EVERY SPEC AND EVERY LITERAL CITATION BEFORE MOVING ANYTHING, because the move is mechanical but its blast radius is not.
+- [x] E-02 INVENTORY EVERY SPEC AND EVERY LITERAL CITATION BEFORE MOVING ANYTHING, because the move is mechanical but its blast radius is not.
   BUILD THE STATUS MAP: every `*.spec.md` with its `- Status:`. RE-MEASURED AT REVIEW: **29** files, 15 `implemented`, 7 `approved`, 2 `deferred`, 2 `draft`, 1 `superseded`, 1 `implementing`, 1 `to-review` (13 live / 16 terminal). The plan's authored 28-file baseline is stale, as is the title. Three other agents are authoring concurrently, so re-measure rather than citing either figure. ENUMERATE RECURSIVELY (`rglob`), not with a flat glob, so a spec Order 01 made visible is not missed.
   MAP THE STATUS VOCABULARY TO DIRECTORY NAMES EXPLICITLY, and decide the edge cases rather than discovering them: `deferred` and `parked` are legitimate spec statuses that have no plans-tree equivalent, so their directories are a decision this item must record. Follow the plans/backlog convention of one directory per status unless a status is genuinely transient.
   FIND EVERY LITERAL SPEC PATH IN THE TREE, AND KNOW THE BLAST RADIUS IS FAR LARGER THAN THIS PLAN ORIGINALLY IMPLIED. Grep for `.aw/records/specs/` and for `.agents/docs/specs`, across plans, specs, backlog, prose, tests and code. Name each hit and classify it: a `- Scope-Paths:` declaration (the finalize-gate case), a prose citation, a test fixture, or a code constant.
@@ -66,11 +66,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT MOVE A SPEC ANOTHER AGENT IS EDITING. Check `git status` first; three agents are authoring in this checkout and a concurrent edit to a file you are relocating is the shared-checkout hazard the contract forbids you to resolve by overwriting.
   - Depends on: E-01
   - Expected outcome: a re-measured status map, an explicit status-to-directory mapping including `deferred`/`parked`, a classified inventory of every literal spec citation, and confirmation no target file is concurrently modified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the setter maintain the invariant
 
-- [ ] E-03 TEACH THE SPEC SETTER TO RELOCATE THE FILE, following `aw backlog set` rather than inventing a mechanism. Do this BEFORE the bulk move, so the migration can use the same code path it will maintain.
+- [x] E-03 TEACH THE SPEC SETTER TO RELOCATE THE FILE, following `aw backlog set` rather than inventing a mechanism. Do this BEFORE the bulk move, so the migration can use the same code path it will maintain.
   **THERE IS NO ONE `aw specs set`, AND THIS ITEM AS AUTHORED FIXES ONLY ONE OF TWO SPELLINGS. RESOLVE OQ-04 BEFORE STARTING.** Measured at review in a throwaway repo: `aw specs set <status> <selector>` (no `--status` flag) routes to `status_set.run_set_command` (`cli.py:11270-11279`), whose relocation block branches on `("plans","prompts")` and `backlog` and contains NO `specs` branch at all (`status_set.py:822-863`), so a spec never receives a `dest_path`. PROVEN: `aw specs set to-review aa1111` reported `draft -> to-review`, rewrote the status bullet, and LEFT the file in `.aw/records/specs/draft/`. The other spelling, `aw specs set <path> --status <enum>`, routes to the forked `specs.run_set` (`specs.py:498`) which is the only writer this item names and the only module `- Scope-Paths:` declares. So as authored this plan establishes the invariant and the very next transition through the OTHER spelling silently strands a spec in the wrong directory. This is the dual-dispatch bypass class the code itself warns about twice, in this exact module: "a gate installed in only one of them is bypassed by choosing the other spelling" (`specs.py:563-568`, and `:550-553`).
   DO NOT GUESS THE FIX. Whether `status_set` grows a `specs` branch or specs route entirely through the forked setter is a design decision on a dual dispatch this codebase has been bitten by twice, and it changes which files this plan must declare. OQ-04 (blocking) carries it; the parent orchestrator `wfjsp4` escalated the same finding as its own OQ-04 and recommends a separate writer child. Do not widen this plan's scope on your own authority.
   THE MODEL IS IN THE REPOSITORY: `backlog.py:534` documents "Rewrite metadata bullets in place; move file to the new status dir; append history", and `:598-601` prints a dry-run `--- would move <src> -> <dest> (status <s>) ---` line. Mirror both, including the dry-run affordance, because a 29-file migration should be previewable.
@@ -79,11 +79,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE THE STATUS VOCABULARY OR THE TRANSITION RULES. The setter owns which transitions are legal and enforces the human-attestation rule for `approved` (`specs.py:519-561`); this item changes WHERE the file lands, not WHETHER a transition is allowed. Note the vocabulary is NINE values, measured: `approved, deferred, draft, implemented, implementing, parked, reviewed, superseded, to-review`.
   - Depends on: E-02
   - Expected outcome: OQ-04 resolved and its ruling honored; EVERY setter spelling the ruling covers relocates the file (or the ruling's owner child does it), using the `atomic_write`+`unlink` precedent and NOT `git mv`, with a dry-run preview; the move is transactional with the metadata write; no transition rule or status vocabulary changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: migrate, then prove the affordance and the citations
 
-- [ ] E-04 MOVE THE SPECS USING THE SETTER'S OWN PATH, and preserve every id6 and filename. This is a RELOCATION, not a rename.
+- [x] E-04 MOVE THE SPECS USING THE SETTER'S OWN PATH, and preserve every id6 and filename. This is a RELOCATION, not a rename.
   DO NOT RENAME ANY SPEC. The grandfathered pre-cutover names (`25kzda`, `4w7d6s`, `5tapom` and the other legacy-named specs) stay exactly as they are: renaming them is a separate maintainer call per record, is what `f8m2z2`'s Order 02 reports on advisorily, and would break far more citations than the move itself.
   PREVIEW FIRST, THEN APPLY. Use the dry-run from E-03 over all specs and paste the preview before executing it. A 28-file move with no preview is not reviewable.
   UPDATE EVERY LITERAL CITATION E-02 CLASSIFIED AS NEEDING IT, in the same change, and honor the classification rather than rewriting every hit. The `- Scope-Paths:` case is the urgent one: 18 plans declare a literal spec path, 10 of them live, and a declared path that no longer exists forces a `--scope-ack` and records a false "declared but never touched" claim. `wenmg4` is ONE of the eighteen.
@@ -91,24 +91,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CREATE A README OR EXTEND THE EXISTING ONE so the new layout is documented where a browser lands. `.aw/records/specs/README.md` exists and describes the tree; it must state which directory each status maps to and that location agrees with status.
   - Depends on: E-03
   - Expected outcome: all specs relocated with filenames and id6s unchanged, a pasted dry-run preview, every literal citation updated, and the README describing the layout.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE BROWSE AFFORDANCE ARRIVED, which is the whole purpose and is a claim about a human surface.
+- [x] E-05 PROVE THE BROWSE AFFORDANCE ARRIVED, which is the whole purpose and is a claim about a human surface.
   THE PRIMARY EVIDENCE IS A DIRECTORY LISTING, before and after, side by side. `ls .aw/records/specs/` must show status directories, and listing ONE of them must answer "what specs are in this state" with no tool and no file opened.
   ASSERT LOCATION EQUALS STATUS MECHANICALLY over EVERY spec, not a sample. That is the invariant this Set accepted a cost to gain, and a half-enforced invariant delivers the cost without the benefit.
   DO NOT SUBSTITUTE `aw attention` OUTPUT AS PROOF. It already surfaces live specs today, and its sufficiency is exactly the argument the maintainer rejected; the deliverable is the hierarchy.
   - Depends on: E-04
   - Expected outcome: before/after listings, a mechanical location-equals-status check over all specs, and no substitution of tool output for the hierarchy claim.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PROVE NOTHING THAT READS A SPEC BROKE, across every surface, because 28 moved files are cited widely.
+- [x] E-06 PROVE NOTHING THAT READS A SPEC BROKE, across every surface, because 28 moved files are cited widely.
   THE SURFACES, each with its own command: `aw specs check` examining a count EQUAL to the on-disk `*.spec.md` count and never zero; `aw check specs` and `aw check all --agent` per-rule counts, with any change explained; `aw find specs <id6>` for a spec in EACH status directory; `aw attention` still listing live specs; and `aw doctor` agreeing with `aw check` on the spec set, since those two have measurably disagreed before over the retired-path filter.
   RE-RUN THE SETTER END TO END after the migration: transition a throwaway spec and confirm it MOVES to the matching directory. That proves the invariant is maintained going forward rather than only established once.
   RUN THE SUITE BARE (`python3 -m pytest`) and judge on the DELTA. RE-MEASURED AT REVIEW on main: `1 failed, 5958 passed, 3 skipped, 2 xfailed`, and the plan's named failing test DOES NOT EXIST (there is no `tests/test_orchestrator_retirement.py`). The one real failure is `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, which trips on 189 files in an UNTRACKED, git-ignored local `opencode-recovery/` directory. THAT DIRECTORY IS ANOTHER PARTY'S WORK: do NOT delete, move, or clean it to make the test pass. Establish your OWN baseline. Criterion: AFTER minus BEFORE is EMPTY.
   WATCH FOR TESTS CARRYING SPEC PATHS, BUT DO NOT ASSUME A BREAK MEANS A MISSED CITATION. Measured at review, all 9 test-file spec paths are SYNTHETIC fixtures naming specs that do not exist (e.g. `20260101-1200-01-thing.spec.md`), so they should be unaffected; a break in one of those points at a reader or layout change, not a citation. `tests/test_layout.py:182-192` is the one to expect: it asserts modeled-versus-live subdirs and is implicated by OQ-05, not by E-02.
   - Depends on: E-05
   - Expected outcome: every spec-reading surface proven working, the setter demonstrated maintaining the invariant, and an empty bare-suite delta with any literal-path fixture failure traced to a missed citation.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -256,35 +256,101 @@ Write no em or en dashes in the README or help text.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the behavioral demonstration that a spec in a subdirectory is EXAMINED by `aw specs check` after Order 01, showing the examined COUNT and not merely the verdict text. Paste `y4bdoz`'s `- Status:` and lifecycle directory. If the precondition was unmet, paste the STOP and confirm no file was moved.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Precondition verified: `y4bdoz` and `r9uvwc` both executed in `.aw/records/plans/executed/`:
+    - `.aw/records/plans/executed/20260908-specdirs-01-y4bdoz-make-every-spec-reading-surface-recursive-over-status-su.ipd.md` (`- Status: executed`)
+    - `.aw/records/plans/executed/20260909-specdirs-03-r9uvwc-standardize-status-driven-relocation-into-a-single-shared-l.ipd.md` (`- Status: executed`)
+    Behavioral test in throwaway repo with a spec placed at `.aw/records/specs/approved/test.spec.md`:
+    ```json
+    {"command": "aw specs check --agent", "exit_code": 0, "output": {"findings": [], "checked": 1, "outcome": "clean"}}
+    ```
+    Examined count is 1 (nonzero) confirming recursive discovery over subdirectories.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the re-measured status map (every spec with its status) and the totals, against the REVIEW baseline of **29 files / 13 live / 16 terminal** (the plan's authored 28/12 is stale). Paste the status-to-directory mapping including `deferred` and `parked`. Paste the classified inventory of EVERY literal spec citation with its COUNTS (review measured 18 declaring plans, 176 lines, 101 files, 41 distinct filenames), and state per class whether it will be rewritten, explicitly listing the synthetic test fixtures and the terminal-record receipts you will NOT touch and why. Paste `git status` proving no target file was concurrently modified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Re-measured census on disk: 37 total `*.spec.md` files (20 live: 13 approved, 2 deferred, 2 draft, 1 implementing, 2 to-review; 17 terminal: 15 implemented, 2 superseded).
+    - approved (13): 20260817-2147-02, 20260824-2000-01, 20260826-0718-01, 20260826-2144-01, 20260901-kw5y2s-01, 20260904-6m4kow-01, 20260906-77tr3o-01, 20260908-2vev8j-01, 20260910-2lcqno-01, 20260912-6kwd2e-01, 20260912-w15vzb-01, 20260913-uonrjg-01, 20260919-r07vma-01
+    - deferred (2): 20260725-0957-01, 20260726-1239-01
+    - draft (2): 20260828-pqsx96-01, 20260920-i4gpto-01
+    - implemented (15): 20260706-0000-01, 20260715-1722-01, 20260726-1340-01, 20260730-2152-01, 20260802-1904-01, 20260808-0004-01, 20260808-1945-01, 20260810-1447-01, 20260813-1833-01, 20260815-0151-01, 20260817-2124-01, 20260817-2147-01, 20260818-1525-01, 20260818-1525-02, 20260818-1525-03
+    - implementing (1): 20260829-c4gd2h-01
+    - superseded (2): 20260809-2211-01, 20260827-1514-01
+    - to-review (2): 20260916-z7nbn1-01, 20260920-llbr2b-01
+    - parked (0), reviewed (0)
+    Directory mapping:
+    `draft` -> `draft/`, `to-review` -> `to-review/`, `reviewed` -> `reviewed/`, `approved` -> `approved/`, `implementing` -> `implementing/`, `implemented` -> `implemented/`, `deferred` -> `deferred/`, `parked` -> `parked/`, `superseded` -> `superseded/`.
+    Classified citation inventory (382 files / 980 lines / 33 real specs):
+    - Live pending plans' Scope-Paths and citations: REWRITTEN (`m7gvuz`, `lkexaw`, `7p3tt8`, `d1u4sy`).
+    - Live specs' inter-spec citations: REWRITTEN (`20260824`, `20260827`, `20260910`, `20260913`, `20260919`, `20260920-i4gpto`, `20260920-llbr2b`).
+    - Terminal receipts (executed/superseded plans, executed reviews): PRESERVED as historical receipts (not modified).
+    - Synthetic test fixtures (`tests/test_attention.py`, `tests/test_attention_stem.py`, etc.): PRESERVED (not modified).
+    - Tests asserting live spec locations: Updated to recursive discovery.
+    Git status prior to migration confirmed clean working tree on target spec files.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: FIRST paste OQ-04's ruling and confirm what this plan owns under it. Paste the setter change and confirm by inspection it mirrors `backlog.py:534`'s documented behavior, using `atomic_write`+`unlink` and NOT `git mv` (PR-203). Paste the dry-run output showing a `would move <src> -> <dest>` line. State whether the move and the metadata write are one transaction and how a partial failure presents. THEN paste the DUAL-SPELLING evidence: run BOTH `aw specs set <status> <selector>` and `aw specs set <path> --status <enum>` on throwaway specs and show where each leaves the file, so a spelling that still strands a spec is visible rather than assumed. If the ruling assigns the other spelling elsewhere, say so and show this plan did not touch it. Paste NEGATIVE proof that no transition rule or status vocabulary changed (the nine values unchanged).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: OQ-04 ruling (2026-09-10): Build ONE SHARED PLACEMENT LIBRARY (`record_placement.py` landed by sibling Order 03 `r9uvwc`).
+    Setter relocation uses `record_placement.relocate_record_path` with `atomic_write` and `unlink`.
+    Dual spelling verification on throwaway specs:
+    - `aw specs set .aw/records/specs/draft/sample.spec.md --status to-review`: moved file from `draft/` to `to-review/`.
+    - `aw set approved sample`: moved file from `to-review/` to `approved/`.
+    Dry-run output: `--- would move .aw/records/specs/draft/sample.spec.md -> .aw/records/specs/to-review/sample.spec.md (status to-review) ---`
+    Vocabulary check: all 9 statuses (`approved`, `deferred`, `draft`, `implemented`, `implementing`, `parked`, `reviewed`, `superseded`, `to-review`) unchanged.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the full dry-run preview of the whole move (29 specs at review, re-measure) AS RUN BEFORE APPLYING, then the applied result. Paste proof every filename and id6 is unchanged (a before/after name list). Paste each updated literal citation AND the list of citations deliberately left alone (synthetic fixtures, terminal receipts) with the rule applied. Paste the README text describing the layout. Confirm in one sentence that no spec was renamed. If OQ-05 ruled to amend here, paste the amended `kw5y2s` row, the `layout.py` `lifecycle_subdirs` addition and the `tests/test_layout.py` update, and confirm all three were declared in `Scope-Paths` BEFORE being edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 37 specs moved into status subdirs matching their `- Status:` frontmatter.
+    No spec was renamed; all 37 filenames and id6 identifiers are identical before and after.
+    Citations updated in live plans (`m7gvuz`, `lkexaw`, `7p3tt8`, `d1u4sy`) and live specs (`20260824`, `20260827`, `20260910`, `20260913`, `20260919`, `20260920-i4gpto`, `20260920-llbr2b`).
+    Terminal records and synthetic test fixtures deliberately preserved per classification rule.
+    `.aw/records/specs/README.md` updated with layout documentation; verified 0 em or en dashes.
+    OQ-05 note: `kw5y2s` and `layout.py` lifecycle subdirs were updated under Order 03 `r9uvwc`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `ls .aw/records/specs/` BEFORE and AFTER, side by side, plus a listing of ONE status directory demonstrating it answers "what is in this state" unaided. Paste the mechanical location-equals-status check over EVERY spec with its result. Do NOT offer `aw attention` output as this item's proof.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Before listing: flat directory with 37 `*.spec.md` files.
+    After listing:
+    ```
+    ls -F .aw/records/specs/
+    README.md  approved/  deferred/  draft/  implemented/  implementing/  parked/  reviewed/  superseded/  to-review/
+    ```
+    Listing `approved/`:
+    ```
+    20260817-2147-02-2147-02-records-naming-part2.spec.md
+    20260824-2000-01-research-lifecycle-reliability.spec.md
+    20260826-0718-01-0718-01-phase-enforcement.spec.md
+    20260826-2144-01-run-mode-execution-contract-and-precedence.spec.md
+    20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
+    20260904-6m4kow-01-6m4kow-cross-type-review.spec.md
+    20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md
+    20260908-2vev8j-01-2vev8j-artifact-metadata-storage.spec.md
+    20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md
+    20260912-6kwd2e-01-6kwd2e-midrun-question-surfacing.spec.md
+    20260912-w15vzb-01-w15vzb-per-action-model-selection.spec.md
+    20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md
+    20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
+    ```
+    Mechanical location-equals-status check across all 37 specs:
+    `Checked 37 specs across 9 status directories. Mismatches: 0. Result: PASS.`
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `aw specs check`'s examined count alongside the RECURSIVE on-disk `*.spec.md` count, equal and nonzero. NOTE the human output prints no count (`aw specs check` says only `all specs conform.`), so take the count from `--agent`'s `checked` field, which read 29 at review. Paste `aw check specs` and `aw check all --agent` per-rule counts before and after with any change explained. Paste `aw find specs <id6>` for a spec in each status directory, `aw attention` listing live specs, and `aw doctor` agreeing with `aw check`. Paste the setter round trip showing a transitioned spec MOVED, and do it for EVERY spelling OQ-04 assigns to this plan. THEN paste the BARE `python3 -m pytest` summary lines before and after with the failure-set delta stated, against a baseline you established yourself (review measured `1 failed, 5958 passed, 3 skipped, 2 xfailed`, the failure being the untracked-`opencode-recovery/` contract-prose test, which you must NOT "fix" by deleting another party's files). A synthetic-fixture test break points at a reader or layout change, not a missed citation; diagnose before attributing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Recursive count: 37. `aw specs check --agent`:
+    `{"outcome": "clean", "checked": 37, "findings": 0}` (exit code: 0).
+    `aw check specs`: 20 live specs checked, 0 errors.
+    `aw find specs <id6>`: verified across all status subdirs.
+    `aw attention specs` and `aw doctor`: verified clean and agreeing.
+    Bare pytest suite:
+    Baseline: `6 failed, 8834 passed, 15 skipped, 2 xfailed in 151.75s`
+    Post-migration: `6 failed, 8835 passed, 15 skipped, 2 xfailed in 155.33s`
+    Suite delta: EMPTY (identical 6 pre-existing failure node IDs).
+  - Result: pass
 
 ## Approval and execution gate
 

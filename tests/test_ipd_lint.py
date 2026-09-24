@@ -41,7 +41,9 @@ from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT, SOURCE_DOCS, SOURC
 from tests.support import SOURCE_WORKFLOWS as _SWF
 
 CHILD_TEMPLATE = _SWF / "assess" / "templates" / "ipd.md"
-SPEC = SOURCE_DOCS / "specs" / "20260802-1904-01-ipd-structure-and-linting.spec.md"
+SPEC = next(
+    (SOURCE_DOCS / "specs").rglob("20260802-1904-01-ipd-structure-and-linting.spec.md")
+)
 
 
 # A minimal conforming CHILD IPD (author phase), built programmatically so tests can mutate it.

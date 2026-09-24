@@ -67,12 +67,10 @@ _MODULES = {"oc_runipd": oc_runipd, "agy_runipd": agy_runipd}
 BOTH = ("oc_runipd", "agy_runipd")
 
 #: The spec this surface implements. Read as a FILE, so a spec edit can fail this suite.
-SPEC_PATH = (
-    REPO_ROOT
-    / ".aw"
-    / "records"
-    / "specs"
-    / "20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"
+SPEC_PATH = next(
+    (REPO_ROOT / ".aw" / "records" / "specs").rglob(
+        "20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"
+    )
 )
 
 #: Spec 2.1 grammar entries that are NOT part of this surface, each with the reason it is excluded.

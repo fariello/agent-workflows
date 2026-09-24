@@ -1329,12 +1329,10 @@ def test_the_terminal_directory_predicate_itself_classifies_every_bucket():
 # revsweep-02 (`6ypimw`) E-03: THE DRAFT ADMISSION GATE (spec 25kzda 2.5a)
 # --------------------------------------------------------------------------------------------------
 
-SPEC_PATH = (
-    Path(__file__).resolve().parents[1]
-    / ".aw"
-    / "records"
-    / "specs"
-    / "20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"
+SPEC_PATH = next(
+    (Path(__file__).resolve().parents[1] / ".aw" / "records" / "specs").rglob(
+        "20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"
+    )
 )
 
 

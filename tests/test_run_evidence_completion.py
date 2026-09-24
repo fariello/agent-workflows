@@ -1016,12 +1016,10 @@ class TestAdversarialSuite(unittest.TestCase):
 # ==================================================================================================
 
 
-_SPEC_PATH = (
-    Path(__file__).resolve().parents[1]
-    / ".aw"
-    / "records"
-    / "specs"
-    / "20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"
+_SPEC_PATH = next(
+    (Path(__file__).resolve().parents[1] / ".aw" / "records" / "specs").rglob(
+        "20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"
+    )
 )
 
 

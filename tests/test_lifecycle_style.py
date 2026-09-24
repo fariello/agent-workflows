@@ -30,12 +30,10 @@ from agent_workflows import lifecycle_style as L
 
 REPO = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO / "agent_workflows" / "lifecycle_style.py"
-SPEC_PATH = (
-    REPO
-    / ".aw"
-    / "records"
-    / "specs"
-    / "20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md"
+SPEC_PATH = next(
+    (REPO / ".aw" / "records" / "specs").rglob(
+        "20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md"
+    )
 )
 
 # The five prompt LANES. Prompt status is carried by DIRECTORY, not by an enum: `prompts.py` defines

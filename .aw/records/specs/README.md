@@ -8,6 +8,24 @@ Named `YYYYMMDD-HHMM-NN-<slug>.md` (local time).
 Specs describe intended design and rationale. When a spec is implemented, the implementation plan
 (IPD) and its walkthrough carry the execution record; the spec remains as the design reference.
 
+## Status subdirectories and layout
+
+Specs are partitioned into status subdirectories reflecting their lifecycle state. The directory
+location always agrees with the spec `- Status:` front-matter enum:
+
+- `draft/`: Initial spec draft in progress.
+- `to-review/`: Ready for peer or maintainer review.
+- `reviewed/`: Review completed and signed off.
+- `approved/`: Approved by human attestation (ready for implementation).
+- `implementing/`: Currently being implemented by an active plan Set.
+- `implemented/`: Terminal state; implementation verified and completed.
+- `deferred/`: Blocked on a decision or external condition (carries typed `- Gate-Kind:` and `- Gate-Ref:`).
+- `parked/`: Inactive or paused indefinitely.
+- `superseded/`: Terminal state; superseded by a successor design specification.
+
+Location agrees with status. The status setters (`aw specs set <path> --status <enum>` and `aw set <status> <selector>`)
+automatically relocate the file to the matching directory upon status transition.
+
 
 SETID LENGTH IS BOUNDED (catalog invariant I-17, spec `2lcqno` N8). A setid of 14 characters or
 fewer is strongly preferred, a setid over 14 characters is a WARNING, and a setid over 24 characters
@@ -53,7 +71,7 @@ in any lifecycle directory, terminal ones included, so the link keeps resolving 
 Backlog items carry the same field; see `.aw/records/backlog/README.md`.
 
 Do NOT hand-edit the status or history. Use the owner verbs (they validate the transition, the
-anti-self-approval floor, and typed gates, then write atomically): `aw spec set <status> <id6|setid|fname>...`
+anti-self-approval floor, and typed gates, then write atomically and relocate): `aw spec set <status> <id6|setid|fname>...`
 (or `aw specs set <path> --status <enum> [--message <text>]`; an agent records human approval with
 `--by-human` as an explicit attested speed bump, and may not set `implemented` without a resolvable
 evidence citation), `aw specs note <path> --message <text>` (history only), and `aw specs check [path]`

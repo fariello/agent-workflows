@@ -133,7 +133,7 @@ This orchestrator runs no tests. Each child runs `python3 -m pytest` BARE (no ad
 - Status: open
 - Owner: maintainer
 - Resolution or deferral rationale: NOT blocking, because child 01 can land the grammar accepting the full vocabulary and narrowing later is a one-line change with a test. Measured at HEAD `21eff5d8`, `ipd_schema.RECOGNIZED_STATUS` holds nine values (`approved`, `auto-approved`, `draft`, `executed`, `not-executed`, `reusable`, `reviewed`, `superseded`, `to-review`). A parent legitimately waits on `executed`, and plausibly on `reviewed` for a review-action Set; it is hard to see why a parent would wait on `draft`. PROPOSED DIRECTION: accept the full vocabulary in child 01 and let child 04's migration reveal which values are actually used, then narrow on evidence rather than guessing now. The risk of accepting too much is a parent declaring a wait that never completes, which the runner already reports as `dependency-blocked` rather than silently passing.
-- Carrier-Evidence: .aw/records/specs/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
+- Carrier-Evidence: .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
 - Carrier note (added at review, PR-002): the obligation is CARRIED BY THE SPEC, not by this plan. This orchestrator is retired PROGRAMMATICALLY once its children land, and a retired plan classes `done` in `aw attention`, so an obligation left here with no carrier vanishes at the exact moment nobody is looking. The narrowing decision outlives the Set (it is spec OQ-01's own subject matter and the spec stays `approved` and open on it), which is why the durable home is the spec file rather than any plan in this Set.
 
 

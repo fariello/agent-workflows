@@ -1,4 +1,4 @@
-"""Integration tests for spec status directory placement across spec writers (IPD r9uvwc)."""
+"""Integration tests for spec status directory placement across spec writers (IPD r9uvwc, IPD 1bdxcp)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent_workflows import attention_contract
 from agent_workflows import specs
 from agent_workflows import status_set
 
@@ -193,6 +194,47 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
         )
         self.assertTrue(dest_path.exists())
         self.assertIn("- Status: to-review", dest_path.read_text(encoding="utf-8"))
+
+
+class LiveSpecsTreeInvariantTests(unittest.TestCase):
+    """Verify invariants over the live repository specs tree."""
+
+    def test_every_spec_directory_agrees_with_its_status(self) -> None:
+        repo_root = Path(__file__).resolve().parent.parent
+        specs_dir = repo_root / ".aw" / "records" / "specs"
+        spec_files = list(specs_dir.rglob("*.spec.md"))
+        self.assertGreaterEqual(
+            len(spec_files), 28, "Live specs tree must have at least 28 specs"
+        )
+
+        for p in spec_files:
+            text = p.read_text(encoding="utf-8")
+            status = specs._read_status(specs._lines(text))
+            self.assertIsNotNone(status, f"Spec {p.name} must have a status bullet")
+            self.assertIn(
+                status,
+                attention_contract.SPEC_STATUSES,
+                f"Spec {p.name} status {status} must be recognized",
+            )
+            self.assertEqual(
+                p.parent.name,
+                status,
+                f"Spec {p.name} in dir {p.parent.name} must agree with status {status}",
+            )
+
+    def test_specs_readme_documents_layout_and_has_no_en_or_em_dashes(self) -> None:
+        repo_root = Path(__file__).resolve().parent.parent
+        readme_path = repo_root / ".aw" / "records" / "specs" / "README.md"
+        self.assertTrue(readme_path.exists(), "Specs README.md must exist")
+        content = readme_path.read_text(encoding="utf-8")
+        self.assertNotIn("—", content, "README must not contain em dash")
+        self.assertNotIn("–", content, "README must not contain en dash")
+        for status in attention_contract.SPEC_STATUSES:
+            self.assertIn(
+                f"`{status}/`",
+                content,
+                f"README must document status directory `{status}/`",
+            )
 
 
 if __name__ == "__main__":

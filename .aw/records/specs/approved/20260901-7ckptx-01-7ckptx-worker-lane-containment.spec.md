@@ -1,0 +1,710 @@
+# Spec: Worker lane containment: one authoritative signal per instruction
+
+- Date: 2026-09-01
+- Status: approved
+- Id: 7ckptx
+- Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
+- From-Backlog: vqv9im
+- Blocks-Release: next
+- Work-Kind: feature
+- Scope: What an isolated (lane) turn may be told and may reach: signal purity in the prompt, layered enforcement beyond prose, bounded missing-input repair, and the retention rules that decide when a lane may be destroyed.
+
+## Workflow history
+
+- 2026-09-18 note (aw specs): AMENDED 2026-09-18 by maintainer ruling: R5.5's refusal on unknown ignored files is removed. Gitignored files (bytecode caches, toolchain dependencies, test residues) are disposable upon lane destruction and do not block teardown. Teardown refuses only on dirty tracked files, unknown untracked files, or uncollected submissions. A15 updated accordingly.
+- 2026-09-16 note (aw specs): AMENDED 2026-09-16 by dirtygates Order 01 (d7qoxv) E-04: R5.4's dirty-tracked-base obligation is SPLIT BY PATH rather than removed. SHARED TREE (--no-isolate-worktree) KEEPS the refusal verbatim in force, because the turn executes in the polluted tree and cannot tell its own changes from the uncommitted work already there at commit or finalize time; that half is what approved release-blocking plan 3i0aaz E-03 builds on and it is deliberately preserved. ISOLATED turns now REPORT the dirty paths and PROCEED. WHY, measured 2026-09-13: a lane cut from HEAD lacking an uncommitted tracked change failed its validation EXACTLY as committing that same change with no lane involved failed, so the refusal never prevented the stale-base harm it named, it only deferred it to whenever the operator committed. What actually catches a stale base is the merge-and-revalidate gate, which re-runs validation against the combined result. MEASURED COST of keeping it: across three consecutive runs the gate blocked 27 of 42, 23 of 41 and 18 of 43 queue items, each refusal naming exactly ONE uncommitted markdown file no plan declared, cascading 36 further items into dependency-blocked (reviews were exempt, so this was the majority of each run and not a total failure). A14 rewritten to assert BOTH halves separately, and new A14b requires the RULE's classification (clean=False, paths named, identical on both paths) be pinned separately from the CALLER's disposition, so an implementation cannot achieve the isolated behavior by making the rule report clean. Untracked exclusion unchanged on both paths.
+
+## 0. Concepts (kept distinct)
+
+These four are routinely conflated, and every requirement below depends on keeping them apart.
+
+- **SIGNAL PURITY**: the property that the instructions handed to a worker contain no statement that contradicts another. It is a property of the EMITTED TEXT, checkable mechanically, and it is independent of whether the worker obeys.
+- **CONTAINMENT**: the property that a worker's reads and writes stay inside its lane. This is a property of BEHAVIOR, and it can only ever be made LIKELY by instructions; making it certain requires a boundary the worker cannot cross.
+- **ENFORCEMENT**: a mechanism that produces a refusal without the worker's cooperation. An environment selector that a driver-owned verb checks is enforcement; a sentence in a prompt is not.
+- **RETENTION**: whether a lane's contents may be destroyed. Distinct from containment: a perfectly contained lane may still hold unclassifiable content that must be preserved.
+
+## 0.1 Actors
+
+- **DRIVER (coordinator)**: `aw oc run` / `aw agy run`. Owns the run directory, the lane lifecycle, every lifecycle transition, and every decision about paths outside a lane. Trusted.
+- **WORKER**: the agent process launched for one turn, with cwd inside its lane. NOT trusted to be correct, but ASSUMED to be cooperative: it acts on trained reflex, not malice (see 0.2).
+- **HOST**: the agent runtime (opencode, antigravity). Its permission behavior is a third-party variable, not a repository invariant.
+
+## 0.2 Threat model (DECIDED; this is the maintainer's ruling and it shapes every requirement)
+
+The model is ACCIDENT PREVENTION, not adversarial defense.
+
+Agents are strongly trained to operate solo in repositories they own, where `git add -A` and editing any
+file are correct. This repository asks for something not in their nature, so the realistic failure is a
+trained reflex applied in the wrong context, not a deliberate evasion. Two consequences that would be
+wrong under a security model and are RIGHT under this one:
+
+1. A guard that refuses and names the correct alternative is VALUABLE even though a determined process
+   could bypass it. Bypassability is a feature against accidents.
+2. Therefore a mechanism may be shipped as an honestly-labelled accident guard, provided the artifact
+   states plainly that it is not a boundary. Overstating it is the failure, not shipping it.
+
+This ruling was applied by the maintainer to `mjx7ne` OQ-03 on 2026-09-01 and is restated here because
+every requirement below inherits it.
+
+## 0.3 Constraints and dependencies
+
+- The two host drivers (`oc_runipd.py`, `agy_runipd.py`) are deliberate near-parity twins. A containment
+  rule that lands in one and not the other is a DEFECT, not a partial delivery.
+- There is exactly ONE process reaper (`runner_shutdown`), and spec `c4gd2h` R5 forbids a second. Any
+  bound defined here must terminate through it.
+- Prose cannot be the boundary, by this repository's own admission: `host_sandbox_profile`'s docstring
+  records that a same-user agent with shell access "cannot be cryptographically or filesystem-enforced
+  from prompts, hooks, environment variables, or Python role checks alone".
+- OS-level confinement is OUT OF SCOPE here and is owned elsewhere (`fjs11i` for the unreachable
+  hardened profile, research `q65sz3` for the cross-platform question). This spec must remain true
+  whether or not that lands.
+- `wtiso_gate.py` is the designated home for shared containment predicates. It exists as a fail-loud
+  skeleton by design: a stub raises `NotImplementedError` naming its owning phase so a premature caller
+  breaks visibly rather than silently allowing.
+
+## 1. Goals
+
+1. An isolated turn's instructions are SELF-CONSISTENT: no sentence in them authorizes what another
+   forbids.
+2. Containment does not depend solely on the worker reading prose correctly: at least one layer produces
+   a refusal without worker cooperation.
+3. A worker that genuinely needs a file it does not have has a BOUNDED, deterministic route to get it
+   that never grants access to the original checkout.
+4. A lane is never destroyed while it holds content the driver cannot classify.
+5. Every guarantee in this spec is stated with its honest limit, so no artifact can claim a boundary
+   where only a guard exists.
+
+## 2. Non-goals
+
+1. Making containment unbypassable. Explicitly out of scope (0.2, 0.3).
+2. OS sandboxing, Landlock, per-run user accounts, or separate principals.
+3. Relocating machine state out of the repository (`wtiso` Phase 4).
+4. Unifying the two host runners (`rununify`).
+5. Commit-scope enforcement at the git layer (`wjl471`). This spec's requirements stop at what the
+   driver hands the worker and what the driver refuses; a hook cannot see INTENT and needs its own
+   design.
+6. Changing the lifecycle transaction, the integration gate, or the `runstop` stop levels.
+8. A RUN-WIDE TIME OR SPEND CEILING. R4.4's `MAX_TURN_TIMEOUT` bounds ONE turn, so a 22-item queue has 22
+   independent budgets and no total limit; a long queue could legitimately span days. Recorded as a NAMED
+   GAP rather than silently omitted, because "max turn" reads broader than it is and the maintainer asked
+   directly whether a 22-IPD run would be killed (it would not). Real cost, for whoever picks this up: a
+   measured 2-item run cost $22.66 in 59 minutes, so an unbounded queue is unbounded spend as well as
+   unbounded time. Out of scope here because this spec is about lane CONTAINMENT, not run budgeting, and
+   because a run-wide ceiling needs its own decision about what happens to unstarted items when it fires.
+
+7. CHANGING ANTIGRAVITY'S `--dangerously-skip-permissions` DEFAULT. It passes with a `True` default and
+   MUST KEEP IT (maintainer ruling 2026-09-01, on operational evidence that running without it failed or
+   deadlocked repeatedly). Its only alternative requires interactive permissions an unattended turn
+   cannot answer. So this is not an unclosed gap awaiting work: it is a decided constraint, and R4.1c
+   forbids any plan tracing to this spec from flipping it. What this spec requires instead is that the
+   absence of host-layer denial be reported honestly (R4.1a) and that the layers which DO apply on that
+   host (R1 prompt purity, R4.4 driver bounds) carry the whole guarantee.
+
+## 3. Requirements
+
+Each requirement is numbered so a plan item can cite it. "MUST" is normative; a plan that cannot satisfy
+a MUST is not conforming and must say so rather than reinterpret it.
+
+### R1. Signal purity in the emitted prompt
+
+R1.1 For an isolated turn, the emitted prompt MUST contain ZERO absolute filesystem paths outside the
+lane root. This is a property of the text and MUST be verified by pattern-matching the emitted string,
+not by inspecting the code that builds it and not by a wording assertion.
+
+R1.2 The prompt MUST NOT contain any clause authorizing an exception to R1.1. A statement of the form
+"paths outside the lane are driver-owned control paths, write them exactly as given" is itself a
+violation, because it re-introduces the contradiction R1.1 removes.
+
+MEASURED BASIS (2026-09-01, HEAD `cea13ac0`, on the shipped driver): the isolated prompt emits FIVE
+absolute out-of-lane paths (the plan file, the run directory, the decisions register, the execution
+report, the outcome JSON) and then declares them "the only exceptions ... you write them exactly as
+given" nine lines after saying "Do NOT read or write the main checkout". In the live prompt from run
+`run-20260901T042331Z-118022` the main-checkout path appears 7 times, only 2 of them inside the lane.
+
+R1.3 A NON-isolated turn's prompt MUST be unchanged by any work satisfying R1.1/R1.2. Non-isolated
+execution is a supported mode, not a degraded one.
+
+R1.4 The worker MUST be told, in plain language, that its cwd is the complete authorized workspace, and
+MUST be given the ONE deterministic form for reporting a genuinely missing input (R3.1). R1.1 without
+R1.4 is a strictness increase with no escape hatch, which converts a recoverable situation into a
+failure.
+
+### R2. Closed loop: what the worker writes, the driver reads
+
+R2.1 Where the prompt names a lane-relative submission path, the driver MUST collect that submission
+back to the location its own readers already use, BEFORE the disposition for the turn is computed.
+
+RATIONALE, and this is the single most important sequencing rule in this spec: a lane-relative
+instruction whose output nobody collects is WORSE than the contradiction it replaces, because it fails
+INVISIBLY. The worker writes its outcome inside the lane, the driver's reconciliation reads the run
+directory, finds nothing, and scores the turn from the empty-outcome fallback. That fallback disposition
+then falls outside the set that gates verification and self-finalize, so a fully successful turn silently
+never finalizes. R1 and R2 MUST therefore ship together; a plan that delivers R1 alone is
+non-conforming.
+
+R2.2 Collection MUST be a copy, not a move: the lane retains its own evidence for the retention
+classification in R5.
+
+R2.3 Collection MUST be IDEMPOTENT with respect to retries. The run-wide decisions register is APPENDED
+to and is shared by every item in the run, so a re-attempted turn MUST NOT duplicate its contribution
+and MUST NOT remove a sibling lane's. Retry is a real path, not hypothetical: the driver already
+re-queues interrupted items for recovery.
+
+R2.4 A turn that produced no submission MUST reconcile to the honest empty-outcome fallback without
+error. Absence is a legitimate observation.
+
+R2.5 COLLECTION MUST BE RECORDED, not inferred. Added 2026-09-01 after `/aw plan-review` found that the
+retention rules (R5.5) needed to know whether a lane's submission had been collected and had no
+authoritative source for it: the sealed INPUT manifest (R5.1) records materialized inputs, while
+collection is OUTPUT, so they are different data and the manifest cannot answer the question. Inferring
+from path presence is not acceptable, because it either preserves every successful lane forever or
+deletes output whose collection FAILED.
+
+The driver MUST therefore write an ATTEMPT-KEYED collection record naming, per submission, its source
+digest and its destination result (success, or failure with a reason). Absence of a record means NOT
+collected and MUST NOT be inferred from a file existing somewhere. A FAILED collection MUST be recorded
+as failed rather than omitted, because a silently omitted failure is indistinguishable from a lane that
+wrote nothing.
+
+R2.6 THE SHARED-CODE HOME MUST BE DECLARED. Added 2026-09-01 after `/aw plan-review` observed that
+requiring host-neutral code while every plan's scope fence named only the two driver modules told an
+executor to do something the fence forbade. Where a containment rule is consumed by both host drivers,
+its single definition MUST live in a module that is DECLARED in the implementing plan's scope, not
+improvised into one driver and imported from the other (which makes one host the de-facto shared library
+and is the opposite of host-neutral). This is the R6.1 single-definition rule stated as an obligation on
+the PLAN rather than on the code.
+
+### R3. Bounded missing-input repair
+
+R3.1 The contract MUST be a single deterministic token form carrying the repo-relative path and the
+reason it is required. The worker emits it and continues with independent work; it does not wait.
+
+R3.2 On receiving it, the driver MUST preserve and pause the lane rather than opening an interactive
+permission prompt.
+
+R3.3 The requested path MUST be resolved in coordinator code only, and MUST be REJECTED if it is
+absolute, escapes the checkout, names a coordinator-owned surface, names a sibling lane or the worktrees
+root, names machine-local state, names the git administration directory, is a directory rather than a file, or does not exist. The reject set MUST be the SHARED
+worker-forbidden predicate, not a second copy of the rules, so the two cannot drift.
+
+R3.3a AMENDED 2026-09-01 (maintainer decision, verified against research `x03wgn`): THE
+PERMIT-AND-COPY BRANCH AND THE SECRET VOCABULARY ARE BOTH WITHDRAWN. The repair cycle is now
+REPORT-AND-REFUSE only. The built-in and derived secret reject set introduced earlier the same day
+(R3.3a-1, R3.3a-1a, R3.3a-1b, R3.3a-2), R3.3b's tracked-file test, and R3.4's copy are ALL superseded by
+this requirement and MUST NOT be implemented.
+
+THREE REASONS, in the order they were discovered, because the third is the decisive one.
+
+(a) THE MAINTAINER'S OBJECTION, which stands on its own: taking on the duty of policing secrets invites
+blame when we miss one. Two mechanisms already cover secrets where it matters - `gitleaks` runs as a
+commit hook, and `aw sanitize` scans tracked files, the built package, and history. A third, weaker
+check at request time creates a guarantee we would be judged against without improving the outcome.
+
+(b) THE RESEARCH NEVER ASKED FOR POLICING. `x03wgn`'s lane-assembly section says: "Secrets: inject only
+task-required secret/config values through a dedicated policy. Do not copy `.env`, credentials, SSH
+state, cloud config, or token-bearing files merely because they are ignored." That is a DO-NOT-COPY
+instruction. Reading it as "build a secret-detection vocabulary and adjudicate requests" was an
+over-extension at authoring time, and it is what produced the unsafe derive-from-the-target-repo rule
+that `/aw plan-review` then correctly flagged.
+
+(c) THE DECISIVE ONE: THE BRANCH COULD NOT DO ANYTHING USEFUL ANYWAY, for a structural reason. A lane is
+a `git worktree` at a commit, so it ALREADY CONTAINS every tracked file at that commit (measured
+2026-09-01: 0 of 1470 tracked files absent from a real lane). R3.3b permitted ONLY tracked files, so the
+copy branch could only ever copy a file the lane already had. Worse, the inputs the research actually
+worries about are IGNORED or UNTRACKED - it warns "do not assume an ignored main-checkout `.venv`,
+`node_modules`, SDK, or generated schema exists in the lane" - which is exactly the category R3.3b
+REFUSED. The branch was therefore inert against the real need and a liability against a need nobody had.
+
+THE AMENDED RULE. On a missing-input report the driver MUST resolve the path in coordinator code, MUST
+REFUSE it, and MUST record a precise missing-input entry naming the path and the reason. It MUST NOT copy
+anything into the lane and MUST NOT grant access to the original checkout. No secret classification is
+performed, because nothing is ever materialized on request and so there is nothing to classify.
+
+WHAT IS PRESERVED, so this is not simply a deletion: the worker still has a BOUNDED, deterministic way to
+say "I need X" (R3.1), and the driver still preserves and pauses the lane rather than prompting (R3.2),
+so the escape hatch that makes R1.1's strictness survivable is intact. What changes is the ANSWER: the
+driver records the need for a human or a follow-up instead of satisfying it inline.
+
+HONEST CONSEQUENCE, recorded rather than hidden: a turn genuinely blocked on a missing IGNORED input (a
+`.venv`, a generated schema) now fails with a precise record instead of self-repairing. That is the
+intended trade. If it proves an operational problem, the conforming fix is a LANE-ASSEMBLY change that
+materializes toolchain content UP FRONT under an explicit policy, which is what `x03wgn` actually
+prescribes, not a request-time copy path.
+
+R3.4 WITHDRAWN by R3.3a. There is no permitted-request path, so there is no copy on request, no manifest
+revision on request, and no authorization amendment. The manifest revision MECHANISM may still be built
+by the plan that owns the manifest, but nothing in this spec now requires a caller for it; a plan that
+implements it MUST state that it has no consumer rather than implying one.
+
+R3.5 If policy does not permit it, the driver MUST block with a precise missing-input record naming the
+path and the reason for refusal.
+
+R3.6 No path in this cycle may grant access to the live original checkout. This MUST be structural (the
+decision type cannot represent a live grant), not a convention.
+
+R3.7 A denied host permission event pointing into the original checkout MUST route through this same
+classification path, so there is one rule rather than two.
+
+### R4. Layered enforcement, each with its honest limit
+
+R4.1 An unattended isolated turn MUST run under the STRONGEST permission posture its host supports, and
+the runner MUST supply that posture itself (in the child environment or on the child's argv), never by
+editing repository configuration. "Strongest supported" is host-specific and MUST be stated per host
+rather than assumed uniform:
+
+- OPENCODE: a policy denying external-directory and interactive-question requests. This is achievable
+  today via the runner-supplied runtime config, so for this host R4.1 is a real denial.
+- ANTIGRAVITY: NO DENIAL POSTURE EXISTS, AND AUTO-APPROVE IS THE REQUIRED SETTING, NOT A REGRETTABLE
+  DEFAULT. Measured 2026-09-01: the driver passes `--dangerously-skip-permissions` and
+  `dangerously_skip_permissions` DEFAULTS TO `True` (`agy_runipd.py:2767`, default declared at `:4429`);
+  the only alternative (`--no-dangerously-skip-permissions`) requires INTERACTIVE permissions, which an
+  unattended turn has no answerer for. MAINTAINER RULING (2026-09-01, from operational experience):
+  `--dangerously-skip-permissions` MUST remain the default for `aw agy run`, because running without it
+  was PROVEN in practice to fail or deadlock repeatedly. This is a DECIDED CONSTRAINT that this spec
+  adopts, not a defect it tolerates.
+  CONSEQUENCE, and the reason the ruling belongs in a containment spec rather than only in the driver:
+  on this host the host layer contributes NOTHING to containment, by design and permanently. Every
+  containment guarantee for Antigravity therefore rests on R1 (the prompt names nothing outside the lane)
+  and R4.4 (driver-side bounds that fire regardless of the host). That makes R1 and R4.4 load-bearing for
+  this host rather than defence-in-depth, which raises their priority and is the practical argument for
+  doing the prompt work at all.
+
+R4.1a CONSEQUENCE, stated normatively so no plan can paper over it: on a host with no denial posture,
+R4.1 is satisfied by RECORDING that fact on the attempt (a per-host capability statement), and the
+containment guarantee for that host rests ENTIRELY on R1 (the prompt names nothing outside the lane) and
+R4.4 (driver-side bounds that fire regardless of the host). An artifact MUST NOT describe such a host as
+"denied"; it MUST describe it as unenforced-at-the-host and point at the layers that do apply. Claiming
+parity where none exists is the specific failure this sub-requirement exists to prevent.
+
+R4.1c A DRIVER MUST NOT WEAKEN A HOST'S PERMISSION POSTURE IN PURSUIT OF THIS SPEC, and MUST NOT
+STRENGTHEN ONE INTO A DEADLOCK. Specifically, no work tracing to this spec may flip Antigravity's
+`--dangerously-skip-permissions` default to `False`, because an unattended turn cannot answer an
+interactive prompt and the measured outcome is repeated failure or deadlock (R4.1). A future change to
+that default requires its own decision, its own evidence that the deadlock is gone, and an explicit
+supersession of this sub-requirement. This is the inverse of R4.6: R4.6 stops a denial landing too EARLY
+on a host that has one, and R4.1c stops a denial landing AT ALL on a host where it is known to hang.
+
+R4.1b Adding a real denial posture to a host that lacks one is OUT OF SCOPE (see Non-goal 7); this spec
+requires honest reporting of the gap, not its closure. Recorded as a requirement number only so R4.1a's
+"unenforced-at-the-host" outcome cannot be read as a defect this spec left unaddressed.
+
+R4.2 The driver MUST OBSERVE the effective policy rather than assume its request won, and MUST record
+either the observed values or an explicit unverified marker with its reason. Host configuration
+precedence can place a managed source above the runner's, so a run that only SETS the policy can believe
+it is protected when it is not.
+
+R4.3 Constructing the child environment MUST NOT silently discard an operator-supplied value for the
+same variable. The policy MUST either be merged with validation or override explicitly and loudly; a
+blind overwrite is non-conforming.
+
+R4.4 The driver MUST bound EVERY unattended turn independently of the host's permission decision, whether
+or not that turn is isolated (maintainer ruling 2026-09-01: "make it uniform"). Two bounds, whose defaults
+are NORMATIVE so an implementation cannot pick weaker ones silently.
+
+NAMING IS NORMALIZED TO `TIMEOUT` (maintainer ruling 2026-09-01). Both are named `..._TIMEOUT`, not
+`..._DEADLINE`. Reasons, measured rather than stylistic: (i) every bound in this codebase is a DURATION IN
+SECONDS, never a wall-clock instant, and `timeout` is the accurate word for a duration; (ii) four of the
+six bounds already shipped say `TIMEOUT`, including both public CLI flags, so normalizing the other way
+would rename shipped surface; and (iii) the `DEADLINE`/`TIMEOUT` split did NOT track any real property in
+the existing code, so nothing is lost by collapsing it. Concretely, three shipped `..._TIMEOUT` constants
+are UNRESETTABLE ceilings (`agy` `DEFAULT_TIMEOUT`, `SUITE_CHECK_TIMEOUT_SECONDS`,
+`run_evidence.capture_command`'s default) while the one named `..._DEADLINE` was RESETTABLE, so the naming
+was backwards more often than it was right.
+
+THE DISTINCTION THAT IS REAL MUST LIVE IN THE DOCSTRING, NOT THE IDENTIFIER. Every bound MUST document
+two facts, because they are what an implementer and a post-mortem reader actually need and they were
+exactly what was missing (establishing them required reading `_started` versus `_last_activity`): WHAT
+INSTANT it is measured from, and WHETHER ANYTHING RESETS IT.
+
+(a) `PERMISSION_TIMEOUT`, default 30 SECONDS. Measured from the instant a permission request is OBSERVED,
+including a nested child-session request, which is the shape the qyaime deadlock actually took. RESETTABLE:
+observed progress clears the pending ask and disarms it. Seconds rather than minutes is the whole point,
+because an unattended turn has NO answerer, so a permission ask is not a slow operation but a dead one and
+waiting longer cannot change the outcome.
+
+(b) `MAX_TURN_TIMEOUT`, default 4 HOURS. Measured from CHILD PROCESS START, once. NOT RESETTABLE BY
+ANYTHING, and that is its entire reason for existing alongside the no-progress bound: a chatty-but-wedged
+turn keeps resetting a no-progress window forever, and it cannot reset this. Named `MAX_` rather than
+`ABSOLUTE_` because "absolute" invites reading it as a wall-clock instant, which it is not. MEASURED when
+the default was chosen: across 263 recorded turns the longest was 2.46 hours, so 4 hours is roughly 1.6x
+the observed worst case.
+
+SCOPE IS ONE TURN, NOT ONE RUN, and this MUST be stated wherever the bound is described because "max turn"
+is easy to over-read. Each item in a queue gets its own fresh budget, so a 22-item run has no run-wide
+ceiling and could legitimately span days. Expiry terminates the CHILD process, not the driver: the driver
+records the safe-failure disposition and proceeds to the next item. A RUN-WIDE ceiling does not exist in
+this design and is explicitly NOT required here (see Non-goal 8).
+
+EXPIRY BEHAVIOR for both: terminate through the ONE shared reaper (spec `c4gd2h` R5 forbids a second) and
+record a safe-failure disposition naming WHICH bound fired, so a post-mortem can distinguish a permission
+deadlock from an over-long turn from a silent stall.
+
+R4.4b THE `PERMISSION_TIMEOUT` SHIPS DISABLED (`0`) UNTIL DETECTION IS PROVEN, per the maintainer's rule
+that it "better have a deterministic way to know it's waiting for permission, otherwise it better not
+fire". Detection is PATTERN MATCHING on the child's stdout, not a deterministic signal, and it is
+currently UNVERIFIED against a real ask. MEASURED: the last real run's stdout stream contained ZERO
+permission-typed events and ZERO `message=asking` lines, and the qyaime evidence that motivated the
+plain-text pattern came from opencode's own LOG FILE rather than stdout, which is why a separate
+log-tailing module exists at all. So the detector may be matching a shape that never reaches the stream it
+inspects. The implementing plan MUST either (i) provoke a real permission ask, capture the stream, and
+paste the matched line, after which the default may be set to 30 seconds; or (ii) record that detection is
+not possible on stdout, leave the default at `0`, and state that `MAX_TURN_TIMEOUT` is therefore the only
+bound covering a permission deadlock. Shipping it armed on an unproven detector is non-conforming, because
+a false positive kills a healthy turn.
+
+R4.4d THE ANTIGRAVITY OVERLAP MUST BE STATED, NOT DISCOVERED. That host ALREADY has a per-turn ceiling:
+`agy_runipd.DEFAULT_TIMEOUT` is `"240m"` and is passed to the child as `--print-timeout`, so it is
+HOST-ENFORCED. That is 4 hours, numerically identical to `MAX_TURN_TIMEOUT`'s default, which means on
+antigravity the two bounds would fire at the same nominal time with different owners. The implementing plan
+MUST NOT silently ship both as if they were independent. It MUST either (i) document that the host bound is
+authoritative on that host and the driver bound is a backstop for the case where the host's own timer fails
+to fire, stating which is expected to win; or (ii) offset them deliberately so the driver bound fires
+FIRST and the failure is attributable to the driver rather than to an opaque host timeout. Recorded because
+two timers with the same value and different owners is the kind of duplication that looks harmless until a
+post-mortem cannot say which one killed a turn. Note the asymmetry: OpenCode has NO host-enforced
+equivalent, so `MAX_TURN_TIMEOUT` is genuinely new there.
+
+R4.4c NO NEW CONFIGURATION SURFACE IS REQUIRED (maintainer ruling 2026-09-01: KISS, "add them if they're
+needed when the need arises"). Neither bound needs a config-file entry or a CLI flag in this Set. The
+evidence behind the ruling: across 87 recorded runs `--stall-timeout` appears in 73 with exactly ONE
+distinct value (its default) and `--timeout` in none, so no timeout has ever been overridden in practice,
+and adding eight knobs to a parser that already fails
+`test_command_surface_declarations::test_zero_undeclared_parser_leaves` with 65 undeclared leaves would
+make a live problem worse. Both bounds MUST still accept `0` to disable, in-code, matching the shape
+`--stall-timeout` already documents, so an operator who needs to turn one off has a supported way to.
+
+R4.4a UNIFORM SCOPE, and the reason it does not violate R1.3. R4.4 applies to isolated and non-isolated
+turns alike. This is a deliberate exception to the conservatism R1.3 asks for elsewhere, and the exception
+is safe because the two are different KINDS of change: R1.3 protects the non-isolated turn's PROMPT TEXT
+(which must stay byte-identical, since that is what an agent reads and reasons about), whereas these
+bounds are driver-side SUPERVISION that changes no instruction the agent ever sees. MEASURED context for
+the ruling: the coarse no-progress watchdog is ALREADY created unconditionally for every turn, so the
+non-isolated path is not unprotected today and uniformity here is an incremental tightening rather than a
+new regime; and exactly ONE recorded run has ever used the non-isolated mode, so the blast radius is
+small in either direction. Uniform was chosen because a supervision rule that applies only to the common
+case leaves the rare case as the one nobody notices is unguarded.
+
+R4.5 An isolated turn's child environment MUST carry the execution-role selector that causes
+driver-owned lifecycle verbs to refuse inside a lane. Any artifact describing it MUST state that it is
+an environment selector and not a hardened boundary.
+
+R4.6 R4.1 MUST NOT be delivered before R1.1. Denying access to paths the prompt still names would
+convert a currently-working run into a hard failure. MEASURED: on opencode 1.18.25 with `--auto` and no
+user-level permission block, the host currently PERMITS the out-of-lane writes (run
+`run-20260901T042331Z-118022` recorded zero permission events and both workers wrote all five paths), so
+this ordering is load-bearing rather than theoretical.
+
+### R5. Lane inputs and retention
+
+R5.1 Required inputs MUST be materialized into the lane BY COPY, with a SEALED manifest recording per
+entry the repo-relative path, its class, a source digest, and the materialization mode.
+
+R5.1a "SEALED" IS DEFINED, because the word was previously used without a testable meaning. A sealed
+manifest MUST satisfy all three: (i) the manifest FILE is written with read-only permissions for the
+worker (no write bit for the owning user), so an accidental in-lane edit fails rather than silently
+rewriting the record of what was authorized; (ii) each materialized INPUT file it lists is likewise
+read-only, since these are inputs the worker consumes and never revises; and (iii) any legitimate change
+to the input set is a NEW MANIFEST REVISION recorded by the driver (R3.4), never an in-place edit of an
+existing entry. Read-only is an accident guard under the threat model in 0.2, not a boundary: the owning
+user can restore the write bit, and an artifact MUST NOT describe it as immutability.
+
+R5.2 No manifest-listed lane path may be a symlink OR a hard link to a file outside the lane. Both are
+violations: a hard link satisfies a symlink check and a digest comparison while still sharing an inode
+with the original, which reintroduces exactly the coupling the lane exists to remove. Verification MUST
+therefore establish link independence, not merely symlink absence.
+
+R5.3 Every `--file` style attachment handed to an isolated worker MUST resolve inside the lane.
+
+R5.4 Before an unattended turn, the driver MUST evaluate whether the target checkout has dirty TRACKED
+paths, and MUST do so BEFORE any worker process is spawned. The EVALUATION is uniform; the CONSEQUENCE is
+SPLIT BY PATH, and both halves are normative:
+
+- SHARED TREE (`--no-isolate-worktree`): the turn MUST be REFUSED, and the refusal MUST name the dirty
+  paths. The turn executes IN the polluted tree, so at commit or finalize time its own changes cannot be
+  told apart from the uncommitted work already there. This is the case where dirt is MOST dangerous and it
+  keeps the full obligation.
+- ISOLATED: the turn MUST NOT be refused. The dirty paths MUST still be REPORTED, naming them, and MUST be
+  recorded in durable run state so the observation is auditable rather than only printed.
+
+AMENDED 2026-09-13/16 by dirtygates Order 01 (`d7qoxv`); the original text required the refusal on the
+isolated path unconditionally. THE AMENDMENT IS A SPLIT, NOT A REMOVAL, and the shared-tree obligation
+above is deliberately preserved in force because dirtybase Order 01 (`3i0aaz`) E-03 extends it.
+
+WHY THE ISOLATED REFUSAL WAS WITHDRAWN, stated so it is not restored on intuition. It did not prevent the
+harm it named; it deferred it. MEASURED 2026-09-13: a worker lane cut from HEAD that lacked an uncommitted
+tracked change passed its new test inside the lane, merged with no overlap, then failed against the real
+tree; committing that same change with NO lane involved produced the IDENTICAL failure. So the lane was
+never the cause, and the refusal only postponed the failure to whenever the operator committed, which had
+to happen anyway. What ACTUALLY catches a stale base is the merge-and-revalidate gate, which re-runs
+validation against the COMBINED result and so produces a real test failure instead of an inference from a
+dirty file.
+
+THE MEASURED COST OF KEEPING IT, which is why this is an amendment rather than a note: across three
+consecutive runs on 2026-09-13 the gate blocked 27 of 42, 23 of 41, and 18 of 43 queue items, each refusal
+naming exactly ONE uncommitted markdown file that no plan declared, and cascading 36 further items into
+`dependency-blocked`. Reviews were exempt and some items still ran, so this was not a total failure of
+each run, but the majority of every run was lost to a file no lane would have touched.
+
+Untracked files remain deliberately EXCLUDED on BOTH paths: a lane is created from a commit, so untracked
+content was never silently omitted the way an uncommitted tracked edit is, and refusing on untracked files
+would make an unattended run unstartable in any working checkout. Untracked content is REPORTED once per
+run instead.
+
+R5.5 Teardown MUST be refused while a lane holds content the driver cannot classify: a dirty tracked
+file, an unknown untracked file, or an unimported submission. Gitignored files (including interpreter
+bytecode caches, toolchain dependencies, and build or test residues) are disposable upon lane destruction
+and do not block teardown.
+
+AMENDED 2026-09-18 by maintainer ruling: R5.5 originally required unknown ignored files to refuse teardown
+on the premise that "ignored means disposable" had previously deleted uncommitted files. In practice,
+because running test suites or agent runtimes routinely generates bytecode (__pycache__/*.pyc) and tool
+state (node_modules), the blanket refusal on ignored files caused 100 percent of clean test runs to fail
+teardown, stranding dozens of worktrees on disk. Teardown refuses only on uncommitted tracked modifications
+(dirty tracked), uncommitted untracked source files (unknown untracked), or uncollected task deliverables
+(.aw/state/lane-submissions/).
+
+R5.6 A refusal under R5.5 MUST be recorded as an event naming the reason, so preservation is auditable
+rather than inferred from a surviving directory.
+
+R5.6a THE PRESERVATION MUST ALSO BE VISIBLE IN THE RUN'S OWN SUMMARY OUTPUT, not only in its event log
+(maintainer ruling 2026-09-01). MEASURED, and this is why it is a requirement rather than a nicety: run
+`run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times in the summary a human
+reads; no reader surfaces the event at all; and five preserved lanes were sitting on disk at the time.
+The maintainer learned that work had been stranded by ASKING, not from the run's output. AN EVENT NOBODY
+READS IS CLOSE TO NO RECORD AT ALL, and silent stranding is precisely the failure this whole effort
+exists to remove, so recording it in a log while the summary reports success reproduces that failure in a
+quieter form. The summary MUST name each preserved lane and the reason it was preserved.
+
+### R6. Shared predicates, single definition
+
+R6.1 A containment rule consumed by more than one surface MUST live in one predicate that every surface
+calls. Forking the rule is non-conforming even when the copies agree at the time of writing.
+
+R6.2 A predicate that is declared but not yet implemented MUST fail loudly rather than return a
+permissive default, and MUST name its owner.
+
+R6.3 Implementing a predicate body and wiring its callers are SEPARABLE deliverables and may be owned by
+different plans. A plan that implements a body it is not chartered to wire MUST NOT wire it.
+
+## 4. Testable acceptance criteria
+
+Each is falsifiable and names the requirement it proves. "A test exists" is not evidence; the pasted
+result of running it is.
+
+TRACEABILITY, verified programmatically rather than asserted: every requirement below is cited by at
+least one criterion, with TWO deliberate exceptions. R3.3a-1 is a PARENT id whose two halves (R3.3a-1a,
+R3.3a-1b) are each cited separately, so citing the parent as well would be redundant. R4.1b is cited by NO criterion because it is a
+POINTER to Non-goal 7 rather than a behavior; it exists so R4.1a's "unenforced-at-the-host" outcome
+cannot be misread as an unaddressed defect. That exception is recorded here so a reviewer does not
+re-flag it as a traceability gap.
+
+- A1. Build an isolated prompt from BOTH drivers and pattern-match the emitted text: zero absolute paths
+  outside the lane root, and no exception clause. Reword the exception and the check must still fail.
+  (R1.1, R1.2)
+- A2. Build a NON-isolated prompt before and after the change for identical inputs and compare digests:
+  identical. (R1.3)
+- A3. A worker writes a lane-relative outcome declaring success; the driver's reconciliation returns that
+  disposition, not the empty-outcome fallback, and the submission is present at the driver-side path.
+  (R2.1)
+- A4. Run the same attempt's collection twice; the run-wide decisions register contains the lane's
+  contribution exactly once, and a sibling lane's contribution is still present. (R2.3)
+- A5. A turn that wrote nothing reconciles to the empty-outcome fallback without raising. (R2.4)
+- A5b. COLLECTION IS RECORDED, in all four states, and they are distinguishable WITHOUT inspecting run
+  directory contents: collected, uncollected (no record), interrupted mid-collection, and repeated
+  collection of the same attempt. Show the source digest and destination result for each, and show a
+  FAILED collection recorded as failed rather than omitted. (R2.5)
+- A5c. THE SHARED-CODE HOME IS DECLARED. For every rule both drivers consume, show its single definition
+  lives in a module named in the implementing plan's declared scope, and that neither driver holds a
+  second copy (established by AST or the import graph, not a text grep). A rule defined in one driver and
+  imported by the other FAILS this criterion. (R2.6)
+- A6. AMENDED by R3.3a. Drive the missing-input cycle with any resolvable path and show the driver
+  REFUSES it with a precise record naming the path and the reason, preserves and pauses the lane, copies
+  NOTHING into the lane, and emits no live grant. The former version of this criterion tested a permitted
+  repair (copy plus manifest revision plus authorization plus resume); there is no permitted path now, so
+  a test asserting a successful copy would assert behavior the spec forbids. (R3.2, R3.3a, R3.6)
+- A7. Drive it with each forbidden shape (absolute, `..` escape, coordinator surface, sibling lane,
+  machine state, git dir, directory, nonexistent): each is rejected with a precise record, no copy, no
+  grant. Show the reject decision comes from the SHARED predicate. (R3.3, R3.5, R3.6)
+- A7b. WITHDRAWN by R3.3a (secret vocabulary removed; nothing is materialized on request, so there is nothing to classify). Formerly: Drive the cycle with a representative path from each secret family in the
+  single derived source (at minimum `.env`, a `*.pem`, a `*.key`, and a `credentials*.json`) and show each
+  is rejected with no copy and no grant. Then show the reject set is DERIVED from the existing
+  `.gitignore` secret sections rather than transcribed, and that the rule lives in the SHARED predicate
+  (so a second call site cannot miss it) rather than at one call site. A test that only proves `.env` is
+  rejected does NOT satisfy this criterion. (R3.3a)
+- A7b-1. WITHDRAWN by R3.3a. Formerly: WITH NO TARGET SOURCE AT ALL. In a synthetic target repository that has
+  NO ignore file (and separately, one whose ignore file has none of the expected headings), show that a
+  request for a representative path from EACH floor family is still REJECTED. This is the criterion that
+  would have caught the original defect, so it must be tested against an EMPTY environment rather than
+  this repository. (R3.3a-1a)
+- A7b-2. WITHDRAWN by R3.3a. Formerly:, NEVER A SUBTRACTION. Show that a target repository declaring an
+  additional secret family causes that family to be rejected too, AND that a target repository which
+  omits or contradicts a floor family does NOT cause that family to be permitted. An implementation where
+  a target file can remove a floor entry fails this criterion. (R3.3a-1b)
+- A7b-3. WITHDRAWN by R3.3a. Formerly: AND SAYS SO. For each of absent, unreadable, empty, and malformed
+  target sources: show the driver proceeds on the floor, still rejects every floor family, and RECORDS
+  that the additions were unavailable with the reason. Show it does not abort the run. Separately show
+  that if the FLOOR cannot be loaded the request is REFUSED outright rather than permitted. (R3.3a-2)
+- A7c. WITHDRAWN by R3.3a (R3.3b's tracked-file test is superseded; there is no permit path). Formerly: Show a TRACKED safe file is permitted and materialized, and
+  an UNTRACKED but otherwise safe file is REFUSED by default with a precise record. This pins R3.3b so a
+  later implementation cannot silently widen the rule. (R3.3b)
+- A8. PER HOST, not once. For OPENCODE: decode the child environment for an unattended isolated turn and
+  show the policy denies external-directory and question, inherited PATH and the import pin survive, and
+  the attempt record carries either the OBSERVED effective policy or an explicit unverified marker with
+  its reason and the host version. For ANTIGRAVITY: show the attempt record states that NO denial posture
+  exists on this host, and show that no artifact describes it as denied. A single uniform assertion
+  across both hosts FAILS this criterion, because it would assert a parity that does not exist.
+  (R4.1, R4.1a, R4.2)
+- A8b. Assert the honest-reporting rule mechanically: for a host recorded as having no denial posture, the
+  attempt record and any rendered summary MUST NOT contain a claim of denial, and MUST name the layers
+  that do apply (R1 prompt purity and R4.4 driver bounds). (R4.1a)
+- A8c. THE ANTIGRAVITY DEFAULT IS PINNED. Assert that `dangerously_skip_permissions` still defaults to
+  `True` and that the constructed argv for an unattended `aw agy run` turn still carries
+  `--dangerously-skip-permissions`. This is a REGRESSION GUARD in the opposite direction from every other
+  criterion here: it fails if work tracing to this spec "hardens" the host into the interactive posture
+  that was measured to deadlock. (R4.1c)
+- A9. With an operator-supplied value already set for the policy variable, the resulting child environment
+  either merges it verifiably or overrides it with an explicit loud record. A silent overwrite fails this
+  criterion. (R4.3)
+- A10b. THE BOUNDS ARE NAMED, DEFAULTED, AND SCOPED AS SPECIFIED. Assert the two constants are named
+  `PERMISSION_TIMEOUT` and `MAX_TURN_TIMEOUT` (not `..._DEADLINE`); that `MAX_TURN_TIMEOUT` defaults to 4
+  hours and `PERMISSION_TIMEOUT` defaults to `0`, i.e. DISABLED, unless R4.4b's detection evidence was
+  produced; that both accept `0` to disable; and that both are armed for a NON-isolated turn as well as an
+  isolated one. Paste each constant's docstring showing it states WHAT INSTANT it measures from and
+  WHETHER ANYTHING RESETS IT. Also show the non-isolated turn's PROMPT is still byte-identical, which is
+  what R1.3 protects and what makes the uniform supervision scope safe. (R4.4, R4.4a)
+- A10c. THE PERMISSION DETECTOR IS PROVEN OR THE BOUND STAYS OFF. Either paste a captured stream from a
+  REAL provoked permission ask together with the line the detector matched, and then show the default set
+  to 30 seconds; OR paste the recorded finding that detection is not possible on stdout, show the default
+  remains `0`, and show the artifact stating that `MAX_TURN_TIMEOUT` is consequently the only bound
+  covering a permission deadlock. A test that merely feeds a SYNTHETIC line the detector was written
+  against does NOT satisfy this criterion, because that proves the regex matches itself rather than that
+  the shape ever reaches stdout. (R4.4b)
+- A10e. NO NEW CONFIGURATION SURFACE WAS ADDED. Show that neither bound gained a config-file entry or a
+  CLI flag, and that `test_command_surface_declarations` is no worse than its measured baseline. This is a
+  criterion in the NEGATIVE direction, which is deliberate: the natural instinct is to make a new constant
+  configurable, and the maintainer's KISS ruling was that the knob waits until a real need appears. Also
+  show both bounds still accept `0` to disable in-code, so declining a flag did not remove the operator's
+  ability to turn one off. (R4.4c)
+- A10d. THE ANTIGRAVITY OVERLAP IS DOCUMENTED. Show that the relationship between the host's 240m
+  `--print-timeout` and the driver's `MAX_TURN_TIMEOUT` is stated in the code, naming which is expected to
+  fire first, and that a post-mortem can attribute a termination to one of them rather than guessing.
+  (R4.4d)
+- A10. Feed a synthetic unanswered permission request, including the nested child-session shape: the
+  process is terminated within the permission deadline, demonstrably not at the coarse no-progress bound,
+  the disposition is the safe-failure value, the reason names which bound fired, and the termination is
+  attributable to the shared reaper with no second reaper introduced (checked structurally, not by text
+  grep, since a test file contains the symbols). (R4.4)
+- A11. An in-lane invocation of a driver-owned lifecycle verb refuses with the documented code and
+  performs NO state transition; the driver's own invocation still succeeds. (R4.5)
+- A12. Materialize a lane: every manifest entry records a copy with a source digest; no listed path is a
+  symlink; and each listed file's inode link count and identity establish it is NOT a hard link to a file
+  outside the lane. (R5.1, R5.2)
+- A12b. SEALED IS TESTED, all three parts: paste the manifest file's mode showing no owner write bit;
+  paste each materialized input file's mode showing the same; and show that an attempted in-place edit of
+  an existing manifest entry is refused while a legitimate input change appears as a NEW REVISION. Also
+  state in the artifact that read-only is an accident guard and not immutability, since the owning user
+  can restore the write bit. (R5.1a)
+- A13. Every attachment handed to an isolated worker resolves inside the lane, asserted over ALL
+  attachments with at least two checked. (R5.3)
+- A14. With a dirty TRACKED file, the evaluation happens before any worker process is spawned, and its
+  consequence is asserted SEPARATELY FOR EACH PATH, because a single assertion would hide half the
+  requirement. (i) SHARED TREE (`--no-isolate-worktree`): the run is REFUSED and the refusal names the
+  dirty paths. (ii) ISOLATED: the run PROCEEDS, and the dirty paths are reported AND present in durable run
+  state. (iii) With a clean tree it proceeds on both paths. (iv) An UNTRACKED file triggers no refusal on
+  either path. AMENDED with R5.4 by `d7qoxv`: a test asserting an isolated refusal now asserts behavior the
+  spec forbids, and a test asserting only that the isolated turn proceeds does NOT satisfy this criterion,
+  because it would pass equally if the report were silently dropped. (R5.4)
+- A14b. THE SHARED RULE AND THE CALLER'S DISPOSITION ARE PINNED SEPARATELY. Show that the rule still
+  classifies a dirty tracked tree as NOT CLEAN and still names the paths on BOTH paths (identical
+  classification, identical path list), and that only the isolated CALLER declines to refuse. A test that
+  achieves the isolated behavior by making the rule report CLEAN fails this criterion: that would discard
+  the dirty-path list the report exists to print and would leave the shared-tree refusal unreachable
+  through the same rule. (R5.4, R6.1)
+- A15. A lane holding an unknown untracked file, a dirty tracked file, or an uncollected submission is not
+  torn down and an event records the reason; gitignored files do not block teardown; a fully classified
+  clean lane is torn down. (R5.5, R5.6)
+- A15b. THE PRESERVATION IS VISIBLE WITHOUT READING THE EVENT LOG. Paste the run's summary output for a run
+  that preserved a lane, showing it names the lane and the reason. A test that only asserts the EVENT was
+  written does NOT satisfy this criterion, because that is exactly the state measured on
+  `run-20260901T042331Z-118022`: two lanes preserved, zero mentions in the summary. (R5.6a)
+- A16. Each implemented shared predicate has unit tests; each unimplemented one still raises naming its
+  owner; and a predicate implemented but not chartered for wiring has no product caller. (R6.1, R6.2,
+  R6.3)
+- A17. The isolated prompt states the cwd-is-the-workspace rule in plain language AND names the exact
+  missing-input token form, so R1.1's strictness always ships with its escape hatch. Assert both are
+  present in the emitted text. (R1.4, R3.1)
+- A18. After collection, the lane STILL holds its own copy of each submission, proving collection copied
+  rather than moved and that the retention classification in R5.5 has evidence to inspect. (R2.2)
+- A19. A denied host permission event pointing into the original checkout produces the SAME decision
+  record as the equivalent missing-input token for that path, proving one classification path rather than
+  two. (R3.7)
+- A20. Ordering is verifiable, not merely asserted: demonstrate that with the policy denial active and
+  the prompt still naming out-of-lane paths the turn FAILS, and that with R1.1 satisfied it does not. A
+  plan may satisfy this by citing the sequencing constraint and showing the two states, but it MUST NOT
+  claim R4.6 holds without evidence that the ordering was actually respected. (R4.6)
+
+## 5. Research recommendations NOT adopted, and why
+
+Recorded so a later reader does not treat the research report as the contract. Research `x03wgn` is
+EVIDENCE; this spec is the norm, and it deliberately declines three of the report's positions.
+
+1. NOISE-GATED NO-PROGRESS WATCHDOG, DECLINED AS A BUG FIX, ACCEPTED ONLY AS A FUTURE-HOST GUARD. The
+   research prescribes that the no-progress watchdog reset only on meaningful events, and the `wtiso`
+   Phase-1 design implemented a predicate for it. MEASURED 2026-09-01 over 920 real stream lines from run
+   `run-20260901T042331Z-118022`: ZERO unparseable lines, ZERO noise-typed events, and 100% of lines
+   already in the meaningful set (`step_start`, `step_finish`, `tool_use`, `text`). So on the current host
+   the gate would change nothing. Worse, the measured failure mode on this host runs the OTHER WAY: the
+   subagent-progress module documents a real turn with 570 stdout events and a largest stdout silence of
+   246.5s while a child session progressed, i.e. the live risk is SPURIOUS KILLS, and gating the reset
+   makes the watchdog fire MORE easily. Therefore this spec does NOT require it. If it is ever
+   implemented it MUST fail toward meaningful for uncatalogued event types, and it MUST be described as a
+   guard against a future host that emits noise on stdout, never as a fix for a present defect.
+2. RELOCATING THE DRIVER'S CONTROL PATHS INTO THE LANE, DECLINED IN FAVOUR OF COLLECT-BACK (R2). The run
+   directory is RUN-WIDE and shared by every item; the decisions register is appended to by all lanes.
+   Relocating it into one lane would either fork it per item or make one lane authoritative over its
+   siblings. Collect-back also leaves every existing driver-side reader untouched, which is why R2.1 is
+   phrased as collection rather than reader migration.
+3. GATING THE SUBAGENT PROGRESS POLLER, DECLINED. The poller already filters to agent-loop progress kinds
+   and counts only lines proven to belong to a child session of the current turn, which is the same
+   policy applied to a different data source. Applying an event-JSON predicate to its plain-text log input
+   would reject essentially every line and re-break the sub-task keepalive the poller exists to provide.
+   HONEST RESIDUAL RISK: if a stuck turn's only output is agent-loop-shaped log lines from a live child,
+   the poller can still hold the turn open. By the poller's own definition that child IS progressing; if
+   that ever proves a real failure mode it needs its own design and a log-line-specific notion of
+   progress.
+
+## 6. Open questions
+
+### OQ-01: Is the containment guarantee in this spec strong enough for 2.0.0, given it is explicitly not a boundary?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER'S THREAT MODEL (0.2), which is a ruling
+  rather than an inference: the model is accident prevention, so a layered guard that refuses and names
+  the alternative is the correct target, and bypassability is not disqualifying. The spec's obligation is
+  to state the limit honestly (R4.5, Goal 5) rather than to close it. Hard confinement remains owned by
+  `fjs11i` and research `q65sz3`, which this spec is deliberately independent of.
+
+### OQ-02: Should this spec require the noise-gated watchdog that research `x03wgn` prescribes?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: NO, resolved on measurement rather than preference; see 5.1 for the
+  full evidence. The short form: 920 real stream lines contained zero noise events and zero unparseable
+  lines, so the gate is inert on the current host, while the measured live risk on that same host is
+  spurious kills, which gating makes more likely. Declining it is the conservative choice, and this
+  reverses an earlier assessment (recorded rather than quietly dropped) that called it a live defect.
+
+### OQ-03: Does R2.3's idempotency requirement need attempt-keyed dedup or per-lane files?
+
+- Blocking: no
+- Status: deferred
+- Owner: the implementing plan
+- Resolution or deferral rationale: DEFERRED AS AN IMPLEMENTATION CHOICE, not a contract question. R2.3
+  fixes the REQUIREMENT (a retry must not duplicate, and must not remove a sibling's contribution) and
+  A4 fixes the test. Whether that is achieved by keying the appended block to the attempt or by writing
+  deterministic per-lane files is a design decision the implementing plan should make and justify, and
+  either satisfies the requirement. Recorded as deferred rather than silently left open so a reviewer can
+  see it was considered.
