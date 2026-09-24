@@ -11,18 +11,18 @@
 - Scope: Make it impossible for the shared commit path to land one half of a records move. IN: (a) REFUSE a directory argument, BEFORE anything is staged, with a message naming the files it would have to expand to, per OQ-01 as RESOLVED at review (the authored alternative of EXPANDING is now excluded, because F-6 shows expansion cannot restore the "a refused call mutates nothing" property); (b) make the success report honest, so a caller that named N paths and got fewer committed is TOLD rather than reading `committed`, on the `nothing-to-commit` branch as well as the `committed` one; (c) a regression test using the UNTRACKED-DESTINATION shape production actually produces, since no existing test reaches it, covering BOTH the mixed and all-directories invocations and asserting a refused call leaves the index untouched. OUT: re-fixing the staged-rename parser, which `26519096` shipped and this plan VERIFIES rather than changes; converting `aw backlog set` to `git mv` (a plausible alternative fix, deliberately deferred to OQ-02 because it changes a writer rather than the commit gateway every writer shares, and the gateway fix protects callers that will never be converted).
 - Scope-Paths: agent_workflows/git_commit_helper.py, tests/test_git_commit_helper.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: movehalf
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: hv9gar
-- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: mx1b4v
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: hv9gar verified (set movehalf, attempt 1).
 - 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): status set to reviewed
 
