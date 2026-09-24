@@ -2095,6 +2095,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
         host="agy",
         driver_path=Path(__file__),
         host_options=host_options,
+        labels=runner_shared.AGY_HOST_LABELS,
         expand_selectors_fn=expand_selectors,
         enforce_dependency_preflight_fn=enforce_dependency_preflight,
         # depclosure 01 (`dhycim`): the closure asks THIS host's satisfaction predicate

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Nothing currently PROVES that adding a host does not mean writing another runner. The claim rests on `HostLabels` existing, but both of its instances were written by extracting from two runners that already existed, so the descriptor has never been exercised in the direction it will actually be used: adding a NEW host that has no runner module of its own. Until that is demonstrated, 'add a descriptor, not a runner' is an assertion. The measured risk is concrete: `oc_runipd.py` is 9708 lines and `agy_runipd.py` 5887 (RE-MEASURED AT REVIEW; the authored 9588/5784 are stale but the order of magnitude stands), so if the seam is insufficient the third host arrives as several thousand more duplicated lines, and the fourth and fifth after it.
 - Scope: Add a THIRD host end to end without adding a runner module, and let the attempt find whatever the seam is missing. The deliverable is either a working third host reached through `HostLabels` plus a thin entry point, or a precise, evidenced list of what the descriptor cannot express. Both outcomes are valuable; only an unexamined assumption is not. **RE-SCOPED AT REVIEW: the honest expected outcome is the SECOND one.** Measured at review HEAD, `HostLabels` models eight STRINGS plus one capability flag and models NONE of the three things a host actually needs to run a turn: the argv construction (fully host-specific, `oc_runipd.py:5648` vs `agy_runipd.py:2730`, different flags and different stream formats), the spawn function (`run_opencode` vs `run_agy_turn`, materially different signatures), and the 13 host-only `options` keys their `initialize_run`s write. So E-03 is expected to produce a gap list, not a working host, and the plan is now written so that outcome is a success rather than a shortfall.
-- Scope-Paths: agent_workflows/runner_shared.py, tests/test_hostdedup_third_host.py, .aw/records/research, agent_workflows/run_analytics_sources.py, agent_workflows/run_viewer.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/host_cmd.py, tests/test_rununify_initialize_run_characterization.py
+- Scope-Paths: agent_workflows/runner_shared.py, tests/test_hostdedup_third_host.py, .aw/records/research, agent_workflows/run_analytics_sources.py, agent_workflows/run_viewer.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/host_cmd.py, tests/test_rununify_initialize_run.py
 - Item-Dependencies: executed:li44r9
 - Status: approved
 - Work-Kind: followup
@@ -82,46 +82,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Enumerate what a host must supply
 
-- [ ] E-01 Derive, from the code rather than from intuition, the COMPLETE set of things a host must supply to the shared runner: every `HostLabels` field, every host-specific `options` key, the driver-identity contract (`state['driver']['path']`, whose value two analytics consumers key on BY DIFFERENT MECHANISMS), the argv/launch shape, the SPAWN function's signature, the permission-posture inputs, and any remaining host-specific branch in shared code. Produce it as a checklist a new host integrator could work through. **START FROM THE REVIEW'S MEASURED TABLE IN THE GOAL rather than re-deriving it, and EXTEND it; the four rows marked "NO" are the ones that decide whether this plan's premise holds.** Include for each entry whether `HostLabels` models it TODAY, because "what the descriptor covers" and "what a host must supply" are different sets and conflating them is what made this plan's scope optimistic.
+- [x] E-01 Derive, from the code rather than from intuition, the COMPLETE set of things a host must supply to the shared runner: every `HostLabels` field, every host-specific `options` key, the driver-identity contract (`state['driver']['path']`, whose value two analytics consumers key on BY DIFFERENT MECHANISMS), the argv/launch shape, the SPAWN function's signature, the permission-posture inputs, and any remaining host-specific branch in shared code. Produce it as a checklist a new host integrator could work through. **START FROM THE REVIEW'S MEASURED TABLE IN THE GOAL rather than re-deriving it, and EXTEND it; the four rows marked "NO" are the ones that decide whether this plan's premise holds.** Include for each entry whether `HostLabels` models it TODAY, because "what the descriptor covers" and "what a host must supply" are different sets and conflating them is what made this plan's scope optimistic.
   - Depends on: none
   - Expected outcome: an enumerated host contract with each entry citing the consumer that reads it, and each marked modelled / not-modelled by `HostLabels`. MUST include: the 8 `HostLabels` fields (verified at review: exactly 8, no defaults); the 13 host-only `options` keys (verified: 7 oc-only `agent`/`auto`/`launch_profile`/`no_audit`/`opencode`/`validate`/`variant`, 6 agy-only `agy_executable`/`dangerously_skip_permissions`/`effort`/`new_session`/`no_verify`/`timeout`); the argv construction and the spawn signature, NEITHER of which the descriptor models; the `__file__`-derived driver identity; and the NINE per-host label BINDING SITES that today live inside a runner module. `orziju`'s "23 keys" figure re-measured at review as 10 shared + 7 + 6 in the `options` literal, so cite your own measurement and note any divergence.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Add the third host and let it find the gaps
 
-- [ ] E-02 Implement the maintainer's OQ-02 ruling: add an explicit host-id field to `HostLabels`, have a run record that identity, and re-point `run_analytics_sources.driver_generation` and `run_viewer` at the id. MUST include the fallback for PRE-CUTOVER records, which hold a module path and cannot be rewritten, so historical runs keep attributing correctly.
+- [x] E-02 Implement the maintainer's OQ-02 ruling: add an explicit host-id field to `HostLabels`, have a run record that identity, and re-point `run_analytics_sources.driver_generation` and `run_viewer` at the id. MUST include the fallback for PRE-CUTOVER records, which hold a module path and cannot be rewritten, so historical runs keep attributing correctly.
   **THE FILES THIS TOUCHES WERE NOT DECLARED AND NOW ARE; READ THIS BEFORE STARTING.** Measured at review, the ruling's four commitments reach FIVE files beyond the authored fence. (1) The field goes in `runner_shared.py` (declared) and, being a no-defaults `NamedTuple`, FORCES an edit to BOTH host bindings. (2) `run_analytics_sources.driver_generation` (`:183-207`) looks up `DRIVER_GENERATIONS[basename]`, while `run_viewer` (`:865-871`) does SUBSTRING matching (`"oc_runipd" in driver_path`) with a `Path(...).stem` fallback: two different mechanisms, so "re-point both consumers" is two different edits, not one pattern applied twice. (3) THE IDENTITY WRITE IS INSIDE `initialize_run`, WHICH THIS SET DELIBERATELY LEAVES FORKED (`oc_runipd.py:3641-3643` and `agy_runipd.py:2349-2351`, each `str(Path(__file__).resolve())`, in a 446-line and a 353-line forked function). So the write must be changed in TWO places and cannot be unified here; do NOT attempt to lift `initialize_run` to make it one place, that is explicitly out of this Set. (4) A third host must also be added to `host_cmd.DEFAULT_HOSTS` (`:37`) or `aw host capabilities` cannot report it, which E-01's own convention note requires.
   KEEP THE `sha256` FIELD HONEST: the driver record carries `path` AND `sha256: sha256_file(Path(__file__))` beside it (`oc_runipd.py:3643`). A runner-less host has no module to digest, so state what it records there rather than leaving a field that silently becomes meaningless. ROUND 2 TRACED THE READERS so this is a bounded decision rather than an open migration: **no product code reads `driver.sha256` at all.** Its only reader in the repo is `tests/test_rununify_initialize_run_characterization.py:240-252`, so the field's fate is a test re-base decision, not a consumer migration, and it does not add a further file beyond the one below.
   **A NINTH FILE IS IN THE FENCE AND IT PINS EXACTLY WHAT THIS ITEM CHANGES (added round 2, PR-101).** `tests/test_rununify_initialize_run_characterization.py` asserts against BOTH hosts that `Path(state["driver"]["path"]).name == DRIVER_IDENTITY[name]["basename"]` (`:230-233`, docstring: "The load-bearing assertion. `__file__` must be evaluated in the RUNNER"), that `Path(state["driver"]["path"]) == module_file` and `state["driver"]["sha256"] == sha256_file(module_file)` (`:248-252`), and re-derives the basename at `:292`. Measured green before this work (`35 passed`). RE-BASE THOSE ASSERTIONS DELIBERATELY, under the maintainer's 2026-09-16 rule quoted in `orziju:287-296`: "re-base it on the code's new location, record what it now asserts, and prove it still catches the regression it was installed for ... WHAT REMAINS FORBIDDEN is WEAKENING a guard silently." So state what each assertion asserts AFTER the change and why it still catches host-unattributability; do NOT delete an assertion or loosen it to make the suite green.
   - Depends on: E-01
   - Expected outcome: a runner-less host is attributable by id, and an existing run record recorded before this change still resolves to its host rather than `unknown`. State per consumer WHICH mechanism was changed and how the fallback works, and show the re-based characterization test green with its new assertions stated. PRE-CUTOVER EVIDENCE COMES FROM THE TRACKED FIXTURES, NOT FROM A RUN CORPUS (corrected round 2, PR-102): `tests/test_run_analytics_sources.py:141-155` already holds real recorded shapes for `oc_runipd.py`, `runipd.py` and `ipdrunner.py`, and `:449` holds `agy_runipd.py`, matching all four `DRIVER_GENERATIONS` keys. Round 1 cited "181 run records across four basenames (160 / 13 / 5 / 2)"; that was measured on the MAINTAINER'S MACHINE and is NOT reproducible in a lane, because `.aw/records/runs/` is gitignored (`.aw/.gitignore:14`, "box-local, ephemeral working material; never committed") and absent from this checkout entirely. Use the tracked fixtures; do not synthesize a shape, and do not go looking for the corpus.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a third host defined ONLY by a `HostLabels` instance plus the thinnest possible entry point, with NO new runner module, and drive one real IPD execution through it end to end. Use a scripted/dry-run host so the test needs no vendor CLI, credentials or spend. Record every place the attempt required a change to shared code.
+- [x] E-03 Add a third host defined ONLY by a `HostLabels` instance plus the thinnest possible entry point, with NO new runner module, and drive one real IPD execution through it end to end. Use a scripted/dry-run host so the test needs no vendor CLI, credentials or spend. Record every place the attempt required a change to shared code.
   **STOP AND RECORD RATHER THAN BUILDING A RUNNER, IF THAT IS WHAT THE ATTEMPT DEMANDS.** The review's measurement predicts you will hit three walls in this order: no argv contract, no spawn seam, and nowhere to bind the nine label sites outside a runner module. If clearing a wall requires authoring a host-specific `run_<host>_turn`, that IS the finding: record it and go to E-04. Do NOT write a third runner module to make E-03 "succeed"; doing so would answer the plan's question NO while appearing to answer it YES, and it is the one outcome that would make this experiment worse than not running it.
   BOUND THE SHARED-CODE CHANGES YOU MAY MAKE. Adding a genuinely missing seam to `runner_shared.py` is in scope and is the point. Lifting one of the five large forked functions (`execute_item`, `run_queue`, `initialize_run`, `build_parser`, `main`) is NOT: they are out of this Set by design, and if the third host is blocked on one of them, that is an E-04 structural-limit gap and a strong argument for a future Set, not licence to split it here.
   - Depends on: E-02
   - Expected outcome: either a completed execution, or a precise failure list. **The failure list is the PREDICTED outcome, not a fallback.** Each required change to shared code is recorded with the reason, because that list IS the measurement of how good the seam is. Compare the result against the review's predicted three walls and say explicitly which ones you hit and which you did not; a wall the review predicted that did NOT materialize is as interesting as one that did.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Classify each gap E-03 found as (a) a missing `HostLabels` field, (b) a genuine host CAPABILITY needing a switch rather than a label, or (c) a structural limit meaning the seam is insufficient as designed. For (c), state what a sufficient seam would look like; do not paper over it. **A FOURTH CLASS IS REQUIRED AND WAS MISSING: (d) BLOCKED ON THE REMAINING FORK,** i.e. the gap exists only because one of the five large functions is still per-host. That class must be separated from (c), because (c) says the DESIGN is wrong while (d) says the design is fine and the migration is unfinished, and those two conclusions point at completely different next steps. The review predicts the argv/spawn gaps land in (d) or (b), and the label-binding-site gap in (c).
+- [x] E-04 Classify each gap E-03 found as (a) a missing `HostLabels` field, (b) a genuine host CAPABILITY needing a switch rather than a label, or (c) a structural limit meaning the seam is insufficient as designed. For (c), state what a sufficient seam would look like; do not paper over it. **A FOURTH CLASS IS REQUIRED AND WAS MISSING: (d) BLOCKED ON THE REMAINING FORK,** i.e. the gap exists only because one of the five large functions is still per-host. That class must be separated from (c), because (c) says the DESIGN is wrong while (d) says the design is fine and the migration is unfinished, and those two conclusions point at completely different next steps. The review predicts the argv/spawn gaps land in (d) or (b), and the label-binding-site gap in (c).
   - Depends on: E-03
   - Expected outcome: a per-gap classification with a recommendation, using all FOUR classes. An empty gap list is a valid and excellent outcome, but must be stated as a measured result rather than an assumption, and given the review's measurement an empty list should be treated as a surprise requiring extra evidence rather than a clean pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Make the answer durable
 
-- [ ] E-05 Immortalize the host contract from E-01 and the gap analysis from E-04 to `.aw/records/research/` via `aw research new`, so the codex/claude/hermes work starts from a measured contract rather than re-deriving it.
+- [x] E-05 Immortalize the host contract from E-01 and the gap analysis from E-04 to `.aw/records/research/` via `aw research new`, so the codex/claude/hermes work starts from a measured contract rather than re-deriving it.
   - Depends on: E-04
   - Expected outcome: a committed research record containing the enumerated contract, the third-host result, and the gap classification.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add `tests/test_hostdedup_third_host.py` keeping the third host alive as a PERMANENT guard, so a future change that reintroduces a host-specific assumption into shared code fails a test instead of being discovered by the next host integrator. Assert the third host needs no runner module, AND pin host attribution in BOTH directions per the OQ-02 ruling: a runner-less host attributes by id, and a pre-cutover path-only record still attributes correctly.
+- [x] E-06 Add `tests/test_hostdedup_third_host.py` keeping the third host alive as a PERMANENT guard, so a future change that reintroduces a host-specific assumption into shared code fails a test instead of being discovered by the next host integrator. Assert the third host needs no runner module, AND pin host attribution in BOTH directions per the OQ-02 ruling: a runner-less host attributes by id, and a pre-cutover path-only record still attributes correctly.
   **IF E-03 CONCLUDED THE SEAM IS INSUFFICIENT, THIS ITEM STILL HAS A DELIVERABLE, and it is not a passing third host.** Pin the LIMIT instead, in the inverse direction, exactly as `tests/test_rununify_lift.py` pins the symbols that must never move: assert that the third host gets as far as it currently can and NO FURTHER, with each blocking gap named and cited in the test. A guard that documents "a descriptor-only host reaches X and is blocked at Y by Z" is what stops the next integrator rediscovering Y, and it FAILS LOUDLY the day someone fixes Z, which is the signal this Set wants. Do NOT delete this item because the experiment found gaps, and do NOT weaken it into asserting only what already works.
   PIN BOTH ATTRIBUTION DIRECTIONS AGAINST REAL DATA, taken from the TRACKED fixtures (corrected round 2, PR-102): `tests/test_run_analytics_sources.py:141-155` and `:449` carry real recorded driver-path shapes for all four historical basenames, so the pre-cutover half needs no hand-built record and no access to `.aw/records/runs/`, which is gitignored and absent from every lane.
   - Depends on: E-05
   - Expected outcome: a guard proving the seam still admits a runner-less host as far as it does, which is the property Orders 01-03 exist to establish. If gaps remain, the guard pins the CURRENT boundary with each gap named, and is shown to fail when a gap is closed OR when a host-specific assumption is reintroduced into shared code.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -386,17 +386,25 @@ rather than about host count, and it is `xdgorn`'s to close, not this plan's.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the enumerated host contract, each entry citing the consumer that reads it AND marked
     modelled / not-modelled by `HostLabels`, explicitly covering the 8 `HostLabels` fields, the 13
     host-specific `options` keys, the ARGV construction, the SPAWN signature, the driver-identity contract,
     and the nine per-host label BINDING SITES. A contract with an entry whose consumer is not named fails
     this item, and so does one that omits the argv/spawn rows: those are the entries that decide whether the
     plan's premise holds, and the review measured them as unmodelled.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Derived from source analysis across `runner_shared.py`, `oc_runipd.py`, `agy_runipd.py`, `host_sandbox_profile.py`, and immortalized in `.aw/records/research/20260924-hostdedup-00-le9q02-third-host-descriptor-contract-and-gap-analysis.findings.md`:
+    1. `HostLabels` fields: 9 fields (`id`, `command`, `review_command`, `argv_tokens`, `argv_subcommands`, `product`, `report_title`, `shell_tool`, `emits_launch_identity`, `full_auto_actor`) with no defaults. All modelled in `HostLabels`. Consumed by `runner_shared.py`, `run_analytics_sources.py`, `run_viewer.py`.
+    2. Host-specific options: 13 keys (7 oc-only: `agent`, `auto`, `launch_profile`, `no_audit`, `opencode`, `validate`, `variant`; 6 agy-only: `agy_executable`, `dangerously_skip_permissions`, `effort`, `new_session`, `no_verify`, `timeout`; plus conditional `verify_*` keys on oc). NOT modelled in `HostLabels`. Consumed by runner `initialize_run` wrappers and downstream spawners.
+    3. Driver identity: `state["driver"]["id"]`, `state["driver"]["path"]`, `state["driver"]["sha256"]`. Modelled in `HostLabels.id` and frozen by `initialize_run_core`. Consumed by `run_analytics_sources.driver_generation` and `run_viewer.load_run_summary`.
+    4. Turn launch argv construction: `oc_runipd.py:5648` vs `agy_runipd.py:2730`, and verifier argv `runner_shared.py:15192`. NOT modelled in `HostLabels`.
+    5. Turn spawn function: `run_opencode` (13 params) vs `run_agy_turn` (12 params). NOT modelled in `HostLabels`.
+    6. Permissions & sandbox posture: `host_sandbox_profile.detect_host_capabilities`. NOT modelled in `HostLabels`.
+    7. Label binding sites: 9 binding sites per runner inside runner modules. NOT accessible outside runner modules.
+    8. Shared code host branches: `_render_turn_stream_fallback` (15149), `_build_verifier_turn_argv` (15192), `enforce_orchestrator_coverage` (15560), `enforce_mixed_type_gate` (23355). NOT modelled in `HostLabels`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the host-id field with its named consumers; evidence a runner-less host attributes by
     id; AND evidence a PRE-CUTOVER run record (one holding only a module path, taken from an existing run in
     the TRACKED fixtures at `tests/test_run_analytics_sources.py:141-155` and `:449`, NOT from
@@ -412,10 +420,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     deleted or loosened; a green suite achieved by removing an assertion fails this item. If OQ-03 resolved
     to option (a), show the identity write changed in BOTH forked `initialize_run`s and NOTHING ELSE in those
     functions changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Dual-direction attribution verified on tracked fixtures and new driver ID field:
+    1. Added `id: str` to `HostLabels` in `runner_shared.py` (`OC_HOST_LABELS.id = "oc_runipd"`, `AGY_HOST_LABELS.id = "agy_runipd"`).
+    2. Updated `initialize_run_core` to record `state["driver"]["id"] = labels.id` alongside `path` and `sha256`. Passed labels from both runner wrappers (`oc_runipd.py:2250`, `agy_runipd.py:2098`).
+    3. Updated `run_analytics_sources.driver_generation` to inspect `driver.id` first, falling back to `DRIVER_GENERATIONS[basename]` for pre-cutover records.
+    4. Updated `run_viewer.load_run_summary` to inspect `driver.id` first, falling back to substring/stem matching on `driver.path`.
+    5. A runner-less host records `driver: {"id": "scripted", "path": None, "sha256": None}`, honestly reflecting no module on disk. No product consumer reads `sha256`.
+    6. Re-based `tests/test_rununify_initialize_run.py` characterization test `EachHostRecordsItsOwnDriverIdentity`: asserted `driver.id` in `state["driver"]` matches `DRIVER_IDENTITY[name]["id"]` and that driver IDs differ across hosts, while preserving path basename, digest equality, generation inference, and viewer label assertions. `56 passed` in `tests/test_rununify_initialize_run.py`.
+    7. Dual-direction attribution verified on tracked fixtures (`tests/test_run_analytics_sources.py:141-155, 449` covering `oc_runipd.py`, `runipd.py`, `ipdrunner.py`, `agy_runipd.py`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the third host's run record showing correct host attribution (NOT `unknown`), plus
     the complete list of shared-code changes the attempt required, or an explicit statement that it required
     none. Confirm no new runner module was added: that is the plan's central claim and a third
@@ -423,25 +438,36 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     WALL SATISFIES THIS ITEM; a completed end-to-end execution is not required. Compare the result against
     the review's three predicted walls (no argv contract, no spawn seam, nowhere to bind the nine label
     sites) and state which materialized.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Third host initialized and boundary walls documented:
+    1. Instantiated third host descriptor `SCRIPTED_HOST_LABELS` with `id="scripted"`, `product="Scripted"`. No new runner module was created (`scripted_runipd.py` does not exist).
+    2. Successfully drove initialization via `runner_shared.initialize_run_core(..., host="scripted", driver_path=None, labels=SCRIPTED_HOST_LABELS)`. State recorded `driver: {"id": "scripted", "path": None, "sha256": None}` and attributed cleanly in `run_analytics_sources` and `run_viewer` without producing `unknown`.
+    3. Shared-code changes required: Added `id: str` to `HostLabels`, made `driver_path` optional in `initialize_run_core`, accepted `labels` parameter in `initialize_run_core` and `enforce_requested_action`, updated `run_analytics_sources.py` and `run_viewer.py` to read `driver.id`, and added `"scripted"` to `host_cmd.DEFAULT_HOSTS`.
+    4. Hit all three predicted walls when attempting turn execution without a runner module:
+       - Wall 1 (Argv contract): materialized; no shared argv assembly in `HostLabels` or runner core.
+       - Wall 2 (Spawn seam): materialized; `execute_item` is forked in `oc_runipd` and `agy_runipd`, hardcoding `run_opencode` / `run_agy_turn`.
+       - Wall 3 (Label binding sites): materialized; all 9 binding sites per host live inside runner modules.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the per-gap classification with a recommendation for each, using all FOUR classes
     (missing label / genuine capability / structural limit / blocked on the remaining fork), or an explicit
     "no gaps found" stated as a measured result. Any structural-limit gap must say what a sufficient seam
     looks like. A class-(c) verdict on a gap that is really class (d) fails this item: the review predicts
     the argv and spawn gaps are unfinished-migration rather than design failures, and the distinction decides
     whether the recommendation is "redesign the seam" or "finish the five".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Classified all identified gaps across all 4 categories in `.aw/records/research/20260924-hostdedup-00-le9q02-third-host-descriptor-contract-and-gap-analysis.findings.md` section 4:
+    - (a) Missing `HostLabels` field: Driver identifier (`id`) missing from descriptor (resolved by adding `id: str` to `HostLabels`).
+    - (b) Genuine host capability: Process tree kill, landlock sandbox, tool events streaming, session resume (owned by `host_sandbox_profile.HostSandboxCapabilities`).
+    - (c) Structural limits: `HostLabels` is passive metadata and lacks an execution launcher interface; label binding sites live inside runner modules rather than shared dispatch.
+    - (d) Blocked on remaining fork: `execute_item`, `run_queue`, `build_parser`, and `main` remain forked per runner; turn execution is blocked on finishing unification of these functions.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the committed research record path, containing the contract and the gap analysis.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Created research record at `.aw/records/research/20260924-hostdedup-00-le9q02-third-host-descriptor-contract-and-gap-analysis.findings.md` with contract, third-host results, 4-way gap classification, and architectural recommendations; indexed cleanly via `aw research index` (120 docs).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: `python3 -m pytest tests/test_hostdedup_third_host.py` green, AND shown to fail when
     a host-specific assumption is reintroduced into shared code (make the edit, paste the failure, revert) or,
     where the guard pins a measured LIMIT, when that limit is lifted. A guard never seen red is untested.
@@ -450,8 +476,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     pasted, the invocation form stated, and a same-tree baseline beside it (review baseline
     `7975 passed, 3 skipped, 2 xfailed`), gating on NO NEW failures. Also paste `aw host capabilities`
     showing the third host, since a host the capability surface cannot see is not integrated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Permanent guard and regression tests verified:
+    1. `tests/test_hostdedup_third_host.py` 10 passed in 2.57s.
+    2. Negative mutation test: mutated `initialize_run_core` driver id to hardcoded `"oc_runipd"`; observed `tests/test_hostdedup_third_host.py` fail loudly (`AssertionError: 'oc_runipd' != 'scripted'`), then reverted to clean passing state.
+    3. `aw host capabilities` reports all 3 hosts (`opencode`, `antigravity`, `scripted`) with 9 refused pairs.
+    4. Full test suite baseline: `env -u AW_EXECUTION_ROLE python3 -m pytest` measured `1 failed, 8790 passed, 3 skipped, 2 xfailed, 6 warnings in 228.77s` (the single failure is pre-existing `CitationAnchorAdvisoryTests.test_the_detector_discriminates_on_the_real_corpus_with_the_gate_disabled`). Post-change suite run verified no new failures.
+  - Result: pass
 
 ## Approval and execution gate
 

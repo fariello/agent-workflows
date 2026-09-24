@@ -928,7 +928,15 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                 if isinstance(driver_info, dict)
                 else str(driver_info)
             )
-            if driver_path:
+            driver_id = driver_info.get("id") if isinstance(driver_info, dict) else None
+            if driver_id:
+                if driver_id in ("oc_runipd", "opencode", "oc"):
+                    driver_name = "OpenCode"
+                elif driver_id in ("agy_runipd", "antigravity", "agy", "runagy"):
+                    driver_name = "Antigravity"
+                else:
+                    driver_name = driver_id
+            elif driver_path:
                 if "oc_runipd" in driver_path:
                     driver_name = "OpenCode"
                 elif "agy_runipd" in driver_path or "runagy" in driver_path:

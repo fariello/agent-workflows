@@ -965,12 +965,14 @@ HOST_PAIRS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
 #: `run_analytics_sources` must infer from it, the host label, and the name `run_viewer` renders.
 DRIVER_IDENTITY = {
     "oc_runipd": {
+        "id": "oc_runipd",
         "basename": "oc_runipd.py",
         "generation": "oc_runipd",
         "host": "opencode",
         "viewer_label": "OpenCode",
     },
     "agy_runipd": {
+        "id": "agy_runipd",
         "basename": "agy_runipd.py",
         "generation": "agy_runipd",
         "host": "agy",
@@ -1158,6 +1160,11 @@ class EachHostRecordsItsOwnDriverIdentity(InitializeRunCase):
                     "`run_analytics_sources.driver_generation` and `run_viewer` both key on this "
                     "BASENAME. A shared core must receive the caller's module path as a parameter",
                 )
+                self.assertEqual(
+                    state["driver"].get("id"),
+                    DRIVER_IDENTITY[name]["id"],
+                    f"{name} recorded driver id {state['driver'].get('id')!r}",
+                )
 
     def test_the_recorded_driver_sha256_is_that_same_modules_digest(self):
         """The digest and the path must describe the SAME file. Relocating one and not the other
@@ -1209,14 +1216,21 @@ class EachHostRecordsItsOwnDriverIdentity(InitializeRunCase):
         """The property the discriminator exists for, asserted directly rather than inferred from
         the two per-host assertions above."""
         recorded = {}
+        recorded_ids = {}
         for name, mod in HOST_PAIRS:
             _run_dir, state, _out, _err = self.initialize(mod, self.make_repo())
             recorded[name] = Path(state["driver"]["path"]).name
+            recorded_ids[name] = state["driver"].get("id")
         self.assertNotEqual(
             recorded["oc_runipd"],
             recorded["agy_runipd"],
             "both hosts now record the SAME driver path, so no consumer can tell their runs "
             f"apart: {recorded}",
+        )
+        self.assertNotEqual(
+            recorded_ids["oc_runipd"],
+            recorded_ids["agy_runipd"],
+            f"both hosts now record the SAME driver id: {recorded_ids}",
         )
 
     def test_a_core_relocated_to_runner_shared_would_be_caught(self):

@@ -21751,6 +21751,11 @@ class HostLabels(NamedTuple):
     `.get()` is the one form this must not be (plan `tx6q0h` OQ-02).
     """
 
+    #: The machine-readable driver identifier, e.g. `"oc_runipd"`. Consumed by
+    #: `initialize_run_core` (the driver identity record), `run_analytics_sources.driver_generation`,
+    #: and `run_viewer`.
+    id: str
+
     #: The operator-facing command prefix, e.g. `"aw oc run"`. Consumed by
     #: `_compute_scope_reconciliation` (the finalize record's reason/ack strings),
     #: `_detect_driver_command` (its fallback return) and `driver_actor` (the actor prefix an
@@ -21820,6 +21825,7 @@ class HostLabels(NamedTuple):
 
 #: The OpenCode host's labels. Bound by `oc_runipd`'s wrappers.
 OC_HOST_LABELS = HostLabels(
+    id="oc_runipd",
     command="aw oc run",
     review_command="aw oc review",
     argv_tokens=("oc", "opencode"),
@@ -21833,6 +21839,7 @@ OC_HOST_LABELS = HostLabels(
 
 #: The Antigravity host's labels. Bound by `agy_runipd`'s wrappers.
 AGY_HOST_LABELS = HostLabels(
+    id="agy_runipd",
     command="aw agy run",
     review_command="aw agy review",
     argv_tokens=("agy", "antigravity"),
@@ -23218,8 +23225,9 @@ def initialize_run_core(
     args: argparse.Namespace,
     *,
     host: str,
-    driver_path: Path,
+    driver_path: Path | None = None,
     host_options: dict[str, Any],
+    labels: HostLabels | None = None,
     expand_selectors_fn: Any = None,
     enforce_dependency_preflight_fn: Any = None,
     edge_satisfied_fn: Any = None,
@@ -23389,8 +23397,14 @@ def initialize_run_core(
             preflight_items.append(
                 (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
             )
-        labels = AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS
-        enforce_requested_action(requested_action, preflight_items, labels=labels)
+        action_labels = (
+            labels
+            if labels is not None
+            else (AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS)
+        )
+        enforce_requested_action(
+            requested_action, preflight_items, labels=action_labels
+        )
 
     # specsweep-01 (`ui8b9b`) E-04: THE FULL TYPED PATH SET, not the plan subset. Until `--type`
     # existed this gate was reached on every run and correctly never applied, because no invocation
@@ -23560,8 +23574,21 @@ def initialize_run_core(
             **host_options,
         },
         "driver": {
-            "path": str(driver_path.resolve()),
-            "sha256": sha256_file(driver_path),
+            "id": (
+                labels.id
+                if labels is not None
+                else (
+                    AGY_HOST_LABELS.id
+                    if host == "agy"
+                    else (OC_HOST_LABELS.id if host == "oc" else host)
+                )
+            ),
+            "path": str(driver_path.resolve()) if driver_path is not None else None,
+            "sha256": (
+                sha256_file(driver_path)
+                if (driver_path is not None and Path(driver_path).is_file())
+                else None
+            ),
         },
     }
     atomic_write_json(run_dir / "state.json", state)

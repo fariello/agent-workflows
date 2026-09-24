@@ -34,7 +34,7 @@ from agent_workflows import host_sandbox_profile as hsp
 #: Hosts these verbs will report on when no host is named. Deliberately the two runner hosts
 #: this repository actually drives, not `host_adapters.ALL_ADAPTER_HOSTS`: a capability report
 #: for a host nobody runs would be noise, and the report is per-installation anyway.
-DEFAULT_HOSTS = ("opencode", "antigravity")
+DEFAULT_HOSTS = ("opencode", "antigravity", "scripted")
 
 
 def _capability_rows(caps: hsp.HostSandboxCapabilities) -> List[Dict[str, Any]]:

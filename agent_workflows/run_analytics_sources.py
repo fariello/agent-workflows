@@ -148,6 +148,7 @@ _GENERATION_HOSTS: dict[str, str] = {
     "runipd": "opencode",
     "ipdrunner": "opencode",
     "agy_runipd": "agy",
+    "scripted": "scripted",
 }
 
 #: Sources with NO real-data exemplar, each with the measured reason. A caller reporting coverage
@@ -181,26 +182,28 @@ ARTIFACT_NAMES: dict[str, str] = {
 
 # --- Generation inference -----------------------------------------------------------------------
 def driver_generation(state: Mapping[str, Any] | None) -> str:
-    """The driver generation label, inferred from ``driver.path``'s BASENAME.
+    """The driver generation label, inferred from ``driver.id`` or ``driver.path``'s BASENAME.
 
     Returns :data:`GENERATION_UNKNOWN` for an absent, malformed or unrecognized driver record rather
     than raising: an unknown generation is a fact to record, and a corpus older or newer than this
     code must remain readable.
 
-    Only the BASENAME is consulted, never the directory, which matters for two independent reasons:
-    the full value is an ABSOLUTE path carrying the operator's home directory (measured: the shipped
-    leak detector flags it at ``fail``), and the same driver legitimately lives at different paths on
-    different boxes.
+    When ``driver.id`` is present, it is preferred. For pre-cutover records lacking an id, the
+    BASENAME of ``driver.path`` is consulted against :data:`DRIVER_GENERATIONS`.
     """
 
     if not isinstance(state, Mapping):
         return GENERATION_UNKNOWN
     driver = state.get("driver")
-    raw = ""
     if isinstance(driver, Mapping):
+        driver_id = driver.get("id")
+        if isinstance(driver_id, str) and driver_id.strip():
+            return driver_id.strip()
         raw = str(driver.get("path") or "")
     elif isinstance(driver, str):
         raw = driver
+    else:
+        raw = ""
     if not raw:
         return GENERATION_UNKNOWN
     basename = Path(raw.replace("\\", "/")).name
