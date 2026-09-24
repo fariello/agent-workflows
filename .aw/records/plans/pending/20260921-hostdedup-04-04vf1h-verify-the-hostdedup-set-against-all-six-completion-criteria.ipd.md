@@ -5,7 +5,7 @@
 - Concern: The `hostdedup` Set's six-criterion acceptance check is owned by nobody who will run it. It sits on the Order-0 orchestrator `a5wdne` as that plan's only `E-*` item, and the runner RETIRES an orchestrator once every child is `executed` while deliberately SKIPPING the pre-transition E/V checkpoint. THE PARENT ALREADY KNOWS THIS AND SAYS SO IN ITS OWN ITEM TEXT: "if the runner retires this Set, this item is marked complete WITHOUT being performed, so the criteria that only E-01 checks (the cross-Set fork count and the two Order-03 durability properties) are verified by nobody. That is a known limitation of orchestrator retirement, not something this plan can fix." IT IS FIXABLE, and this is the fix: a child that owns the verification gets an agent turn. MEASURED 2026-09-22 in run `run-20260922T003414Z-1020752`, where the orchestrator coverage probe refused a 34-set launch naming `a5wdne` among five uncovered parents (`events.jsonl`, event `orchestrator-probe-gate`).
 - Scope: Perform the Set-level acceptance check `a5wdne` E-01 describes, against all SIX completion criteria, and record its evidence. IN: the fork-count measurement using the COMMITTED scanner Order 01 produces; the coupling-guard check; the third-host execution and attribution check; the pre-cutover attribution check; the research immortalization check; and a bare green suite. OUT: any lifting, unifying, guard-rewriting or host-adding work (Orders 01/02/03 own those), and any re-performance of a child's own validation - this plan READS recorded evidence and measures the COMBINED result.
 - Scope-Paths: .aw/records/plans/pending
-- Item-Dependencies: executed:li44r9, executed:nmlx47, executed:xdvglg
+- Item-Dependencies: executed:li44r9, executed:xdvglg
 - Status: approved
 - Work-Kind: followup
 - Priority: high
@@ -33,6 +33,27 @@ that retirement would tick them unperformed; three of them (the cross-Set fork c
 durability properties) are checked by NO child V-item, so without this plan they are verified by nobody.
 After this executes, "the fork is collapsed and the seam holds" rests on a measurement rather than on a
 checkbox the runner filled in.
+
+DEPENDENCY RE-POINTED 2026-09-23: `executed:nmlx47` DROPPED, leaving `executed:li44r9, executed:xdvglg`.
+Order 02 (`nmlx47`) was RETIRED as `superseded`, so it will never reach `executed/`, and
+`runner_shared.edge_satisfied` satisfies an `executed:` edge ONLY from the target's directory on disk
+(the in-run status shortcut was removed by maintainer ruling 2026-09-19). The edge was therefore
+unsatisfiable forever and no runner could dispatch this plan.
+
+DROPPED RATHER THAN RE-POINTED, unlike Order 03's edge, and the asymmetry is deliberate: Order 03
+consumes a DELIVERABLE (`HostLabels`, shipped by `li44r9`), so its edge moves to the plan that shipped
+it, whereas this plan consumes nothing of `nmlx47`'s - it MEASURES the tree. Its remaining two edges
+already order it after the work it must measure.
+
+WHAT THIS CHANGES ABOUT THE MEASUREMENT, stated because dropping an edge must not quietly lower a bar.
+The fork-count criterion is now measured against a Set where Order 02 did NOT execute, so the honest
+expected result is that forks REMAIN, and this plan must report that number rather than treat it as a
+failure of its own. Measured at `main` `50a820a6` with the committed scanner `tools/runner_fork_scan.py`:
+15 divergent forks, three of which (`expand_selectors`, `_lane_reclaim_prompt`,
+`_add_output_mode_flags`) are exactly the ones `nmlx47` would have lifted and which backlog
+`xw4rb7`/`ga2dz1` now carry. The parent's headline criterion (34 forks down to the 5 large functions) is
+therefore NOT met by this Set and this plan should say so plainly, which is the outcome `nmlx47`'s own
+V-07 had already reported honestly before it was retired.
 
 ## Detailed Implementation Checklist (TODO)
 

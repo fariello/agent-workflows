@@ -82,7 +82,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | Order | File | What it does | Depends on |
 |---|---|---|---|
 | 01 | `.aw/records/plans/pending/20260917-hostdedup-01-li44r9-lift-the-seventeen-byte-identical-runner-symbols-into-runner.ipd.md` | Lift the 17 byte-identical symbols (380 oc lines) to one definition each; pure move, no behavior change; re-base the guard that pins them as forked | none |
-| 02 | `.aw/records/plans/pending/20260917-hostdedup-02-nmlx47-unify-the-twelve-small-divergent-symbols-behind-hostlabels.ipd.md` | Unify the 12 divergent symbols (488 oc lines) per shape: reconcile 7 drifted, re-point 3 agy stubs off `oc_runipd`, express 2 real differences via `HostLabels`; close the vacuous runner-to-runner guard | `executed:li44r9` |
+| 02 | `.aw/records/plans/superseded/20260917-hostdedup-02-nmlx47-unify-the-twelve-small-divergent-symbols-behind-hostlabels.ipd.md` (**RETIRED 2026-09-23 as `superseded`**; see that plan's header. Its remainder is carried by backlog `xw4rb7`/`ga2dz1`/`zt2b16`, so this row is CLOSED, not outstanding) | Unify the 12 divergent symbols (488 oc lines) per shape: reconcile 7 drifted, re-point 3 agy stubs off `oc_runipd`, express 2 real differences via `HostLabels`; close the vacuous runner-to-runner guard | `executed:li44r9` |
 | 03 | `.aw/records/plans/pending/20260917-hostdedup-03-xdvglg-prove-the-descriptor-seam-by-adding-a-third-host-with-no-new.ipd.md` | Implement the maintainer's host-id ruling, then add a third host defined only by a descriptor and drive a real execution through it; classify whatever the seam cannot express | `executed:nmlx47` |
 | 04 | `.aw/records/plans/pending/20260921-hostdedup-04-04vf1h-verify-the-hostdedup-set-against-all-six-completion-criteria.ipd.md` | ACCEPT: perform this orchestrator's own E-01 as a real agent turn, verifying ALL SIX completion criteria - fork count via the COMMITTED scanner Order 01 produces (never an improvised one), the coupling guard proven FALSIFIABLE rather than merely green (it was measured vacuous while 9 real couplings existed), the third-host execution and attribution, pre-cutover attribution, the research immortalization, and a bare green suite. This exists because this parent's E-01 already recorded that retirement would tick those criteria unperformed and called it unfixable from here. | `executed:li44r9`, `executed:nmlx47`, `executed:xdvglg` |
 
@@ -113,10 +113,21 @@ the runner retires the Set.
 
 ## Cross-IPD validation
 
-- ORDER MATTERS AND IS DECLARED, not left to Set/Order (which is only a tiebreaker): Order 02 depends on
-  `executed:li44r9` and Order 03 on `executed:nmlx47`. Order 02's reconciliations are easier to review once
-  Order 01 has removed the 17 identical symbols from the diff, and Order 03's third-host experiment is only
-  meaningful once the seam is the single path.
+- ORDER MATTERS AND IS DECLARED, not left to Set/Order (which is only a tiebreaker): Order 02 depended on
+  `executed:li44r9`, and Order 03 now depends on `executed:li44r9` too. Order 02's reconciliations were
+  easier to review once Order 01 had removed the 17 identical symbols from the diff, and Order 03's
+  third-host experiment is only meaningful once the seam is the single path.
+  **AMENDED 2026-09-23, WITH ORDER 02'S RETIREMENT.** Order 03 previously declared `executed:nmlx47`, which
+  became unsatisfiable the moment Order 02 was retired `superseded`: `runner_shared.edge_satisfied` reads an
+  `executed:` edge from the target's DIRECTORY ON DISK only (the in-run status shortcut was removed by
+  maintainer ruling 2026-09-19), so a superseded target can never satisfy one and Order 03 would have been
+  permanently undispatchable. Order 03's edge was re-pointed to `executed:li44r9`, which is what it actually
+  consumes: its subject is the `HostLabels` descriptor (named 29 times in it) that Order 01 shipped, and it
+  names none of Order 02's twelve symbols. Order 04 DROPPED its `executed:nmlx47` edge outright instead,
+  because it consumes no deliverable at all - it MEASURES the tree - and its remaining edges already order
+  it last. The consequence for this Set's headline criterion is recorded in Order 04's Goal section rather
+  than hidden: with Order 02 retired, forks REMAIN, and Order 04 is instructed to report that number
+  honestly rather than treat it as its own failure.
 - FOUR PIN TABLES, NOT ONE, AND EACH CHILD MUST EDIT THREE OF THEM. **CORRECTED AT REVIEW; the authored
   version of this rule named one file and was the Set's most consequential defect (PR-001).** A
   `STILL_DOUBLE_DEFINED` table lives in FOUR test files, measured:

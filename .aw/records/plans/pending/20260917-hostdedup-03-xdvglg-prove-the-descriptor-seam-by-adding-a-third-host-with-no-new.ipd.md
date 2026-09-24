@@ -5,7 +5,7 @@
 - Concern: Nothing currently PROVES that adding a host does not mean writing another runner. The claim rests on `HostLabels` existing, but both of its instances were written by extracting from two runners that already existed, so the descriptor has never been exercised in the direction it will actually be used: adding a NEW host that has no runner module of its own. Until that is demonstrated, 'add a descriptor, not a runner' is an assertion. The measured risk is concrete: `oc_runipd.py` is 9708 lines and `agy_runipd.py` 5887 (RE-MEASURED AT REVIEW; the authored 9588/5784 are stale but the order of magnitude stands), so if the seam is insufficient the third host arrives as several thousand more duplicated lines, and the fourth and fifth after it.
 - Scope: Add a THIRD host end to end without adding a runner module, and let the attempt find whatever the seam is missing. The deliverable is either a working third host reached through `HostLabels` plus a thin entry point, or a precise, evidenced list of what the descriptor cannot express. Both outcomes are valuable; only an unexamined assumption is not. **RE-SCOPED AT REVIEW: the honest expected outcome is the SECOND one.** Measured at review HEAD, `HostLabels` models eight STRINGS plus one capability flag and models NONE of the three things a host actually needs to run a turn: the argv construction (fully host-specific, `oc_runipd.py:5648` vs `agy_runipd.py:2730`, different flags and different stream formats), the spawn function (`run_opencode` vs `run_agy_turn`, materially different signatures), and the 13 host-only `options` keys their `initialize_run`s write. So E-03 is expected to produce a gap list, not a working host, and the plan is now written so that outcome is a success rather than a shortfall.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_hostdedup_third_host.py, .aw/records/research, agent_workflows/run_analytics_sources.py, agent_workflows/run_viewer.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/host_cmd.py, tests/test_rununify_initialize_run_characterization.py
-- Item-Dependencies: executed:nmlx47
+- Item-Dependencies: executed:li44r9
 - Status: approved
 - Work-Kind: followup
 - Priority: high
@@ -480,9 +480,30 @@ maintainer's resolved OQ-02 reaches them, and a ninth added at round 2
 (`tests/test_rununify_initialize_run_characterization.py`, which pins the very identity E-02 changes).
 An out-of-scope edit that is genuinely required must be MADE and then JUSTIFIED to
 `aw ipd finalize` with a `--scope-reason` per path, and a declared-but-unmodified path needs a
-`--scope-ack`; do not stop over a scope question. DO stop on a genuinely unsafe condition: `nmlx47`'s
-symbols absent because Order 02 has not executed, or an unresolvable concurrent edit in this SHARED
-CHECKOUT (roughly 33 other pending plans declare these runner files).
+`--scope-ack`; do not stop over a scope question. DO stop on a genuinely unsafe condition:
+`runner_shared.HostLabels` absent (see the dependency note below), or an unresolvable concurrent edit in
+this SHARED CHECKOUT (roughly 33 other pending plans declare these runner files).
+
+DEPENDENCY RE-POINTED 2026-09-23, `executed:nmlx47` -> `executed:li44r9`, AND THE STOP CONDITION ABOVE
+REWORDED WITH IT. Order 02 (`nmlx47`) was RETIRED as `superseded`, so it will never reach `executed/`.
+That matters mechanically rather than cosmetically: `runner_shared.edge_satisfied` satisfies an
+`executed:` edge ONLY from the target's directory on disk (the in-run status shortcut was removed by
+maintainer ruling 2026-09-19), so this plan would have waited on `nmlx47` forever and no runner could
+ever dispatch it.
+
+WHY `li44r9` IS THE RIGHT TARGET AND NOT A CONVENIENT ONE. This plan's subject is the `HostLabels`
+descriptor: it names `HostLabels` 29 times and names NONE of `nmlx47`'s twelve symbols. `HostLabels`
+was shipped by Order 01 (`li44r9`, `executed`) and is present on `main` at `runner_shared.py:21170`
+with both instances (`OC_HOST_LABELS`, `AGY_HOST_LABELS`), which is verified rather than assumed. So
+the prerequisite this plan actually consumes is Order 01's deliverable, and the old edge over-declared
+by pointing at a sibling whose symbols this plan never touches. The original stop condition named
+"`nmlx47`'s symbols" for the same reason and has been re-pointed at the descriptor the plan really
+needs, so the fence still fails closed on a genuinely missing input.
+
+NOT A SCOPE CHANGE: no `E-*`, no `V-*`, no `Scope-Paths` entry and no acceptance criterion is altered.
+If a reviewer concludes this plan DOES need one of `nmlx47`'s three still-forked symbols
+(`expand_selectors`, `_lane_reclaim_prompt`, `_add_output_mode_flags`), the correct edge is on their
+live carriers, backlog `xw4rb7`/`ga2dz1`, and not on the retired plan.
 
 HARD-MUST HONESTY RULE: paste the ACTUAL command output for every `V-*`. State the suite invocation form and
 put a same-tree PRE-work baseline beside the post-work run (review baseline `7975 passed, 3 skipped, 2
