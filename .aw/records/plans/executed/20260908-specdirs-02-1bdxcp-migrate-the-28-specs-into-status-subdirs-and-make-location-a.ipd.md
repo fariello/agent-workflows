@@ -11,7 +11,7 @@
 - Scope: Move the 28 specs into status subdirectories, teach `aw specs set` to relocate a spec on transition the way `aw backlog set` already does, and update every literal spec path citation the move invalidates. EXCLUDES making the readers recursive (Order 01 owns it and this depends on it), and excludes promoting location-versus-status to a fail-closed check rule (the parent's OQ-03).
 - Scope-Paths: agent_workflows/specs.py, .aw/records/specs, .aw/records/plans/pending, tests/test_specs_status_dirs.py
 - Item-Dependencies: executed:y4bdoz, executed:r9uvwc
-- Status: approved
+- Status: executed
 - Work-Kind: chore
 - Priority: medium
 - Readiness: go-pending-approval
@@ -20,10 +20,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 1bdxcp
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: 1bdxcp verified (set specdirs, attempt 1). [Scope reconciliation - out-of-scope tests/test_ipd_lint.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_ipd_templates.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_lifecycle_style.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_run_evidence_completion.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_run_flag_surface.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_run_no_push_boundary.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_run_selection_policy.py: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified agent_workflows/specs.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item qzhfk2 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-21 dependency edge added (opencode its_direct/pt3-claude-opus-5-1m-us, at the maintainer's explicit direction answering sibling `r9uvwc` OQ-03): `- Item-Dependencies:` CHANGED from `executed:y4bdoz` to `executed:y4bdoz, executed:r9uvwc`. NOTHING ELSE WAS TOUCHED: no checklist item, no scope path, no status (still `approved`), and no open question of this plan's own. MEASURED RATHER THAN ARGUED, with `oc_runipd.simulate_dispatch_order` over this Set's actual declared fields: BEFORE the edit it returned `['wfjsp4','y4bdoz','1bdxcp','r9uvwc','ingpvc']`, i.e. THIS MIGRATION DISPATCHING BEFORE the placement library that decides where a spec is written; AFTER it returns `['wfjsp4','y4bdoz','r9uvwc','1bdxcp','ingpvc']`. Both children are dependency depth 1, so `queue_sort_key` falls through to the Order digit and `02` beat `03`: the runner was correct and the DECLARATION was wrong. CONSEQUENCE AVOIDED: `aw oc run specdirs` would have migrated the specs into status subdirs while the writers still stranded them, producing exactly the decaying tree this Set exists to prevent and paying this plan's accepted cost (location becomes load-bearing) with none of the benefit. This is the remedy the parent `wfjsp4`'s own child table already prescribed; it moves the guarantee out of prose a runner cannot read and into the field it reads at dispatch. STILL NOT RUNNABLE TODAY, and this edit does not pretend otherwise: OQ-04 and OQ-05 remain open and blocking on this plan and the parent is itself `no-go`, so the edge fixes ORDERING only.
