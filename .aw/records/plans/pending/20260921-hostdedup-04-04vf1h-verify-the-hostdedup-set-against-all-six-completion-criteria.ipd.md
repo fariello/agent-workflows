@@ -7,6 +7,8 @@
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:li44r9, executed:nmlx47, executed:xdvglg
 - Status: approved
+- Work-Kind: followup
+- Priority: high
 - Readiness: go-pending-approval
 - Set: hostdedup
 - Order: 4
@@ -16,6 +18,7 @@
 - Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 approved (aw set): backfill: Priority/Work-Kind derived from hostdedup orchestrator a5wdne per planprio-03 lc4unl
 - 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; 6 findings, all FIXED; readiness go-pending-approval; typed review record under .aw/records/reviews/
 

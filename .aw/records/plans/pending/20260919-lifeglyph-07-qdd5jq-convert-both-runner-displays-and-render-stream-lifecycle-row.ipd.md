@@ -7,6 +7,9 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/render_stream.py, agent_workflows/term.py, tests/test_render_stream.py, tests/test_runner_shared.py, tests/test_term_components.py, tests/test_term.py
 - Item-Dependencies: executed:9zvl2w
 - Status: approved
+- Work-Kind: feature
+- Priority: medium
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 7
@@ -15,9 +18,9 @@
 - Id: qdd5jq
 - Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
-- Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (lifeglyph: medium/feature)
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-701..PR-710 all FIXED, none deferred, none open. E-04 said DELETE term.py's STATUS_COLOR_256, a BLOCKER: only one of its four readers is lifecycle, so deleting it removes the command-outcome banner, every badge and all path styling while reporting A17 satisfied; parent 2xz59a had already ruled it must SPLIT and named this child. Three under-scope gaps: Palette.status() is a second, public reader of _STATUS_COLOR re-exported into both drivers; render_stream._one_line's VS-severing clip was assigned here by bn026f and was uncarried; and the run-finish line hardcodes the success glyph and green, so the F-01 collapse survives the conversion. E-03 was not implementable as worded because INTEGRATION_ACTION_KINDS holds only two of A3's five activities. A17 now asserted by content, not by symbol name. OQ-01 resolved by splitting ambiguous-width from the deterministic variation-selector defect. Readiness go-pending-approval.
 

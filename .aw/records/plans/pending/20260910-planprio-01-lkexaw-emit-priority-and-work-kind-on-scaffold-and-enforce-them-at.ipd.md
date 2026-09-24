@@ -7,6 +7,8 @@
 - Scope-Paths: agent_workflows/ipd_authoring.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_plan_priority_required.py, tests/test_work_kind.py, tests/test_ipd_priority.py, .aw/system/workflows/assess/templates/ipd.md, .aw/system/workflows/assess/templates/orchestrator-ipd.md, .aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: executed:8u6770, executed:lc4unl
 - Status: approved
+- Work-Kind: feature
+- Priority: medium
 - Readiness: go-pending-approval
 - Set: planprio
 - Order: 1
@@ -16,6 +18,7 @@
 - Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (planprio: medium/feature)
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-13 reviewed (aw set): set Item-Dependencies to executed:8u6770, executed:lc4unl
 - 2026-09-13 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: REVIEWED - OPEN QUESTIONS; PR-001 BLOCKER open and escalated to blocking OQ-02 (the parent reversed this Set's order and this plan's Item-Dependencies still records the old one); PR-002..PR-013 FIXED. Readiness no-go.

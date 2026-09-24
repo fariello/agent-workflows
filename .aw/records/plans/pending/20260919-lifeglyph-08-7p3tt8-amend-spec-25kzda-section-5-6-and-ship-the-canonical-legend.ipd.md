@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, docs/cli-human-guide.md, agent_workflows/cli.py, tests/test_docs.py
 - Item-Dependencies: executed:qdd5jq
 - Status: approved
+- Work-Kind: feature
+- Priority: medium
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 8
@@ -15,9 +18,9 @@
 - Id: 7p3tt8
 - Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
-- Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (lifeglyph: medium/feature)
 - 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-19 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801 through PR-811 all FIXED, none deferred, none open. Reviewed at HEAD `a27dc6dc`; `aw ipd lint` clean and exit 0 at `--phase author` before the revisions and at `--phase review-finalize` after them. THE PLAN'S PREMISE IS CORRECT AND WELL EVIDENCED (`25kzda` Section 5.6 verified intact at line 1085 with no `uonrjg` pointer, on an `approved`, `Blocks-Release: next` spec), and the findings are of three kinds. PR-801 (BLOCKER) IS AN ORDERING DEFECT, computed rather than read: E-05 was authored to write the `uonrjg` Section 7.2 `integration-deferred` row that sibling `udgilu` requires, but dependency depth puts this child at 7 and `udgilu` at 1, and `queue_sort_key` sorts depth FIRST, so `udgilu` dispatches six items earlier and would execute with the row absent, failing its own V-03 or writing an unreviewed mapping into the canonical module. E-05 is now verify-and-repair on both branches with `uonrjg` DECLARED in `Scope-Paths` (expected to show no diff, so `aw ipd finalize`'s `--scope-ack` turns "already correct" into an acknowledged claim). TWO OBLIGATIONS HAD NO OWNER IN THE WHOLE SET and this is the last child: E-03 would most likely have AUTHORED a second legend renderer in `cli.py` when `bn026f` already ships a generated one and its review assigned only PLACEMENT here (PR-802), and Section 9.2's showing rule matches `bn026f` ALONE across all ten `lifeglyph` plans, whose own review handed it to converting children that never took it (PR-803, now verified-and-reported here with the implementation carried to `9zvl2w`). THE STAGE COUNT WAS WRONG IN FOUR PLACES (PR-805): Section 5 holds 20 rows, and the count is now REMOVED rather than corrected, because a literal count is itself a second table; E-04's guard asserts COVERAGE. Also fixed: a retracted hard-cutover claim in the very file E-02 edits with no owner anywhere (PR-804), a paraphrase that would have contradicted the same file eight lines later (PR-806), a gate missing its scope fence and honesty rule (PR-807), and a suite baseline recorded with its one pre-existing parallel-run flake named (PR-810). Readiness go-pending-approval; note this is the DEEPEST child in the chain, so dispatch waits on seven upstream children regardless of its own readiness.
