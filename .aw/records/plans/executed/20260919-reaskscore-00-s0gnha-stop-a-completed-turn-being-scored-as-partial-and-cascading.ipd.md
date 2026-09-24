@@ -6,7 +6,7 @@
 - Scope: Orchestrate the FOUR child plans that close these defects, in dependency order, and confirm at the end that the composed behavior actually fixes the measured runs rather than each piece passing in isolation. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`skn8uk` the rescoring, `ty7w6o` the host-truncation signal, `dy9ymn` the zero-work retry, `svacmz` the composed proof and the predicate-unweakened pins), and this file contributes no code, no test, and no record of its own. EXCLUDES loosening any dependency, success-bar, or orchestrator-retirement predicate, in every child without exception.
 - Scope-Paths: .aw/records/plans/pending/20260919-reaskscore-00-s0gnha-stop-a-completed-turn-being-scored-as-partial-and-cascading.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Priority: high
 - Readiness: go-pending-approval
 - Set: reaskscore
@@ -17,9 +17,9 @@
 - Blocks-Release: next
 - Work-Kind: bug
 - Id: s0gnha
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set reaskscore reached executed, so the runner (run run-20260924T050407Z-3108751) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: skn8uk, ty7w6o, dy9ymn, svacmz, p9j6c0.
 - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-23 approved (aw set): Backfilled Priority by inheritance from source backlog item yxfw4k (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
