@@ -12,18 +12,18 @@
 - Scope: Make the assertion measure what the runner CONSTRUCTS rather than what the process inherited, so it is true or false for code reasons only. IN: (a) make the non-isolated policy assertion hermetic against an ambient `OPENCODE_CONFIG_CONTENT`, per OQ-01, without weakening what `R4.1` asserts; (b) audit the rest of `tests/test_turn_bounds.py` for the same ambient-read pattern, since twenty-three filings name several different test methods and the family may be wider than one assertion; (c) prove hermeticity by running the file with the variable set. OUT: the duplicate-filing half, which is child 02 (`fwgq2u`); removing the variable from `run_opencode`, which is load-bearing for a turn's configuration; and the conftest-style session scrub used for `AW_EXECUTION_ROLE`, which is rejected under OQ-01 for a reason recorded there.
 - Scope-Paths: tests/test_turn_bounds.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: envhermet
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: heglfv
-- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: mepbmp
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: heglfv verified (set envhermet, attempt 1).
 - 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-207, all FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260923-envhermet-01-heglfv-make-the-turn-bounds-policy-assertions-read-the-constructed.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them.
   THE DEFECT IS CONFIRMED AND THE FIX IS WORTH MAKING: at HEAD `3eb35740` in a lane, `python3 -m pytest tests/test_turn_bounds.py` gives `1 failed, 147 passed` and `env -u OPENCODE_CONFIG_CONTENT -u AW_EXECUTION_ROLE` gives `148 passed`, no code change between. Counts drifted from the plan's `144`/`143`, so E-01 now re-derives rather than quotes.
