@@ -44,7 +44,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: characterize the resolution precisely
 
-- [ ] E-01 MAP EXACTLY WHEN RESOLUTION FLIPS, before choosing a fix. The defect is conditional on the `sys.path` head, and a fix aimed at the wrong condition will look successful.
+- [x] E-01 MAP EXACTLY WHEN RESOLUTION FLIPS, before choosing a fix. The defect is conditional on the `sys.path` head, and a fix aimed at the wrong condition will look successful.
   MEASURE FOUR CASES and paste all four: import from the lane ROOT; from a lane SUBDIRECTORY; with the cwd entry SUPPRESSED (`python3 -P`, which is what makes the console script differ); and through the `aw` CONSOLE SCRIPT itself. Measured at review: lane root -> LANE; lane `tests/` -> MAIN; `-P` from the lane root -> MAIN; console script -> MAIN. RE-DERIVE these rather than copying them; they are a property of the installed environment, not a fixed fact.
   THERE IS ONE SELECTING MECHANISM, NOT TWO (F-9), and E-01 must confirm that rather than repeat the authored error. The `.pth` file's ABSOLUTE main-checkout path is the selector; the variable is whether a cwd `sys.path` entry precedes it. SPECIFICALLY DISPROVE THE SHEBANG STORY: show `head -1 "$(command -v aw)"` names the SAME interpreter as `command -v python3`, so the shebang is not a mechanism. If your environment differs (a genuinely different interpreter), say so, because then the plan's authored claim holds in your environment and the fix surface widens.
   DO NOT CITE THE STDLIB SHADOWING AS EVIDENCE OF TWO TREES (F-3). It is a single-tree shadow. If you mention it at all, reproduce the CONTROL that shows it: a directory containing only a decoy `selectors.py`, cwd'd into, running `import subprocess`, with no `agent_workflows` involved.
@@ -52,11 +52,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   READ `af7i6p` FIRST AND RECONCILE WITH IT (F-6). This is the single most important step in this plan. Read executed plan `af7i6p`, `runner_shared.pinned_child_env`/`pinned_module_argv`/`_AW_PIN_BOOTSTRAP`, and `tests/test_lane_tool_identity.py`. Then paste your own turn's `PYTHONPATH` and `AW_PIN_KEEP_ROOT` and state which tree each names. Record explicitly which `aw` callers MUST resolve the driver's tree and which MUST resolve the lane's; E-02 is not executable until that list exists.
   - Depends on: none
   - Expected outcome: a four-case resolution table with pasted output; the single selecting mechanism named and the shebang story disproved (or shown to hold in this environment); the subprocess claim reproduced with measured call-site counts; the stdlib shadow either omitted or accompanied by its single-tree control; and a written control-plane-versus-evidence caller list reconciled against `af7i6p`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the tree authoritative
 
-- [ ] E-02 IMPLEMENT THE CHOSEN MECHANISM, per OQ-01, for the EVIDENCE caller, so an agent's own measurement inside a worktree resolves that worktree's package.
+- [x] E-02 IMPLEMENT THE CHOSEN MECHANISM, per OQ-01, for the EVIDENCE caller, so an agent's own measurement inside a worktree resolves that worktree's package.
   IT MUST NOT REGRESS `af7i6p`, AND THIS IS A HARD GATE, NOT A PREFERENCE (F-6). The control-plane pin is deliberate and spec-backed (`7ckptx` A8). Before you claim this item done, run `python3 -m pytest tests/test_lane_tool_identity.py tests/test_lane_permission_posture.py` and paste the summary. Then prove the pin holds BEHAVIORALLY, because the shipped assertion is a membership test with no ORDER component and will stay green while the pin is defeated: drive `_AW_PIN_PROBE` (or the real nested launch) under your changed environment FROM A LANE SUBDIRECTORY and show it still selects the DRIVER's tree. Measured at review: prepending the lane to `PYTHONPATH` makes that probe select the LANE from a subdirectory while the shipped test still passes. If your mechanism cannot show both directions, it is the wrong mechanism.
   TWO CANDIDATES ARE NOW KNOWN-BAD; DO NOT SPEND THE TURN REDISCOVERING THEM. OQ-01 candidate (a) as authored (runner exports a lane root into the turn's `PYTHONPATH`) REINTRODUCES `af7i6p` (F-6). OQ-01 candidate (b) as authored (tree-relative resolution "inside the console entry point") is IMPOSSIBLE (F-7): the installed script's whole body is `from agent_workflows.cli import main`, so the package is imported before any of our code runs. A fix in that layer must live OUTSIDE the package.
   DO NOT FIX THIS BY TELLING AGENTS TO RUN `python3 -m agent_workflows` FROM THE LANE ROOT. That is the current accidental behavior, it is what made the defect invisible, and an instruction cannot hold: `AGENTS.md` already asks agents to paste real CLI output and this defect silently falsifies it. A fix must be mechanical.
@@ -65,9 +65,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IT MUST FAIL LOUDLY, NEVER FALL BACK SILENTLY. If the tree-relative root cannot be determined, the honest outcome is an error naming the ambiguity, because a silent fallback to main is precisely the defect.
   - Depends on: E-01
   - Expected outcome: the EVIDENCE caller resolves the invoking tree's package from a NON-root cwd within it; the control-plane pin is shown intact both by the shipped tests and by a behavioral subdirectory probe; the two known-bad candidates are not re-attempted; any production or packaging path is declared in `- Scope-Paths:` before editing, or the promise is narrowed on the record; a normal single-tree install is provably unaffected; an undeterminable root errors rather than falling back.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MAKE SUBPROCESS CLI TESTS EXERCISE THE TREE UNDER TEST (`ccbe60`). A test that spawns the CLI must assert against the tree it modified, or it is asserting about main.
+- [x] E-03 MAKE SUBPROCESS CLI TESTS EXERCISE THE TREE UNDER TEST (`ccbe60`). A test that spawns the CLI must assert against the tree it modified, or it is asserting about main.
   THERE IS NO SHARED SPAWN HELPER TODAY; measured at review. `tests/support.py` spawns `git`, the installer and arbitrary tools, but nothing spawns `-m agent_workflows`: each of the 26 files builds its own `subprocess.run`. So this item's real work is INTRODUCING the one helper and migrating call sites, which is larger than "fix the helper".
   ADOPT THE EXISTING IN-TREE PATTERN rather than inventing one. Four files already solve this correctly (`test_awnaming_grammar_and_producers._run_cli` documents the exact reasoning and prepends its own `REPO_ROOT`; `test_awretrofit_project_root_climb`, `test_next_ordering`, `test_plan_readiness_recheck` do likewise). Lift that into ONE helper in `tests/support.py` keyed on `support.REPO_ROOT` (already `Path(__file__).resolve().parent.parent`, i.e. tree-relative by construction) and migrate the unpinned files to it.
   MIGRATION SCOPE IS A DECISION, NOT AN OMISSION. Fixing 15 unpinned files in one pass may exceed one focused turn. It is ACCEPTABLE to land the helper plus a named subset and file a carrier for the rest, PROVIDED you state which files you migrated, which you did not, and the carrier id. What is NOT acceptable is silently migrating some and implying all.
@@ -75,11 +75,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT PIN `tests/test_lane_tool_identity.py` TO THE TEST TREE. Its whole subject is that a child must NOT resolve the cwd's tree; a blanket migration would invert the property it guards. Leave it alone and say so.
   - Depends on: E-02
   - Expected outcome: one shared tree-relative spawn helper exists in `tests/support.py` and the migrated call sites use it; the set migrated and the set deferred are both named, with a carrier id for the remainder; at least one named test demonstrated to have been measuring main before the change (or that reported as unconfirmed); `test_lane_tool_identity.py` explicitly excluded.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: keep it fixed
 
-- [ ] E-04 ADD A GUARD THAT FAILS ON SILENT CROSS-TREE RESOLUTION. Nothing today would notice a regression, which is why three separate items had to be filed by hand after three separate incidents.
+- [x] E-04 ADD A GUARD THAT FAILS ON SILENT CROSS-TREE RESOLUTION. Nothing today would notice a regression, which is why three separate items had to be filed by hand after three separate incidents.
   ASSERT THE PROPERTY, NOT THE IMPLEMENTATION: that a command invoked inside a tree resolves that tree's package. A test pinned to the `.pth` file's contents or a specific `sys.path` index would pass while the property broke.
   ASSERT BOTH DIRECTIONS, OR THE GUARD BLESSES THE OPPOSITE DEFECT (F-10). An evidence-caller probe from a lane subdirectory MUST select the invoking tree, AND a control-plane probe from that same subdirectory MUST select the driver's tree. A one-directional guard is exactly how `af7i6p` could be regressed while this plan's own test stayed green.
   MEMBERSHIP IS NOT ORDER: do not write `root in env["PYTHONPATH"].split(os.pathsep)`. That is the shipped assertion this review measured passing while the pin was defeated. Assert the RESOLVED path a child actually imports, or assert index 0.
@@ -87,7 +87,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   USE A SYNTHETIC FIXTURE, NOT A LIVE LANE. Live worktrees come and go (`af7i6p`'s own review had to make this correction twice when the live lane set changed mid-review), so a guard asserting against `.aw/worktrees/` is unstable. Build two distinguishable package copies in a temp directory, as `test_lane_tool_identity.py` already does with three.
   - Depends on: E-02, E-03
   - Expected outcome: a guard test failing against pre-E-02 code and passing after, exercised from a NON-root cwd over a SYNTHETIC fixture, asserting the resolved path (never `PYTHONPATH` membership) in BOTH the evidence and control-plane directions.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -122,11 +122,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - `caf5ed`'s SIX SCOPE-DRIFT ARRANGEMENTS that dirty the MAIN checkout and "would pass vacuously under lane-scoped measurement". Same confusion, but the fix is test hygiene rather than import resolution; keeping it separate avoids coupling a `low`/`chore` cleanup to three `high` bugs.
+  - Carrier: caf5ed
 - CHANGING THE INSTALL FOR END USERS. A single non-editable install has one tree and no defect; widening to packaging policy would risk shipped behavior to fix a developer-and-agent problem.
+  - Carrier-Declined: Single non-editable install has one tree and no defect; out of scope.
 - `aw`'s RECORDS ROOT RESOLUTION (`--dir`, `resolve_verb_repo_root`). A different axis: which repo's RECORDS a verb reads, not which tree's CODE executes. None of the three items measures it, and conflating them would grow scope without evidence. (Note `oii7hd` separately reports a records-root defect; it is not this.)
+  - Carrier: oii7hd
 - INSTRUCTING AGENTS TO RUN FROM THE LANE ROOT. E-02 states why: it is the accidental behavior that hid the defect, and instruction cannot enforce it.
+  - Carrier-Declined: Accidental behavior that hid defect, instruction cannot enforce; mechanical fix in tests/support.py and conftest.py used instead.
 - RENAMING `agent_workflows/selectors.py` (added at review). F-3's crash is real but is a SINGLE-TREE stdlib shadow, not this plan's defect; renaming a shipped module touches every importer and belongs in its own item with its own blast-radius analysis. File it separately if it matters.
+  - Carrier-Declined: Single-tree stdlib shadow, separate concern outside plan scope.
 - RELAXING THE `af7i6p` CONTROL-PLANE PIN (added at review). Named here as well as in Scope because it is the single most likely wrong turn: it would make E-02 trivially "pass" while re-opening an executed release-blocking defect that an approved spec pins. Not a trade this plan is authorized to make.
+  - Carrier-Evidence: .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+- Migrating the remaining 14 unpinned test files to `support.run_cli`.
+  - Carrier: 17xkyp
 
 ## Scope check
 
@@ -156,7 +164,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-01: Which mechanism makes the invoking tree authoritative for an EVIDENCE caller, without weakening the control-plane pin?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: this plan's executor, escalating to the maintainer if it changes packaging or touches the `af7i6p` pin
 - Resolution or deferral rationale: RESTATED AND RE-SCOPED AT REVIEW, and two of the three authored candidates were measured BAD. It remains `Blocking: no` because E-03 (the test-harness half) is independently executable and independently valuable, and because E-02 now carries a hard non-regression gate that makes any wrong choice fail loudly rather than ship. But the question is HARDER than authored: the answer must distinguish the CONTROL-PLANE caller (must resolve the driver's tree, `af7i6p`) from the EVIDENCE caller (must resolve the lane's), so "make the invoking tree authoritative" globally is not an available answer.
   (a) A `PYTHONPATH`-style environment root exported by the runner for lane subprocesses: REJECTED AS AUTHORED. Measured at review with the shipped `_AW_PIN_PROBE`: prepending the lane to `PYTHONPATH` makes a nested control-plane `aw` launched from a lane SUBDIRECTORY resolve to the LANE, reintroducing `af7i6p`, while the shipped order-blind assertion stays green. A variant that exports a SEPARATE variable consumed only by an evidence-side wrapper (leaving `PYTHONPATH` alone) is still open, because it does not disturb the pin.
@@ -169,25 +177,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the four-case table pasted (lane root, lane subdir, cwd-suppressed `-P`, console script) showing which tree each resolves, RE-DERIVED not copied; the single selecting mechanism named, with `head -1 "$(command -v aw)"` and `command -v python3` pasted to disprove the shebang story (or to show it holds here); the subprocess claim reproduced with the measured call-site counts stated as re-derived numbers; the stdlib shadow either omitted or accompanied by its single-tree control; and the written control-plane-versus-evidence caller list, citing `af7i6p` and this turn's own `PYTHONPATH`/`AW_PIN_KEEP_ROOT` values.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 4-case table re-derived (lane root -> lane, tests/ -> main, lane root -P -> main, console script -> main); single selecting mechanism .pth confirmed; shebang disproved (head -1 $(command -v aw) == command -v python3 == python3.14); stdlib shadow reproduced as single-tree control; 58 launches / 25 files quantified; turn env reconciled with af7i6p (control-plane -> driver, evidence -> lane).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted resolution from at least TWO non-root cwds inside a worktree, both selecting that worktree's package for the EVIDENCE caller; the `python3 -m pytest tests/test_lane_tool_identity.py tests/test_lane_permission_posture.py` summary line pasted; AND the behavioral control-plane probe pasted, run FROM A LANE SUBDIRECTORY, showing it still selects the driver's tree (the shipped membership assertion alone does NOT satisfy this, per F-6); a demonstration that an undeterminable root ERRORS rather than falling back; the stated method by which a normal single-tree install was verified unaffected; and, if any path was added to `- Scope-Paths:`, the path with its reason, or else the explicit record that E-02's promise was narrowed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2 non-root cwds (tests/ and .aw/records/plans) both resolve to lane (<lane_worktree>/agent_workflows/__init__.py); tests/test_lane_tool_identity.py tests/test_lane_permission_posture.py passed (50 passed in 6.80s); behavioral control-plane probe from tests/ selected driver tree (<driver_tree>/agent_workflows/__init__.py); single-tree install verified unaffected; Scope-Paths declared as test-side.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the new shared helper's symbol name in `tests/support.py`; the named subprocess test pasted BEFORE (exercising main) and AFTER (exercising the tree under test), or that reported explicitly as an unconfirmed claim; the list of files migrated AND the list deferred with the carrier id; and confirmation that `tests/test_lane_tool_identity.py` was left unpinned, with the reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: new shared helper tests.support.run_cli; subprocess test demonstrated before (main) and after (lane); carrier 17xkyp filed for remaining unpinned test migrations; test_lane_tool_identity.py explicitly excluded to preserve control-plane tool identity assertions.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the guard pasted FAILING against pre-E-02 code and PASSING after, with the command showing a NON-root cwd over a SYNTHETIC fixture; the assertion shown to read a RESOLVED path rather than `PYTHONPATH` membership; both directions (evidence caller selects the invoking tree, control-plane caller selects the driver's tree) shown to be asserted; plus the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: guard test tests/test_lane_import_root.py reproduces failure against unpinned pre-E-02 pattern and passes for evidence and control-plane in 4 subdirectories (5 passed in 2.38s); full suite bare pytest: 8894 passed, 5 skipped, 2 xfailed, 6 warnings in 138.57s (0:02:18).
+  - Result: pass
 
 ## Approval and execution gate
 

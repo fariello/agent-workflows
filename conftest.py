@@ -77,6 +77,22 @@ import sys
 # which is the common case for a human-typed run.
 os.environ.pop("AW_EXECUTION_ROLE", None)
 
+# --------------------------------------------------------------------------------------
+# Tree-relative import root: guarantee the test session and its subprocesses measure THIS
+# repository tree, not an editable install pin to another checkout (IPD `lhjsu0`).
+# --------------------------------------------------------------------------------------
+_REPO_ROOT = str(os.path.dirname(os.path.abspath(__file__)))
+if sys.path and sys.path[0] != _REPO_ROOT:
+    if _REPO_ROOT in sys.path:
+        sys.path.remove(_REPO_ROOT)
+    sys.path.insert(0, _REPO_ROOT)
+
+_current_pp = os.environ.get("PYTHONPATH", "")
+if _REPO_ROOT not in _current_pp.split(os.pathsep):
+    os.environ["PYTHONPATH"] = f"{_REPO_ROOT}{os.pathsep}{_current_pp}".rstrip(
+        os.pathsep
+    )
+
 
 def _ensure_xdist_then_reexec() -> None:
     # Already available: nothing to do (the overwhelmingly common path).

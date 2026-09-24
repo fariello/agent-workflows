@@ -259,3 +259,42 @@ def run_tool(
         stdin=subprocess.DEVNULL,
         check=False,
     )
+
+
+def run_cli(
+    *args: str | list[str] | tuple[str, ...],
+    cwd: Path | str | None = None,
+    env: dict[str, str] | None = None,
+    **kwargs,
+) -> subprocess.CompletedProcess:
+    """Run the ``agent_workflows`` CLI in a subprocess pinned to THIS tree via ``PYTHONPATH``.
+
+    Ensures that subprocess CLI invocations resolve ``agent_workflows`` from the repository
+    containing this test suite (``REPO_ROOT``) rather than an editable install pin in
+    site-packages or the parent checkout (IPD `lhjsu0`, bug `ccbe60`).
+    """
+
+    merged_env = dict(os.environ) if env is None else dict(env)
+    existing_pp = merged_env.get("PYTHONPATH", "")
+    root_str = str(REPO_ROOT)
+    if root_str not in existing_pp.split(os.pathsep):
+        merged_env["PYTHONPATH"] = f"{root_str}{os.pathsep}{existing_pp}".rstrip(
+            os.pathsep
+        )
+    kwargs.setdefault("capture_output", True)
+    kwargs.setdefault("text", True)
+    kwargs.setdefault("check", False)
+
+    cli_args: list[str] = []
+    for arg in args:
+        if isinstance(arg, (list, tuple)):
+            cli_args.extend(str(a) for a in arg)
+        else:
+            cli_args.append(str(arg))
+
+    return subprocess.run(
+        [sys.executable, "-m", "agent_workflows", *cli_args],
+        cwd=str(cwd) if cwd is not None else None,
+        env=merged_env,
+        **kwargs,
+    )
