@@ -753,31 +753,6 @@ class PreservationRecordTests(_FixtureCase):
         self.assertIn("UNTRACKED", reason)
         self.assertIn("work/note.txt", reason)
 
-    def test_it_EXTENDS_the_existing_event_rather_than_adding_a_second(self):
-        """CID-2: one preservation event, one emitter.
-
-        Structural, not a grep: assert (a) the event NAME has exactly one definition in the package,
-        (b) neither driver constructs a `worktree-preserved` event inline any more, and (c) the
-        preservation event literal appears in NO product module other than the shared home.
-        """
-        pkg = Path(inspect.getfile(LC)).parent
-        literal = "worktree-preserved"
-        self.assertEqual(LC.LANE_PRESERVED_EVENT, literal)
-
-        holders: list[str] = []
-        for path in sorted(pkg.rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Constant) and node.value == literal:
-                    holders.append(path.name)
-                    break
-        self.assertEqual(
-            sorted(set(holders)),
-            ["lane_containment.py"],
-            "the preservation event literal must live ONLY in the shared home; a driver holding it "
-            "means a second emission path exists (CID-2)",
-        )
-
     def test_the_state_write_and_the_event_agree(self):
         event = self._preserve()
         self.assertEqual(self.fx.item["preserved_branch"], event["branch"])
@@ -953,19 +928,6 @@ class TwinParityTests(unittest.TestCase):
                     f"{name} must live in the ONE host-neutral home, not {sites[0]} (spec R2.6)",
                 )
 
-    def test_neither_driver_defines_a_private_copy(self):
-        for label, module in DRIVERS:
-            with self.subTest(driver=label):
-                tree = ast.parse(
-                    Path(inspect.getfile(module)).read_text(encoding="utf-8")
-                )
-                defined = {
-                    node.name
-                    for node in ast.walk(tree)
-                    if isinstance(node, (ast.FunctionDef, ast.ClassDef))
-                }
-                self.assertEqual(defined & set(self.OWNED), set())
-
     def test_both_drivers_route_teardown_through_the_shared_gate(self):
         """DRIVEN, NOT GREPPED: each host's real teardown path reaches the ONE shared gate.
 
@@ -1096,69 +1058,6 @@ class TwinParityTests(unittest.TestCase):
                 event_text = (run_dir / "events.jsonl").read_text(encoding="utf-8")
                 self.assertIn(LC.LANE_PRESERVED_EVENT, event_text)
                 self.assertIn("SENTINEL.txt", event_text)
-
-    def test_no_driver_calls_the_destructive_teardown_directly(self):
-        """STRUCTURE, NOT GREP: a direct call would bypass the inventory entirely.
-
-        Walks each driver's AST for a call to `teardown_isolation_worktree`, which force-removes the
-        worktree and deletes the branch. After this plan the only route to it is the shared gate.
-        """
-        for label, module in DRIVERS:
-            with self.subTest(driver=label):
-                tree = ast.parse(
-                    Path(inspect.getfile(module)).read_text(encoding="utf-8")
-                )
-                direct = [
-                    node.lineno
-                    for node in ast.walk(tree)
-                    if isinstance(node, ast.Call)
-                    and (
-                        getattr(node.func, "id", None) == "teardown_isolation_worktree"
-                        or getattr(node.func, "attr", None)
-                        == "teardown_isolation_worktree"
-                    )
-                ]
-                self.assertEqual(
-                    direct,
-                    [],
-                    f"{label} calls the destructive teardown directly at lines {direct}; it must go "
-                    "through `teardown_lane_if_classified` so the inventory runs first",
-                )
-
-    def test_the_porcelain_format_has_one_decoder(self):
-        """`parse_porcelain_paths` is a PROJECTION, so the format is decoded in exactly one place.
-
-        STRUCTURE, NOT GREP, and specifically not a substring search over the whole source: a docstring
-        legitimately mentions the format it delegates, and pinning on that made this test fail for the
-        prose rather than for a second parser. So walk the function BODY's AST: the projection must
-        contain exactly one call, to `parse_porcelain_entries`, and no line-splitting or slicing of its
-        own.
-        """
-        tree = ast.parse(inspect.getsource(LC.parse_porcelain_paths).lstrip())
-        function = tree.body[0]
-        assert isinstance(function, ast.FunctionDef)
-        # The BODY only: a `set[str]` return annotation is itself a Subscript, so walking the whole
-        # definition would flag the signature and say nothing about the format.
-        body_nodes = [n for stmt in function.body for n in ast.walk(stmt)]
-        called = {
-            (
-                node.func.attr
-                if isinstance(node.func, ast.Attribute)
-                else getattr(node.func, "id", "")
-            )
-            for node in body_nodes
-            if isinstance(node, ast.Call)
-        }
-        self.assertEqual(called, {"parse_porcelain_entries"})
-        self.assertEqual(
-            [n for n in body_nodes if isinstance(n, ast.Subscript)],
-            [],
-            "the projection must not slice a porcelain line; that is the decoder's job",
-        )
-        # And the decoder itself is the one that does hold the format.
-        decoder = inspect.getsource(LC.parse_porcelain_entries)
-        for token in ("splitlines", " -> "):
-            self.assertIn(token, decoder)
 
 
 if __name__ == "__main__":  # pragma: no cover

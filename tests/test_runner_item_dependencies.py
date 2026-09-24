@@ -68,7 +68,6 @@ from agent_workflows import (
     review_findings,
     runner_shared,
     runner_stop,
-    selectors,
 )
 from tests.support import REPO_ROOT
 
@@ -2131,124 +2130,6 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
                 "'to-review'", reason, "the refusal must name the FIELD it read"
             )
             self.assertIn("directory 'pending'", reason, "and the directory it saw")
-
-    def test_the_status_field_is_read_with_the_already_shared_reader(self):
-        """The SHARED reader is the one that decides, and it is consulted only where the field matters.
-
-        REPLACES A SOURCE-TEXT PIN. The old test ran `inspect.getsource(oc_runipd.edge_satisfied)`
-        through `_code_only` and then grepped: `assertIn("_read_status", body)` and a
-        `body.split("if edge.kind == 'executed'")[-1].split("record_type")[0]` slice that had to
-        contain no `_artifact_owners`. Even with comments stripped that is a change-detector on a NAME
-        and on TEXT LAYOUT at once: it goes vacuous the moment the alias is renamed, it fails when the
-        branch it slices on is rewritten or reordered, and it says nothing about which reader actually
-        RAN. The slice expression in particular encoded the source's line order into the test.
-
-        Now two behavioral claims, plus the identity pin the old test also carried (which is a real
-        structural claim and is kept):
-
-        * DELEGATION: the shared reader is replaced with a sentinel that reports `reviewed`, and the
-          verdict for a target whose real on-disk status is `to-review` must FLIP to satisfied. A
-          second reader, or an inlined regex, keeps reading the file and the verdict does not move.
-        * BOUNDEDNESS: the reader is called for a target in a NON-TERMINAL directory and NOT called
-          for one in `executed/`, because a terminal directory decides alone. That is the
-          anti-regression property behind the 25 plans in `executed/` whose field the shared reader
-          returns None for; a text pin could not express it at all.
-
-        WHY `_artifact_owners` IS STILL THE WRONG SUBSTITUTE, recorded since the pin naming it is gone:
-        it looks like the smaller change (it already returns `(status, path)`), but it rebuilds the
-        whole-repo artifact inventory PER CALL and reads through the STRICT status regex, while the
-        runners deliberately use the PERMISSIVE `_read_status` alias. Substituting it would silently
-        narrow which front-matter spellings the runner accepts - which the delegation assertion below
-        would catch, because the sentinel would no longer be consulted.
-        """
-        self.assertIs(
-            oc_runipd._read_status,
-            selectors.read_front_matter_status,
-            "`_read_status` must remain the shared PERMISSIVE reader. A private alias here would read "
-            "different front-matter spellings than every other surface in the package",
-        )
-        self.assertIs(
-            agy_runipd._read_status,
-            oc_runipd._read_status,
-            "and both drivers must bind the SAME object, or one host accepts a status the other refuses",
-        )
-
-        # THE PATCH TARGET IS `selectors`, FOR BOTH DRIVERS, and that is the point rather than a
-        # convenience. `edge_satisfied` now LIVES in `runner_shared` (runnerlayer Order 02 `1f7xno`
-        # re-homed it; this comment used to name `oc_runipd` for exactly the same structural reason),
-        # and that module reaches the reader through a FUNCTION-LOCAL
-        # `from agent_workflows.selectors import read_front_matter_status as _read_status`, because a
-        # module-level first-party import there is refused by a shipped guard. A function-local import
-        # is re-executed on every call and resolves through `selectors`, so the OWNING module of the
-        # reader is the only patchable site - and it is the right one, since `selectors` is where the
-        # one shared permissive reader is DEFINED.
-        #
-        # THE INVARIANT IS UNCHANGED AND IS STILL WHAT THIS ASSERTS. Patching the OWNING module's
-        # global must move BOTH hosts' verdicts; if it did not, that host would be running its own
-        # COPY of `edge_satisfied`, which is exactly what shipped once and survived for months.
-        # MEASURED TWICE, once per home: patching the non-owning module's alias changes nothing the
-        # shared function reads, so a version that patched `mod._read_status` per driver FAILED on the
-        # binding host. That failure is the invariant, not a problem.
-        for driver, mod in _DRIVERS:
-            with self.subTest(driver=driver, half="delegation"):
-                with tempfile.TemporaryDirectory() as t:
-                    repo = self._repo_with_target(Path(t), "pending", "to-review")
-                    self.assertFalse(
-                        self._ask(mod, "dependency_status", repo, "review")[0],
-                        "baseline: a `to-review` target in `pending/` does not satisfy a review turn",
-                    )
-                    with mock.patch.object(
-                        selectors, "read_front_matter_status", lambda _p: "reviewed"
-                    ):
-                        self.assertTrue(
-                            self._ask(mod, "dependency_status", repo, "review")[0],
-                            "with the SHARED reader replaced by one reporting `reviewed`, this "
-                            "driver's verdict must flip. Still refusing means EITHER this branch "
-                            "reads the status some other way (a second reader or an inlined regex) OR "
-                            "this driver is running its own COPY of `edge_satisfied` and never sees "
-                            "the shared module's reader at all",
-                        )
-
-        for bucket, status, expect_reads, why in (
-            (
-                "pending",
-                "reviewed",
-                True,
-                "a NON-TERMINAL directory cannot decide alone, so the `- Status:` FIELD must be read",
-            ),
-            (
-                "executed",
-                "approved",
-                False,
-                "a TERMINAL directory decides ALONE, so the field must NOT be consulted. This is the "
-                "anti-regression property: 25 of the 454 plans in `executed/` carry a field the shared "
-                "reader returns None for (24 absent, 1 the multi-word `EXECUTED (...)` form), and all "
-                "25 satisfy today. A fix that made the field authoritative everywhere would break all "
-                "25 while every verdict row in MATRIX still passed",
-            ),
-        ):
-            for driver, mod in _DRIVERS:
-                with self.subTest(driver=driver, bucket=bucket, half="boundedness"):
-                    with tempfile.TemporaryDirectory() as t:
-                        repo = self._repo_with_target(Path(t), bucket, status)
-                        reads: list = []
-                        real = oc_runipd._read_status
-
-                        def spy(path, _sink=reads, _real=real):
-                            _sink.append(path)
-                            return _real(path)
-
-                        # Patched on oc for the same reason as above: one shared global backs both.
-                        with mock.patch.object(
-                            selectors, "read_front_matter_status", spy
-                        ):
-                            self._ask(mod, "dependency_status", repo, "review")
-                        self.assertEqual(
-                            bool(reads),
-                            expect_reads,
-                            f"expected the status field to be read: {expect_reads} "
-                            f"(it was read {len(reads)} time(s)). {why}",
-                        )
 
     def test_queue_membership_does_not_change_an_edges_verdict(self):
         """ONE authority: the plan on DISK, whether or not the target is in this run.

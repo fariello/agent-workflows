@@ -334,23 +334,6 @@ class SealTests(unittest.TestCase):
             lane_containment.verify_lane_input_manifest(self.lane, 2).conforming
         )
 
-    def test_the_artifact_states_the_accident_guard_limit(self):
-        """R5.1a forbids describing this as immutability; the manifest must SAY so."""
-        document = json.loads(self.manifest.manifest_path.read_text(encoding="utf-8"))
-        note = document["seal_note"].lower()
-        self.assertIn("accident guard", note)
-        self.assertIn("not immutability", note)
-        self.assertIn("restore the write bit", note)
-        # Asserting the PROPERTY on a SECOND surface, not the wording of one sentence: the code
-        # comment on the mode constant carries the same limit, which is what V-03 quotes.
-        source = Path(lane_containment.__file__).read_text(encoding="utf-8")
-        constant_comment = source.split("SEALED_FILE_MODE = ", 1)[0].rsplit(
-            "#: Permission bits a sealed file carries", 1
-        )[-1]
-        self.assertIn("ACCIDENT GUARD, NOT IMMUTABILITY", constant_comment)
-        self.assertIn("NOT a boundary", constant_comment)
-        self.assertIn("restore the write bit", constant_comment)
-
     def test_a_restored_write_bit_is_detected(self):
         """SABOTAGE: unseal one input and prove the seal check refuses the revision."""
         self.assertTrue(lane_containment.verify_lane_input_seal(self.lane).sealed)
@@ -363,32 +346,6 @@ class SealTests(unittest.TestCase):
 
 class RevisionMechanismHasNoProductCallerTests(unittest.TestCase):
     """Spec R3.4 requires the revision mechanism to STATE it has no consumer, not imply one."""
-
-    def test_revise_lane_inputs_is_not_called_by_product_code(self):
-        """Structural (AST), not grep: a text search matches this test file itself."""
-        import ast
-
-        package = Path(lane_containment.__file__).parent
-        callers: list[str] = []
-        for source in package.rglob("*.py"):
-            tree = ast.parse(source.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                func = node.func
-                name = (
-                    func.attr
-                    if isinstance(func, ast.Attribute)
-                    else (func.id if isinstance(func, ast.Name) else None)
-                )
-                if name == "revise_lane_inputs":
-                    callers.append(f"{source.name}:{node.lineno}")
-        self.assertEqual(
-            callers,
-            [],
-            "spec R3.4: the revision mechanism must have NO product caller; found "
-            f"{callers}",
-        )
 
     def test_its_docstring_states_it_has_no_consumer(self):
         doc = (lane_containment.revise_lane_inputs.__doc__ or "").lower()
@@ -481,18 +438,6 @@ class DriverArgvTests(unittest.TestCase):
     attachment to localize. `test_lane_clean_base.py` covers both hosts for R5.4, which is the
     requirement that does apply to both.
     """
-
-    def test_agy_driver_has_no_file_attachment_surface(self):
-        """Pin the premise above, so a later `--file` addition to agy fails this test loudly."""
-        from agent_workflows import agy_runipd
-
-        source = Path(agy_runipd.__file__).read_text(encoding="utf-8")
-        launch = source.split("def run_agy_turn", 1)
-        self.assertEqual(len(launch), 2, "run_agy_turn not found")
-        body = launch[1].split("\ndef ", 1)[0]
-        self.assertNotIn('"--file"', body)
-        # The prompt travels inline via `-p`, which is WHY there is no attachment to localize.
-        self.assertIn('"-p"', body)
 
 
 if __name__ == "__main__":

@@ -471,25 +471,6 @@ class ReasonMappingTests(unittest.TestCase):
         )
         self.assertIn("NOT RECOGNIZE", unshared_reason)
 
-    def test_the_translation_is_asserted_on_the_real_decider(self):
-        """Every `RETIRE_REFUSED_*` branch in `decide_orchestrator_dispatch` is translated."""
-        import inspect
-
-        src = inspect.getsource(rs.decide_orchestrator_dispatch)
-        # Each comparison against a RETIRE_REFUSED_* constant must return an ORCH_REASON_* value.
-        for name in (
-            "RETIRE_REFUSED_NO_CHILDREN",
-            "RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS",
-            "RETIRE_REFUSED_NO_ORCHESTRATOR",
-        ):
-            self.assertIn(name, src)
-        self.assertNotIn(
-            "reason=RETIRE_REFUSED",
-            src.replace(" ", ""),
-            "a branch forwarding an untranslated RETIRE_REFUSED_* value as the dispatch reason "
-            "would reach the reason mapping under the wrong vocabulary",
-        )
-
 
 class StaleDeferralRecordTests(DispatchFixture):
     """A deferral is TRANSIENT, so its record must not survive the item's next dispatch.

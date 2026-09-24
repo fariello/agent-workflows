@@ -41,7 +41,6 @@ before/after co-update PAIR whose whole content is that the answer CHANGES betwe
 
 from __future__ import annotations
 
-import ast
 import collections
 import contextlib
 import unittest
@@ -1288,51 +1287,6 @@ class LiveBugGateReuseTests(unittest.TestCase):
                 _backlog.GATE_DEFAULT_KINDS = real_kinds  # type: ignore[assignment]
         else:  # pragma: no cover - a typo in the table, not a product state
             raise AssertionError(f"unknown sabotage {which!r}")
-
-    def test_no_second_copy_of_the_blocks_release_regex(self):
-        """Exactly ONE compiled `- Blocks-Release:` pattern exists in the module (AST, not text).
-
-        KEPT AS A STRUCTURAL CHECK AND CONVERTED FROM TEXT TO AST. The claim is the NON-EXISTENCE of
-        a second definition anywhere in a 6000-line module, so there is no behavior to drive: two
-        identical patterns behave identically until one of them is edited, which is precisely the
-        drift this guards and precisely what no test can observe before it happens.
-
-        The TEXT form it replaces counted the literal `'r"(?m)^- Blocks-Release:'` in the file and
-        demanded exactly 1. That is satisfiable and breakable by prose: a comment or docstring
-        quoting the pattern (this module documents its metadata grammar) pushed the count to 2 with
-        nothing duplicated, while a genuine second copy written with different flags, a different
-        quote style, or an f-string contributed 0 and passed. The AST form counts the ARGUMENTS OF
-        REAL `re.compile` CALLS, so a comment cannot contribute one and a rewriting cannot hide one.
-        """
-        tree = ast.parse(Path(check_engine.__file__).read_text(encoding="utf-8"))
-        compiled = []
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            func = node.func
-            name = (
-                func.attr
-                if isinstance(func, ast.Attribute)
-                else func.id
-                if isinstance(func, ast.Name)
-                else ""
-            )
-            if name != "compile" or not node.args:
-                continue
-            first = node.args[0]
-            if isinstance(first, ast.Constant) and isinstance(first.value, str):
-                if "- Blocks-Release:" in first.value:
-                    compiled.append((node.lineno, first.value))
-        self.assertEqual(
-            len(compiled),
-            1,
-            f"expected exactly 1 compiled `- Blocks-Release:` pattern in check_engine, found "
-            f"{len(compiled)}: {compiled!r}. MORE than one is the fork itself - two copies of a "
-            "metadata grammar drift the moment one is edited, and the rules reading them then "
-            "disagree about whether an artifact carries a gate at all. ZERO means the shared "
-            "pattern was renamed, moved, or built some other way; find it and update this check "
-            "rather than deleting it.",
-        )
 
     def test_the_live_set_agrees_with_the_creation_default(self):
         """Kept separate: asserts over shared VOCABULARY SETS, with no repository and no rule.

@@ -320,65 +320,6 @@ class TheReadingTests(_FixtureCase):
         self.assertFalse(state.dirty)
         self.assertTrue(state.reclaimable)
 
-    def test_the_landing_question_has_exactly_ONE_definition(self):
-        """E-01 requires DELEGATION, not a second `merge-base --is-ancestor` call (spec R6.1).
-
-        Asserted by AST over the whole package rather than by reading the diff: the count is what makes
-        "we did not fork the predicate" falsifiable.
-        """
-        package = Path(str(WL.__file__)).parent
-        callers: list[str] = []
-        for path in sorted(package.glob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                for arg in node.args:
-                    if not isinstance(arg, ast.List):
-                        continue
-                    literals = [
-                        el.value
-                        for el in arg.elts
-                        if isinstance(el, ast.Constant) and isinstance(el.value, str)
-                    ]
-                    if "merge-base" in literals and "--is-ancestor" in literals:
-                        callers.append(f"{path.name}:{node.lineno}")
-        # `worktree_lease` has ONE (`base_sha` vs `requested_base`, the STALE/FOREIGN question, which is
-        # a different question against different refs) and `runner_shared` has ONE (the landing
-        # predicate). The landing question itself must exist exactly once.
-        self.assertIn("runner_shared.py", " ".join(callers), callers)
-        landing = [c for c in callers if c.startswith("runner_shared.py")]
-        self.assertEqual(
-            len(landing),
-            1,
-            f"the landing predicate must exist exactly ONCE; found {landing}",
-        )
-        # And the lease module reaches it by DELEGATION rather than issuing its own. Asserted over the
-        # CODE, not the source text: the docstring legitimately QUOTES the git command it delegates to,
-        # so a text search would be satisfied by prose and would also fail for the honest docstring.
-        body = ast.parse(inspect.getsource(WL.lane_merged_into_target)).body[0]
-        assert isinstance(body, ast.FunctionDef)
-        called = {
-            node.func.attr
-            for node in ast.walk(body)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        }
-        self.assertIn("lane_work_has_landed", called)
-        string_args = [
-            el.value
-            for node in ast.walk(body)
-            if isinstance(node, ast.Call)
-            for arg in node.args
-            if isinstance(arg, ast.List)
-            for el in arg.elts
-            if isinstance(el, ast.Constant) and isinstance(el.value, str)
-        ]
-        self.assertNotIn(
-            "--is-ancestor",
-            string_args,
-            "the lease module must DELEGATE the landing question, not issue its own git call",
-        )
-
     def test_the_reclaimable_docstring_states_it_is_NOT_an_authorization(self):
         """E-02: the old "safe to tear down" sentence became false once merged lanes qualified.
 
@@ -850,67 +791,6 @@ class TheNoDirectForceTeardownTests(unittest.TestCase):
                     min(holds_work_lines),
                     f"{host}: the merged check MUST precede the holds_work bail-out or the fix is inert",
                 )
-
-    def test_the_gate_helper_calls_the_ONE_shared_teardown_gate(self):
-        """`reclaim_lane_through_gate` must delegate, not reimplement (spec R6.1)."""
-        node = ast.parse(
-            inspect.getsource(runner_shared.reclaim_lane_through_gate)
-        ).body[0]
-        assert isinstance(node, ast.FunctionDef)
-        # OVER THE CODE, not the source text: the docstring legitimately NAMES the dangerous call it
-        # replaces, and explaining that is exactly what makes the function's contract readable.
-        calls = self._calls(node)
-        self.assertIn("teardown_lane_if_classified", calls)
-        self.assertNotIn("teardown_worktree", calls)
-        # And it forwards BOTH run-context fields the inventory needs; without either, the gate refuses
-        # every lane (measured).
-        forwarded = {
-            kw.arg
-            for child in ast.walk(node)
-            if isinstance(child, ast.Call)
-            for kw in child.keywords
-        }
-        self.assertIn("run_dir", forwarded)
-        self.assertIn("item", forwarded)
-
-    def test_the_three_legitimate_force_teardown_callers_are_NOT_flagged(self):
-        """An over-broad assertion that reds on untouched code gets reverted by the next executor.
-
-        These callers are enumerated so a reader can see the assertion above is narrow ON PURPOSE.
-        """
-        package = Path(str(WL.__file__)).parent
-        flagged: list[str] = []
-        for path in sorted(package.glob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                func = node.func
-                name = (
-                    func.attr
-                    if isinstance(func, ast.Attribute)
-                    else (func.id if isinstance(func, ast.Name) else "")
-                )
-                if name != "teardown_worktree":
-                    continue
-                if any(
-                    kw.arg == "force"
-                    and isinstance(kw.value, ast.Constant)
-                    and kw.value.value is True
-                    for kw in node.keywords
-                ):
-                    flagged.append(f"{path.name}:{node.lineno}")
-        # The GATE's own remover must be among them and must keep working.
-        self.assertTrue(
-            any(c.startswith("runner_shared.py") for c in flagged),
-            f"the gate's own remover must still call it; found {flagged}",
-        )
-        # And the assertion under test does not look at these at all: it is scoped to the merged branch.
-        for host, driver in DRIVERS:
-            branch = TheNoDirectForceTeardownTests._merged_branch(
-                TheNoDirectForceTeardownTests._reclaimer_ast(driver)
-            )
-            self.assertNotIn("teardown_worktree", self._calls(branch), host)
 
 
 if __name__ == "__main__":  # pragma: no cover

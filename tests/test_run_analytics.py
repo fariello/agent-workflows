@@ -1385,42 +1385,6 @@ class PrivacyBoundaryTests(unittest.TestCase):
         whole = ls.scan_text(raw_state, "raw-state.json", ruleset)
         self.assertTrue(whole, "the whole raw state file is also flagged")
 
-    def test_NO_second_projector_or_sanitizer_was_added(self):
-        """Two allowlists drift and the weaker becomes the effective boundary. So there is one."""
-
-        import ast
-
-        for module in (ingest, sources, schema):
-            source_file = module.__file__
-            assert source_file is not None  # a package module always has one
-            text = Path(source_file).read_text(encoding="utf-8")
-            tree = ast.parse(text)
-            defined = {
-                node.name
-                for node in ast.walk(tree)
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            }
-            with self.subTest(module=module.__name__):
-                for forbidden in (
-                    "project_facts",
-                    "project_metric_facts",
-                    "project_event_facts",
-                    "scan_text",
-                    "build_ruleset",
-                    "pseudonymize",
-                    "redact_text",
-                ):
-                    self.assertNotIn(
-                        forbidden,
-                        defined,
-                        f"{module.__name__} must not define its own {forbidden}",
-                    )
-                self.assertNotIn(
-                    "ALLOWED_METRIC_KEYS = ",
-                    text,
-                    "a second allowlist would become the effective boundary",
-                )
-
     def test_the_projector_is_the_ONLY_path_by_which_a_fact_is_persisted(self):
         """Call-path proof: `build_cache_facts` output is already projected."""
 

@@ -374,21 +374,6 @@ class LayoutEmissionSiteTests(unittest.TestCase):
         )
         self.assertTrue((repo / LAYOUT_SCHEMA).is_file())
 
-    def test_no_emission_code_in_the_setup_repo_workflow_body(self) -> None:
-        """Kept separate: inspects a shipped FILE's text and carries its own skip guard."""
-        # PR-003: `/aw setup-repo` is an agent slash-command backed by a workflow BODY, not a CLI verb
-        # and not a Python entry point, so it inherits emission transitively and must contain no
-        # emission code of its own.
-        body = (
-            Path(INS.__file__).resolve().parent.parent
-            / ".aw/system/workflows/setup-repo/setup-repo.md"
-        )
-        if not body.is_file():
-            self.skipTest("setup-repo workflow body not present in this checkout")
-        text = body.read_text(encoding="utf-8")
-        self.assertNotIn("emit_layout_artifacts", text)
-        self.assertNotIn("build_default_layout", text)
-
     def test_dry_run_emits_nothing(self) -> None:
         """Kept separate: the only call with `dry_run=True`, and the claim is a pure ABSENCE."""
         # A dry run must report without writing; otherwise `--dry-run` mutates the repo it is

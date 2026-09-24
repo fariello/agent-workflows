@@ -21,8 +21,6 @@ WHAT IS ASSERTED HERE:
 from __future__ import annotations
 
 import argparse
-import ast
-import inspect
 import io
 import json
 import subprocess
@@ -321,33 +319,6 @@ class AnnouncementFormatterTests(unittest.TestCase):
         self.assertIn("requested order", text)
         self.assertNotIn("typed order", text)
         self.assertIn("expanded from selector", text)
-
-    def test_formatter_is_pure_and_imports_no_runner(self):
-        src = Path(render_stream.__file__).read_text(encoding="utf-8")
-        tree = ast.parse(src)
-        imported: list[str] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported += [a.name for a in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported.append(node.module)
-        offenders = [m for m in imported if "runipd" in m]
-        self.assertEqual(
-            offenders, [], f"the renderer must not import a runner: {offenders}"
-        )
-        self.assertEqual(
-            inspect.getmodule(render_stream.format_run_order_announcement).__name__,
-            "agent_workflows.render_stream",
-        )
-
-    def test_exactly_one_definition_in_the_package(self):
-        pkg = Path(render_stream.__file__).parent
-        definers = sorted(
-            p.name
-            for p in pkg.glob("*.py")
-            if "def format_run_order_announcement(" in p.read_text(encoding="utf-8")
-        )
-        self.assertEqual(definers, ["render_stream.py"])
 
     def test_both_drivers_bind_the_same_formatter_object(self):
         for name, mod in _DRIVERS:

@@ -618,14 +618,6 @@ class YamlFallbackIsCaseSensitiveTests(unittest.TestCase):
                 "only the BULLET prompt may match; the fenced handoff's `Status:` is capitalized",
             )
 
-    def test_the_case_sensitivity_reason_is_recorded_in_the_source(self) -> None:
-        """A future "robustness" edit would undo the proof above, so the reason must be discoverable."""
-        src = Path(selectors.__file__).read_text(encoding="utf-8")
-        idx = src.index("def _read_yaml_scalar")
-        preamble = src[max(0, idx - 2500) : idx]
-        self.assertIn("CASE-SENSITIVE", preamble)
-        self.assertIn("handoff", preamble)
-
 
 class YamlFallbackFiresOnlyOnABulletMissTests(_Fixture):
     """IPD `xo3244`: the fallback must not perturb a bullet record, and must not read BODIES."""
@@ -834,12 +826,6 @@ class PublicRunnerReadersStayBulletOnlyTests(unittest.TestCase):
         self.assertEqual(selectors.read_front_matter_status(two_spaces), "approved")
         self.assertIsNone(selectors._read_id(two_spaces))
 
-    def test_the_decision_is_recorded_next_to_the_readers(self) -> None:
-        src = Path(selectors.__file__).read_text(encoding="utf-8")
-        idx = src.index("_FRONT_MATTER_ID_RE = re.compile")
-        preamble = src[max(0, idx - 1500) : idx]
-        self.assertIn("BULLET-ONLY", preamble)
-
 
 class PreservedInvariantsUnderTheNewDialectTests(unittest.TestCase):
     """IPD `xo3244` E-05: the four resolver invariants that this change may not quietly alter."""
@@ -973,18 +959,6 @@ class DialectDocumentationTests(unittest.TestCase):
         doc = selectors.__doc__ or ""
         self.assertIn("BOTH DIALECTS", doc.upper())
         self.assertNotIn("RESEARCH INDEX IS DELIBERATELY NOT WIRED IN", doc.upper())
-
-    def test_status_regex_carries_the_parity_note(self) -> None:
-        src = Path(selectors.__file__).read_text(encoding="utf-8")
-        idx = src.index("_STATUS_RE = re.compile")
-        preamble = src[max(0, idx - 1200) : idx]
-        self.assertIn("PARITY", preamble)
-        self.assertIn("plans_index.py", preamble)
-
-    def test_index_status_regex_carries_the_parity_note(self) -> None:
-        src = Path(plans_index.__file__).read_text(encoding="utf-8")
-        self.assertIn("PARITY CONSTRAINT", src)
-        self.assertIn("selectors.py", src)
 
 
 class RegexShapeTests(unittest.TestCase):

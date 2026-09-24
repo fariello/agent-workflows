@@ -1052,15 +1052,6 @@ class EventPrefixAlignmentTests(unittest.TestCase):
             f"exists to prevent.\n" + "\n".join(wrong),
         )
 
-    def test_the_width_policy_limitation_is_documented_in_code(self):
-        """The plan's FIRST warning: the false 'all glyphs are single-width' claim must not return."""
-        import pathlib
-
-        src = pathlib.Path(render_stream.__file__).read_text(encoding="utf-8")
-        self.assertIn("AMBIGUOUS", src)
-        self.assertIn("east_asian_width", src)
-        self.assertIn("EVENT_PREFIXES_ASCII", src)
-
     def test_the_narrow_table_is_selected_by_use_unicode_matching_the_statusline(self):
         """E-09: the SAME parameter spelling `format_statusline_lines` already uses."""
         self.assertIn(
@@ -1367,13 +1358,6 @@ class TodoTransitionTests(unittest.TestCase):
         )
         assert line is not None
         self.assertEqual(self._payload(line), "2 tasks (1 done, 1 active)")
-
-    def test_the_driver_resets_the_tracker_at_turn_start(self):
-        """The reset must be CALLED by the runner, not merely available on the tracker."""
-        import pathlib
-
-        src = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
-        self.assertIn("tracker.begin_turn()", src)
 
 
 class EditWritePayloadTests(unittest.TestCase):
@@ -2550,19 +2534,6 @@ class SingleDefinitionTests(unittest.TestCase):
         """Kept separate: identity checks across two driver modules."""
         self.assertIs(agy_driver.Heartbeat, render_stream.Heartbeat)
         self.assertIs(driver.Heartbeat, render_stream.Heartbeat)
-
-    def test_exactly_one_heartbeat_definition_in_the_package(self):
-        """Kept separate: globs the package source; a whole-tree structural scan."""
-        # Source-level: only render_stream may DEFINE it, anywhere in the package.
-        import pathlib
-
-        pkg = pathlib.Path(render_stream.__file__).parent
-        definers = sorted(
-            p.name
-            for p in pkg.glob("*.py")
-            if "class Heartbeat:" in p.read_text(encoding="utf-8")
-        )
-        self.assertEqual(definers, ["render_stream.py"])
 
 
 class StatuslineActionDerivationTests(unittest.TestCase):

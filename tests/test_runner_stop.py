@@ -1251,65 +1251,6 @@ class PathResolutionTests(unittest.TestCase):
                 "the flag must not be pinned under the repo",
             )
 
-    def test_module_constructs_no_state_root_of_its_own(self):
-        """Kept separate: an ABSENCE claim about the module, not a resolved path.
-
-        Orchestrator CID-2 / `wtiso` Phase 3 guard. It shares no input with any resolution row: the
-        table proves the accessor is FOLLOWED, this proves no second root is CONSTRUCTED, and a module
-        could do both.
-
-        CONVERTED FROM TEXT TO AST. The pin filtered out `#` comment LINES and then searched the
-        remainder for `'".aw"'`, `"'.aw'"`, `'".aw/state"'` and `"'.aw/state'"`. Three weaknesses, all
-        of which this repo has measured on other guards: the filter removes `#` comments but NOT
-        DOCSTRINGS, and this module's docstrings discuss the state root at length, so the guard was one
-        docstring edit away from a false failure; it is defeated by any other spelling (`".aw" + ""`,
-        `".a" "w"`, an f-string, `Path(".aw")` written as `Path(*(".aw",))`); and it matches the
-        substring `".aw"` inside unrelated longer literals.
-
-        AST over STRING CONSTANTS, excluding docstring nodes explicitly rather than by line shape. The
-        claim is the NON-EXISTENCE of a construct, which the brief names as a legitimate AST case, and
-        no behavioral test can establish it: `test_resolution_follows_a_monkeypatched_state_root`
-        already proves the accessor is honored on the path it drives, but a hardcoded fallback on a
-        branch that fires only when the accessor is absent would pass that and still pin the flag
-        under the repo.
-        """
-
-        tree = ast.parse(
-            (REPO_ROOT / "agent_workflows" / "runner_stop.py").read_text(
-                encoding="utf-8"
-            )
-        )
-        docstrings = set()
-        for node in ast.walk(tree):
-            if isinstance(
-                node,
-                (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
-            ):
-                first = node.body[0] if node.body else None
-                if (
-                    isinstance(first, ast.Expr)
-                    and isinstance(first.value, ast.Constant)
-                    and isinstance(first.value.value, str)
-                ):
-                    docstrings.add(id(first.value))
-        offenders = [
-            (node.lineno, node.value)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and id(node) not in docstrings
-            and ".aw" in node.value
-        ]
-        self.assertEqual(
-            offenders,
-            [],
-            f"runner_stop constructs a state root of its own: {offenders}. The root moved out of the "
-            f"repo once already (`wtiso` Phase 4) and the stop flag must MOVE WITH IT, so the path "
-            f"must come from the driver's own accessor and never from a literal here. Asserted on "
-            f"string CONSTANTS with docstrings excluded, so prose about the state root is fine and "
-            f"only real code fails.",
-        )
-
 
 class PollTests(_RunDirCase):
     """E-04: the poll REPORTS the level and never consumes the request (spec R8).

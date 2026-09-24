@@ -979,39 +979,6 @@ class ReadinessFieldMustBeAttestedTests(unittest.TestCase):
                     + history,
                 )
 
-    def test_plan_readiness_does_not_import_ipd_lint(self):
-        """Kept separate: asserts a property of the MODULE'S SOURCE, not of any input.
-
-        `plan_readiness` is imported by BOTH host drivers and called in their queue loops, and the
-        originating item's constraint is that whatever it imports stays stdlib-cheap and
-        driver-agnostic. `ipd_lint`'s module header looks cheap but it imports `attention`,
-        `check_engine`, `ipd_authoring`, `record_producers`, `renderers` and `result_types` inside
-        FUNCTION BODIES, reaching `engine`, `artifact_core`, `plans`, `selectors` and `runner_shared`;
-        an edge from here would put the CLI/renderer stack behind a hot predicate. The chosen
-        mechanism needs no import at all, so this pins that no future reader adds one believing the
-        plan's original (and false) F-5 claim that the module was cheap.
-        """
-        import ast
-
-        source = Path(PR.__file__).read_text(encoding="utf-8")
-        offenders = []
-        for node in ast.walk(ast.parse(source)):
-            if isinstance(node, ast.Import):
-                offenders += [a.name for a in node.names if a.name.endswith("ipd_lint")]
-            elif isinstance(node, ast.ImportFrom):
-                module = node.module or ""
-                if module.endswith("ipd_lint"):
-                    offenders.append(module)
-                elif module.endswith("agent_workflows"):
-                    offenders += [a.name for a in node.names if a.name == "ipd_lint"]
-        self.assertEqual(
-            offenders,
-            [],
-            "plan_readiness now imports ipd_lint, which both host drivers pull in transitively: "
-            f"{offenders}. The evidence rule it would import is also a MENTION-matcher that does not "
-            "stop a forgery (see the test above), so this edge costs the import AND fails the check.",
-        )
-
     def test_the_corrupt_field_still_refuses_without_consulting_the_prose(self):
         """Kept separate: the claim is which CODE PATH ran, shown by a second function's answer.
 

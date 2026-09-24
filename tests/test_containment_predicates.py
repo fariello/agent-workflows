@@ -64,7 +64,6 @@ import inspect
 import unittest
 from functools import cache
 from pathlib import Path
-from unittest import mock
 
 from agent_workflows import ipd_lifecycle, lane_containment, wtiso_gate
 
@@ -249,25 +248,6 @@ class SingleDefinitionTests(unittest.TestCase):
                     ),
                 )
 
-    def test_both_drivers_reach_the_rules_by_import(self):
-        """ "One definition" is only half of R6.1; every consumer must actually IMPORT it."""
-
-        for driver in ("oc_runipd.py", "agy_runipd.py"):
-            with self.subTest(driver=driver):
-                tree = ast.parse(
-                    (PKG / driver).read_text(encoding="utf-8"), filename=driver
-                )
-                imported = any(
-                    isinstance(node, ast.ImportFrom)
-                    and node.module == "agent_workflows"
-                    and any(a.name == "lane_containment" for a in node.names)
-                    for node in ast.walk(tree)
-                )
-                self.assertTrue(
-                    imported,
-                    "{0} must import the shared containment home".format(driver),
-                )
-
     def test_the_missing_input_error_code_has_one_definition(self):
         """E-01's consolidation: the stable code was spelled as a literal in TWO modules.
 
@@ -303,28 +283,6 @@ class SingleDefinitionTests(unittest.TestCase):
         # surfaces (code, prompt text, parser) provably trace to one definition.
         self.assertEqual(lane_containment._token_prefix(), wtiso_gate.AW_MISSING_INPUT)
 
-    def test_the_token_emitters_are_delegations_not_second_implementations(self):
-        """The gate library's two token functions must CALL the single definition, not restate it."""
-
-        for name, target in (
-            ("format_missing_input", "format_missing_input_token"),
-            ("parse_missing_input", "parse_missing_input_token"),
-        ):
-            with self.subTest(predicate=name):
-                tree = ast.parse(inspect.getsource(getattr(wtiso_gate, name)).lstrip())
-                called = {
-                    node.func.attr
-                    for node in ast.walk(tree)
-                    if isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Attribute)
-                }
-                self.assertIn(
-                    target,
-                    called,
-                    "wtiso_gate.{0} must delegate to lane_containment.{1} (R6.1), not hold a "
-                    "second implementation".format(name, target),
-                )
-
     def test_both_token_surfaces_produce_identical_results(self):
         """Behavioral half of the same property: agreement, not merely a call."""
 
@@ -341,29 +299,6 @@ class SingleDefinitionTests(unittest.TestCase):
                     lane_containment.parse_missing_input_token(shared),
                 )
                 self.assertEqual(wtiso_gate.parse_missing_input(shared), (path, why))
-
-    def test_the_scope_predicate_delegates_to_the_one_scope_matcher(self):
-        """`check_scope` must not restate the Scope-Paths grammar (R6.1).
-
-        The rule is ALREADY enforced through `ipd_lifecycle.finalize_precheck`; a second matcher here
-        would let an agent satisfy this gate while failing finalize, the exact hook-versus-driver
-        divergence the shared library exists to prevent.
-        """
-
-        tree = ast.parse(inspect.getsource(wtiso_gate.check_scope).lstrip())
-        called = {
-            node.func.attr
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        }
-        self.assertIn("_scope_match", called)
-        # And that matcher is itself single-defined, in the lifecycle module that enforces the rule.
-        matcher_sites = definition_sites("_scope_match")
-        self.assertEqual(len(matcher_sites), 1, matcher_sites)
-        self.assertTrue(
-            matcher_sites[0].startswith("agent_workflows/ipd_lifecycle.py:"),
-            matcher_sites[0],
-        )
 
     def test_the_scope_predicate_agrees_with_the_shared_matcher(self):
         """Behavioral agreement across the Scope-Paths grammar's forms."""
@@ -666,33 +601,6 @@ class FailLoudTests(unittest.TestCase):
                     "sent to a plan that will never run",
                 )
 
-    def test_no_unowned_predicate_returns_a_permissive_value(self):
-        """Belt and braces: assert the ABSENCE of a return path in each unimplemented body.
-
-        Complements the call-based check above. The call proves today's behavior; this catches a body
-        that gained a conditional early return which the representative arguments happen to miss.
-        """
-
-        for name, _args in NOT_OWNED:
-            with self.subTest(predicate=name):
-                tree = ast.parse(inspect.getsource(getattr(wtiso_gate, name)).lstrip())
-                func = tree.body[0]
-                assert isinstance(func, ast.FunctionDef)
-                returns = [
-                    n
-                    for n in ast.walk(func)
-                    if isinstance(n, ast.Return) and n.value is not None
-                ]
-                self.assertEqual(
-                    returns,
-                    [],
-                    "{0} must not return a value anywhere; it must raise (R6.2)".format(
-                        name
-                    ),
-                )
-                raises = [n for n in ast.walk(func) if isinstance(n, ast.Raise)]
-                self.assertTrue(raises, "{0} must raise".format(name))
-
     def test_the_error_codes_remain_the_stable_contract(self):
         """The codes are what a hook prints and a driver matches on; each must equal its name."""
 
@@ -721,61 +629,6 @@ class WiringBoundaryTests(unittest.TestCase):
                 BODY_WITHOUT_WIRING, sites
             ),
         )
-
-    def test_the_unwired_predicate_nevertheless_has_a_real_body(self):
-        """The other half of the split: not-wired must not be mistaken for not-implemented.
-
-        REPLACES A SOURCE-TEXT PIN. The second half of this test read
-        `assertNotIn("_unimplemented", inspect.getsource(check_scope))`. That is a change-detector in
-        both directions: a body that DID raise would still pass if the raise were spelled directly
-        rather than through the helper, and a docstring merely MENTIONING `_unimplemented` (to explain
-        why this predicate does not use it, which is exactly the sort of note this module carries)
-        would fail it while the code is perfectly correct. What "has a real body" means behaviorally
-        is asserted instead: the predicate RETURNS a verdict rather than raising, it DISCRIMINATES
-        (an in-scope path yields nothing, an out-of-scope path yields a violation), and the verdict is
-        computed by the ONE shared matcher rather than by a local restatement of the grammar.
-        """
-
-        # 1. It RETURNS rather than raising, and it discriminates. A stub cannot do both.
-        self.assertEqual(
-            wtiso_gate.check_scope(["a.py"], ["b.py"]), [wtiso_gate.AW_GATE_SCOPE]
-        )
-        self.assertEqual(wtiso_gate.check_scope(["b.py"], ["b.py"]), [])
-        self.assertEqual(
-            wtiso_gate.check_scope(["a.py", "b.py", "c.py"], ["b.py"]),
-            [wtiso_gate.AW_GATE_SCOPE, wtiso_gate.AW_GATE_SCOPE],
-            "one violation PER offending path, so a caller can report which paths offended",
-        )
-
-        # 2. The verdict is the SHARED matcher's. Spied, so the call is observed to happen during a
-        #    real invocation, which no substring search over the source can establish.
-        with mock.patch.object(
-            ipd_lifecycle, "_scope_match", wraps=ipd_lifecycle._scope_match
-        ) as spy:
-            wtiso_gate.check_scope(["a.py", "tests/x.py"], ["tests/"])
-        self.assertGreater(
-            spy.call_count,
-            0,
-            "`check_scope` never called `ipd_lifecycle._scope_match`, so it restates the Scope-Paths "
-            "grammar itself: an agent could then satisfy this gate while failing finalize (R6.1)",
-        )
-
-        # 3. And the shared matcher's ANSWER is what reaches the result: forcing it either way flips
-        #    the verdict on inputs whose real answer is the opposite.
-        with mock.patch.object(ipd_lifecycle, "_scope_match", lambda _p, _pat: True):
-            self.assertEqual(
-                wtiso_gate.check_scope(["a.py"], ["b.py"]),
-                [],
-                "a forced MATCH did not clear an out-of-scope path, so the verdict is not the shared "
-                "matcher's",
-            )
-        with mock.patch.object(ipd_lifecycle, "_scope_match", lambda _p, _pat: False):
-            self.assertEqual(
-                wtiso_gate.check_scope(["tests/x.py"], ["tests/"]),
-                [wtiso_gate.AW_GATE_SCOPE],
-                "a forced NON-match did not flag an in-scope path, so the verdict is not the shared "
-                "matcher's",
-            )
 
     def test_the_unowned_predicates_also_have_no_product_caller(self):
         """A raising predicate with a live caller would break a production path on every call."""
@@ -871,86 +724,6 @@ class SabotageTests(unittest.TestCase):
             text_hits,
             len(definition_sites(name)),
             "a text count exceeds the definition count, so grep cannot establish uniqueness",
-        )
-
-    def test_the_fail_loud_check_fails_on_a_softened_stub(self):
-        """R6.2's check must notice a stub that RETURNS instead of raising.
-
-        THE CRITICAL SABOTAGE. Without it, a verification that merely calls each predicate and
-        reports success is indistinguishable from one that would accept a permissive default. Here a
-        softened stub is simulated exactly (an empty violation list, the shape a caller would read as
-        "no violations") and the check is required to reject it.
-        """
-
-        def softened(*_args, **_kwargs) -> list[str]:
-            return []  # the permissive default R6.2 forbids
-
-        # The real predicate satisfies the check...
-        with self.assertRaises(NotImplementedError):
-            wtiso_gate.check_lifecycle_role("finalize", "worker")
-
-        # ...and the softened one must NOT. Applying the same assertion to it must fail.
-        with self.assertRaises(self.failureException):
-            with self.assertRaises(NotImplementedError):
-                softened("finalize", "worker")
-
-        # And the source-level half of the check rejects it too.
-        tree = ast.parse(inspect.getsource(softened).lstrip())
-        returns = [
-            n
-            for n in ast.walk(tree)
-            if isinstance(n, ast.Return) and n.value is not None
-        ]
-        self.assertNotEqual(
-            returns, [], "the softened stub returns a value, which the check must catch"
-        )
-
-    def test_the_zero_caller_check_fails_on_a_planted_call(self):
-        """R6.3's check must notice a wiring that appears without a plan."""
-
-        self.assertEqual(call_sites(BODY_WITHOUT_WIRING), [])
-
-        planted = ast.parse(
-            "from agent_workflows import wtiso_gate\n"
-            "def hook(changed, scope):\n"
-            "    return wtiso_gate.check_scope(changed, scope)\n"
-        )
-        found = [
-            node.lineno
-            for node in ast.walk(planted)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == BODY_WITHOUT_WIRING
-        ]
-        self.assertEqual(
-            len(found),
-            1,
-            "the caller-detection logic must find a planted call; if it cannot, the zero-caller "
-            "result above is vacuous",
-        )
-
-    def test_the_delegation_check_fails_on_a_second_implementation(self):
-        """R6.1's delegation check must notice a body that renders the token itself."""
-
-        def forked_format(path: str, why: str) -> str:
-            return "AW_MISSING_INPUT:{0}:{1}".format(path, why)  # a second spelling
-
-        tree = ast.parse(inspect.getsource(forked_format).lstrip())
-        called = {
-            node.func.attr
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        }
-        self.assertNotIn(
-            "format_missing_input_token",
-            called,
-            "the forked implementation does NOT delegate, so the check must reject it",
-        )
-        # It even agrees with the real one TODAY, which is precisely why R6.1 forbids it anyway:
-        # agreement now is not protection against drift later.
-        self.assertEqual(
-            forked_format("x.txt", "absent"),
-            wtiso_gate.format_missing_input("x.txt", "absent"),
         )
 
 

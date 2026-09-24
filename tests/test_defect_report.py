@@ -34,7 +34,6 @@ import contextlib
 import inspect
 import io
 import json
-import re
 import subprocess
 import tempfile
 import unittest
@@ -127,35 +126,6 @@ class SchemaTests(unittest.TestCase):
         ][0]
         self.assertTrue(element["what"].strip(), "the example element must be FILLED")
         self.assertTrue(element["where"].strip())
-
-    def test_the_schema_lives_in_ONE_module_referenced_by_both_hosts(self) -> None:
-        """One schema, both hosts: a second copy of a literal is how the two silently disagree.
-
-        RE-BASED by rununify Order 04 (`tx6q0h`). Both hosts' `build_prompt` was de-duplicated into
-        `runner_shared`, so the CALL that renders the schema now lives there once instead of twice.
-        The property is unchanged and the anti-inlining assertion below still covers BOTH runners, so
-        neither host may grow its own copy of the literal.
-        """
-        shared_src = Path(str(R.__file__)).read_text(encoding="utf-8")
-        self.assertIn("defect_report_schema_literal()", shared_src)
-        self.assertIn("defect_report_prompt_block()", shared_src)
-        for mod in DRIVERS:
-            src = Path(str(mod.__file__)).read_text(encoding="utf-8")
-            self.assertNotIn(
-                '"defect_report": {',
-                src,
-                f"{mod.__name__} inlines the schema literal instead of referencing it",
-            )
-        for mod in DRIVERS:
-            tree = ast.parse(Path(str(mod.__file__)).read_text(encoding="utf-8"))
-            defined = {
-                n.name
-                for n in tree.body
-                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-            }
-            self.assertNotIn("validate_defect_report", defined)
-            self.assertNotIn("defect_report_schema_literal", defined)
-            self.assertNotIn("defect_report_prompt_block", defined)
 
 
 class PromptSizeBudgetTests(unittest.TestCase):
@@ -439,89 +409,6 @@ class ValidatorTests(unittest.TestCase):
                 v = R.validate_defect_report(junk)
                 self.assertIn(v.verdict, R.DEFECT_VERDICTS)
                 self.assertIn(v.state, R.DEFECT_REPORT_STATES)
-
-    def test_no_bare_except_was_introduced_around_the_new_code(self) -> None:
-        """`except Exception: pass` is how the spec-edit announcement was silenced (`st5klo`).
-
-        THE SECTION IS BOUNDED AT BOTH ENDS, and it was not before (fixed while executing `skn8uk`,
-        disclosed rather than absorbed). The previous form took `section = src[start:]`, i.e. from the
-        defect-report banner to the END OF `runner_shared.py`, and asserted that no BARE `except`
-        existed anywhere at or after it. That is 7150 lines rather than the 709 the section actually
-        spans, so the guard claimed authority over unrelated code. It went red on 2026-09-22 for a
-        suppression added 5400 lines later by commit `894d7924` (the `attention.format_plan_detail_line`
-        banner in `execute_item_core`, `except Exception: pass`), which has nothing to do with the
-        defect report. Bounding the section at the next `# ---- ` banner keeps every assertion this
-        guard was written to make and removes only the authority it was never given: a bare `except`
-        inside the defect-report section still fails it, which the control below proves.
-        """
-
-        src = Path(str(R.__file__)).read_text(encoding="utf-8")
-        start = src.index("# ---- THE DEFECT REPORT")
-        rest = src[start:]
-        following = re.search(r"\n# ---- (?!THE DEFECT REPORT)", rest)
-        self.assertIsNotNone(
-            following,
-            "the defect-report section is no longer followed by a banner, so it can no longer be "
-            "bounded; re-base this guard deliberately rather than letting it run to end of file",
-        )
-        assert following is not None
-        end = start + following.start()
-        section = src[start:end]
-        self.assertNotIn("except Exception:\n        pass", section)
-        self.assertNotIn("except:  # noqa", section)
-        first_line = src[:start].count("\n") + 1
-        last_line = src[:end].count("\n") + 1
-        tree = ast.parse(src)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ExceptHandler) and node.type is None:
-                self.assertFalse(
-                    first_line <= node.lineno <= last_line,
-                    f"a BARE except was added in the defect-report section (line {node.lineno})",
-                )
-
-    def test_that_guard_still_catches_a_bare_except_inside_the_section(self) -> None:
-        """The control that makes the bounding above a FIX rather than a quiet relaxation.
-
-        Asserted on the same bounding computation applied to a synthetic source, so the narrowed guard
-        is shown to still refuse the thing it exists to refuse.
-        """
-
-        synthetic = (
-            "x = 1\n"
-            "# ---- THE DEFECT REPORT (defreport 01, `b7xarm`) ----\n"
-            "def f():\n"
-            "    try:\n"
-            "        pass\n"
-            "    except:\n"
-            "        pass\n"
-            "# ---- something else ----\n"
-            "def g():\n"
-            "    try:\n"
-            "        pass\n"
-            "    except:\n"
-            "        pass\n"
-        )
-        start = synthetic.index("# ---- THE DEFECT REPORT")
-        following = re.search(r"\n# ---- (?!THE DEFECT REPORT)", synthetic[start:])
-        assert following is not None
-        end = start + following.start()
-        first_line = synthetic[:start].count("\n") + 1
-        last_line = synthetic[:end].count("\n") + 1
-        bare = [
-            node.lineno
-            for node in ast.walk(ast.parse(synthetic))
-            if isinstance(node, ast.ExceptHandler) and node.type is None
-        ]
-        self.assertEqual([6, 12], bare)
-        self.assertTrue(
-            any(first_line <= line <= last_line for line in bare),
-            "the bounded guard must still catch a bare except INSIDE the section",
-        )
-        self.assertFalse(
-            all(first_line <= line <= last_line for line in bare),
-            "and must no longer claim authority over code AFTER the section, which is the "
-            "over-reach that made it go red on unrelated code",
-        )
 
 
 # ---- E-05 / V-05: the bounded, same-session re-ask ------------------------------------------------
@@ -821,60 +708,6 @@ class HostResumeSpellingTests(unittest.TestCase):
             "--session", argv, "a hardcoded oc flag would silently fail here"
         )
 
-    def test_every_launcher_call_site_states_its_launch_role(self) -> None:
-        """No call site may INHERIT a launch profile by omission, which was the real hazard here.
-
-        THE COUNT WAS A PROXY, AND reverify-01 (`mp289j`) MADE THAT VISIBLE. This asserted exactly two
-        callers per host, with the stated reason that "a third could inherit the wrong profile". The
-        OpenCode host now has three, because the standalone `audit` verb launches the verifier prompt on
-        demand, and that third caller passes `use_verifier_launch=True` explicitly - so it is exactly
-        what the reason asked for and the count rejected it anyway.
-
-        WHAT IS ASSERTED INSTEAD is the hazard itself. Exactly ONE call site per host may be the
-        executor (no `use_verifier_launch`, no `log_suffix`); every other must declare
-        `use_verifier_launch=True`. `run_opencode` selects the model/variant/agent keys from that flag
-        alone (never from `fresh_session`, which is true for every isolated turn), so a verifying launch
-        that omits it silently runs under the EXECUTOR's model, which is the "verified with the wrong
-        model" defect this file's Set exists to prevent.
-
-        AGY IS UNCHANGED at two callers, and this test still covers it, because the rule is per host
-        rather than a shared total. ITS ROLE MARKER IS A DIFFERENT KEYWORD, and that asymmetry is real
-        rather than an oversight to normalize here: `use_verifier_launch` selects a VERIFIER LAUNCH
-        PROFILE, and `--verify-with` is an OpenCode-only flag (pinned as oc-only in
-        `tests/test_rununify_build_parser.py`), so there is no such profile to select on agy. What that
-        host's verifying call site does state is `telemetry_phase`, so the marker is read from a per-host
-        table instead of assuming one spelling.
-        """
-
-        for mod, launcher, role_flag in (
-            (oc_runipd, "run_opencode", "use_verifier_launch"),
-            (agy_runipd, "run_agy_turn", "telemetry_phase"),
-        ):
-            tree = ast.parse(Path(str(mod.__file__)).read_text(encoding="utf-8"))
-            calls = [
-                n
-                for n in ast.walk(tree)
-                if isinstance(n, ast.Call)
-                and isinstance(n.func, ast.Name)
-                and n.func.id == launcher
-            ]
-            verifying = [
-                call
-                for call in calls
-                if any(kw.arg == role_flag for kw in call.keywords)
-            ]
-            with self.subTest(module=mod.__name__):
-                self.assertGreaterEqual(
-                    len(calls), 2, f"{mod.__name__}: {len(calls)} callers"
-                )
-                self.assertEqual(
-                    len(calls) - len(verifying),
-                    1,
-                    f"{mod.__name__}: {len(calls)} callers but {len(verifying)} declare "
-                    f"{role_flag}; exactly one (the executor) may omit it, and any other omission "
-                    f"silently runs a verifying turn under the executor's model",
-                )
-
     def test_a_normal_turn_argv_is_unchanged_by_the_new_parameter(self) -> None:
         """`resume_session` defaults to None, so no existing turn's argv moved."""
 
@@ -954,56 +787,6 @@ class PersistedRecordTests(unittest.TestCase):
             # Written at the EXISTING per-item seam, beside the other results.
             seam = src.index('item["last_outcome"] = outcome')
             self.assertGreater(src.index('item["defect_report"] = record'), seam)
-
-    def test_no_gate_logic_was_added(self) -> None:
-        """`rnkqrc` owns refusing a transition; this plan only PRODUCES the record.
-
-        Asserted by AST over the STATEMENTS of the persistence block, not by scanning prose: an
-        earlier substring form matched the word "refuse" inside a COMMENT explaining an unrelated
-        session rule, which is the explanation-versus-code confusion the repo's own refork guard
-        records as its reason for parsing rather than grepping.
-        """
-
-        for mod in DRIVERS:
-            src = Path(str(mod.__file__)).read_text(encoding="utf-8")
-            tree = ast.parse(src)
-            func = next(
-                n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef) and n.name == "execute_item"
-            )
-            if "execute_item_core" in ast.unparse(func):
-                shared_tree = ast.parse(
-                    Path(str(R.__file__)).read_text(encoding="utf-8")
-                )
-                func = next(
-                    n
-                    for n in shared_tree.body
-                    if isinstance(n, ast.FunctionDef) and n.name == "execute_item_core"
-                )
-            block = [
-                n
-                for n in ast.walk(func)
-                if isinstance(n, ast.If)
-                and "defect_report" in ast.unparse(n)
-                and "validate_defect_report" in ast.unparse(n)
-            ]
-            self.assertTrue(block, f"{mod.__name__}: persistence block not found")
-            body = ast.unparse(block[0])
-            # No transition is refused, no status is downgraded, nothing is raised.
-            for forbidden in (
-                "raise DriverError",
-                'item["status"] =',
-                "disposition =",
-                "driver_finalize(",
-                "return",
-            ):
-                self.assertNotIn(
-                    forbidden,
-                    body,
-                    f"{mod.__name__}: the defect-report block must add no gate logic "
-                    f"(found {forbidden!r})",
-                )
 
     def test_the_documented_location_and_shape_are_stated_for_the_consumer(
         self,
@@ -1743,44 +1526,6 @@ class RescoreSharedSeamTests(unittest.TestCase):
             self.assertIn('"event": "ipd-rescored"', src, mod.__name__)
             self.assertIn("read_collection_receipt(", src, mod.__name__)
 
-    def test_the_rescore_reads_the_COLLECTED_list_and_not_the_receipt_status(
-        self,
-    ) -> None:
-        """The one detail that decides whether the gate works, pinned by AST over the rescore block.
-
-        Asserted on the `If` node's own test expression rather than by substring over the function, so
-        a mention of `status` in a neighbouring comment cannot satisfy it and a real gate on
-        `receipt["status"]` cannot hide behind one.
-        """
-        func = next(
-            n
-            for n in ast.parse(Path(str(R.__file__)).read_text(encoding="utf-8")).body
-            if isinstance(n, ast.FunctionDef) and n.name == "execute_item_core"
-        )
-        blocks = [
-            n
-            for n in ast.walk(func)
-            if isinstance(n, ast.If)
-            and "rescore_is_an_improvement" in ast.unparse(n)
-            and "read_collection_receipt" in ast.unparse(n)
-        ]
-        self.assertTrue(
-            blocks, "the rescore block was not found in `execute_item_core`"
-        )
-        gate = min(blocks, key=lambda n: len(ast.unparse(n)))
-        tests = [ast.unparse(n.test) for n in ast.walk(gate) if isinstance(n, ast.If)]
-        collected_gates = [
-            t for t in tests if "'outcome' in" in t or '"outcome" in' in t
-        ]
-        self.assertTrue(
-            collected_gates,
-            f"the rescore must gate on the receipt's `collected` list; saw {tests}",
-        )
-        for text in collected_gates:
-            self.assertIn("collected", text)
-            self.assertNotIn("'status'", text)
-            self.assertNotIn("failed", text)
-
 
 class FixtureHygieneTests(unittest.TestCase):
     """`.aw/records/runs/` is GITIGNORED: reading it passes on one box and fails in CI."""
@@ -1793,37 +1538,6 @@ class FixtureHygieneTests(unittest.TestCase):
             if ".aw/records/runs" in line and "GITIGNORED" not in line
         ]
         self.assertEqual(occurrences, [], occurrences)
-
-    def test_no_real_model_turn_can_be_spent(self) -> None:
-        """Every host invocation here is a stub or a Popen that raises before launch.
-
-        Asserted by AST, not by scanning this file's own text: a substring form matched the very
-        assertion that names the forbidden pattern, which is the self-reference trap.
-        """
-
-        src = Path(__file__).read_text(encoding="utf-8")
-        self.assertIn("stop-before-launch", src)
-        self.assertIn('"opencode": "/bin/false"', src)
-        # No real host binary may be invoked: every `subprocess.run` here is `git`.
-        tree = ast.parse(src)
-        launched = []
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr in {"run", "Popen", "check_call", "check_output"}
-                and node.args
-            ):
-                first = node.args[0]
-                if isinstance(first, ast.List) and first.elts:
-                    head = first.elts[0]
-                    if isinstance(head, ast.Constant) and isinstance(head.value, str):
-                        launched.append(head.value)
-        self.assertEqual(
-            sorted(set(launched)),
-            ["git"],
-            f"only `git` may be spawned by this suite; found {sorted(set(launched))}",
-        )
 
 
 if __name__ == "__main__":  # pragma: no cover

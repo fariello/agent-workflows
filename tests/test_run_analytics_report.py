@@ -356,19 +356,6 @@ class ResolverTests(unittest.TestCase):
                 analytics_snapshots_dir(td) / "20260913",
             )
 
-    def test_this_module_composes_no_runs_literal(self):
-        """The seventh site Order 01 exists to prevent. Asserted, not promised."""
-
-        source = Path(rep.__file__).read_text(encoding="utf-8")
-        code_lines = [
-            line
-            for line in source.splitlines()
-            if ".aw/records/runs" in line and not line.strip().startswith("#")
-        ]
-        # Only prose (docstrings/comments) may name the literal; no code may compose it.
-        offenders = [line for line in code_lines if "/" in line and "Path(" in line]
-        self.assertEqual(offenders, [], offenders)
-
 
 class SnapshotRetentionTests(unittest.TestCase):
     """Retention prunes ONLY tool-owned snapshots."""

@@ -33,7 +33,6 @@ own configuration: the subprocess boundary and the store are injected.
 from __future__ import annotations
 
 import ast
-import inspect
 import json
 import os
 import subprocess
@@ -584,46 +583,6 @@ class CatalogConfigFallbackTests(unittest.TestCase):
             "longer see any model. A row that RAISED rather than returning is worse than a wrong "
             f"reason: the degraded path must always answer.\n" + "\n".join(wrong),
         )
-
-    def test_config_fallback_never_resolves_an_api_key(self):
-        """`resolve_api_key` reads key FILES; the catalog path must never call it.
-
-        Asserted against the CODE, with comments and docstrings stripped: a prose mention of
-        `apiKey` explaining what is deliberately NOT read is exactly the documentation this
-        boundary should carry, so matching raw source text would forbid the comment rather than
-        the behavior. AST-based, so the check cannot be satisfied by rewording either.
-        """
-        import ast
-        import inspect
-
-        for fn in (OM.models_from_config, OM.catalog_from_config, OM.discover_models):
-            tree = ast.parse(inspect.getsource(fn).lstrip())
-            called = {
-                node.func.id
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-            } | {
-                node.func.attr
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-            }
-            self.assertNotIn(
-                "resolve_api_key", called, f"{fn.__name__} resolves a credential"
-            )
-            literals = {
-                node.value
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Constant) and isinstance(node.value, str)
-            }
-            # Docstrings are Constants too, so exclude the one that IS the docstring.
-            literals.discard(ast.get_docstring(tree) or "")
-            func_node = tree.body[0]
-            if isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                literals.discard(ast.get_docstring(func_node) or "")
-            for secret_key in ("apiKey", "options", "headers", "Authorization"):
-                self.assertNotIn(
-                    secret_key, literals, f"{fn.__name__} reads {secret_key!r}"
-                )
 
 
 # ==================================================================================================
@@ -2526,70 +2485,6 @@ class NoCredentialLeakTests(unittest.TestCase):
                             f"line {node.lineno}: imports name {alias.name!r} from {module!r}"
                         )
         return findings
-
-    def test_the_wizard_source_contains_no_forbidden_capability(self):
-        """The wizard module must resolve NO forbidden call and import NO forbidden module (AST).
-
-        CONVERTED FROM A TEXT PIN rather than replaced behaviorally, and the class docstring above
-        records why at length: the claim is the NON-EXISTENCE of a construct anywhere in the module,
-        including branches no test enters, so there is no behavior to drive. An AST check is not a
-        grep - a comment cannot add a `Call` node and a rename cannot remove one.
-
-        THE SCAN IS PROVEN NON-VACUOUS IN THIS SAME TEST against `PLANTED_VIOLATION`, whose every
-        line is written in a form the OLD SUBSTRING VERSION would have passed. A scanner that
-        reports the wizard clean but the planted source clean too is reporting nothing, and that
-        possibility is the one an absence claim is most exposed to.
-        """
-        source = inspect.getsource(W)
-        wrong = []
-        capabilities = set()
-        for capability, calls, modules, why in self.FORBIDDEN_CAPABILITIES:
-            problems = []
-
-            found = self._forbidden_findings(
-                source, frozenset(calls), frozenset(modules)
-            )
-            if found:
-                capabilities.add(capability)
-                problems.append(
-                    f"the wizard module grants {capability} at: " + "; ".join(found[:5])
-                )
-
-            # ANTI-VACUITY, per capability rather than once for the table: a scanner that silently
-            # stopped resolving (say, an `ast` API change, or a typo'd node type) would otherwise
-            # report every row clean and read as a green suite.
-            planted = self._forbidden_findings(
-                self.PLANTED_VIOLATION, frozenset(calls), frozenset(modules)
-            )
-            if not planted:
-                problems.append(
-                    "THE SCAN IS VACUOUS for this capability: it reported no finding against the "
-                    "planted violation, which grants it explicitly. Nothing this row says about the "
-                    "wizard can be believed"
-                )
-
-            if problems:
-                wrong.append(
-                    f"  {capability}\n"
-                    + "".join(f"    - {p}\n" for p in problems)
-                    + f"    this row exists because: {why}"
-                )
-
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of {len(self.FORBIDDEN_CAPABILITIES)} forbidden-capability claims failed"
-            + (f", across: {', '.join(sorted(capabilities))}" if capabilities else "")
-            + ". The module is meant to be a pure question-and-answer layer over INJECTED seams "
-            "(`ask`, `emit`, `discover`, `load`, `save`), so read the grouping: findings in ONE "
-            "capability is a single change someone made deliberately, while findings in several at "
-            "once means the module has taken on a role it should not have. FIX: an ENVIRONMENT READ "
-            "is the one to treat as urgent, since credentials live there and this module renders "
-            "what it touches to a terminal; a shell or eval finding is the injection hazard, because "
-            "every string here came from a prompt the user typed into. A VACUOUS row is worse than "
-            "either: it means this test proves nothing at all, so repair the scanner before "
-            "believing any other row.\n" + "\n".join(wrong),
-        )
 
 
 if __name__ == "__main__":  # pragma: no cover

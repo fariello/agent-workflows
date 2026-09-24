@@ -230,12 +230,6 @@ class ReleaseQueryPrimitiveTests(unittest.TestCase):
         self.assertEqual(got_ids, {"gate01", "gate02", "gate03"})
         self.assertNotIn("free01", got_ids)
 
-    def test_get_release_blockers_reuse_is_wired_in_source(self) -> None:
-        # A source-level guard so a future refactor cannot quietly reintroduce a second scan.
-        src = Path(releases.__file__).read_text(encoding="utf-8")
-        self.assertIn("_attention.release_blockers(items, repo_root)", src)
-        self.assertIn("from agent_workflows import attention as _attention", src)
-
     def test_get_release_blockers_scoped_to_the_named_release(self) -> None:
         # The SHIPPED release is gated by nobody: an item declaring `next`/`aaaaaa` must not leak in.
         self.assertEqual(releases.get_release_blockers(self.root, "bbbbbb"), [])

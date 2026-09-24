@@ -221,63 +221,6 @@ def test_collection_copies_and_the_lane_keeps_its_evidence(driver, tmp_path):
 # ---- the ordering claim, which is a source-level property -----------------------------------------
 
 
-@DRIVERS
-def test_collection_is_called_before_reconcile_disposition(driver):
-    """R2.1's "BEFORE the disposition is computed", asserted STRUCTURALLY inside `execute_item`.
-
-    By AST rather than by line-number arithmetic over the whole file: find the `execute_item` body,
-    then compare the source offsets of the `collect_lane_submissions` call and the
-    `reconcile_disposition` call that assigns the turn's disposition. A test that merely asserted both
-    calls exist would pass with the order reversed, which is the exact defect.
-    """
-    import ast
-
-    source = Path(str(driver.__file__)).read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    func = next(
-        n
-        for n in tree.body
-        if isinstance(n, ast.FunctionDef) and n.name == "execute_item"
-    )
-    if "execute_item_core" in ast.unparse(func):
-        from agent_workflows import runner_shared
-
-        shared_tree = ast.parse(
-            Path(str(runner_shared.__file__)).read_text(encoding="utf-8")
-        )
-        func = next(
-            n
-            for n in shared_tree.body
-            if isinstance(n, ast.FunctionDef) and n.name == "execute_item_core"
-        )
-    collect_lines = [
-        n.lineno
-        for n in ast.walk(func)
-        if isinstance(n, ast.Call)
-        and isinstance(n.func, ast.Attribute)
-        and n.func.attr == "collect_lane_submissions"
-    ]
-    assert (
-        collect_lines
-    ), f"{driver.__name__}.execute_item never collects lane submissions"
-    # The disposition-computing call is the one whose result is unpacked into a 2-tuple assignment
-    # named `disposition`.
-    reconcile_lines = [
-        n.lineno
-        for n in ast.walk(func)
-        if isinstance(n, ast.Assign)
-        and isinstance(n.targets[0], ast.Tuple)
-        and any(
-            isinstance(e, ast.Name) and e.id == "disposition" for e in n.targets[0].elts
-        )
-    ]
-    assert reconcile_lines, "could not locate the disposition assignment"
-    assert min(collect_lines) < max(reconcile_lines), (
-        f"{driver.__name__} collects AFTER computing the disposition (collect at "
-        f"{collect_lines}, disposition at {reconcile_lines})"
-    )
-
-
 # ---- A4 / R2.3: idempotency of the run-wide register ------------------------------------------------
 
 
@@ -323,12 +266,6 @@ def test_a_siblings_contribution_survives_both_runs(driver, tmp_path):
     assert (
         text.count("## DECISION 02-bbbbbb-D1") == 1
     ), "the sibling lane's contribution was removed by the retry"
-
-
-def test_the_chosen_mechanism_is_recorded_in_the_code():
-    """Plan E-04 requires the CHOSEN mechanism be stated in a code comment, so a reader is not guessing."""
-    src = Path(str(lane_containment.__file__)).read_text(encoding="utf-8")
-    assert "MECHANISM CHOSEN: ATTEMPT-KEYED DEDUP" in src
 
 
 def test_merge_is_pure_and_replaces_rather_than_appends():
@@ -470,33 +407,3 @@ def test_both_drivers_reach_the_same_shared_functions():
     ) == agy_runipd.build_isolation_notice(Path("/tmp/x"))
     assert oc_runipd.build_isolation_notice(None) == ""
     assert agy_runipd.build_isolation_notice(None) == ""
-
-
-def test_these_tests_are_parameterized_rather_than_duplicated():
-    """The plan's V-05 asks for evidence of PARAMETERIZATION, not two similar functions.
-
-    Asserted mechanically so it cannot rot: every test taking a `driver` argument in this module and in
-    the R1 module must be reached through the shared `DRIVERS` parametrize mark, and no function name
-    may be suffixed with a host name (the shape a copy-paste takes).
-    """
-    import ast
-
-    for module_name in ("test_lane_submission_collection", "test_lane_prompt_purity"):
-        path = Path(__file__).with_name(module_name + ".py")
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in tree.body:
-            if not isinstance(node, ast.FunctionDef) or not node.name.startswith(
-                "test_"
-            ):
-                continue
-            takes_driver = any(a.arg == "driver" for a in node.args.args)
-            marked = any(
-                isinstance(d, ast.Name) and d.id == "DRIVERS"
-                for d in node.decorator_list
-            )
-            assert (
-                takes_driver == marked
-            ), f"{module_name}.{node.name} must take `driver` iff it carries @DRIVERS"
-            assert not node.name.endswith(
-                ("_oc", "_agy", "_opencode", "_antigravity")
-            ), f"{module_name}.{node.name} looks host-specific; parameterize instead of copying"

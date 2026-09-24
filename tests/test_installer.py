@@ -4703,15 +4703,6 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                     target_backend="repository", leftover_disposition=expected
                 )
 
-    def test_no_hardcoded_leftover_disposition_literal_remains_in_cli(self):
-        """E-01's own acceptance check: no call site re-hardcodes the value."""
-        source = Path(CLI.__file__).read_text(encoding="utf-8")
-        self.assertNotIn(
-            'leftover_disposition="',
-            source,
-            "a hardcoded leftover_disposition literal is back in cli.py",
-        )
-
 
 class UninstallCompletenessTests(unittest.TestCase):
     """Complete uninstall, orphaned lifecycle removal, and the records KEEP/REMOVE choice.

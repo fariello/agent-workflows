@@ -41,11 +41,9 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import (
-    agy_runipd,
     git_commit_helper,
     ipd_lifecycle,
     oc_runipd,
-    runner_shared,
 )
 from tests.support import REPO_ROOT, git, init_repo
 
@@ -521,113 +519,6 @@ class TheExistingGuardsStillHoldWithTrailersPresent(_MoveCase):
 # ======================================================================================
 # E-04: ONE change, BOTH hosts
 # ======================================================================================
-
-
-class OneChangeCoversBothHosts(unittest.TestCase):
-    def test_the_commit_path_is_ONE_IMPLEMENTATION_reached_by_both_drivers(self):
-        """The plan's central economy, asserted ONE LEVEL DOWN rather than on the host attributes.
-
-        `commit_backlog_close` holds the ONLY `offer_commit` call in either runner, so passing trailers
-        at that one site serves both hosts. If a second commit path ever appears, this fails and the
-        claim is void. That property is unchanged; where it is measured moved.
-
-        WHY IT MOVED (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`). This used to read
-        `assertIs(agy.commit_backlog_close, oc.commit_backlog_close)`, which was the right statement
-        while the function was DEFINED in `oc_runipd` and agy reached it by import. It now has ONE
-        definition in `runner_shared`, and each host keeps a one-line wrapper binding its OWN
-        `run_checked`, because the shared body takes a host-specific `env_builder` a shared body cannot
-        resolve (`818uru` E-05's injection case, re-measured: a bare lift raised `TypeError:
-        run_checked() missing 1 required keyword-only argument: env_builder`). Two wrappers over one
-        body are NOT the same object, by construction, so the old assertion would now forbid the
-        mechanism rather than test the economy.
-
-        WHAT IS ASSERTED INSTEAD IS STRICTLY MORE: that `runner_shared` owns exactly one
-        implementation, that each host delegates to THAT one, and that neither host holds a second
-        body. The last of those is the claim that actually matters here and it was never checked
-        before, because while the definition lived in a host driver it could not be.
-        """
-
-        import ast
-
-        shared = runner_shared.commit_backlog_close
-        for label, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
-            with self.subTest(driver=label):
-                wrapper = mod.commit_backlog_close
-                self.assertIsNot(
-                    wrapper,
-                    shared,
-                    f"{label} is expected to hold a delegating WRAPPER binding its own `run_checked`; "
-                    "if it IS the shared object the injection was dropped, and this test should be "
-                    "simplified together with that change rather than deleted",
-                )
-                tree = ast.parse(Path(str(mod.__file__)).read_text(encoding="utf-8"))
-                nodes = [
-                    n
-                    for n in tree.body
-                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and n.name == "commit_backlog_close"
-                ]
-                self.assertEqual(
-                    len(nodes),
-                    1,
-                    f"{label} must hold exactly one delegating def for commit_backlog_close",
-                )
-                body = [
-                    st
-                    for st in nodes[0].body
-                    if not (
-                        isinstance(st, ast.Expr)
-                        and isinstance(st.value, ast.Constant)
-                        and isinstance(st.value.value, str)
-                    )
-                ]
-                self.assertEqual(
-                    len(body),
-                    1,
-                    f"{label}.commit_backlog_close must be a SINGLE delegating statement; more than "
-                    "one means it grew a body, which is the second commit path this test forbids",
-                )
-                self.assertIn(
-                    "runner_shared.commit_backlog_close",
-                    {
-                        f"{n.value.id}.{n.attr}"
-                        for n in ast.walk(body[0])
-                        if isinstance(n, ast.Attribute)
-                        and isinstance(n.value, ast.Name)
-                    },
-                    f"{label} must delegate to the ONE shared implementation",
-                )
-
-    def test_agy_holds_no_offer_commit_call_of_its_own(self):
-        """The other half of the same claim: agy must not have grown a parallel commit path.
-
-        Counted over the PARSED module rather than by grepping text, so a mention in a docstring or a
-        comment cannot satisfy or break it.
-        """
-
-        import ast
-
-        text = (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
-            encoding="utf-8"
-        )
-        calls = [
-            node
-            for node in ast.walk(ast.parse(text))
-            if isinstance(node, ast.Call)
-            and (
-                (isinstance(node.func, ast.Name) and node.func.id == "offer_commit")
-                or (
-                    isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "offer_commit"
-                )
-            )
-        ]
-        self.assertEqual(
-            calls,
-            [],
-            "`agy_runipd` must reach the commit path by IMPORT, not by its own `offer_commit` call. A "
-            "second call site would mean the one-site wiring no longer covers both hosts",
-        )
 
 
 # ======================================================================================

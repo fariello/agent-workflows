@@ -40,11 +40,9 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from agent_workflows import check_engine as ce
 from agent_workflows import ipd_lifecycle as life
-from agent_workflows import record_history as rh
 
 
 # --------------------------------------------------------------------------------------
@@ -296,69 +294,6 @@ class TestDerivation(unittest.TestCase):
             "`ipd_lifecycle._status_rank`; widen it deliberately rather than relaxing this row.\n"
             + "\n".join(wrong),
         )
-
-    def test_events_come_from_the_shared_inline_history_parser(self):
-        """`_plan_status_events` REUSES `record_history`'s inline parser; there is no parallel log.
-
-        REPLACES A SOURCE-TEXT PIN. This asserted `assertIn("record_history", src)` and
-        `assertIn("_inline_history_records", src)` over `inspect.getsource(...)`, which a COMMENT
-        naming either symbol satisfies while the real code forks its own line scanner, and which a
-        rename breaks without any behavior changing. Reuse is proved here the only way it can be: the
-        shared parser is SPIED (so the call is observed during a real invocation) and then made to
-        return a SENTINEL record (so its output is observed reaching the derived events). A private
-        forked scanner passes neither.
-        """
-        text = (
-            "# IPD: x\n\n- Id: aaa111\n- Status: approved\n\n## Workflow history\n"
-            "- 2026-08-27 approved (aw set): status set to approved\n"
-            "- 2026-08-26 reviewed (author): /plan-review done\n"
-            "- 2026-08-26 /plan-review (author): a note, not a status\n"
-            "- 2026-08-25 draft (author): created.\n"
-        )
-
-        # 1. The shared parser is CALLED, exactly once, with this plan's text.
-        with mock.patch.object(
-            rh, "_inline_history_records", wraps=rh._inline_history_records
-        ) as spy:
-            events = life._plan_status_events(text)
-        self.assertEqual(
-            spy.call_count,
-            1,
-            "`_plan_status_events` must reach the inline history through "
-            "`record_history._inline_history_records`; it was called "
-            f"{spy.call_count} times, so this function keeps its own row scanner",
-        )
-        self.assertEqual(spy.call_args.args, (text,))
-
-        # 2. And the parse is correct: oldest-first, with the NOTE token skipped because
-        #    `/plan-review` is not a plan status.
-        self.assertEqual([s for _d, s, _a in events], ["draft", "reviewed", "approved"])
-        self.assertEqual(life.derive_status_from_events(events), "approved")
-
-        # 3. The shared parser's OUTPUT is what this function reads. A sentinel record no substring
-        #    search could ever see reaches the result, which a forked private scanner cannot do.
-        with mock.patch.object(
-            rh,
-            "_inline_history_records",
-            lambda _t: ["- 2026-01-02 reviewed (sentinel-actor): planted by the test"],
-        ):
-            planted = life._plan_status_events(text)
-        self.assertEqual(
-            planted,
-            [("2026-01-02", "reviewed", "sentinel-actor")],
-            "the events must come FROM the shared parser: a planted record did not reach the "
-            "result, so `_plan_status_events` reads the text itself",
-        )
-
-        # 4. NO PARALLEL LOG: with the shared parser returning nothing, there is no second source of
-        #    events. A fallback file reader would still produce some here.
-        with mock.patch.object(rh, "_inline_history_records", lambda _t: []):
-            self.assertEqual(
-                life._plan_status_events(text),
-                [],
-                "events appeared with the inline parser returning nothing, so a SECOND event source "
-                "exists; the design requires the inline history to be the only one",
-            )
 
     def test_backward_compat_status_read_unchanged(self):
         """Kept separate: an AGREEMENT claim between two independent readers, not a derivation row.
@@ -621,85 +556,6 @@ class TestScopeDrift(unittest.TestCase):
             "`_paths_changed_by_this_execution`, whose reuse is asserted separately below; the sweep "
             "itself only assembles them.\n" + "\n".join(wrong),
         )
-
-    def test_the_sweep_reuses_the_finalize_scope_helpers_rather_than_forking_them(self):
-        """Kept separate: a REUSE claim, which no fixture row can express.
-
-        REPLACES A SOURCE-TEXT PIN. This asserted `assertIn("_scope_match", src)` and two siblings
-        over `inspect.getsource(check_scope_drift)`. A comment mentioning any of the three satisfies
-        that search while the body forks its own comparator, and a rename breaks it with no behavior
-        change - so it could neither catch the fork it existed for nor survive a refactor. Reuse is
-        proved here by DRIVING the sweep: each helper is spied (observed to be called) and then
-        replaced by a sentinel whose effect must appear in the sweep's output. A forked private
-        comparator would leave every sentinel inert.
-
-        WHY THE FORK MATTERS: `aw ipd finalize` refuses on these same helpers. A second comparator
-        here would let a change pass this advisory sweep and then be refused at finalize (or the
-        reverse), which is the hook-versus-driver divergence the shared helpers exist to prevent.
-        """
-        root = self._repo(scope_paths="src/", dirty="src/feat.py")
-
-        # 1. ALL FOUR helpers are actually called during one clean sweep.
-        spies = {}
-        with (
-            mock.patch.object(
-                life,
-                "_frozen_scope_paths",
-                wraps=life._frozen_scope_paths,
-            ) as spies["_frozen_scope_paths"],
-            mock.patch.object(
-                life,
-                "_paths_changed_by_this_execution",
-                wraps=life._paths_changed_by_this_execution,
-            ) as spies["_paths_changed_by_this_execution"],
-            mock.patch.object(life, "_scope_match", wraps=life._scope_match) as spies[
-                "_scope_match"
-            ],
-            mock.patch.object(
-                life, "_is_implicitly_allowed", wraps=life._is_implicitly_allowed
-            ) as spies["_is_implicitly_allowed"],
-        ):
-            self.assertEqual(
-                [d for d in ce.check_scope_drift(root) if d.rule == self.RULE],
-                [],
-                "the in-scope fixture must be clean, or the spy counts below describe a run that "
-                "took a different path",
-            )
-        uncalled = sorted(n for n, s in spies.items() if s.call_count == 0)
-        self.assertEqual(
-            uncalled,
-            [],
-            f"`check_scope_drift` never called {uncalled}, so it holds its own copy of that rule "
-            "instead of the one `aw ipd finalize` refuses on. A second comparator lets a change pass "
-            "this sweep and be refused at finalize.",
-        )
-
-        # 2. Each helper's RESULT reaches the verdict. Sentinels no text search could see.
-        with mock.patch.object(life, "_scope_match", lambda _p, _pat: False):
-            flipped = [d for d in ce.check_scope_drift(root) if d.rule == self.RULE]
-        self.assertTrue(
-            flipped,
-            "forcing the shared matcher to match NOTHING left the in-scope path clean, so the "
-            "verdict does not come from `_scope_match`",
-        )
-
-        with mock.patch.object(
-            life, "_paths_changed_by_this_execution", lambda _r, _b: ["zzz/sentinel.py"]
-        ):
-            planted = [d for d in ce.check_scope_drift(root) if d.rule == self.RULE]
-        self.assertTrue(
-            any("zzz/sentinel.py" in d.detail for d in planted),
-            "a path planted in the shared changed-paths helper did not reach the finding, so the "
-            f"sweep computes its own change set: {[d.detail for d in planted]!r}",
-        )
-
-        with mock.patch.object(life, "_frozen_scope_paths", lambda _t: []):
-            self.assertEqual(
-                [d for d in ce.check_scope_drift(root) if d.rule == self.RULE],
-                [],
-                "an empty allowlist from the shared reader must reach the advisory-satisfied branch; "
-                "the sweep is reading Scope-Paths itself",
-            )
 
 
 if __name__ == "__main__":

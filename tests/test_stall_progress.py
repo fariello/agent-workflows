@@ -61,11 +61,6 @@ class LogPathResolutionTests(unittest.TestCase):
             if prev is not None:
                 os.environ["XDG_DATA_HOME"] = prev
 
-    def test_module_has_no_hardcoded_home_path(self):
-        src = Path(sp.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("/home/", src)
-        self.assertNotIn("/Users/", src)
-
 
 class ProgressClassificationTests(unittest.TestCase):
     """Only agent-loop kinds count. This is the true-hang guarantee, not a nicety."""

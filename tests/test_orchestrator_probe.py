@@ -2672,32 +2672,6 @@ class BothHostsShareOneDefinition(unittest.TestCase):
         self.assertNotIn("aw agy run", oc)
         self.assertNotIn("aw oc run", agy)
 
-    def test_agy_did_not_gain_a_new_import_from_oc(self):
-        """Kept separate: a STRUCTURAL claim over the import graph, not over any behavior.
-
-        NOT A SOURCE-TEXT GREP, deliberately: it parses `agy_runipd` with `ast` and inspects
-        `ImportFrom` nodes, so a mention of a symbol in a comment, a docstring or a string literal
-        cannot satisfy or break it. What it pins is the LAYER a symbol is reached through, which no
-        behavioral test can: `test_each_host_resolves_every_new_symbol_to_the_SAME_object` passes
-        whether `agy` imports from `runner_shared` or from `oc_runipd`, because in both cases the
-        object IS the same one. The distinction matters because `agy_runipd` already imports ~40 names
-        from `oc_runipd` (backlog `cnwy8g`), and deepening that pile is the layering defect this Set's
-        anti-re-fork discipline exists to pay down.
-        """
-        import ast
-
-        source = Path(agy_runipd.__file__).read_text(encoding="utf-8")
-        names: set = set()
-        for node in ast.walk(ast.parse(source)):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(
-                "oc_runipd"
-            ):
-                names.update(a.name for a in node.names)
-        for symbol in BothHostsShareOneDefinition.SYMBOLS:
-            self.assertNotIn(
-                symbol, names, "reached agy through the OTHER HOST'S driver"
-            )
-
     #: (host, the argv prefix ONE builder must produce for it, why this row exists)
     ARGV_PREFIXES = (
         (

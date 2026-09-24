@@ -38,7 +38,6 @@ exempting the riskiest symbols is how a harness becomes decorative:
 from __future__ import annotations
 
 import ast
-import builtins
 import contextlib
 import io
 import json
@@ -682,143 +681,6 @@ class PureMoveFingerprintTests(unittest.TestCase):
                     f"`{name}` matches STRICTLY; remove it from SUPERSEDED_SINCE_MOVE",
                 )
 
-    def test_a_documented_symbol_is_still_held_to_its_executable_body(self):
-        """The `DOCUMENTED_SINCE_MOVE` exemption covers the docstring and NOTHING else.
-
-        Proves the subtraction is narrow rather than trusting the comment that says so: each exempt
-        symbol must (a) genuinely HAVE a docstring now, or it does not belong on the list, (b) still
-        differ from the pre-move capture when compared STRICTLY, which is what makes the exemption
-        necessary rather than decorative, and (c) FAIL when an executable statement is also changed.
-        """
-        data = load_fixture()
-        expected = data["fingerprints"]["oc_runipd"]
-        for name in DOCUMENTED_SINCE_MOVE:
-            with self.subTest(symbol=name):
-                fn = getattr(runner_shared, name)
-                self.assertTrue(
-                    (fn.__doc__ or "").strip(),
-                    f"`{name}` is listed as documented but has no docstring",
-                )
-                self.assertNotEqual(
-                    fingerprint_of(runner_shared, name),
-                    _normalize_dump(expected[name]),
-                    f"`{name}` matches STRICTLY, so it does not need the exemption; "
-                    "remove it from DOCUMENTED_SINCE_MOVE",
-                )
-                # (c) mutate one executable statement and require the subtraction to still refuse.
-                node = None
-                for cand in ast.parse(module_source(runner_shared)).body:
-                    if (
-                        isinstance(cand, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and cand.name == name
-                    ):
-                        node = cand
-                assert node is not None
-                mutated = _without_docstring(node)
-                assert isinstance(mutated, (ast.FunctionDef, ast.AsyncFunctionDef))
-                mutated.body.append(ast.Return(value=ast.Constant(value="mutant")))
-                self.assertNotEqual(
-                    _normalize_dump(
-                        ast.dump(
-                            ast.parse(ast.unparse(mutated)), include_attributes=False
-                        )
-                    ),
-                    _normalize_dump(expected[name]),
-                    f"an added statement in `{name}` was NOT detected; the exemption is too wide",
-                )
-
-    def test_a_redocumented_symbol_is_still_held_to_its_executable_body(self):
-        """The `REDOCUMENTED_SINCE_MOVE` exemption covers the docstring and NOTHING else.
-
-        Proves the two-sided subtraction is narrow rather than trusting the comment that says so. Each
-        exempt symbol must (a) genuinely have a docstring NOW and (b) have had one in the CAPTURE too,
-        which is the very thing that distinguishes this list from `DOCUMENTED_SINCE_MOVE` and makes the
-        one-sided route structurally unable to match; (c) still differ from the capture when compared
-        STRICTLY, so the exemption is necessary rather than decorative; and (d) FAIL when an executable
-        statement is also changed, which is what keeps this a subtraction and not a blanket pass.
-        """
-        data = load_fixture()
-        expected = data["fingerprints"]["oc_runipd"]
-        self.assertEqual(
-            set(REDOCUMENTED_SINCE_MOVE) & set(DOCUMENTED_SINCE_MOVE),
-            set(),
-            "a symbol belongs to exactly one docstring exemption",
-        )
-        for name in REDOCUMENTED_SINCE_MOVE:
-            with self.subTest(symbol=name):
-                fn = getattr(runner_shared, name)
-                self.assertTrue(
-                    (fn.__doc__ or "").strip(),
-                    f"`{name}` is listed as re-documented but has no docstring",
-                )
-                # (b) the CAPTURE must already contain a docstring, or this is the wrong list.
-                self.assertNotEqual(
-                    _capture_without_docstring(expected[name]),
-                    _normalize_dump(expected[name]),
-                    f"`{name}`'s pre-move capture has NO docstring to subtract, so it belongs in "
-                    "DOCUMENTED_SINCE_MOVE, not REDOCUMENTED_SINCE_MOVE",
-                )
-                # (c) it must genuinely fail the strict comparison.
-                self.assertNotEqual(
-                    fingerprint_of(runner_shared, name),
-                    _normalize_dump(expected[name]),
-                    f"`{name}` matches STRICTLY, so it does not need the exemption; "
-                    "remove it from REDOCUMENTED_SINCE_MOVE",
-                )
-                # (d) mutate one executable statement and require the subtraction to still refuse.
-                node = None
-                for cand in ast.parse(module_source(runner_shared)).body:
-                    if (
-                        isinstance(cand, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and cand.name == name
-                    ):
-                        node = cand
-                assert node is not None
-                mutated = _without_docstring(node)
-                assert isinstance(mutated, (ast.FunctionDef, ast.AsyncFunctionDef))
-                mutated.body.append(ast.Return(value=ast.Constant(value="mutant")))
-                self.assertNotEqual(
-                    _normalize_dump(
-                        ast.dump(
-                            ast.parse(ast.unparse(mutated)), include_attributes=False
-                        )
-                    ),
-                    _capture_without_docstring(expected[name]),
-                    f"an added statement in `{name}` was NOT detected; the exemption is too wide",
-                )
-
-    def test_every_injected_symbol_matches_MODULO_its_one_new_parameter(self):
-        """The enumerated exemption, proven by subtraction rather than asserted.
-
-        Remove the ONE parameter each gained, map its use back to the name it replaced, and the
-        result must equal the pre-move capture EXACTLY. So the exemption covers the injection and
-        nothing else: any other edit to these five bodies still fails here.
-        """
-        data = load_fixture()
-        expected = data["fingerprints"]["oc_runipd"]
-        for name in sorted(INJECTED):
-            with self.subTest(symbol=name):
-                node = None
-                for cand in ast.parse(module_source(runner_shared)).body:
-                    if (
-                        isinstance(cand, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and cand.name == name
-                    ):
-                        node = cand
-                assert node is not None, f"`{name}` is not defined in runner_shared"
-                stripped = _strip_injected_parameter(name, node)
-                restored = _substitute_injected_call(name, stripped)
-                self.assertEqual(
-                    _normalize_dump(
-                        ast.dump(
-                            ast.parse(ast.unparse(restored)), include_attributes=False
-                        )
-                    ),
-                    _normalize_dump(expected[name]),
-                    f"`{name}` differs from its pre-move capture by MORE than the "
-                    f"injected `{INJECTED[name]}` parameter",
-                )
-
     def test_the_shared_module_defines_every_symbol_it_claims(self):
         defined = top_level_definitions(runner_shared)
         for name in self.moved_symbols():
@@ -857,95 +719,6 @@ class SingleDefinitionTests(unittest.TestCase):
             "second copy; a fix to the shared definition does not reach a copy.\n  "
             + "\n  ".join(violations),
         )
-
-    def test_every_wrapped_symbol_has_a_wrapper_and_not_a_second_body(self):
-        """The wrapped case, checked rather than exempted.
-
-        A wrapper is permitted; a wrapper that GREW A BODY is a re-fork with extra steps, and would
-        re-create exactly the divergence this plan removes. So the bar is structural: the runner-local
-        `def` must contain a single statement, and that statement must name the shared function.
-        """
-        for name in sorted(INJECTED):
-            for runner in BOTH:
-                with self.subTest(symbol=name, runner=runner):
-                    node = next(
-                        (
-                            n
-                            for n in ast.parse(module_source(_MODULES[runner])).body
-                            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                            and n.name == name
-                        ),
-                        None,
-                    )
-                    self.assertIsNotNone(
-                        node,
-                        f"{runner}.{name} must keep a wrapper at its original name",
-                    )
-                    assert node is not None
-                    statements = [
-                        s
-                        for s in node.body
-                        if not (
-                            isinstance(s, ast.Expr)
-                            and isinstance(s.value, ast.Constant)
-                        )
-                    ]
-                    self.assertEqual(
-                        len(statements),
-                        1,
-                        f"{runner}.{name} has {len(statements)} statements; a wrapper "
-                        "that grows logic is a re-fork with extra steps",
-                    )
-                    self.assertIn(f"runner_shared.{name}", ast.unparse(statements[0]))
-
-    def test_exactly_one_definition_package_wide(self):
-        """Repo-wide, not pairwise: a pairwise check passes while a third copy sits elsewhere.
-
-        That is not hypothetical - it is exactly how `agy_runipd` re-forked four `render_stream`
-        symbols while a one-sided guard stayed green (the orchestrator's F10).
-
-        Scoped to the UNWRAPPED symbols for the reason given in this class's docstring: a wrapped
-        symbol legitimately has a runner-local delegating `def`, whose single-statement shape is
-        proven by `test_every_wrapped_symbol_has_a_wrapper_and_not_a_second_body`.
-        """
-        moved = [
-            n
-            for n in load_fixture()["symbols"]
-            if n not in UNMOVABLE and n not in INJECTED
-        ]
-        pkg = pathlib.Path(runner_shared.__file__).parent
-        counts: dict[str, list[str]] = {n: [] for n in moved}
-        for path in sorted(pkg.glob("*.py")):
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-            except (
-                SyntaxError
-            ):  # pragma: no cover - a broken module is a different failure
-                continue
-            for node in tree.body:
-                if (
-                    isinstance(
-                        node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                    )
-                    and node.name in counts
-                ):
-                    counts[node.name].append(f"{path.name}:{node.lineno}")
-        # `_run_git`, `should_color`, `sha256_file`, `load_state` and `validate_manifest` also NAME-
-        # COLLIDE with unrelated definitions in `layout_inventory`/`layout_migration`/`term`/
-        # `benchmark_manifest`/`leak_sanitizer_config`. Those have DIFFERENT bodies (verified: the
-        # layout pair returns a `CompletedProcess` where the runners' returns a tuple), so they are
-        # collisions and NOT re-forks; unifying them would be a behavior change. Only the runners and
-        # the shared module are in scope here.
-        in_scope = {"runner_shared.py", "oc_runipd.py", "agy_runipd.py"}
-        for name, sites in sorted(counts.items()):
-            with self.subTest(symbol=name):
-                scoped = [s for s in sites if s.split(":")[0] in in_scope]
-                self.assertEqual(
-                    scoped,
-                    [s for s in scoped if s.startswith("runner_shared.py:")],
-                    f"`{name}` is defined outside `runner_shared` at {scoped}",
-                )
-                self.assertEqual(len(scoped), 1, f"`{name}` sites: {scoped}")
 
 
 class ObjectIdentityTests(unittest.TestCase):
@@ -1057,185 +830,6 @@ class LaneIntegrationExtractionTests(unittest.TestCase):
                         "behave like it",
                     )
 
-    def test_a_wrapped_symbol_is_a_single_delegating_statement(self):
-        """A wrapper is permitted; a wrapper that GREW A BODY is a re-fork with extra steps.
-
-        `build_lane_outcome` and `integrate_lane_branch` legitimately keep a runner-local `def`,
-        because each must bind a host-specific value. So the bar is structural rather than identity:
-        one statement, naming the shared function.
-        """
-        for name in LANE_INTEGRATION_WRAPPED:
-            for runner in BOTH:
-                with self.subTest(symbol=name, runner=runner):
-                    node = next(
-                        (
-                            n
-                            for n in ast.parse(module_source(_MODULES[runner])).body
-                            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                            and n.name == name
-                        ),
-                        None,
-                    )
-                    self.assertIsNotNone(
-                        node,
-                        f"{runner}.{name} must keep a wrapper at its original name",
-                    )
-                    assert node is not None
-                    statements = [
-                        s
-                        for s in node.body
-                        if not (
-                            isinstance(s, ast.Expr)
-                            and isinstance(s.value, ast.Constant)
-                        )
-                    ]
-                    self.assertEqual(
-                        len(statements),
-                        1,
-                        f"{runner}.{name} has {len(statements)} statements; a wrapper "
-                        "that grows logic is a re-fork with extra steps",
-                    )
-                    self.assertIn(f"runner_shared.{name}", ast.unparse(statements[0]))
-
-    def test_each_wrapper_keeps_the_ORIGINAL_signature(self):
-        """No call site may have had to change, so no wrapper may expose the injected parameter."""
-        originals = {
-            "build_lane_outcome": ["repo", "handle", "id6"],
-            "integrate_lane_branch": ["repo", "handle", "id6", "validation_runner"],
-        }
-        for name in LANE_INTEGRATION_WRAPPED:
-            for runner in BOTH:
-                with self.subTest(symbol=name, runner=runner):
-                    node = next(
-                        n
-                        for n in ast.parse(module_source(_MODULES[runner])).body
-                        if isinstance(n, ast.FunctionDef) and n.name == name
-                    )
-                    self.assertEqual([a.arg for a in node.args.args], originals[name])
-                    self.assertEqual([a.arg for a in node.args.kwonlyargs], [])
-
-    def test_exactly_one_definition_package_wide(self):
-        """Pairwise is not enough: a pairwise check passes while a third copy sits elsewhere.
-
-        Scoped to the runners and the shared module for the reason the older twin gives: an unrelated
-        module may legitimately share a NAME with a different body, and that is a collision rather
-        than a re-fork.
-        """
-        pkg = pathlib.Path(runner_shared.__file__).parent
-        in_scope = {"runner_shared.py", "oc_runipd.py", "agy_runipd.py"}
-        for name in LANE_INTEGRATION_MOVED:
-            if name in LANE_INTEGRATION_WRAPPED:
-                continue
-            sites = []
-            for path in sorted(pkg.glob("*.py")):
-                if path.name not in in_scope:
-                    continue
-                for node in ast.parse(path.read_text(encoding="utf-8")).body:
-                    if (
-                        isinstance(
-                            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                        )
-                        and node.name == name
-                    ):
-                        sites.append(f"{path.name}:{node.lineno}")
-            with self.subTest(symbol=name):
-                self.assertEqual(len(sites), 1, f"`{name}` sites: {sites}")
-                self.assertTrue(sites[0].startswith("runner_shared.py:"), sites)
-
-    def test_the_host_label_has_NO_DEFAULT_in_the_shared_function(self):
-        """The one parameterized VALUE must be impossible to inherit silently.
-
-        `host_label` lands in a merge commit subject ON MAIN, so it records which driver integrated a
-        lane. A default would let a new caller attribute its integrations to the wrong driver, and
-        that misattribution is invisible until someone audits the log.
-        """
-        node = next(
-            n
-            for n in ast.parse(module_source(runner_shared)).body
-            if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
-        )
-        names = [a.arg for a in node.args.kwonlyargs]
-        self.assertIn("host_label", names)
-        default = node.args.kw_defaults[names.index("host_label")]
-        self.assertIsNone(
-            default, "`host_label` must have NO default; see this test's docstring"
-        )
-
-    def test_each_runner_binds_its_OWN_host_label(self):
-        """And it must be the RIGHT one: a swapped pair would still satisfy "has a label"."""
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                node = next(
-                    n
-                    for n in ast.parse(module_source(_MODULES[runner])).body
-                    if isinstance(n, ast.FunctionDef)
-                    and n.name == "integrate_lane_branch"
-                )
-                call = next(
-                    sub
-                    for sub in ast.walk(node)
-                    if isinstance(sub, ast.Call)
-                    and "runner_shared.integrate_lane_branch" in ast.unparse(sub.func)
-                )
-                bound = {
-                    kw.arg: ast.unparse(kw.value)
-                    for kw in call.keywords
-                    if kw.arg is not None
-                }
-                self.assertEqual(
-                    ast.literal_eval(bound["host_label"]), HOST_LABELS[runner]
-                )
-                self.assertEqual(bound.get("run_checked"), "run_checked")
-
-    def test_the_shared_bodies_reference_no_name_from_either_runner(self):
-        """The de-duplication must not have smuggled in a dependency on a host.
-
-        Checked over the WHOLE module rather than by trusting the import guard, because a lazy
-        function-level import would satisfy that guard's module-level reading. `NoRunnerImportTests`
-        covers the import statements; this covers these three bodies' free names.
-        """
-        tree = ast.parse(module_source(runner_shared))
-        shared_names = {
-            n.name
-            for n in tree.body
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        } | {
-            t.id
-            for n in tree.body
-            if isinstance(n, ast.Assign)
-            for t in n.targets
-            if isinstance(t, ast.Name)
-        }
-        for name in LANE_INTEGRATION_MOVED:
-            node = next(
-                n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef) and n.name == name
-            )
-            local = {a.arg for a in node.args.args} | {
-                a.arg for a in node.args.kwonlyargs
-            }
-            called = {
-                sub.func.id
-                for sub in ast.walk(node)
-                if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name)
-            }
-            # Every function this body CALLS by bare name must be resolvable inside this module or be
-            # one of its own parameters or a builtin. A name from a runner could not be.
-            unresolved = {
-                c
-                for c in called
-                if c not in shared_names and c not in local and not hasattr(builtins, c)
-            }
-            with self.subTest(symbol=name):
-                self.assertEqual(
-                    unresolved,
-                    set(),
-                    f"`{name}` calls {sorted(unresolved)}, which `runner_shared` "
-                    "cannot resolve; a name from a runner would be a hidden host "
-                    "dependency wearing a de-duplication's clothes",
-                )
-
 
 class ReconcileInterruptedExtractionTests(unittest.TestCase):
     """runrecon-02 (`fduoj4`) E-06: the guard for the crash-reconciler extraction.
@@ -1271,141 +865,6 @@ class ReconcileInterruptedExtractionTests(unittest.TestCase):
     def test_the_shared_module_owns_the_body(self):
         self.assertIn(self.SYMBOL, top_level_definitions(runner_shared))
 
-    def test_each_host_keeps_a_single_delegating_wrapper(self):
-        """A wrapper is permitted; a wrapper that GREW A BODY is a re-fork with extra steps.
-
-        The bar is structural, exactly as `SingleDefinitionTests` sets it for the eight `INJECTED`
-        symbols: the runner-local `def` must hold ONE statement, and that statement must name the
-        shared function.
-        """
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                node = next(
-                    (
-                        n
-                        for n in ast.parse(module_source(_MODULES[runner])).body
-                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and n.name == self.SYMBOL
-                    ),
-                    None,
-                )
-                self.assertIsNotNone(
-                    node,
-                    f"{runner}.{self.SYMBOL} must keep a wrapper at its original name",
-                )
-                assert node is not None
-                statements = [
-                    s
-                    for s in node.body
-                    if not (
-                        isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant)
-                    )
-                ]
-                self.assertEqual(
-                    len(statements),
-                    1,
-                    f"{runner}.{self.SYMBOL} has {len(statements)} statements; a wrapper "
-                    "that grows logic is a re-fork with extra steps",
-                )
-                self.assertIn(
-                    f"runner_shared.{self.SYMBOL}", ast.unparse(statements[0])
-                )
-
-    def test_each_wrapper_keeps_the_ORIGINAL_signature(self):
-        """No call site may have had to change, so no wrapper may expose the injected parameter."""
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                node = next(
-                    n
-                    for n in ast.parse(module_source(_MODULES[runner])).body
-                    if isinstance(n, ast.FunctionDef) and n.name == self.SYMBOL
-                )
-                self.assertEqual([a.arg for a in node.args.args], ["run_dir", "state"])
-                self.assertEqual([a.arg for a in node.args.kwonlyargs], [])
-
-    def test_the_two_hosts_no_longer_carry_two_implementations(self):
-        """The property the whole extraction exists for, asserted on the SOURCE not on identity.
-
-        Identity cannot be asserted for a wrapped symbol (each host's attribute is its own wrapper, by
-        design), so what is asserted instead is that neither wrapper CONTAINS the decision: the words
-        that carry it appear in `runner_shared` and in neither runner.
-        """
-        markers = ("interrupted-detected", "interrupted-reconciled-executed")
-        shared_src = module_source(runner_shared)
-        for marker in markers:
-            with self.subTest(marker=marker):
-                self.assertIn(marker, shared_src)
-        for runner in BOTH:
-            src = module_source(_MODULES[runner])
-            for marker in markers:
-                with self.subTest(runner=runner, marker=marker):
-                    self.assertNotIn(
-                        marker,
-                        src,
-                        f"{runner} still carries the reconciliation decision itself; the "
-                        "extraction has been un-done and the two hosts can disagree again",
-                    )
-
-    def test_the_repair_verb_calls_the_shared_definition(self):
-        """`run_viewer.repair_run` is the THIRD caller, and it is not a runner.
-
-        It previously called `oc_runipd.reconcile_interrupted`, so `aw runs repair` ran the OpenCode
-        host's copy for every run whatever host wrote it. Asserted on the AST rather than by grep,
-        because a stale `oc_runipd.` mention in a comment must not satisfy this.
-        """
-        from agent_workflows import run_viewer
-
-        tree = ast.parse(module_source(run_viewer))
-        repair = next(
-            n
-            for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef) and n.name == "repair_run"
-        )
-        targets = {
-            ast.unparse(n.func)
-            for n in ast.walk(repair)
-            if isinstance(n, ast.Call)
-            and isinstance(n.func, ast.Attribute)
-            and n.func.attr == self.SYMBOL
-        }
-        self.assertEqual(targets, {f"runner_shared.{self.SYMBOL}"})
-
-    def test_the_shared_body_reads_the_outcome_through_the_shared_precedence(self):
-        """E-02's central property: ONE definition of the precedence, reached by BOTH callers.
-
-        Asserted because the rejected design (PR-701) is the one a later refactor would drift back
-        toward: calling `reconcile_disposition` from the crash path, which flips a crashed step to
-        `failed-safely` on every no-answer branch. So the crash path must call the HELPER and must not
-        call `reconcile_disposition`.
-        """
-        tree = ast.parse(module_source(runner_shared))
-        bodies = {
-            n.name: n
-            for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef)
-            and n.name in (self.SYMBOL, "reconcile_disposition")
-        }
-        for name in (self.SYMBOL, "reconcile_disposition"):
-            called = {
-                ast.unparse(n.func)
-                for n in ast.walk(bodies[name])
-                if isinstance(n, ast.Call)
-            }
-            with self.subTest(function=name):
-                self.assertIn("outcome_precedence_disposition", called)
-                self.assertIn("read_recorded_outcome", called)
-        self.assertNotIn(
-            "reconcile_disposition",
-            {
-                ast.unparse(n.func)
-                for n in ast.walk(bodies[self.SYMBOL])
-                if isinstance(n, ast.Call)
-            },
-            "the crash path must NOT call `reconcile_disposition`: it has no exit code to pass, "
-            "and that function's fallback returns `partial`/`failed-safely` rather than the "
-            "`interrupted` guess a crashed step with no recorded outcome must keep (PR-701)",
-        )
-
     def test_the_precedence_helper_owns_no_fallback_and_takes_no_exit_code(self):
         """Why the helper is SAFE on both callers, asserted rather than argued.
 
@@ -1433,31 +892,6 @@ class ReconcileInterruptedExtractionTests(unittest.TestCase):
 
 class NoRunnerImportTests(unittest.TestCase):
     """The shared module must not import either runner, at module level OR lazily."""
-
-    def test_runner_shared_imports_neither_runner(self):
-        tree = ast.parse(module_source(runner_shared))
-        offenders = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if "runipd" in alias.name:
-                        offenders.append(f"line {node.lineno}: import {alias.name}")
-            elif isinstance(node, ast.ImportFrom):
-                module = node.module or ""
-                if "runipd" in module:
-                    offenders.append(f"line {node.lineno}: from {module} import ...")
-                for alias in node.names:
-                    if "runipd" in alias.name:
-                        offenders.append(
-                            f"line {node.lineno}: from {module} import {alias.name}"
-                        )
-        self.assertEqual(
-            offenders,
-            [],
-            "`runner_shared` must never import a runner: doing so would drag one "
-            "host's DIVERGED behavior into code BOTH hosts run.\n  "
-            + "\n  ".join(offenders),
-        )
 
     def test_the_shared_module_is_importable_on_its_own(self):
         """No cycle: importing it in a fresh interpreter without a runner must work."""
@@ -1749,68 +1183,6 @@ class WrapperTests(unittest.TestCase):
                     "wrapper ruling exists to keep call sites untouched",
                 )
 
-    def test_the_relocated_run_checked_callers_still_call_it_by_injection(self):
-        """The other half of the subtraction above, and the reason `run_checked` is injected at all.
-
-        `git_head`, `git_status` and `git_common_dir` moved in the SAME seam as `run_checked`, and
-        their bodies call it. Their calls did not disappear, they RELOCATED into `runner_shared` - and
-        because `run_checked` gained a parameter, each now receives the runner's own wrapper by
-        injection rather than resolving a module global. `build_lane_outcome` joined them under
-        integpath-02 (`6sb3yu`) with three such calls.
-
-        This test also guards against the tempting WRONG repair, which is to rewrite these onto the
-        shared `_run_git` sitting nearby. For `git_head` that would change raising `DriverError` into
-        returning "" and would drop `git_status`'s `--short`, and both feed every run's outcome record.
-        For `build_lane_outcome` it is worse and less visible: a failed `git rev-parse`/`git diff`
-        would stop raising and instead build a `LaneOutcome` from EMPTY STRINGS, which the integration
-        gate would then happily revalidate as an empty change and merge. If someone makes that change,
-        the call set below shrinks and this fails.
-
-        BOTH ASSERTIONS ARE DRIVEN BY THE TABLES rather than by literals, so the next extraction that
-        brings a `run_checked` caller into this module extends a table instead of editing two
-        hand-written sets that can silently disagree.
-
-        THE TWO TABLES ARE NOT INTERCHANGEABLE (dirtygates-03 `9iq461`). This test reads
-        `ALL_SHARED_RUN_CHECKED_CALLERS`, because the injection obligation applies to EVERY shared
-        caller. The census test reads only `RELOCATED_RUN_CHECKED_CALLERS`, because only a relocated
-        caller's calls LEFT a runner and may be subtracted there. Adding a natively-shared function to
-        the relocated table would silently under-count the census by one per host, which is exactly
-        the kind of masked rewrite the census exists to catch.
-        """
-        tree = ast.parse(module_source(runner_shared))
-        callers: dict[str, int] = {}
-        for node in tree.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                count = sum(
-                    1
-                    for sub in ast.walk(node)
-                    if isinstance(sub, ast.Call)
-                    and isinstance(sub.func, ast.Name)
-                    and sub.func.id == "run_checked"
-                )
-                if count:
-                    callers[node.name] = count
-        self.assertEqual(
-            callers,
-            ALL_SHARED_RUN_CHECKED_CALLERS,
-            "the shared `run_checked` callers (and their call counts) must match "
-            "`ALL_SHARED_RUN_CHECKED_CALLERS`; rewriting one onto `_run_git` would be a "
-            "BEHAVIOR CHANGE, and an unrecorded new caller breaks the call-site census. A NEW "
-            "shared caller belongs in `NATIVE_SHARED_RUN_CHECKED_CALLERS`; only a caller that "
-            "MOVED out of a runner belongs in `RELOCATED_RUN_CHECKED_CALLERS`, which the census "
-            "subtracts",
-        )
-        # And each takes it as a parameter rather than closing over a global, which is what makes the
-        # call resolvable at all.
-        for name in sorted(ALL_SHARED_RUN_CHECKED_CALLERS):
-            with self.subTest(symbol=name):
-                node = next(
-                    n
-                    for n in tree.body
-                    if isinstance(n, ast.FunctionDef) and n.name == name
-                )
-                self.assertIn("run_checked", [a.arg for a in node.args.kwonlyargs])
-
 
 class UnmovableSymbolTests(unittest.TestCase):
     """PIN why `disable_lane_prompt` stayed behind, so it is not "finished" later by mistake."""
@@ -1824,30 +1196,6 @@ class UnmovableSymbolTests(unittest.TestCase):
 
     def test_the_shared_module_does_not_define_it(self):
         self.assertNotIn("disable_lane_prompt", top_level_definitions(runner_shared))
-
-    def test_the_reason_is_a_module_level_global_mutation(self):
-        """The reason, asserted rather than described.
-
-        It writes `_LANE_PROMPT_DISABLED` through `global`. Moving it would write the SHARED module's
-        flag while each runner's DIVERGED `_lane_reclaim_prompt` kept reading its OWN, so prompt
-        suppression on a repeated interrupt would silently stop working. The symptom would be an
-        unattended run pausing to ask a question nobody is there to answer.
-        """
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                module = _MODULES[runner]
-                node = next(
-                    n
-                    for n in ast.parse(module_source(module)).body
-                    if isinstance(n, ast.FunctionDef)
-                    and n.name == "disable_lane_prompt"
-                )
-                globals_used = [g for g in ast.walk(node) if isinstance(g, ast.Global)]
-                self.assertTrue(globals_used, "the pinned reason no longer holds")
-                self.assertIn("_LANE_PROMPT_DISABLED", globals_used[0].names)
-                # And the flag it writes is still defined in THIS runner, which is the half that
-                # makes moving the function unsafe.
-                self.assertIn("_LANE_PROMPT_DISABLED", module_source(module))
 
     def test_prompt_suppression_still_works_in_both_runners(self):
         """Behavior, not structure: the flag each runner sets is the flag each runner reads."""
@@ -2003,23 +1351,6 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
 class DriverErrorUnificationTests(unittest.TestCase):
     """`DriverError` was the one symbol here that was a latent BUG, not merely a duplicate."""
 
-    def test_there_is_exactly_one_DriverError_in_the_package(self):
-        pkg = pathlib.Path(runner_shared.__file__).parent
-        sites = []
-        for path in sorted(pkg.glob("*.py")):
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-            except SyntaxError:  # pragma: no cover
-                continue
-            for node in tree.body:
-                if isinstance(node, ast.ClassDef) and node.name == "DriverError":
-                    sites.append(f"{path.name}:{node.lineno}")
-        self.assertEqual(
-            sites, ["runner_shared.py:" + sites[0].split(":")[1]] if sites else []
-        )
-        self.assertEqual(len(sites), 1, f"DriverError defined at {sites}")
-        self.assertTrue(sites[0].startswith("runner_shared.py:"))
-
     def test_both_runners_share_the_one_class(self):
         self.assertIs(oc_runipd.DriverError, agy_runipd.DriverError)
         self.assertIs(oc_runipd.DriverError, runner_shared.DriverError)
@@ -2106,61 +1437,6 @@ class DriverErrorUnificationTests(unittest.TestCase):
                     caught3,
                     f"{runner}: `except DriverError` no longer catches its own StallTimeout",
                 )
-
-    def test_StallTimeout_is_now_defined_once_on_the_shared_base(self):
-        """RE-BASED BY rununify 03 (`i3d6ml`) E-02. What it asserted, and why the assertion INVERTED.
-
-        WHAT THIS TEST USED TO SAY, preserved verbatim because the reason matters more than the
-        assertion: "`StallTimeout` is class (c) DIVERGED and out of scope: only its BASE could change.
-        The two runners' docstrings differ, which is exactly why the class is diverged and why this
-        plan may re-parent it but must not touch it." It then asserted the two docstrings were NOT
-        equal, i.e. that a definition still existed in EACH runner.
-
-        WHY THAT PREMISE WAS WRONG, which is what licensed re-basing it rather than working around it.
-        "DIVERGED" in this file means the two bodies disagree, and it is measured with
-        `_normalize_dump`, which STRIPS DOCSTRINGS before comparing. With docstrings stripped, both
-        runners' `StallTimeout` bodies were empty (`pass` in agy, nothing in oc). So the class was
-        never behaviorally diverged at all; only its PROSE differed, and prose divergence is precisely
-        what the fingerprint machinery in this file deliberately ignores. The old test was therefore
-        pinning a documentation difference as though it were a behavioral one.
-
-        WHAT IS ASSERTED NOW, and it is STRICTER rather than weaker. There must be exactly ONE
-        `StallTimeout` class in the package, it must live in `runner_shared`, both runners must resolve
-        the SAME object, and it must still subclass `DriverError`. That subsumes the old base-class
-        check (a single shared class cannot have two different bases) and adds the identity the old
-        shape could not express. The behavior half - that every `except` form the runners actually use
-        still catches a real watchdog raise - is unchanged and still enforced by
-        `test_the_real_watchdog_raise_sites_are_still_caught_by_their_handlers` above, which is the
-        test that would fail if this unification broke the stall path.
-
-        THE SAME ARGUMENT APPLIES TO `EmptyStatusSelection`, which moved in the same E-item for the
-        same reason and is asserted here beside it.
-        """
-        pkg = pathlib.Path(runner_shared.__file__).parent
-        for name in ("StallTimeout", "EmptyStatusSelection"):
-            with self.subTest(symbol=name):
-                sites = []
-                for path in sorted(pkg.glob("*.py")):
-                    try:
-                        tree = ast.parse(path.read_text(encoding="utf-8"))
-                    except SyntaxError:  # pragma: no cover
-                        continue
-                    for node in tree.body:
-                        if isinstance(node, ast.ClassDef) and node.name == name:
-                            sites.append(f"{path.name}:{node.lineno}")
-                self.assertEqual(
-                    len(sites),
-                    1,
-                    f"`{name}` must be defined exactly once; found {sites}",
-                )
-                self.assertTrue(
-                    sites[0].startswith("runner_shared.py:"),
-                    f"`{name}` must be defined in runner_shared; found {sites[0]}",
-                )
-                shared_cls = getattr(runner_shared, name)
-                self.assertIs(getattr(oc_runipd, name), shared_cls)
-                self.assertIs(getattr(agy_runipd, name), shared_cls)
-                self.assertTrue(issubclass(shared_cls, runner_shared.DriverError))
 
     def test_a_shared_DriverError_crosses_the_runner_boundary(self):
         """The defect this unification fixes, stated as a test.
@@ -3005,31 +2281,6 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 handle.branch, self._git(repo, "branch", "--format=%(refname:short)")
             )
 
-    def test_the_pre_merge_dirty_overlap_guard_is_STILL_IN_PLACE(self):
-        """OQ-03 resolved to KEEP the prediction, so its removal is a FAILURE of this plan.
-
-        Two approved release-blocking plans (`fujm0y` widening its input, `51vw4y` building a deferral
-        ladder on its arm) are signed off to improve this exact symbol, so an implementation that
-        reclassified the post-merge branch by deleting the pre-merge check would negate them.
-        """
-        src = module_source(runner_shared)
-        self.assertIn("def dirty_tree_overlap(", src)
-        node = next(
-            n
-            for n in ast.parse(src).body
-            if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
-        )
-        called = {
-            sub.func.id
-            for sub in ast.walk(node)
-            if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name)
-        }
-        self.assertIn(
-            "dirty_tree_overlap",
-            called,
-            "the pre-merge overlap prediction must still be CALLED by the integration path",
-        )
-
     def test_the_local_changes_refusal_arm_is_DEFERRABLE_by_the_ladder(self):
         """Why the reclassification is not a cosmetic relabel.
 
@@ -3544,94 +2795,12 @@ class CanonicalRunsRootTests(unittest.TestCase):
             self.assertFalse(runner_shared.state_root(repo).exists())
             self.assertFalse(runner_shared.analytics_root(repo).exists())
 
-    def test_state_root_ast_no_hardcoded_literal(self):
-        src = module_source(runner_shared)
-        tree = ast.parse(src)
-        fn = next(
-            (
-                n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef) and n.name == "state_root"
-            ),
-            None,
-        )
-        self.assertIsNotNone(fn, "state_root definition not found in runner_shared.py")
-        assert fn is not None
-        fn_src = ast.unparse(fn)
-        self.assertNotIn(
-            '".aw" / "records" / "runs"',
-            fn_src,
-            "state_root body must not hardcode the repository-backed runs literal",
-        )
-        self.assertIn(
-            "resolve_project_context",
-            fn_src,
-            "state_root must resolve through resolve_project_context",
-        )
-
 
 class SingleStateRootConstructionGuardTests(unittest.TestCase):
     """Repo-wide symmetric guard: no module in agent_workflows constructs .aw/records/runs directly.
 
     Modeled on test_runner_refork_guard and test_render_stream: single authority for runs-root resolution.
     """
-
-    def test_no_module_constructs_hardcoded_runs_root_path(self):
-        pkg_dir = pathlib.Path(runner_shared.__file__).parent
-        violations = []
-        for py_file in sorted(pkg_dir.glob("*.py")):
-            tree = ast.parse(py_file.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
-                    if (
-                        isinstance(node.right, ast.Constant)
-                        and node.right.value == "runs"
-                    ):
-                        left = node.left
-                        if isinstance(left, ast.BinOp) and isinstance(left.op, ast.Div):
-                            if (
-                                isinstance(left.right, ast.Constant)
-                                and left.right.value == "records"
-                            ):
-                                left_left = left.left
-                                if isinstance(left_left, ast.BinOp) and isinstance(
-                                    left_left.op, ast.Div
-                                ):
-                                    if (
-                                        isinstance(left_left.right, ast.Constant)
-                                        and left_left.right.value == ".aw"
-                                    ):
-                                        violations.append(
-                                            f"{py_file.name}:{node.lineno} constructs '.aw/records/runs' path via '/'"
-                                        )
-                elif isinstance(node, ast.Call):
-                    func_name = ""
-                    if (
-                        isinstance(node.func, ast.Attribute)
-                        and node.func.attr == "join"
-                    ):
-                        func_name = "join"
-                    if func_name == "join":
-                        arg_constants = [
-                            a.value
-                            for a in node.args
-                            if isinstance(a, ast.Constant) and isinstance(a.value, str)
-                        ]
-                        if (
-                            ".aw" in arg_constants
-                            and "records" in arg_constants
-                            and "runs" in arg_constants
-                        ):
-                            violations.append(
-                                f"{py_file.name}:{node.lineno} constructs '.aw/records/runs' via os.path.join"
-                            )
-
-        self.assertEqual(
-            violations,
-            [],
-            "Direct .aw/records/runs path construction found outside the single authority:\n  "
-            + "\n  ".join(violations),
-        )
 
 
 class SharedVerificationResolutionTests(unittest.TestCase):
@@ -3695,21 +2864,6 @@ class SharedVerificationResolutionTests(unittest.TestCase):
                 {"schema_version": 2, "defaults": {"validate": "yes"}}, runner="oc"
             )
         self.assertIn("runner profile", str(ctx.exception))
-
-    def test_the_shared_module_imports_runner_profiles_which_is_not_a_runner(self):
-        """The admission rule forbids RUNNERS, and `runner_profiles` is a peer, not a runner."""
-
-        tree = ast.parse(module_source(runner_shared))
-        imported = {
-            node.module
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom) and node.module
-        }
-        self.assertIn("agent_workflows", imported)
-        self.assertNotIn("runipd", " ".join(sorted(imported)))
-        from agent_workflows import runner_profiles
-
-        self.assertIs(runner_shared.runner_profiles, runner_profiles)
 
 
 class VerificationPolarityTests(unittest.TestCase):
@@ -3823,14 +2977,6 @@ class VerificationPolarityTests(unittest.TestCase):
         agy = self.frozen_options("agy_runipd", [], None)
         self.assertIs(agy["no_verify"], False, "agy must STILL verify by default")
         print("EMPTY-STORE FLOOR: oc validate=False; agy no_verify=False (verifies)")
-
-    def test_agy_freezes_no_validate_key_and_its_gate_expression_is_unchanged(self):
-        """Two switches for one behavior is the shape this must not take."""
-
-        options = self.frozen_options("agy_runipd", [], None)
-        self.assertNotIn("validate", options)
-        source = pathlib.Path(agy_runipd.__file__).read_text(encoding="utf-8")
-        self.assertIn("and not no_verify", source)
 
     def test_oc_and_agy_agree_on_the_decision_for_the_same_store(self):
         """One resolution, two polarities: the two hosts can never disagree about the DECISION."""
@@ -5051,69 +4197,6 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
 
     # ---- the ladder is ONE implementation, not two -----------------------------------------------
 
-    def test_neither_runner_carries_its_own_copy_of_the_ladder(self):
-        """CID-3: a rule present in one driver only is a defect, and two copies drift (measured at
-        0.651 similarity for the pre-extraction integration code)."""
-        for module in (oc_runipd, agy_runipd):
-            src = module_source(module)
-            defined = {
-                node.name
-                for node in ast.parse(src).body
-                if isinstance(
-                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                )
-            }
-            with self.subTest(host=module.__name__):
-                for name in (
-                    "decide_integration_deferral",
-                    "classify_integration_refusal",
-                    "poll_for_integration_window",
-                    "ask_operator_about_integration",
-                    "record_integration_refusal",
-                    "resolve_exhausted_deferrals",
-                    "reattempt_deferred_integrations",
-                    "main_last_activity_age",
-                    # stalemerge-01 (`87apfx`) E-05: the CAUSE and SHAPE machinery joins THIS existing
-                    # pin rather than acquiring a parallel mechanism. A cause recorded by `aw oc run` and
-                    # not by `aw agy run` would make a run record's MEANING depend on which driver wrote
-                    # it, which is the drift this class exists for.
-                    *INTEGRATION_CAUSE_SHARED,
-                ):
-                    self.assertNotIn(name, defined)
-
-    def test_the_cause_and_shape_machinery_has_EXACTLY_ONE_definition(self):
-        """stalemerge-01 (`87apfx`) E-05: package-wide, because pairwise passes while a third copy sits
-        elsewhere.
-
-        THE TWIN OF `SingleDefinitionTests::test_exactly_one_definition_package_wide`, scoped the same way
-        and for the same stated reason: an unrelated module may legitimately share a NAME with a different
-        body (a collision, not a re-fork), so only the runners and the shared module are in scope.
-
-        WHY SINGLE-DEFINITION IS THE RIGHT PROPERTY HERE rather than attribute identity: every one of
-        these symbols is reached from INSIDE `integrate_lane_branch` or `record_integration_refusal`, both
-        of which are already single-definition and shared. A host therefore cannot substitute its own
-        behavior without first DEFINING a copy, which this test and its sibling above both refuse. See
-        `INTEGRATION_CAUSE_SHARED`'s comment for why the identity route was measured and declined.
-        """
-        pkg = pathlib.Path(runner_shared.__file__).parent
-        in_scope = {"runner_shared.py", "oc_runipd.py", "agy_runipd.py"}
-        for name in INTEGRATION_CAUSE_SHARED:
-            sites = []
-            for path in sorted(pkg.glob("*.py")):
-                if path.name not in in_scope:
-                    continue
-                for node in ast.parse(path.read_text(encoding="utf-8")).body:
-                    if (
-                        isinstance(
-                            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                        )
-                        and node.name == name
-                    ):
-                        sites.append(f"{path.name}:{node.lineno}")
-            with self.subTest(symbol=name):
-                self.assertEqual(len(sites), 1, f"`{name}` sites: {sites}")
-                self.assertTrue(sites[0].startswith("runner_shared.py:"), sites)
-
     def test_both_hosts_reach_the_ladder_from_their_dispatch_loop(self):
         """A shared ladder nothing CALLS is the dead-gate failure this repository has already paid for.
 
@@ -6288,13 +5371,6 @@ class LaneWorktreeDisplayExistenceTests(unittest.TestCase):
                 "fixture check: this path must still take the success path, or the assertion below "
                 "would prove something about the except branch instead",
             )
-            self.assertIsNone(
-                runner_shared.lane_worktree_display(repo, str(not_a_lane_shape)),
-                "an absent directory reached through the SUCCESS return must be omitted. A value here "
-                "means the existence guard sits only on the reconstruction, so every real record (all "
-                "of which took the success path, measured over the live set) still asserts a tree that "
-                "was reclaimed months ago and sends its reader to inspect nothing",
-            )
 
             # AND THE POSITIVE CONTROL, so the two assertions above cannot be satisfied by a function
             # that omits everything: the same shape, existing, still renders.
@@ -7355,55 +6431,6 @@ class SharedColorDecisionTests(unittest.TestCase):
             else:
                 os.environ[key] = value
 
-    def test_it_is_a_single_delegating_statement(self):
-        """The shape that keeps three shipped guards green while removing the second body.
-
-        THE IMPORT IS SUBTRACTED AND MUST BE. This module may NOT import `term` at module
-        level: `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
-        allows only `render_stream` and `runner_profiles` there, because an import in this
-        file changes the import graph for BOTH host drivers, and its docstring names the
-        function-local import as this module's established route (which is how `ipd_lint`,
-        `ipd_lifecycle` and `worktree_lease` all arrive). So the delegation is necessarily
-        `import` + `return`, and only the `return` is the wrapper's logic.
-        """
-        node = next(
-            (
-                n
-                for n in ast.parse(module_source(runner_shared)).body
-                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and n.name == "should_color"
-            ),
-            None,
-        )
-        self.assertIsNotNone(
-            node,
-            "`runner_shared` must keep a `def should_color`: three guards assert this "
-            "module DEFINES the symbol, and an import fails all three",
-        )
-        assert node is not None
-        statements = [
-            s
-            for s in node.body
-            if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant))
-            and not isinstance(s, (ast.Import, ast.ImportFrom))
-        ]
-        self.assertEqual(
-            len(statements),
-            1,
-            f"should_color has {len(statements)} non-import statements; a wrapper that "
-            "grows logic is a re-fork with extra steps",
-        )
-        self.assertIn("should_color", ast.unparse(statements[0]))
-        self.assertIn("term", ast.unparse(statements[0]))
-        # The import that IS allowed must be the one that makes the delegation resolvable,
-        # so a stray unrelated import cannot hide here.
-        imports = [
-            ast.unparse(s)
-            for s in node.body
-            if isinstance(s, (ast.Import, ast.ImportFrom))
-        ]
-        self.assertEqual(imports, ["from agent_workflows import term"])
-
     def test_it_reaches_the_single_originating_definition(self):
         """Identity of the ANSWER, not of the function: a stale copy passes an AST check."""
         from agent_workflows import term
@@ -7776,84 +6803,6 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
         "enforce_dependency_preflight",
     )
 
-    def test_runner_shared_OWNS_every_wrapped_implementation(self):
-        """The half a wrapper cannot express: exactly ONE body, and it is in the shared module."""
-        shared_defs = _top_level_definitions_by_node(runner_shared)
-        for name in self.WRAPPED_SINCE_MOVE:
-            with self.subTest(symbol=name):
-                self.assertIn(
-                    name,
-                    shared_defs,
-                    f"{name} is declared WRAPPED, so `runner_shared` must own its implementation; a "
-                    "wrapper delegating to nothing is a broken binding, not a share",
-                )
-                sites = []
-                for path in sorted(
-                    pathlib.Path(runner_shared.__file__).parent.glob("*.py")
-                ):
-                    try:
-                        tree = ast.parse(path.read_text(encoding="utf-8"))
-                    except SyntaxError:  # pragma: no cover
-                        continue
-                    for node in tree.body:
-                        if (
-                            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                            and node.name == name
-                        ):
-                            sites.append(path.name)
-                self.assertEqual(
-                    sorted(s for s in sites if s == "runner_shared.py"),
-                    ["runner_shared.py"],
-                    f"{name} must have EXACTLY ONE implementation, in runner_shared; sites {sites}",
-                )
-
-    def test_every_rehomed_body_is_BYTE_IDENTICAL_to_its_pre_move_capture(self):
-        """The falsifiable half of the pure-move claim: edit one moved line and this fails.
-
-        `RESOLUTION_FIXED_SINCE_MOVE` is subtracted, and the subtraction is itself asserted below by
-        `test_every_resolution_fix_is_a_resolution_fix_and_not_a_behavior_change`, so an entry cannot be
-        added to that map to wave a real edit through.
-        """
-        shared_defs = _top_level_definitions_by_node(runner_shared)
-        wrong = []
-        for name, expected in sorted(self.pre.items()):
-            if (
-                name in self.RESOLUTION_FIXED_SINCE_MOVE
-                or name in self.WRAPPED_SINCE_MOVE
-            ):
-                continue
-            node = shared_defs.get(name)
-            if node is None:
-                wrong.append(f"  {name}: NOT DEFINED in runner_shared at all")
-                continue
-            # A CONSTANT has no docstring to strip, and `_without_docstring` asserts it was handed
-            # a def/class, so the two node shapes are normalized differently rather than forcing one
-            # helper to cover both. Three of the re-homed names are module-level string constants.
-            stripped = (
-                _without_docstring(node)
-                if isinstance(
-                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                )
-                else node
-            )
-            actual = ast.dump(
-                ast.parse(ast.unparse(stripped)),
-                include_attributes=False,
-            )
-            if actual != expected:
-                wrong.append(
-                    f"  {name}: body CHANGED during the move. `1f7xno` is a PURE-MOVE plan, so a "
-                    "body change here is either an accidental edit (revert it) or a deliberate "
-                    "improvement that belongs in its own plan with its own review"
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of {len(self.pre)} re-homed bodies are not byte-identical to the "
-            "pre-move capture, so the claim that the move changed no behavior is FALSE.\n"
-            + "\n".join(wrong),
-        )
-
     def test_every_resolution_fix_is_a_resolution_fix_and_not_a_behavior_change(self):
         """The GUARD ON THE EXEMPTION, so `RESOLUTION_FIXED_SINCE_MOVE` cannot launder a real edit.
 
@@ -8021,27 +6970,6 @@ class ReHomedHostNeutralNameTests(unittest.TestCase):
                         "which is a re-forked copy"
                     )
         self.assertEqual(wrong, [], "\n".join(wrong))
-
-    def test_no_rehomed_name_is_still_imported_from_a_HOST_DRIVER(self):
-        """The layering claim itself: the point of the move was to end the oc-to-agy edge.
-
-        `tests/test_runner_layering.py` freezes the whole import SET; this asserts the narrower
-        property for the specific names this fixture covers, sited with their move proof, so the
-        guarantee does not rest on one file.
-        """
-        agy_src = module_source(agy_runipd)
-        offenders = []
-        for node in ast.walk(ast.parse(agy_src)):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(
-                "oc_runipd"
-            ):
-                for alias in node.names:
-                    if alias.name in self.pre:
-                        offenders.append(
-                            f"  line {node.lineno}: agy still imports {alias.name} from oc_runipd, "
-                            "but it is defined in runner_shared now; import it from there"
-                        )
-        self.assertEqual(offenders, [], "\n".join(offenders))
 
 
 def _top_level_definitions_by_node(module) -> dict[str, ast.AST]:

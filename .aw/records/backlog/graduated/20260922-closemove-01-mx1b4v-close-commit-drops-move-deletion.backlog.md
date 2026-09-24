@@ -1,0 +1,32 @@
+- Id: mx1b4v
+- Status: graduated
+- Graduated-To: movehalf
+- Blocks-Release: next
+- Set: closemove
+- Priority: high
+- Work-Kind: bug
+- Summary: The runner's backlog-close commit lands the addition but not the deletion, duplicating 22 items across graduated/ and done/
+
+## Workflow history
+- 2026-09-23 graduated (aw set): Graduated to IPD hv9gar (movehalf Order 01), NARROWED and RE-AIMED. This item's STATED cause is FIXED: commit 26519096 replaced 'git diff --name-only --cached' with '--name-status --cached -z' and parses R/C records as two paths. Verified at HEAD 22cf67d9 on a realistic 30-line record: naming both sides as explicit FILES commits one R095 rename and leaves git status --porcelain EMPTY. WHAT SURVIVES is a route the rename fix cannot reach: aw backlog set relocates by atomic_write + unlink with no git mv, so the destination is UNTRACKED and NO rename record forms for the parser to pair. A DIRECTORY argument then contributes zero paths to the intersection and the call still reports success. MEASURED FOR REAL while graduating this very item: commit ca8e22e4 landed ten 'D open/...' lines and zero 'A done/...' lines, so all ten items existed in NEITHER tree until 65109c8c repaired it. Reproduced in isolation to isolate the discriminator as directory-versus-file, not rename detection. Strictly worse per occurrence than the duplicate this item reports: a duplicated record is caught by attention.duplicate-id, while a record that exists nowhere is caught by nothing.
+- 2026-09-22 created (aw backlog): The runner's backlog-close commit lands the addition but not the deletion, duplicating 22 items across graduated/ and done/
+
+MEASURED 2026-09-22 while executing plan wao266 (runtrailwire-01), in this repository at HEAD c6596383.
+
+WHAT IS WRONG. `git_commit_helper._staged_paths` reads `git diff --name-only --cached`, which has git's RENAME DETECTION ON. When `aw backlog set done` moves an item file (it `atomic_write`s the destination and `unlink`s the source, with no `git mv`), git can pair the staged add and delete into a single `R<score> old -> new` entry, and `--name-only` then prints ONLY the destination. `offer_commit` intersects that with its requested paths, so `our_staged` contains the destination alone, and `commit_isolated` commits the ADDITION while the DELETION stays staged-but-uncommitted in the shared checkout.
+
+IT IS SIMILARITY-DEPENDENT, WHICH IS WHY THE SUITE IS GREEN OVER IT. Measured directly: a 3-line stub item (what `tests/test_runner_backlog_close.py`'s `_Repo.add_item` writes) pairs at `R055`, BELOW git's 50-percent-plus rename threshold in a way that still reports BOTH paths, so `ClosesEndToEnd::test_the_move_is_committed_path_scoped_and_leaves_the_tree_clean` legitimately passes and even asserts a clean tree afterwards. A realistic item (metadata + a 40-line body + a history bullet, i.e. every real item) pairs at `R098` and reports ONE path, and the deletion is dropped. So the existing end-to-end test does not fail: it never reaches the shape production always has. Any fix must add a realistic-body fixture, or the regression will be invisible again.
+
+VERIFIED BOTH WAYS AT `offer_commit`'s OWN LEVEL, so the diagnosis does not depend on the runner: calling `offer_commit(root, [src, dst], ...)` directly after a write+unlink move of a realistic item returns `status=committed` with `staged=(dst,)` only, and leaves `D  <src>` in `git status --porcelain`. The same fixture moved with `artifact_core.git_mv` instead commits BOTH sides and leaves a clean tree, which further localizes the fault to the staged-pair reporting rather than to the ADD set.
+
+EVIDENCE IN REAL HISTORY, not a hypothetical. Of 47 `closed by aw oc run:` commits across all refs, 42 contain an ADDITION ONLY under `git diff-tree -r --no-renames --name-status`; only 5 contain both A and D. And the leftover is still visible in the tree TODAY: 22 of the 128 items in `.aw/records/backlog/done/` at HEAD ALSO still exist in `.aw/records/backlog/graduated/` under the same filename, so those items are DUPLICATED in two status directories at once, which is an ambiguous status for a record whose directory IS its authoritative disposition.
+
+IT ALREADY BREAKS A FAIL-CLOSED CHECK TODAY, which raises this above bookkeeping. `aw backlog check` exits nonzero with `22 violation(s)`, every one a `backlog.id-duplicate` naming a file that exists in two status directories at once (its message reads oddly - "id X also in <the same filename>" - because the two copies share a basename). Confirmed PRE-EXISTING rather than caused by the items filed alongside this one: stashing all of `.aw/records/backlog` changes and re-running still reports exactly `22 violation(s)`. So the repository's own backlog validator is currently red, on this defect alone, and any agent or CI step that trusts `aw backlog check` to gate is blocked by it.
+
+WHY IT MATTERS BEYOND TIDINESS. The function's own comments say the fewer-than-two-paths guard exists because 'committing half a move would leave the tree worse than not committing at all' - and the function passes that guard and then commits half a move anyway, one layer down. The uncommitted deletion is exactly the shared-checkout contamination the `z2isfg` begin-dirty gate and the `driverfin-03` dirty-overlap gate consume; commit `52837644`'s half-committed move is recorded in `git_commit_helper.py` as having refused 27 of 42 items in one run.
+
+WHERE. `agent_workflows/git_commit_helper._staged_paths` (the `git diff --name-only --cached` call), consumed by `offer_commit`'s `our_staged` intersection; reached from `oc_runipd.commit_backlog_close`.
+
+LIKELY FIX. Pass `--no-renames` in `_staged_paths` so a staged pair reports BOTH sides, which is what every caller intersecting against an explicit path set actually means. Needs care: `offer_commit` already carries measured scar tissue about staged renames (the `_in_index` ADD-set exclusion exists because naming a `git mv` source made `git add` fail and stage nothing), so the fix must be validated against the `git mv` path too, and the fixture must use a REALISTIC item body or the new assertion passes vacuously for the reason above. The 22 already-duplicated items are a separate data-repair question, and one worth answering: until they are reconciled, those items sit in two status directories at once.
+
+NOT FIXED BY wao266, which is scoped to passing ownership trailers and must not widen into the shared commit helper's staging semantics.

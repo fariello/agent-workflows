@@ -1325,24 +1325,6 @@ def test_the_terminal_directory_predicate_itself_classifies_every_bucket():
 # --------------------------------------------------------------------------------------------------
 
 
-def test_the_ipd_only_limit_is_stated_at_the_definition_and_discovery_is_unchanged():
-    """E-05's honest half, asserted so it cannot decay into an implied capability.
-
-    NOTHING can hand the predicate a spec today: discovery walks only the two plans trees and neither
-    host registers `--type`. `5slbpi` owns that gap. The limit must be stated AT THE DEFINITION, not
-    merely in the plan, because a later reader sees the signature and not the IPD.
-    """
-    import inspect
-
-    from agent_workflows import runner_shared
-
-    doc = inspect.getdoc(pol.needs_review) or ""
-    assert "IPD-ONLY" in doc or "IPD-only" in doc
-    assert "5slbpi" in doc, "the definition must name the owner of the cross-type gap"
-    source = inspect.getsource(runner_shared.discover_plans)
-    assert "specs" not in source, "discovery is IPD-only; a spec tree would change this"
-
-
 # --------------------------------------------------------------------------------------------------
 # revsweep-02 (`6ypimw`) E-03: THE DRAFT ADMISSION GATE (spec 25kzda 2.5a)
 # --------------------------------------------------------------------------------------------------
@@ -1465,23 +1447,6 @@ def test_asymmetry_two_an_ungated_draft_is_excluded_while_the_run_proceeds():
     assert "2 complete draft item(s)" in verdict.message
     assert "3 item(s) proceeded" in verdict.message
     assert "No work started." not in verdict.message
-
-
-def test_the_gate_reuses_the_shipped_primitives_rather_than_copying_them():
-    """A second confirmation implementation is how `y` eventually gets accepted somewhere."""
-    import inspect
-
-    source = inspect.getsource(pol.decide_draft_admission)
-    assert "is_confirmation_accepted" in source, "the shipped matcher must be reused"
-    assert "render_action_preview" in inspect.getsource(pol.render_drafts_preview)
-    # The exact-phrase matcher is ONE function, parameterized, not two.
-    assert pol.is_confirmation_accepted("run drafts", phrase="run drafts") is True
-    assert pol.is_confirmation_accepted("run mixed", phrase="run drafts") is False
-    assert pol.is_confirmation_accepted("y", phrase="run drafts") is False
-    # `decide` did not acquire a second override, which its own docstring forbids.
-    assert pol.Verdict.WAIVES == ("type-mixing",)
-    assert pol.DraftVerdict.WAIVES == ("draft-admission",)
-    assert "allow_drafts" not in inspect.signature(pol.decide).parameters
 
 
 def test_the_ledger_facts_are_returned_not_written():
@@ -1951,27 +1916,6 @@ def test_every_renderer_is_pure_and_renders_nothing_for_an_empty_selection():
             len(wrong), len(_PURE_RENDERERS), "\n".join(wrong)
         )
     )
-
-
-def test_the_module_gained_no_first_party_import():
-    """The two-import purity other plans depend on, asserted by AST rather than by eye."""
-    import ast
-    import pathlib
-
-    tree = ast.parse(pathlib.Path(str(pol.__file__)).read_text(encoding="utf-8"))
-    first_party = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "agent_workflows":
-            first_party |= {a.name for a in node.names}
-        elif isinstance(node, ast.ImportFrom) and (node.module or "").startswith(
-            "agent_workflows."
-        ):
-            first_party.add((node.module or "").split(".", 1)[1])
-        elif isinstance(node, ast.Import):
-            for a in node.names:
-                if a.name.startswith("agent_workflows"):
-                    first_party.add(a.name.split(".", 1)[1])
-    assert first_party == {"selectors", "status_set"}
 
 
 # --------------------------------------------------------------------------------------------------

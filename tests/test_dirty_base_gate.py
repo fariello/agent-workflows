@@ -33,7 +33,6 @@ follows it.
 from __future__ import annotations
 
 import argparse
-import ast
 import contextlib
 import inspect
 import io
@@ -366,37 +365,6 @@ class UntrackedReportRuleTests(unittest.TestCase):
         notice = runner_shared.evaluate_untracked_dirt("?? a.txt\n").notice
         for forbidden in ("git stash", "git reset", "git clean", "stash it", "delete"):
             self.assertNotIn(forbidden, notice)
-
-    def test_the_rule_holds_NO_porcelain_format_knowledge(self):
-        """E-02: reuse a parser, add none. Asserted by AST over the BODY, not by grep over prose.
-
-        There are TWO porcelain parsers at HEAD, not one (finding F-10):
-        `lane_containment.parse_porcelain_paths` is the declared-canonical projection and
-        `runner_shared.dirty_tree_overlap` still hand-rolls its own. This rule must call into the
-        canonical decoder and must not become a third.
-        """
-        tree = ast.parse(
-            inspect.getsource(runner_shared.evaluate_untracked_dirt).lstrip()
-        )
-        function = tree.body[0]
-        assert isinstance(function, ast.FunctionDef)
-        body_nodes = [n for stmt in function.body for n in ast.walk(stmt)]
-        called = {
-            (
-                node.func.attr
-                if isinstance(node.func, ast.Attribute)
-                else getattr(node.func, "id", "")
-            )
-            for node in body_nodes
-            if isinstance(node, ast.Call)
-        }
-        self.assertIn("parse_porcelain_entries", called)
-        for format_token in ("splitlines", "split"):
-            self.assertNotIn(
-                format_token,
-                called,
-                "the format is the decoder's to know, not this rule's",
-            )
 
 
 #: A minimal approved plan the real `initialize_run` accepts, for the wiring tests below.

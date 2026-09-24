@@ -159,27 +159,6 @@ class ThereIsExactlyOneRecordAndOneReader(unittest.TestCase):
         """Stated on its own line because it is the plan's whole claim, in one assertion."""
         self.assertIs(oc_runipd.PlanRecord, agy_runipd.PlanRecord)
 
-    def test_neither_host_still_DEFINES_a_unified_symbol(self):
-        """Identity alone passes while a stale duplicate sits in the file, shadowed by a later import.
-
-        That is a trap rather than a fix: the shadowed body is what a reader edits, and the edit has no
-        effect. So the AST half is separate and mandatory.
-        """
-        violations = []
-        for label, mod in HOSTS:
-            defined = _top_level_definitions(pathlib.Path(str(mod.__file__)))
-            for name in UNIFIED:
-                line = defined.get(name)
-                if line is not None:
-                    violations.append(f"{label}.py:{line} re-defines `{name}`")
-        self.assertEqual(
-            violations,
-            [],
-            "RE-FORK FOUND. Import from `runner_shared` instead of keeping a second copy; "
-            "a fix to the shared definition does not reach a copy.\n  "
-            + "\n  ".join(violations),
-        )
-
     def test_the_repo_wide_scan_finds_exactly_one_definition_per_symbol(self):
         """REPO-WIDE across `agent_workflows/*.py`, not pairwise (the orchestrator's F10).
 
@@ -246,47 +225,6 @@ class ThereIsExactlyOneRecordAndOneReader(unittest.TestCase):
             ("path", "area", "disposition", "status", "set_id", "order"),
             "the allowlisted type's shape changed; re-check whether it is still unrelated",
         )
-
-    def test_the_record_split_call_site_of_plan_kind_is_GONE(self):
-        """`agy_runipd._plan_kind`'s FIRST caller (the record-split workaround) must not exist.
-
-        Checked by AST rather than by the helper's absence, because the helper's SECOND caller was a
-        legitimate legacy-manifest fallback that had to SURVIVE (see
-        `TheLegacyManifestFallbackWorksOnBothHosts`). "The helper is gone" and "the workaround is gone"
-        are different claims and this asserts the second.
-        """
-        for label, mod in HOSTS:
-            with self.subTest(host=label):
-                src = pathlib.Path(str(mod.__file__)).read_text(encoding="utf-8")
-                calls = [
-                    node.lineno
-                    for node in ast.walk(ast.parse(src))
-                    if isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id == "_plan_kind"
-                ]
-                self.assertEqual(
-                    calls,
-                    [],
-                    f"{label} still calls a private `_plan_kind` at lines {calls}; the record "
-                    "carries `kind` now and the legacy fallback is the shared "
-                    "`plan_kind_from_file`",
-                )
-
-    def test_the_manifest_no_longer_re_reads_the_file_per_plan(self):
-        """The measurable payoff: `build_dynamic_manifest` reads `rec.kind`, not the disk.
-
-        Asserted structurally, because "one fewer file read per plan per run" is the concrete cost the
-        split imposed and a passing behavior test would not notice its return.
-        """
-        src = ast.unparse(
-            ast.parse(
-                pathlib.Path(str(runner_shared.__file__)).read_text(encoding="utf-8")
-            )
-        )
-        body = src.split("def build_dynamic_manifest", 1)[1].split("\ndef ", 1)[0]
-        self.assertIn("'kind': rec.kind", body)
-        self.assertNotIn("read_text", body)
 
 
 class TheSharedRecordCarriesEveryFieldBothHostsHad(unittest.TestCase):

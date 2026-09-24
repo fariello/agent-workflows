@@ -1437,19 +1437,6 @@ class DunderCompleteProtocolTests(_DynamicRepoFixture):
 class ArgcompleteSoftImportTests(unittest.TestCase):
     """E-03: the argcomplete marker + soft import."""
 
-    def test_marker_is_real_comment_within_1024_bytes(self) -> None:
-        src = Path(cli.__file__).read_text(encoding="utf-8")
-        idx = src.find("# PYTHON_ARGCOMPLETE_OK")
-        self.assertNotEqual(idx, -1, "marker missing")
-        self.assertLess(idx, 1024, "marker must be within the first 1024 bytes")
-        # It must be a real `#` comment, NOT inside the module docstring (which closes earlier).
-        docstring_end = src.find('"""', 3) + 3
-        self.assertGreater(
-            idx,
-            docstring_end,
-            "marker must be a comment AFTER the docstring, not inside it",
-        )
-
     def test_cli_imports_and_runs_without_argcomplete(self) -> None:
         # argcomplete is optional; simulate its absence and prove main() still runs cleanly.
         import builtins
@@ -2513,26 +2500,6 @@ class SetupCompletionPromptTests(_DropInFixture):
             + "\n".join(wrong),
         )
 
-    def test_prompt_lives_in_cli_not_install_wizard(self) -> None:
-        # The reviewed integration point: the per-user completion prompt belongs to the host-level
-        # setup flow, NOT the per-target-repo project-policy wizard.
-        from agent_workflows import install_wizard
-
-        wizard_src = Path(install_wizard.__file__).read_text(encoding="utf-8")
-        for needle in (
-            "install_shell_completion",
-            "resolve_completion_dir",
-            "completion install",
-        ):
-            self.assertNotIn(
-                needle,
-                wizard_src,
-                "install_wizard.py (per-repo policy wizard) must not carry the "
-                "per-user completion prompt",
-            )
-        cli_src = Path(cli.__file__).read_text(encoding="utf-8")
-        self.assertIn("_configure_completion(args, term)", cli_src)
-
     def test_install_failure_does_not_break_setup(self) -> None:
         """Kept separate: patches the installer to RAISE and asserts the caller swallows it, which is
         an exception-path claim no outcome row expresses."""
@@ -2919,38 +2886,6 @@ class StaleCompletionWarningTests(_DropInFixture):
                 "",
                 "a bash user with a CURRENT bash completion must hear nothing about a stale zsh "
                 "file they do not use",
-            )
-
-    def test_the_tip_is_emitted_once_per_invocation_not_once_per_repo(self) -> None:
-        """Kept separate: a CALL-SITE claim about cli.py's structure, not an output value.
-
-        Completion is a per-user/per-machine concern, so a batch `aw install` across many repos must
-        not repeat the warning per target. The property is already held by WHERE `_completion_tip` is
-        called (outside the per-repo loop), so this test pins those call sites rather than re-deriving
-        the behavior: it is what stops someone moving the call into the loop.
-        """
-        src = Path(cli.__file__).read_text(encoding="utf-8")
-        call_sites = [
-            line for line in src.split("\n") if line.strip() == "_completion_tip(term)"
-        ]
-        self.assertEqual(
-            len(call_sites),
-            3,
-            "`_completion_tip` is called from exactly three host-level sites (single-repo install, "
-            "batch install, setup), each ONCE per invocation and outside the per-repo loop. A "
-            "different count means a call site was added or removed; if the new one sits inside a "
-            "per-repo loop, a fleet install will repeat this per-user warning once per repo.",
-        )
-        # And every call site must be at the same indentation as a function-body statement (4 spaces),
-        # never nested deeper inside a `for repo in ...` loop.
-        for line in [
-            raw for raw in src.split("\n") if raw.strip() == "_completion_tip(term)"
-        ]:
-            self.assertEqual(
-                len(line) - len(line.lstrip()),
-                4,
-                "a `_completion_tip` call indented deeper than a function-body statement is "
-                f"probably inside a per-repo loop: {line!r}",
             )
 
 

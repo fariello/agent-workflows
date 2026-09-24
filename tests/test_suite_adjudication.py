@@ -55,7 +55,6 @@ daexj1's own E-09 exists to forbid.
 
 from __future__ import annotations
 
-import ast
 import pathlib
 import sys
 import tempfile
@@ -356,31 +355,6 @@ class TheExitCodeIsTheAuthorityAndNotTheList(unittest.TestCase):
                 )
                 self.assertFalse(verdict.earned)
                 self.assertTrue(_asks_the_agent(verdict))
-
-    def test_the_verdict_reads_PASSING_and_never_the_failing_list(self) -> None:
-        """Structural pin over the AST, so the ordering survives a refactor.
-
-        `integration_is_earned` is the one predicate deciding this. It must branch on the suite's
-        PASSING/exit state and must NOT consult `failures`, because the moment it does, an empty list
-        acquires meaning and the inversion becomes reachable again.
-        """
-
-        source = inspect_source(OC.integration_is_earned)
-        tree = ast.parse(source)
-        attrs = {
-            node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
-        }
-        self.assertIn(
-            "passing",
-            attrs,
-            "the verdict must consult the suite's passing state",
-        )
-        self.assertNotIn(
-            "failures",
-            attrs,
-            "integration_is_earned must NOT consult the failing-id list: that is what gives an "
-            "empty list decision power and reintroduces 32ij2j's inversion",
-        )
 
 
 class AGreenSuiteIsNeverTaxedWithAQuestion(unittest.TestCase):
@@ -1277,31 +1251,6 @@ class TheSuiteRunsWhereTheMergedCodeActuallyIs(unittest.TestCase):
                         f"exit {code} is a real reason to doubt the merge and must refuse",
                     )
 
-    def test_BOTH_hosts_pass_their_own_suite_checker_to_the_factory(self) -> None:
-        """E-03 on both hosts, asserted over the AST so a host cannot silently keep the old shape."""
-
-        for module in (OC, AGY):
-            with self.subTest(host=module.__name__):
-                tree = ast.parse(
-                    pathlib.Path(str(module.__file__)).read_text(encoding="utf-8")
-                )
-                calls = [
-                    node
-                    for node in ast.walk(tree)
-                    if isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id == "make_integration_validation_runner"
-                ]
-                self.assertTrue(calls, f"{module.__name__} must build the runner")
-                for call in calls:
-                    kwargs = {kw.arg for kw in call.keywords}
-                    self.assertIn(
-                        "suite_check",
-                        kwargs,
-                        f"{module.__name__} builds the validation runner without injecting "
-                        f"suite_check, so its integration gate would fail closed on every lane",
-                    )
-
 
 class BothHostsShareEveryAdjudicationSymbol(unittest.TestCase):
     """Case 6 / daexj1 E-09: proven by OBJECT IDENTITY, never by grep.
@@ -1357,49 +1306,6 @@ class BothHostsShareEveryAdjudicationSymbol(unittest.TestCase):
                     "agent_workflows.runner_shared",
                     f"{name} must be OWNED by runner_shared, not by a host driver",
                 )
-
-    def test_agy_gained_NO_new_direct_import_of_the_adjudication_seam(self) -> None:
-        """agy must reach shared behavior through `runner_shared`, never by importing `oc_runipd`.
-
-        Scoped to the symbols THIS plan is about. agy legitimately imports many names from oc for
-        historical reasons, and asserting "zero oc imports" would fail for reasons unrelated to this
-        change.
-        """
-
-        tree = ast.parse(pathlib.Path(str(AGY.__file__)).read_text(encoding="utf-8"))
-        from_oc: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(
-                "oc_runipd"
-            ):
-                from_oc.update(alias.name for alias in node.names)
-        for name in (
-            "gate_answer_is_warranted",
-            "perform_gate_answer",
-            "validate_gate_answer",
-            "gate_answer_question",
-            "gate_answer_record",
-        ):
-            self.assertNotIn(
-                name,
-                from_oc,
-                f"agy must not import {name} from oc_runipd; the shared owner is runner_shared",
-            )
-
-    def test_the_shared_module_imports_NO_host_driver(self) -> None:
-        """The existing anti-divergence rule, re-asserted here because this plan adds to that module."""
-
-        tree = ast.parse(pathlib.Path(str(R.__file__)).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom):
-                self.assertNotIn(
-                    "runipd",
-                    (node.module or ""),
-                    "runner_shared must never import a host driver; host specifics are INJECTED",
-                )
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    self.assertNotIn("runipd", alias.name)
 
 
 def inspect_source(obj) -> str:

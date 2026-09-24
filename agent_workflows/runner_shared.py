@@ -879,6 +879,65 @@ def save_state(
     write_report(run_dir, state)
 
 
+def add_output_mode_flags(
+    sub_parser: argparse.ArgumentParser,
+    *,
+    verbosity_default: int | None = 0,
+    verbose_help: str,
+    raw_help: str = "Stream the child agent's raw JSON events verbatim",
+) -> None:
+    """Register the display-mode flag trio (`--quiet`/`--raw` plus `-v`) on one subparser.
+
+    ONE DEFINITION, replacing the two host copies (`hostdedup` residue, 2026-09-23). The two bodies
+    were 6 `ast.unparse` code lines each and differed in NOTHING but two help strings: oc's `--raw`
+    said "(legacy behavior)" and each host described its own `-vv` tier. Those are the two parameters,
+    so the rendered `--help` of BOTH hosts is byte-identical to what it was before this lift.
+
+    `verbose_help` IS REQUIRED AND HAS NO DEFAULT, deliberately. The `-vv` sentence genuinely differs
+    per host (oc shows diff hunks and diagnostics; agy shows raw tool parameters), and a default here
+    would silently give one host the other's documentation, which is exactly the drift this
+    consolidation exists to stop. `raw_help` DOES default, because agy's shorter form is the one
+    without a parenthetical about legacy behavior that only oc has.
+
+    WHY THE TRIO IS NOT ONE MUTUALLY EXCLUSIVE GROUP: `--raw`/`--quiet` choose WHICH renderer runs and
+    are exclusive; `-v` tunes how much the default `clean` renderer shows and composes with neither.
+    That distinction is the reason the original two copies were shaped this way and it is preserved.
+
+    DELIBERATELY NOT IN `RUN_POLICY_FLAGS`: that table is the closed flag list spec `25kzda` 2.1
+    declares and `tests/test_run_flag_surface.py` asserts against the spec file, so registering a
+    DISPLAY flag there would fail `test_no_owned_flag_is_absent_from_the_spec`.
+
+    `verbosity_default` is `0` on `start` (a bare run freezes tier 0) and `None` on `resume`, so an
+    OMITTED flag on resume leaves the frozen value untouched rather than resetting it to 0 - the same
+    `None`-means-absent convention :func:`apply_run_policy_flags_on_resume` uses for policy flags.
+    """
+
+    group = sub_parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--quiet",
+        dest="output_mode",
+        action="store_const",
+        const="quiet",
+        help="Only per-IPD banners and a periodic heartbeat (no per-event lines)",
+    )
+    group.add_argument(
+        "--raw",
+        dest="output_mode",
+        action="store_const",
+        const="raw",
+        help=raw_help,
+    )
+    sub_parser.set_defaults(output_mode="clean")
+    sub_parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbosity",
+        action="count",
+        default=verbosity_default,
+        help=verbose_help,
+    )
+
+
 def print_status(run_dir: Path, *, driver_label: str) -> None:
     state = load_state(run_dir)
     pal = Palette(should_color(sys.stdout))
@@ -10864,6 +10923,245 @@ def match_spec_selector(
         shadowed_plans=tuple(sorted(shadowed)),
         repo=Path(repo),
     )
+
+
+def expand_selectors(
+    manifest: dict[str, Any],
+    selectors: Iterable[str],
+    repo: Path | None = None,
+    types: Any = None,
+    *,
+    labels: HostLabels,
+) -> list[str]:
+    """Resolve selector tokens (id6, setid, file paths, or 'all') against the manifest and repo.
+
+    `types` (specsweep-01 `ui8b9b` E-02) is the operator's `--type` set, honored by the REVIEW sweep
+    only. It is KEYWORD-OPTIONAL and defaults to `None`, which `resolve_run_types` reads as the
+    normative IPD-only default, so every existing call site (including the shipped tests that call
+    this with three positional arguments) keeps its exact behavior.
+
+    ONE DEFINITION SINCE 2026-09-23 (`hostdedup` residue, the part `1f7xno` left behind). The two host
+    copies were 97 `ast.unparse` code lines each at similarity 0.958 and differed in exactly TWO
+    things: the `HostLabels` passed to `describe_spec_selector_refusal`, which is now the keyword-only
+    `labels` parameter, and the name of an UNUSED loop variable (`setid` versus `_setid`; the
+    underscore form is kept because it IS unused). Nothing else, so neither host's behavior changes.
+
+    `labels` IS KEYWORD-ONLY AND REQUIRED, matching the convention `describe_spec_selector_refusal`
+    and `enforce_requested_action` already use in this module. It is not defaulted: a default would
+    silently give one host the other host's refusal text, which is the drift this lift removes.
+    """
+    plans = manifest.get("plans", {})
+    sets = manifest.get("sets", {})
+    selectors_list = [str(s).strip() for s in selectors]
+
+    if len(selectors_list) == 1 and selectors_list[0].lower() in (
+        "reviews",
+        "review",
+        "to-review",
+    ):
+        # revsweep-02 (`6ypimw`) E-02: THE SHARED membership test, replacing a `_needs_review` closure
+        # that was a VERBATIM duplicate of agy's and that tested `status == "to-review"` while
+        # `determine_action` (below) routed `to-review` AND `draft` to `review`. Spec 25kzda 2.4a
+        # property 2 requires membership to BE the Section 3 dispatch table, implemented ONCE, "so an
+        # item the table routes to review and an item the sweep selects are the same set BY
+        # CONSTRUCTION". The shared function derives the answer from `run_selection_policy`'s action
+        # table and reads plan text only for `draft` candidates, failing safe to NOT-swept.
+        #
+        # specsweep-01 (`ui8b9b`) E-02: ROUTED THROUGH THE TYPE-SCOPED ENTRY POINT, which for `ipd`
+        # delegates to `sweep_review_candidates` VERBATIM (same manifest walk, same Set ordering, same
+        # memoized decision), so a bare invocation's selection is unchanged. The agy twin does the
+        # same; membership stays the ONE shared predicate and gains no second copy here.
+        expanded = sweep_review_candidates_for_types(repo, types, manifest=manifest)
+
+        if not expanded:
+            # revsweep 76gsmv E-04: spec 25kzda 2.4a property 3. The message stays the same string
+            # it always was, so any log-scraper still matches; only the TYPE changed, which is what
+            # lets `main` exit 0 for the status selectors WITHOUT relaxing `DriverError` generally.
+            raise EmptyStatusSelection(
+                "No items in 'to-review' state found in repository"
+            )
+        return expanded
+
+    if len(selectors_list) == 1 and selectors_list[0].lower() == "all":
+        expanded: list[str] = []
+        seen: set[str] = set()
+        # setidsel (`7ap6ku`): `all` keeps its OWN, STRICTER test, and the difference from the
+        # selector admission test below is deliberate rather than an oversight. `all` means "sweep
+        # everything actionable", so it must additionally exclude a plan that is finished
+        # (`executed`) or standing (`reusable`) or status-less, none of which anyone asked for by
+        # name. A NAMED selector cannot use this stricter rule: an `executed` plan is a legitimate
+        # queue member when a dependent declares `executed:<id6>` on it, and a status-less entry is
+        # normal in a hand-written manifest. So the shared predicate refuses only the DELIBERATELY
+        # RETIRED, and this branch narrows further on its own behalf.
+        _is_actionable = manifest_entry_is_sweepable
+
+        # 1. Walk sets in manifest in defined order
+        for _setid, group in sets.items():
+            for id6 in group.get("order", []):
+                p = plans.get(id6, {})
+                if _is_actionable(p):
+                    if id6 not in seen:
+                        expanded.append(id6)
+                        seen.add(id6)
+
+        # 2. Standalone plans in manifest
+        for id6, p in plans.items():
+            if id6 not in seen:
+                if _is_actionable(p):
+                    expanded.append(id6)
+                    seen.add(id6)
+
+        if not expanded:
+            raise DriverError("No actionable pending IPDs found in repository")
+        return expanded
+
+    expanded = []
+    seen = set()
+    # setidsel (`7ap6ku`): every candidate DROPPED as already-finished, so an empty result can say
+    # WHICH plans it skipped and why instead of claiming no selector was given.
+    filtered_out: list[str] = []
+
+    for selector in selectors:
+        sel_str = str(selector).strip()
+        matched_set: str | None = None
+        candidates: list[str] = []
+
+        file_cand = Path(sel_str)
+        if repo and not file_cand.is_absolute():
+            repo_file_cand = repo / sel_str
+        else:
+            repo_file_cand = file_cand
+
+        matched_file_id: str | None = None
+        for fc in (file_cand, repo_file_cand):
+            try:
+                if fc.is_file():
+                    rec = parse_plan_file(fc.resolve(), repo or Path.cwd())
+                    if rec:
+                        matched_file_id = rec.id6
+                        if rec.id6 not in plans:
+                            plans[rec.id6] = {
+                                "set": rec.setid,
+                                "file": rec.rel_path,
+                                "status": rec.status,
+                                "order": rec.order,
+                                "dependencies": rec.dependencies,
+                                "kind": rec.kind,
+                            }
+                        break
+            except OSError:
+                pass
+
+        if matched_file_id:
+            candidates = [matched_file_id]
+        elif sel_str in plans:
+            candidates = [sel_str]
+        elif sel_str in sets:
+            matched_set = sel_str
+            candidates = sets[sel_str]["order"]
+        else:
+            prefix_matches = [s for s in sets if s.startswith(sel_str)]
+            if len(prefix_matches) == 1:
+                matched_set = prefix_matches[0]
+                candidates = sets[prefix_matches[0]]["order"]
+            elif len(prefix_matches) > 1:
+                raise DriverError(
+                    f"Ambiguous Set selector prefix: {sel_str} matches {prefix_matches}"
+                )
+            else:
+                # graduate-02 (`iuxtjy`) E-02: THE TYPED SPEC BRANCH, AHEAD OF THE FILENAME-SUBSTRING
+                # FALLBACK BELOW, and the ORDER is the correctness content rather than the branch
+                # (F-13). The fallback matches a spec's own id6 inside an adopting plan's filename, so
+                # naming a spec selected a PLAN ABOUT it - measured at execution time for five
+                # discoverable spec id6s, two of them silently. Sited after the exact-plan and Set
+                # branches (verified: no discoverable spec id6 is a plan id6, a Set name, or a Set
+                # prefix, so this steals nothing) and before the fallback, where it is the only
+                # position that actually fixes the unambiguous cases. Shared with the agy host; do not
+                # fork the logic here.
+                spec_match = match_spec_selector(repo, sel_str, plans)
+                if spec_match is not None:
+                    raise DriverError(
+                        describe_spec_selector_refusal(spec_match, labels=labels)
+                    )
+                matching_plans = [
+                    id6
+                    for id6, p in plans.items()
+                    if sel_str in p.get("file", "")
+                    or sel_str in Path(p.get("file", "")).name
+                ]
+                if len(matching_plans) == 1:
+                    candidates = matching_plans
+                elif len(matching_plans) > 1:
+                    raise DriverError(
+                        f"Ambiguous filename selector: {sel_str} matches multiple plans: {matching_plans}"
+                    )
+                else:
+                    raise DriverError(describe_unresolved_plan_selector(repo, sel_str))
+
+        if matched_set is not None and not candidates:
+            raise DriverError(
+                f"Set '{matched_set}' has an empty order (no plans to run)"
+            )
+
+        # setidsel (`7ap6ku`): EVERY branch above converges here, which is why the admission test
+        # belongs at this one point rather than repeated per branch. Before this, only the `all`
+        # branch filtered, so naming a Set (the ordinary way an operator names work) queued its
+        # RETIRED plans with a live `execute` action - measured at 587 terminal plans across 271 Sets.
+        #
+        # THE TWO SHAPES ARE DELIBERATELY DIFFERENT, and the discriminator is whether the operator
+        # named THIS PLAN or named a CONTAINER that happens to hold it:
+        #
+        #   * A SET MEMBER is dropped SILENTLY. A Set is a topic label spanning a plan's whole
+        #     history, so a mature Set legitimately holds executed and superseded members forever;
+        #     refusing the Set because it contains its own finished work would make `aw oc run <set>`
+        #     unusable for exactly the Sets that have made progress. Dropping is also what `all`
+        #     already does, so the two selectors now agree.
+        #   * AN EXPLICITLY NAMED PLAN (bare id6, filename, or file path) REFUSES LOUDLY. The
+        #     operator typed that identifier, so silently expanding it to nothing would report
+        #     "At least one id6 or Set selector is required" and leave them re-reading their own
+        #     command line for a typo that is not there. Say which plan, what state it is in, and
+        #     that the state is why.
+        explicit_plan = matched_set is None and len(candidates) == 1
+        for id6 in candidates:
+            if id6 in seen:
+                continue
+            if not manifest_entry_is_selectable(plans.get(id6, {})):
+                if explicit_plan:
+                    info = plans.get(id6, {}) or {}
+                    raise DriverError(
+                        f"Plan {id6} is {str(info.get('status', '') or 'unknown')!r} and was "
+                        f"RETIRED, so it cannot be run: "
+                        f"{info.get('file', '(unknown path)')}. A retired plan "
+                        f"({sorted(RETIRED_PLAN_STATUSES)}) is one whose work was "
+                        f"deliberately decided against, so re-running it would implement a decision "
+                        f"that was reversed. If it should run again, transition it out of its "
+                        f"retired disposition first."
+                    )
+                filtered_out.append(id6)
+                continue
+            expanded.append(id6)
+            seen.add(id6)
+
+    if not expanded:
+        # setidsel (`7ap6ku`): DISTINGUISH "you named nothing" from "everything you named is
+        # finished", because the fix above made the second case COMMON (263 Sets in this repository
+        # hold only terminal plans) and the old single message asserted the first, sending an
+        # operator to hunt a typo in a selector that resolved perfectly well. Naming the dropped
+        # plans is the whole point: it says the Set was found, what was in it, and why none of it ran.
+        if filtered_out:
+            detail = ", ".join(
+                f"{i} ({(plans.get(i) or {}).get('status', '') or 'unknown'})"
+                for i in filtered_out
+            )
+            raise DriverError(
+                f"Every plan the selector(s) matched was RETIRED, so there is nothing to run: "
+                f"{detail}. A retired plan "
+                f"({sorted(RETIRED_PLAN_STATUSES)}) is one whose work was "
+                f"deliberately decided against. This is not a selector typo: the plans were found "
+                f"and deliberately skipped."
+            )
+        raise DriverError("At least one id6 or Set selector is required")
+    return expanded
 
 
 def describe_spec_selector_refusal(

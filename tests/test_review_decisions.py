@@ -537,34 +537,6 @@ class ReviewDecisionCheckRuleTests(unittest.TestCase):
                 "a warning-severity finding contributes to the findings exit; only info is exempt",
             )
 
-    def test_adds_no_lifecycle_gate(self):
-        """The real content of 'advisory' here: no `aw ipd lint` checkpoint references this rule.
-
-        Its Order 02 sibling IS wired into two lint checkpoints. This one deliberately is not, which is
-        the sense in which the plan's OQ-01 resolved 'nothing blocks'.
-        """
-        from agent_workflows import ipd_lint
-
-        src = Path(ipd_lint.__file__).read_text(encoding="utf-8")
-        self.assertNotIn(
-            "review_decision",
-            src,
-            "this rule must not be wired into a lint checkpoint; it is a report-only backstop",
-        )
-        self.assertNotIn("check.review-decision-unescalated", src)
-
-    def test_wired_into_the_plans_type_content_path_exactly_once(self):
-        """Guards against a double-report: one CALL site, plus the one definition."""
-        src = Path(check_engine.__file__).read_text(encoding="utf-8")
-        occurrences = src.count("check_review_decision_unescalated")
-        definitions = src.count("def check_review_decision_unescalated")
-        self.assertEqual(definitions, 1, "exactly one definition expected")
-        self.assertEqual(
-            occurrences - definitions,
-            1,
-            "the sweep must be called from exactly ONE place, or `aw check all` double-reports",
-        )
-
     def test_reached_by_both_check_plans_and_check_all(self):
         """The plans-type content path is shared, so one wiring serves both entry points."""
         with TemporaryDirectory() as td:

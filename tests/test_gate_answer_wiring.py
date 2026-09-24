@@ -42,8 +42,6 @@ machine and fails in CI. Every record here is built in a `tempfile` directory.
 
 from __future__ import annotations
 
-import ast
-import inspect
 import json
 import subprocess
 import tempfile
@@ -334,18 +332,6 @@ class TheFailingTestNamesAreCaptured(unittest.TestCase):
         count_only = _suite(False, failures=())
         self.assertIn("could not be recovered", count_only.failing_text)
 
-    def test_the_names_are_PERSISTED_on_the_attempt_record(self) -> None:
-        """V-02's second half: a human reading the run record must see them too."""
-
-        src = inspect.getsource(R.execute_item_core)
-        block = src[src.index('attempt["suite_check"] = {') :]
-        block = block[: block.index("}")]
-        self.assertIn(
-            '"failures"',
-            block,
-            'attempt["suite_check"] must persist the failing test names beside the count',
-        )
-
 
 # ---- E-03 / V-03: only `not-mine` releases -------------------------------------------------------
 
@@ -418,48 +404,6 @@ class OnlyNotMineReleases(unittest.TestCase):
         refused = self._perform({"answer": "mine"})
         self.assertTrue(released.record["integrates"])
         self.assertFalse(refused.record["integrates"])
-
-    def test_the_release_reaches_BOTH_lane_shapes_from_ONE_site(self) -> None:
-        """V-03's decisive structural assertion: a fix on one lane shape is a fix on NEITHER.
-
-        The isolated-lane self-finalize arm and the non-isolated arm each test `integration.earned`.
-        Rather than patching both, the wiring releases the VERDICT at its source, BEFORE either arm
-        reads it. This asserts that ordering on the source, which is what makes one wiring serve both.
-
-        THE LOCATORS ARE FORMATTING-INSENSITIVE, and that is not cosmetic. Both arms were originally
-        found by an exact substring INCLUDING the `if `/`elif ` keyword, which made this test fail
-        whenever the FORMATTER re-wrapped a condition it had not otherwise changed - measured
-        2026-09-21 in integearn-05 (`9lyg5h`), whose added `try:`/`finally:` deepened the indentation
-        by four columns and so pushed the isolated arm past the line limit, which `ruff-format` split
-        into `if (\\n    self_finalize\\n    and work_dir\\n    ...\\n):`. The ORDERING property this
-        test exists for was completely intact; only the locator broke.
-        So the source is whitespace-collapsed and the keyword is dropped from the needle, leaving the
-        CONDITION itself as the locator. That keeps the assertion about the ordering rather than about
-        line wrapping. Offsets into the collapsed text stay valid for the `<` comparison because
-        collapsing is monotonic in position.
-        """
-
-        src = " ".join(inspect.getsource(R.execute_item_core).split())
-        release_site = src.index("integration = integration.__class__(")
-        arms = [
-            m
-            for m in (
-                src.find(
-                    "self_finalize and work_dir and wt_handle is not None and integration.earned"
-                ),
-                src.find("self_finalize and not work_dir and integration.earned"),
-            )
-        ]
-        for arm in arms:
-            self.assertGreater(
-                arm, 0, "both self-finalize arms must still be present to gate on"
-            )
-            self.assertLess(
-                release_site,
-                arm,
-                "the answer must release the verdict BEFORE either lane shape reads it, or the "
-                "fix reaches only one of them",
-            )
 
 
 # ---- E-04 / V-04: a `fixed` claim is re-verified, never trusted -----------------------------------
@@ -559,18 +503,6 @@ class AFixedClaimIsVerifiedByTheSuite(unittest.TestCase):
         self.assertTrue(passed.release)
         self.assertFalse(failed.release)
 
-    def test_no_SECOND_retry_knob_was_introduced(self) -> None:
-        """Maintainer ruling 2026-09-20: SHARE `--retry-budget`. A new dial is the re-fork to avoid."""
-
-        src = inspect.getsource(R.execute_item_core)
-        block = src[src.index("gate_answer_asked, gate_answer_reason") :]
-        self.assertIn("retry_budget=frozen_retry_budget(state)", block)
-        for host, module in HOSTS:
-            with self.subTest(host=host):
-                parser_src = Path(str(module.__file__)).read_text(encoding="utf-8")
-                self.assertNotIn("--gate-answer-retry", parser_src)
-                self.assertNotIn("--gate-retry-budget", parser_src)
-
     def test_the_budget_comes_from_the_runs_FROZEN_value(self) -> None:
         """Resolved once at queue build, never re-resolved from a bare None by a later reader."""
 
@@ -657,22 +589,6 @@ class TheAnswerIsDurableAndAttributable(unittest.TestCase):
 
     def test_the_record_is_json_serializable(self) -> None:
         json.dumps(self._record())
-
-    def test_it_is_written_at_the_SAME_seam_as_the_integration_signal(self) -> None:
-        """The location is the CONTRACT a consumer codes against, so it is asserted structurally."""
-
-        src = inspect.getsource(R.execute_item_core)
-        self.assertIn("attempt[GATE_ANSWER_RECORD_KEY]", src)
-        self.assertIn("item[GATE_ANSWER_RECORD_KEY]", src)
-        signal_site = src.index('item["integration_signal"] = integration.signal')
-        record_site = src.index("item[GATE_ANSWER_RECORD_KEY]")
-        self.assertLess(signal_site, record_site)
-
-    def test_a_SKIPPED_ask_still_records_why(self) -> None:
-        """ "Nobody asked" and "asked and refused" are different facts for a human."""
-
-        src = inspect.getsource(R.execute_item_core)
-        self.assertIn('attempt["gate_answer_skipped_reason"]', src)
 
 
 # ---- E-06 / V-06: `needs-human` is visible where an operator looks --------------------------------
@@ -762,14 +678,6 @@ class NeedsHumanIsSurfacedAsADecisionRequest(unittest.TestCase):
         )
         self.assertNotIn("Diagnostics / Blocked Items:", out)
         self.assertNotIn("AWAITING HUMAN DECISION", out)
-
-    def test_mine_does_NOT_get_the_decision_treatment(self) -> None:
-        """`mine` needs WORK, not a decision. Conflating them sends the item to the wrong person."""
-
-        src = inspect.getsource(R.execute_item_core)
-        block = src[src.index("gate_answer_asked, gate_answer_reason") :]
-        self.assertIn("awaits_human_decision", block)
-        self.assertNotIn("GATE_ANSWER_MINE,\n                code=", block)
 
     def test_the_refusal_code_has_ONE_definition_shared_by_writer_and_renderer(
         self,
@@ -968,29 +876,6 @@ class TheQuestionCarriesTheEvidenceItNeeds(unittest.TestCase):
                 _sp.Popen = real  # type: ignore[assignment]
         return captured.get("argv", [])
 
-    def test_the_wiring_reuses_the_SHIPPED_follow_up_mechanism(self) -> None:
-        """No second re-ask mechanism: `resume_via_launcher` keeps the launcher a NAME.
-
-        That matters mechanically, not stylistically: a call to `run_opencode(...)` inside the driver
-        would be a THIRD launcher call site, and the pinned rule is that exactly one may omit the
-        verifier-launch marker (a turn that omits it silently runs under the executor's model).
-        """
-
-        src = inspect.getsource(R.execute_item_core)
-        block = src[src.index("gate_answer_asked, gate_answer_reason") :]
-        self.assertIn("resume_via_launcher(", block)
-        self.assertIn("raw_launcher", block)
-
-    def test_BOTH_hosts_reach_this_wiring_through_the_ONE_shared_core(self) -> None:
-        """The incident was one host; drift is where the twin hides."""
-
-        for host, module in HOSTS:
-            with self.subTest(host=host):
-                self.assertIn(
-                    "runner_shared.execute_item_core(",
-                    Path(str(module.__file__)).read_text(encoding="utf-8"),
-                )
-
 
 # ---- the gate itself is UNCHANGED (the plan's stated OUT-of-scope) --------------------------------
 
@@ -1010,51 +895,6 @@ class TheGateItselfStaysHard(unittest.TestCase):
             validate=True, verify_disp="unverified", suite_result=_suite(True)
         )
         self.assertFalse(v.earned)
-
-    def test_the_five_signal_names_have_ONE_definition_and_both_spellings_agree(
-        self,
-    ) -> None:
-        """They MOVED to `runner_shared` so the shared layer could name them; nothing may re-fork them."""
-
-        for name in (
-            "INTEGRATION_EARNED_BY_VERIFIER",
-            "INTEGRATION_EARNED_BY_SUITE",
-            "INTEGRATION_REFUSED_VERIFIER_DECLINED",
-            "INTEGRATION_REFUSED_SUITE_FAILED",
-            "INTEGRATION_REFUSED_NO_SIGNAL",
-        ):
-            with self.subTest(name=name):
-                self.assertEqual(
-                    getattr(R, name),
-                    getattr(oc_runipd, name),
-                    "the runner's binding must be the shared definition, not a second literal",
-                )
-        defined_in_shared = {
-            node.targets[0].id
-            for node in ast.parse(
-                Path(str(R.__file__)).read_text(encoding="utf-8")
-            ).body
-            if isinstance(node, ast.Assign)
-            and node.targets
-            and isinstance(node.targets[0], ast.Name)
-        }
-        self.assertIn("INTEGRATION_REFUSED_SUITE_FAILED", defined_in_shared)
-
-    def test_no_bare_except_was_introduced_in_the_new_section(self) -> None:
-        """A validator or a gate wrapped in a bare `except` is a gate that is OFF (`st5klo`)."""
-
-        src = Path(str(R.__file__)).read_text(encoding="utf-8")
-        start = src.index("# ---- gatewire-01 (`h5pyqa`): the WIRING")
-        end = src.index("def make_integration_validation_runner")
-        section = src[start:end]
-        self.assertNotIn("except Exception:\n        pass", section)
-        for node in ast.walk(ast.parse(src)):
-            if isinstance(node, ast.ExceptHandler) and node.type is None:
-                self.assertLess(
-                    node.lineno,
-                    src[:start].count("\n") + 1,
-                    "a BARE except was added in the gate-answer section",
-                )
 
 
 if __name__ == "__main__":

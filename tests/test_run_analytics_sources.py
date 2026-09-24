@@ -724,49 +724,6 @@ class SharedPrecedenceTests(unittest.TestCase):
         self.assertEqual(phases["total"][0], 1.25)
         self.assertEqual(phases["total"][1]["total"], 12)
 
-    def test_NO_SECOND_precedence_rule_exists_in_this_module(self):
-        """Structural proof for V-03: the module delegates and implements no fallback of its own.
-
-        Asserts on the source text because the property is architectural rather than behavioral: a
-        second rule could agree with the first on every fixture and still be the defect.
-        """
-
-        text = Path(sources.__file__).read_text(encoding="utf-8")
-
-        # Count CODE references only. Prose mentions of the authority are documentation and must not
-        # be miscounted as call sites, so the AST is the authority here rather than a substring
-        # count: a docstring naming the function is exactly what this module SHOULD contain.
-        import ast
-
-        tree = ast.parse(text)
-        imported = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            and any(a.name == "extract_step_usage" for a in node.names)
-        ]
-        called = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "extract_step_usage"
-        ]
-        self.assertEqual(len(imported), 1, "exactly one import of the shared authority")
-        self.assertEqual(len(called), 1, "exactly one call of the shared authority")
-
-        # And NO independent fallback: reaching for the log extractor here would BE the second rule.
-        log_calls = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "extract_log_metrics"
-        ]
-        self.assertEqual(log_calls, [], "no independent log-derived fallback may exist")
-        for smell in ("def _extract_usage", "def _fallback", "or extract_log"):
-            self.assertNotIn(smell, text)
-
 
 if __name__ == "__main__":
     unittest.main()

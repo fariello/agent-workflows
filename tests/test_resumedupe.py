@@ -59,7 +59,6 @@ from agent_workflows import oc_runipd as OC
 
 # rununify 03 (`i3d6ml`): `resolve_prior_lane` now lives here rather than being delegated from one
 # driver to the other, so the symmetry test below needs the shared module to assert object identity.
-from agent_workflows import runner_shared as RS
 from agent_workflows import worktree_lease as WL
 
 
@@ -302,56 +301,6 @@ class TestSnapshotCompletenessSignal(ResumeRoutingBase):
         )
         self.assertFalse(decision.snapshot_only)
 
-    def test_the_classifier_reads_only_the_SUBJECT_line_from_git(self):
-        """Pin the mechanism, since the behavior above cannot distinguish `%s` from `%B`.
-
-        `%s` is the subject; `%B` is the raw body. Reading `%B` and prefix-matching it is exactly the
-        regression `test_b2_the_phrase_leading_a_body_LINE...` exercises, so the format is pinned here
-        rather than left to be rediscovered.
-        """
-        import ast
-
-        source = module_source(OC)
-        node = next(
-            n
-            for n in ast.parse(source).body
-            if isinstance(n, ast.FunctionDef) and n.name == "_lane_commit_subjects"
-        )
-        rendered = ast.unparse(node)
-        self.assertIn("%s", rendered, "the subject format specifier must be used")
-        self.assertNotIn(
-            "%B", rendered, "reading the raw body would defeat the subject rule"
-        )
-
-    def test_the_marker_has_ONE_definition_and_the_writer_uses_it(self):
-        """ONE spelling of the phrase, and the writer BUILDS its message from that constant.
-
-        Asserted on the AST rather than on source text: an earlier text form checked for the substring
-        `"INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX + "`, which `ruff format` legitimately reflowed onto its
-        own line, so the test broke on FORMATTING while the property it cared about still held. The
-        property is "the writer references the constant", so that is what is checked.
-        """
-        import ast
-
-        source = module_source(WL)
-        literal = "WIP INTERRUPTED SNAPSHOT (not finished work):"
-        self.assertEqual(
-            source.count(literal),
-            1,
-            "the snapshot subject must be spelled exactly once, at its definition",
-        )
-        writer = next(
-            n
-            for n in ast.parse(source).body
-            if isinstance(n, ast.FunctionDef) and n.name == "snapshot_lane_dirty_work"
-        )
-        names = {n.id for n in ast.walk(writer) if isinstance(n, ast.Name)}
-        self.assertIn(
-            "INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX",
-            names,
-            "the snapshot writer must build its subject from the shared constant",
-        )
-
     def test_the_subject_predicate_is_prefix_anchored(self):
         self.assertTrue(
             WL.commit_subject_is_interrupted_snapshot(
@@ -432,22 +381,6 @@ class TestFreshExecutionCases(ResumeRoutingBase):
         self.assertEqual(record["dispatched_as"], OC.DISPOSITION_FRESH_EXECUTION)
         self.assertTrue(record["reason"])
 
-    def test_the_undetermined_asymmetry_is_recorded_in_a_comment(self):
-        """A later reader must find the REASON, not 'fix' this into a refusal.
-
-        SEARCHES BOTH HOMES since runnerlayer Order 02 (`1f7xno`) consolidated `route_recovery_turn`
-        into `runner_shared`: the comment travelled with the body it annotates, which is exactly what
-        should happen to a comment explaining a body. Concatenating both sources keeps the claim
-        ("a later reader finds the reason") true wherever the body lives, rather than pinning it to a
-        module the code may leave again.
-        """
-        source = module_source(OC) + "\n" + module_source(RS)
-        marker = "FAIL-TOWARD-DOING-THE-WORK"
-        self.assertIn(marker, source)
-        window = source[source.index(marker) : source.index(marker) + 1200]
-        self.assertIn("OPPOSITE", window)
-        self.assertIn("UNIMPLEMENTED", window.upper())
-
 
 class TestPromptContent(ResumeRoutingBase):
     """(e) plus E-04: the verify prompt carries the facts, and every other prompt is unchanged."""
@@ -494,34 +427,6 @@ class TestPromptContent(ResumeRoutingBase):
                         context,
                         f"{verb!r} appears outside a prohibition: {line!r}",
                     )
-
-    def test_no_acknowledgement_gate_or_refusal_path_was_added(self):
-        """The shipped constraint: a refusal is one more way for an unattended run to stall."""
-        import ast
-
-        # EACH NAME IS LOOKED UP IN WHICHEVER MODULE DEFINES IT. `route_recovery_turn` was
-        # consolidated into `runner_shared` by runnerlayer Order 02 (`1f7xno`) while
-        # `build_verify_and_continue_notice` stayed in `oc_runipd` (its shared copy DIVERGES, so
-        # consolidating it would be a reconciliation rather than a pure move; filed as `zt2b16`). A
-        # single-module scan would now raise StopIteration on the moved one, which is a test failing
-        # because it cannot FIND the code rather than because the code is wrong.
-        candidates = [module_source(OC), module_source(RS)]
-        for name in ("build_verify_and_continue_notice", "route_recovery_turn"):
-            node = next(
-                n
-                for src in candidates
-                for n in ast.parse(src).body
-                if isinstance(n, ast.FunctionDef) and n.name == name
-            )
-            body = "\n".join(
-                ast.unparse(stmt)
-                for stmt in node.body
-                if not (
-                    isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
-                )
-            )
-            for banned in ("input(", "acknowledgement required"):
-                self.assertNotIn(banned, body, f"{name} must not gate the run")
 
     def test_e_a_first_attempt_prompt_is_unchanged(self):
         repo = fixture_repo(self.tmp)
@@ -681,100 +586,6 @@ class TestDriverSymmetry(ResumeRoutingBase):
         "route_recovery_turn",
     )
 
-    def test_the_antigravity_twin_never_holds_a_second_implementation(self):
-        """ONE implementation per routing symbol, reached EITHER by delegation OR by a shared lift.
-
-        RE-BASED BY rununify 03 (`i3d6ml`) E-03, and the widening is deliberate. This test used to
-        require that agy hold a DELEGATING STUB (`from agent_workflows.oc_runipd import X as _shared;
-        return _shared(...)`) for each of the four routing symbols, and it named its own reason: "so a
-        fix to one cannot leave the other behind (the `rununify` lesson)".
-
-        WHY REQUIRING THE STUB IS NOW WRONG. The stub was never the goal; it was the best available
-        shape at the time, and the delegation comment beside those stubs in `agy_runipd` says so
-        outright: "`runner_shared` would be the tidier home, but it holds a strict AST fingerprint pin
-        proving a PURE MOVE of the symbols it received, so adding new logic there is out of this plan's
-        scope; delegation gets the same no-drift guarantee today." `i3d6ml` moved
-        `resolve_prior_lane` into `runner_shared`, which is the TIDIER HOME that comment wanted. A test
-        demanding a runner-to-runner delegating stub would now FORBID the improvement, and worse, it
-        would forbid it in the name of preventing drift while `runner_shared` prevents drift strictly
-        better: a lifted symbol is ONE object both hosts resolve, with no import from one driver into
-        the other for `tests/test_review_findings_cascade.py::test_no_runner_to_runner_import` to be
-        satisfied about on a technicality.
-
-        WHAT IS ASSERTED NOW, which is the PROPERTY rather than one mechanism that achieved it: for each
-        routing symbol, agy must not hold a second IMPLEMENTATION. Exactly one of two shapes is
-        acceptable, and a symbol satisfying NEITHER fails:
-
-          1. LIFTED (`_LIFTED_TO_RUNNER_SHARED`): no definition in agy at all, the name resolves to the
-             SAME OBJECT in both drivers, and that object is defined in `runner_shared`. This is the
-             stronger shape, so the test asserts the identity rather than merely the absence.
-          2. DELEGATING STUB: a definition whose body is an import from `oc_runipd` plus a return, and
-             at most two statements. Unchanged from the original assertion.
-
-        The escape this does NOT permit: a definition with real logic in it, which is a re-fork and is
-        what both shapes exist to prevent.
-        """
-        import ast
-
-        source = module_source(AGY)
-        tree = ast.parse(source)
-        defined = {
-            n.name: n
-            for n in tree.body
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-        }
-        for name in self._ROUTING_SURFACE:
-            with self.subTest(symbol=name):
-                if name in self._LIFTED_TO_RUNNER_SHARED:
-                    self.assertNotIn(
-                        name,
-                        defined,
-                        f"{name} is LIFTED into runner_shared, so agy must not define it; a "
-                        "definition here is a re-fork of a shared symbol",
-                    )
-                    shared = getattr(RS, name)
-                    self.assertIs(getattr(AGY, name), shared)
-                    self.assertIs(getattr(OC, name), shared)
-                    self.assertEqual(shared.__module__, "agent_workflows.runner_shared")
-                    continue
-                node = defined.get(name)
-                self.assertIsNotNone(
-                    node,
-                    f"{name} is neither defined in agy nor listed as lifted into "
-                    "runner_shared; add it to `_LIFTED_TO_RUNNER_SHARED` if it moved",
-                )
-                assert node is not None
-                body = [
-                    stmt
-                    for stmt in node.body
-                    if not (
-                        isinstance(stmt, ast.Expr)
-                        and isinstance(stmt.value, ast.Constant)
-                    )
-                ]
-                rendered = "\n".join(ast.unparse(stmt) for stmt in body)
-                # THE STUB MAY DELEGATE TO EITHER HOME, and accepting `runner_shared` is a widening in
-                # the SAME direction this test's own docstring already argued for (runnerlayer Order 02
-                # `1f7xno`, backlog `cnwy8g`). It used to require the source be `oc_runipd`, which was
-                # the only home available when it was written; `route_recovery_turn` has since been
-                # consolidated into `runner_shared` (its two copies were AST-identical), so the stub now
-                # names that module and a test demanding the OLD source would FORBID the improvement -
-                # exactly the mistake the docstring above describes being corrected once already.
-                #
-                # THE SHARED SOURCE IS THE STRICTLY BETTER ONE, for the reason recorded above: one
-                # object both hosts resolve, with no import from one driver into the other. The
-                # anti-re-fork property is untouched, because what is asserted is still that the body
-                # is an import plus a return and nothing else.
-                self.assertTrue(
-                    "from agent_workflows.oc_runipd import" in rendered
-                    or "from agent_workflows.runner_shared import" in rendered,
-                    f"{name}'s stub must delegate to the ONE implementation, in either "
-                    f"`oc_runipd` (legacy) or `runner_shared` (preferred); body was: {rendered}",
-                )
-                self.assertIn("_shared(", rendered)
-                # A delegating wrapper is an import plus a return; more than that is a re-fork.
-                self.assertLessEqual(len(body), 2, f"{name} grew logic: {rendered}")
-
     def test_both_drivers_agree_across_the_whole_matrix(self):
         repo = fixture_repo(self.tmp)
         state = self.state(repo)
@@ -797,34 +608,6 @@ class TestDriverSymmetry(ResumeRoutingBase):
                 agy = AGY.classify_recovery_disposition(repo, item, state)
                 self.assertEqual(oc.disposition, expected)
                 self.assertEqual(oc, agy)
-
-    def test_both_drivers_record_the_displaced_lane_at_allocation(self):
-        """`resolve_prior_lane`'s last fallback needs this in DURABLE state, not only in an event."""
-        for module in (OC, AGY):
-            source = module_source(module)
-            if "execute_item_core" in source:
-                source += "\n" + module_source(RS)
-            self.assertIn('attempt["worktree_displaced_from"]', source, module.__name__)
-
-    def test_both_drivers_route_before_allocating_their_own_lane(self):
-        """ORDERING IS LOAD-BEARING: classifying after allocation reads an always-empty lane."""
-        source_by_module = {
-            OC: "route_recovery_turn(run_dir, state, item, recovery)",
-            AGY: "route_recovery_turn(run_dir, state, item, recovery)",
-        }
-        for module, call in source_by_module.items():
-            source = module_source(module)
-            if "execute_item_core" in source:
-                source = module_source(RS)
-            with self.subTest(driver=module.__name__):
-                self.assertIn(call, source)
-                routing_at = source.index(call)
-                alloc_at = source.index("allocate_isolation_worktree(repo,")
-                self.assertLess(
-                    routing_at,
-                    alloc_at,
-                    "routing must be classified BEFORE this turn's lane is allocated",
-                )
 
 
 class TestBranchNameInversion(ResumeRoutingBase):

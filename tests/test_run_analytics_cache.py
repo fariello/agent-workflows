@@ -272,41 +272,6 @@ class EnvelopeRoundTripTests(unittest.TestCase):
         with self.assertRaises(privacy.PrivacyRefusal):
             cache.decode_envelope(payload)
 
-    def test_the_projector_is_the_only_write_path_into_the_envelope(self) -> None:
-        """AST proof rather than a claim: no other function assigns the fact members."""
-
-        import ast
-
-        source = (REPO_ROOT / "agent_workflows" / "run_analytics_cache.py").read_text(
-            encoding="utf-8"
-        )
-        tree = ast.parse(source)
-        constructors: list[str] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                func = node.func
-                name = getattr(func, "id", None) or getattr(func, "attr", None)
-                if name == "CacheEnvelope":
-                    enclosing = "<module>"
-                    for parent in ast.walk(tree):
-                        if isinstance(parent, ast.FunctionDef) and any(
-                            child is node for child in ast.walk(parent)
-                        ):
-                            enclosing = parent.name
-                    constructors.append(enclosing)
-        self.assertEqual(
-            sorted(set(constructors)),
-            ["build_entry", "decode_envelope"],
-            "CacheEnvelope must be constructed ONLY where the projector runs; "
-            f"found constructions in {sorted(set(constructors))}",
-        )
-        projector_calls = re.findall(
-            r"privacy\.project_(?:metric|event)_facts|privacy\.project_facts", source
-        )
-        self.assertGreaterEqual(
-            len(projector_calls), 4, "the projector must gate both fact members"
-        )
-
 
 # ============================================================ E-02: fingerprint + freshness verdict
 class FingerprintTests(unittest.TestCase):

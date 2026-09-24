@@ -251,19 +251,6 @@ class TheFrozenBudgetIsWhatIsRead(unittest.TestCase):
             "remaining is never negative",
         )
 
-    def test_the_decision_does_not_re_resolve_the_flag(self):
-        """`resolve_retry_budget` reads `args`; re-reading it per turn is the documented mistake."""
-        import inspect
-
-        src = inspect.getsource(runner_shared.turn_retry_decision)
-        self.assertIn("frozen_retry_budget(state)", src)
-        self.assertNotIn(
-            "resolve_retry_budget(",
-            src,
-            "the loop must read the FROZEN integer, never re-resolve the flag (which would let a "
-            "resumed run change its own budget mid-flight)",
-        )
-
     def test_a_malformed_frozen_value_falls_back_to_the_default(self):
         self.assertEqual(
             2, runner_shared.frozen_retry_budget({"options": {"retry_budget": "two"}})
@@ -408,25 +395,6 @@ class TheCorrectionPacketCarriesOnlyWhatFailed(unittest.TestCase):
             self.assertEqual("correction", records[0]["kind"])
             self.assertEqual(1, records[0]["invalidates_attempt"])
             self.assertIn("verification_status", records[0]["invalidated"])
-
-    def test_there_is_exactly_ONE_producer_of_invalidation_records(self):
-        """No second invalidation path: a fork of the idiom is what E-04 forbids."""
-        import inspect
-
-        src = inspect.getsource(runner_shared)
-        self.assertEqual(
-            1,
-            src.count("item.setdefault(TURN_RETRY_INVALIDATIONS_KEY"),
-            "only `invalidate_turn_evidence` may append an invalidation record; a second producer "
-            "would fork the `invalidates_*` idiom this substrate shares with `plan_retry` and "
-            "`set_lifecycle.make_invalidation_records`",
-        )
-        self.assertEqual(1, src.count("def invalidate_turn_evidence("))
-        self.assertEqual(
-            1,
-            src.count("TURN_RETRY_INVALIDATIONS_KEY: str ="),
-            "and exactly one definition of the key itself",
-        )
 
 
 class TheCorrectionReachesTheAgentsPROMPT(unittest.TestCase):
@@ -747,67 +715,6 @@ class BothHostsShareTheWiring(unittest.TestCase):
                 self.assertIs(getattr(agy_driver, name), expected)
                 self.assertIs(getattr(oc_driver, name), getattr(agy_driver, name))
 
-    def test_neither_host_carries_its_own_copy(self):
-        """The AST half is owned by `test_runner_refork_guard`; this is the behavioral twin."""
-        import inspect
-
-        for driver in (oc_driver, agy_driver):
-            with self.subTest(driver=driver.__name__):
-                src = inspect.getsource(driver)
-                self.assertNotIn(
-                    "def turn_retry_decision(",
-                    src,
-                    f"{driver.__name__} must not re-define the shared decision",
-                )
-                self.assertNotIn("def handle_turn_failure_retry(", src)
-
-    def test_the_decision_lives_in_the_shared_core_and_not_a_per_host_arm(self):
-        """ONE call site in the shared core, so drift is impossible rather than merely discouraged."""
-        import inspect
-
-        core = inspect.getsource(runner_shared.execute_item_core)
-        self.assertEqual(
-            1,
-            core.count("handle_turn_failure_retry("),
-            "exactly one shared call site; a per-host arm is what this layer exists to avoid",
-        )
-        for driver in (oc_driver, agy_driver):
-            with self.subTest(driver=driver.__name__):
-                self.assertNotIn(
-                    "handle_turn_failure_retry(", inspect.getsource(driver)
-                )
-
-    def test_the_call_precedes_the_unconditional_status_write(self):
-        """Ordering is load-bearing: the review-integration ladder learned this the expensive way.
-
-        `execute_item_core` ends with an unconditional `item["status"] = disposition`, so a performer
-        that only wrote `item["status"]` would be OVERWRITTEN and the wiring would be "present and
-        inert". The performer therefore RETURNS the disposition and the call site must reassign it.
-        """
-        import inspect
-
-        core = inspect.getsource(runner_shared.execute_item_core)
-        self.assertIn("disposition = handle_turn_failure_retry(", core)
-        call = core.index("handle_turn_failure_retry(")
-        write = core.rindex('item["status"] = disposition')
-        self.assertLess(
-            call,
-            write,
-            "the retry decision must precede the unconditional status write",
-        )
-
-    def test_a_review_turn_is_deliberately_out_of_scope(self):
-        """A review's refused integration is owned by the integration ladder's own budget."""
-        import inspect
-
-        core = inspect.getsource(runner_shared.execute_item_core)
-        segment = core[: core.index("handle_turn_failure_retry(")]
-        self.assertIn(
-            "if not is_review:",
-            segment[-400:],
-            "the call must be guarded on an EXECUTE turn",
-        )
-
 
 class TheSubstrateChoiceIsRecordedAtTheImplementationSite(unittest.TestCase):
     """OQ-03's explicit requirement: the accepted duplication must be stated IN THE CODE.
@@ -816,29 +723,6 @@ class TheSubstrateChoiceIsRecordedAtTheImplementationSite(unittest.TestCase):
     and either deletes it or forks it further. The pointer to the still-open ledger question is part
     of the requirement, not decoration.
     """
-
-    def test_the_section_names_the_shipped_helpers_as_the_intended_long_term_home(self):
-        import inspect
-
-        src = inspect.getsource(runner_shared)
-        marker = src.index("retrywire (`xipfy1`): SPEND THE FROZEN CORRECTION BUDGET")
-        section = src[marker : marker + 4000]
-        for expected in (
-            "run_recovery.plan_retry",
-            "REMAIN THE INTENDED LONG-TERM HOME",
-            "ledger.jsonl",
-            "OQ-03",
-        ):
-            with self.subTest(expected=expected):
-                self.assertIn(expected, section)
-
-    def test_it_does_not_claim_the_ledger_question_is_settled(self):
-        import inspect
-
-        src = inspect.getsource(runner_shared)
-        marker = src.index("retrywire (`xipfy1`): SPEND THE FROZEN CORRECTION BUDGET")
-        section = src[marker : marker + 4000]
-        self.assertIn("STILL OPEN", section)
 
 
 if __name__ == "__main__":

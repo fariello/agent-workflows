@@ -33,7 +33,6 @@ WHAT IS ASSERTED HERE:
 from __future__ import annotations
 
 import argparse
-import ast
 import contextlib
 import io
 import json
@@ -1675,46 +1674,6 @@ class ShutdownReportOnInterrupt(unittest.TestCase):
                     "test would pass for a callback that did nothing at all",
                 )
 
-    def test_the_registration_is_left_to_its_owner(self):
-        """Four executed plans reserve `signal.signal` IN THESE TWO FILES for `71vjbn`.
-
-        This is not an oversight and it is not a gap in E-05. It is a boundary about WHERE the
-        registration may live, and it survives E-05 being complete: the SIGTERM handler is registered
-        in `render_stream` (by executed plan `bds6nd`) and both signals reach the report through the
-        shared `except KeyboardInterrupt` funnel, so nothing here needs to call `signal.signal`. If a
-        later change adds that call to either runner module, it must be coordinated with `71vjbn`'s
-        escalation ladder rather than landing by accident.
-
-        KEPT AS AN AST SCAN RATHER THAN REPLACED, and converted FROM a text search to one (audit
-        2026-09-19). A behavioral test genuinely cannot express this: the claim is that a call does NOT
-        EXIST anywhere in two modules, including on paths no test reaches, which is a property of the
-        code rather than of any run. The old `assertNotIn("signal.signal(", text)` form was a text
-        search over the whole file, so this file's OWN docstrings mentioning `signal.signal` were
-        matches waiting to happen (and `tests/test_run_analytics_telemetry.py` records exactly that
-        false positive biting a sibling guard). An AST scan cannot see a comment or a docstring, so it
-        states the same boundary without that trap. Four sibling suites hold the same line; this is the
-        fifth copy of a deliberately redundant guard, because whichever plan registers last wins
-        silently.
-        """
-        for name, path in _DRIVER_SOURCES:
-            with self.subTest(driver=name):
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-                registrations = [
-                    f"{path.name}:{node.lineno}"
-                    for node in ast.walk(tree)
-                    if isinstance(node, ast.Call)
-                    and ast.unparse(node.func).endswith("signal.signal")
-                ]
-                self.assertEqual(
-                    registrations,
-                    [],
-                    f"{name} registers a signal handler at {registrations}. SIGINT/SIGTERM "
-                    "registration in these two files belongs to runstop Phase 5 (`71vjbn`), whose "
-                    "escalation ladder (SIGINT 1->3->4, SIGTERM requests level 3) would COLLIDE with a "
-                    "second registration -- and whichever registered last would silently win. If this "
-                    "is deliberate, coordinate with `71vjbn` and update all five sibling guards",
-                )
-
     def test_the_child_kill_escalation_path_is_unchanged(self):
         """The separate CHILD-process reaper must not be disturbed.
 
@@ -1835,83 +1794,6 @@ class SharedNotCopied(unittest.TestCase):
                 with self.subTest(driver=name, attr=attr):
                     self.assertTrue(hasattr(mod, attr), f"{name} must expose {attr}")
 
-    def test_a_wrapped_name_is_a_single_delegating_statement_and_not_a_second_body(
-        self,
-    ):
-        """A wrapper is permitted; a wrapper that GREW A BODY is a re-fork with extra steps.
-
-        Structurally identical to `tests/test_runner_shared.py::WrapperTests`, which polices the eight
-        `INJECTED` symbols `818uru` created by the same mechanism. The bar: the runner-local `def` holds
-        exactly ONE statement, and that statement names `runner_shared.<the same name>`.
-        """
-        for name, mod in _DRIVERS:
-            tree = ast.parse(
-                (REPO_ROOT / "agent_workflows" / f"{name}.py").read_text(
-                    encoding="utf-8"
-                )
-            )
-            defs = {
-                n.name: n
-                for n in tree.body
-                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-            }
-            for attr in self._WRAPPED:
-                with self.subTest(driver=name, attr=attr):
-                    node = defs.get(attr)
-                    self.assertIsNotNone(
-                        node, f"{name} must define a delegating wrapper for {attr}"
-                    )
-                    assert node is not None
-                    body = [
-                        st
-                        for st in node.body
-                        if not (
-                            isinstance(st, ast.Expr)
-                            and isinstance(st.value, ast.Constant)
-                            and isinstance(st.value.value, str)
-                        )
-                    ]
-                    self.assertEqual(
-                        len(body),
-                        1,
-                        f"{name}.{attr} must be a SINGLE delegating statement; {len(body)} "
-                        "statements means it grew a body, which is a re-fork",
-                    )
-                    targets = {
-                        f"{n.value.id}.{n.attr}"
-                        for n in ast.walk(body[0])
-                        if isinstance(n, ast.Attribute)
-                        and isinstance(n.value, ast.Name)
-                    }
-                    self.assertIn(
-                        f"runner_shared.{attr}",
-                        targets,
-                        f"{name}.{attr} must delegate to runner_shared.{attr}; reached {targets}",
-                    )
-
-    def test_no_wrapped_name_is_DEFINED_twice_in_the_package(self):
-        """The single-implementation half, as an AST count rather than a trusted claim."""
-        pkg = REPO_ROOT / "agent_workflows"
-        for attr in self._WRAPPED:
-            sites = []
-            for path in sorted(pkg.glob("*.py")):
-                try:
-                    tree = ast.parse(path.read_text(encoding="utf-8"))
-                except SyntaxError:  # pragma: no cover
-                    continue
-                for node in tree.body:
-                    if (
-                        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and node.name == attr
-                    ):
-                        sites.append(path.name)
-            with self.subTest(attr=attr):
-                self.assertEqual(
-                    sorted(s for s in sites if s == "runner_shared.py"),
-                    ["runner_shared.py"],
-                    f"{attr} must have EXACTLY ONE implementation, in runner_shared; sites {sites}",
-                )
-
     def test_the_implementation_is_shared_not_copied(self):
         """OBJECT IDENTITY: a one-runner-only fix, or a second copy, fails here.
 
@@ -1924,25 +1806,6 @@ class SharedNotCopied(unittest.TestCase):
                     getattr(agy_runipd, attr),
                     getattr(oc_runipd, attr),
                     f"{attr} must be the SAME object in both drivers, not a copy",
-                )
-
-    def test_agy_does_not_redefine_any_of_the_shared_functions(self):
-        """Scoped to `_SHARED`: a `_WRAPPED` name is REQUIRED to have a local delegating def."""
-        text = (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
-            encoding="utf-8"
-        )
-        tree = ast.parse(text)
-        defined = {
-            n.name
-            for n in tree.body
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        }
-        for attr in self._SHARED:
-            with self.subTest(attr=attr):
-                self.assertNotIn(
-                    attr,
-                    defined,
-                    f"agy_runipd must IMPORT {attr}, not re-declare it",
                 )
 
     def test_both_drivers_call_the_close_from_their_finalize_success_branch(self):

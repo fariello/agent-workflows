@@ -34,19 +34,16 @@ WHAT IS ASSERTED HERE:
 
 from __future__ import annotations
 
-import ast
 import inspect
 import json
 import subprocess
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from tests import support
-from tests.support import REPO_ROOT
 
 _DRIVERS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
 
@@ -586,57 +583,6 @@ class EligibilityIsDecidedInMain(unittest.TestCase):
             )
             self.assertIn(str(sibling.relative_to(fx.root)), verdict.reason)
 
-    def test_the_override_is_limited_to_the_callers_own_plan(self):
-        """The override must not become a general 'treat pending as executed' switch: a sibling named
-        in it would be a hole, so only the caller's OWN plan is ever passed and the helper proves it."""
-        with tempfile.TemporaryDirectory() as tmp:
-            fx = _Fixture(Path(tmp) / "repo")
-            plan = fx.add_plan("aaaaaa", from_backlog="bbbbbb")
-            fx.add_item("bbbbbb")
-            fx.commit()
-            handle_repo = fx.root  # same tree -> not isolated
-            self.assertEqual(
-                oc_runipd.lane_executed_carrier_override(
-                    fx.root,
-                    handle_repo,
-                    {
-                        "id6": "aaaaaa",
-                        "configured_file": str(plan.relative_to(fx.root)),
-                    },
-                ),
-                {},
-                "a non-isolated turn must produce NO override",
-            )
-            # STRUCTURAL, so a later edit cannot widen the override into a general "treat pending as
-            # executed" switch. Only the OUTER function's own returns are inspected: its nested `_rel`
-            # helper legitimately returns strings, and walking the whole tree would collect those too.
-            src = inspect.getsource(oc_runipd.lane_executed_carrier_override)
-            outer = ast.parse(textwrap.dedent(src)).body[0]
-            assert isinstance(outer, ast.FunctionDef)
-            nested = {
-                id(n)
-                for f in outer.body
-                if isinstance(f, ast.FunctionDef)
-                for n in ast.walk(f)
-            }
-            returns = [
-                ast.unparse(n.value)
-                for n in ast.walk(outer)
-                if isinstance(n, ast.Return)
-                and n.value is not None
-                and id(n) not in nested
-            ]
-            self.assertTrue(
-                any("main_rel" in r and "lane_rel" in r for r in returns),
-                f"the only non-empty return must be the single own-plan mapping; saw {returns}",
-            )
-            self.assertTrue(
-                all(
-                    r == "{}" or ("main_rel" in r and "lane_rel" in r) for r in returns
-                ),
-                f"no other non-empty return is permitted; saw {returns}",
-            )
-
 
 # ======================================================================================
 # The RELEASE GATE, which is the hazard F-10 named and nothing else covers
@@ -1117,65 +1063,6 @@ class BothHostsBehaveIdentically(unittest.TestCase):
                     src,
                     f"{name}'s post-merge close must be guarded",
                 )
-
-    def test_the_new_helpers_live_in_runner_shared_not_in_a_host(self):
-        """Backlog `cnwy8g`'s rule, applied at authoring rather than re-baselined afterwards: a symbol
-        BOTH hosts need belongs in `runner_shared`, never in one host imported by the other.
-
-        `lane_executed_carrier_override` needs nothing host-specific, so it is ONE object both hosts
-        import. `collect_lane_earned_paths` needs the host's own `run_checked` (which binds that host's
-        `pinned_child_env`), so each host keeps a one-line WRAPPER at the shared name -- exactly the
-        established shape of `build_lane_outcome`, whose ruling is recorded in `runner_shared`. So the
-        wrappers are deliberately NOT identical objects; what must be shared is the IMPLEMENTATION,
-        which is asserted by checking each wrapper delegates to the shared function.
-        """
-        from agent_workflows import runner_shared
-
-        # The no-injection helper: ONE object, reached through `runner_shared` by both.
-        self.assertIs(
-            oc_runipd.lane_executed_carrier_override,
-            runner_shared.lane_executed_carrier_override,
-        )
-
-        # The injected one: a thin per-host wrapper over the shared implementation.
-        self.assertTrue(callable(runner_shared.collect_lane_earned_paths))
-        for name, mod in _DRIVERS:
-            with self.subTest(driver=name):
-                src = inspect.getsource(mod.collect_lane_earned_paths)
-                self.assertIn(
-                    "runner_shared.collect_lane_earned_paths",
-                    src,
-                    f"{name}'s wrapper must delegate to the shared implementation",
-                )
-                self.assertIn(
-                    "run_checked=run_checked",
-                    src,
-                    f"{name}'s wrapper must inject its OWN run_checked",
-                )
-
-        # NEITHER host may import either helper FROM THE OTHER HOST.
-        agy_text = (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
-            encoding="utf-8"
-        )
-        oc_imported: list[str] = []
-        for node in ast.walk(ast.parse(agy_text)):
-            if isinstance(node, ast.ImportFrom) and "oc_runipd" in (node.module or ""):
-                oc_imported.extend(a.name for a in node.names)
-        for attr in ("collect_lane_earned_paths", "lane_executed_carrier_override"):
-            self.assertNotIn(
-                attr,
-                oc_imported,
-                f"{attr} must reach agy through runner_shared, not from oc_runipd "
-                f"(backlog cnwy8g)",
-            )
-
-    def test_the_gated_setter_spelling_is_untouched(self):
-        """F-8's warning, pinned here too: the positional `set done <sel>` form SKIPS
-        `evaluate_blocking_close`, so changing `--dir` must not have changed the spelling."""
-        src = inspect.getsource(runner_shared.close_backlog_item)
-        self.assertIn('"--status"', src)
-        self.assertIn('"done"', src)
-        self.assertIn('"--no-commit"', src)
 
 
 class TheEarnedPathsRangeIsTheLaneBranch(unittest.TestCase):

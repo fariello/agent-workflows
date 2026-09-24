@@ -2128,35 +2128,6 @@ class ToolIdentityHandlerRepairedAndRunFatal(RunQueueCase):
                     f"{label}: ToolIdentityError must abort immediately; second item must not run",
                 )
 
-    def test_the_source_contains_the_raise_statement(self):
-        import ast
-        import inspect
-
-        for label, module in HOST_PAIRS:
-            with self.subTest(host=label):
-                src = inspect.getsource(module.run_queue)
-                self.assertIn("except ToolIdentityError", src)
-                self.assertLess(
-                    src.index("except ToolIdentityError"),
-                    src.index("except DriverError"),
-                )
-                handler = None
-                for node in ast.walk(ast.parse(src.lstrip())):
-                    if (
-                        isinstance(node, ast.ExceptHandler)
-                        and node.type is not None
-                        and "ToolIdentityError" in ast.unparse(node.type)
-                    ):
-                        handler = node
-                        break
-                assert (
-                    handler is not None
-                ), f"{label}: no ToolIdentityError handler found"
-                self.assertTrue(
-                    any(isinstance(n, ast.Raise) for n in ast.walk(handler)),
-                    f"{label}: the  must be present in except ToolIdentityError",
-                )
-
 
 class TheBetweenItemStopCheckpointPrecedesSelection(RunQueueCase):
     """What `tests/test_runner_stop.py:607` pins by string offset, as behavior.

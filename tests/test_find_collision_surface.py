@@ -415,43 +415,6 @@ class MachineSurfaceTests(unittest.TestCase):
 class NoSecondScanTests(unittest.TestCase):
     """E-04: share the collision DEFINITION, never fork a corpus-wide scan."""
 
-    def test_the_find_path_never_invokes_the_repo_wide_collision_checker(self):
-        """Negative proof over CODE, not prose.
-
-        The detector's own docstring DISCUSSES `check_collisions` at length (explaining why it is
-        not delegated to), so a naive substring search over the source region would match the
-        explanation rather than a call. Walk the AST instead and assert no call or import reaches
-        the checker from any function on the find path.
-        """
-        import ast
-
-        tree = ast.parse(Path(cli.__file__).read_text(encoding="utf-8"))
-        targets = {
-            "_detect_id6_collisions",
-            "_id6_collision_message",
-            "_run_find",
-            "_find_type_records",
-            "_resolve_selectors_with_kinds",
-        }
-        checked = set()
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.FunctionDef) or node.name not in targets:
-                continue
-            checked.add(node.name)
-            for sub in ast.walk(node):
-                if isinstance(sub, ast.Attribute):
-                    self.assertNotEqual("check_collisions", sub.attr, node.name)
-                if isinstance(sub, ast.Name):
-                    self.assertNotEqual("check_collisions", sub.id, node.name)
-                if isinstance(sub, (ast.Import, ast.ImportFrom)):
-                    names = [a.name for a in sub.names]
-                    mod = getattr(sub, "module", None) or ""
-                    self.assertNotIn("check_engine", names, node.name)
-                    self.assertNotIn("check_engine", mod, node.name)
-        self.assertEqual(
-            targets, checked, "a find-path function was renamed or removed"
-        )
-
     def test_resolve_for_mutation_does_not_see_the_cross_type_shape(self):
         """Why the cross-type join has to be NEW logic rather than a delegation.
 

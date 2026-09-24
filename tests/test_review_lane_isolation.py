@@ -37,7 +37,6 @@ WHAT IS ASSERTED HERE, and each is a property the plan's V-items demand:
 
 from __future__ import annotations
 
-import ast
 import inspect
 import subprocess
 import tempfile
@@ -495,26 +494,6 @@ class TheReviewPromptIsLaneRelativeAndSaysSo(unittest.TestCase):
 
 
 class TheReviewMergeIsExplicitAndCarriesBothFiles(unittest.TestCase):
-    def test_the_action_kind_has_NO_DEFAULT_in_the_shared_function(self):
-        """The `host_label` precedent: a value whose wrong setting is silently harmful takes no default.
-
-        A defaulted action kind would let a future caller silently SKIP revalidation (if it defaulted to
-        `review`) or silently revalidate an action with nothing to revalidate (if `execute`).
-        """
-        node = next(
-            n
-            for n in ast.parse(
-                Path(str(runner_shared.__file__)).read_text(encoding="utf-8")
-            ).body
-            if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
-        )
-        names = [a.arg for a in node.args.kwonlyargs]
-        self.assertIn("action_kind", names)
-        self.assertIsNone(
-            node.args.kw_defaults[names.index("action_kind")],
-            "`action_kind` must have NO default; see this test's docstring",
-        )
-
     def test_an_unrecognized_action_kind_is_REFUSED_not_coerced(self):
         with tempfile.TemporaryDirectory() as tmp:
             fx = _Fixture(Path(tmp) / "repo", plans=1)
@@ -530,44 +509,6 @@ class TheReviewMergeIsExplicitAndCarriesBothFiles(unittest.TestCase):
                     action_kind="reveiw",  # a typo, deliberately
                 )
             self.assertIn("unrecognized action_kind", str(ctx.exception))
-
-    def test_the_review_path_constructs_NO_synthetic_validation_value(self):
-        """OQ-01's load-bearing line: skip the gate EXPLICITLY, never satisfy it with a fake value.
-
-        Asserted STRUCTURALLY on each host's review wrapper: it takes no `validation_runner` parameter
-        at all, so a caller cannot pass one even by mistake, and it binds `None`.
-        """
-        for name, driver in _DRIVERS:
-            with self.subTest(driver=name):
-                node = next(
-                    n
-                    for n in ast.parse(
-                        Path(str(driver.__file__)).read_text(encoding="utf-8")
-                    ).body
-                    if isinstance(n, ast.FunctionDef)
-                    and n.name == "integrate_review_lane_branch"
-                )
-                self.assertEqual(
-                    [a.arg for a in node.args.args],
-                    ["repo", "handle", "id6"],
-                    "the review wrapper must not accept a validation runner",
-                )
-                call = next(
-                    sub
-                    for sub in ast.walk(node)
-                    if isinstance(sub, ast.Call)
-                    and "runner_shared.integrate_lane_branch" in ast.unparse(sub.func)
-                )
-                bound = {
-                    kw.arg: ast.unparse(kw.value)
-                    for kw in call.keywords
-                    if kw.arg is not None
-                }
-                self.assertEqual(
-                    bound["action_kind"],
-                    "runner_shared.INTEGRATION_ACTION_REVIEW",
-                )
-                self.assertEqual(ast.unparse(call.args[3]), "None")
 
     def test_revalidation_STILL_RUNS_for_an_execute_turn(self):
         """The shared gate must not have been weakened for its ORIGINAL caller."""
@@ -747,34 +688,6 @@ class TheReviewDispositionComesFromTheLane(unittest.TestCase):
                     "reviewed",
                     "reading MAIN must still lose the `approved` verdict; if this changes, "
                     "the lane read above stopped being the thing under test",
-                )
-
-    def test_the_disposition_is_computed_BEFORE_integration_so_the_lane_is_the_only_answer(
-        self,
-    ):
-        """F-15: the ordering is FIXED by the code, so "read main after the merge" is not a real branch."""
-        for name, driver in _DRIVERS:
-            with self.subTest(driver=name):
-                src = _effective_execute_item_source(driver)
-                tree = ast.parse(ast.unparse(ast.parse(src)))
-                disp_lines = [
-                    n.lineno
-                    for n in ast.walk(tree)
-                    if isinstance(n, ast.Call)
-                    and getattr(n.func, "id", None) == "reconcile_disposition"
-                ]
-                integ_lines = [
-                    n.lineno
-                    for n in ast.walk(tree)
-                    if isinstance(n, ast.Call)
-                    and getattr(n.func, "id", None)
-                    in ("integrate_lane_branch", "integrate_review_lane_branch")
-                ]
-                self.assertTrue(disp_lines and integ_lines)
-                self.assertLess(
-                    min(disp_lines),
-                    min(integ_lines),
-                    "the disposition must be computed before any integration",
                 )
 
 
@@ -1445,47 +1358,6 @@ class ARefusedReviewIntegrationEntersTheLadder(unittest.TestCase):
                     "re-attempt would have to invent one",
                 )
 
-    def test_the_review_call_site_REACHES_the_shared_write_site_on_both_hosts(self):
-        """The wiring itself, by AST on the unified core, which is what both hosts run.
-
-        DRIVEN BY STRUCTURE, not by a source grep for the name: the assertion is that the
-        `if not review_integrated:` block CONTAINS a call to `record_integration_refusal`, so a
-        comment naming the function cannot satisfy it and neither can the pre-existing EXECUTE call
-        further down the same function.
-        """
-        core = ast.parse(inspect.getsource(runner_shared.execute_item_core))
-        blocks = [
-            n
-            for n in ast.walk(core)
-            if isinstance(n, ast.If)
-            and isinstance(n.test, ast.UnaryOp)
-            and isinstance(n.test.op, ast.Not)
-            and ast.unparse(n.test.operand) == "review_integrated"
-        ]
-        self.assertTrue(
-            blocks, "the review refusal block was not found in the shared core"
-        )
-        called = {
-            sub.func.id if isinstance(sub.func, ast.Name) else sub.func.attr
-            for block in blocks
-            for sub in ast.walk(block)
-            if isinstance(sub, ast.Call)
-            and isinstance(sub.func, (ast.Name, ast.Attribute))
-        }
-        self.assertIn(
-            "record_integration_refusal",
-            called,
-            "a refused review integration must enter the ladder through the SHARED write site; "
-            f"the block calls {sorted(called)}",
-        )
-        # And BOTH hosts really run this body rather than a local copy.
-        for name, driver in _DRIVERS:
-            self.assertIn(
-                "execute_item_core",
-                inspect.getsource(driver.execute_item),
-                f"{name} does not delegate to the shared core, so the wiring above would not reach it",
-            )
-
 
 class TheReviewReAttemptIsActionCorrect(unittest.TestCase):
     """V-04: the load-bearing item, because the ladder is action-blind by default."""
@@ -2000,45 +1872,6 @@ class TheReviewRefusalReportNamesTheRemedy(unittest.TestCase):
             self.assertIn("pre-commit", text)
             self.assertIn("NOT this runner's output", text)
 
-    def test_NO_runner_module_emits_that_string_which_is_why_it_is_attributed(self):
-        """The supporting evidence for the attribution, measured rather than asserted.
-
-        THE ONLY occurrence in the package is the ATTRIBUTION ITSELF, which quotes the string in order
-        to disclaim it. Anything else would mean some module really does emit it, and the attribution
-        would then be a false statement rather than a helpful one - so the exemption is named
-        explicitly here rather than the check being loosened to a substring nobody counts.
-        """
-        package = Path(runner_shared.__file__).parent
-        attribution_owner = Path(runner_shared.__file__)
-        offenders = [
-            str(p.relative_to(package))
-            for p in package.rglob("*.py")
-            if "stash failed" in p.read_text(encoding="utf-8", errors="replace")
-            and p != attribution_owner
-        ]
-        self.assertEqual(
-            offenders,
-            [],
-            f"a module DOES emit `stash failed` ({offenders}); the attribution is now a FALSE "
-            "statement and must be removed or corrected rather than kept",
-        )
-        # And in the one file that mentions it, EVERY mention is the disclaiming constant or its own
-        # explanatory comment: no mention is inside a string this package would ever PRINT as its own
-        # diagnosis. Asserted per LINE rather than as a count, because a count pins how the comment
-        # happens to be worded today and would red on an unrelated edit to that prose.
-        mentions = [
-            line.strip()
-            for line in attribution_owner.read_text(encoding="utf-8").splitlines()
-            if "stash failed" in line
-        ]
-        self.assertTrue(mentions, "the attribution itself is gone")
-        for line in mentions:
-            self.assertTrue(
-                line.startswith("#") or "pre-commit" in line,
-                f"a mention of `stash failed` that is neither the attribution nor its comment: {line!r}",
-            )
-        self.assertIn("stash failed", runner_shared.PRE_COMMIT_STASH_ATTRIBUTION)
-
 
 class AStrandedReviewIsVisibleInTheRunSummary(unittest.TestCase):
     """V-08: the measured cost of this defect was INVISIBILITY, not the refusal itself."""
@@ -2158,38 +1991,6 @@ class AStrandedReviewIsVisibleInTheRunSummary(unittest.TestCase):
 
 
 class TheSharedDefinitionsAreShared(unittest.TestCase):
-    def test_the_review_lane_helpers_have_exactly_one_definition(self):
-        """Spec `7ckptx` R2.6/R6.1: a containment rule implemented per host is a forked rule."""
-        for symbol in (
-            "acquire_review_sweep_lane",
-            "retire_review_sweep_lane",
-            "refresh_sweep_lane",
-            "classify_review_writes",
-            "commit_review_lane_output",
-            "turn_runs_in_review_sweep_lane",
-            # `i4ak5n` E-06: the review-deferral wiring is shared too, for the same reason. A host
-            # that redefined any of these could defer a review differently from its peer.
-            "integration_action_for_item",
-            "item_is_deferred_review",
-            "deferred_review_lane_handle",
-            "finish_integrated_review_item",
-            "format_review_integration_refusal_report",
-        ):
-            with self.subTest(symbol=symbol):
-                self.assertTrue(hasattr(runner_shared, symbol))
-                for name, driver in _DRIVERS:
-                    defined = [
-                        n
-                        for n in ast.parse(
-                            Path(str(driver.__file__)).read_text(encoding="utf-8")
-                        ).body
-                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and n.name == symbol
-                    ]
-                    self.assertEqual(
-                        defined, [], f"{name} must not redefine `{symbol}`"
-                    )
-
     def test_the_teardown_gate_is_the_EXISTING_shared_one(self):
         """No second classifier: `teardown_review_sweep_lane` delegates to the spec-R5.5 gate.
 

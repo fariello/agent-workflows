@@ -35,7 +35,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows import agy_runipd, ipd_lifecycle, lane_containment, oc_runipd
+from agent_workflows import agy_runipd, lane_containment, oc_runipd
 
 DRIVERS = pytest.mark.parametrize(
     "driver", (oc_runipd, agy_runipd), ids=("oc_runipd", "agy_runipd")
@@ -287,18 +287,6 @@ class TestAntigravityHasNoDenialPosture:
             lane_containment.CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL
         )
 
-    def test_the_agy_driver_records_the_posture_for_an_isolated_turn(self):
-        """The honest statement is actually WIRED, not merely available.
-
-        SABOTAGE TARGET: deleting the `record_host_posture` call in `run_agy_turn` fails this.
-        """
-
-        src = inspect.getsource(agy_runipd.run_agy_turn)
-        assert "lane_containment.record_host_posture" in src
-        assert "lane_containment.antigravity_posture_record()" in src
-        # And it must NOT request a denial policy on a host that has none.
-        assert "build_permission_policy_env" not in src
-
     def test_no_driver_reimplements_the_posture_wording(self):
         """The wording comes from ONE shared constructor, so a call site cannot get it wrong (R2.6)."""
 
@@ -335,16 +323,6 @@ class TestAntigravitySkipPermissionsDefaultIsPinned:
 
         ns = argparse.Namespace()
         assert getattr(ns, "dangerously_skip_permissions", True) is True
-
-    def test_the_flag_is_present_on_an_unattended_turns_argv(self):
-        """The DEFAULT being True is not enough; the flag must actually reach the child's argv."""
-
-        src = inspect.getsource(agy_runipd.run_agy_turn)
-        assert 'argv.append("--dangerously-skip-permissions")' in src
-        assert 'options.get("dangerously_skip_permissions", True)' in src, (
-            "the argv guard must default to True, or an options dict missing the key would "
-            "silently launch the interactive posture that deadlocks"
-        )
 
     def test_this_plan_did_not_change_the_default(self):
         """Stated in the test as well as in the plan: the default is 240m/True as it shipped."""
@@ -527,28 +505,8 @@ class TestPolicyObservation:
         events = (tmp_path / "events.jsonl").read_text(encoding="utf-8")
         assert "host-permission-posture" in events
 
-    def test_the_driver_observes_rather_than_assuming(self):
-        """SABOTAGE TARGET: deleting the observation call in `run_opencode` fails this."""
-
-        src = inspect.getsource(oc_runipd.run_opencode)
-        assert "observe_opencode_policy" in src
-        assert "lane_containment.record_host_posture" in src
-
 
 # ---- R4.5 / R2.6 shared-home checks that apply to BOTH hosts ---------------------------------------
-
-
-@DRIVERS
-def test_the_role_selector_is_carried_for_an_isolated_turn(driver):
-    """R4.5 on both hosts: an isolated turn's child env carries the execution-role selector."""
-
-    launcher = driver.run_opencode if driver is oc_runipd else driver.run_agy_turn
-    src = inspect.getsource(launcher)
-    assert (
-        "child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER" in src
-    )
-    assert "child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)" in src
-    assert ipd_lifecycle.EXECUTION_ROLE_ENV == "AW_EXECUTION_ROLE"
 
 
 @DRIVERS

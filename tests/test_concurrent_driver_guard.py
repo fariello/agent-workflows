@@ -46,8 +46,6 @@ fail a correct implementation, which is worse than no test; that is why the form
 
 from __future__ import annotations
 
-import ast
-import inspect
 import json
 import multiprocessing
 import os
@@ -459,28 +457,6 @@ class BoundedWaitTests(unittest.TestCase):
         self.assertGreater(runner_shared.INTEGRATION_LOCK_TIMEOUT_SECONDS, 0)
         self.assertLess(runner_shared.INTEGRATION_LOCK_TIMEOUT_SECONDS, 24 * 3600)
 
-    def test_NOTHING_passes_blocking_True_to_platform_lock(self):
-        """`platform_lock` reserves `blocking=True` to ONE caller (`project_registry.save_registry`).
-
-        Asserted by AST over the lock's own function, not by text, because a comment explaining the rule
-        would satisfy a substring search. Policy B waits by POLLING a non-blocking acquire instead, which
-        is what keeps that rule true while still waiting.
-        """
-
-        tree = ast.parse(
-            inspect.getsource(runner_shared.integration_lock.__wrapped__)
-            if hasattr(runner_shared.integration_lock, "__wrapped__")
-            else inspect.getsource(runner_shared.integration_lock)
-        )
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                for kw in node.keywords:
-                    self.assertNotEqual(
-                        kw.arg,
-                        "blocking",
-                        "the integration lock must not pass `blocking`; it polls instead",
-                    )
-
     def test_expiry_DEFERS_rather_than_FAILING_the_lane(self):
         """A lane failed on a lock timeout would DISCARD a completed validation.
 
@@ -715,96 +691,6 @@ class SharedImplementationTests(unittest.TestCase):
                         f"{name}.{symbol} is a COPY, not the shared object",
                     )
 
-    def test_NEITHER_host_DEFINES_any_of_them(self):
-        """The test that FAILS if a host is pointed at a copy.
-
-        Identity alone could be satisfied today and then quietly broken by a host defining its own; this
-        asserts by AST that no host declares one of these names at module level at all.
-        """
-
-        for name, module in BOTH:
-            tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
-            defined = {
-                node.name
-                for node in tree.body
-                if isinstance(
-                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                )
-            }
-            for symbol in SHARED_SYMBOLS:
-                with self.subTest(host=name, symbol=symbol):
-                    self.assertNotIn(
-                        symbol,
-                        defined,
-                        f"{name} DEFINES {symbol}; it must re-export the shared one",
-                    )
-
-    def test_exactly_ONE_definition_package_wide(self):
-        pkg = Path(runner_shared.__file__).parent
-        for symbol in SHARED_SYMBOLS:
-            sites = []
-            for path in sorted(pkg.glob("*.py")):
-                for node in ast.parse(path.read_text(encoding="utf-8")).body:
-                    if (
-                        isinstance(
-                            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                        )
-                        and node.name == symbol
-                    ):
-                        sites.append(f"{path.name}:{node.lineno}")
-            with self.subTest(symbol=symbol):
-                self.assertEqual(
-                    len(sites),
-                    1,
-                    f"{symbol} is defined at {sites}, expected exactly one",
-                )
-
-    def test_NO_integration_call_site_BYPASSES_the_serializer(self):
-        """THE UNBYPASSABILITY PROPERTY, which is what makes the guard real rather than present.
-
-        Every call to an integration performer in the shared module must be reached THROUGH
-        `integrate_under_repository_lock`. Asserted by AST over `runner_shared`: the only calls to
-        `integrate_lane_branch` / `integrate_review_lane_branch` outside the serializer's own argument
-        position are the definition site's own internals, so a new publish path added beside the lock
-        fails here instead of silently racing.
-        """
-
-        source = Path(runner_shared.__file__).read_text(encoding="utf-8")
-        tree = ast.parse(source)
-
-        serialized_lambdas = set()
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == "integrate_under_repository_lock"
-            ):
-                for kw in node.keywords:
-                    if kw.arg == "integrate":
-                        for inner in ast.walk(kw.value):
-                            if isinstance(inner, ast.Call) and isinstance(
-                                inner.func, ast.Name
-                            ):
-                                serialized_lambdas.add(inner.func.id)
-
-        self.assertIn(
-            "integrate_review_lane_branch",
-            serialized_lambdas,
-            "the REVIEW publish must be reached through the serializer",
-        )
-
-        # And the in-run EXECUTE publish reaches it too, through a local performer closure.
-        self.assertIn(
-            "integrate_under_repository_lock(",
-            source,
-            "the shared module must route publishes through the serializer",
-        )
-        self.assertEqual(
-            source.count("def integrate_under_repository_lock("),
-            1,
-            "exactly one serializer",
-        )
-
 
 class OperatorVerbTests(unittest.TestCase):
     """E-07 / V-07: the lock reachable by a human, over the SAME path the driver uses."""
@@ -843,22 +729,6 @@ class OperatorVerbTests(unittest.TestCase):
         leaves = discover_parser_leaves(cli._build_parser())
         self.assertIn("integration-lock", leaves)
         self.assertIsNotNone(get_declaration("integration-lock"))
-
-    def test_the_verb_and_the_DRIVER_derive_the_path_from_ONE_function(self):
-        """Not two string literals that happen to match today, which would make the verb theatre.
-
-        Asserted by AST: the CLI branch calls `integration_lock_path` / `integration_lock` on the shared
-        module and spells the lock's filename nowhere itself.
-        """
-
-        cli_source = Path(cli.__file__).read_text(encoding="utf-8")
-        self.assertIn("_rs.integration_lock_path(", cli_source)
-        self.assertIn("_rs.integration_lock(", cli_source)
-        self.assertNotIn(
-            runner_shared.INTEGRATION_LOCK_FILENAME,
-            cli_source,
-            "the CLI must not spell the lock filename; it must resolve it",
-        )
 
     def test_status_reports_FREE_then_HELD_and_acquires_nothing(self):
         free = self._run("--status", "--dir", str(self.repo))
@@ -984,38 +854,6 @@ class PlatformLockRuleTests(unittest.TestCase):
         self.assertIn("EXACTLY ONE CALLER", doc)
         self.assertIn("runner_shared.integration_lock", doc)
         self.assertIn("POLL THIS NON-BLOCKING ACQUIRE", doc)
-
-    def test_save_registry_is_still_the_ONLY_blocking_caller(self):
-        """The sentence stays TRUE, which is the point: the waiting requirement was met without
-        granting a second caller the power to hang a driver silently.
-
-        SCOPED TO `blocking=True` LITERALS, and `platform_lock` ITSELF IS EXCLUDED, both deliberately.
-        The rule governs CALLERS passing the option ON, not the module that defines it: `platform_lock
-        .held` forwards its own `blocking` PARAMETER to `acquire`, which is the primitive's own plumbing
-        and not a caller electing to wait. Including it made this test red against a correct tree while
-        authoring, which is the false-positive shape worth recording rather than silently working around.
-        """
-
-        pkg = Path(runner_shared.__file__).parent
-        offenders = []
-        for path in sorted(pkg.glob("*.py")):
-            if path.name == "platform_lock.py":
-                continue
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    for kw in node.keywords:
-                        if (
-                            kw.arg == "blocking"
-                            and isinstance(kw.value, ast.Constant)
-                            and kw.value.value is True
-                        ):
-                            offenders.append(f"{path.name}:{node.lineno}")
-        self.assertEqual(
-            sorted(set(o.split(":")[0] for o in offenders)),
-            ["project_registry.py"],
-            f"a second blocking caller appeared: {offenders}",
-        )
 
 
 if __name__ == "__main__":

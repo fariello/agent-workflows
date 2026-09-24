@@ -335,7 +335,14 @@ class TheResidueIsFullyAccountedFor(unittest.TestCase):
     DECIDED: dict[str, str] = {
         "disable_lane_prompt": "HOST-SPECIFIC-BY-PIN",
         "_lane_reclaim_prompt": "HOST-SPECIFIC-BY-PIN",
-        "_add_output_mode_flags": "HOST-SPECIFIC-BY-CAPABILITY",
+        # `_add_output_mode_flags` WAS HERE AND IS REMOVED, not demoted, for the same reason
+        # `enforce_dependency_preflight` below is: the 2026-09-23 `hostdedup` residue lift gave it ONE
+        # definition in `runner_shared` (`add_output_mode_flags`), leaving a help-text-supplying wrapper
+        # on each host, so it left the strict residue. Its old decision read HOST-SPECIFIC-BY-CAPABILITY
+        # on the premise that the two copies encoded different host CAPABILITIES; measured, they encoded
+        # two different HELP STRINGS (oc's `--raw` carries a "(legacy behavior)" parenthetical and each
+        # host documents its own `-vv` tier), which is presentation rather than capability and is now two
+        # parameters. Both hosts' `--help` output was verified byte-identical across the lift.
         "_record_forced_stop": "THREE-WAY-FORK-FILED",
         # `enforce_dependency_preflight` WAS HERE AND IS REMOVED, not demoted: `1f7xno` re-homed it
         # into `runner_shared` on 2026-09-23, so it left the strict residue and a row for it would be

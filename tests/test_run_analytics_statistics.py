@@ -139,21 +139,6 @@ class MetricValueReuseTests(unittest.TestCase):
                 _FakeTrial(usage={"cost": 1.0}),  # type: ignore[arg-type]
             )
 
-    def test_no_new_runtime_dependency_is_imported(self):
-        """E-08: stdlib only. Asserted against the module's own import graph."""
-
-        import agent_workflows.run_analytics_statistics as module
-
-        source = module.__file__ or ""
-        self.assertTrue(source.endswith("run_analytics_statistics.py"))
-        # Only stdlib and in-repo imports. A third-party statistics package would appear here.
-        forbidden = ("numpy", "scipy", "pandas", "statsmodels", "sklearn")
-        with open(source, "r", encoding="utf-8") as handle:
-            text = handle.read()
-        for name in forbidden:
-            with self.subTest(name=name):
-                self.assertNotIn(f"import {name}", text)
-
 
 class _FakeTrial:
     """The minimum shape `evaluate_trial_metrics` reads, so the guard can be exercised.

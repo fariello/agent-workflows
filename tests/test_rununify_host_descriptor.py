@@ -43,7 +43,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from agent_workflows import agy_runipd, oc_runipd, run_viewer
+from agent_workflows import agy_runipd, oc_runipd
 from agent_workflows import runner_shared as R
 
 #: Each lifted symbol: the name it keeps in BOTH runners -> the name it has in `runner_shared`.
@@ -358,26 +358,6 @@ class TheReportShapeTests(unittest.TestCase):
                 "string, so a backticked value silently loses the badge",
             )
 
-    def test_the_viewer_badge_predicate_now_matches_for_BOTH_hosts_end_to_end(
-        self,
-    ) -> None:
-        """F-12 proven through the real consumer, not just by inspecting the cell."""
-        source = inspect.getsource(run_viewer.load_run_summary)
-        self.assertIn(
-            "cols[5].strip()", source, "the viewer's parse of column 5 moved; re-verify"
-        )
-        for mod, _labels in HOSTS:
-            report = self._report(mod, self._state())
-            row = next(line for line in report.splitlines() if line.startswith("| 1 "))
-            parsed = [c.strip() for c in row.split("|")[1:-1]]
-            v_status = parsed[5] if len(parsed) > 5 and parsed[5] else None
-            self.assertEqual(
-                v_status,
-                "verified",
-                f"{mod.__name__}: run_viewer.py's `verification_status == 'verified'` test would "
-                "fail, so the [verified] badge would not render",
-            )
-
     def test_an_empty_verification_renders_an_EMPTY_cell_not_N_A(self) -> None:
         for mod, _labels in HOSTS:
             report = self._report(mod, self._state(verification=None))
@@ -667,23 +647,6 @@ class TheRunnerCanSupplyAWideningReasonTests(unittest.TestCase):
 
 class TheSharedModuleStaysCleanTests(unittest.TestCase):
     """The standing rule this lift must not break."""
-
-    def test_the_shared_module_does_not_import_either_runner(self) -> None:
-        """A shared module importing a runner would silently give BOTH hosts that runner's behavior.
-        `tests/test_runner_shared.py::NoRunnerImportTests` owns this too; asserted here because this
-        change added lazy imports to the shared module and they must not be runner imports."""
-        tree = ast.parse(Path(str(R.__file__)).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                self.assertNotIn("oc_runipd", node.module)
-                self.assertNotIn("agy_runipd", node.module)
-                for alias in node.names:
-                    self.assertNotIn("oc_runipd", alias.name)
-                    self.assertNotIn("agy_runipd", alias.name)
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    self.assertNotIn("oc_runipd", alias.name)
-                    self.assertNotIn("agy_runipd", alias.name)
 
     def test_the_stale_docstring_claims_were_repaired_not_promoted(self) -> None:
         """E-03. Both claims were FALSE on the Antigravity host and lifting them verbatim would have

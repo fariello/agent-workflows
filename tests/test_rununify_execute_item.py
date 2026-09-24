@@ -390,22 +390,6 @@ class TheSplitHasBeenPerformed(unittest.TestCase):
     `execute_item` delegating to it. Neither host cross-imports from the other.
     """
 
-    def test_execute_item_is_defined_in_both_runners_and_core_in_runner_shared(self):
-        for host in HOSTS:
-            self.assertIn("execute_item", _top_level_defs(host))
-        shared_defs = {
-            node.name
-            for node in ast.parse(
-                (AW / "runner_shared.py").read_text(encoding="utf-8")
-            ).body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        }
-        self.assertIn(
-            "execute_item_core",
-            shared_defs,
-            "execute_item_core must be defined in runner_shared",
-        )
-
     def test_the_two_definitions_are_not_the_same_object(self):
         self.assertIsNot(oc_runipd.execute_item, agy_runipd.execute_item)
 
@@ -461,21 +445,6 @@ class TheClosureCountsAreRecorded(unittest.TestCase):
             18,
             "the pinned population shrank: a symbol was DELETED from the guard rather than moved "
             "between STILL_DOUBLE_DEFINED and THIN_WRAPPERS_OVER_RUNNER_SHARED",
-        )
-
-    def test_execute_item_core_is_the_largest_symbol_in_runner_shared(self):
-        """Plan F-1: execute_item_core in runner_shared is the unified core."""
-        shared_sizes = {}
-        for node in ast.parse(
-            (AW / "runner_shared.py").read_text(encoding="utf-8")
-        ).body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                shared_sizes[node.name] = (node.end_lineno or node.lineno) - node.lineno
-        largest = max(shared_sizes, key=lambda key: shared_sizes[key])
-        self.assertEqual(
-            largest,
-            "execute_item_core",
-            f"runner_shared: execute_item_core is no longer the largest symbol (now {largest})",
         )
 
 

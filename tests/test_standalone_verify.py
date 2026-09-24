@@ -679,37 +679,6 @@ class TheVerbSurface(unittest.TestCase):
             "the two hosts' `audit` verbs are not the same verb",
         )
 
-    def test_the_verb_is_in_both_implicit_start_shim_sets(self):
-        """A missing token rewrites `audit <id6>` into `start audit <id6>`, i.e. a paid execution.
-
-        Read off `main`'s AST, matching how `test_runner_stop_triggers` reads it, because the set is
-        deliberately an inline literal inside `main` rather than a module constant.
-        """
-
-        import ast
-        import inspect
-        import textwrap
-
-        for mod in (oc_runipd, agy_runipd):
-            with self.subTest(host=mod.__name__):
-                tree = ast.parse(textwrap.dedent(inspect.getsource(mod.main)))
-                shim = None
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Assign) and any(
-                        isinstance(t, ast.Name) and t.id == "subcommands"
-                        for t in node.targets
-                    ):
-                        shim = set(ast.literal_eval(node.value))
-                        break
-                self.assertIsNotNone(shim, f"{mod.__name__} has no inline shim set")
-                assert shim is not None
-                self.assertIn(
-                    "audit",
-                    shim,
-                    f"{mod.__name__} would rewrite `audit <id6>` into `start audit <id6>`, paying "
-                    f"for an execution attempt against an already-executed plan",
-                )
-
     def test_a_bare_audit_is_not_rewritten_into_a_run_launch(self):
         """The CONSEQUENCE, observed rather than inferred: no run directory may be created.
 

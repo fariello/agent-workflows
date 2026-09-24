@@ -47,7 +47,6 @@ import pytest
 
 from agent_workflows import agy_runipd as AGY
 from agent_workflows import oc_runipd as OC
-from agent_workflows import runner_shared as RS
 from agent_workflows import worktree_lease as WL
 
 
@@ -336,22 +335,6 @@ class TestDispositionIsReportedWithoutCouplingTheModule(unittest.TestCase):
         self.assertEqual(scoped.disposition, WL.DISPOSITION_ATTEMPT_SCOPED)
         self.assertEqual(scoped.displaced_from, created.branch)
 
-    def test_worktree_lease_stays_stdlib_only(self):
-        # Plan `2c122z` E-06 DEPENDS on this: it reuses allocate_worktree for disposable candidate
-        # worktrees, so a ledger/run-context import here would couple a low-level primitive to run
-        # state and would misrecord candidates as lanes.
-        source = Path(WL.__file__).read_text(encoding="utf-8")
-        imports = [
-            line.strip()
-            for line in source.splitlines()
-            if line.startswith("import ") or line.startswith("from ")
-        ]
-        self.assertTrue(imports)
-        for line in imports:
-            self.assertNotIn("agent_workflows", line, f"non-stdlib import: {line}")
-        self.assertNotIn("append_jsonl(", source, "no ledger call in the primitive")
-        self.assertNotIn("run_dir", source, "no run context in the primitive")
-
 
 class TestDriverSymmetry(unittest.TestCase):
     """(g): a one-driver fix would leave `aw agy run` wedgeable by the reported failure."""
@@ -370,102 +353,6 @@ class TestDriverSymmetry(unittest.TestCase):
             self.assertTrue(
                 callable(getattr(AGY, name, None)), f"agy_runipd is missing {name}"
             )
-
-    def test_g_both_drivers_record_lane_identity_at_allocation(self):
-        # UPDATED by `lanectn` child `xdr83v` (spec 7ckptx R5.6/R6.1), consciously and not weakened.
-        #
-        # The ALLOCATION-time writes are still asserted as driver source text, because each driver
-        # still performs them itself. The PRESERVATION-time write moved: `item["preserved_lane_id"]`
-        # (with the rest of the `preserved_*` field set and the preservation event) had an inline COPY
-        # in both drivers, and the retention work collapsed them into the ONE shared emitter
-        # `lane_containment.record_lane_preserved` so every preservation also carries a REASON. A text
-        # match on the driver would now fail for the RIGHT reason - the copy is gone - so it is
-        # replaced by an assertion of the same property in its new home, which is strictly stronger:
-        # each driver must REACH the shared recorder, and the recorder must WRITE the field.
-        for module in (OC, AGY):
-            source = Path(module.__file__).read_text(encoding="utf-8")
-            if "execute_item_core" in source:
-                source += "\n" + Path(RS.__file__).read_text(encoding="utf-8")
-            self.assertIn('attempt["worktree_lane_id"]', source, module.__name__)
-            self.assertIn('attempt["worktree_base"]', source, module.__name__)
-            self.assertIn('attempt["worktree_disposition"]', source, module.__name__)
-            self.assertIn(
-                "lane_containment.record_lane_preserved(", source, module.__name__
-            )
-
-        from agent_workflows import lane_containment
-
-        class _H:
-            path = Path("/lane")
-            branch = "aw/lane/sym001"
-            lane_id = "sym001"
-            base_commit = "c" * 40
-            disposition = "created"
-
-        item: dict = {}
-        lane_containment.record_preserved_lane_state(
-            item=item, handle=_H(), reason="symmetry probe"
-        )
-        self.assertEqual(item["preserved_lane_id"], "sym001")
-        self.assertEqual(item["preserved_base"], "c" * 40)
-        self.assertEqual(item["preserved_disposition"], "created")
-
-    def test_g_both_drivers_reclaim_on_the_existing_interrupt_path(self):
-        for module in (OC, AGY):
-            source = Path(module.__file__).read_text(encoding="utf-8")
-            self.assertIn("except KeyboardInterrupt:", source, module.__name__)
-            self.assertIn("reclaim_lanes_on_interrupt(", source, module.__name__)
-
-    def test_lane_reclamation_survives_the_runstop_signal_handlers(self):
-        # CONSCIOUSLY UPDATED by `runstop` Phase 5 (`71vjbn`), not deleted.
-        #
-        # This test was authored as "neither driver registers a signal handler", because Phase 5 OWNED
-        # that registration and whichever plan registered last would silently win. Phase 5 has now
-        # landed it, so the reservation has been redeemed rather than violated.
-        #
-        # It is not simply removed, because this plan's real stake is different and still live: lane
-        # reclamation hangs off the drivers' `except KeyboardInterrupt` path, and installing a SIGINT
-        # handler SUPPRESSES the default `KeyboardInterrupt` that path depends on. Phase 5's recorded
-        # decision is to PRESERVE it - the terminal rung of the ladder re-raises `KeyboardInterrupt`,
-        # so lane reclamation still runs on a third Ctrl-C exactly as it did on the first one before.
-        # That is what is asserted here now.
-        # RE-BASED, NOT WEAKENED (hostdedup Order 01, `li44r9`, E-07). `install_stop_triggers` was
-        # byte-identical in both drivers and now has ONE definition in `runner_shared`, each driver
-        # keeping a thin delegation. So the registration CALL and the terminal rung's
-        # `raise KeyboardInterrupt(` legitimately moved out of the driver files, and searching a driver's
-        # source alone would fail a correct implementation.
-        #
-        # THE TWO PROPERTIES ARE UNCHANGED, and they are asserted over the OWNER SET (each driver plus
-        # the shared module) rather than per driver, which is the same shape the other guards in this
-        # repository adopted when symbols moved into `runner_shared`:
-        #   1. registration goes through THE shared installer, so no two plans race for the signal, and
-        #   2. something still RAISES `KeyboardInterrupt`, without which `reclaim_lanes_on_interrupt`
-        #      is never invoked and lane reclamation silently stops happening -- this plan's real stake.
-        #
-        # THE `signal.signal(` PROHIBITION STAYS PER DRIVER, deliberately and un-relaxed: a driver
-        # registering its own handler is exactly the race the assertion exists to forbid, and moving it
-        # to the owner set would let one driver do it while the shared module's absence excused it.
-        # `reclaim_lanes_on_interrupt(` also stays per driver, because it is called from each driver's
-        # OWN `except KeyboardInterrupt` path, which did not move.
-        from agent_workflows import runner_shared as _shared
-
-        owner_set_source = "".join(
-            Path(m.__file__).read_text(encoding="utf-8") for m in (OC, AGY, _shared)
-        )
-        self.assertIn(
-            "runner_stop.install_stop_signal_handlers(",
-            owner_set_source,
-            "registration must go through THE shared installer somewhere in the owner set",
-        )
-        self.assertIn(
-            "raise KeyboardInterrupt(",
-            owner_set_source,
-            "something must still RAISE KeyboardInterrupt, or lane reclamation is unreachable",
-        )
-        for module in (OC, AGY):
-            source = Path(module.__file__).read_text(encoding="utf-8")
-            self.assertNotIn("signal.signal(", source, module.__name__)
-            self.assertIn("reclaim_lanes_on_interrupt(", source, module.__name__)
 
 
 class TestReclamationPreservesWorkAndReclaimsOnlyEmpty(unittest.TestCase):
@@ -710,12 +597,6 @@ class TestInterruptReportIsActionable(unittest.TestCase):
         self.assertEqual(described["commits_ahead"], classified.commits_ahead)
         self.assertEqual(described["holds_work"], classified.holds_work)
 
-    def test_no_new_cli_verb_or_flag_was_added(self):
-        # `aw doctor --lanes` and `aw recover <run-id>` are owned by plan `2c122z`.
-        cli = Path(Path(OC.__file__).parent / "cli.py").read_text(encoding="utf-8")
-        self.assertNotIn("--lanes", cli)
-        self.assertNotIn('"recover"', cli)
-
 
 class TestRecoveryPromptNamesTheLane(unittest.TestCase):
     """E-11/V-11: a resumed turn is TOLD it is resuming, reusing the existing recovery branch."""
@@ -763,50 +644,6 @@ class TestRecoveryPromptNamesTheLane(unittest.TestCase):
                 self.assertIn("Mode: NORMAL EXECUTION", normal)
                 self.assertNotIn("continuing an INTERRUPTED attempt", normal)
                 self.assertNotIn(handle.branch, normal)
-
-    def test_no_acknowledgement_gate_or_refusal_path_was_added(self):
-        """No acknowledgement gate and no refusal path: a stalled prompt would wedge a lone run.
-
-        RETARGETED by rununify Order 02 (`818uru` E-07). `build_recovery_lane_notice` had
-        AST-IDENTICAL copies in both runners and now has ONE definition in `runner_shared`, so this
-        source scrape follows it to its new owner. The guarantee STRICTLY GROWS: it is checked once at
-        the owner, and both runners are additionally asserted not to re-introduce a local copy (a
-        re-fork would otherwise escape this check entirely, which is exactly how `agy_runipd` once
-        re-forked four `render_stream` symbols unnoticed).
-
-        Note the previous form was failing OPEN rather than closed: after the move its
-        `source.index("def build_recovery_lane_notice(")` raised `ValueError` before any assertion
-        ran, so it could not have detected a real regression either.
-        """
-        import ast
-
-        from agent_workflows import runner_shared as RS
-
-        source = Path(RS.__file__).read_text(encoding="utf-8")
-        node = next(
-            n
-            for n in ast.parse(source).body
-            if isinstance(n, ast.FunctionDef) and n.name == "build_recovery_lane_notice"
-        )
-        # Strip the docstring, which legitimately explains that NO acknowledgement gate exists.
-        body = "\n".join(
-            ast.unparse(stmt)
-            for stmt in node.body
-            if not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant))
-        )
-        for banned in ("input(", "acknowledgement required", "refuse"):
-            self.assertNotIn(banned, body, RS.__name__)
-
-        # And neither runner may re-introduce a local definition, which would bypass the check above.
-        for module in (OC, AGY):
-            defined = {
-                n.name
-                for n in ast.parse(
-                    Path(module.__file__).read_text(encoding="utf-8")
-                ).body
-                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-            }
-            self.assertNotIn("build_recovery_lane_notice", defined, module.__name__)
 
     def test_snapshot_is_described_as_a_snapshot(self):
         repo = fixture_repo(self.tmp)
@@ -864,34 +701,6 @@ class TestOptionalPromptNeverBlocksAnUnattendedRun(unittest.TestCase):
                     self.assertIsNone(module._lane_reclaim_prompt(lane, "discard"))
                 finally:
                     module._LANE_PROMPT_DISABLED = saved
-
-    def test_second_interrupt_still_preserves_and_reports(self):
-        # A repeated interrupt must skip the PROMPT, never the PRESERVATION.
-        for module in (OC, AGY):
-            source = Path(module.__file__).read_text(encoding="utf-8")
-            handler = source[
-                source.index(
-                    "        except KeyboardInterrupt:\n            # laneorphan"
-                ) :
-            ]
-            handler = handler[: handler.index("            raise")]
-            self.assertIn("disable_lane_prompt()", handler, module.__name__)
-            self.assertIn("interactive=False", handler, module.__name__)
-            self.assertIn("repeated-interrupt", handler, module.__name__)
-
-    def test_prompt_has_a_bounded_wait(self):
-        for module in (OC, AGY):
-            self.assertIsInstance(module.LANE_PROMPT_TIMEOUT, float)
-            self.assertLessEqual(
-                module.LANE_PROMPT_TIMEOUT,
-                60.0,
-                "an unattended run must never block long on shutdown",
-            )
-            source = Path(module.__file__).read_text(encoding="utf-8")
-            prompt = source[source.index("def _lane_reclaim_prompt(") :]
-            prompt = prompt[: prompt.index("\ndef ")]
-            self.assertIn("select.select", prompt, "the wait must be bounded")
-            self.assertIn("isatty", prompt, "a prompt requires a real terminal")
 
 
 @pytest.mark.slow

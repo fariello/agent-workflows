@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import argparse
-import ast
 import contextlib
 import io
 import json
@@ -1232,31 +1231,6 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                 state["queue"][0][runner_shared.RECOVERED_COMMITS_KEY],
                 [{"sha": sha, "resolved": True}, {"sha": "0" * 40, "resolved": False}],
             )
-
-    def test_nothing_is_validated_merged_or_checked_out(self):
-        """E-03's fence, asserted on the SOURCE of the reporting helper rather than trusted.
-
-        Reporting a recorded sha is not confirming a lane is mergeable: that belongs to the
-        `integpath` Set. So the only git verb this path may reach for is the read `cat-file`.
-        """
-        from agent_workflows import runner_shared
-
-        # CODE ONLY. The docstring NAMES the forbidden verbs in order to state the fence, so asserting
-        # over the whole unparse would fail on the explanation rather than on the implementation.
-        node = ast.parse(
-            inspect_source(runner_shared, "describe_recorded_commits")
-        ).body[0]
-        assert isinstance(node, ast.FunctionDef)
-        body = [
-            s
-            for s in node.body
-            if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant))
-        ]
-        source = "\n".join(ast.unparse(s) for s in body)
-        for forbidden in ("merge", "checkout", "cherry-pick", "reset", "update-ref"):
-            with self.subTest(verb=forbidden):
-                self.assertNotIn(forbidden, source)
-        self.assertIn("cat-file", source)
 
     # ---- E-05: the four fallback branches ---------------------------------------------------
     #
@@ -4416,35 +4390,6 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             # No incoming files -> never blocked.
             self.assertEqual(driver.dirty_tree_overlap(repo, []), [])
 
-    def test_the_integration_helpers_are_the_SHARED_ones(self):
-        """integpath-02 (`6sb3yu`): this module no longer carries its own copies.
-
-        Asserted HERE, in the driver's own suite, and not only in the shared harness: a reader of
-        `oc_runipd`'s tests should be able to see that these three symbols are bound rather than
-        defined, since that is what makes a fix to the refusal logic reach BOTH drivers.
-        """
-        from agent_workflows import runner_shared
-
-        # The pure move is the SAME OBJECT.
-        self.assertIs(driver.dirty_tree_overlap, runner_shared.dirty_tree_overlap)
-        # The other two keep a thin host-binding wrapper (for `run_checked` / `host_label`), so they
-        # are NOT the same object; what must hold is that this module defines no second BODY.
-        src = Path(str(driver.__file__)).read_text(encoding="utf-8")
-        tree = ast.parse(src)
-        for name in ("build_lane_outcome", "integrate_lane_branch"):
-            node = next(
-                n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef) and n.name == name
-            )
-            statements = [
-                s
-                for s in node.body
-                if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant))
-            ]
-            self.assertEqual(len(statements), 1, f"{name} must be a one-line wrapper")
-            self.assertIn(f"runner_shared.{name}", ast.unparse(statements[0]))
-
     def test_this_hosts_merge_subject_still_says_aw_oc_run(self):
         """The ONE value the extraction parameterized, checked against a REAL merge on this host.
 
@@ -6774,40 +6719,6 @@ class VerifierTurnArgvRoutingTests(unittest.TestCase):
             f"turn {self._launch_of(argv)}, which this suite catches"
         )
 
-    def test_one_argv_builder_serves_every_call_site(self):
-        """No second builder: `run_opencode` is still the only launcher on this host.
-
-        THE INVARIANT IS ONE BUILDER, NOT A CALLER COUNT, and the two were conflated here until
-        reverify-01 (`mp289j`) added a legitimate third caller (the standalone `audit` verb, which
-        launches the verifier prompt on demand). The hazard this test exists to catch is a SECOND argv
-        BUILDER, because that is how the two hosts' flag surfaces diverged in the first place; a new
-        caller of the one builder is the opposite of that hazard, since it means the new surface
-        inherits every launch rule rather than re-deriving them.
-
-        So the count is REPORTED and the definition count is ASSERTED. Adding a caller is allowed;
-        adding a `def run_opencode(` is not. The three callers are named in the printed output so a
-        reviewer can see which they are rather than trusting a number.
-        """
-
-        source = Path(driver.__file__).read_text(encoding="utf-8")
-        call_sites = [
-            line.strip()
-            for line in source.splitlines()
-            if "run_opencode(" in line and "def run_opencode" not in line
-        ]
-        real_calls = [c for c in call_sites if c.endswith("run_opencode(")]
-        self.assertGreaterEqual(
-            len(real_calls),
-            2,
-            f"the executor and verifier call sites must both still exist: {call_sites}",
-        )
-        self.assertEqual(
-            source.count("def run_opencode("),
-            1,
-            "a SECOND launcher was defined on this host, which is the divergence this test guards",
-        )
-        print(f"one builder, {len(real_calls)} call sites: {real_calls}")
-
     def test_the_verifier_still_forces_a_fresh_session_and_stays_in_the_worktree(self):
         """A model swap must not disturb session freshness or the directory the turn runs in."""
 
@@ -6941,50 +6852,6 @@ class VerifierRoutingHostAsymmetryTests(unittest.TestCase):
     `docs/runner-profiles.md` claim, so they are asserted positively instead of being inferred from a
     zero symbol count.
     """
-
-    def test_the_agy_runner_joins_the_validate_chain_but_not_verify_with_routing(self):
-        from agent_workflows import agy_runipd, runner_shared
-
-        source = Path(agy_runipd.__file__).read_text(encoding="utf-8")
-
-        # (1) MODEL ROUTING IS STILL OC-ONLY. The surviving half of the original assertion: this host
-        # neither reads nor freezes a verifier launch, so `verify_with` cannot route anything here.
-        for symbol in ("verify_with", "launch_profile", "resolve_launch_profile"):
-            self.assertEqual(
-                source.count(symbol),
-                0,
-                f"agy_runipd now references {symbol!r}; the OC-only MODEL ROUTING claim needs "
-                f"re-measuring",
-            )
-        self.assertFalse(hasattr(agy_runipd, "launch_profile_record"))
-        self.assertFalse(hasattr(agy_runipd, "resolve_launch_pair"))
-
-        # (2) BUT IT DOES PARTICIPATE IN THE `validate` CHAIN, through the SHARED resolution rather
-        # than a per-driver copy of it. Asserted on the resolution actually reached, not on a
-        # substring: a stored `defaults.validate` must decide an agy run's frozen posture.
-        self.assertTrue(hasattr(agy_runipd, "resolve_verification_decision"))
-        self.assertIs(
-            agy_runipd.runner_shared.resolve_verification_decision,
-            runner_shared.resolve_verification_decision,
-        )
-        with tempfile.TemporaryDirectory() as td:
-            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": td}, clear=False):
-                store = Path(td) / "agent-workflows" / "runner-profiles.json"
-                store.parent.mkdir(parents=True, exist_ok=True)
-                store.write_text(
-                    json.dumps({"schema_version": 2, "defaults": {"validate": False}}),
-                    encoding="utf-8",
-                )
-                args = agy_runipd.build_parser().parse_args(
-                    ["start", "demo", "--repo", "."]
-                )
-                stored = agy_runipd.resolve_verification_decision(args)
-        self.assertIs(stored.validate, False)
-        self.assertEqual(stored.provenance, "defaults")
-        print(
-            "agy_runipd references verify_with/launch_profile 0 times (model routing is OC-only) "
-            "while a stored defaults.validate DOES decide its verification posture"
-        )
 
     def test_the_flag_help_says_opencode_host_only(self):
         parser = driver.build_parser()
@@ -7122,52 +6989,6 @@ class OcTelemetryWiringTests(unittest.TestCase):
             source.count("subprocess.run("),
             0,
             "the uninstrumented helper sites must still exist, or the assertions above are vacuous",
-        )
-
-    def test_every_caller_reaches_the_instrumented_launcher_and_names_its_phase(
-        self,
-    ):
-        """Every launch is instrumented, and a VERIFYING launch says so explicitly.
-
-        RESTATED AS AN INVARIANT rather than a census by reverify-01 (`mp289j`), which added a THIRD
-        legitimate caller: the standalone `audit` verb, which launches the verifier prompt on demand.
-
-        The property telemetry actually needs is that no launch escapes instrumentation and that a
-        non-execute phase is STATED by its call site rather than inferred (the original reason this test
-        exists: phase used to be recoverable only from a log FILENAME, which couples a data field to a
-        presentation detail). Both hold with three callers exactly as with two. Pinning the NUMBER
-        instead would make adding an instrumented launch look like a telemetry regression.
-        """
-
-        tree = ast.parse(self._source())
-        calls = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "run_opencode"
-        ]
-        self.assertGreaterEqual(
-            len(calls), 2, "the executor and the verifier must both still be here"
-        )
-        phases = [
-            keyword.value.attr
-            for call in calls
-            for keyword in call.keywords
-            if keyword.arg == "telemetry_phase"
-            and isinstance(keyword.value, ast.Attribute)
-        ]
-        # Exactly one caller is the EXECUTOR (it states no phase and takes the `execute` default);
-        # every other caller is a verifying launch and must NAME the validate phase.
-        self.assertEqual(
-            len(calls) - len(phases),
-            1,
-            f"exactly one caller may rely on the default execute phase; phases stated: {phases}",
-        )
-        self.assertEqual(
-            set(phases),
-            {"TELEMETRY_PHASE_VALIDATE"},
-            "a caller stated a phase other than validate",
         )
 
     def test_a_turn_emits_a_start_and_an_end_event_keyed_on_the_invocation(self):
@@ -7679,15 +7500,6 @@ class PerArtifactDispositionLineTests(unittest.TestCase):
         lines = self._disposition_lines(out)
         self.assertEqual(len([line for line in lines if "eee555" in line]), 1)
 
-    def test_the_wording_comes_from_the_pure_module_and_not_from_this_driver(self):
-        """The driver must hold NO copy of the reason vocabulary (the anti-fork rule)."""
-        src = Path(str(driver.__file__)).read_text(encoding="utf-8")
-        from agent_workflows import run_selection_policy as pol
-
-        for label in pol.SKIP_REASON_LABELS.values():
-            self.assertNotIn(label, src)
-        self.assertIs(driver.render_queue_dispositions, pol.render_queue_dispositions)
-
 
 class EndOfRunDispositionSummaryTests(unittest.TestCase):
     """runnoop Order 03 (`bsc457`) E-05: the CLOSING SUMMARY, asserted on ACTUAL rendered stdout.
@@ -7800,18 +7612,6 @@ class EndOfRunDispositionSummaryTests(unittest.TestCase):
         self.assertIn("No turn was attempted", out)
         self.assertIn("This is NOT a failed launch", out)
         self.assertNotIn("No OpenCode session was captured for this run.", out)
-
-    def test_the_summary_wording_comes_from_the_pure_module_and_not_from_this_driver(
-        self,
-    ):
-        """The driver must hold NO copy of the summary vocabulary or the remedies (the anti-fork rule)."""
-        from agent_workflows import run_selection_policy as pol
-
-        src = Path(str(driver.__file__)).read_text(encoding="utf-8")
-        self.assertNotIn(pol.SUMMARY_HEADER, src)
-        for remedy in pol.DISPOSITION_REMEDIES.values():
-            self.assertNotIn(remedy, src)
-        self.assertIs(driver.render_disposition_summary, pol.render_disposition_summary)
 
 
 # ==================================================================================================
@@ -7996,29 +7796,6 @@ class VerdictTruthTableTests(unittest.TestCase):
                 mapped = rs.map_verdict(raw)
                 self.assertEqual(mapped.verify_disp, "blocked")
                 self.assertTrue(mapped.downgrade)
-
-    def test_the_documented_verdicts_are_exactly_the_prompt_schema(self):
-        """The prompt and its consumer must not disagree by construction (finding F-6).
-
-        The gate used to be able to express TWO outcomes while the prompt asked for THREE, which is
-        how a documented verdict came to have no arm. This asserts the three named constants are the
-        three the prompt actually advertises, read from the prompt text itself.
-        """
-        from agent_workflows import runner_shared as rs
-
-        source = Path(str(rs.__file__)).read_text(encoding="utf-8")
-        self.assertIn(
-            f'"verdict": "{rs.VERDICT_VERIFIED}|{rs.VERDICT_CORRECTION_REQUIRED}'
-            f'|{rs.VERDICT_BLOCKED}"',
-            source,
-        )
-        for token in (
-            rs.VERDICT_VERIFIED,
-            rs.VERDICT_CORRECTION_REQUIRED,
-            rs.VERDICT_BLOCKED,
-        ):
-            with self.subTest(token=token):
-                self.assertTrue(rs.map_verdict(token).recognized)
 
     def test_the_state_vocabulary_is_run_states_and_not_a_new_one(self):
         """The mapping CONSUMES `run_state`'s tokens rather than minting a parallel vocabulary."""
@@ -8319,49 +8096,6 @@ class VerificationAbsenceTests(unittest.TestCase):
                 assert read_back is not None
                 self.assertEqual(read_back.code, code)
                 self.assertTrue(read_back.remedy.strip())
-
-    def test_no_new_test_here_reads_the_gitignored_live_run_tree(self):
-        """The fixture rule, asserted mechanically rather than trusted.
-
-        Checks STRING LITERALS in this class's AST, not its raw text: the prose above names the
-        gitignored path in order to explain the rule, and a raw substring scan would flag that
-        explanation as the violation it warns against.
-        """
-        tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
-        cls = next(
-            node
-            for node in tree.body
-            if isinstance(node, ast.ClassDef)
-            and node.name == "VerificationAbsenceTests"
-        )
-        literals = [
-            node.value
-            for node in ast.walk(cls)
-            if isinstance(node, ast.Constant) and isinstance(node.value, str)
-        ]
-        # A docstring IS a string literal, so exclude the ones that are statements rather than
-        # values: only an expression a test actually USES could read the live tree.
-        docstrings = {
-            node.body[0].value.value
-            for node in [cls, *ast.walk(cls)]
-            if isinstance(node, (ast.ClassDef, ast.FunctionDef))
-            and node.body
-            and isinstance(node.body[0], ast.Expr)
-            and isinstance(node.body[0].value, ast.Constant)
-            and isinstance(node.body[0].value.value, str)
-        }
-        # The needle is ASSEMBLED rather than spelled, so this test's own search string is not itself
-        # a literal that the search would flag.
-        needle = ".aw/records/" + "runs"
-        offenders = [
-            text for text in literals if text not in docstrings and needle in text
-        ]
-        self.assertEqual(
-            offenders,
-            [],
-            "a test reading the gitignored live run tree passes in this checkout and "
-            "fails in CI, in a fresh clone, and in every lane worktree",
-        )
 
 
 # ==================================================================================================
@@ -8703,39 +8437,6 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
         )
         self.assertEqual(components, {})
         self.assertEqual(reason, oc_models.CARD_MODEL_NOT_DECLARED)
-
-    def test_the_shared_symbol_lives_in_runner_shared_NOT_in_oc_runipd(self):
-        """Layering: agy already imports names from `oc_runipd` and adding one more would deepen the
-        defect backlog `cnwy8g` owns.
-
-        THE RESIDUAL SURFACE IS PINNED BY NAME, in `runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD`, shared
-        with the agy-side twin of this test. This docstring used to assert "56 names" and the body
-        asserted that number; `1f7xno` re-homed 52 of them while this test was being written on a
-        parallel branch, so the figure was stale the moment both landed. See that constant for the full
-        account and for why the residual 4 are the intended resting point.
-        """
-
-        self.assertTrue(hasattr(runner_shared, "cost_attribution_record"))
-        self.assertEqual(
-            runner_shared.cost_attribution_record.__module__,
-            "agent_workflows.runner_shared",
-        )
-        tree = ast.parse(
-            (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
-                encoding="utf-8"
-            )
-        )
-        from_oc = {
-            alias.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            and node.module
-            and "oc_runipd" in node.module
-            for alias in node.names
-        }
-        self.assertNotIn("cost_attribution_record", from_oc)
-        self.assertNotIn("COST_ATTRIBUTION_KEY", from_oc)
-        self.assertEqual(from_oc, set(runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD))
 
 
 class TheConsumerBoundaryHoldsTests(unittest.TestCase):

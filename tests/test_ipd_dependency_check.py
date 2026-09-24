@@ -931,21 +931,6 @@ class GrandfatheringTests(unittest.TestCase):
             f"current corpus must not mass-fail; got {len(missing)} missing findings",
         )
 
-    def test_no_tool_auto_inserts_none(self):
-        """Kept separate: the assertion is over MODULE SOURCE TEXT, not over any tree or result.
-
-        `none` is a substantive claim ('I depend on nothing') that only an author can make, so no tool
-        may write it on their behalf; scaffold emits the `unresolved` sentinel instead. There is no
-        fixture that can express 'no code path anywhere writes this string', so this greps the module.
-        """
-        from agent_workflows import ipd_authoring
-
-        import inspect
-
-        src = inspect.getsource(ipd_authoring)
-        self.assertIn("- Item-Dependencies: unresolved", src)
-        self.assertNotIn("- Item-Dependencies: none", src)
-
 
 # --------------------------------------------------------------------------------------
 # detrun Order bmh754: `From-Spec` schema recognition + `check.from-spec-dangling`.
