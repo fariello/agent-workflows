@@ -6,7 +6,7 @@
 - Scope: Add a `Landed` column to the run summary derived from the plan's terminal DIRECTORY, and amend the eight specs that name a legacy status token so the contract matches the vocabulary Order 01 ships. IN: the run summary table and its renderer, the directory-derived predicate that feeds the column, and the eight spec files in their real status subdirectories. OUT: deriving the column from any recorded status or self-report (the whole point is that it is independent of both), changing the status vocabulary itself (Order 01 owns it), and changing what any gate refuses.
 - Scope-Paths: agent_workflows/run_viewer.py, agent_workflows/runner_shared.py, tests/test_run_summary_table.py, tests/test_run_viewer.py, .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, .aw/records/specs/approved/20260912-6kwd2e-01-6kwd2e-midrun-question-surfacing.spec.md, .aw/records/specs/to-review/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md, .aw/records/specs/draft/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md, .aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md
 - Item-Dependencies: executed:cyamvi
-- Status: draft
+- Status: to-review
 - Set: statusvocab
 - Order: 3
 - Highest E allocated: 03
@@ -17,6 +17,7 @@
 - Id: 9x7otz
 
 ## Workflow history
+- 2026-09-24 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored as part of splitting the oversized cyamvi plan into a Set on maintainer instruction; complete enough to critique.
 
 - 2026-09-24 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 
