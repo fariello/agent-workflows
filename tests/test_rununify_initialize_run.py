@@ -1035,7 +1035,7 @@ class InitializeRunCase(unittest.TestCase):
         from_backlog: str | None = None,
     ) -> str:
         extra = f"- From-Backlog: {from_backlog}\n" if from_backlog else ""
-        return _PLAN.format(
+        text = _PLAN.format(
             title=id6,
             kind=kind,
             status=status,
@@ -1045,6 +1045,35 @@ class InitializeRunCase(unittest.TestCase):
             deps=deps,
             extra=extra,
         )
+        # AN ORCHESTRATOR FIXTURE NEEDS A TYPED CHILD-TRACKING ROW (added 2026-09-24). `68uhp0`
+        # landed IPD-S407 and sited `enforce_orchestrator_shape_gate` AHEAD of everything else in
+        # `initialize_run`, so a queued orchestrator whose row reads `- [ ] E-01 do it` now raises
+        # `DriverError` before the run starts. These tests are about FROZEN QUEUE SHAPE and RESUME,
+        # not about row grammar, so the fixture is made conforming rather than the gate weakened.
+        # Substituted only for `kind == "orchestrator"`: the same template builds CHILD plans, which
+        # S407 does not constrain and which must keep their prose row.
+        if kind == "orchestrator":
+            text = text.replace(
+                "- [ ] E-01 do it\n", "- [ ] E-01 CONFIRM aaa111 REACHED executed\n", 1
+            )
+            # A TYPED ROW ALONE IS NOT ENOUGH: S407 resolves the named child against the
+            # orchestrator's OWN child table and reports `child-table-cannot-resolve-a-child-id6`
+            # when there is none, so conformance is UNKNOWN rather than satisfied. That is the
+            # gate refusing to take an unverifiable claim on trust, which is correct, so the
+            # fixture supplies the table the row refers to.
+            # The table needs an explicit `Id` COLUMN: S407 resolves the row's child id6 against
+            # that column and refuses when the header does not declare one, rather than inferring an
+            # id6 out of a filename.
+            text += (
+                "\n## Child IPDs, sequence, and dependencies\n"
+                "\n"
+                "| Order | Id | Plan | Purpose | Depends on |\n"
+                "| --- | --- | --- | --- | --- |\n"
+                "| 01 | aaa111 |"
+                " `.aw/records/plans/pending/20260917-probe-01-aaa111-child.ipd.md` |"
+                " the child this parent sequences | none |\n"
+            )
+        return text
 
     def make_repo(
         self, plans: dict[str, str] | None = None, *, git: bool = True

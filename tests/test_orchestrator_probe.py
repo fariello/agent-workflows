@@ -163,8 +163,21 @@ ORCHESTRATION_ONLY = _HEAD.format(
     child="aaa111",
     goal="Sequence the Set. This parent holds coordination and nothing beyond it.",
     items=(
-        "- [ ] E-01 SEQUENCE THE CHILDREN IN ORDER, holding each until its predecessor reads\n"
-        "  `- Status: executed` ON DISK rather than trusting this table, and STOP on the first that\n"
+        # TYPED ROW, prose on the continuation lines (updated 2026-09-24, same reason as
+        # PARENT_ONLY_WORK below): `68uhp0` sited `enforce_orchestrator_shape_gate` AHEAD of the
+        # probe, so a prose action text is refused by IPD-S407 before the probe is reached. This
+        # fixture is the CLEAN control - it must let the run actually START - so its row has to
+        # satisfy the shape gate or the control becomes vacuous and every refusal row beside it is
+        # satisfied by a host that simply refuses everything.
+        # THE LINE WRAP HERE IS LOAD-BEARING, do not reflow it casually: the cache-cost table below
+        # mutates the exact substring "does not. DO NOT PERFORM ANY CHILD'S WORK FROM HERE" to prove
+        # that editing a CONTINUATION line changes the digest and costs exactly one model call. If
+        # that phrase is split across two of these string literals the replace silently matches
+        # nothing, the mutated fixture is byte-identical to the original, and the test fails claiming
+        # the gate spent 0 calls.
+        "- [ ] E-01 CONFIRM aaa111 REACHED executed\n"
+        "  Hold each child until its predecessor reads `- Status: executed` ON DISK rather than\n"
+        "  trusting this table, and STOP on the first that\n"
         "  does not. DO NOT PERFORM ANY CHILD'S WORK FROM HERE: if a child appears to need a change\n"
         "  this parent could make, the child table is wrong, so fix the child.\n"
         "  - Depends on: none\n"
@@ -185,18 +198,42 @@ PARENT_ONLY_WORK = _HEAD.format(
     child="bbb222",
     goal="Unify the thing, having first measured it.",
     items=(
-        "- [ ] E-01 SEQUENCE THE CHILDREN IN ORDER, holding each until its predecessor reads\n"
-        "  `- Status: executed` ON DISK.\n"
+        # E-01 IS A TYPED CHILD-TRACKING ROW ON PURPOSE (updated 2026-09-24). `orchtyped` Order 04
+        # (`68uhp0`, commit `70678847`) landed the IPD-S407 grammar, which refuses a prose
+        # orchestrator row BEFORE `initialize_run` ever reaches the probe. This fixture's SUBJECT is
+        # E-02 (parent-only work stated in prose), so E-01 must be a CONFORMING row or the shape
+        # check short-circuits the very scenario this fixture exists to exercise, and the probe is
+        # never asked at all. Keeping the prose spelling here would test S407, not the probe.
+        "- [ ] E-01 CONFIRM bbb222 REACHED executed\n"
+        "  Hold each child until its predecessor reads `- Status: executed` ON DISK.\n"
         "  - Depends on: none\n"
         "  - Expected outcome: every child executed, in order.\n"
         "  - Execution state: pending\n"
         "\n"
-        "- [ ] E-02 Establish the CHARACTERIZATION BASELINE that makes this Set's\n"
-        "  behavior-preservation claim falsifiable, BEFORE any child reconciles anything. Write the\n"
-        "  missing characterization tests against the current behavior and record the measured\n"
-        "  coverage, then produce the inventory as a durable research artifact. Afterwards, once the\n"
-        "  children have executed, run the repo-wide suite and the leak sanitization and reconcile\n"
-        "  the records this Set closes.\n"
+        # E-02 CARRIES THE PARENT-ONLY WORK IN ITS CONTINUATION PROSE WHILE ITS ROW IS TYPED, and
+        # that combination is the whole point of this fixture (updated 2026-09-24).
+        #
+        # WHY IT CHANGED. `68uhp0` sited `enforce_orchestrator_shape_gate` DELIBERATELY AHEAD of the
+        # probe ("ordered AHEAD of the semantic probe ... Refusing here spends zero model calls
+        # because the probe is never reached"). So a row whose ACTION TEXT is prose is refused by
+        # S407 and never reaches the probe at all. The previous spelling therefore made this fixture
+        # exercise the shape gate instead of the probe, which is a different check with its own
+        # suites (`test_orchestrator_shape_gate.py`, `test_orchestrator_shape_composed.py`).
+        #
+        # WHY THIS STILL TESTS WHAT IT CLAIMS. S407 constrains the ROW GRAMMAR only; it is measured
+        # conforming with this text. The uncovered work - establishing a baseline before any child
+        # runs, producing a research artifact - now lives in the continuation lines, where only a
+        # SEMANTIC reader can find it. That is exactly the hazard the probe exists to catch and the
+        # shape gate cannot: a parent that looks structurally correct and still carries work no child
+        # covers. The fixture is consequently STRONGER than before, because it can no longer pass by
+        # tripping a deterministic grammar check.
+        "- [ ] E-02 CONFIRM bbb222 REACHED executed\n"
+        "  Establish the CHARACTERIZATION BASELINE that makes this Set's behavior-preservation claim\n"
+        "  falsifiable, BEFORE any child reconciles anything. Write the missing characterization\n"
+        "  tests against the current behavior and record the measured coverage, then produce the\n"
+        "  inventory as a durable research artifact. Afterwards, once the children have executed,\n"
+        "  run the repo-wide suite and the leak sanitization and reconcile the records this Set\n"
+        "  closes.\n"
         "  - Depends on: E-01\n"
         "  - Expected outcome: a baseline nobody else establishes.\n"
         "  - Execution state: pending\n"
@@ -919,7 +956,12 @@ class TheExcerptIsTheCacheKeysOwnInputs(unittest.TestCase):
             ORCHESTRATION_ONLY,
             True,
             (
-                "SEQUENCE THE CHILDREN IN ORDER",
+                # The sequencing instruction moved to the row's CONTINUATION lines when the row was
+                # made IPD-S407 conforming (2026-09-24), so the substring asserted here moved with
+                # it. The PROPERTY is unchanged and is what this row is for: the item's own text
+                # must reach the model, not only the child table.
+                "Hold each child until its predecessor reads",
+                "CONFIRM aaa111 REACHED executed",
                 "aaa111",
                 "the child that does the work",
             ),

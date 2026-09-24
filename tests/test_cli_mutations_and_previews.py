@@ -130,9 +130,21 @@ class CliMutationsAndPreviewsTests(unittest.TestCase):
         self.assertEqual(rec["schema"], "aw.agent/v1")
         self.assertEqual(rec["outcome"], "clean")
         schema.assert_valid_agent_record(rec)
-        content = (
-            self.repo / ".aw" / "records" / "backlog" / "b1c2d3-sample-item.md"
-        ).read_text(encoding="utf-8")
+        # RESOLVED BY SEARCH, not by the original path (fixed 2026-09-24). This is the only case in
+        # this class that actually MUTATES, and `aw set backlog done` RELOCATES the item into a
+        # status directory (`backlog/done/`) as part of the transition, so the file is no longer at
+        # the path the fixture wrote. The two sibling tests above keep reading the original path
+        # correctly, because their whole point is that nothing moved. Asserting the ORIGINAL path
+        # here would re-pin the very behavior the setter is supposed to perform.
+        _matches = sorted(
+            (self.repo / ".aw" / "records" / "backlog").rglob("b1c2d3-sample-item.md")
+        )
+        self.assertTrue(
+            _matches,
+            "the item must still exist somewhere under backlog/ after the status set; "
+            f"tree: {sorted(p.relative_to(self.repo) for p in (self.repo / '.aw' / 'records' / 'backlog').rglob('*.md'))}",
+        )
+        content = _matches[0].read_text(encoding="utf-8")
         self.assertIn("status: done", content)
 
     def test_workflow_compile_without_apply_emits_preview(self):

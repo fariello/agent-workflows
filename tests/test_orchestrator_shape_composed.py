@@ -479,15 +479,21 @@ class TestSetBaselineAndCriterion4(unittest.TestCase):
 
     def test_parent_d1u4sy_rows_conform_and_coexist_with_cross_child_dependencies(self):
         """Parent d1u4sy has 5 conforming rows; child h9cbn4 has 4 sibling dependencies (precedent: svacmz)."""
-        parent_path = (
-            REPO_ROOT
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20260919-orchtyped-00-d1u4sy-make-an-orchestrator-checklist-a-typed-child-tracking-row-so.ipd.md"
+        # RESOLVED ACROSS DISPOSITION DIRECTORIES, not pinned to `pending/` (fixed 2026-09-24).
+        # This test hardcoded `pending/` and went red the moment `d1u4sy` was EXECUTED and moved to
+        # `executed/` by run `run-20260924T050407Z-3108751` - i.e. it failed because the work it
+        # describes SUCCEEDED, which is the same defect class as the stale `56` import count. The
+        # property under test is the parent's ROW CONFORMANCE, which is independent of where the plan
+        # sits in its lifecycle, so the lookup follows the plan instead of asserting its directory.
+        _stem = "20260919-orchtyped-00-d1u4sy-make-an-orchestrator-checklist-a-typed-child-tracking-row-so.ipd.md"
+        _candidates = sorted(
+            (REPO_ROOT / ".aw" / "records" / "plans").glob(f"*/{_stem}")
         )
-        self.assertTrue(parent_path.exists(), f"Parent plan {parent_path} must exist")
+        self.assertTrue(
+            _candidates,
+            f"Parent plan {_stem} must exist under .aw/records/plans/<disposition>/",
+        )
+        parent_path = _candidates[0]
 
         text = parent_path.read_text(encoding="utf-8")
         res = lint.orchestrator_row_conformance(text)
@@ -499,16 +505,18 @@ class TestSetBaselineAndCriterion4(unittest.TestCase):
             self.assertTrue(row.conforming)
             self.assertEqual(row.status, "executed")
 
-        # Verify child h9cbn4 dependencies
-        child_path = (
-            REPO_ROOT
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / "20260919-orchtyped-05-h9cbn4-prove-the-composed-control-on-the-merged-result-across-all-f.ipd.md"
+        # Verify child h9cbn4 dependencies. Resolved across disposition directories for the same
+        # reason as the parent above: this child also EXECUTED, and its declared dependencies are a
+        # property of the plan rather than of the directory it currently sits in.
+        _child_stem = "20260919-orchtyped-05-h9cbn4-prove-the-composed-control-on-the-merged-result-across-all-f.ipd.md"
+        _child_candidates = sorted(
+            (REPO_ROOT / ".aw" / "records" / "plans").glob(f"*/{_child_stem}")
         )
-        self.assertTrue(child_path.exists(), f"Child plan {child_path} must exist")
+        self.assertTrue(
+            _child_candidates,
+            f"Child plan {_child_stem} must exist under .aw/records/plans/<disposition>/",
+        )
+        child_path = _child_candidates[0]
         child_text = child_path.read_text(encoding="utf-8")
         self.assertIn(
             "Item-Dependencies: executed:dpdyed, executed:r3xk1f, executed:0xmk4e, executed:68uhp0",

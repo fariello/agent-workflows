@@ -2158,11 +2158,28 @@ class CitationAnchorAdvisoryTests(unittest.TestCase):
                     citations += len(L._CITATION_RE.findall(unit))
                     if L._CITATION_RE.search(unit) and not L._has_durable_anchor(unit):
                         flagged += len(L._CITATION_RE.findall(unit))
+        # THE FLOOR IS 100, NOT 500 (lowered 2026-09-24; backlog `24e5zv`). This assertion's own
+        # docstring above says the bound is "a wide BAND rather than a fixed number on purpose"
+        # because "the corpus moves hourly ... while pinning an exact count would make this test a
+        # maintenance burden that gets deleted" - and then the floor was a fixed 500, which is the
+        # very thing it warned against. It failed on 2026-09-24 reporting `150 not greater than 500`,
+        # NOT because the detector regressed but because run `run-20260924T050407Z-3108751` executed
+        # a batch of plans and the PENDING corpus shrank by design. A test that goes red when the
+        # queue is worked down is measuring throughput, not the detector.
+        #
+        # WHY 100 IS STILL A REAL FLOOR: the purpose of this bound is only to guarantee the
+        # denominator is large enough for the percentage below to mean something. At 100 citations a
+        # single flagged unit moves the ratio by 1 point, so the 5-90% band is still a genuine
+        # measurement rather than a rounding artifact. The BAND is the assertion; this is scaffolding
+        # for it.
         self.assertGreater(
             citations,
-            500,
-            "expected the pending corpus to carry a large body of file:line citations; with too few, "
-            "the ratio below is not a measurement of anything.",
+            100,
+            f"expected the pending corpus to carry a substantial body of file:line citations, found "
+            f"{citations}; with too few, the ratio below is not a measurement of anything. If the "
+            "pending queue has genuinely been worked down to almost nothing, this test has no corpus "
+            "to measure and should be re-pointed at a wider glob rather than have its floor lowered "
+            "again.",
         )
         pct = 100.0 * flagged / citations
         self.assertTrue(
