@@ -101,7 +101,7 @@ is added to the union.
 | Record Class | Relative Subpath | File Patterns / Extension | Lifecycle States / Subdirectories | Present today in |
 | :--- | :--- | :--- | :--- | :--- |
 | `plans` | `plans/` | `*.ipd.md` | `pending/`, `executed/`, `superseded/`, `not-executed/`, `reusable/` | both |
-| `specs` | `specs/` | `*.spec.md` | Single directory; frontmatter status tracking | both |
+| `specs` | `specs/` | `*.spec.md` | `draft/`, `to-review/`, `reviewed/`, `approved/`, `implementing/`, `implemented/`, `deferred/`, `parked/`, `superseded/` | both |
 | `research` | `research/` | `*.research-report.md`, `*.md` | Sharded by year/month (`YYYY/MM/`) or flat | both |
 | `backlog` | `backlog/` | `*.backlog.md` | Single directory; frontmatter status tracking | `ARTIFACT_TYPES` only (NEW to `RecordClass`) |
 | `reviews` | `reviews/` | `*.review.md` | Single directory; plan-review finding records | `RecordClass` only (NEW to `ARTIFACT_TYPES`) |
@@ -257,6 +257,7 @@ Example document emitted during install:
       "subpath": "specs",
       "pattern": "*.spec.md",
       "description": "Architectural specifications and proposals",
+      "lifecycle_subdirs": ["draft", "to-review", "reviewed", "approved", "implementing", "implemented", "deferred", "parked", "superseded"],
       "aliases": ["spec"]
     },
     "research": {

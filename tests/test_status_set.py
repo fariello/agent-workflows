@@ -74,7 +74,8 @@ Test goal.
     def create_spec(
         self, filename: str, id6: str, set_id: str, status: str = "draft"
     ) -> Path:
-        p = self.repo_root / ".aw" / "records" / "specs" / filename
+        p = self.repo_root / ".aw" / "records" / "specs" / status / filename
+        p.parent.mkdir(parents=True, exist_ok=True)
         content = f"""# Spec: Test Spec {id6}
 
 - Date: 2026-08-22
@@ -84,7 +85,7 @@ Test goal.
 
 ## Workflow history
 
-- 2026-08-22 draft (author): initial spec draft.
+- 2026-08-22 {status} (author): initial spec draft.
 
 ## Goal
 Test spec goal.
@@ -312,7 +313,10 @@ class TestStatusSetCommands(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc2, 0)
-        self.assertIn("- Status: to-review", spec.read_text(encoding="utf-8"))
+        dest_spec = (
+            self.repo_root / ".aw" / "records" / "specs" / "to-review" / spec.name
+        )
+        self.assertIn("- Status: to-review", dest_spec.read_text(encoding="utf-8"))
 
     def test_spec_set_by_filename_and_id6(self):
         spec = self.create_spec(
@@ -330,7 +334,10 @@ class TestStatusSetCommands(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        text = spec.read_text(encoding="utf-8")
+        dest_spec = (
+            self.repo_root / ".aw" / "records" / "specs" / "to-review" / spec.name
+        )
+        text = dest_spec.read_text(encoding="utf-8")
         self.assertIn("- Status: to-review", text)
 
     def test_specs_set_dual_compatibility(self):
@@ -351,7 +358,10 @@ class TestStatusSetCommands(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        text = spec.read_text(encoding="utf-8")
+        dest_spec = (
+            self.repo_root / ".aw" / "records" / "specs" / "to-review" / spec.name
+        )
+        text = dest_spec.read_text(encoding="utf-8")
         self.assertIn("- Status: to-review", text)
         self.assertIn("legacy test message", text)
 
@@ -491,7 +501,10 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertEqual(rc, 0)
 
         self.assertIn("- Status: reviewed", plan.read_text(encoding="utf-8"))
-        self.assertIn("- Status: reviewed", spec.read_text(encoding="utf-8"))
+        dest_spec = (
+            self.repo_root / ".aw" / "records" / "specs" / "reviewed" / spec.name
+        )
+        self.assertIn("- Status: reviewed", dest_spec.read_text(encoding="utf-8"))
         self.assertIn("- Status: reviewed", prompt.read_text(encoding="utf-8"))
 
     def test_mixed_batch_refuses_ALL_when_the_spec_member_is_unattested(self):
@@ -668,7 +681,10 @@ class TestStatusSetCommands(StatusSetTestBase):
                 ]
             )
         self.assertEqual(rc, 0)
-        text = spec.read_text(encoding="utf-8")
+        dest_spec = (
+            self.repo_root / ".aw" / "records" / "specs" / "approved" / spec.name
+        )
+        text = dest_spec.read_text(encoding="utf-8")
         self.assertIn("- Status: approved", text)
         self.assertIn("interactive human signoff", text)
         self.assertIn("--by-human", text)
@@ -1244,20 +1260,22 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
     def test_spec_leaving_deferred_still_clears_gate(self):
         """The pre-existing specs behaviour must survive being generalized."""
         spec = self.create_spec(
-            "20260822-sp0001-01-sp0001-test-spec.spec.md", "sp0001", "specset"
+            "20260822-sp0001-01-sp0001-test-spec.spec.md",
+            "sp0001",
+            "specset",
+            "deferred",
         )
         spec.write_text(
-            spec.read_text(encoding="utf-8").replace(
-                "- Status: draft",
-                "- Status: deferred\n- Gate-Kind: decision\n- Gate-Ref: D7",
-            ),
+            spec.read_text(encoding="utf-8")
+            + "- Gate-Kind: decision\n- Gate-Ref: D7\n",
             encoding="utf-8",
         )
         rc = cli.main(
             ["spec", "set", "draft", "sp0001", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
-        text = spec.read_text(encoding="utf-8")
+        dest_spec = self.repo_root / ".aw" / "records" / "specs" / "draft" / spec.name
+        text = dest_spec.read_text(encoding="utf-8")
         self.assertIn("- Status: draft", text)
         self.assertNotIn("Gate-Kind", text)
         self.assertNotIn("Gate-Ref", text)
@@ -1565,7 +1583,10 @@ class ApprovalGateTests(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc_override, 0)
-        text = spec.read_text(encoding="utf-8")
+        dest_spec = (
+            self.repo_root / ".aw" / "records" / "specs" / "approved" / spec.name
+        )
+        text = dest_spec.read_text(encoding="utf-8")
         self.assertIn("- Status: approved", text)
         self.assertIn("--allow-open-questions", text)
 
@@ -2383,7 +2404,8 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
             ["specs", "set", "draft", "sp0009", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0, "a permitted spec transition must not be refused")
-        self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
+        dest_spec = self.repo_root / ".aw" / "records" / "specs" / "draft" / spec.name
+        self.assertIn("- Status: draft", dest_spec.read_text(encoding="utf-8"))
 
     def test_a_non_plan_artifact_transition_is_unaffected(self):
         """A PROMPT shares the `executed` token with plans and must NOT inherit the plan guard.

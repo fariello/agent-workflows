@@ -37,14 +37,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the defect, then build the library
 
-- [ ] E-01 RE-PROVE ALL THREE WRITERS BEHAVIORALLY BEFORE CHANGING ANYTHING, each in a throwaway git repo, because two of the three cited line numbers have already moved and a code-reading verdict is not evidence. For each writer, create a spec, run the writer, then assert the resulting file's DIRECTORY against its `- Status:`.
+- [x] E-01 RE-PROVE ALL THREE WRITERS BEHAVIORALLY BEFORE CHANGING ANYTHING, each in a throwaway git repo, because two of the three cited line numbers have already moved and a code-reading verdict is not evidence. For each writer, create a spec, run the writer, then assert the resulting file's DIRECTORY against its `- Status:`.
   WRITER 2 NEEDS A LEGALLY-TRANSITIONABLE FIXTURE AND THIS IS THE TRAP. My own probe could not reach `specs.run_set`'s placement code at all: `--status approved` was refused as an `illegal transition to-review -> approved`, and `--status reviewed` was refused because `no review record names aa1111 as its Subject-Id`. Those gates are correct. So construct a fixture that passes them (a legal single-step transition, plus a real `.review.md` carrying `- Subject-Id:` and `- Subject-Type: spec` where the target status requires attestation), or the test proves only that the gate works. DO NOT weaken a gate to make the fixture easy.
   PASTE ALL THREE RESULTS SEPARATELY. A pass on one spelling is not evidence about another; that exact assumption caused the two dual-spelling bypasses this codebase documents in-code at `status_set.py:517-525` and `:549-556` ("a gate installed in only one of them is bypassed by choosing the other").
   - Depends on: none
   - Expected outcome: three pasted before/after results, one per writer, each showing the file's directory and its `- Status:`; writer 2 proven through a fixture that actually reaches the placement code rather than being stopped by a legality or attestation gate; each failure attributed to a CURRENT file:line rather than to the review's stale ones.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 BUILD THE SHARED PLACEMENT LIBRARY, one module that answers placement for BOTH cases the maintainer named: where a TRANSITIONING record moves, and where a NEWLY CREATED record goes. The creation case is called out separately because the ruling names it as "a distinct class that nobody had considered, which is why `aw specs new` lands in the flat root".
+- [x] E-02 BUILD THE SHARED PLACEMENT LIBRARY, one module that answers placement for BOTH cases the maintainer named: where a TRANSITIONING record moves, and where a NEWLY CREATED record goes. The creation case is called out separately because the ruling names it as "a distinct class that nobody had considered, which is why `aw specs new` lands in the flat root".
   DERIVE FROM THE EXISTING AUTHORITIES, DO NOT RE-LIST THEM. This is the specific way this work could do damage. Each type currently keeps its status-to-directory knowledge in a different place and shape: `backlog.STATUS_DIRS` is a tuple at `backlog.py:78` (with `STATUSES = frozenset(STATUS_DIRS)` at `:79`), plans' dispositions are derived inline in `status_set.py` from a hardcoded 5-tuple, spec statuses live in `attention_contract.SPEC_STATUSES` (9 values: approved, deferred, draft, implemented, implementing, parked, reviewed, superseded, to-review), and `layout.py` models `lifecycle_subdirs` per record class (`plans` at `:158`, `prompts` at `:179`, `backlog` at `:203`, and `specs` HAS NONE). A fourth hardcoded list would be the very duplication this plan exists to remove.
   THE PATTERN HAS ALREADY FAILED ONCE IN EXACTLY THIS WAY, and the in-code comment at `status_set.py` records it: the backlog branch was repaired because a HARDCODED LIST silently DECLINED TO MOVE a file whose source dir was already the new status, "leaving the record's directory and its `- Status:` line disagreeing". Derive from `STATUS_DIRS` and from the layout model; do not retype either.
   NOTE THE PLANS CASE IS A MAPPING, NOT AN IDENTITY, and a library that assumes `dir == status` will break it: five plan statuses (`draft`, `to-review`, `reviewed`, `approved`, `auto-approved`) all map to `pending/`. Backlog and specs are identity mappings. The library must express both shapes.
@@ -52,44 +52,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DERIVE THE DISPOSITION FROM THE FIRST PATH COMPONENT UNDER THE TYPE DIR, WHICH IS THE DERIVATION THIS REPOSITORY HAS ALREADY STANDARDIZED THREE TIMES and which the branch being replaced is the lone holdout from: `check_engine._plan_disposition` (`check_engine.py:1979-1998`), `attention._plan_disposition_from_rel` (`attention.py:1094-1113`), and `plans_index.scan_plans` all take `rel.split("/", 1)[0]`, and each carries a comment saying explicitly that a `parent.name` test "would silently stop recognizing a sharded plan". Reuse one of those rather than writing a fourth. THEN DECIDE AND STATE whether a status change PRESERVES an existing shard (`executed/202601/` -> `superseded/202601/`) or moves to the disposition root; V-02 requires the answer be asserted by a test either way, because leaving it unasserted is how the current behavior went unnoticed.
   - Depends on: E-01
   - Expected outcome: a single module exposing placement for transition and creation, per type, deriving its directory knowledge from the existing authorities with no new hardcoded status list; the plans many-to-one mapping and the backlog/specs identity mappings both expressed; unit tests covering each type including the `source dir already equals target` case that previously regressed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: adopt it everywhere, without changing what works
 
-- [ ] E-03 ADOPT THE LIBRARY IN ALL THREE SPEC WRITERS, so a spec lands in its status directory whichever verb placed it. The three call sites are `status_set.run_set_command`'s `dest_path` block (`status_set.py:1027-1069`, which needs a `specs` case), the forked `specs.run_set` (`specs.py:498`), and `specs.run_new` (`specs.py:934`, whose destination is computed at `:976`).
+- [x] E-03 ADOPT THE LIBRARY IN ALL THREE SPEC WRITERS, so a spec lands in its status directory whichever verb placed it. The three call sites are `status_set.run_set_command`'s `dest_path` block (`status_set.py:1027-1069`, which needs a `specs` case), the forked `specs.run_set` (`specs.py:498`), and `specs.run_new` (`specs.py:934`, whose destination is computed at `:976`).
   RELOCATE WITH `git mv`, WHICH `status_set` ALREADY DOES AND WHICH THE PARENT'S OQ-01 GOT WRONG. OQ-01's resolution states that "no status setter in this repository uses `git mv`: `status_set` and `backlog` both `atomic_write` then `unlink`". That is STALE: `status_set` now performs `_core.git_mv` FIRST and then writes at the destination, and its in-code comment records exactly why the old write-then-unlink was a bug ("git sees TWO unrelated facts", which caused `oc_runipd.commit_backlog_close` to commit only the ADD and leave a dangling deletion that blocked 27 of 42 items in one run). ORDER IS LOAD-BEARING and the comment says so: move FIRST, then write, because writing first leaves an untracked file at the destination and `git mv` refuses. Follow the existing pattern; do not reintroduce write-then-unlink.
   DO NOT WEAKEN ANY GATE TO MAKE PLACEMENT WORK. The legality check and the review-attestation refusal both fire BEFORE placement (proven in E-01), and they must keep firing. Placement is what happens to a transition that is already permitted.
   THE `git mv` RENAME IS CURRENTLY DECOMPOSED AGAIN BEFORE THE COMMIT, AND ADOPTING THIS PATH FOR SPECS WOULD PROPAGATE A LIVE REGRESSION TO A THIRD TYPE. DO NOT assume the `git mv` fix of 2026-09-13 holds end to end; MEASURED 2026-09-21 at HEAD `803d10f6` it does not. `apply_status_change` does stage a clean rename (`R100`, verified), but `run_set_command` then records ONLY the DESTINATION in `touched_paths` (`status_set.py:1755-1760`, `dest_path` alone, the source is never appended), and `_offer_self_commit` opens with `_gch._git(repo_root, ["reset", "--quiet", "HEAD", "--", *paths])` (`status_set.py:1390`), whose docstring calls the reset "a no-op for in-place set rewrites". It is NOT a no-op for a RELOCATION: unstaging one half of a staged rename DECOMPOSES it back into exactly the shape `y39i16` was filed for. REPRODUCED END TO END on the tooled path: `aw backlog set graduated bk1234 --yes` produced commit `aac36f85` containing `A .aw/records/backlog/graduated/...` ALONE, and left `D .aw/records/backlog/open/...` staged-but-uncommitted in the tree; `aw ipd set superseded pl9999 --yes` did the same. Disabling ONLY `_offer_self_commit` leaves the clean `R100`, which isolates the cause to the reset. The one uncommitted tracked deletion left behind is the precise condition that refused 27 of 42 items in run `run-20260913T031350Z-1732436`.
   SO THE ADOPTION MUST CARRY THE SOURCE PATH, NOT ONLY THE DESTINATION: whatever the library returns for a relocation must give the caller BOTH paths, and `touched_paths` must record both so the commit carries both halves. `git_commit_helper.offer_commit` ALREADY handles this correctly once told (`_in_index` at `git_commit_helper.py:333-347` drops an already-renamed source from the `add` set while keeping it in the commit pathspec, `:573-589`), so the fix is at the CALLER, and `ipd_lifecycle` finalize already does it right (`owned_paths = [plan_rel, dest_rel]`, `ipd_lifecycle.py:3795`). DO NOT fix this by removing the reset wholesale without checking the in-place case it was added for (`jgcm68` D2), and do NOT use `--no-verify` or weaken the executed-transition gate. THIS DEFECT IS PRE-EXISTING AND AFFECTS `plans`, `prompts` AND `backlog` TODAY, so if fixing it here would widen this plan beyond one focused pass, FILE IT (`aw backlog new`, `Work-Kind: bug`, which per this repository's policy carries `- Blocks-Release:` while live) and cite the item in V-03; what is NOT acceptable is adopting the path for specs while leaving the decomposition unmentioned.
   - Depends on: E-02
   - Expected outcome: all three spec writers place a spec in the directory matching its status, each proven separately in a throwaway repo; relocation performed as a single staged rename via `git mv` with move-then-write ordering, and the rename surviving all the way into the COMMIT (both halves) rather than being decomposed by the self-commit reset; no legality or attestation gate weakened.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 REPLACE THE EXISTING `plans`, `prompts` AND `backlog` BRANCHES WITH CALLS TO THE LIBRARY, AND PROVE THEIR BEHAVIOR IS UNCHANGED. The maintainer's ruling requires this ("adopting it replaces the EXISTING plans and backlog branches too, so the duplicated knowledge disappears rather than growing by one") AND flags it as the new risk this Set did not previously carry, to be carried with regression evidence rather than waved through.
+- [x] E-04 REPLACE THE EXISTING `plans`, `prompts` AND `backlog` BRANCHES WITH CALLS TO THE LIBRARY, AND PROVE THEIR BEHAVIOR IS UNCHANGED. The maintainer's ruling requires this ("adopting it replaces the EXISTING plans and backlog branches too, so the duplicated knowledge disappears rather than growing by one") AND flags it as the new risk this Set did not previously carry, to be carried with regression evidence rather than waved through.
   THE BAR IS BYTE-IDENTICAL BEHAVIOR, NOT "TESTS STILL PASS". For each of the three types, exercise every status in its enum and assert the destination path equals what the CURRENT code computes. The cheapest honest form: capture the current mapping as a table BEFORE the change (status -> destination directory, per type) and diff it against the same table AFTER. Paste both tables.
   COVER THE REGRESSION CASE THAT ALREADY HAPPENED ONCE: a record whose source directory already equals its target. The backlog branch silently declined to move in that case and left directory and status disagreeing. Assert it for all four types now.
   PROMPTS WERE NOT IN THE MAINTAINER'S SENTENCE BUT ARE IN THE CODE. The `dest_path` block branches on `("plans", "prompts")` together, so adopting the library necessarily touches prompts too. Treat prompts with the same regression bar rather than as an afterthought, and say so in the evidence.
   - Depends on: E-03
   - Expected outcome: the per-type relocation branches replaced by library calls; before/after destination tables pasted for plans, prompts, backlog and specs across every status in each enum, showing no change for the three pre-existing types; the source-dir-equals-target case asserted for all four.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: model, contract, and enforcement
 
-- [ ] E-05 GIVE `specs` ITS `lifecycle_subdirs` IN THE LAYOUT MODEL AND AMEND THE `kw5y2s` SPEC IN THE SAME CHANGE, which is what OQ-05's maintainer ruling requires ("YES, AMEND `kw5y2s` IN THE SAME CHANGE, AND DECLARE IT IN `- Scope-Paths:` UP FRONT"), having explicitly declined the three alternatives (amend-first as aspirational documentation, abandon the change, or ship the contradiction as a follow-up).
+- [x] E-05 GIVE `specs` ITS `lifecycle_subdirs` IN THE LAYOUT MODEL AND AMEND THE `kw5y2s` SPEC IN THE SAME CHANGE, which is what OQ-05's maintainer ruling requires ("YES, AMEND `kw5y2s` IN THE SAME CHANGE, AND DECLARE IT IN `- Scope-Paths:` UP FRONT"), having explicitly declined the three alternatives (amend-first as aspirational documentation, abandon the change, or ship the contradiction as a follow-up).
   MEASURED AT HEAD, so you know exactly what to change: the `specs` `RecordClassDefinition` in `layout.py` carries NO `lifecycle_subdirs` key while `plans` (`:158`), `prompts` (`:179`) and `backlog` (`:203`) each do. The spec `.aw/records/specs/20260901-kw5y2s-01-kw5y2s-...spec.md` is `- Status: approved` and its record-class row for `specs` reads `Single directory; frontmatter status tracking`, which this Set falsifies.
   EXTEND `tests/test_layout.py::test_lifecycle_subdirs_match_the_live_status_dirs`, which currently asserts modeled-versus-live subdirs for `backlog` and `plans` ONLY (verified at HEAD). The parent's OQ-05 is explicit that extending it "is part of the amendment, not optional", because until it covers specs nothing catches a model/live mismatch for this type.
   THE SPEC PATH IS DECLARED IN THIS PLAN'S `Scope-Paths` DELIBERATELY, and that declaration is the mechanism, not a formality: it is what makes `aw oc run`/`aw agy run` ANNOUNCE the spec edit BEFORE the run starts and what lets the finalize scope gate reconcile declared against actual. Both runners also report at run end which specs a run declared versus actually changed, including an undeclared change. Amend the ROW, not the spec's shape, and say WHY in this plan's spec-sync section.
   - Depends on: E-02
   - Expected outcome: `specs` carries `lifecycle_subdirs` derived from `SPEC_STATUSES` in the layout model; `kw5y2s`'s `specs` record-class row amended to describe status subdirs with the reason recorded; `test_lifecycle_subdirs_match_the_live_status_dirs` extended to cover specs (and prompts, if the same gap exists there); the emitted layout document reflects the new subdirs.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 REPORT THE ENFORCEMENT GAP RATHER THAN SILENTLY LEAVING IT, because specs would otherwise gain subdirs with NO checker covering them. `attention.disposition-mismatch` is documented as "plans dir vs terminal status" (`attention_contract.py:688`), so it does not cover specs.
+- [x] E-06 REPORT THE ENFORCEMENT GAP RATHER THAN SILENTLY LEAVING IT, because specs would otherwise gain subdirs with NO checker covering them. `attention.disposition-mismatch` is documented as "plans dir vs terminal status" (`attention_contract.py:688`), so it does not cover specs.
   DO NOT FIX IT HERE, AND DO NOT PROMOTE THE INVARIANT TO A FAIL-CLOSED RULE. The reason is the parent's OQ-03, which leaves the severity decision OPEN for the maintainer with the migration's measured result in hand. Widening a check to a new type in the same plan that also builds a library would make two blast radii one diff.
   THE `4r91r1` HALF OF THIS ITEM WAS WRONG AS AUTHORED AND IS CORRECTED HERE (review F-11, measured 2026-09-21 at HEAD `803d10f6`). Do NOT report the check as DEAD: the CODE has already been fixed by `attcor rkn8ya` E-05, which replaced the legacy `.agents/plans/` prefix test with `_plan_disposition_from_rel` (`attention.py:1094-1113`) recognizing BOTH layouts and deriving the disposition from the FIRST path component so a sharded plan still resolves. PROVEN: an `.aw`-layout plan at `executed/202601/` carrying `- Status: superseded` emitted `attention.disposition-mismatch` and `aw attention --check` exited 1. The backlog item `4r91r1` is nonetheless still `- Status: open` (in `.aw/records/backlog/open/20260908-attdisp-01-4r91r1-...`), so what is open is the RECORD, not the defect. Report that asymmetry rather than repeating the stale claim, and do NOT close `4r91r1` from here (it is not this plan's item and closing it needs its own evidence).
   THE DELIVERABLE IS A RECORD, NOT CODE: state in this plan's evidence that the invariant this plan makes TRUE is not yet ENFORCED for specs, name the SCOPING as the reason (`attention.py:1141-1145` gates on `plans_mod.DIR_TERMINAL`, so only plans are covered), re-measure `4r91r1`'s status at execution and state whether the code-versus-record asymmetry above still holds, and confirm no plan in this Set claims the invariant is enforced.
   - Depends on: E-05
   - Expected outcome: a recorded statement that location-equals-status is true-but-unenforced for specs, citing `attention_contract.py:688` plus the `plans_mod.DIR_TERMINAL` gate at `attention.py:1141-1145` as the SCOPING reason; backlog `4r91r1`'s status re-measured at execution with the code-fixed-but-record-open asymmetry stated explicitly rather than the stale "dead check" claim; and confirmation this plan added no fail-closed rule and closed no other plan's item.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -218,36 +218,193 @@ Rows F-01 through F-10 were authored 2026-09-20 at HEAD `41f6a45b`. Rows F-11 th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste three SEPARATE before/after probe transcripts, one per writer, each showing the command run, the file's resulting DIRECTORY, and its `- Status:` line. For writer 2 specifically, paste the fixture construction and show the command reached the placement code rather than being refused by the legality gate or the review-attestation refusal; a transcript ending in `illegal transition` or `no review record names ...` does NOT satisfy this item. Cite a CURRENT file:line for each failure and note any divergence from this plan's Findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Probes in throwaway repos reproduced the defect across all three spec writers with failure lines attributed to current code.
+    WRITER 1 (aw specs set to-review aa1111 --message "ready for review"):
+    Before:
+      Path: .aw/records/specs/draft/20260920-aa1111-01-aa1111-probe.spec.md
+      Status: - Status: draft
+    Command: python3 -m agent_workflows.cli specs set to-review aa1111 --message "ready for review"
+    Exit code: 0
+    After:
+      Path: .aw/records/specs/draft/20260920-aa1111-01-aa1111-probe.spec.md
+      Status: - Status: to-review
+      Parent Directory: .aw/records/specs/draft
+    Cause: `status_set.py:1027-1069` branched on `("plans", "prompts")` and `backlog` with no `specs` case, keeping `dest_path = rec.path`.
 
-- [ ] V-02 validates E-02
+    WRITER 2 (aw specs set <path> --status to-review --message "ready for review"):
+    Fixture: Legally transitionable spec created at `.aw/records/specs/draft/20260920-bb2222-01-bb2222-probe.spec.md` with `- Status: draft`.
+    Before:
+      Path: .aw/records/specs/draft/20260920-bb2222-01-bb2222-probe.spec.md
+      Status: - Status: draft
+    Command: python3 -m agent_workflows.cli specs set .aw/records/specs/draft/20260920-bb2222-01-bb2222-probe.spec.md --status to-review --message "ready for review"
+    Exit code: 0
+    After:
+      Path: .aw/records/specs/draft/20260920-bb2222-01-bb2222-probe.spec.md
+      Status: - Status: to-review
+      Parent Directory: .aw/records/specs/draft
+    Cause: `specs.py:810` wrote in-place via `core.atomic_write(path, new_text)` without relocation.
+
+    WRITER 3 (aw specs new --title "Probe three" --slug probe-three --apply):
+    Before:
+      No spec files exist; draft/ and to-review/ subdirectories exist in `.aw/records/specs/`.
+    Command: python3 -m agent_workflows.cli specs new --title "Probe three" --slug probe-three --apply
+    Exit code: 0
+    After:
+      Path: .aw/records/specs/20260924-upi8p7-01-upi8p7-probe-three.spec.md
+      Status: - Status: draft
+      Parent Directory: .aw/records/specs (flat root)
+    Cause: `specs.py:976` computed destination as `_specs_root(repo_root) / filename` (flat root).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the new module's public surface and the unit-test summary line. Paste proof it derives rather than re-lists: show the import or reference reaching `backlog.STATUS_DIRS`, the spec status enum, and the layout model, and paste a grep demonstrating NO new hardcoded status tuple was added. Paste the test covering the plans MANY-TO-ONE mapping (all five pending-mapped statuses resolving to `pending/`) and the test covering the source-dir-equals-target case for every type. PASTE A TEST ASSERTING THE SHARDED-PLAN CASE, a plan at `<disposition>/YYYYMM/` transitioned to another disposition, and state which behavior the test PINS (shard preserved, or moved to the disposition root); an unasserted answer does NOT satisfy this item, because `parent.name`-based derivation reads `202601` as the disposition and was measured silently un-sharding such a plan. Paste the reused derivation (`check_engine._plan_disposition` / `attention._plan_disposition_from_rel` / `plans_index.scan_plans`) or state which one the library calls; a fourth hand-written `split("/")` is a finding.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Built shared placement library `agent_workflows/record_placement.py` deriving from authorities with zero hardcoded status tuples and comprehensive test suite.
+    Public surface of `agent_workflows/record_placement.py`:
+    ```python
+    def has_lifecycle_subdirs(record_type: str) -> bool
+    def target_subdir(record_type: str, status: str) -> Optional[str]
+    def resolve_type_dir(record_type: str, repo_root: Optional[Path] = None) -> Path
+    def resolve_creation_path(record_type: str, status: str, filename: str, repo_root: Optional[Path] = None) -> Path
+    def resolve_transition_path(record_type: str, current_path: Path, new_status: str, repo_root: Optional[Path] = None) -> Path
+    ```
+    Derivations without re-listing:
+    `from agent_workflows import attention_contract as _AC` (`_AC.SPEC_STATUSES`)
+    `from agent_workflows import backlog as _BL` (`_BL.STATUS_DIRS`)
+    `from agent_workflows import plans as _plans` (`_plans.PRE_TERMINAL`, `_plans.TERMINAL`, `_plans.STANDING`, `_plans.DISPOSITION_DIRS`)
+    `from agent_workflows.attention import _plan_disposition_from_rel`
+    Grep for hardcoded status tuples in `agent_workflows/record_placement.py`: none found (0 new hardcoded status tuples).
+    Unit test summary: `tests/test_record_placement.py` (8 passed in 0.15s, 52 passed in batch with layout & specs_status_dirs).
+    Many-to-one mapping test: `test_plans_mapping_many_to_one` asserts `draft`, `to-review`, `reviewed`, `approved`, `auto-approved` all resolve to `pending/`.
+    Source-dir-equals-target test: `test_source_dir_equals_target_returns_current_path` asserts `current_path` returned for `plans`, `prompts`, `backlog`, and `specs`.
+    Sharded-plan test: `test_plans_transition_sharded_preserves_shard` asserts that transitioning `executed/202601/plan.ipd.md` to `superseded` yields `superseded/202601/plan.ipd.md` (shard preserved), while transitioning to `pending` yields `pending/plan.ipd.md`.
+    Reused derivation: calls `agent_workflows.attention._plan_disposition_from_rel`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste all three spec writers proven in throwaway repos AFTER adoption, each showing directory equals status. Paste evidence that relocation is a SINGLE staged rename (`git status --porcelain` showing `R` rather than an add/delete pair) and that the move precedes the write. Paste confirmation that the legality gate and the review-attestation refusal still fire (run one refused transition and show it still refuses).
     THE RENAME MUST BE PROVEN IN THE COMMIT, NOT ONLY IN THE INDEX, and a `porcelain` `R` measured BEFORE the self-commit does NOT satisfy this item: the decomposition happens INSIDE `_offer_self_commit`'s opening reset, after that `R` exists. Run the writer WITH the commit (`--yes`, no `--no-commit`) and paste (a) `git show --name-status -M <sha>` showing BOTH halves (an `R`, or an `A` plus its matching `D`), and (b) `git status --porcelain -uall` afterwards showing NO leftover staged `D`. A commit holding the addition alone is a FAIL. If the decomposition is left unfixed here, paste the filed backlog item's id6 and its `Work-Kind`/`Blocks-Release` lines instead, and say plainly that specs now share a defect `plans`, `prompts` and `backlog` already have.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Adopted library across all 3 spec writers with move-first ordering and full commit rename preservation verified.
+    POST-ADOPTION PROBES IN THROWAWAY REPOS:
+    Writer 1 (`aw specs set to-review aa1111 --message "ready for review" --yes`):
+      Resulting file: `.aw/records/specs/to-review/20260920-aa1111-01-aa1111-probe.spec.md`
+      Status: `- Status: to-review`
+      Git commit (`git show --name-status -M HEAD`):
+        `R100 .aw/records/specs/draft/20260920-aa1111-01-aa1111-probe.spec.md -> .aw/records/specs/to-review/20260920-aa1111-01-aa1111-probe.spec.md`
+      Git status (`git status --porcelain -uall`): clean (no leftover staged D).
 
-- [ ] V-04 validates E-04
+    Writer 2 (`aw specs set <path> --status to-review --message "ready for review" --commit`):
+      Resulting file: `.aw/records/specs/to-review/20260920-bb2222-01-bb2222-probe.spec.md`
+      Status: `- Status: to-review`
+      Git commit (`git show --name-status -M HEAD`):
+        `R100 .aw/records/specs/draft/20260920-bb2222-01-bb2222-probe.spec.md -> .aw/records/specs/to-review/20260920-bb2222-01-bb2222-probe.spec.md`
+      Git status (`git status --porcelain -uall`): clean.
+
+    Writer 3 (`aw specs new --title "Probe three" --slug probe-three --apply`):
+      Resulting file: `.aw/records/specs/draft/20260924-upi8p7-01-upi8p7-probe-three.spec.md`
+      Status: `- Status: draft`
+      Parent Directory: `.aw/records/specs/draft`
+
+    Ordering: `core.git_mv(repo_root, src_rel, dest_rel)` is executed FIRST, followed by `core.atomic_write(dest_path, new_text)`.
+    Gate Refusal Verification:
+      `aw specs set approved aa1111`: refused with `aw specs set: illegal transition draft -> approved` (exit 1).
+      `aw specs set reviewed aa1111`: refused with `no review record names aa1111 as its Subject-Id` (exit 1).
+      Working tree and spec file remained byte-identical.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the BEFORE and AFTER destination tables for plans, prompts, backlog and specs, covering every status in each enum, and show the three pre-existing types' rows are IDENTICAL. "Tests still pass" does NOT satisfy this item; the tables must be pasted and compared. Paste the source-dir-equals-target assertion results for all four types. Paste the bare-suite failing node id delta against a baseline you measured in this worktree, and show it is empty.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified before/after destination tables for all 4 types showing byte-identical behavior for existing types, plus empty test suite delta.
+    DESTINATION TABLES BEFORE VS AFTER:
+    PLANS (enum: draft, to-review, reviewed, approved, auto-approved, executed, superseded, not-executed, reusable):
+      draft:         BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      to-review:     BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      reviewed:      BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      approved:      BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      auto-approved: BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      executed:      BEFORE = executed/     | AFTER = executed/     (IDENTICAL)
+      superseded:    BEFORE = superseded/   | AFTER = superseded/   (IDENTICAL)
+      not-executed:  BEFORE = not-executed/ | AFTER = not-executed/ (IDENTICAL)
+      reusable:      BEFORE = reusable/     | AFTER = reusable/     (IDENTICAL)
 
-- [ ] V-05 validates E-05
+    PROMPTS (enum: draft, to-review, reviewed, approved, auto-approved, executed, superseded, not-executed, reusable):
+      draft:         BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      to-review:     BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      reviewed:      BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      approved:      BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      auto-approved: BEFORE = pending/      | AFTER = pending/      (IDENTICAL)
+      executed:      BEFORE = executed/     | AFTER = executed/     (IDENTICAL)
+      superseded:    BEFORE = superseded/   | AFTER = superseded/   (IDENTICAL)
+      not-executed:  BEFORE = not-executed/ | AFTER = not-executed/ (IDENTICAL)
+      reusable:      BEFORE = reusable/     | AFTER = reusable/     (IDENTICAL)
+
+    BACKLOG (enum: open, graduated, blocked, parked, done):
+      open:          BEFORE = open/         | AFTER = open/         (IDENTICAL)
+      graduated:     BEFORE = graduated/    | AFTER = graduated/    (IDENTICAL)
+      blocked:       BEFORE = blocked/      | AFTER = blocked/      (IDENTICAL)
+      parked:        BEFORE = parked/       | AFTER = parked/       (IDENTICAL)
+      done:          BEFORE = done/         | AFTER = done/         (IDENTICAL)
+
+    SPECS (enum: draft, to-review, reviewed, approved, implementing, implemented, deferred, parked, superseded):
+      draft:         BEFORE = (flat root)   | AFTER = draft/
+      to-review:     BEFORE = (flat root)   | AFTER = to-review/
+      reviewed:      BEFORE = (flat root)   | AFTER = reviewed/
+      approved:      BEFORE = (flat root)   | AFTER = approved/
+      implementing:  BEFORE = (flat root)   | AFTER = implementing/
+      implemented:   BEFORE = (flat root)   | AFTER = implemented/
+      deferred:      BEFORE = (flat root)   | AFTER = deferred/
+      parked:        BEFORE = (flat root)   | AFTER = parked/
+      superseded:    BEFORE = (flat root)   | AFTER = superseded/
+
+    Source-dir-equals-target assertion: `tests/test_record_placement.py::test_source_dir_equals_target_returns_current_path` passed for plans, prompts, backlog, and specs.
+    Bare-suite failing node id delta:
+      Baseline failures (4):
+        tests/test_rununify_initialize_run.py::TheFrozenStateSurvivesAResume::test_a_frozen_run_reloads_with_its_queue_actions_re_derivable
+        tests/test_rununify_initialize_run.py::TheFrozenQueueEntryShapeIsIdenticalOnBothHosts::test_an_orchestrators_kind_is_frozen_so_a_resume_rederives_its_action
+        tests/test_orchestrator_probe.py::BothHostsActuallyRefuse::test_every_scenario_reaches_its_own_outcome_on_BOTH_hosts
+        tests/test_ipd_lint.py::CitationAnchorAdvisoryTests::test_the_detector_discriminates_on_the_real_corpus_with_the_gate_disabled
+      Post-change failures (4): identical to baseline.
+      Delta (AFTER minus BEFORE): EMPTY (0 new failures, 8823 passed, 3 skipped, 2 xfailed).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `specs` `RecordClassDefinition` showing its new `lifecycle_subdirs` and the source it derives from. Paste the `kw5y2s` diff showing the amended `specs` row, and paste this plan's `- Scope-Paths:` line proving the spec path was declared BEFORE the run (an undeclared spec edit is reported by both runners at run end). Paste the extended `tests/test_layout.py` assertion and its summary line, and the regenerated emitted layout document showing the specs subdirs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Layout model updated for specs, kw5y2s spec amended, layout tests extended and passing.
+    `specs` RecordClassDefinition in `agent_workflows/layout.py`:
+    ```python
+    RecordClassDefinition(
+        name="specs",
+        dir_name="specs",
+        doc_heading="Specs",
+        summary="Technical specifications, design documents, and RFCs.",
+        filename_pattern=r"^\d{8}-[a-z0-9]{6}-\d{2}-[a-z0-9]{6}-[a-z0-9_-]+\.spec\.md$",
+        primary_key_field="Id",
+        lifecycle_subdirs=tuple(sorted(_AC.SPEC_STATUSES)),
+    )
+    ```
+    `kw5y2s` spec row amendment diff:
+    ```diff
+    -| `specs` | `.aw/records/specs/` | `.agents/docs/specs/` | Single directory; frontmatter status tracking |
+    +| `specs` | `.aw/records/specs/` | `.agents/docs/specs/` | Status subdirectories: `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `implemented`, `deferred`, `parked`, `superseded`; frontmatter status tracking |
+    ```
+    Scope-Paths declaration in plan:
+    `- Scope-Paths: agent_workflows/record_placement.py, agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/layout.py, agent_workflows/attention_contract.py, tests/test_record_placement.py, tests/test_layout.py, tests/test_specs_status_dirs.py, .aw/records/specs/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md`
+    Extended test: `tests/test_layout.py::test_lifecycle_subdirs_match_the_live_status_dirs` asserts `backlog`, `plans`, `specs`, and `prompts`.
+    Test result: 41 passed in 2.10s.
+    Emitted layout model document reflects the 9 `lifecycle_subdirs` for specs.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the recorded statement that location-equals-status is TRUE but UNENFORCED for specs, quoting `attention_contract.py:688`'s "plans dir vs terminal status" scoping AND the `plans_mod.DIR_TERMINAL` gate at `attention.py:1141-1145` that actually restricts it. Paste backlog `4r91r1`'s CURRENT status and path as read at execution time, and state whether the CODE is fixed while the RECORD is open (measured true at review: the check FIRES on an `.aw`-layout plan, so "dead check" would be a false claim); a transcript repeating the stale "dead in the `.aw` layout" wording does NOT satisfy this item. Paste a confirmation that this plan added no fail-closed check rule for the invariant, closed no other plan's backlog item, and that no plan in this Set claims the invariant is enforced.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Enforcement gap recorded with scoping citations; 4r91r1 status verified as code-fixed but record open.
+    Recorded statement: Location-equals-status is TRUE for specs placed by writers after this plan, but UNENFORCED by `attention` check rules. `attention_contract.py:746` documents `disposition-mismatch` as `# plans dir vs terminal status` and `attention.py:1184-1189` restricts check execution with `if rec.record_type in ("plans", "prompts") and rec.parent in plans_mod.DIR_TERMINAL:`.
+    Backlog `4r91r1` re-measurement:
+      Path: `.aw/records/backlog/open/20260908-attdisp-01-4r91r1-attention-disposition-mismatch-is-dead-in-the-aw-layout.backlog.md`
+      Status: `- Status: open`
+      Code-versus-record status: The code defect was fixed by `attcor rkn8ya` E-05 (which introduced `_plan_disposition_from_rel`), so the check is functional on both legacy and `.aw` layouts, but the backlog item `4r91r1` remains an open unretired record.
+    Confirmation: This plan added NO fail-closed check rule for specs, closed NO foreign backlog items, and no plan in Set `specdirs` claims the invariant is enforced.
+  - Result: pass
 
 ## Approval and execution gate
 

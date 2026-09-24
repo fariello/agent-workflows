@@ -747,7 +747,7 @@ class SpecSetterTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         _write_plan(self.root, "realset", "pl0001")
-        specs = self.root / ".aw" / "records" / "specs"
+        specs = self.root / ".aw" / "records" / "specs" / "draft"
         specs.mkdir(parents=True)
         self.spec = specs / "20260101-sp0001-01-sp0001-demo.spec.md"
         self.spec.write_text(
@@ -776,8 +776,9 @@ class SpecSetterTests(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
+        target = self.root / ".aw" / "records" / "specs" / "to-review" / self.spec.name
         self.assertEqual(
-            releases.parse_graduated_to(self.spec.read_text(encoding="utf-8")),
+            releases.parse_graduated_to(target.read_text(encoding="utf-8")),
             ["realset"],
         )
 
@@ -799,18 +800,19 @@ class SpecSetterTests(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
+        target = self.root / ".aw" / "records" / "specs" / "to-review" / self.spec.name
         self.assertEqual(
-            releases.parse_graduated_to(self.spec.read_text(encoding="utf-8")),
+            releases.parse_graduated_to(target.read_text(encoding="utf-8")),
             ["realset", "demo"],
         )
-        before = self.spec.read_text(encoding="utf-8")
+        before = target.read_text(encoding="utf-8")
         rc_bad = cli.main(
             [
                 "specs",
                 "set",
                 "--status",
                 "to-review",
-                str(self.spec),
+                str(target),
                 "--graduated-to",
                 "BAD Setid",
                 "--yes",
@@ -820,7 +822,7 @@ class SpecSetterTests(unittest.TestCase):
         )
         self.assertEqual(rc_bad, 2)
         self.assertEqual(
-            self.spec.read_text(encoding="utf-8"),
+            target.read_text(encoding="utf-8"),
             before,
             "a refused setter must leave the spec byte-identical",
         )

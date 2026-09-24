@@ -169,6 +169,17 @@ def _default_record_classes() -> Tuple[RecordClassDefinition, ...]:
             subpath="specs",
             pattern="*.spec.md",
             description="Architectural specifications and proposals",
+            lifecycle_subdirs=(
+                "draft",
+                "to-review",
+                "reviewed",
+                "approved",
+                "implementing",
+                "implemented",
+                "deferred",
+                "parked",
+                "superseded",
+            ),
             aliases=("spec",),
         ),
         RecordClassDefinition(

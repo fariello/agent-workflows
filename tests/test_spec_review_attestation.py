@@ -88,7 +88,7 @@ def _spec_text(id6: str, status: str, *, title: str = "fixture") -> str:
 
 
 def _write_spec(root: Path, id6: str, status: str, slug: str = "fixture-spec") -> Path:
-    d = root / ".aw" / "records" / "specs"
+    d = root / ".aw" / "records" / "specs" / status
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"20260906-{id6}-01-{id6}-{slug}.spec.md"
     p.write_text(_spec_text(id6, status), encoding="utf-8")
@@ -1001,7 +1001,9 @@ class SetterAttestationTests(unittest.TestCase):
                         p, target, by_human=by_human, allow_open_questions=allow_oq
                     )
                 )
-            after = p.read_text(encoding="utf-8")
+            dest_p = root / ".aw" / "records" / "specs" / target / p.name
+            after_p = dest_p if (rc == 0 and dest_p.exists()) else p
+            after = after_p.read_text(encoding="utf-8")
             wrote_status = f"- Status: {target}" in after
             wrote_history = f"- 2026-09-06 {target} (aw specs" in after
         return rc == 0, err.getvalue(), after == before, wrote_status, wrote_history
@@ -1545,7 +1547,9 @@ class VerdictSourcingTests(unittest.TestCase):
                 _write_record(root, "aaa111")
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     rc = specs.run_set(_set_args(p, "reviewed", message=message))
-                text = p.read_text(encoding="utf-8")
+                dest_p = root / ".aw" / "records" / "specs" / "reviewed" / p.name
+                after_p = dest_p if dest_p.exists() else p
+                text = after_p.read_text(encoding="utf-8")
             polarity, entry = plan_readiness.newest_verdict(text)
             problems = []
             if rc != 0:
@@ -1599,7 +1603,7 @@ class SpecDiscoveryTests(unittest.TestCase):
             {
                 "aaa111": (
                     "to-review",
-                    ".aw/records/specs/20260906-aaa111-01-aaa111-fixture-spec.spec.md",
+                    ".aw/records/specs/to-review/20260906-aaa111-01-aaa111-fixture-spec.spec.md",
                 )
             },
             "THE POSITIVE ROW: the id6 is the key, and both the STATUS and the REPO-RELATIVE path "

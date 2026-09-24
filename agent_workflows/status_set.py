@@ -1114,50 +1114,12 @@ def apply_status_change(
                     insert_idx = len(new_lines)
             new_lines.insert(insert_idx, approval_line)
 
-    # Determine destination path if directory-disposition applies
-    dest_path = rec.path
-    if rec.record_type in ("plans", "prompts"):
-        disposition = "pending"
-        if norm_status in (
-            "draft",
-            "to-review",
-            "reviewed",
-            "approved",
-            "auto-approved",
-        ):
-            disposition = "pending"
-        elif norm_status == "reusable":
-            disposition = "reusable"
-        elif norm_status == "executed":
-            disposition = "executed"
-        elif norm_status == "superseded":
-            disposition = "superseded"
-        elif norm_status == "not-executed":
-            disposition = "not-executed"
+    # Determine destination path using the shared record placement library (Set specdirs, IPD r9uvwc)
+    from agent_workflows import record_placement as _placement
 
-        if rec.path.parent.name in (
-            "pending",
-            "executed",
-            "superseded",
-            "not-executed",
-            "reusable",
-        ):
-            if rec.path.parent.name != disposition:
-                dest_path = rec.path.parent.parent / disposition / rec.path.name
-        else:
-            base_dir = _plans_mod._resolve_area_dir(repo_root, rec.record_type)
-            dest_path = base_dir / disposition / rec.path.name
-
-    elif rec.record_type == "backlog":
-        # bklgrad Order 01 (v58bvy) E-01: derived from `backlog.STATUS_DIRS`, not a re-listed tuple.
-        # With a hardcoded list this silently DECLINED TO MOVE a file whose source dir was the new
-        # status (the parent name would not be in the list), leaving the record's directory and its
-        # `- Status:` line disagreeing.
-        if (
-            rec.path.parent.name in _backlog_mod.STATUS_DIRS
-            and rec.path.parent.name != norm_status
-        ):
-            dest_path = rec.path.parent.parent / norm_status / rec.path.name
+    dest_path = _placement.resolve_transition_path(
+        rec.record_type, rec.path, norm_status, repo_root=repo_root
+    )
 
     content_changed = new_lines != lines
     path_changed = dest_path.resolve() != rec.path.resolve()
@@ -2001,14 +1963,20 @@ def run_set_command(
         results.append((dest_path, norm_stat, rec, changed))
         if changed:
             touched_types.add(rec.record_type)
-            # selfcommit jgcm68 E-05: track the EXACT rewritten artifact file (single or whole-Set)
-            # for the path-scoped self-commit offer - never a dirty scan.
             try:
-                touched_paths.append(
+                dest_rel = (
                     dest_path.resolve().relative_to(repo_root.resolve()).as_posix()
                 )
             except ValueError:
-                touched_paths.append(dest_path.as_posix())
+                dest_rel = dest_path.as_posix()
+            try:
+                src_rel = rec.path.resolve().relative_to(repo_root.resolve()).as_posix()
+            except ValueError:
+                src_rel = rec.path.as_posix()
+            if src_rel != dest_rel and src_rel not in touched_paths:
+                touched_paths.append(src_rel)
+            if dest_rel not in touched_paths:
+                touched_paths.append(dest_rel)
 
     if ctx.is_agent or ctx.is_json:
         changes = [

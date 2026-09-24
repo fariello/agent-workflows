@@ -180,6 +180,7 @@ class LayoutModelDefaultsTests(unittest.TestCase):
         self.assertEqual(set(modeled), set(self.model.record_subpaths()))
 
     def test_lifecycle_subdirs_match_the_live_status_dirs(self) -> None:
+        from agent_workflows import attention_contract as AC
         from agent_workflows import backlog as BL
 
         self.assertEqual(
@@ -188,6 +189,14 @@ class LayoutModelDefaultsTests(unittest.TestCase):
         )
         self.assertEqual(
             set(self.model.record_classes["plans"].lifecycle_subdirs),
+            {"pending", "executed", "superseded", "not-executed", "reusable"},
+        )
+        self.assertEqual(
+            set(self.model.record_classes["specs"].lifecycle_subdirs),
+            set(AC.SPEC_STATUSES),
+        )
+        self.assertEqual(
+            set(self.model.record_classes["prompts"].lifecycle_subdirs),
             {"pending", "executed", "superseded", "not-executed", "reusable"},
         )
 

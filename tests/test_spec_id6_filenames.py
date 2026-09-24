@@ -99,13 +99,13 @@ class TestSpecProducer(_RepoTestCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("would write", out)
         # nothing written on preview
-        self.assertEqual(list(self.specs.glob("*.spec.md")), [])
+        self.assertEqual(list(self.specs.glob("**/*.spec.md")), [])
 
         rc, out = self._run(
             ["specs", "new", "--title", "My Spec", "--slug", "my-spec", "--apply"]
         )
         self.assertEqual(rc, 0, out)
-        files = list(self.specs.glob("*.spec.md"))
+        files = list(self.specs.glob("**/*.spec.md"))
         self.assertEqual(len(files), 1, out)
         f = files[0]
         text = f.read_text(encoding="utf-8")
