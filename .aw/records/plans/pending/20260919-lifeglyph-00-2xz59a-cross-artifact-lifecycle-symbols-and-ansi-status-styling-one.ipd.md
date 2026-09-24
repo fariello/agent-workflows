@@ -20,6 +20,7 @@
 - From-Spec: uonrjg
 
 ## Workflow history
+- 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (lifeglyph: medium/feature)
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates at HEAD `f12390d7` and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False (the round-1 blocker OQ-02 is now `Status: resolved`); `review_findings.subject_gating_blocks` -> empty (the round-1 BLOCKER finding is now `FIXED` in the review record, with its resolution recorded there); and `plan_readiness.newest_verdict` polarity -> neutral, not negative. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
@@ -41,70 +42,79 @@ THIS CHECKLIST IS ORCHESTRATION, NOT WORK. Every item below is "confirm child X 
 
 ### Task group 1: Gate and foundations
 
-- [ ] E-01 Confirm child 01 `n4xq3l` (re-review spec uonrjg against the shipped yaxr4i flag surface) reached `executed`.
+- [ ] E-01 CONFIRM n4xq3l REACHED executed
   - Depends on: none
   - Expected outcome: `n4xq3l` is in `.aw/records/plans/executed/` with `Status: executed`, and the spec carries a re-review round dated after `yaxr4i` executed.
   - Execution state: pending
+  Child 01 discharges spec Section 12a re-review gate against shipped yaxr4i flag surface.
 
-- [ ] E-02 Confirm child 02 `udgilu` (the stdlib-only lifecycle_style resolver with owner-enum coverage tests) reached `executed`.
+- [ ] E-02 CONFIRM udgilu REACHED executed
   - Depends on: E-01
   - Expected outcome: `udgilu` is `executed`; `agent_workflows/lifecycle_style.py` exists and its A2 enumeration test fails when an owner status lacks a mapping.
   - Execution state: pending
+  Child 02 creates lifecycle_style.py with 21 stages, resolver, and A2 owner-enum tests.
 
-- [ ] E-03 Confirm child 03 `pow5sj` (one depth resolver, the authored 16-color tier, and aw config pinning) reached `executed`.
+- [ ] E-03 CONFIRM pow5sj REACHED executed
   - Depends on: E-02
   - Expected outcome: `pow5sj` is `executed`; exactly one depth resolver exists and the R9.3a.2 precedence chain holds at every rung.
   - Execution state: pending
+  Child 03 resolves color depth once in term.py, adding 16-color palette and aw config pin.
 
-- [ ] E-04 Confirm child 04 `bn026f` (the Term lifecycle rendering helpers and capability matrix) reached `executed`.
+- [ ] E-04 CONFIRM bn026f REACHED executed
   - Depends on: E-03
   - Expected outcome: `bn026f` is `executed`; resolution and rendering are separate and testable, and the six-profile capability matrix passes.
   - Execution state: pending
+  Child 04 adds Term lifecycle rendering helpers and capability matrix.
 
-- [ ] E-09 Confirm child 09 `z8ddk0` (unify the three `should_color` implementations) reached `executed`.
+- [ ] E-09 CONFIRM z8ddk0 REACHED executed
   - Depends on: none
   - Expected outcome: `z8ddk0` is `executed`; `grep -rn "def should_color" agent_workflows/` returns exactly ONE line, so `pow5sj` can honestly satisfy R9.3a.2's one-definition requirement. Note this child is DEPTH-0 and therefore precedes every other code child in the queue regardless of its Order number.
   - Execution state: pending
+  Child 09 unifies three should_color implementations into one definition.
 
 ### Task group 2: Conversions, in the order that never breaks a view
 
-- [ ] E-05 Confirm child 05 `f9t5hz` (convert attention.py with identical status and id6 treatment) reached `executed`.
+- [ ] E-05 CONFIRM f9t5hz REACHED executed
   - Depends on: E-04
   - Expected outcome: `f9t5hz` is `executed`; `attention.py` holds no lifecycle color literal and no known status renders as silent gray.
   - Execution state: pending
+  Child 05 converts attention.py to shared resolver with A20 behavior.
 
-- [ ] E-06 Confirm child 06 `9zvl2w` (convert indexes, status commands, lint views, run viewers) reached `executed`.
+- [ ] E-06 CONFIRM 9zvl2w REACHED executed
   - Depends on: E-05
   - Expected outcome: `9zvl2w` is `executed`; every non-runner human lifecycle view routes through the shared resolver.
   - Execution state: pending
+  Child 06 converts indexes, status commands, lint views, run viewers.
 
-- [ ] E-07 Confirm child 07 `qdd5jq` (convert both runners and render_stream, then delete every duplicate table) reached `executed`.
+- [ ] E-07 CONFIRM qdd5jq REACHED executed
   - Depends on: E-06
   - Expected outcome: `qdd5jq` is `executed`; `grep -rn "STATUS_COLOR_256" agent_workflows/` returns nothing and the A17 guard test is in place.
   - Execution state: pending
+  Child 07 converts both runners and render_stream, deletes duplicate tables.
 
 ### Task group 3: The mandatory spec amendment
 
-- [ ] E-08 Confirm child 08 `7p3tt8` (amend 25kzda Section 5.6 and ship the canonical legend) reached `executed`.
+- [ ] E-08 CONFIRM 7p3tt8 REACHED executed
   - Depends on: E-07
   - Expected outcome: `7p3tt8` is `executed`; `25kzda` Section 5.6 points at `uonrjg`, the user guide's stale 16-color claim is gone, and the legend is generated rather than hand-maintained.
   - Execution state: pending
+  Child 08 amends 25kzda Section 5.6 and ships canonical legend.
 
 
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | File | What it does | Depends on |
-|---|---|---|---|
-| 01 | `20260919-lifeglyph-01-n4xq3l-re-review-spec-uonrjg-against-the-shipped-yaxr4i-flag-surfac.ipd.md` | Discharges the spec's own Section 12a re-review gate against the shipped `yaxr4i` flag surface and rewritten output contract. | `executed:yaxr4i` |
-| 02 | `20260919-lifeglyph-02-udgilu-land-the-stdlib-only-lifecycle-style-resolver-with-exhaustiv.ipd.md` | Creates `lifecycle_style.py`: 21 stages, native/runner/ledger mappings, precedence resolver, self-validation, A2 owner-enum tests. | `executed:yaxr4i`, `executed:n4xq3l` |
-| 03 | `20260919-lifeglyph-03-pow5sj-resolve-color-depth-once-in-term-py-and-add-the-authored-16.ipd.md` | One depth resolver with the 256/16/none ladder, the authored 16-color palette, and an `aw config` depth pin. | `executed:yaxr4i`, `executed:udgilu` |
-| 04 | `20260919-lifeglyph-04-bn026f-add-the-term-lifecycle-rendering-helpers-and-the-capability.ipd.md` | The R10.2 rendering helpers, Section 9.1/9.2 styling rules, grapheme safety, and the A16 capability matrix. | `executed:udgilu`, `executed:pow5sj` |
-| 05 | `20260919-lifeglyph-05-f9t5hz-convert-attention-py-to-the-shared-resolver-with-identical-s.ipd.md` | Converts `attention.py`, the first consumer, and replaces its silent gray fallthrough with A20 behavior. | `executed:bn026f` |
-| 06 | `20260919-lifeglyph-06-9zvl2w-convert-indexes-status-commands-lint-views-and-run-viewers-t.ipd.md` | Converts `plans_index`, `research_index`, `status_set`, `ipd_lint`, `run_viewer`, and `cli` lifecycle sites. | `executed:f9t5hz` |
-| 07 | `20260919-lifeglyph-07-qdd5jq-convert-both-runner-displays-and-render-stream-lifecycle-row.ipd.md` | Converts both runners and `render_stream`, dismantles the re-export chain, deletes every duplicate table, adds the A17 guard. | `executed:9zvl2w` |
-| 08 | `20260919-lifeglyph-08-7p3tt8-amend-spec-25kzda-section-5-6-and-ship-the-canonical-legend.ipd.md` | Performs the spec's MANDATORY `25kzda` Section 5.6 amendment, corrects the stale user-guide claim, ships one generated legend. | `executed:qdd5jq` |
-| 09 | `20260919-lifeglyph-09-z8ddk0-unify-the-three-divergent-should-color-implementations-and-s.ipd.md` | Unifies the THREE divergent `should_color` implementations into one definition with the maintainer's ruled semantics (`NO_COLOR` presence-only, `FORCE_COLOR` interprets falsey values), and stops `FORCE_COLOR=0` forcing color on. Graduated from backlog `nyz8dt`. DEPTH-0, so it runs FIRST despite its Order: `pow5sj` declares `executed:z8ddk0`. | none |
+| Order | Id | File | What it does | Depends on |
+|---|---|---|---|---|
+| 01 | `n4xq3l` | `20260919-lifeglyph-01-n4xq3l-re-review-spec-uonrjg-against-the-shipped-yaxr4i-flag-surfac.ipd.md` | Discharges the spec's own Section 12a re-review gate against the shipped `yaxr4i` flag surface and rewritten output contract. | `executed:yaxr4i` |
+| 02 | `udgilu` | `20260919-lifeglyph-02-udgilu-land-the-stdlib-only-lifecycle-style-resolver-with-exhaustiv.ipd.md` | Creates `lifecycle_style.py`: 21 stages, native/runner/ledger mappings, precedence resolver, self-validation, A2 owner-enum tests. | `executed:yaxr4i`, `executed:n4xq3l` |
+| 03 | `pow5sj` | `20260919-lifeglyph-03-pow5sj-resolve-color-depth-once-in-term-py-and-add-the-authored-16.ipd.md` | One depth resolver with the 256/16/none ladder, the authored 16-color palette, and an `aw config` depth pin. | `executed:yaxr4i`, `executed:udgilu` |
+| 04 | `bn026f` | `20260919-lifeglyph-04-bn026f-add-the-term-lifecycle-rendering-helpers-and-the-capability.ipd.md` | The R10.2 rendering helpers, Section 9.1/9.2 styling rules, grapheme safety, and the A16 capability matrix. | `executed:udgilu`, `executed:pow5sj` |
+| 05 | `f9t5hz` | `20260919-lifeglyph-05-f9t5hz-convert-attention-py-to-the-shared-resolver-with-identical-s.ipd.md` | Converts `attention.py`, the first consumer, and replaces its silent gray fallthrough with A20 behavior. | `executed:bn026f` |
+| 06 | `9zvl2w` | `20260919-lifeglyph-06-9zvl2w-convert-indexes-status-commands-lint-views-and-run-viewers-t.ipd.md` | Converts `plans_index`, `research_index`, `status_set`, `ipd_lint`, `run_viewer`, and `cli` lifecycle sites. | `executed:f9t5hz` |
+| 07 | `qdd5jq` | `20260919-lifeglyph-07-qdd5jq-convert-both-runner-displays-and-render-stream-lifecycle-row.ipd.md` | Converts both runners and `render_stream`, dismantles the re-export chain, deletes every duplicate table, adds the A17 guard. | `executed:9zvl2w` |
+| 08 | `7p3tt8` | `20260919-lifeglyph-08-7p3tt8-amend-spec-25kzda-section-5-6-and-ship-the-canonical-legend.ipd.md` | Performs the spec's MANDATORY `25kzda` Section 5.6 amendment, corrects the stale user-guide claim, ships one generated legend. | `executed:qdd5jq` |
+| 09 | `z8ddk0` | `20260919-lifeglyph-09-z8ddk0-unify-the-three-divergent-should-color-implementations-and-s.ipd.md` | Unifies the THREE divergent `should_color` implementations into one definition with the maintainer's ruled semantics (`NO_COLOR` presence-only, `FORCE_COLOR` interprets falsey values), and stops `FORCE_COLOR=0` forcing color on. Graduated from backlog `nyz8dt`. DEPTH-0, so it runs FIRST despite its Order: `pow5sj` declares `executed:z8ddk0`. | none |
 
 The chain is strictly linear by design. Two reasons, both load-bearing rather than stylistic: every child after 02 consumes the module the previous one produced, and the table deletion in 07 is only safe once 05 and 06 have moved their consumers off it. The runner sorts the queue by dependency depth as its FIRST key and re-checks each edge at dispatch, so a child whose edge is unmet is marked `dependency-blocked` and the run continues rather than failing.
 

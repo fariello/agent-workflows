@@ -13,12 +13,13 @@
 - From-Backlog: dstnso
 - Set: hostdedup
 - Order: 0
-- Highest E allocated: 01
+- Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: a5wdne
 - Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item dstnso (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 /plan-review (antigravity): APPROVE WITH REVISIONS APPLIED; Round 2 review complete. OQ-03 (PR-001) resolved with maintainer authority: child plans li44r9 and nmlx47 have pin files declared in Scope-Paths; readiness promoted to go-pending-approval.
@@ -70,21 +71,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Set-level acceptance
 
-- [ ] E-01 After all three children are `executed`, verify and record the Set's combined result against ALL SIX completion criteria below, not four: the forked-symbol count has fallen from 34 to the five large functions alone; no runner imports the other runner AND the guard rejects the coupling rather than one spelling; a third host runs with no runner module of its own and attributes correctly; a PRE-CUTOVER run record still attributes correctly; the host contract is immortalized under `.aw/records/research/`; and the suite is green. This orchestrator holds no work of its own beyond this verification. READ THE RETIREMENT NOTE IN THE GATE FIRST: if the runner retires this Set, this item is marked complete WITHOUT being performed, so the criteria that only E-01 checks (the cross-Set fork count and the two Order-03 durability properties) are verified by nobody. That is a known limitation of orchestrator retirement, not something this plan can fix, and it is why each of the six criteria is ALSO owned by a child V-item wherever possible.
+- [ ] E-01 CONFIRM li44r9 REACHED executed
   - Depends on: none
-  - Expected outcome: a measured before/after count using the COMMITTED scanner E-01 of Order 01 must produce (see PR-006: no such scanner exists in-tree today, so "the same AST scan" cannot be re-run as the criteria assume), stating its metric, against the 34-symbol baseline. Symbol counts are the gate; line figures are indicative (see the Goal). Evidence for each of the six properties. A regression in any one means the Set is not done regardless of the children's individual states.
+  - Expected outcome: li44r9 reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 01 lifts the 17 byte-identical runner symbols into runner_shared.
+
+- [ ] E-02 CONFIRM nmlx47 REACHED superseded
+  - Depends on: E-01
+  - Expected outcome: nmlx47 reads `- Status: superseded` on disk.
+  - Execution state: pending
+  Child 02 was retired 2026-09-23 as superseded; remainder carried by backlog xw4rb7/ga2dz1/zt2b16.
+
+- [ ] E-03 CONFIRM xdvglg REACHED executed
+  - Depends on: E-02
+  - Expected outcome: xdvglg reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 03 implements descriptor seam and adds third host.
+
+- [ ] E-04 CONFIRM 04vf1h REACHED executed
+  - Depends on: E-01, E-02, E-03
+  - Expected outcome: 04vf1h reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 04 performs whole-Set verification across all six completion criteria.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | File | What it does | Depends on |
-|---|---|---|---|
-| 01 | `.aw/records/plans/pending/20260917-hostdedup-01-li44r9-lift-the-seventeen-byte-identical-runner-symbols-into-runner.ipd.md` | Lift the 17 byte-identical symbols (380 oc lines) to one definition each; pure move, no behavior change; re-base the guard that pins them as forked | none |
-| 02 | `.aw/records/plans/superseded/20260917-hostdedup-02-nmlx47-unify-the-twelve-small-divergent-symbols-behind-hostlabels.ipd.md` (**RETIRED 2026-09-23 as `superseded`**; see that plan's header. Its remainder is carried by backlog `xw4rb7`/`ga2dz1`/`zt2b16`, so this row is CLOSED, not outstanding) | Unify the 12 divergent symbols (488 oc lines) per shape: reconcile 7 drifted, re-point 3 agy stubs off `oc_runipd`, express 2 real differences via `HostLabels`; close the vacuous runner-to-runner guard | `executed:li44r9` |
-| 03 | `.aw/records/plans/pending/20260917-hostdedup-03-xdvglg-prove-the-descriptor-seam-by-adding-a-third-host-with-no-new.ipd.md` | Implement the maintainer's host-id ruling, then add a third host defined only by a descriptor and drive a real execution through it; classify whatever the seam cannot express | `executed:nmlx47` |
-| 04 | `.aw/records/plans/pending/20260921-hostdedup-04-04vf1h-verify-the-hostdedup-set-against-all-six-completion-criteria.ipd.md` | ACCEPT: perform this orchestrator's own E-01 as a real agent turn, verifying ALL SIX completion criteria - fork count via the COMMITTED scanner Order 01 produces (never an improvised one), the coupling guard proven FALSIFIABLE rather than merely green (it was measured vacuous while 9 real couplings existed), the third-host execution and attribution, pre-cutover attribution, the research immortalization, and a bare green suite. This exists because this parent's E-01 already recorded that retirement would tick those criteria unperformed and called it unfixable from here. | `executed:li44r9`, `executed:nmlx47`, `executed:xdvglg` |
+| Order | Id | File | What it does | Depends on |
+|---|---|---|---|---|
+| 01 | `li44r9` | `.aw/records/plans/pending/20260917-hostdedup-01-li44r9-lift-the-seventeen-byte-identical-runner-symbols-into-runner.ipd.md` | Lift the 17 byte-identical symbols (380 oc lines) to one definition each; pure move, no behavior change; re-base the guard that pins them as forked | none |
+| 02 | `nmlx47` | `.aw/records/plans/superseded/20260917-hostdedup-02-nmlx47-unify-the-twelve-small-divergent-symbols-behind-hostlabels.ipd.md` (**RETIRED 2026-09-23 as `superseded`**; see that plan's header. Its remainder is carried by backlog `xw4rb7`/`ga2dz1`/`zt2b16`, so this row is CLOSED, not outstanding) | Unify the 12 divergent symbols (488 oc lines) per shape: reconcile 7 drifted, re-point 3 agy stubs off `oc_runipd`, express 2 real differences via `HostLabels`; close the vacuous runner-to-runner guard | `executed:li44r9` |
+| 03 | `xdvglg` | `.aw/records/plans/pending/20260917-hostdedup-03-xdvglg-prove-the-descriptor-seam-by-adding-a-third-host-with-no-new.ipd.md` | Implement the maintainer's host-id ruling, then add a third host defined only by a descriptor and drive a real execution through it; classify whatever the seam cannot express | `executed:nmlx47` |
+| 04 | `04vf1h` | `.aw/records/plans/pending/20260921-hostdedup-04-04vf1h-verify-the-hostdedup-set-against-all-six-completion-criteria.ipd.md` | ACCEPT: perform this orchestrator's own E-01 as a real agent turn, verifying ALL SIX completion criteria - fork count via the COMMITTED scanner Order 01 produces (never an improvised one), the coupling guard proven FALSIFIABLE rather than merely green (it was measured vacuous while 9 real couplings existed), the third-host execution and attribution, pre-cutover attribution, the research immortalization, and a bare green suite. This exists because this parent's E-01 already recorded that retirement would tick those criteria unperformed and called it unfixable from here. | `executed:li44r9`, `executed:nmlx47`, `executed:xdvglg` |
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -291,17 +311,22 @@ TWO ADDITIONS FROM REVIEW, both cheap and both catching a failure mode measured 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: the re-run fork-count scan against the 2026-09-17 SYMBOL baseline (34 forks, of which
-    5 large; the line figures are indicative per the Goal), produced by the COMMITTED scanner with its metric
-    stated, showing only the five large functions remain; evidence of no runner-to-runner import that would
-    have CAUGHT the 9 imports present at review (a `grep` for `"import oc_runipd"` alone does NOT satisfy
-    this, since that is the vacuous form measured in F-4); the third host's run record showing correct
-    attribution; a pre-cutover record still attributing correctly; the research record path; the four pin
-    files run TOGETHER and green (review baseline `95 passed`); and the suite showing no NEW failures against
-    a baseline taken the same way, with the invocation form stated (`env -u AW_EXECUTION_ROLE` or bare) and
-    both numbers pasted. Plus all three children shown `executed`, AND each child's `Scope-Paths` shown to
-    include the three pin files it edited (OQ-03): a child that finalized with an unjustified out-of-scope
-    edit to a pin file means this criterion is not met.
+  - Required evidence: paste `li44r9`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste `nmlx47`'s `- Status:` line read from its file, showing `superseded`, and its path under `.aw/records/plans/superseded/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste `xdvglg`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste `04vf1h`'s `- Status:` line read from its file showing `executed`. Paste the re-run fork-count scan against the 2026-09-17 SYMBOL baseline (34 forks, of which 17 were lifted by Order 01 and 12 unified or classified by Order 02/03, leaving only the 5 large runner functions), showing the count has fallen to at or below 5; the coupling guard proven FALSIFIABLE rather than merely green; the third-host execution run record; pre-cutover run record attribution; research document path; and bare pytest summary line.
   - Observed evidence:
   - Result: pending
 

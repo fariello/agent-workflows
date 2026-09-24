@@ -13,13 +13,14 @@
 - Readiness: go-pending-approval
 - Set: orchprobe
 - Order: 0
-- Highest E allocated: 01
+- Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: yeh7gc
 - Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 - From-Backlog: 5ev6lh
 
 ## Workflow history
+- 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item 5ev6lh (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-08 approved (aw set): status set to approved
@@ -43,10 +44,23 @@ THIS PARENT CARRIES ORCHESTRATION AND NOTHING BEYOND IT, which is NOT the same a
 
 ### Task group 1: sequence the Set
 
-- [ ] E-01 SEQUENCE THE THREE CHILDREN IN ORDER, confirming each is `executed` on disk before dispatching the next, and STOP on the first that does not reach `executed`. The order is fixed by consumption, not preference: 01 (`r2i1b1`) the surfacing, then 02 (`8tgg6g`) the cache, then 03 (`m7gvuz`) the probe, which consumes both. Order 02 may run before or beside 01; only 03 requires both. DO NOT PERFORM ANY CHILD'S WORK FROM HERE: if a child appears to need a change this parent could make, the child table is wrong, so fix the child.
+- [ ] E-01 CONFIRM r2i1b1 REACHED executed
   - Depends on: none
-  - Expected outcome: all three children are `executed` on disk in an order that puts `m7gvuz` last, with none skipped and no child's work performed by this parent.
+  - Expected outcome: r2i1b1 reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 01 surfaces per-item refusal reason and remedy in run summary and aw runs.
+
+- [ ] E-02 CONFIRM 8tgg6g REACHED executed
+  - Depends on: none
+  - Expected outcome: 8tgg6g reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 02 caches orchestrator probe verdict against content digest.
+
+- [ ] E-03 CONFIRM m7gvuz REACHED executed
+  - Depends on: E-01, E-02
+  - Expected outcome: m7gvuz reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 03 probes queued orchestrators for uncovered work before run starts.
 
 ## Child IPDs, sequence, and dependencies
 
@@ -167,9 +181,17 @@ THE SPEC AMENDMENT IS OWED AND ITS TARGET IS NAMED HERE, because "amend the spec
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste each child's `- Status:` line read from its file, showing all three `executed`, and paste `git log --oneline` over the plans tree showing the order in which they reached `executed` with `m7gvuz` LAST. Confirm from `git diff --stat` over this parent's own commits that it touched no file under `agent_workflows/`, which is the check that this parent performed no child's work.
-    ALSO PASTE THE F-8 PRECONDITION EVIDENCE, because it is the one obligation in this Set that no code enforces: the `- Status:` line and the uncovered-item state of `5e4sb6`, `h0zljh`, `rh5tt6` and `3m0urk` as they stood WHEN `m7gvuz` executed, showing each had been cleared beforehand per OQ-02's resolution. If `m7gvuz` executed while any of the four still carried uncovered work, this item FAILS regardless of the children's own green V-items, because the Set will have shipped a gate that immediately refuses four approved Sets, which is the outcome the maintainer's ruling exists to prevent.
-    THE SET-LEVEL BEHAVIOR IS NOT VALIDATED HERE. CID-1 through CID-6 own it, and CID-5 in particular must be discharged with output read AFTER the refused run exited. Re-asserting from this parent that the gate works, without a child having recorded the evidence, is a FAILED validation.
+  - Required evidence: paste `r2i1b1`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste `8tgg6g`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste `m7gvuz`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`. Paste git log --oneline over plans tree showing m7gvuz last, and git diff --stat showing no files touched under agent_workflows/.
   - Observed evidence:
   - Result: pending
 

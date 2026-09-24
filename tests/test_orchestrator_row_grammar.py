@@ -559,15 +559,15 @@ class TheChildId6ResolvesAgainstThisSetsOwnTable(unittest.TestCase):
         )
 
 
-class TheNoIdColumnPopulationIsReal(unittest.TestCase):
-    """Kept separate and pinned to the LIVE tree: the claim is that this shape EXISTS in the corpus.
+class EveryLiveOrchestratorDeclaresAnIdColumn(unittest.TestCase):
+    """Pinned to the LIVE tree: asserts child `68uhp0`'s migration has added the `Id` column corpus-wide.
 
-    The table-shape table above uses a constructed no-`Id` document, which proves the rule handles the
-    shape but not that the shape matters. This measures the real population, because that is what makes
-    the refusal a migration instruction (child `68uhp0` adds the column) rather than a hypothetical.
+    Pre-migration, `TheNoIdColumnPopulationIsReal` proved that orchestrators lacking an `Id` column
+    existed in the corpus. Post-migration (child `68uhp0`), every live orchestrator declares an `Id` column
+    so that child id6s can be resolved by the typed row grammar.
     """
 
-    def test_at_least_one_live_orchestrator_declares_no_Id_column(self):
+    def test_every_live_orchestrator_declares_an_Id_column(self):
         pending = SOURCE_PLANS / "pending"
         if not pending.is_dir():
             self.skipTest("no pending plan tree in this checkout")
@@ -584,11 +584,11 @@ class TheNoIdColumnPopulationIsReal(unittest.TestCase):
                 without.append(path.name)
         if not total:
             self.skipTest("no pending orchestrator to measure")
-        self.assertTrue(
+        self.assertEqual(
             without,
-            "no live orchestrator lacks an `Id` column. If child `68uhp0`'s migration has run, that "
-            "is the intended end state and this test should be re-expressed; until then it means the "
-            f"detector stopped recognizing the shape. measured over {total} orchestrator(s)",
+            [],
+            f"orchestrator(s) lack an `Id` column: {without}; after child `68uhp0`'s migration, every "
+            f"live orchestrator must declare an `Id` column. measured over {total} orchestrator(s)",
         )
 
 

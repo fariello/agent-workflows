@@ -18,6 +18,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 
 - 2026-09-23 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from the twenty-three-item turn-bounds family plus `uj5g58`. `- Blocks-Release: next` is INHERITED; every member carries it.
   THIS PARENT CARRIES ORCHESTRATION ONLY, DELIBERATELY. Per `AGENTS.md`, a runner RETIRES an orchestrator once every child is `executed` and SKIPS the pre-transition E/V checkpoint, so any work parked here would be marked complete having never been performed. Both E-items below are child-completion checks, and the two substantive deliverables belong to `heglfv` and `fwgq2u`. The one thing that might have been parent-only work, consolidating the twenty-three items, is explicitly declared OUT rather than left implicit, because it needs human judgement and would otherwise be exactly the uncovered-parent-work the coverage gate refuses on.
@@ -33,22 +34,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: children
 
-- [ ] E-01 CONFIRM CHILD 01 (`heglfv`) REACHED `executed`: the turn-bounds policy assertions read the constructed child env, the file is green with `OPENCODE_CONFIG_CONTENT` both set and unset, and the `R4.1` assertion was not weakened.
+- [ ] E-01 CONFIRM heglfv REACHED executed
   - Depends on: none
   - Expected outcome: `heglfv` is in `.aw/records/plans/executed/` with every `V-*` carrying observed evidence, including the pasted green run with the variable SET and the demonstration that the fixed test can still fail.
   - Execution state: pending
+  Child 01 fixes turn-bounds policy assertions to read constructed child env.
 
-- [ ] E-02 CONFIRM CHILD 02 (`fwgq2u`) REACHED `executed`: `aw backlog new` reports plausible existing items, never refuses, states its own detection limits, and is proved against fixtures derived from the twenty-three filings plus a negative control.
+- [ ] E-02 CONFIRM fwgq2u REACHED executed
   - Depends on: none
   - Expected outcome: `fwgq2u` is in `.aw/records/plans/executed/` with every `V-*` carrying observed evidence, including the measured added latency and the negative-control assertion.
   - Execution state: pending
+  Child 02 gives aw backlog new an advisory near-duplicate guard.
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | Id | Plan | Status | Owns |
-| --- | --- | --- | --- | --- |
-| 01 | `heglfv` | `20260923-envhermet-01-heglfv-make-the-turn-bounds-policy-assertions-read-the-constructed.ipd.md` | `to-review` | The DEFECT: make the turn-bounds policy assertions read the constructed child env, not the ambient one, preserving `R4.1`. Touches `tests/test_turn_bounds.py`. |
-| 02 | `fwgq2u` | `20260923-envhermet-02-fwgq2u-give-aw-backlog-new-a-near-duplicate-guard-so-one-defect-can.ipd.md` | `to-review` | The PROCESS: give `aw backlog new` an advisory near-duplicate guard following `aw graduation`'s precedent. Touches `agent_workflows/backlog.py`. |
+| Order | Id | Plan | Depends on | Status | Owns |
+| --- | --- | --- | --- | --- | --- |
+| 01 | `heglfv` | `20260923-envhermet-01-heglfv-make-the-turn-bounds-policy-assertions-read-the-constructed.ipd.md` | none | `to-review` | The DEFECT: make the turn-bounds policy assertions read the constructed child env, not the ambient one, preserving `R4.1`. Touches `tests/test_turn_bounds.py`. |
+| 02 | `fwgq2u` | `20260923-envhermet-02-fwgq2u-give-aw-backlog-new-a-near-duplicate-guard-so-one-defect-can.ipd.md` | none | `to-review` | The PROCESS: give `aw backlog new` an advisory near-duplicate guard following `aw graduation`'s precedent. Touches `agent_workflows/backlog.py`. |
 
 SEQUENCE IS USEFUL BUT NOT ENFORCED. Child 01 fixes the defect that generated the twenty-three filings and child 02 stops the next such defect recurring, so 01-then-02 is the informative order. Neither declares an `- Item-Dependencies:` edge on the other, deliberately: they touch DISJOINT files, so either may land alone and both may execute in parallel isolated worktrees without contending.
 

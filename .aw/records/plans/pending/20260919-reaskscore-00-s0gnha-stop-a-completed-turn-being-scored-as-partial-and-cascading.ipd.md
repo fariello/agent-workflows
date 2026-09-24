@@ -11,7 +11,7 @@
 - Readiness: go-pending-approval
 - Set: reaskscore
 - Order: 0
-- Highest E allocated: 03
+- Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: yxfw4k
 - Blocks-Release: next
@@ -20,6 +20,7 @@
 - Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-23 approved (aw set): Backfilled Priority by inheritance from source backlog item yxfw4k (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 
@@ -41,32 +42,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: sequence the Set and prove it composed
 
-- [ ] E-01 EXECUTE THE CHILDREN IN THE ORDER THE TABLE BELOW DECLARES, honoring `dy9ymn`'s `executed:ty7w6o` edge and `svacmz`'s three `executed:` edges, and confirm each child is `executed` before dispatching anything that depends on it. `skn8uk` and `ty7w6o` are INDEPENDENT of each other and may run in either order; `dy9ymn` requires `ty7w6o` because it consumes the `attempt["host_truncation"]` record that plan produces; `svacmz` requires all three because it verifies the MERGED result. NOTE FOR AN EXECUTOR WORKING BY HAND RATHER THAN THROUGH A RUNNER: neither runner can dispatch two items concurrently (each `run_queue` selects ONE runnable item per loop iteration and breaks, `oc_runipd.run_queue` at the `for item in sorted(queued, ...)` / `break` selection, mirrored in `agy_runipd`), and there is no `--jobs`/`--parallel` flag, so "in parallel lanes" is not an available mode and nothing here depends on one. This item is orchestration and performs no product change of its own.
+- [ ] E-01 CONFIRM skn8uk REACHED executed
   - Depends on: none
-  - Expected outcome: all four children are `executed`, each dependency edge was satisfied at dispatch, and no child's deliverable was performed by this plan.
+  - Expected outcome: skn8uk reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 01 rescores disposition from re-collected outcome after defect re-ask. Independent of ty7w6o.
 
-- [ ] E-02 CONFIRM `svacmz` ACTUALLY PERFORMED THE TWO VERIFICATIONS IT OWNS, by reading its `V-*` evidence rather than by re-performing its work. This item is a RECEIPT CHECK, not a second verification: `svacmz` owns the predicate-unweakened pins (its E-01/E-02) and both measured-shape reconstructions plus the collision case (its E-03/E-04), and duplicating them here would put the same assertions in two places with no second observer. What this item does is confirm, on `svacmz`'s executed plan file, that its `V-01` carries the five constants' ACTUAL VALUES (not a bare "unchanged"), that its `V-02` carries the pin output and the `git diff` for both pin files, and that its `V-03`/`V-04` carry the SHAPE A and SHAPE B reconstruction output and the collision case. An empty or hand-waved `Observed evidence` block on any of those four is a FAILURE of this item and the Set is not complete.
-  - Depends on: E-01
-  - Expected outcome: `svacmz`'s `V-01`..`V-04` each carry concrete pasted evidence, quoted here by reference, and none is satisfied by an assertion without output.
+- [ ] E-02 CONFIRM ty7w6o REACHED executed
+  - Depends on: none
+  - Expected outcome: ty7w6o reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 02 records host-truncated agy turn as truncated instead of accepting exit 0. Independent of skn8uk.
 
-- [ ] E-03 TRANSITION THE TWO SOURCE BACKLOG ITEMS HONESTLY, which is the one substantive act that belongs on this plan because it is a Set-level record change no child owns. Set `yxfw4k` `done` only if its defect is fixed AND validated by `svacmz`'s evidence; it carries `Blocks-Release: next`, so the close-legitimacy gate requires the gate be provably preserved or released (a `From-Backlog` handoff, cited `--evidence`, or an explicit `--blocks-release -`), and `aw backlog set done` FAILS CLOSED otherwise. Set `x7wfyx` `graduated`, NOT `done`, because only its item B is implemented, and do NOT clear its `Blocks-Release`. Use `aw backlog set` so each history entry is tool-written.
-  - Depends on: E-01, E-02
-  - Expected outcome: `yxfw4k` and `x7wfyx` each carry a tool-written transition consistent with what was actually delivered, and `x7wfyx` retains its release gate.
+- [ ] E-03 CONFIRM dy9ymn REACHED executed
+  - Depends on: E-02
+  - Expected outcome: dy9ymn reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 03 retries turn that provably attempted nothing; consumes ty7w6o signal.
+
+- [ ] E-04 CONFIRM svacmz REACHED executed
+  - Depends on: E-01, E-02, E-03
+  - Expected outcome: svacmz reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 04 proves composed reaskscore fix against both measured shapes and collision case.
+
+- [ ] E-05 CONFIRM p9j6c0 REACHED executed
+  - Depends on: E-04
+  - Expected outcome: p9j6c0 reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 05 receipt-checks svacmz evidence and transitions both source backlog items honestly.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | File | What it does | Depends on |
-| --- | --- | --- | --- |
-| 01 | `20260919-reaskscore-01-skn8uk-rescore-the-disposition-after-a-defect-re-ask-whose-recollec.ipd.md` | Rescores the disposition from the re-collected outcome after a defect re-ask, monotonically (improvements only), before the integration gate reads it. Fixes the measured `partial`-with-`executed`-outcome. | none |
-| 02 | `20260919-reaskscore-02-ty7w6o-record-a-host-truncated-agy-turn-as-truncated-instead-of-acc.ipd.md` | Observes the agy host's own truncation lines on the stream the driver already reads, and records a truncated turn durably instead of accepting exit 0 as a clean finish. Produces the signal only. | none |
-| 03 | `20260919-reaskscore-03-dy9ymn-retry-a-turn-that-provably-attempted-nothing-instead-of-bloc.ipd.md` | Adds a narrow, fail-closed "provably attempted nothing" predicate and re-queues such an item once within the existing retry budget instead of recording a terminal `partial`. Consumes `ty7w6o`'s signal. | `executed:ty7w6o` |
-| 04 | `20260919-reaskscore-04-svacmz-prove-the-composed-reaskscore-fix-against-both-measured-shap.ipd.md` | OWNS THE VERIFICATION E-02 AND E-03 DESCRIBE, so it is performed and verified by an agent turn instead of being retired unperformed. Pins the five shared constants byte-identical and the cross-host/AST pins unweakened on the merged result; reconstructs SHAPE A and SHAPE B end to end; proves the truncated-and-rescued collision is rescored without being retried and that the predicate ordering guarantees it. Adds tests and evidence only, no product change. | `executed:skn8uk`, `executed:ty7w6o`, `executed:dy9ymn` |
-| 05 | `20260921-reaskscore-05-p9j6c0-close-the-reaskscore-set-receipt-check-svacmz-and-transition.ipd.md` | ACCEPT: performs this orchestrator's E-02 and E-03 as a real agent turn. Receipt-checks `svacmz`'s `V-01`..`V-04` for ACTUAL pasted evidence, then transitions both source backlog items honestly: `yxfw4k` to `done` via a CITED-EVIDENCE route that preserves its `Blocks-Release: next` rather than clearing it, and `x7wfyx` to `graduated` (NOT `done`, only item B is implemented) with its gate intact. E-01 is deliberately NOT lifted: dispatch ordering is the runner's act by construction. Added 2026-09-22 after the coverage gate refused a run naming `s0gnha` as carrying work no child covers. | `executed:svacmz` |
+| Order | Id | File | What it does | Depends on |
+| --- | --- | --- | --- | --- |
+| 01 | `skn8uk` | `20260919-reaskscore-01-skn8uk-rescore-the-disposition-after-a-defect-re-ask-whose-recollec.ipd.md` | Rescores the disposition from the re-collected outcome after a defect re-ask, monotonically (improvements only), before the integration gate reads it. Fixes the measured `partial`-with-`executed`-outcome. | none |
+| 02 | `ty7w6o` | `20260919-reaskscore-02-ty7w6o-record-a-host-truncated-agy-turn-as-truncated-instead-of-acc.ipd.md` | Observes the agy host's own truncation lines on the stream the driver already reads, and records a truncated turn durably instead of accepting exit 0 as a clean finish. Produces the signal only. | none |
+| 03 | `dy9ymn` | `20260919-reaskscore-03-dy9ymn-retry-a-turn-that-provably-attempted-nothing-instead-of-bloc.ipd.md` | Adds a narrow, fail-closed "provably attempted nothing" predicate and re-queues such an item once within the existing retry budget instead of recording a terminal `partial`. Consumes `ty7w6o`'s signal. | `executed:ty7w6o` |
+| 04 | `svacmz` | `20260919-reaskscore-04-svacmz-prove-the-composed-reaskscore-fix-against-both-measured-shap.ipd.md` | OWNS THE VERIFICATION E-02 AND E-03 DESCRIBE, so it is performed and verified by an agent turn instead of being retired unperformed. Pins the five shared constants byte-identical and the cross-host/AST pins unweakened on the merged result; reconstructs SHAPE A and SHAPE B end to end; proves the truncated-and-rescued collision is rescored without being retried and that the predicate ordering guarantees it. Adds tests and evidence only, no product change. | `executed:skn8uk`, `executed:ty7w6o`, `executed:dy9ymn` |
+| 05 | `p9j6c0` | `20260921-reaskscore-05-p9j6c0-close-the-reaskscore-set-receipt-check-svacmz-and-transition.ipd.md` | ACCEPT: performs this orchestrator's E-02 and E-03 as a real agent turn. Receipt-checks `svacmz`'s `V-01`..`V-04` for ACTUAL pasted evidence, then transitions both source backlog items honestly: `yxfw4k` to `done` via a CITED-EVIDENCE route that preserves its `Blocks-Release: next` rather than clearing it, and `x7wfyx` to `graduated` (NOT `done`, only item B is implemented) with its gate intact. E-01 is deliberately NOT lifted: dispatch ordering is the runner's act by construction. Added 2026-09-22 after the coverage gate refused a run naming `s0gnha` as carrying work no child covers. | `executed:svacmz` |
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -145,17 +161,27 @@ gitignored and absent in CI, so a test reading it would pass locally and fail ev
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted evidence that all FOUR children are `executed` (their plan files' `- Status:` and their location under `.aw/records/plans/executed/`), that `dy9ymn` was dispatched only after `ty7w6o` reached `executed`, and that `svacmz` was dispatched only after all three siblings did (cite the run record or the lifecycle commits). Plus a statement that this plan performed none of the children's deliverables.
+  - Required evidence: paste `skn8uk`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: QUOTE, from `svacmz`'s executed plan file, the actual `Observed evidence` blocks of its `V-01` (the five constants' real values beside their pre-Set values, with file and symbol for each), its `V-02` (pin output plus `git diff` for both pin files), its `V-03` (the SHAPE A reconstruction, both halves: disposition AND no sibling `dependency-blocked`), and its `V-04` (SHAPE B plus the collision case plus the four-condition general argument). State explicitly for each whether the block is non-empty and contains OUTPUT rather than an assertion. If any of the four is empty or is a claim without output, record this item FAILED and do not complete the Set; do NOT substitute a re-run performed here, because that would make this plan the observer of its own receipt check.
+  - Required evidence: paste `ty7w6o`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted `git diff` (or `aw backlog check` plus the item files) showing `yxfw4k`'s and `x7wfyx`'s transitions, each with a tool-written history entry. Must show `x7wfyx` at `graduated` and NOT `done`, and must show its `- Blocks-Release:` still present and unchanged. If `yxfw4k` was closed `done`, paste the gate escape that made the close legitimate (the `From-Backlog` handoff, the cited `--evidence`, or the explicit `--blocks-release -`), since `aw backlog set done` fails closed on a release-blocking item without one. Plus the full bare `python3 -m pytest` summary line on the merged result.
+  - Required evidence: paste `dy9ymn`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste `svacmz`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste `p9j6c0`'s `- Status:` line read from its file showing `executed`. Quote from `svacmz`'s executed plan file its `V-01`..`V-04` observed evidence blocks and paste `git diff` showing `yxfw4k` and `x7wfyx` transitions.
   - Observed evidence:
   - Result: pending
 

@@ -26,6 +26,7 @@
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item qzhfk2 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 
@@ -43,49 +44,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: sequence the Set and hold its one hard precondition
 
-- [ ] E-01 EXECUTE THE CHILDREN IN DEPENDENCY ORDER AND CONFIRM BOTH PRECONDITION CHILDREN LANDED BEFORE THE MIGRATION TOUCHES A FILE. The order is a correctness requirement, not a preference: migrating before the READER fix would remove every spec from `aw specs check` silently, and migrating before the WRITER fix would produce a tree that drifts on its very next `aw specs set` or `aw specs new`.
-  THE CHILD TABLE AND THE DEPENDENCY REASONING live in `## Child IPDs, sequence, and dependencies` below. The two rules to carry here. FIRST, the migration child carries `Item-Dependencies: executed:y4bdoz` because a spec moved into a subdir is INVISIBLE to `specs._spec_files` until that reader is recursive, and an invisible spec is one `aw specs check` reports as conforming while never reading it. SECOND, it ALSO carries the writer child, because THREE writers can place a spec and Order 02 as authored taught only one of them: `status_set.run_set_command` (the `--status`-absent spelling, `cli.py:11271-11279`) has no `specs` relocation branch at all (`status_set.py:840-864`), and `specs.run_new` writes to the flat root (`specs.py:945`).
-  VERIFY BOTH PRECONDITIONS BY MEASUREMENT, not by reading a status. For the reader: place a spec in a subdir in a THROWAWAY repo and confirm `aw specs check` now SEES it, reading the count from `--json` (see E-03 for why `--agent` and the human branch both report nothing at zero). For the writer: in a throwaway repo run BOTH `aw specs set` spellings and `aw specs new`, and confirm each lands the file in the directory matching its status. A status read proves neither.
+- [ ] E-01 CONFIRM y4bdoz REACHED executed
   - Depends on: none
-  - Expected outcome: the reader child and the writer child both `executed` before the migration child begins, each precondition demonstrated behaviorally in a throwaway repo rather than assumed.
+  - Expected outcome: y4bdoz reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 01 makes every spec reader recursive; proves spec in subdir visible to checker.
 
-### Task group 2: verify the whole Set
-
-- [ ] E-02 VERIFY THE BROWSE AFFORDANCE ACTUALLY ARRIVED, which is the entire point of the Set and the one thing no child can demonstrate alone.
-  THE ACCEPTANCE TEST IS A HUMAN ONE, stated mechanically: `ls .aw/records/specs/` must show status directories, and listing any ONE of them must answer "what specs are in this state" without opening a file or running a tool. Paste the before and after listings side by side.
-  ASSERT THE LIVE SPECS ARE FINDABLE BY DIRECTORY. RE-MEASURED AT REVIEW (2026-09-08, HEAD `c0ec047a`) and the authored figures are STALE, which is itself evidence the tree is moving: 29 spec files, not 28, distributed 15 `implemented`, 7 `approved` (not 6), 2 `draft`, 2 `deferred`, 1 `to-review`, 1 `implementing`, 1 `superseded`. That is THIRTEEN live and 16 terminal. Do NOT trust either figure: re-measure at execution, since agents are authoring specs concurrently, and confirm every live spec sits in a directory matching its `- Status:`.
-  DO NOT ACCEPT `aw attention` AS THE PROOF. It already surfaces specs today, and its adequacy is exactly the argument this Set rejects. The deliverable is the HIERARCHY, so the evidence must be a directory listing.
+- [ ] E-02 CONFIRM r9uvwc REACHED executed
   - Depends on: E-01
-  - Expected outcome: before/after directory listings showing status partitioning, every live spec in a directory matching its status, and the distribution re-measured at execution rather than copied from this plan.
+  - Expected outcome: r9uvwc reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 03 builds one shared record placement library agent_workflows/record_placement.py.
 
-- [ ] E-03 VERIFY NOTHING THAT READS A SPEC BROKE, across every surface, because this Set moves 29 files that are cited constantly.
-  READ THE EXAMINED COUNT FROM `--json`, NOT FROM `--agent` AND NOT FROM THE HUMAN BRANCH. This is a trap review measured directly and it defeats the Set's own load-bearing criterion. The human branch prints only `aw specs check: all specs conform.` with NO count (`specs.py:490-493`). The `--agent` record OMITS the `checked` key entirely at ZERO, because `result_types.py:388` uses `self.data.get("checked") or self.data.get("total_checked")` and a falsy `0` fails the `or`. Verified side by side: the zero-spec repo emitted `{"schema":"aw.agent/v1",...,"outcome":"clean","exit":0,...,"findings":0,...}` with no `checked` key at all, while this repo emitted `"checked":29`. `--json` DOES report it (`data: {'checked': 0, 'violations': 0}`). So `aw specs check --json` is the ONLY surface that answers "how many did you examine" in the failure case, and a plain `--agent` clean record is NOT evidence of a nonzero count. Report the `0`-omission as a FINDING for a separate fix; do NOT fix it in this Set.
-  THE SURFACES TO PROVE, each with its own command: `aw specs check --json` (examined count equal to the on-disk `*.spec.md` count and nonzero); `aw check specs` and `aw check all --agent` (per-rule counts unchanged apart from anything the migration legitimately fixes); `aw find specs <id6>` for a spec in each status directory; `aw attention` (still lists live specs); and `aw doctor` (agrees with `aw check`, since the two have disagreed before on the retired-path filter).
-  DO NOT USE `check_engine._iter_type_files` SET EQUALITY AS A CROSS-CHECK WITHOUT `include_retired=True`, or you will chase a non-defect. MEASURED at HEAD on the live tree: `specs._spec_files` returns 29 while `_iter_type_files(repo,'specs')` returns THIRTEEN, because the default filters `is_retired` (`check_engine.py:482-500`), and 16 specs are terminal. With `include_retired=True` it returns 29 and the sets are EQUAL. The two readers therefore differ on the live FLAT tree today for a legitimate reason that has nothing to do with recursion, so an equality asserted against the default is guaranteed to fail and would be misread as this Set's bug.
-  CITATIONS MUST STILL RESOLVE. `25kzda` is referenced across plans, prose and tests, and `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` appears as a LITERAL PATH in `wenmg4`'s `- Scope-Paths:` (verified at review, `specfresh-01`, line 15). Grep the tree for literal spec paths and confirm each still resolves, or is updated by the migration child. A migration that breaks a declared `Scope-Paths` entry would make that plan's finalize scope gate fail for an unrelated reason.
-  RUN THE SUITE BARE (`python3 -m pytest`) and judge on the DELTA. RE-MEASURED AT REVIEW on main (2026-09-08, HEAD `c0ec047a`): `1 failed, 5958 passed, 3 skipped, 2 xfailed in 56.54s`. The authored baseline of `1 failed, 5648 passed` and its named failure are BOTH WRONG: `tests/test_orchestrator_retirement.py` PASSES (`112 passed in 2.67s`), and the single real failure is `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, which is ENVIRONMENTAL because it walks the repo and trips over an untracked local `opencode-recovery/` directory belonging to another party. DO NOT DELETE THAT DIRECTORY to make the suite green; it is not yours (shared checkout). Measure your OWN before-baseline and judge on the delta. Criterion: AFTER minus BEFORE is EMPTY.
-  - Depends on: E-02
-  - Expected outcome: every spec-reading surface proven working with the count read from `--json`, the retired-filter cross-check done correctly, literal spec path citations resolving, `doctor` agreeing with `check`, an empty bare-suite delta against a self-measured baseline, and the `checked`-at-zero omission reported as a finding.
+- [ ] E-03 CONFIRM 1bdxcp REACHED executed
+  - Depends on: E-01, E-02
+  - Expected outcome: 1bdxcp reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 02 migrates the 28 specs into status subdirs and makes location agree with status.
 
-- [ ] E-04 VERIFY THE INVARIANT SURVIVES ITS FIRST WRITE, on EVERY writer, which is the half that decides whether this Set delivered a durable affordance or a snapshot that decays.
-  THE THREE WRITERS, each proven SEPARATELY because they are separate code paths and review measured two of them wrong. (1) `aw specs set <status> <selector>` with NO `--status` flag, which routes to `status_set.run_set_command` (`cli.py:11271-11279`) whose relocation logic has no `specs` branch (`status_set.py:840-864`); PROVEN at HEAD to report a transition and leave the file put. (2) `aw specs set <path> --status <enum>`, which routes to the forked `specs.run_set` (`cli.py:11280-11287`, `specs.py:498`). (3) `aw specs new`, which writes to the FLAT root with `- Status: draft` (`specs.py:945`, `:878`, `_specs_root` at `:894-902`); PROVEN to preview a root path.
-  THE TEST IS THE SAME FOR EACH: run it in a throwaway repo, then assert the resulting file's DIRECTORY equals its `- Status:`. Paste all three results. A pass on one spelling is not evidence about the other; that equivalence is exactly the assumption the two documented dual-spelling bypasses in this codebase (`status_set.py:517-525`, `:549-556`) were caused by.
-  THEN RE-RUN THE WHOLE-TREE INVARIANT after those writes, so a writer that relocates ONE file correctly but leaves the tree inconsistent is caught. E-02's mechanical location-equals-status check must still hold over every spec.
-  - Depends on: E-03
-  - Expected outcome: all three writers demonstrated placing a spec in its status directory, each proven separately, and the whole-tree location-equals-status invariant still holding after those writes.
+- [ ] E-04 CONFIRM ingpvc REACHED executed
+  - Depends on: E-01, E-02, E-03
+  - Expected outcome: ingpvc reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 04 performs whole-Set verification across browse affordance, reading surfaces, and writers.
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | Id | What it delivers | Why it sits here |
-|---|---|---|---|
-| 01 | `y4bdoz` | Make every spec READER recursive; prove a spec in a subdir is visible to `aw specs check` | MUST be first. `specs._spec_files` uses non-recursive `glob("*.md")` (`specs.py:89`), so a spec in a subdir is invisible to its own checker TODAY. Migrating first would silently remove all 29 specs from validation. |
-| 03 | `r9uvwc` (AUTHORED 2026-09-20, filling the row review left unauthored) | Build ONE shared record placement library and adopt it in every spec writer (`status_set.run_set_command`, the forked `specs.run_set`, `specs.run_new`), replacing the existing `plans`/`prompts`/`backlog` branches with calls to it; give `specs` its `lifecycle_subdirs` and AMEND the `kw5y2s` spec in the same change | ADDED BY REVIEW (PR-001, escalated as OQ-04) and authored to the SHAPE THE MAINTAINER RULED FOR on 2026-09-10: not "add a writer child" but one shared library adopted per type. MUST precede the migration. `status_set.run_set_command` has NO `specs` relocation branch (now at `status_set.py:1027-1069`, and its branch set includes `prompts`) and `specs.run_new` writes to the flat root (now `specs.py:976`), both RE-PROVEN behaviorally 2026-09-20, so the migration alone would decay on its first write. |
-| 02 | `1bdxcp` (authored as Order 02 before the placement row existed; runs THIRD) | Migrate the specs into status subdirs; make location agree with status; update literal path citations | Depends on the reader child AND the placement child. Only safe once no reader can miss a subdir and no writer can strand one. |
-| 04 | `ingpvc` (AUTHORED 2026-09-20) | THE WHOLE-SET VERIFICATION, owning THIS PARENT'S E-01 through E-04: confirms the children landed in dependency order by commit evidence, proves the browse affordance by directory listing, proves every spec-reading surface still works with the count read from `--json`, and proves the invariant survives a write from all three writers | Depends on all three implementation children. Runs last by construction. |
+| Order | Id | What it delivers | Depends on | Why it sits here |
+|---|---|---|---|---|
+| 01 | `y4bdoz` | Make every spec READER recursive; prove a spec in a subdir is visible to `aw specs check` | none | MUST be first. `specs._spec_files` uses non-recursive `glob("*.md")` (`specs.py:89`), so a spec in a subdir is invisible to its own checker TODAY. Migrating first would silently remove all 29 specs from validation. |
+| 03 | `r9uvwc` | Build ONE shared record placement library and adopt it in every spec writer (`status_set.run_set_command`, the forked `specs.run_set`, `specs.run_new`), replacing the existing `plans`/`prompts`/`backlog` branches with calls to it; give `specs` its `lifecycle_subdirs` and AMEND the `kw5y2s` spec in the same change (AUTHORED 2026-09-20, filling the row review left unauthored) | `executed:y4bdoz` | ADDED BY REVIEW (PR-001, escalated as OQ-04) and authored to the SHAPE THE MAINTAINER RULED FOR on 2026-09-10: not "add a writer child" but one shared library adopted per type. MUST precede the migration. `status_set.run_set_command` has NO `specs` relocation branch (now at `status_set.py:1027-1069`, and its branch set includes `prompts`) and `specs.run_new` writes to the flat root (now `specs.py:976`), both RE-PROVEN behaviorally 2026-09-20, so the migration alone would decay on its first write. |
+| 02 | `1bdxcp` | Migrate the specs into status subdirs; make location agree with status; update literal path citations (authored as Order 02 before the placement row existed; runs THIRD) | `executed:y4bdoz`, `executed:r9uvwc` | Depends on the reader child AND the placement child. Only safe once no reader can miss a subdir and no writer can strand one. |
+| 04 | `ingpvc` | THE WHOLE-SET VERIFICATION, owning THIS PARENT'S E-01 through E-04: confirms the children landed in dependency order by commit evidence, proves the browse affordance by directory listing, proves every spec-reading surface still works with the count read from `--json`, and proves the invariant survives a write from all three writers (AUTHORED 2026-09-20) | `executed:y4bdoz`, `executed:r9uvwc`, `executed:1bdxcp` | Depends on all three implementation children. Runs last by construction. |
 
 THE ORDER DIGITS IN THIS SET DO NOT MATCH ITS DEPENDENCY SHAPE, and the table above is sorted by DEPENDENCY rather than by digit so the real sequence is readable. The reason is historical: the migration was authored as Order 02 before review discovered the writer problem, so the placement child that must PRECEDE it took the next free digit, 03. Renumbering an already-`approved` sibling was judged worse than documenting the mismatch. THE EXECUTION ORDER IS: `y4bdoz` (01, readers) -> `r9uvwc` (03, placement) -> `1bdxcp` (02, migration) -> `ingpvc` (04, verification).
 
@@ -218,22 +208,22 @@ Write no em or en dashes in user-facing prose any child authors.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste ALL THREE children's final `- Status:` and lifecycle directories. Paste evidence the reader child AND the writer child each finalized BEFORE the migration child moved any file (compare finalize commits or timestamps). Paste the throwaway-repo demonstration that a spec in a subdir is SEEN by `aw specs check` after the reader child, with the examined count read from `--json`. Paste the throwaway-repo demonstration that each of the three writers places a spec in its status directory after the writer child. If the migration ran first, report it as a finding rather than accepting the end state.
+  - Required evidence: paste `y4bdoz`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `ls .aw/records/specs/` BEFORE and AFTER, side by side. Paste a listing of ONE status directory showing it answers "what is in this state" unaided. Paste the re-measured status distribution at execution time (do NOT copy this plan's figures; review already found the authored 28/12 stale against a measured 29 files / 13 live / 16 terminal) and a mechanical check that every spec's directory equals its `- Status:`. Do NOT offer `aw attention` output as the proof; the deliverable is the hierarchy.
+  - Required evidence: paste `r9uvwc`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `aw specs check --json`'s examined count alongside the on-disk `*.spec.md` count, equal and nonzero, and state explicitly that the count came from `--json` and why (`--agent` omits `checked` at zero, the human branch prints none). Paste the `checked`-at-zero omission reported as a finding for separate fix. Paste `aw check specs` and `aw check all --agent` PER-RULE counts before and after with any change explained. If you assert reader set equality, paste it with `include_retired=True` and state the default-versus-flag counts. Paste `aw find specs <id6>` for a spec in each status directory. Paste `aw attention` still listing live specs and `aw doctor` agreeing with `aw check`. Paste the grep for literal spec path citations with each shown resolving, naming `25kzda` and `wenmg4`'s `Scope-Paths` entry explicitly. THEN paste the BARE `python3 -m pytest` summary lines before and after, from a baseline YOU measured, with the failure-set delta stated; if `test_reporting_contract.py` fails, name it environmental and confirm you deleted no untracked directory.
+  - Required evidence: paste `1bdxcp`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste, SEPARATELY, the result of each of the three writers in a throwaway repo, each showing the resulting file's directory and its `- Status:` agreeing: (1) `aw specs set <status> <selector>` with no `--status` flag, (2) `aw specs set <path> --status <enum>`, (3) `aw specs new --apply`. State for each which function it routed to. A single combined claim covering "the setter" is NOT acceptable evidence, because review measured the two spellings behaving differently at HEAD. THEN paste the whole-tree location-equals-status check re-run after those writes, still holding.
+  - Required evidence: paste `ingpvc`'s `- Status:` line read from its file showing `executed`. Paste before/after directory listings, aw specs check --json examined count, and throwaway-repo writer proofs.
   - Observed evidence:
   - Result: pending
 

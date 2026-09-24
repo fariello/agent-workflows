@@ -12,12 +12,13 @@
 - Readiness: go-pending-approval
 - Set: planprio
 - Order: 0
-- Highest E allocated: 02
+- Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: d0cbt3
 - Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (planprio: medium/feature)
 - 2026-09-13 approved (aw set): status set to approved
 
@@ -35,18 +36,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: sequence the Set
 
-- [ ] E-01 SEQUENCE THE SET AND HOLD EACH CHILD UNTIL ITS PREDECESSOR IS `executed` ON DISK, reading each child's own `- Status:` line rather than trusting a queue view. This item is ORCHESTRATION, not work: it dispatches and gates, and it produces no deliverable of its own.
-  THE ORDER IS WHAT OQ-02 IS ABOUT AND IS NOT YET SETTLED. As authored, Order 01 lands the gate first and Orders 02 and 03 both carry `- Item-Dependencies: executed:lkexaw`. Review found that ordering strands the already-approved pending plans (finding PR-001), so DO NOT DISPATCH THIS SET UNTIL OQ-02 IS ANSWERED; the answer may reverse this order or add a stamping step inside Order 01.
-  DO NOT RE-DERIVE ANY POPULATION HERE, AND DO NOT PARK THAT MEASUREMENT ON THIS PLAN. It was previously written as this orchestrator's own E-01, which was a defect: the runner retires an orchestrator administratively (`oc_runipd.finalize_orchestrator`, `oc_runipd.py:836-860`, no agent turn) and DELIBERATELY skips the pre-transition E/V checkpoint (spec `77tr3o`, OQ-1 ruling), so a measurement parked here is marked complete having never been performed OR verified. It is covered where it is actually consumed: Order 02's E-01 re-derives the inheritance table and Order 03's E-01 re-derives the no-source population, and BOTH are explicitly told to trust no count from any plan.
+- [ ] E-01 CONFIRM 8u6770 REACHED executed
   - Depends on: none
-  - Expected outcome: each child dispatched only after its declared predecessor reads `executed` in its own file, with the read pasted; no population figure derived here; no code or record change made by this item.
+  - Expected outcome: 8u6770 reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 02 backfills pending plans that can inherit from source backlog item.
 
-- [ ] E-02 RETIRE THIS ORCHESTRATOR ONLY WHEN ALL THREE CHILDREN ARE `executed`, and carry no work of its own beyond the sequencing in E-01. The children own every code and record change; this parent holds sequencing only.
-  IF THE RUNNER REFUSES THE RETIREMENT, THAT IS NOT A RUN FAILURE and must be reported with the reason it recorded rather than forced: retirement is gated on every child being `executed` and on nothing else qualifying, and a refusal leaves this plan in `pending/`.
-  - Depends on: E-01
-  - Expected outcome: all three children `executed` with their own evidence, and this parent transitioned by the runner or by `aw ipd finalize` without performing any child's work; any refusal reported verbatim.
+- [ ] E-02 CONFIRM lc4unl REACHED executed
+  - Depends on: none
+  - Expected outcome: lc4unl reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 03 decides and records values for pending plans with no source item.
+
+- [ ] E-03 CONFIRM lkexaw REACHED executed
+  - Depends on: E-01, E-02
+  - Expected outcome: lkexaw reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 01 emits both fields on scaffold and enforces them at ready-to-execute gate.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -149,12 +155,17 @@ Order 01 must state whether any spec describes these fields as optional. NOT YET
 Validation-state rule: the runner retires an orchestrator from child status. Do not fabricate an independent implementation checkpoint for this file.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste OQ-02's recorded answer and state which of the three options it selected, then paste the resulting dependency order as it stands in each child's own `- Item-Dependencies:` line (a `grep` over the three child files), showing the children agree with this plan's child table. Then paste, for each child dispatched, the `- Status:` line read from its predecessor's own file at dispatch time showing `executed`. Confirm no population count was derived by this item.
+  - Required evidence: paste `8u6770`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste each child's `- Status:` line read from its own file showing all three `executed`. Paste `git diff --stat` over THIS parent's own commits showing it touched no file under `agent_workflows/` or `tests/`. Paste BOTH priority surfaces: `FORCE_COLOR=1 aw att --type plan` showing the Priority column populated, and `aw att --type plan --format json` with the count of items whose `priority` is non-null (do NOT paste a piped `aw att --type plan` and call the missing column a failure; that surface has no Priority column by design). Paste `aw check plans` with its error count COMPARED to the pre-Set baseline, naming any new rule id; do not claim it clean, and do not edit another party's plan to reduce the count. Finally, paste `aw ipd lint --phase pre-execution` on three of the plans that were `approved` before the Set began, showing each still conforms, which is the PR-001 criterion.
+  - Required evidence: paste `lc4unl`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste `lkexaw`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`. Paste git diff --stat over THIS parent's own commits showing it touched no file under agent_workflows/ or tests/. Paste BOTH priority surfaces: FORCE_COLOR=1 aw att --type plan showing the Priority column populated, and aw att --type plan --format json with the count of items whose priority is non-null. Paste aw check plans with its error count COMPARED to the pre-Set baseline. Finally, paste aw ipd lint --phase pre-execution on three pre-cutover approved plans showing each still conforms.
   - Observed evidence:
   - Result: pending
 

@@ -13,12 +13,13 @@
 - Readiness: go-pending-approval
 - Set: laneorph
 - Order: 0
-- Highest E allocated: 01
+- Highest E allocated: 03
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: tb63qv
 - Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (laneorph: high/bug); Blocks-Release: next per Ruling 3
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 /plan-review: Round 2 approved with revisions applied; maintainer resolved OQ-02 (proceed with interrupt path) and OQ-03 (ut0vzr approved); readiness promoted to go-pending-approval
@@ -69,20 +70,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Set-level acceptance
 
-- [ ] E-01 After both children are `executed`, verify the Set's combined outcome and record it, MEASURED FROM THE MAIN CHECKOUT and naming that tree: `aw attention --check` reports no stranded lane (or exactly the maintainer-deferred ESCALATE set, and see OQ-03 on why a deleted branch does NOT silence a row), `git worktree list` shows only the main checkout plus any lane a live run owns, and a subsequent driver run leaves no worktree behind. This is the only item on this orchestrator, and it is a VERIFICATION of the children's combined effect rather than work of its own. THE MEASURING TREE IS LOAD-BEARING: measured at review, a lane sees 13 lane worktrees where the main checkout sees a different set, and `.aw/records/runs/` is gitignored and ABSENT inside a lane, so `stranded_lane_drift` returns `[]` from a lane for lack of run records and would report a FALSE clean.
+- [ ] E-01 CONFIRM 65cuw0 REACHED executed
   - Depends on: none
-  - Expected outcome: pasted evidence that the leak is closed AND the backlog is drained, each figure naming the tree it was measured in; a regression in either half means the Set is not done regardless of the children's individual states. An empty stranded report measured from inside a lane does NOT satisfy this item.
+  - Expected outcome: 65cuw0 reads `- Status: executed` on disk.
   - Execution state: pending
+  Child 01 fixes lane reclaim so an interrupted run reclaims an already-merged lane through the teardown gate.
+
+- [ ] E-02 CONFIRM ut0vzr REACHED executed
+  - Depends on: E-01
+  - Expected outcome: ut0vzr reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 02 triages and drains unmerged lane branches and closes qliia1.
+
+- [ ] E-03 CONFIRM k311gw REACHED executed
+  - Depends on: E-01, E-02
+  - Expected outcome: k311gw reads `- Status: executed` on disk.
+  - Execution state: pending
+  Child 03 performs whole-Set combined-outcome check measured from main checkout and closes backlog items.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | File | What it does | Depends on |
-|---|---|---|---|
-| 01 | `.aw/records/plans/pending/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md` | PREVENT: make an INTERRUPTED run reclaim an already-merged lane, through the one teardown gate. RETARGETED at review round 1 (the `aw attention` half is already shipped and was removed; the end-of-run teardown half belongs to `5w8g8j`) and ENLARGED at round 2, which measured that widening the predicate alone is INERT because the interrupt loop bails out on `holds_work` first, so the fix now requires a DECISION-ORDER change on a control path both hosts share. Round 2 also found the child's own round-1 revision would have made every lane non-reclaimable, and that keeping the lane ref needs a mechanism the shared gate does not provide. Carries three blocking questions (OQ-03/OQ-04/OQ-05). | `executed:5w8g8j` |
-| 02 | `.aw/records/plans/pending/20260917-laneorph-02-ut0vzr-triage-the-fourteen-lane-branches-holding-unmerged-commits.ipd.md` | DRAIN: disposition each of the 13 unmerged lane branches as DELETE / RECOVER / ESCALATE on cited evidence, record the reasoning to `.aw/records/research/`, execute the decisions, close `qliia1` | `executed:65cuw0` |
-| 03 | `.aw/records/plans/pending/20260921-laneorph-03-k311gw-verify-the-laneorph-set-s-combined-outcome-from-the-main-che.ipd.md` | ACCEPT: perform this orchestrator's own E-01 (the Set-level combined-outcome check) as a real agent turn, MEASURED FROM THE MAIN CHECKOUT and naming that tree; receipt-check both children's recorded evidence against the two spanning completion criteria; and close backlog `qliia1` and `a58s04`, the latter RECORDING THE CORRECTION rather than claiming its refuted fix sketch was implemented. Added 2026-09-22 after the orchestrator coverage gate refused a run naming `tb63qv` as carrying work no child covers. | `executed:65cuw0`, `executed:ut0vzr` |
+| Order | Id | File | What it does | Depends on |
+|---|---|---|---|---|
+| 01 | `65cuw0` | `.aw/records/plans/pending/20260917-laneorph-01-65cuw0-fix-lane-reclaim-so-a-merged-lane-is-reclaimable-and-torn-do.ipd.md` | PREVENT: make an INTERRUPTED run reclaim an already-merged lane, through the one teardown gate. RETARGETED at review round 1 (the `aw attention` half is already shipped and was removed; the end-of-run teardown half belongs to `5w8g8j`) and ENLARGED at round 2, which measured that widening the predicate alone is INERT because the interrupt loop bails out on `holds_work` first, so the fix now requires a DECISION-ORDER change on a control path both hosts share. Round 2 also found the child's own round-1 revision would have made every lane non-reclaimable, and that keeping the lane ref needs a mechanism the shared gate does not provide. Carries three blocking questions (OQ-03/OQ-04/OQ-05). | `executed:5w8g8j` |
+| 02 | `ut0vzr` | `.aw/records/plans/pending/20260917-laneorph-02-ut0vzr-triage-the-fourteen-lane-branches-holding-unmerged-commits.ipd.md` | DRAIN: disposition each of the 13 unmerged lane branches as DELETE / RECOVER / ESCALATE on cited evidence, record the reasoning to `.aw/records/research/`, execute the decisions, close `qliia1` | `executed:65cuw0` |
+| 03 | `k311gw` | `.aw/records/plans/pending/20260921-laneorph-03-k311gw-verify-the-laneorph-set-s-combined-outcome-from-the-main-che.ipd.md` | ACCEPT: perform this orchestrator's own E-01 (the Set-level combined-outcome check) as a real agent turn, MEASURED FROM THE MAIN CHECKOUT and naming that tree; receipt-check both children's recorded evidence against the two spanning completion criteria; and close backlog `qliia1` and `a58s04`, the latter RECORDING THE CORRECTION rather than claiming its refuted fix sketch was implemented. Added 2026-09-22 after the orchestrator coverage gate refused a run naming `tb63qv` as carrying work no child covers. | `executed:65cuw0`, `executed:ut0vzr` |
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -223,14 +237,17 @@ absolute count.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `aw attention --check` showing no stranded lane (or only the deferred
-    ESCALATE set); pasted `git worktree list`; and evidence from a real driver run that integrated a lane
-    and left no worktree while keeping its branch. Plus both children shown `executed` and `a58s04` /
-    `qliia1` shown `done`. EVERY figure must NAME THE TREE it was measured in, and the stranded report
-    must come from the MAIN CHECKOUT: an empty report from inside a lane is a known false clean (E-01)
-    and does NOT satisfy this item. State the `attention.lane-unknown` row count separately from the
-    `attention.lane-stranded` count, since branch deletion converts the first into the second and both
-    fail `--check` (OQ-03).
+  - Required evidence: paste `65cuw0`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste `ut0vzr`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste `k311gw`'s `- Status:` line read from its file showing `executed`. Paste `aw attention --check` showing no stranded lane (or only the deferred ESCALATE set); pasted `git worktree list`; and evidence from driver run showing clean teardown.
   - Observed evidence:
   - Result: pending
 
