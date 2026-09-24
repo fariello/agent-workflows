@@ -12,6 +12,7 @@
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_lint.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: orchretire
 - Order: 1
 - Highest E allocated: 04
