@@ -6,7 +6,7 @@
 - Scope: Finish the job for everything except the five large functions, and PROVE the result by adding a third host that has no runner module. Order 01 lifts the 17 byte-identical symbols; Order 02 unifies the 12 divergent ones behind the existing `HostLabels` descriptor and fixes the inverted agy->oc dependency; Order 03 demonstrates a runner-less host end to end. The five large functions are deliberately NOT re-planned here (see OQ-01).
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: followup
 - Priority: high
 - Readiness: go-pending-approval
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: a5wdne
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set hostdedup reached executed, so the runner (run run-20260924T214735Z-1864092) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: li44r9, nmlx47, xdvglg, 04vf1h.
 - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item dstnso (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
@@ -66,6 +66,9 @@ verify) and the line figures as indicative only, until E-01 of Order 01 re-deriv
 scanner that states its metric.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
