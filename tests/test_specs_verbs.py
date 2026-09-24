@@ -297,6 +297,73 @@ class SetTests(unittest.TestCase):
             self.assertEqual(rc, 1)
             self.assertEqual(p.read_text(encoding="utf-8"), before)
 
+    def test_set_same_status_deduplicates_identical_history_record(self):
+        """Regression test for 4vh5nb / E-04: identical same-status re-assertion appends no duplicate round."""
+        with tempfile.TemporaryDirectory() as d:
+            p = self._mk(d, "- Status: draft")
+            args = _args(
+                path=str(p),
+                status="draft",
+                message="re-asserting draft",
+                gate_kind=None,
+                gate_ref=None,
+                gate_summary=None,
+                evidence=None,
+                by_human=False,
+                date="2026-08-09",
+            )
+            with redirect_stdout(io.StringIO()):
+                rc1 = specs.run_set(args)
+            self.assertEqual(rc1, 0)
+            t1 = p.read_text(encoding="utf-8")
+            self.assertEqual(t1.count("re-asserting draft"), 1)
+
+            # Re-assert identical status + message + date
+            with redirect_stdout(io.StringIO()):
+                rc2 = specs.run_set(args)
+            self.assertEqual(rc2, 0)
+            t2 = p.read_text(encoding="utf-8")
+            self.assertEqual(
+                t2.count("re-asserting draft"),
+                1,
+                "duplicate same-status record must not be appended",
+            )
+
+    def test_set_same_status_records_changed_message(self):
+        """A deliberate message change on same status still records."""
+        with tempfile.TemporaryDirectory() as d:
+            p = self._mk(d, "- Status: draft")
+            with redirect_stdout(io.StringIO()):
+                specs.run_set(
+                    _args(
+                        path=str(p),
+                        status="draft",
+                        message="first message",
+                        gate_kind=None,
+                        gate_ref=None,
+                        gate_summary=None,
+                        evidence=None,
+                        by_human=False,
+                        date="2026-08-09",
+                    )
+                )
+                specs.run_set(
+                    _args(
+                        path=str(p),
+                        status="draft",
+                        message="second message",
+                        gate_kind=None,
+                        gate_ref=None,
+                        gate_summary=None,
+                        evidence=None,
+                        by_human=False,
+                        date="2026-08-09",
+                    )
+                )
+            t = p.read_text(encoding="utf-8")
+            self.assertEqual(t.count("first message"), 1)
+            self.assertEqual(t.count("second message"), 1)
+
 
 class MigrateTests(unittest.TestCase):
     def test_migrate_free_form_to_bare_enum(self):
@@ -393,6 +460,52 @@ class NoteTests(unittest.TestCase):
             t = p.read_text(encoding="utf-8")
             self.assertIn(before_status, t)  # status unchanged
             self.assertEqual(t.count("- 2026-08-09 note (aw specs): a note"), 1)
+
+    def test_note_deduplicates_identical_call(self):
+        """Regression test for 4vh5nb / E-04: running identical note twice does not append a duplicate."""
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.md"
+            p.write_text(_spec("- Status: draft"), encoding="utf-8")
+            args = _args(path=str(p), message="identical note", date="2026-08-09")
+            with redirect_stdout(io.StringIO()):
+                rc1 = specs.run_note(args)
+                rc2 = specs.run_note(args)
+            self.assertEqual(rc1, 0)
+            self.assertEqual(rc2, 0)
+            t = p.read_text(encoding="utf-8")
+            self.assertEqual(t.count("- 2026-08-09 note (aw specs): identical note"), 1)
+
+    def test_note_records_changed_message(self):
+        """A deliberate message change records a new note."""
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.md"
+            p.write_text(_spec("- Status: draft"), encoding="utf-8")
+            with redirect_stdout(io.StringIO()):
+                specs.run_note(
+                    _args(path=str(p), message="first note", date="2026-08-09")
+                )
+                specs.run_note(
+                    _args(path=str(p), message="second note", date="2026-08-09")
+                )
+            t = p.read_text(encoding="utf-8")
+            self.assertEqual(t.count("- 2026-08-09 note (aw specs): first note"), 1)
+            self.assertEqual(t.count("- 2026-08-09 note (aw specs): second note"), 1)
+
+    def test_note_records_changed_date(self):
+        """A note on a different date records a new note even with the same message."""
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.md"
+            p.write_text(_spec("- Status: draft"), encoding="utf-8")
+            with redirect_stdout(io.StringIO()):
+                specs.run_note(
+                    _args(path=str(p), message="daily note", date="2026-08-09")
+                )
+                specs.run_note(
+                    _args(path=str(p), message="daily note", date="2026-08-10")
+                )
+            t = p.read_text(encoding="utf-8")
+            self.assertEqual(t.count("- 2026-08-09 note (aw specs): daily note"), 1)
+            self.assertEqual(t.count("- 2026-08-10 note (aw specs): daily note"), 1)
 
 
 if __name__ == "__main__":
