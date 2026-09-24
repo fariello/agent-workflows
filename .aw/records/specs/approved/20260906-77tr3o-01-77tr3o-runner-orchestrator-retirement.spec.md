@@ -14,6 +14,7 @@
 
 ## Workflow history
 
+- 2026-09-24 note (aw specs): AMENDED 2026-09-24 (IPD kjqqzf): R-12(3)'s stale "zero occurrences of 'orchestrator'" sentence is corrected to reflect the behavioral Kind-parity property (the pre-transition checkpoint produces identical findings for an orchestrator and a child), matching the replacement of the source-text pin with a behavioral test in tests/test_orchestrator_retirement.py::TheRejectedShapeWasNotTaken after IPD-S407 landed in ipd_lint.py.
 - 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the non-success terminal status list now names merge-needs-human and merge-refused rather than integration-blocked and merge-conflict. A pure one-for-one renaming of the same two statuses; the retirement rule itself is unchanged, and both pre-rename spellings remain recognized at read time via runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES so an already-recorded run still classifies identically. Verified: tests/test_orchestrator_retirement.py passes.
 ## 1. Why this exists
 
@@ -225,12 +226,14 @@ so the asymmetry is known in passing but unfixed.
      executions gets complied with by DELETING the parent's checklist, and that checklist is what
      makes `execute <setid>` complete and ordered when no runner is involved. Deleting it causes the
      lost work this spec exists to prevent.
-  3. THE CHECK IS NOT A LINTER RULE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED. `ipd_lint.py`
-     remains Kind-unaware and must continue to contain zero occurrences of "orchestrator". Two
-     independent reasons: the dangerous case is stated in PROSE and matches no syntax, so a pattern
-     match catches only the tidy mistake; and measured over the live corpus every plan carrying
-     `- Kind: orchestrator` carries checklist items, most of them legitimate orchestration, so a
-     syntactic rule's false positives would drive exactly the deletion (2) forbids.
+  3. THE CHECK IS NOT A LINTER RULE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED. The
+     pre-transition E/V checkpoint preserves Kind-parity (producing identical findings for an
+     orchestrator and a child; pinned behaviorally by `TheRejectedShapeWasNotTaken`), and does not
+     exempt an orchestrator from evidence. Two independent reasons: the dangerous case is stated in
+     PROSE and matches no syntax, so a pattern match catches only the tidy mistake; and measured over
+     the live corpus every plan carrying `- Kind: orchestrator` carries checklist items, most of them
+     legitimate orchestration, so a syntactic rule's false positives would drive exactly the
+     deletion (2) forbids.
 
   An override exists for a maintainer who accepts the risk deliberately, and it MUST record a
   JUSTIFICATION rather than a bare boolean: the risk accepted is that a parent's items will be

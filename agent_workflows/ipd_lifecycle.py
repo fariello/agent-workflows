@@ -3250,6 +3250,43 @@ ROLLUP_REFUSED_SET_INELIGIBLE = "set-ineligible"
 ROLLUP_REFUSED_ALREADY_TERMINAL = "already-terminal"
 ROLLUP_REFUSED_WORKER_ROLE = "worker-role"
 ROLLUP_REFUSED_UNOWNED_EDIT = "unowned-edit-to-plan"
+ROLLUP_REFUSED_NONCONFORMING_ROWS = "nonconforming-orchestrator-rows"
+
+#: The single canonical sentence stating that an orchestrator's items were superseded by retirement.
+#: Reused by rollup_history_message and written into the retired plan body (IPD kjqqzf E-03).
+ROLLUP_SUPERSEDED_STATEMENT = "Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate."
+
+
+def _insert_rollup_checklist_statement(plan_text: str) -> str:
+    """Insert the honest superseded statement into the checklist section of a retired orchestrator.
+
+    Per spec 77tr3o / IPD kjqqzf E-03: The file is the durable record and must state beside its
+    checklist that its items were superseded and not performed by an agent, without ticking any checkbox.
+    """
+    from agent_workflows import ipd_schema as _schema
+
+    pattern = re.compile(
+        r"^(##\s+" + re.escape(_schema.H_EXECUTION) + r"\s*)$",
+        re.MULTILINE | re.IGNORECASE,
+    )
+    m = pattern.search(plan_text)
+    if not m:
+        pattern = re.compile(
+            r"^(##\s+Detailed Implementation Checklist.*)$",
+            re.MULTILINE | re.IGNORECASE,
+        )
+        m = pattern.search(plan_text)
+    if not m:
+        return plan_text
+    heading_end = m.end()
+    # Check if the section following the heading already contains the superseded statement
+    after_heading = plan_text[heading_end:]
+    next_h2 = re.search(r"^##\s+", after_heading, re.MULTILINE)
+    section_content = after_heading[: next_h2.start()] if next_h2 else after_heading
+    if ROLLUP_SUPERSEDED_STATEMENT in section_content:
+        return plan_text
+    note_block = f"\n\n> {ROLLUP_SUPERSEDED_STATEMENT}\n"
+    return plan_text[:heading_end] + note_block + plan_text[heading_end:]
 
 
 def rollup_history_message(
@@ -3292,8 +3329,7 @@ def rollup_history_message(
     return (
         f"RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an "
         f"agent: every child of Set {setid} reached executed, so the runner ({run_part}) retired "
-        f"this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner "
-        f"superseded them by enforcing the ordering, the isolation and the per-child merge gate. "
+        f"this Order-0 plan as bookkeeping. {ROLLUP_SUPERSEDED_STATEMENT} "
         f"Justifying children: {named}."
     )
 
@@ -3525,6 +3561,22 @@ def retire_orchestrator(
             f"REFUSED: {unowned}",
             evidence,
             (ROLLUP_REFUSED_UNOWNED_EDIT,),
+        )
+
+    # --- GATE: orchestrator row conformance (IPD-S407).
+    # Audited before retirement so an orchestrator cannot reach executed carrying untyped or
+    # uncovered checklist rows (spec 77tr3o / IPD kjqqzf E-02).
+    row_result = _lint.orchestrator_row_conformance(
+        plan_text, doc=_lint.parse(plan_text)
+    )
+    if row_result.applies and not row_result.conforming:
+        finding_messages = "; ".join(r.message for r in row_result.findings)
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            None,
+            f"REFUSED: {plan_id} carries non-conforming orchestrator checklist rows: {finding_messages}",
+            evidence,
+            (ROLLUP_REFUSED_NONCONFORMING_ROWS,),
         )
 
     # The honest R-4 record. Children default to the eligibility decision's own evidence, so the
@@ -4043,6 +4095,11 @@ def _finalize_transaction(
                 )
             ns = argparse.Namespace(actor=actor, message=message, by_human=False)
             wt_dest, _norm = _ss.apply_status_change(wt_rec, "executed", coord.path, ns)
+            if evidence.get("transition") == "orchestrator-rollup":
+                moved_text = wt_dest.read_text(encoding="utf-8")
+                updated_text = _insert_rollup_checklist_statement(moved_text)
+                if updated_text != moved_text:
+                    wt_dest.write_text(updated_text, encoding="utf-8")
             dest_rel = _repo_relative(coord.path, wt_dest)
             # Record the moved bytes so rollback can distinguish our write from a concurrent one, and
             # so the post-reconciliation checks read the same content the commit carries.

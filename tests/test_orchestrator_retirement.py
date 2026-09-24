@@ -1952,6 +1952,8 @@ def _structurally_conforming_plan(
     status: str,
     kind: str = "orchestrator",
     child_table: str = "",
+    checklist_rows: list[str] | None = None,
+    validation_rows: list[str] | None = None,
 ) -> str:
     """A plan built from the REAL `aw ipd scaffold` skeleton, so structural lint conforms.
 
@@ -2010,6 +2012,31 @@ def _structurally_conforming_plan(
             "TODO: child IPD table (Order | File | What it does | Depends on).\n",
             child_table + "\n",
         )
+    if checklist_rows is not None:
+        exec_body = "\n\n".join(checklist_rows)
+        import re
+
+        pattern = re.compile(
+            r"### Task group 1: TODO\n\n- \[ \] E-01 TODO one observable action\..*?(?=\n\n##|\Z)",
+            re.DOTALL,
+        )
+        text = pattern.sub(
+            f"### Task group 1: Child confirmation\n\n{exec_body}\n", text
+        )
+        if len(checklist_rows) > 1:
+            text = text.replace(
+                "- Highest E allocated: 01",
+                f"- Highest E allocated: {len(checklist_rows):02d}",
+            )
+    if validation_rows is not None:
+        valid_body = "\n\n".join(validation_rows)
+        import re
+
+        pattern_v = re.compile(
+            r"- \[ \] V-01 validates E-01.*?(?=\n\n##|\Z)",
+            re.DOTALL,
+        )
+        text = pattern_v.sub(f"{valid_body}\n", text)
     return text
 
 
@@ -2065,6 +2092,7 @@ class RollupTransitionCase(unittest.TestCase):
         orchestrator_status: str = "approved",
         orchestrator_id: str = "orc000",
         declared_rows: list[str] | None = None,
+        untyped_checklist: bool = False,
     ) -> Path:
         """Write a Set and commit it. Returns the orchestrator's path.
 
@@ -2084,8 +2112,35 @@ class RollupTransitionCase(unittest.TestCase):
                 kind="child",
             )
         cells = ["Order", "Id", "Child", "Depends on"]
-        tokens = declared_rows or [f"{order:02d}" for _i, order, _s, _b in children]
-        rows = [[tok] + ["x"] * (len(cells) - 1) for tok in tokens]
+        if declared_rows is not None:
+            rows = []
+            for tok in declared_rows:
+                matching = [c for c in children if f"{c[1]:02d}" == tok]
+                cid = matching[0][0] if matching else "x"
+                rows.append(
+                    [tok, cid, f"child {tok}", "none" if tok in ("01", "1") else "01"]
+                )
+        else:
+            rows = [
+                [
+                    f"{order:02d}",
+                    id6,
+                    f"child {order:02d}",
+                    "none" if order == 1 else "01",
+                ]
+                for id6, order, _s, _b in children
+            ]
+        checklist_rows = None
+        validation_rows = None
+        if not untyped_checklist and children:
+            checklist_rows = [
+                f"- [ ] E-{order:02d} CONFIRM {id6} REACHED executed\n  - Depends on: {'none' if idx == 0 else f'E-{children[idx-1][1]:02d}'}\n  - Expected outcome: {id6} reached executed\n  - Execution state: pending"
+                for idx, (id6, order, _s, _b) in enumerate(children)
+            ]
+            validation_rows = [
+                f"- [ ] V-{order:02d} validates E-{order:02d}\n  - Required evidence: {id6} reached executed\n  - Observed evidence:\n  - Result: pending"
+                for id6, order, _s, _b in children
+            ]
         orch = _write_conforming_plan(
             self.root,
             "pending",
@@ -2095,6 +2150,8 @@ class RollupTransitionCase(unittest.TestCase):
             status=orchestrator_status,
             kind="orchestrator",
             child_table=_table(cells, rows),
+            checklist_rows=checklist_rows,
+            validation_rows=validation_rows,
         )
         import subprocess
 
@@ -2323,6 +2380,19 @@ class TheGateDoesNotOpenForOrdinaryPlans(RollupTransitionCase):
             "The dangerous direction, a forged ELIGIBLE verdict, is covered by the ineligible-Set row "
             "above, which recomputes and refuses regardless of what a caller believes",
         ),
+        (
+            "an eligible Set whose orchestrator has UNTYPED checklist rows",
+            "orchestrator",
+            "untypedrows",
+            [("aaa111", 1, "executed", "executed")],
+            "approved",
+            None,
+            False,
+            "ROLLUP_REFUSED_NONCONFORMING_ROWS",
+            "not a typed child-tracking row",
+            "THE ROW CONFORMANCE GATE (IPD-S407). An orchestrator carrying untyped or un-child-covered "
+            "items must be refused before reaching executed/ via rollup (spec 77tr3o / IPD kjqqzf E-02)",
+        ),
     )
 
     def test_every_gate_refuses_its_own_target_for_its_own_typed_reason(self):
@@ -2348,6 +2418,7 @@ class TheGateDoesNotOpenForOrdinaryPlans(RollupTransitionCase):
                 children,
                 orchestrator_status=orchestrator_status,
                 declared_rows=declared,
+                untyped_checklist=(finding == "ROLLUP_REFUSED_NONCONFORMING_ROWS"),
             )
             if target == "child":
                 id6, order, _status, bucket = children[0]
@@ -6387,6 +6458,92 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
                     "alone. Re-read `_pre_commit_phase_leaves_manifests_untouched`: a journal "
                     "snapshot (index_json_before/index_md_before) is now the correct mechanism.",
                 )
+
+
+class OrchestratorRetirementRowAuditAndHonestRecord(RollupTransitionCase):
+    """Regression tests for IPD kjqqzf:
+    1. An orchestrator with untyped / non-conforming checklist rows is refused at rollup retirement.
+    2. A proceeding retirement writes the superseded statement into the body beside the checklist,
+       leaving items unchecked, and post-transition lint conforms.
+    """
+
+    def test_an_orchestrator_with_untyped_checklist_rows_is_refused_at_retirement(self):
+        """E-02 / E-04: An orchestrator with untyped checklist rows (y9s4vm / lyo1tz shape) is refused.
+
+        Pins the hole review measured (PR-004): a parent whose children all executed, but whose
+        checklist rows are untyped (not conforming to IPD-S407), must not reach executed/ via
+        rollup retirement.
+        """
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set(
+            "untyped", [("aaa111", 1, "executed", "executed")], untyped_checklist=True
+        )
+        # Ensure the orchestrator on disk has an untyped checklist row (e.g. TODO action)
+        text = orch.read_text(encoding="utf-8")
+        self.assertIn("- [ ] E-01 TODO one observable action.", text)
+        res = self.retire(orch, "untyped", apply=True)
+        self.assertEqual(res.exit_code, LC.EXIT_FINDINGS, res.message)
+        self.assertIn(
+            getattr(
+                LC,
+                "ROLLUP_REFUSED_NONCONFORMING_ROWS",
+                "nonconforming-orchestrator-rows",
+            ),
+            res.findings,
+            f"the rollup must refuse non-conforming rows: {res.findings}",
+        )
+        self.assertIn("not a typed child-tracking row", res.message)
+        self.assertTrue(orch.is_file(), "the un-conforming plan must stay in pending/")
+
+    def test_retired_orchestrator_file_states_items_were_superseded_in_body(self):
+        """E-03 / E-04: A proceeding retirement writes the honest superseded statement beside the checklist.
+
+        Pins F-2: a retired parent in executed/ states in its body that its items were superseded,
+        its checkboxes remain unchecked, and post-transition lint conforms.
+        """
+        from agent_workflows import ipd_lifecycle as LC
+        from agent_workflows import ipd_lint as L
+
+        # Build an orchestrator with conforming typed child-tracking rows
+        orch = self.make_set("honest", [("aaa111", 1, "executed", "executed")])
+
+        res = self.retire(orch, "honest", apply=True)
+        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
+        dest = (
+            self.root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20260906-honest-00-orc000-synthetic.ipd.md"
+        )
+        self.assertTrue(dest.is_file(), "retired orchestrator must land in executed/")
+        dest_text = dest.read_text(encoding="utf-8")
+        self.assertTrue(
+            hasattr(LC, "ROLLUP_SUPERSEDED_STATEMENT"),
+            "LC must define ROLLUP_SUPERSEDED_STATEMENT",
+        )
+        checklist_section = dest_text.split(
+            "## Detailed Implementation Checklist (TODO)"
+        )[1].split("## Validation")[0]
+        self.assertIn(
+            LC.ROLLUP_SUPERSEDED_STATEMENT,
+            checklist_section,
+            "the retired orchestrator body beside the checklist must state its items were superseded",
+        )
+        self.assertIn("- [ ] E-01 CONFIRM aaa111 REACHED executed", dest_text)
+        self.assertNotIn(
+            "- [x] E-01", dest_text, "items must NOT be marked complete ([x])"
+        )
+        lint_res = L.lint_text(
+            dest_text, checkpoint="post-transition", directory="executed"
+        )
+        self.assertEqual(
+            lint_res.disposition,
+            "conforming",
+            f"post-transition lint failed: {lint_res.diagnostics}",
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover
