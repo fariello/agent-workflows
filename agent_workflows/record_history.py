@@ -25,7 +25,10 @@ from pathlib import Path
 from typing import List, Optional, Tuple as _Tuple
 
 from agent_workflows import artifact_core as _core
-from agent_workflows.attention_contract import HISTORY_RECORD_RE as _HISTORY_RECORD_RE
+from agent_workflows.attention_contract import (
+    HISTORY_RECORD_RE as _HISTORY_RECORD_RE,
+    newest_history_record as _newest_history_record,
+)
 
 SIDECAR_RELPATH = ".aw/records/history.jsonl"
 
@@ -413,11 +416,13 @@ def _iter_record_files(repo_root: Path):
 
 
 def _slim_inline_history(path: Path, text: str, records: List[str]) -> None:
-    """Rewrite path's ## Workflow history block to keep ONLY the latest (last-in-order) record line.
+    """Rewrite path's ## Workflow history block to keep ONLY the newest record line.
     No-op if <=1 record. Preserves everything outside the block (spec OQ-2: keep the latest one)."""
     if len(records) <= 1:
         return
-    keep = records[-1]
+    keep = _newest_history_record(records)
+    if not keep:
+        return
     lines = text.split("\n")
     out: List[str] = []
     in_hist = False
@@ -446,7 +451,7 @@ def _slim_inline_history(path: Path, text: str, records: List[str]) -> None:
 def migrate_inline_history(repo_root: Path, apply: bool = False) -> int:
     """Fold every inline ## Workflow history record across the record trees (EXCEPT plans) into the
     global sidecar (idempotent, keyed on id6+date+message), then slim each file's inline block to its
-    latest ONE record. apply=False (default) previews and writes nothing; returns the count of records
+    newest ONE record. apply=False (default) previews and writes nothing; returns the count of records
     that WOULD be (apply=False) or WERE (apply=True) newly folded."""
     repo_root = Path(repo_root)
     existing = {

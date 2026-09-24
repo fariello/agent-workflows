@@ -12,18 +12,18 @@
 - Scope: Close the TWO holes this plan may legitimately close, and make each one's regression test use the NEWEST-FIRST shape production actually writes. IN: (a) make the migration slimmer's retention agree with the writers' newest-first contract, or stop slimming, per OQ-01; (b) add the `x6tk1u` same-status dedup to the specs writer by CONSUMING the existing shared predicate; (c) re-point `tests/test_record_history_migrate.py`'s fixture to newest-first so hole (a) is actually covered. OUT, and the first exclusion is a REVIEW CORRECTION rather than an author's choice: FIXING THE LEGACY OLDEST-FIRST READER (`jhrao5`). Both options the plan proposed for it are explicitly forbidden - a date-aware reader is measured to widen the unattended approval gate, and bulk-reordering is refused by `jhrao5` and by approved spec `2vev8j` 4.3, which rules that ordering becomes an explicit per-artifact `seq` rather than being inferred from position at all. E-03 is therefore a REPORT-ONLY item and `attention_contract.py` is no longer in scope. ALSO OUT: re-fixing `specs._append_history`/`backlog._reattach_history` preservation, which `vhbvwz` already shipped and which this plan VERIFIES rather than changes; re-tracking the gitignored `.aw/records/history.jsonl` sidecar (that was `raxuyq` fix option (a), and the maintainer chose inline-is-durable instead on 2026-09-10); implementing `2vev8j`'s `seq` contract, which is a separate plan carrying `- From-Spec: 2vev8j`; and any change to plans' inline history, which `IPD-S405` requires in full and which the migration correctly excludes.
 - Scope-Paths: agent_workflows/record_history.py, agent_workflows/specs.py, tests/test_record_history_migrate.py, tests/test_specs_verbs.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: histresid
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 7jqev2
-- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: 8pcdoa
 - Blocks-Release: next
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: 7jqev2 verified (set histresid, attempt 1).
 - 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED. BLOCKER PR-001: E-03 instructed work that approved spec 2vev8j 4.3 and its own source item jhrao5 explicitly forbid (a date-aware reader is measured to widen the unattended approval gate; bulk-reordering the 77 legacy files is refused on shared-checkout grounds), and the plan recommended PREFERRING the option jhrao5 names first while citing 2vev8j nowhere. E-03 converted to report-only and attention_contract.py removed from Scope-Paths, with two STOP conditions added. PR-002: migrate_inline_history is reachable from NO shipped command (sole caller is its own test module), which 8pcdoa states and the plan omitted, so F-1 is downgraded BLOCKER to HIGH as a LATENT trap with the fix still owed. PR-003: tests/test_specs.py was declared and validated against but DOES NOT EXIST (pytest reports 'no tests ran'), re-pointed to tests/test_specs_verbs.py. F-1/F-2/F-3/F-5 re-measured TRUE; F-4 upgraded to behavioral evidence while its severity was corrected MED to LOW per 4vh5nb's own low/chore fields. OQ-01 stays open and Blocking: no. Readiness: GO - PENDING HUMAN APPROVAL.
 
@@ -45,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the ground, because most of this family is already fixed
 
-- [ ] E-01 RE-VERIFY WHAT IS ALREADY FIXED BEFORE CHANGING ANYTHING, and report any claim that has moved. This plan's central narrowing is that 7 of 12 items are closed work, and an executor who takes that on trust could either re-fix shipped code or skip a real regression.
+- [x] E-01 RE-VERIFY WHAT IS ALREADY FIXED BEFORE CHANGING ANYTHING, and report any claim that has moved. This plan's central narrowing is that 7 of 12 items are closed work, and an executor who takes that on trust could either re-fix shipped code or skip a real regression.
   PROBE THE TWO WRITERS ON A MULTI-ROUND FIXTURE: call `specs._append_history` on a 3-round block and `backlog._reattach_history` likewise, and confirm prior rounds SURVIVE and the new record is PREPENDED. NOTE THE SIGNATURE, because the plan's own wording misleads: `specs._append_history(lines: List[str], record: str)` takes a LINE LIST and a preformatted record, not `(text, date, status, actor, message)`. Re-measured at review: 3 priors kept, new record first.
   CONFIRM `vhbvwz` IS EXECUTED and that commit `fbf85068` is an ancestor of your base, since every "already fixed" claim here rests on it. Re-verified at review with `git merge-base --is-ancestor`.
   RE-PROVE THE TWO HOLES YOU WILL FIX, AND THE ONE YOU WILL ONLY REPORT: the slimmer's `keep = records[-1]` against a NEWEST-FIRST fixture; the absence of specs dedup, BEHAVIORALLY (run the same `aw specs note --message <identical>` three times and count records, which is stronger than the source inspection the plan relied on); and `newest_history_record` against an OLDEST-FIRST two-round block. Report any that no longer reproduce, and if a hole is gone, say so and do not invent work for it.
@@ -53,11 +53,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT LOOK FOR SEVEN BACKLOG CLOSES TO PERFORM (F-9). All seven were already closed 2026-09-23; confirm that and move on.
   - Depends on: none
   - Expected outcome: the two fixable holes and the one report-only hole each reproduced at your HEAD with pasted output; the specs-dedup hole shown behaviorally rather than by inspection; `fbf85068` confirmed ancestral; the reachability of `migrate_inline_history` stated; the seven closes confirmed already done; and any divergence from this plan's measurements reported rather than silently absorbed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the holes
 
-- [ ] E-02 STOP THE MIGRATION DESTROYING THE NEWEST ROUND. `record_history._slim_inline_history` keeps `records[-1]` and documents that as "the latest (last-in-order) record", which the `vhbvwz` newest-first switch inverted, so it now keeps the oldest and deletes the human attestation.
+- [x] E-02 STOP THE MIGRATION DESTROYING THE NEWEST ROUND. `record_history._slim_inline_history` keeps `records[-1]` and documents that as "the latest (last-in-order) record", which the `vhbvwz` newest-first switch inverted, so it now keeps the oldest and deletes the human attestation.
   RESOLVE OQ-01 FIRST, because the two candidate fixes differ in kind rather than in detail: either make retention agree with the writers' contract (keep `records[0]`), or stop slimming entirely, which is what the maintainer's 2026-09-10 inline-is-durable ruling implies for every other writer in this family. Do not do both, and record which and why.
   REVIEW ADDS ONE PIECE OF EVIDENCE THAT BEARS DIRECTLY ON OQ-01, and it favors retirement: the helper is reachable from NO shipped command (F-7), and `8pcdoa` itself recommends "either retire the migration (its job is done and its premise is reversed) or rewrite it". A helper with no callers but its own test is cheaper to delete than to make correct, and deleting it removes the defect class rather than re-aiming it. If you nevertheless keep it, you owe a reason it should exist at all.
   DO NOT REINTRODUCE A SECOND ORDER CONVENTION. If you keep slimming, the retention rule must READ its notion of newest from the same authority the rest of the tree uses (`attention_contract.newest_history_record`) rather than hardcoding an index, or this defect recurs the next time the convention moves. That is the whole lesson of the `records[-1]` inversion. CONSUMING that reader is READ-ONLY and is NOT the E-03 work this plan is forbidden to do: `attention_contract.py` must remain unmodified either way.
@@ -65,34 +65,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PLANS STAY EXCLUDED. The migration already skips them and `IPD-S405` requires a plan's full inline history; nothing here may start slimming a plan.
   - Depends on: E-01
   - Expected outcome: the helper either retired or made incapable of destroying the newest round on a newest-first file, with the chosen option recorded against OQ-01 and a reason it should still exist if kept; any surviving retention rule derives newest from the shared reader rather than an index literal, with `attention_contract.py` unmodified; both false docstrings corrected if the helper survives; plans still untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DO NOT FIX THE LEGACY OLDEST-FIRST READER HERE. REPORT IT AND LEAVE IT. This item was authored as a fix and is CONVERTED BY REVIEW into a no-code verification item, because BOTH options it proposed are explicitly forbidden by authority this plan did not consult (F-6). Read this whole item before doing anything; performing the authored work would violate an approved spec.
+- [x] E-03 DO NOT FIX THE LEGACY OLDEST-FIRST READER HERE. REPORT IT AND LEAVE IT. This item was authored as a fix and is CONVERTED BY REVIEW into a no-code verification item, because BOTH options it proposed are explicitly forbidden by authority this plan did not consult (F-6). Read this whole item before doing anything; performing the authored work would violate an approved spec.
   WHAT FORBIDS IT, IN ITS OWN WORDS. Backlog `jhrao5`, the very item E-03 graduated from, says: "DO NOT fix it by making the reader date-aware (measured: that widens the approval gate) and DO NOT bulk-reorder the files (shared checkout; and spec `2vev8j` 4.3 rules that order should become EXPLICIT via a per-artifact monotonic seq rather than inferred from position at all). The honest fix is the seq field spec `2vev8j` already approved". Those are E-03's option one and option two respectively. `jhrao5` also states its own purpose: "this item exists so the residue is TRACKED rather than discovered later" - it is a tracking item, not a work item.
   AND THE SPEC IS APPROVED, NOT PROPOSED. `2vev8j` (`- Status: approved`, `- Blocks-Release: next`) Section 4.3 answers the oldest-first-versus-newest-first question "NEITHER WAY": ordering becomes an explicit per-artifact `seq`, timestamps are display-only, and the reader gets SIMPLER (drop `events.reverse()`, the date sort, and the lifecycle-rank tiebreak) rather than gaining a direction heuristic. A detection heuristic in `newest_history_record` is therefore not a smaller version of the right fix; it is a THIRD ordering authority added to a reader whose docstring exists because two authorities once disagreed and misreported 373 of 679 multi-record plans.
   SO THE WORK HERE IS: verify the defect still reproduces, verify `2vev8j` is still the approved owner, and RECORD both in V-03. Change no code in `attention_contract.py`. Do NOT normalize any record file. If you believe the seq work should happen, that is a separate plan carrying `- From-Spec: 2vev8j`, which is what `tk1gqo`'s own history already prescribes ("graduate to a plan citing spec `2vev8j`... not a direct code change").
   - Depends on: E-01
   - Expected outcome: `attention_contract.py` UNCHANGED by this plan; the defect reproduced and reported with the pasted probe; `2vev8j` 4.3 cited as the approved owner and `jhrao5`'s two prohibitions quoted; a statement that no record file was reordered; and, if the executor judges the seq work ready, a named follow-up carrier rather than an edit here.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 GIVE THE SPECS WRITER THE `x6tk1u` SAME-STATUS DEDUP. Confirmed behaviorally at review: three identical `aw specs note --message "identical note"` calls appended THREE identical records.
+- [x] E-04 GIVE THE SPECS WRITER THE `x6tk1u` SAME-STATUS DEDUP. Confirmed behaviorally at review: three identical `aw specs note --message "identical note"` calls appended THREE identical records.
   THE PREDICATE TO CONSUME IS `status_set.same_status_message_is_duplicate`, and review VERIFIED IT FITS rather than leaving you to discover that (F-10). It is artifact-neutral: probed against a spec block it returns True for a `note`-token record, True for a multi-part actor (`(aw specs, --by-human)`), and False on a changed message or a changed date. Note it lives in `status_set.py`, NOT in `backlog.py`, so the plan's phrase "the rule the backlog writer already has" will send you to the wrong module.
   CONSUME THE EXISTING RULE, DO NOT FORK IT, and do not relocate it either: `status_set.py` is NOT in `- Scope-Paths:`, so import the predicate rather than moving or editing it. Two dedup rules that disagree is the same defect class the shared-reader convention exists to prevent.
   COVER BOTH SPECS HISTORY WRITERS, or say which you skipped and why. `specs.py` calls `_append_history` from three places: the `--status` set path, the migrate path, and `run_note`. `4vh5nb` names `aw specs set` and `aw specs migrate`; the review reproduced the duplicate through `run_note`. A fix landing on one call site and not the others leaves the item half-closed.
   KEEP THE `x6tk1u` DEFECT FROM RETURNING IN REVERSE: the predicate compares the NEWEST record only, deliberately, so a genuinely new note reusing older wording still records. Do not "improve" it into a whole-file scan.
   - Depends on: E-01
   - Expected outcome: an identical same-status re-assertion on a spec appends no duplicate round, demonstrated through the same CLI surface that reproduced it; the shared predicate is IMPORTED rather than forked or moved, with `status_set.py` unmodified; the call sites covered are enumerated and any skipped one is justified; a deliberate message change still records.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make the regression visible
 
-- [ ] E-05 RE-POINT THE MIGRATION TEST FIXTURE TO NEWEST-FIRST, so E-02's defect could have failed. `tests/test_record_history_migrate.py` currently writes `- 2026-01-01 draft` before `- 2026-01-05 executed` and `test_apply_folds_and_slims_excluding_plans` asserts the survivor is `- 2026-01-03 reviewed (t): c`, i.e. it pins the RETIRED oldest-first convention and passes while production destroys attestations.
+- [x] E-05 RE-POINT THE MIGRATION TEST FIXTURE TO NEWEST-FIRST, so E-02's defect could have failed. `tests/test_record_history_migrate.py` currently writes `- 2026-01-01 draft` before `- 2026-01-05 executed` and `test_apply_folds_and_slims_excluding_plans` asserts the survivor is `- 2026-01-03 reviewed (t): c`, i.e. it pins the RETIRED oldest-first convention and passes while production destroys attestations.
   ADD THE ATTESTATION CASE EXPLICITLY, not just a reordered fixture: a spec whose newest round is a `--by-human` approval attestation, asserting that round SURVIVES. That is the case with real consequences and it should be named in the test.
   IF E-02 RETIRED THE HELPER, THIS ITEM CHANGES SHAPE RATHER THAN DISAPPEARING. There is then no slimmer to test, and the honest outcome is that `tests/test_record_history_migrate.py` is removed or reduced alongside the code, with a test asserting the migration no longer slims. Say which shape you landed; do NOT leave a fixture asserting behavior that no longer exists, and do NOT keep a test green by reintroducing the helper.
   ALSO ADD A DEDUP REGRESSION TEST FOR E-04 in `tests/test_specs_verbs.py`, driven through the CLI surface rather than by calling the predicate directly, since a predicate-level test would pass even if the writer never consulted it. Note the plan originally named `tests/test_specs.py`, which does not exist (F-8).
   - Depends on: E-02, E-04
   - Expected outcome: the migration test matches whatever E-02 landed (newest-first fixture with an attestation-survival case that fails against pre-E-02 code, or a reduced test asserting no slimming occurs), with the shape stated; a CLI-driven dedup regression test exists in `tests/test_specs_verbs.py`; both files pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,11 +130,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - RE-FIXING THE TWO WRITERS' PRESERVATION. `vhbvwz` shipped it (F-5) and this plan verifies it in E-01 rather than changing it. CORRECTED AT REVIEW (F-9): the seven backlog items are ALREADY closed (`- Status: done`, 2026-09-23, SATISFIED path), so no bookkeeping is owed and the executor should not go looking for it. The original wording, that they "should be CLOSED", described work already performed.
+  - Carrier-Evidence: .aw/records/plans/executed/20260910-setterguard-02-vhbvwz-stop-losing-a-deliberate-history-message-write-it-on-a-same.ipd.md
 - FIXING THE LEGACY OLDEST-FIRST READER (F-6). Added at review as the largest exclusion. A date-aware reader is measured to flip `history_verdict_approves` for 20 plans, widening an unattended approval gate; bulk-reordering the 77 files is refused by `jhrao5` (shared checkout) and by APPROVED spec `2vev8j` 4.3, which makes ordering an explicit per-artifact `seq` rather than something inferred from position. `jhrao5` exists to TRACK the residue, not to request this fix. E-03 is therefore report-only and `agent_workflows/attention_contract.py` left this plan's scope.
+  - Carrier-Declined: jhrao5 and approved spec 2vev8j Section 4.3 explicitly forbid fixing this via position heuristics or bulk file re-ordering; ordering will be owned by the seq contract
 - IMPLEMENTING `2vev8j`'s `seq` CONTRACT. That is the approved owner of the ordering problem and it is a substantial separate change (journal per artifact, `seq` origin and contiguity, a checkpoint event, UTC-only writers, IPD-S405 reading the history API). It belongs in its own plan carrying `- From-Spec: 2vev8j`, which is exactly what `tk1gqo`'s history prescribes: "graduate to a plan citing spec `2vev8j`... not a direct code change".
+  - Carrier-Declined: Owned by approved spec 2vev8j Section 4.3 which prescribes explicit monotonic seq rather than position inference
 - RE-TRACKING `.aw/records/history.jsonl`. That was `raxuyq`'s fix option (a); the maintainer chose inline-is-durable on 2026-09-10, so reopening it would relitigate a settled ruling.
+  - Carrier-Declined: Settled maintainer ruling on 2026-09-10 recorded in vhbvwz OQ-01; inline history is durable home
 - ANY CHANGE TO PLANS' INLINE HISTORY. `IPD-S405` requires the executed round inline and the migration already excludes plans.
+  - Carrier-Declined: Excluded by contract; IPD-S405 requires full inline executed history on plans
 - `tk1gqo` (lifecycle-transition-invalid on conformant plans). REWORDED AT REVIEW: the original text said "beyond what E-03 incidentally fixes", which is now void because E-03 fixes nothing. `tk1gqo` stays open and its own history already names `2vev8j` as its owner; nothing here touches it.
+  - Carrier: tk1gqo
 
 ## Scope check
 
@@ -165,39 +171,196 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-01: Should the migration keep the newest round, or stop slimming entirely?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: this plan's executor, escalating to the maintainer if it implies a spec change
-- Resolution or deferral rationale: NOT blocking, because E-02 must record an explicit choice and either option closes F-1, so the plan terminates correctly either way. The case for KEEPING-NEWEST is minimal change and it preserves the sidecar-folding purpose the migration was written for. The case for STOP-SLIMMING is consistency with the maintainer's 2026-09-10 inline-is-durable ruling, which every other writer in this family now follows, and it removes the class of defect rather than re-aiming it; F-1 exists precisely because a retention rule outlived the convention it was written against. Note this may amend spec `20260818-1525-02`, which is why the maintainer is the escalation owner.
-  REVIEW ADDS TWO FACTS THAT TILT THIS TOWARD STOP-SLIMMING, without resolving it, because the call is a maintainer's judgement about whether a capability should exist. FIRST, the helper has NO SHIPPED CALLER (F-7): its only caller in the tree is its own test module and no `aw` verb reaches it, so "keep it correct" preserves a capability nobody currently invokes, while retirement deletes a latent attestation-destroying trap. SECOND, `8pcdoa` itself puts retirement first and says so with a reason: "either retire the migration (its job is done and its premise is reversed) or rewrite it... do not leave a helper in the tree whose one action is to destroy the provenance the amended spec now requires." Against that, folding into the sidecar still has a diagnostic use (`aw record-history`), and the sidecar is still written by the normal writers anyway, so retirement costs little. NOT RESOLVED HERE because deleting a shipped helper is a scope call the maintainer owns, and E-02 is safe either way.
+- Resolution or deferral rationale: Resolved in E-02 by keeping the migration helper and fixing retention to derive newest from attention_contract.newest_history_record(records) rather than hardcoded records[-1], preserving the --by-human approval attestation and correcting false docstrings. Kept because it fulfills the history-folding capability for repository history while respecting the newest-first writer contract.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of each probe: both writers preserving priors and prepending; `fbf85068` confirmed ancestral; the two fixable holes reproduced, with the specs-dedup one shown BEHAVIORALLY (a record count after three identical calls, not a source reading); the report-only reader hole reproduced; the grep establishing whether any shipped CLI verb reaches `migrate_inline_history`; and confirmation that the seven family items are already `done`. Any claim that moved is named explicitly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Ancestor fbf85068 confirmed; writers prepend and preserve priors; 2 fixable holes and 1 report-only hole reproduced; migrate_inline_history has no shipped CLI callers; 7 family backlog items confirmed done on disk. Detail below:
+    1. Ancestor confirmation:
+       ```
+       $ git merge-base --is-ancestor fbf85068 HEAD && echo "fbf85068 is an ancestor of HEAD"
+       fbf85068 is an ancestor of HEAD
+       ```
+    2. Writers preserving priors and prepending:
+       - `specs._append_history` on 3-round fixture:
+         ```
+         After _append_history:
+           - 2026-09-24 note (aw specs): new note
+           - 2026-09-20 approved (aw specs, --by-human): approved by human
+           - 2026-09-10 reviewed (aw specs): peer review pass
+           - 2026-09-01 created (aw specs): initial draft
+         ```
+       - `backlog._reattach_history` on 3-round fixture:
+         ```
+         After _reattach_history:
+           - 2026-09-24 set (aw backlog): moved to active
+           - 2026-09-20 reviewed (aw backlog): review done
+           - 2026-09-10 triage (aw backlog): triaged
+           - 2026-09-01 created (aw backlog): created item
+         ```
+    3. Hole 1 reproduced (`record_history._slim_inline_history` kept `records[-1]` which was oldest, destroying human attestation):
+       ```
+       Input records (newest-first):
+         - 2026-09-20 approved (aw specs, --by-human): the --by-human attestation
+         - 2026-09-10 reviewed (aw specs): reviewed
+         - 2026-09-01 created (aw specs): OLDEST
+       Slimmed result:
+         - 2026-09-01 created (aw specs): OLDEST
+       ```
+    4. Hole 2 reproduced behaviorally (3 identical `aw specs note` calls appended 3 identical records):
+       ```
+       Total records found: 4
+         - 2026-09-24 note (aw specs): identical note
+         - 2026-09-24 note (aw specs): identical note
+         - 2026-09-24 note (aw specs): identical note
+         - 2026-09-24 created (aw specs): test
+       ```
+    5. Report-only Hole 3 reproduced (`attention_contract.newest_history_record` returns oldest record on oldest-first input):
+       ```
+       Input lines: ['- 2026-09-01 draft (aw specs): created round 1', '- 2026-09-15 reviewed (aw specs): reviewed round 2']
+       newest_history_record returned: - 2026-09-01 draft (aw specs): created round 1
+       ```
+    6. Reachability of `migrate_inline_history`:
+       ```
+       $ grep -rn "migrate_inline_history" agent_workflows/ tests/
+       agent_workflows/record_history.py:159:# `read_all`/`read_for`/`migrate_inline_history` (which key only on id6/date/message and ignore
+       agent_workflows/record_history.py:446:def migrate_inline_history(repo_root: Path, apply: bool = False) -> int:
+       tests/test_record_history_migrate.py:38: n = rh.migrate_inline_history(self.root, apply=False)
+       tests/test_record_history_migrate.py:48: n = rh.migrate_inline_history(self.root, apply=True)
+       tests/test_record_history_migrate.py:64: rh.migrate_inline_history(self.root, apply=True)
+       tests/test_record_history_migrate.py:65: again = rh.migrate_inline_history(self.root, apply=True)
+       ```
+       Sole caller in tree is `tests/test_record_history_migrate.py`; no shipped CLI verb reaches it.
+    7. Confirmation that seven family backlog items are already done in `.aw/records/backlog/done/`:
+       - `20260918-yvp951-01-yvp951-specs-set-truncates-legacy-spec-history.backlog.md`
+       - `20260919-b6i85r-01-b6i85r-specs-note-destroys-prior-history.backlog.md`
+       - `20260919-i8wmte-01-i8wmte-specs-note-destroys-prior-history-record.backlog.md`
+       - `20260919-raxuyq-01-raxuyq-specs-note-destroys-tracked-workflow-history.backlog.md`
+       - `20260920-l23v3j-01-l23v3j-specs-note-destroys-prior-history.backlog.md`
+       - `20260921-2vg3zo-01-2vg3zo-specs-note-destroys-history-on-id-less-spec.backlog.md`
+       - `20260921-specnote-01-g31sns-specs-note-destroys-existing-history.backlog.md`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the recorded OQ-01 choice with its reason. IF THE HELPER WAS KEPT: a newest-first fixture whose newest round is a `--by-human` attestation, run through the migration, with pasted before/after showing the attestation SURVIVES; the code path showing newest derives from `attention_contract.newest_history_record` rather than an index literal; both corrected docstrings quoted; and a stated reason the helper should still exist given it has no shipped caller. IF THE HELPER WAS RETIRED: the removal shown, plus evidence nothing else referenced it. EITHER WAY: `git diff --stat` showing `agent_workflows/attention_contract.py` and `agent_workflows/status_set.py` UNMODIFIED.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. OQ-01 resolved by keeping helper with retention derived from attention_contract.newest_history_record; --by-human attestation survives slimming on newest-first fixture; docstrings corrected; attention_contract.py and status_set.py unmodified. Detail below:
+    1. OQ-01 Choice: Kept the migration helper and fixed retention to derive newest from `attention_contract.newest_history_record(records)`. Kept so repository history migration/folding remains supported without corrupting newest-first provenance records.
+    2. Before/after on newest-first fixture with `--by-human` attestation:
+       ```
+       Before slimming:
+         - 2026-09-20 approved (aw specs, --by-human): the --by-human attestation
+         - 2026-09-10 reviewed (aw specs): reviewed
+         - 2026-09-01 created (aw specs): OLDEST
+       After slimming:
+         - 2026-09-20 approved (aw specs, --by-human): the --by-human attestation
+       ```
+       Attestation survives.
+    3. Derived from `attention_contract.newest_history_record`:
+       ```python
+       keep = _newest_history_record(records)
+       ```
+    4. Corrected docstrings:
+       - `_slim_inline_history`:
+         `"""Rewrite path's ## Workflow history block to keep ONLY the newest record line.`
+         `No-op if <=1 record. Preserves everything outside the block (spec OQ-2: keep the latest one)."""`
+       - `migrate_inline_history`:
+         `"""Fold every inline ## Workflow history record across the record trees (EXCEPT plans) into the`
+         `global sidecar (idempotent, keyed on id6+date+message), then slim each file's inline block to its`
+         `newest ONE record. apply=False (default) previews and writes nothing; returns the count of records`
+         `that WOULD be (apply=False) or WERE (apply=True) newly folded."""`
+    5. Diff stat proving `attention_contract.py` and `status_set.py` UNMODIFIED:
+       ```
+       $ git diff --stat -- agent_workflows/attention_contract.py agent_workflows/status_set.py
+       # (empty output - 0 files changed)
+       ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted reader output on an oldest-first two-round legacy block showing it returns the OLDEST record as newest (the defect REPORTED, not fixed); the quoted `jhrao5` prohibitions and the `2vev8j` 4.3 citation with that spec's `approved` status; `git diff` proving `agent_workflows/attention_contract.py` is unchanged by this plan and that NO record file was reordered; and either a named follow-up carrier for the `seq` work or an explicit statement that none was filed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Legacy oldest-first reader defect reproduced; prohibitions in jhrao5 and approved spec 2vev8j Section 4.3 cited; attention_contract.py and all record files left unmodified; tracked by backlog tk1gqo. Detail below:
+    1. Reader output on oldest-first two-round legacy block:
+       ```
+       Input oldest-first lines: ['- 2026-09-01 draft (aw specs): created round 1', '- 2026-09-15 reviewed (aw specs): reviewed round 2']
+       newest_history_record returned: - 2026-09-01 draft (aw specs): created round 1
+       ```
+       Defect reported: positional first-match returns oldest record on legacy oldest-first artifacts.
+    2. Prohibitions quoted:
+       `jhrao5`: "DO NOT fix it by making the reader date-aware (measured: that widens the approval gate) and DO NOT bulk-reorder the files (shared checkout; and spec `2vev8j` 4.3 rules that order should become EXPLICIT via a per-artifact monotonic seq rather than inferred from position at all)."
+       Spec `2vev8j` (`- Status: approved`, Section 4.3): ordering becomes an explicit monotonic `seq` per artifact.
+    3. `git diff` confirming `agent_workflows/attention_contract.py` unchanged and no record files reordered:
+       `agent_workflows/attention_contract.py` is completely untouched. Zero files under `.aw/records/` reordered.
+    4. Follow-up carrier: open backlog item `tk1gqo` (`.aw/records/backlog/open/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md`) and approved spec `2vev8j`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted before/after through the CLI surface showing an identical same-status re-assertion appends NO duplicate round on a spec (a record count, as in E-01); the symbol name of the SHARED predicate and the import proving it was not forked or relocated; the enumerated `specs.py` call sites covered, with a justification for any skipped; and a demonstration that a CHANGED message still records.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Same-status dedup confirmed via CLI (3 duplicate notes reduced to 1 note record); shared status_set.same_status_message_is_duplicate imported and not forked; run_set, run_migrate, and run_note covered; changed message still records. Detail below:
+    1. CLI surface before/after:
+       - Before fix: 3 identical `aw specs note` calls appended 3 identical records (4 records total).
+       - After fix: 3 identical `aw specs note` calls resulted in 2 records total (1 note record + 1 created line):
+         ```
+         Total records found: 2
+           - 2026-09-24 note (aw specs): identical note
+           - 2026-09-24 created (aw specs): test
+         ```
+    2. Shared predicate symbol and import:
+       Symbol: `agent_workflows.status_set.same_status_message_is_duplicate`
+       Import in `agent_workflows/specs.py`:
+       `from agent_workflows.status_set import same_status_message_is_duplicate`
+       (imported, not forked, and `status_set.py` unmodified).
+    3. Enumerated `specs.py` call sites covered:
+       - `run_set` (`specs.py` line 738): guarded with `same_status_message_is_duplicate(text, status=new, date=date, message=msg)`
+       - `run_migrate` (`specs.py` line 1021): guarded with `same_status_message_is_duplicate(text, status="migrated", date=date, message=hist_msg)`
+       - `run_note` (`specs.py` line 1046): guarded with `same_status_message_is_duplicate(text, status="note", date=date, message=args.message)`
+       Zero call sites skipped.
+    4. Demonstration that CHANGED message still records:
+       ```
+       Total records found after changed message: 3
+         - 2026-09-24 note (aw specs): note 2
+         - 2026-09-24 note (aw specs): note 1
+         - 2026-09-24 created (aw specs): test
+       ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: whichever shape E-02 required, stated explicitly - either the attestation-survival test pasted FAILING at the pre-E-02 code and PASSING after, or the reduced/removed test matching a retired helper; plus the CLI-driven dedup regression test in `tests/test_specs_verbs.py` pasted failing before E-04 and passing after; plus `tests/test_record_history_migrate.py` and `tests/test_specs_verbs.py` green; plus the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Attestation survival test fails against pre-E-02 code and passes after; CLI-driven dedup test in test_specs_verbs.py fails before E-04 and passes after; test_record_history_migrate.py (4 passed) and test_specs_verbs.py (20 passed) green; full test suite passed (8878 passed, 5 skipped, 2 xfailed). Detail below:
+    1. Attestation-survival test shape: kept helper, re-pointed fixture to newest-first with `--by-human` attestation.
+       - Pre-E-02 failure:
+         ```
+         AssertionError: Lists differ: ['- 2026-01-01 draft (t): a'] != ['- 2026-01-03 approved (aw specs, --by-human): approved by human']
+         FAILED (failures=1)
+         ```
+       - Post-E-02 pass:
+         ```
+         Ran 4 tests in 0.029s
+         OK
+         ```
+    2. CLI-driven dedup regression test in `tests/test_specs_verbs.py`:
+       - Pre-E-04 failure:
+         ```
+         Note count after 2 duplicate calls under pre-E-04: 2
+         AssertionError: 2 != 1
+         FAILED (failures=1)
+         ```
+       - Post-E-04 pass:
+         ```
+         Ran 20 tests in 0.222s
+         OK
+         ```
+    3. Targeted test modules:
+       - `tests/test_record_history_migrate.py`: 4 passed
+       - `tests/test_specs_verbs.py`: 20 passed
+       - Together with `tests/test_attention_contract.py` and `tests/test_plan_readiness.py`: 97 passed in 4.23s
+    4. Bare `python3 -m pytest` summary line:
+       `8878 passed, 5 skipped, 2 xfailed, 6 warnings in 130.73s (0:02:10)`
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -735,22 +735,25 @@ def run_set(args) -> int:
     out = _set_status(out, new)
     date = getattr(args, "date", None) or _today()
     msg = args.message
-    _sidecar_append(_repo_root_of(path), "\n".join(out), f"{new}: {msg}")
-    # apprvguard d7bnhc E-06/E-07: the same auditable override record as `status_set` writes, in this
-    # module's own actor-parenthesis shape, so an overridden approval is visible in the ARTIFACT on
-    # both approval surfaces rather than only in a shell history. Recorded only on `approved`, the one
-    # transition where the flag could have had an effect.
-    _attestations = []
-    if getattr(args, "by_human", False):
-        _attestations.append("--by-human")
-    if getattr(args, "allow_open_questions", False) and new == "approved":
-        _attestations.append("--allow-open-questions")
-    actor = (
-        "(aw specs, " + ", ".join(_attestations) + ")"
-        if _attestations
-        else "(aw specs)"
-    )
-    out = _append_history(out, f"- {date} {new} {actor}: {msg}")
+    from agent_workflows.status_set import same_status_message_is_duplicate
+
+    if not same_status_message_is_duplicate(text, status=new, date=date, message=msg):
+        _sidecar_append(_repo_root_of(path), "\n".join(out), f"{new}: {msg}")
+        # apprvguard d7bnhc E-06/E-07: the same auditable override record as `status_set` writes, in this
+        # module's own actor-parenthesis shape, so an overridden approval is visible in the ARTIFACT on
+        # both approval surfaces rather than only in a shell history. Recorded only on `approved`, the one
+        # transition where the flag could have had an effect.
+        _attestations = []
+        if getattr(args, "by_human", False):
+            _attestations.append("--by-human")
+        if getattr(args, "allow_open_questions", False) and new == "approved":
+            _attestations.append("--allow-open-questions")
+        actor = (
+            "(aw specs, " + ", ".join(_attestations) + ")"
+            if _attestations
+            else "(aw specs)"
+        )
+        out = _append_history(out, f"- {date} {new} {actor}: {msg}")
 
     new_text = "\n".join(out)
     # awrelease Order 02: set/clear the Blocks-Release gate field when requested.
@@ -1009,12 +1012,20 @@ def run_migrate(args) -> int:
             return 1
 
     date = getattr(args, "date", None) or _today()
-    hist = f"- {date} migrated (aw specs): normalized status to `{new}`"
+    hist_msg = f"normalized status to `{new}`"
     if old_prose:
-        hist += f" (was: {A.escape_detail(old_prose)[:160]})"
+        hist_msg += f" (was: {A.escape_detail(old_prose)[:160]})"
     if implemented_prose:
-        hist += f"; folded Implemented line: {A.escape_detail(implemented_prose)[:160]}"
-    out = _append_history(out, hist)
+        hist_msg += (
+            f"; folded Implemented line: {A.escape_detail(implemented_prose)[:160]}"
+        )
+    hist = f"- {date} migrated (aw specs): {hist_msg}"
+    from agent_workflows.status_set import same_status_message_is_duplicate
+
+    if not same_status_message_is_duplicate(
+        text, status="migrated", date=date, message=hist_msg
+    ):
+        out = _append_history(out, hist)
 
     new_text = "\n".join(out)
     residual = validate_spec(path, new_text)
@@ -1039,9 +1050,14 @@ def run_note(args) -> int:
         return 2
     lines = _lines(text)
     date = getattr(args, "date", None) or _today()
-    _sidecar_append(_repo_root_of(path), text, f"note: {args.message}")
-    out = _append_history(lines, f"- {date} note (aw specs): {args.message}")
-    core.atomic_write(path, "\n".join(out))
+    from agent_workflows.status_set import same_status_message_is_duplicate
+
+    if not same_status_message_is_duplicate(
+        text, status="note", date=date, message=args.message
+    ):
+        _sidecar_append(_repo_root_of(path), text, f"note: {args.message}")
+        out = _append_history(lines, f"- {date} note (aw specs): {args.message}")
+        core.atomic_write(path, "\n".join(out))
     sys.stdout.write(f"aw specs note: appended a history record to {path}\n")
     return 0
 
