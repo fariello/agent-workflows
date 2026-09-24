@@ -14090,6 +14090,54 @@ def apply_run_policy_flags_on_resume(state: dict, args: Any) -> bool:
 #: predicate simply does not consult it; nothing about it is changed here.
 SET_RETIREMENT_DONE_STATUS = "executed"
 
+
+#: EVERY child status that ENDS a child's participation in its Set, so the Set can retire (backlog
+#: `31y86f`). `executed` means the work landed; `superseded` and `not-executed` mean the plan was
+#: DELIBERATELY RETIRED and will never run. All three are terminal, and none can make further progress,
+#: which is the only property retirement actually needs.
+#:
+#: THE MEASURED BUG THIS FIXES, 2026-09-24. The unfinished-children test compared each child against
+#: `SET_RETIREMENT_DONE_STATUS` ALONE, so ONE deliberately retired child wedged its orchestrator
+#: FOREVER. Set `hostdedup` had four children, all four terminal (`li44r9`, `xdvglg`, `04vf1h` executed;
+#: `nmlx47` superseded on 2026-09-23 because `1f7xno` had overtaken its work), and `a5wdne` was still
+#: reported `dependency-blocked` naming `nmlx47 (superseded)`. The remedy the runner printed -- "run the
+#: missing children" -- was UNFOLLOWABLE, because a superseded plan must never run.
+#:
+#: IT IS THE LIFECYCLE'S OWN CONTRADICTION, not an edge case: `AGENTS.md` REQUIRES a plan that will
+#: never run to be retired as `superseded`/`not-executed` rather than filed `executed` (which "would
+#: falsely claim implementation"), so the documented lifecycle mandated a state this gate could not
+#: accept, and any Set holding a correctly retired child was unretirable.
+#:
+#: STILL AN ALLOWLIST, which is the property the note above calls load-bearing, and it is unchanged:
+#: this admits exactly the three values `ipd_schema.TERMINAL` already names and is DERIVED from it
+#: rather than re-spelled, so a status added to the vocabulary later is still refused until someone
+#: deliberately admits it there. Not a denylist, and it does not consult `EXECUTION_SUCCESS_STATES`.
+#:
+#: WHY RETIREMENT MAY ACCEPT WHAT A DEPENDENCY MAY NOT: retirement asks "can this Set still make
+#: progress?", and for a retired child the answer is no, permanently. A dependency EDGE asks the
+#: different question "did my prerequisite's work land?", where `superseded` is correctly a refusal. The
+#: two questions keep separate constants for exactly that reason; `SET_RETIREMENT_DONE_STATUS` remains
+#: the success-only value for anything meaning "landed".
+#:
+#: COMPUTED LAZILY THROUGH A FUNCTION, not at import time, because `ipd_schema` is first-party and this
+#: module must not carry a module-level first-party import:
+#: `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
+#: pins that set to `render_stream` plus `runner_profiles`. Every other first-party dependency here
+#: arrives function-locally, so this follows the module's existing route rather than widening the pin.
+def set_retirement_terminal_statuses() -> frozenset[str]:
+    """Every child `Status:` that ENDS its participation in a Set, so the Set may retire.
+
+    DERIVED from `ipd_schema.TERMINAL` rather than re-spelled, so the two cannot drift: adding a
+    terminal disposition there admits it here, and adding a NON-terminal status admits nothing. See the
+    note above for the measured bug (backlog `31y86f`) and for why retirement may accept a deliberately
+    retired child while a dependency edge may not.
+    """
+
+    from agent_workflows import ipd_schema
+
+    return frozenset(ipd_schema.TERMINAL)
+
+
 #: The typed refusal reasons (spec R-9). Four distinct facts that MUST NOT share one message: today
 #: they all surface as "dependency-blocked (unmet dependencies)", which named no dependency at all in
 #: `5e4sb6`'s recorded event (`unfinished_children: []`).
@@ -14472,8 +14520,13 @@ def evaluate_set_retirement(repo: Path, setid: str) -> RetirementDecision:
     Eligible ONLY when ALL of the following hold (spec R-1/R-2/R-3):
       1. the Set has an orchestrator on disk;
       2. the Set has at least one child;
-      3. EVERY child's on-disk `Status:` is exactly `executed` (an allowlist, per
-         :data:`SET_RETIREMENT_DONE_STATUS`); and
+      3. EVERY child's on-disk `Status:` is TERMINAL, i.e. one of `executed`, `superseded` or
+         `not-executed` (still an allowlist, derived from `ipd_schema.TERMINAL` by
+         :func:`set_retirement_terminal_statuses`). WIDENED 2026-09-24 from the single value `executed`
+         (backlog `31y86f`): a deliberately retired child can never run, so requiring it to reach
+         `executed` wedged its Set forever while `AGENTS.md` simultaneously REQUIRED such a plan to be
+         retired as `superseded`. A retired child ENDS its participation; it does not claim the work
+         landed, and a dependency EDGE still refuses it. And
       4. the orchestrator's child table declares no row that resolves to no plan, and its table was
          parseable at all.
 
@@ -14512,10 +14565,14 @@ def evaluate_set_retirement(repo: Path, setid: str) -> RetirementDecision:
             ),
         )
 
+    # backlog `31y86f`: a child is finished when it can make NO FURTHER PROGRESS, which is true of all
+    # three terminal dispositions and not only of `executed`. Comparing against the single success value
+    # wedged any Set holding a deliberately retired child (measured: `hostdedup`/`nmlx47`).
+    _terminal = set_retirement_terminal_statuses()
     unfinished = tuple(
         (m.id6, m.status or "<no Status:>")
         for m in membership.children
-        if m.status != SET_RETIREMENT_DONE_STATUS
+        if m.status not in _terminal
     )
     if unfinished:
         listed = ", ".join(f"{i} ({s})" for i, s in unfinished)
@@ -14525,8 +14582,8 @@ def evaluate_set_retirement(repo: Path, setid: str) -> RetirementDecision:
             setid=token,
             unfinished=unfinished,
             detail=(
-                f"Set {token!r} has {len(unfinished)} child(ren) that are not "
-                f"{SET_RETIREMENT_DONE_STATUS!r}: {listed}"
+                f"Set {token!r} has {len(unfinished)} child(ren) that have not reached a terminal "
+                f"status ({', '.join(sorted(_terminal))}): {listed}"
             ),
         )
 
@@ -14570,15 +14627,36 @@ def evaluate_set_retirement(repo: Path, setid: str) -> RetirementDecision:
             ),
         )
 
-    executed = ", ".join(m.id6 for m in membership.children)
+    # backlog `31y86f`: NAME EACH CHILD'S ACTUAL DISPOSITION rather than asserting they all executed.
+    # Since a Set may now retire with a `superseded`/`not-executed` child, the old wording would state
+    # something FALSE about a retired one, and this string is what a human reads to decide whether a
+    # retirement was legitimate.
+    landed = [
+        m.id6 for m in membership.children if m.status == SET_RETIREMENT_DONE_STATUS
+    ]
+    retired = [
+        (m.id6, m.status or "<no Status:>")
+        for m in membership.children
+        if m.status != SET_RETIREMENT_DONE_STATUS
+    ]
+    parts = []
+    if landed:
+        parts.append(
+            f"{len(landed)} {SET_RETIREMENT_DONE_STATUS} ({', '.join(landed)})"
+        )
+    if retired:
+        parts.append(
+            f"{len(retired)} deliberately retired and will never run "
+            f"({', '.join(f'{i}: {s}' for i, s in retired)})"
+        )
     return RetirementDecision(
         eligible=True,
         reason=RETIRE_ELIGIBLE,
         setid=token,
         detail=(
-            f"Set {token!r} is complete on disk: all {len(membership.children)} "
-            f"child(ren) are {SET_RETIREMENT_DONE_STATUS} ({executed}), and every row of the "
-            "orchestrator's child table resolves to a plan"
+            f"Set {token!r} is complete on disk: all {len(membership.children)} child(ren) are "
+            f"terminal, {' and '.join(parts)}; and every row of the orchestrator's child table "
+            "resolves to a plan"
         ),
     )
 

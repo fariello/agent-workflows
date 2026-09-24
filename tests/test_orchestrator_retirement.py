@@ -659,6 +659,21 @@ class TypedRefusalReasons(SyntheticSetCase):
 
     #: The statuses that are NOT `executed`. Includes casing variants, near-misses, and a status
     #: nobody has invented, which is what makes this an ALLOWLIST test rather than a denylist one.
+    #: Statuses that are NOT terminal, so a child carrying one must REFUSE its Set's retirement.
+    #:
+    #: `superseded` AND `not-executed` WERE REMOVED FROM THIS LIST 2026-09-24 (backlog `31y86f`), and
+    #: that is the fix rather than a weakening of the test. They are TERMINAL dispositions: a plan in
+    #: either state was deliberately retired and will never run, so requiring it to reach `executed`
+    #: wedged its Set forever. Measured: `hostdedup` had four terminal children (`nmlx47` superseded on
+    #: 2026-09-23) and `a5wdne` was still refused, naming a child whose printed remedy ("run the missing
+    #: children") could never be followed. `AGENTS.md` simultaneously REQUIRES such a plan to be retired
+    #: as `superseded`, so the gate refused a state the lifecycle mandates. They are asserted POSITIVELY
+    #: by `test_a_deliberately_retired_child_does_not_wedge_its_set` below.
+    #:
+    #: THE ALLOWLIST PROPERTY IS UNCHANGED, which is what this test exists to defend. The accepted set
+    #: is still an allowlist, now derived from `ipd_schema.TERMINAL`, so a status invented later is
+    #: still refused until someone deliberately admits it there. The casing variants and the near-miss
+    #: remain, because "exact token" must keep meaning exact.
     NON_EXECUTED = (
         "substantially-complete",
         "approved",
@@ -670,8 +685,6 @@ class TypedRefusalReasons(SyntheticSetCase):
         "merge-needs-human",
         "merge-refused",
         "partial",
-        "superseded",
-        "not-executed",
         "executing",
         "Executed",
         "EXECUTED",
@@ -1158,6 +1171,132 @@ class TypedRefusalReasons(SyntheticSetCase):
             "of known-bad values, which silently admits every status added to the vocabulary after "
             f"this file was written.\n" + "\n".join(wrong),
         )
+
+    def test_a_deliberately_retired_child_does_not_wedge_its_set(self):
+        """A `superseded` or `not-executed` child ENDS its participation; the Set may retire.
+
+        THE MEASURED BUG (backlog `31y86f`, 2026-09-24). The unfinished-children test compared each
+        child against the single value `SET_RETIREMENT_DONE_STATUS` (`executed`), so ONE deliberately
+        retired child refused its orchestrator FOREVER. Set `hostdedup` had four children, all four
+        terminal (`li44r9`, `xdvglg`, `04vf1h` executed; `nmlx47` superseded on 2026-09-23 because
+        `1f7xno` had overtaken its work), and `a5wdne` was still reported `dependency-blocked` naming
+        `nmlx47 (superseded)`. The remedy the runner printed, "run the missing children", was
+        UNFOLLOWABLE: a superseded plan must never run.
+
+        IT WAS THE LIFECYCLE CONTRADICTING ITSELF. `AGENTS.md` REQUIRES a plan that will never run to be
+        retired as `superseded`/`not-executed` rather than filed `executed` (which "would falsely claim
+        implementation"), so the documented lifecycle mandated a state this gate could not accept, and
+        every Set holding a correctly retired child was unretirable.
+
+        ASSERTED IN BOTH DIRECTIONS, because the fix must not become a hole: the Set RETIRES when the
+        remaining child is terminal, and it still REFUSES when that child is merely `approved`. The
+        companion sweep above proves the allowlist still rejects every NON-terminal status.
+
+        AND THE DETAIL MUST NOT LIE, which is the half a looser fix would miss: retiring a Set whose
+        child was retired must NOT report "all N children are executed". The message names each child's
+        real disposition, so a human reading it can tell a landed Set from one that closed over
+        deliberately abandoned work.
+        """
+
+        for retired_status in ("superseded", "not-executed"):
+            with self.subTest(retired=retired_status):
+                repo = _Repo()
+                self.addCleanup(repo.close)
+                _write_plan(
+                    repo.root,
+                    "executed",
+                    plan_id="aaa111",
+                    set_id="retired",
+                    order=1,
+                    status="executed",
+                )
+                _write_plan(
+                    repo.root,
+                    retired_status,
+                    plan_id="bbb222",
+                    set_id="retired",
+                    order=2,
+                    status=retired_status,
+                )
+                _write_plan(
+                    repo.root,
+                    "pending",
+                    plan_id="orc000",
+                    set_id="retired",
+                    order=0,
+                    status="approved",
+                    kind="orchestrator",
+                    body=_table(
+                        self.ORCHRETIRE_HEADER,
+                        [["01", "x", "x", "x"], ["02", "x", "x", "x"]],
+                    ),
+                )
+
+                d = rs.evaluate_set_retirement(repo.root, "retired")
+                self.assertTrue(
+                    d.eligible,
+                    f"a {retired_status!r} child WEDGED its Set: reason={d.reason!r} "
+                    f"unfinished={dict(d.unfinished)!r} detail={d.detail!r}. That child can never "
+                    "run, so requiring it to reach 'executed' makes the Set unretirable forever, "
+                    "which is the bug 31y86f records.",
+                )
+                self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
+                self.assertEqual(dict(d.unfinished), {})
+
+                # THE DETAIL MUST NOT CLAIM THE RETIRED CHILD EXECUTED.
+                self.assertIn(
+                    retired_status,
+                    d.detail,
+                    "the eligible detail must NAME the retired child's real disposition, or a human "
+                    f"cannot tell this Set closed over abandoned work: {d.detail!r}",
+                )
+                self.assertIn("bbb222", d.detail)
+                self.assertNotIn(
+                    f"all 2 child(ren) are {rs.SET_RETIREMENT_DONE_STATUS} ",
+                    d.detail,
+                    "the detail asserts every child executed, which is FALSE when one was "
+                    f"{retired_status!r}: {d.detail!r}",
+                )
+
+        # THE FIX IS NOT A HOLE: a NON-terminal child still refuses.
+        repo = _Repo()
+        self.addCleanup(repo.close)
+        _write_plan(
+            repo.root,
+            "executed",
+            plan_id="aaa111",
+            set_id="mixed",
+            order=1,
+            status="executed",
+        )
+        _write_plan(
+            repo.root,
+            "pending",
+            plan_id="bbb222",
+            set_id="mixed",
+            order=2,
+            status="approved",
+        )
+        _write_plan(
+            repo.root,
+            "pending",
+            plan_id="orc000",
+            set_id="mixed",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            body=_table(
+                self.ORCHRETIRE_HEADER, [["01", "x", "x", "x"], ["02", "x", "x", "x"]]
+            ),
+        )
+        d = rs.evaluate_set_retirement(repo.root, "mixed")
+        self.assertFalse(
+            d.eligible,
+            "an 'approved' child is NOT terminal and must still refuse retirement; admitting it "
+            f"would retire a Set over work that never ran: {d.detail!r}",
+        )
+        self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
+        self.assertEqual(dict(d.unfinished), {"bbb222": "approved"})
 
     def test_the_five_outcomes_are_all_distinct(self):
         """Kept separate: asserts the CONSTANTS are five distinct strings, before any Set exists.
