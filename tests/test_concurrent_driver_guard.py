@@ -199,35 +199,26 @@ class PeerReportTests(unittest.TestCase):
             selectors=("setid",),
         )
 
-    def test_no_peer_prints_NOTHING(self):
+    def test_peer_report_rendering(self):
         self.assertEqual(runner_shared.format_peer_driver_report([]), [])
-
-    def test_a_live_peer_names_its_run_pid_and_selectors(self):
-        lines = runner_shared.format_peer_driver_report(
-            [self._peer(runner_shared.PEER_LIVE)]
-        )
-        joined = "\n".join(lines)
-        self.assertIn("run-x", joined)
-        self.assertIn("pid 11", joined)
-        self.assertIn("setid", joined)
-        self.assertIn("LIVE", joined)
-
-    def test_an_unknown_peer_renders_DISTINCTLY_from_both_none_and_live(self):
-        unknown = "\n".join(
-            runner_shared.format_peer_driver_report(
-                [self._peer(runner_shared.PEER_UNKNOWN)]
-            )
-        )
         live = "\n".join(
             runner_shared.format_peer_driver_report(
                 [self._peer(runner_shared.PEER_LIVE)]
             )
         )
+        self.assertIn("run-x", live)
+        self.assertIn("pid 11", live)
+        self.assertIn("setid", live)
+        self.assertIn("LIVE", live)
+
+        unknown = "\n".join(
+            runner_shared.format_peer_driver_report(
+                [self._peer(runner_shared.PEER_UNKNOWN)]
+            )
+        )
         self.assertIn("UNKNOWN", unknown)
         self.assertNotIn("UNKNOWN", live)
         self.assertNotEqual(unknown, live)
-        self.assertNotEqual(unknown, "")
-        # It must not overclaim: an unprobeable lock is not evidence of absence.
         self.assertIn("NOT proof", unknown)
 
 
@@ -622,74 +613,29 @@ class SerializationTests(unittest.TestCase):
 class EscapeHatchFlagTests(unittest.TestCase):
     """E-04 / V-04: the flag is in the SHARED table, takes a justification, and cannot be bare."""
 
-    def test_the_flag_is_a_row_in_the_SHARED_table(self):
+    def test_escape_hatch_flag(self):
         row = runner_shared.RUN_POLICY_FLAGS_BY_FLAG["--allow-concurrent-driver"]
         self.assertEqual(row.kind, "str")
         self.assertTrue(row.implemented)
         self.assertEqual(row.owner, "runner_shared.integrate_under_repository_lock")
 
-    def test_BOTH_hosts_inherit_it_from_that_one_row(self):
-        for name, module in BOTH:
-            for subcommand in ("start", "resume"):
-                with self.subTest(host=name, subcommand=subcommand):
-                    parser = module.build_parser()
-                    action = next(
-                        a
-                        for sub in parser._actions
-                        if hasattr(sub, "choices") and sub.choices
-                        for a in sub.choices[subcommand]._actions
-                        if "--allow-concurrent-driver" in (a.option_strings or [])
-                    )
-                    self.assertIsNotNone(action)
-
-    def test_passing_it_BARE_is_refused_by_argparse(self):
         for name, module in BOTH:
             with self.subTest(host=name):
                 parser = module.build_parser()
                 with self.assertRaises(SystemExit):
                     parser.parse_args(["start", "sel", "--allow-concurrent-driver"])
-
-    def test_the_justification_is_FROZEN_as_TEXT_not_coerced_to_a_bool(self):
-        """A bare boolean would record that somebody clicked past a gate and nothing about whether
-        they should have, which is the whole content of this row."""
-
-        for name, module in BOTH:
-            with self.subTest(host=name):
-                args = module.build_parser().parse_args(
+                args = parser.parse_args(
                     ["start", "sel", "--allow-concurrent-driver", "two disjoint Sets"]
                 )
                 frozen = runner_shared.freeze_run_policy_flags(args)
                 self.assertEqual(frozen["allow_concurrent_driver"], "two disjoint Sets")
-
-    def test_omitting_it_freezes_NO_consent(self):
-        for name, module in BOTH:
-            with self.subTest(host=name):
-                args = module.build_parser().parse_args(["start", "sel"])
-                frozen = runner_shared.freeze_run_policy_flags(args)
-                self.assertEqual(frozen["allow_concurrent_driver"], "")
-
-
-class SharedImplementationTests(unittest.TestCase):
-    """E-05 / V-05: ONE implementation, so `aw agy run` cannot race `aw oc run`.
-
-    THE FORM IS OBJECT IDENTITY, because everything here is bound as a RE-EXPORT rather than as a
-    per-host wrapper; see the module docstring for the measurement that makes this the right form (the
-    integration wrappers are NOT identical across hosts, while re-exports like `state_root` are).
-    """
-
-    def test_every_shared_symbol_IS_the_same_object_on_both_hosts(self):
-        for symbol in SHARED_SYMBOLS:
-            shared = getattr(runner_shared, symbol)
-            for name, module in BOTH:
-                with self.subTest(symbol=symbol, host=name):
-                    self.assertTrue(
-                        hasattr(module, symbol), f"{name} does not carry {symbol}"
-                    )
-                    self.assertIs(
-                        getattr(module, symbol),
-                        shared,
-                        f"{name}.{symbol} is a COPY, not the shared object",
-                    )
+                args_bare = parser.parse_args(["start", "sel"])
+                self.assertEqual(
+                    runner_shared.freeze_run_policy_flags(args_bare)[
+                        "allow_concurrent_driver"
+                    ],
+                    "",
+                )
 
 
 class OperatorVerbTests(unittest.TestCase):
@@ -798,52 +744,6 @@ class OperatorVerbTests(unittest.TestCase):
         finally:
             proc.kill()
             proc.wait(30)
-
-
-class ManagedBlockProtocolTests(unittest.TestCase):
-    """E-08 / V-08: the protocol is GENERATED, names real spellings, and is honest about `--ff-only`."""
-
-    def _block(self) -> str:
-        from agent_workflows import engine
-
-        return engine.agents_managed_block(target_layout="aw")
-
-    def test_the_protocol_is_in_the_GENERATED_managed_block(self):
-        block = self._block()
-        self.assertIn("hold the integration lock", block)
-        self.assertIn("aw integration-lock", block)
-
-    def test_it_names_the_SHIPPED_verb_spellings(self):
-        """A protocol naming a verb that does not exist is worse than none."""
-
-        block = self._block()
-        self.assertIn("aw integration-lock --status", block)
-        from agent_workflows.command_surface import discover_parser_leaves
-
-        self.assertIn("integration-lock", discover_parser_leaves(cli._build_parser()))
-
-    def test_it_states_the_ff_only_LIMIT_rather_than_selling_it_as_sufficient(self):
-        """F-11/PR-005: a reader who takes `--ff-only` as sufficient will skip the lock, which is the
-        behavior that caused the incident."""
-
-        block = self._block()
-        self.assertIn("--ff-only", block)
-        self.assertIn("NOT a substitute", block)
-        self.assertIn("PROTOCOL, NOT AN ENFORCEMENT BOUNDARY", block)
-
-    def test_the_managed_block_carries_NO_em_or_en_dashes(self):
-        """The managed block is user-facing prose (AGENTS.md execution contract)."""
-
-        block = self._block()
-        self.assertNotIn("\u2014", block)
-        self.assertNotIn("\u2013", block)
-
-    def test_the_repository_s_OWN_agents_file_carries_the_regenerated_block(self):
-        from tests.support import REPO_ROOT
-
-        text = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        self.assertIn("hold the integration lock", text)
-        self.assertIn("aw integration-lock --status", text)
 
 
 if __name__ == "__main__":

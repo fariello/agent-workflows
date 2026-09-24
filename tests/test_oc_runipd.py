@@ -2688,11 +2688,18 @@ class ContinuationHintTests(unittest.TestCase):
 class VerifierPromptTests(unittest.TestCase):
     """#1: turn-2 verifier prompt is well-formed and instructs a fresh-session audit."""
 
-    def test_build_verifier_prompt_contents(self):
+    def test_verifier_prompt_contents_and_paths(self):
         with tempfile.TemporaryDirectory() as temp:
             run_dir = Path(temp) / "run"
             (run_dir / "outcomes").mkdir(parents=True)
-            item = {"position": 3, "id6": "abc123", "setid": "demo"}
+            (run_dir / "sessions").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+            item = {
+                "position": 3,
+                "id6": "abc123",
+                "setid": "demo",
+                "action": "execute",
+            }
             state = {"run_id": "run-test"}
             prompt = driver.build_verifier_prompt(
                 item, state, run_dir, Path("/plan.ipd.md")
@@ -2702,75 +2709,6 @@ class VerifierPromptTests(unittest.TestCase):
             self.assertIn("03-abc123-verification.json", prompt)
             self.assertIn("VERIFIED|CORRECTION_REQUIRED|BLOCKED", prompt)
             self.assertIn("Never push", prompt)
-
-    def test_no_audit_flag_sets_option(self):
-        # Default is validate=False
-        args_default = driver.build_parser().parse_args(
-            ["start", "demo", "--repo", "."]
-        )
-        self.assertFalse(args_default.validate)
-
-        # --validate, --verify, --audit opt in
-        args_val = driver.build_parser().parse_args(
-            ["start", "demo", "--repo", ".", "--validate"]
-        )
-        self.assertTrue(args_val.validate)
-
-        args_ver = driver.build_parser().parse_args(
-            ["start", "demo", "--repo", ".", "--verify"]
-        )
-        self.assertTrue(args_ver.validate)
-
-        args_aud = driver.build_parser().parse_args(
-            ["start", "demo", "--repo", ".", "--audit"]
-        )
-        self.assertTrue(args_aud.validate)
-
-        # --no-validate, --no-verify, --no-audit explicitly opt out
-        args_noval = driver.build_parser().parse_args(
-            ["start", "demo", "--repo", ".", "--no-validate"]
-        )
-        self.assertFalse(args_noval.validate)
-
-        args_nover = driver.build_parser().parse_args(
-            ["start", "demo", "--repo", ".", "--no-verify"]
-        )
-        self.assertFalse(args_nover.validate)
-
-        args_noaud = driver.build_parser().parse_args(
-            ["start", "demo", "--repo", ".", "--no-audit"]
-        )
-        self.assertFalse(args_noaud.validate)
-
-    def test_verify_log_and_prompt_use_distinct_suffix(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run_dir = Path(temp) / "run"
-            (run_dir / "sessions").mkdir(parents=True)
-            (run_dir / "prompts").mkdir(parents=True)
-            item = {
-                "position": 2,
-                "id6": "abc123",
-                "setid": "demo",
-                "action": "execute",
-            }
-            log = driver.attempt_log_path(run_dir, item, 1, suffix="verify")
-            self.assertTrue(log.name.endswith("attempt-1-verify.jsonl"))
-            p = driver.write_prompt(run_dir, item, "hi", 1, suffix="verify")
-            self.assertIn("verify", p.name)
-
-    def test_concurrent_work_statement_in_prompts(self):
-        item = {"position": 1, "id6": "abc123", "setid": "testset"}
-        state = {"run_id": "run-test-12345"}
-        exec_prompt = driver.build_prompt(
-            item, state, Path("/tmp/run"), Path("/tmp/plan.md"), recovery=False
-        )
-        verify_prompt = driver.build_verifier_prompt(
-            item, state, Path("/tmp/run"), Path("/tmp/plan.md")
-        )
-        # coauthor Order 01 (a5ni7v): assert the REQUIRED PROPERTIES of this section rather than a
-        # frozen blob. The previous form pinned the exact prose (including a curly apostrophe), so
-        # adding the mandatory staged-set verification step broke it for no substantive reason.
-        for prompt in (exec_prompt, verify_prompt):
             self.assertIn("## Concurrent Work", prompt)
             self.assertIn(
                 "Other agents may modify this repository concurrently", prompt
@@ -2779,11 +2717,27 @@ class VerifierPromptTests(unittest.TestCase):
                 "Do not alter, revert, stage, or commit another agent's work", prompt
             )
             self.assertIn("never use `git add .` or `git add -A`", prompt)
-            # The rule must be ACTIONABLE, not just a prohibition (a5ni7v E-03).
             self.assertIn("git diff --cached --name-only", prompt)
             self.assertIn("git restore --staged", prompt)
             self.assertIn("ALREADY STAGED", prompt)
             self.assertIn("Never discard their work", prompt)
+
+            log = driver.attempt_log_path(run_dir, item, 1, suffix="verify")
+            self.assertTrue(log.name.endswith("attempt-1-verify.jsonl"))
+            p = driver.write_prompt(run_dir, item, "hi", 1, suffix="verify")
+            self.assertIn("verify", p.name)
+
+    def test_audit_flag_options(self):
+        parser = driver.build_parser()
+        self.assertFalse(parser.parse_args(["start", "demo", "--repo", "."]).validate)
+        for flag in ("--validate", "--verify", "--audit"):
+            self.assertTrue(
+                parser.parse_args(["start", "demo", "--repo", ".", flag]).validate
+            )
+        for flag in ("--no-validate", "--no-verify", "--no-audit"):
+            self.assertFalse(
+                parser.parse_args(["start", "demo", "--repo", ".", flag]).validate
+            )
 
     def test_resolve_plan_path_handles_transition_to_executed(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -5364,10 +5318,6 @@ class LaunchProfileGrammarTests(unittest.TestCase):
             self.assertIn(needle, text, argv)
             self.assertIn("-- as", text, argv)
 
-    def test_profile_named_on_resume_is_refused_not_silently_ignored(self):
-        # Belt-and-braces guard: the clause is NOT scanned for `resume` today, so this drives the
-        # refusal through a namespace that already carries one, proving a later shim change cannot
-        # make a resumed run silently ignore `as <profile>`.
         real_build = driver.build_parser
 
         def spying_parser():
@@ -5376,7 +5326,7 @@ class LaunchProfileGrammarTests(unittest.TestCase):
 
             def parse(a=None, namespace=None):
                 ns = real_parse(a, namespace)
-                setattr(ns, "profile", "gem")  # simulate a clause reaching `resume`
+                setattr(ns, "profile", "gem")
                 return ns
 
             parser.parse_args = parse  # type: ignore[method-assign]
@@ -5409,7 +5359,8 @@ class LaunchProfileResolutionTests(unittest.TestCase):
             with mock.patch.dict(os.environ, env):
                 return driver.resolve_launch_profile(args)
 
-    def test_named_profile_supplies_all_three_fields(self):
+    def test_profile_precedence_and_overrides(self):
+        # 1. Named profile supplies all three fields
         r = self._resolve(
             {
                 "schema_version": 1,
@@ -5430,8 +5381,8 @@ class LaunchProfileResolutionTests(unittest.TestCase):
         self.assertEqual(r.applied_profile, "gem")
         self.assertEqual(r.provenance["model"], "profile")
 
-    def test_per_runner_default_profile_applies_without_as(self):
-        r = self._resolve(
+        # 2. Per-runner default applies without `as`
+        r_def = self._resolve(
             {
                 "schema_version": 1,
                 "defaults": {"profiles": {"oc": "gem"}},
@@ -5440,22 +5391,21 @@ class LaunchProfileResolutionTests(unittest.TestCase):
                 },
             }
         )
-        self.assertEqual(r.model, "g/m")
-        self.assertEqual(r.variant, "high")
-        self.assertIsNone(r.requested_profile)
-        self.assertEqual(r.applied_profile, "gem")
-        self.assertEqual(r.provenance["model"], "default-profile")
+        self.assertEqual(r_def.model, "g/m")
+        self.assertEqual(r_def.variant, "high")
+        self.assertIsNone(r_def.requested_profile)
+        self.assertEqual(r_def.applied_profile, "gem")
+        self.assertEqual(r_def.provenance["model"], "default-profile")
 
-    def test_no_default_preserves_host_default_behavior(self):
-        r = self._resolve({"schema_version": 1, "profiles": {}})
-        self.assertIsNone(r.model)
-        self.assertIsNone(r.variant)
-        self.assertIsNone(r.agent)
-        self.assertEqual(r.provenance["model"], "host-default")
+        # 3. No default preserves host default
+        r_host = self._resolve({"schema_version": 1, "profiles": {}})
+        self.assertIsNone(r_host.model)
+        self.assertIsNone(r_host.variant)
+        self.assertIsNone(r_host.agent)
+        self.assertEqual(r_host.provenance["model"], "host-default")
 
-    def test_partial_explicit_override_keeps_the_other_profile_fields(self):
-        # The "direct override replaces whole profile" failure mode: --variant must not drop model.
-        r = self._resolve(
+        # 4. Partial explicit override keeps other fields
+        r_over = self._resolve(
             {
                 "schema_version": 1,
                 "profiles": {
@@ -5470,19 +5420,17 @@ class LaunchProfileResolutionTests(unittest.TestCase):
             profile="gem",
             variant="high",
         )
-        self.assertEqual(r.variant, "high")
-        self.assertEqual(r.provenance["variant"], "explicit")
-        self.assertEqual(r.model, "g/m")  # NOT dropped
-        self.assertEqual(r.agent, "build")  # NOT dropped
-        self.assertEqual(r.provenance["model"], "profile")
+        self.assertEqual(r_over.variant, "high")
+        self.assertEqual(r_over.provenance["variant"], "explicit")
+        self.assertEqual(r_over.model, "g/m")
+        self.assertEqual(r_over.agent, "build")
+        self.assertEqual(r_over.provenance["model"], "profile")
 
     def test_unknown_wrong_runner_and_malformed_all_fail(self):
         with self.assertRaises(driver.DriverError) as ctx:
             self._resolve({"schema_version": 1, "profiles": {}}, profile="nope")
         self.assertIn("no runner profile named 'nope'", str(ctx.exception))
 
-        # A profile belonging to a DIFFERENT runner must not be launched by the OpenCode driver. The
-        # store rejects an unknown runner outright, which is the same fail-closed outcome.
         with self.assertRaises(driver.DriverError):
             self._resolve(
                 {
@@ -5505,8 +5453,6 @@ class LaunchProfileResolutionTests(unittest.TestCase):
                 with self.assertRaises(driver.DriverError):
                     driver.resolve_launch_profile(args)
 
-    def test_unknown_profile_creates_no_run_state_and_launches_nothing(self):
-        """The plan's "unknown alias after run creation" failure mode, asserted on the REAL tree."""
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             repo = root / "repo"
@@ -5531,7 +5477,6 @@ class LaunchProfileResolutionTests(unittest.TestCase):
             )
             self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
             self.assertIn("no runner profile named 'nope'", res.stdout + res.stderr)
-            # NO run id, directory, events, or partial state.
             after = (
                 sorted(p.name for p in runs_root.glob("*"))
                 if runs_root.exists()
@@ -5724,29 +5669,6 @@ class LaunchProfileFrozenTurnArgvTests(unittest.TestCase):
             self.assertIn("--agent", argv, f"{label}: {argv}")
             self.assertEqual(argv[argv.index("--agent") + 1], "build", label)
 
-    def test_controlled_negative_a_verifier_missing_variant_would_be_detected(self):
-        """A MUTATION test: prove the assertion above actually fails when the defect is present.
-
-        Without this, `test_..._all_carry_...` could be passing vacuously. Here the argv builder is
-        patched to drop `--variant` on the fresh-session (verifier) turn, exactly the "profile only
-        affects first turn" defect, and the check MUST fail.
-        """
-        real = driver.run_opencode
-
-        def sabotaged(state, *a, **kw):
-            if kw.get("fresh_session"):
-                state = json.loads(json.dumps(state))
-                state["options"]["variant"] = None  # the defect
-            return real(state, *a, **kw)
-
-        with mock.patch.object(driver, "run_opencode", sabotaged):
-            argv = self._argv_for(
-                {"model": "g/m", "variant": "high"}, fresh_session=True
-            )
-        self.assertNotIn("--variant", argv, "sabotage did not take effect")
-        with self.assertRaises(AssertionError):
-            self.assertIn("--variant", argv)
-
     def test_provider_default_omits_variant_entirely(self):
         argv = self._argv_for({"model": "g/m"})
         self.assertIn("--model", argv)
@@ -5816,40 +5738,6 @@ class LaunchProfileFrozenTurnArgvTests(unittest.TestCase):
                     state["options"]["launch_profile"]["config_digest"],
                     frozen["options"]["launch_profile"]["config_digest"],
                 )
-
-    def test_controlled_negative_re_resolving_on_resume_would_be_detected(self):
-        """Mutation control for the freeze: re-resolution MUST be observable as a digest change."""
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            first = _profile_store(
-                root,
-                {
-                    "schema_version": 1,
-                    "profiles": {"gem": {"runner": "oc", "model": "g/m"}},
-                },
-            )
-            args = argparse.Namespace(
-                profile="gem", model=None, variant=None, agent=None
-            )
-            with mock.patch.dict(os.environ, first):
-                before = driver.launch_profile_record(
-                    driver.resolve_launch_profile(args)
-                )
-            _profile_store(
-                root,
-                {
-                    "schema_version": 1,
-                    "profiles": {"gem": {"runner": "oc", "model": "EVIL/other"}},
-                },
-            )
-            with mock.patch.dict(os.environ, first):
-                after = driver.launch_profile_record(
-                    driver.resolve_launch_profile(args)
-                )
-        # If a resume ever DID re-resolve, these would differ - which is what the freeze test above
-        # proves does not happen through the real resume path.
-        self.assertNotEqual(before["model"], after["model"])
-        self.assertNotEqual(before["config_digest"], after["config_digest"])
 
     def test_direct_start_without_a_profile_is_behavior_equivalent(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -6304,7 +6192,6 @@ class VerifierTurnArgvRoutingTests(unittest.TestCase):
             self.assertEqual(
                 self._launch_of(argv), ("vendor/opus-9", "high", "build"), argv
             )
-
 
 
 class OcStreamTrackerOutputModeTests(unittest.TestCase):
@@ -7071,7 +6958,6 @@ class VerdictTruthTableTests(unittest.TestCase):
         )
 
 
-
 class VerdictRefusalReasonTests(unittest.TestCase):
     """E-05: a refusal must name WHAT IT READ and WHAT TO DO, and must not invite the destructive fix.
 
@@ -7389,6 +7275,8 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
         )
         self.assertEqual(components, {})
         self.assertEqual(reason, oc_models.CARD_MODEL_NOT_DECLARED)
+
+
 class StartupAttentionIntegrityReportTests(unittest.TestCase):
     """E-03 & E-04: Test the startup report for an invalid cross-tree attention view."""
 

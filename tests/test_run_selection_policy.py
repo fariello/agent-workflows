@@ -1885,22 +1885,16 @@ def test_the_counts_sum_to_the_number_matched_for_a_mixed_queue():
     assert "total: 5 matched, 1 acted on, 4 not acted on" in text
 
 
-def test_every_actionable_disposition_carries_a_remedy_and_terminal_ones_do_not():
-    """A needed-no-remedy disposition and an unknown one must render DIFFERENTLY, never alike."""
-    # Actionable -> a remedy.
+def test_disposition_remedies_and_rendering_invariants():
+    """Every disposition carries a remedy, an explicit no-remedy, or renders an explicit unknown admission."""
     for code in pol.DISPOSITION_REMEDIES:
         assert pol.remedy_for_disposition(code) == pol.DISPOSITION_REMEDIES[code]
-    # Legitimately terminal -> None, meaning "nothing to do, and that is correct".
     for code in pol.DISPOSITIONS_NEEDING_NO_REMEDY:
         assert pol.remedy_for_disposition(code) is None
-    # Unrecognized -> an explicit admission, NOT silence.
     unknown = pol.remedy_for_disposition("a_reason_nobody_wrote_a_remedy_for")
     assert unknown == pol.REMEDY_UNKNOWN_TEXT
     assert unknown != pol.remedy_for_disposition(pol.SKIP_ALREADY_EXECUTED)
 
-
-def test_every_closed_skip_reason_resolves_to_a_remedy_or_an_explicit_no_remedy():
-    """A new reason cannot be added without an author noticing its remedy is missing."""
     for code in pol.SKIP_REASONS:
         assert (
             code in pol.DISPOSITION_REMEDIES
@@ -1908,9 +1902,6 @@ def test_every_closed_skip_reason_resolves_to_a_remedy_or_an_explicit_no_remedy(
         ), f"{code} has neither a remedy nor an explicit 'needs none' marker"
         assert pol.remedy_for_disposition(code) != pol.REMEDY_UNKNOWN_TEXT
 
-
-def test_the_unknown_and_the_no_remedy_cases_render_differently():
-    """Asserted on the RENDERED block, because rendering a gap as a correct outcome is the defect."""
     known = "\n".join(pol.render_disposition_summary([_queue_entry(status="executed")]))
     assert "ipd_already_executed (1)" in known
     assert pol.REMEDY_UNKNOWN_TEXT not in known
@@ -1964,20 +1955,17 @@ def test_the_line_and_the_summary_cannot_disagree_about_one_artifact():
         assert code in summary
 
 
-def test_an_acted_on_artifact_is_a_real_bucket_so_the_counts_can_sum():
-    """`acted_on` is a KEY, not the absence of one, or the partition would not be total."""
-    queue = [_queue_entry(status="executed", attempts=[{"n": 1}])]
-    rows = pol.summarize_dispositions(queue)
+def test_acted_on_bucket_and_ordering():
+    """`acted_on` is a real partition bucket and orders after attention items."""
+    queue1 = [_queue_entry(status="executed", attempts=[{"n": 1}])]
+    rows = pol.summarize_dispositions(queue1)
     assert rows == ((pol.DISPOSITION_ACTED_ON, 1, None),)
-    text = "\n".join(pol.render_disposition_summary(queue))
+    text = "\n".join(pol.render_disposition_summary(queue1))
     assert "acted on all 1 artifact(s)" in text
 
-
-def test_the_summary_orders_attention_first_and_acted_on_last():
-    """A reader must reach the things needing action before the total of what went fine."""
-    queue = [
+    queue2 = [
         _queue_entry(position=1, id6="aaa111", status="executed", attempts=[{"n": 1}]),
         _queue_entry(position=2, id6="bbb222", needs_input=True),
     ]
-    codes = [code for code, _n, _r in pol.summarize_dispositions(queue)]
+    codes = [code for code, _n, _r in pol.summarize_dispositions(queue2)]
     assert codes == [pol.SKIP_NEEDS_HUMAN_APPROVAL, pol.DISPOSITION_ACTED_ON]

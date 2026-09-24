@@ -2045,13 +2045,7 @@ class AwBlockParserWriterTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
-    def test_writer_round_trips_and_is_byte_stable(self):
-        """Kept separate: a round-trip through the WRITER, plus a re-render byte-equality check.
-
-        The parse table's subject is text in, verdict out. This is the inverse direction and its second
-        assertion is an idempotence claim (re-rendering parsed sections reproduces the same bytes),
-        which is what makes a reinstall an empty diff.
-        """
+    def test_writer_round_trips_and_foreign_text_preservation(self):
         sections = [
             INS.AwSection(slug="pointer", lines=["line a", "line b"]),
             INS.AwSection(slug="extra", lines=["x"]),
@@ -2061,16 +2055,12 @@ class AwBlockParserWriterTests(unittest.TestCase):
         self.assertEqual([s.slug for s in parsed.sections], ["pointer", "extra"])
         self.assertEqual(parsed.sections[0].body, "line a\nline b")
         self.assertEqual(parsed.sections[1].body, "x")
-        # Re-render is byte-stable (idempotent).
         self.assertEqual(INS.render_aw_block(parsed.sections), rendered)
 
-    def test_foreign_text_preserved_around_block(self):
-        """Kept separate: builds the text from the WRITER's own output rather than a literal fixture."""
-        sections = [INS.AwSection(slug="pointer", lines=["managed"])]
-        text = "BEFORE\n\n" + INS.render_aw_block(sections) + "AFTER\n"
-        parsed = INS.parse_aw_block(text)
-        self.assertEqual(parsed.before, "BEFORE\n")
-        self.assertEqual(parsed.after, "AFTER")
+        text = "BEFORE\n\n" + rendered + "AFTER\n"
+        parsed2 = INS.parse_aw_block(text)
+        self.assertEqual(parsed2.before, "BEFORE\n")
+        self.assertEqual(parsed2.after, "AFTER")
 
 
 class AwBlockCommentStyleTests(unittest.TestCase):
@@ -2194,13 +2184,10 @@ class AwBlockCommentStyleTests(unittest.TestCase):
             f"simplification available here.\n" + "\n".join(wrong),
         )
 
-    def test_hash_style_renders_and_round_trips(self):
-        """Kept separate: the RENDER direction, and it asserts the patterns are emitted BARE.
-
-        The strip table above consumes text; this produces it, and its load-bearing claim is a layout
-        one: the markers are `#`-commented but the ignore patterns must NOT be, or git would not apply
-        them. That is not a style-matching claim.
-        """
+    def test_hash_style_renders_round_trips_and_patterns(self):
+        self.assertEqual(
+            INS.UNTRACKED_PATTERNS, ("*.untracked.*", "*.untracked", "**/*untracked*/")
+        )
         rendered = INS.render_aw_block(
             INS.untracked_safety_sections(), style=INS.AW_STYLE_HASH
         )
@@ -2209,19 +2196,11 @@ class AwBlockCommentStyleTests(unittest.TestCase):
         self.assertIn("# <!-- /aw:block -->", rendered)
         self.assertIn("DO NOT REMOVE", rendered)
         for pat in INS.UNTRACKED_PATTERNS:
-            # Patterns are emitted BARE (not #-commented) so git actually applies them.
             self.assertIn("\n" + pat + "\n", rendered)
         parsed = INS.parse_aw_block(rendered, style=INS.AW_STYLE_HASH)
         self.assertEqual([s.slug for s in parsed.sections], ["untracked"])
-        # And the Markdown style must NOT see the #-prefixed markers.
         self.assertFalse(
             INS.parse_aw_block(rendered, style=INS.AW_STYLE_MARKDOWN).found
-        )
-
-    def test_untracked_patterns_are_the_three_approved(self):
-        """Kept separate: a byte-pinned constant. The whole value is that it cannot drift silently."""
-        self.assertEqual(
-            INS.UNTRACKED_PATTERNS, ("*.untracked.*", "*.untracked", "**/*untracked*/")
         )
 
 
@@ -2665,8 +2644,7 @@ class DeepCleanupTests(unittest.TestCase):
             plan.all_recoverable, "all committed -> nothing at risk (soft warning)"
         )
 
-    def test_untracked_file_is_at_risk(self):
-        """An untracked file is UNRECOVERABLE if deleted, so the plan must say so before consent."""
+    def test_deep_cleanup_containment_and_at_risk_detection(self):
         repo = init_repo(self.base / "a")
         self._install_commit(repo)
         (repo / ".aw/records/research/scratch.md").write_text("x\n", encoding="utf-8")
@@ -2674,86 +2652,61 @@ class DeepCleanupTests(unittest.TestCase):
         self.assertIn(".aw/records/research/scratch.md", plan.at_risk)
         self.assertFalse(plan.all_recoverable)
 
-    def test_run_removes_only_planned_files_and_prunes_dirs(self):
-        repo = init_repo(self.base / "x")
-        self._install_commit(repo)
-        # A file OUTSIDE the scaffolding must be untouched.
+        # File outside scaffolding must be untouched
         (repo / "keep_me.py").write_text("code\n", encoding="utf-8")
-        plan = INS.plan_deep_cleanup(repo)
-        INS.run_deep_cleanup(repo, plan, use_git=True)
-        self.assertFalse(
-            (repo / ".aw/records/plans").exists(), "planned scaffolding removed"
-        )
-        self.assertTrue(
-            (repo / "keep_me.py").is_file(), "non-scaffolding file untouched"
-        )
-
-    def test_run_never_touches_paths_outside_plan(self):
-        """THE CONTAINMENT PROPERTY: the plan is a whitelist, not a hint."""
-        repo = init_repo(self.base / "s")
-        self._install_commit(repo)
-        plan = INS.plan_deep_cleanup(repo)
-        # Craft a plan with a single file; run must remove only it.
         one = plan.files[0]
         single = INS.DeepCleanupPlan(files=[one], counts={}, at_risk=[])
         INS.run_deep_cleanup(repo, single, use_git=True)
         self.assertFalse((repo / one).is_file())
-        # Another planned-but-not-in-single file still exists.
-        others = [f for f in plan.files if f != one and (repo / f).is_file()]
-        self.assertTrue(others, "files outside the single-file plan are untouched")
-
-    def test_deep_cleanup_detects_and_removes_stale_workflows_litter(self):
-        """E-04 & V-04: uninstall --deep reaches .agents/workflows litter, flags untracked at-risk, and removes on consent."""
-        repo = init_repo(self.base / "litter_repo")
-        self._install_commit(repo)
-
-        # Plant untracked stale litter under .agents/workflows/
-        litter_pyc = repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
-        litter_pyc.parent.mkdir(parents=True, exist_ok=True)
-        litter_pyc.write_bytes(b"\x00\x01\x02")
-
-        tools_dir = repo / ".agents" / "workflows" / "foo" / "tools"
-        tools_dir.mkdir(parents=True, exist_ok=True)
-
-        plan = INS.plan_deep_cleanup(repo)
-        self.assertIn(".agents/workflows", plan.counts)
-        self.assertIn(".agents/workflows/foo/__pycache__/x.pyc", plan.files)
-        self.assertIn(
-            ".agents/workflows/foo/__pycache__/x.pyc",
-            plan.at_risk,
-            "untracked litter must be flagged at-risk",
-        )
-        self.assertFalse(plan.all_recoverable)
-
-        # Execute deep cleanup
-        INS.run_deep_cleanup(repo, plan, use_git=True)
-        self.assertFalse(
-            litter_pyc.exists(), "deep cleanup must delete stale litter pyc"
-        )
-        self.assertFalse(tools_dir.exists(), "deep cleanup must prune empty tools dir")
-        self.assertFalse(
-            (repo / ".agents" / "workflows").exists(),
-            "deep cleanup must prune empty workflows root",
-        )
-
-    def test_uninstall_without_deep_preserves_stale_workflows_litter(self):
-        """E-04 & V-04: the PAIRED inverse of the test above; a plain uninstall must not reach litter."""
-        repo = init_repo(self.base / "std_uninst")
-        self._install_commit(repo)
-
-        litter_pyc = repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
-        litter_pyc.parent.mkdir(parents=True, exist_ok=True)
-        litter_pyc.write_bytes(b"\x00\x01\x02")
-
-        tools_dir = repo / ".agents" / "workflows" / "foo" / "tools"
-        tools_dir.mkdir(parents=True, exist_ok=True)
-
-        INS.uninstall_repo(repo, use_git=True)
         self.assertTrue(
-            litter_pyc.is_file(),
+            (repo / "keep_me.py").is_file(), "non-scaffolding file untouched"
+        )
+
+    def test_workflows_litter_deep_vs_standard_uninstall(self):
+        # 1. Plain uninstall must not touch litter
+        repo_std = init_repo(self.base / "std_uninst")
+        self._install_commit(repo_std)
+        litter_std = (
+            repo_std / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        )
+        litter_std.parent.mkdir(parents=True, exist_ok=True)
+        litter_std.write_bytes(b"\x00\x01\x02")
+        tools_std = repo_std / ".agents" / "workflows" / "foo" / "tools"
+        tools_std.mkdir(parents=True, exist_ok=True)
+
+        INS.uninstall_repo(repo_std, use_git=True)
+        self.assertTrue(
+            litter_std.is_file(),
             "normal uninstall must NOT touch .agents/workflows litter",
         )
-        self.assertTrue(tools_dir.is_dir(), "normal uninstall must NOT prune tools dir")
+        self.assertTrue(tools_std.is_dir(), "normal uninstall must NOT prune tools dir")
+
+        # 2. Deep cleanup removes litter
+        repo_deep = init_repo(self.base / "litter_repo")
+        self._install_commit(repo_deep)
+        litter_deep = (
+            repo_deep / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        )
+        litter_deep.parent.mkdir(parents=True, exist_ok=True)
+        litter_deep.write_bytes(b"\x00\x01\x02")
+        tools_deep = repo_deep / ".agents" / "workflows" / "foo" / "tools"
+        tools_deep.mkdir(parents=True, exist_ok=True)
+
+        plan = INS.plan_deep_cleanup(repo_deep)
+        self.assertIn(".agents/workflows", plan.counts)
+        self.assertIn(".agents/workflows/foo/__pycache__/x.pyc", plan.files)
+        self.assertIn(".agents/workflows/foo/__pycache__/x.pyc", plan.at_risk)
+        self.assertFalse(plan.all_recoverable)
+
+        INS.run_deep_cleanup(repo_deep, plan, use_git=True)
+        self.assertFalse(
+            litter_deep.exists(), "deep cleanup must delete stale litter pyc"
+        )
+        self.assertFalse(tools_deep.exists(), "deep cleanup must prune empty tools dir")
+        self.assertFalse(
+            (repo_deep / ".agents" / "workflows").exists(),
+            "deep cleanup must prune empty workflows root",
+        )
 
 
 class UninstallApplyTests(unittest.TestCase):
@@ -4264,8 +4217,8 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
-    def test_guard_clean_shapes_and_description(self):
-        """Clean repos proceed silently; describe_split_brain produces a one-liner without side effects."""
+    def test_guard_clean_shapes_description_and_migration(self):
+        """Clean repos proceed silently; describe_split_brain produces a one-liner; interactive migrate now works."""
         for factory in (
             "_make_clean_aw_repo",
             "_make_clean_legacy_repo",
@@ -4289,12 +4242,11 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
         self.assertIn("aw migrate-layout", desc)
         self.assertNotIn("\n", desc.strip())
 
-    def test_split_brain_guard_interactive_migrate_now(self):
-        """Interactive migrate now runs migration with defer and re-checks cleanly."""
-        repo = self._make_split_brain_repo("migrate-now")
-        args = mock.MagicMock()
-        args.yes = False
-        stub_term = mock.MagicMock()
+        # Interactive migrate now runs migration with defer and re-checks cleanly
+        repo_mig = self._make_split_brain_repo("migrate-now")
+        args_mig = mock.MagicMock()
+        args_mig.yes = False
+        stub_term_mig = mock.MagicMock()
         with mock.patch("sys.stdin.isatty", return_value=True):
             with mock.patch("agent_workflows.cli._prompt_yes_no", side_effect=[True]):
                 with mock.patch(
@@ -4302,12 +4254,12 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
                 ) as MockMgr:
 
                     def fake_migrate(**kwargs):
-                        for p in list((repo / ".agents" / "workflows").glob("*")):
+                        for p in list((repo_mig / ".agents" / "workflows").glob("*")):
                             p.unlink()
-                        (repo / ".agents" / "workflows").rmdir()
+                        (repo_mig / ".agents" / "workflows").rmdir()
 
                     MockMgr.return_value.execute_migration.side_effect = fake_migrate
-                    result = CLI._split_brain_guard(stub_term, repo, args)
+                    result = CLI._split_brain_guard(stub_term_mig, repo_mig, args_mig)
         self.assertEqual(result, "proceed")
         MockMgr.return_value.execute_migration.assert_called_once_with(
             target_backend="repository", leftover_disposition="defer"

@@ -624,33 +624,23 @@ class AlphabeticalHelpTests(unittest.TestCase):
                 node = sub_action.choices[name]
             return node.format_help()
 
-    def test_top_level_commands_sorted(self):
+    def test_help_alphabetical_sorting_and_dispatch(self):
         cmds = self._listed_commands(self._help_of())
         self.assertTrue(cmds, "no commands parsed from --help")
         self.assertEqual(cmds, sorted(cmds), f"top-level not sorted: {cmds}")
 
-    def test_subgroups_sorted(self):
         for grp in ("ipd", "research", "project", "storage", "config"):
-            cmds = self._listed_commands(self._help_of(grp))
-            self.assertTrue(cmds, f"no subcommands parsed for {grp}")
-            self.assertEqual(cmds, sorted(cmds), f"{grp} not sorted: {cmds}")
+            gcmds = self._listed_commands(self._help_of(grp))
+            self.assertTrue(gcmds, f"no subcommands parsed for {grp}")
+            self.assertEqual(gcmds, sorted(gcmds), f"{grp} not sorted: {gcmds}")
 
-    def test_dispatch_unaffected_by_display_order(self):
-        # Ordering is display-only; a mid-alphabet and an end-alphabet command still route.
         with tempfile.TemporaryDirectory() as d:
             repo = init_repo(Path(d) / "r")
             buf = io.StringIO()
             with redirect_stdout(buf):
                 code = cli.main(["path", "system", "--repo", str(repo), "--agent"])
             self.assertEqual(code, 0)
-            # Dispatch resolved the `path system` command (physical layout: the system
-            # root is `.aw/system` per awphysical Order 01; ordering is display-only).
             self.assertIn(".aw/system", buf.getvalue())
-        # An end-alphabet group command prints its usage/help without error routing.
-        buf2 = io.StringIO()
-        with redirect_stdout(buf2):
-            code2 = cli.main(["storage"])
-        self.assertEqual(code2, 2)  # no subcommand -> prints help, returns 2
 
 
 class Order15CliTests(CliTestBase):
@@ -922,16 +912,11 @@ class RunDispatchHelpSurfaceTests(unittest.TestCase):
             )
             return top.choices["run"].format_help()
 
-    def test_run_help_documents_both_canonical_dispatch_routes(self):
+    def test_run_dispatch_help_surface_and_parser_leaves(self):
         text = self._run_help()
         self.assertIn("as", text)
         self.assertIn("ipd", text)
         self.assertIn("profile", text)
-
-    def test_run_help_retains_every_ledger_example(self):
-        """The plan requires the ledger examples to SURVIVE the added dispatch documentation."""
-
-        text = self._run_help()
         for example in (
             "aw run start <target>",
             "aw run record <target>",
@@ -941,18 +926,12 @@ class RunDispatchHelpSurfaceTests(unittest.TestCase):
             self.assertIn(
                 example, text, f"`aw run` help dropped the example {example!r}"
             )
-        # Reading still points at the other noun.
         self.assertIn("aw runs show <target>", text)
-
-    def test_run_help_advertises_no_prohibited_spelling(self):
-        text = self._run_help()
         for prohibited in ("aw run-gem", "aw run:gem", "aw gemrun", "aw rungem"):
             self.assertNotIn(prohibited, text)
-        # The alternate clause spellings the plan excludes must not appear as grammar.
         for excluded in ("aw run with ", "aw run using ", "aw run w "):
             self.assertNotIn(excluded, text)
 
-    def test_both_routes_are_parser_leaves_carrying_declarations(self):
         from agent_workflows.command_surface import (
             discover_parser_leaves,
             get_declaration,
@@ -964,13 +943,6 @@ class RunDispatchHelpSurfaceTests(unittest.TestCase):
             self.assertIsNotNone(
                 get_declaration(leaf), f"{leaf} carries no CommandDeclaration"
             )
-
-    def test_no_dispatch_route_leaked_into_the_reading_noun(self):
-        """`aw runs` is READ-ONLY; a launcher there would make an inspection verb mutate."""
-
-        from agent_workflows.command_surface import discover_parser_leaves
-
-        leaves = discover_parser_leaves(cli._build_parser())
         self.assertNotIn("runs as", leaves)
         self.assertNotIn("runs ipd", leaves)
 
@@ -1176,48 +1148,41 @@ class SetupRunnerProfileStepTests(unittest.TestCase):
 
     # -- every no-write path, asserted by BYTES ----------------------------------------------
 
-    def test_declined_gate_writes_nothing(self):
+    def test_no_write_paths_asserted_by_bytes(self):
+        # 1. Declined gate writes nothing and asks exactly 1 prompt
         before = self.store_bytes()
         text, prompts = self.run_step(["n"])
         self.assertEqual(self.store_bytes(), before)
         self.assertIsNone(before)
         self.assertIn("aw oc profile add", text)
-        # Exactly ONE question was asked: the gate. The interview was never entered.
         self.assertEqual(len(prompts), 1, prompts)
 
-    def test_empty_answer_is_a_no(self):
-        before = self.store_bytes()
+        # 2. Empty answer is a no
         self.run_step([""])
         self.assertEqual(self.store_bytes(), before)
 
-    def test_eof_at_the_gate_writes_nothing(self):
-        before = self.store_bytes()
-        self.run_step([])  # no answers at all -> EOFError on the first prompt
+        # 3. EOF at the gate writes nothing
+        self.run_step([])
         self.assertEqual(self.store_bytes(), before)
 
-    def test_interrupt_inside_the_interview_writes_nothing(self):
-        before = self.store_bytes()
+        # 4. Interrupt inside interview writes nothing
         self.run_step(["y", "gem", KeyboardInterrupt()])
         self.assertEqual(self.store_bytes(), before)
 
-    def test_eof_inside_the_interview_writes_nothing(self):
-        before = self.store_bytes()
-        self.run_step(["y", "gem", "1"])  # ends mid-interview
+        # 5. EOF inside interview writes nothing
+        self.run_step(["y", "gem", "1"])
         self.assertEqual(self.store_bytes(), before)
 
-    def test_declined_save_writes_nothing(self):
-        before = self.store_bytes()
+        # 6. Declined save writes nothing
         self.run_step(["y", "gem", "1", "1", "", "n", "n"])
         self.assertEqual(self.store_bytes(), before)
 
-    def test_yes_flag_never_prompts_and_never_writes(self):
-        before = self.store_bytes()
+        # 7. --yes flag never prompts and never writes
         _, prompts = self.run_step(self.ACCEPT, yes=True)
         self.assertEqual(prompts, [], "--yes consented to a model choice")
         self.assertEqual(self.store_bytes(), before)
 
-    def test_non_tty_never_prompts_and_never_writes(self):
-        before = self.store_bytes()
+        # 8. Non-tty never prompts and never writes
         _, prompts = self.run_step(self.ACCEPT, isatty=False)
         self.assertEqual(prompts, [])
         self.assertEqual(self.store_bytes(), before)

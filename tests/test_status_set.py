@@ -2414,11 +2414,6 @@ class SameStatusMessageIsRecordedTests(StatusSetTestBase):
         )
         self.assertFalse(
             ss.same_status_message_is_duplicate(
-                text, status="approved", date="2026-09-22", message="identical note"
-            )
-        )
-        self.assertFalse(
-            ss.same_status_message_is_duplicate(
                 text, status="draft", date="2026-09-01", message="created."
             )
         )

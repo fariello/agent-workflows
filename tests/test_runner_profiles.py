@@ -1619,13 +1619,7 @@ class MutationTests(unittest.TestCase):
     or a REFUSAL over a sequence of calls, which no single row can carry.
     """
 
-    def test_add_is_pure_and_refuses_a_silent_duplicate(self):
-        """Kept separate: asserts PURITY across three configs plus the `replace` flag's effect.
-
-        The claim is that `add_profile` returns a NEW config and leaves both the input and a
-        previously derived config untouched, which is a property of the three objects together.
-        """
-
+    def test_add_profile_purity_and_validation(self):
         base = RP.empty_config()
         one = RP.add_profile(base, "gem", _profile())
         self.assertEqual(dict(base.profiles), {}, "add must not mutate its input")
@@ -1634,10 +1628,6 @@ class MutationTests(unittest.TestCase):
         replaced = RP.add_profile(one, "gem", _profile(model=_SOL_MODEL), replace=True)
         self.assertEqual(replaced.get("gem").model, _SOL_MODEL)
         self.assertEqual(one.get("gem").model, _FLASH_MODEL)
-        print("add: pure, duplicate refused, --replace honored")
-
-    def test_add_validates_through_the_schema(self):
-        """Kept separate: an assertRaises pair, one on the NAME and one on the model."""
 
         with self.assertRaises(RP.ProfileSchemaError):
             RP.add_profile(RP.empty_config(), "As", _profile())
@@ -1648,22 +1638,11 @@ class MutationTests(unittest.TestCase):
                 RP.LaunchProfile(runner="oc", model="bare-model"),
             )
 
-    def test_remove_unknown_raises(self):
-        """Kept separate: an assertRaises test."""
-
+    def test_remove_profile_behavior_and_reference_integrity(self):
         with self.assertRaises(RP.ProfileNotFoundError):
             RP.remove_profile(_three_requested(), "ghost")
 
-    def test_removing_a_referenced_default_requires_an_explicit_decision(self):
-        """Kept separate: a three-way DECISION over one call, not a value a row could carry.
-
-        Removing a profile some default references must REFUSE, and then accept either of two
-        explicit resolutions (`clear_default` or `replacement`), while refusing BOTH together. That is
-        one input with four outcomes selected by flag combinations, and the point is that the bare
-        call refuses; a row asserting any single outcome would lose the "explicit decision required"
-        rule that ties them together.
-        """
-
+        # Removing a referenced default requires an explicit decision
         cfg = RP.set_default_profile(_three_requested(), "gem")
         with self.assertRaises(RP.ProfileResolutionError) as ctx:
             RP.remove_profile(cfg, "gem")
@@ -1677,13 +1656,10 @@ class MutationTests(unittest.TestCase):
             RP.remove_profile(cfg, "gem", replacement="ghost")
         with self.assertRaises(RP.ProfileResolutionError):
             RP.remove_profile(cfg, "gem", clear_default=True, replacement="sol")
-        print("referenced default: refuse / clear / replace, each explicit")
 
-    def test_removing_an_unreferenced_profile_is_straightforward(self):
-        """Kept separate: the POSITIVE counterpart above, asserting the default is left ALONE."""
-
-        cfg = RP.set_default_profile(_three_requested(), "gem")
-        after = RP.remove_profile(cfg, "sol")
+        # Removing an unreferenced profile is straightforward
+        cfg2 = RP.set_default_profile(_three_requested(), "gem")
+        after = RP.remove_profile(cfg2, "sol")
         self.assertEqual(sorted(after.profiles), ["gem", "sonnet"])
         self.assertEqual(after.default_profile_for("oc"), "gem")
 
@@ -2732,14 +2708,8 @@ class VerifyWithDanglingReferenceTests(unittest.TestCase):
     explicit flag, and a hand-built record that bypassed `from_document` entirely.
     """
 
-    def test_a_dangling_defaults_reference_is_refused_at_load(self):
-        """Kept separate: an assertRaises asserting the message names the LEVEL (`defaults.verify_with`).
-
-        Its profile-level twin is a row in `MalformedDocumentTests`; this one stays because the
-        assertion is that the message distinguishes WHICH level dangled, so an operator with both set
-        knows which line of their file to fix.
-        """
-
+    def test_dangling_reference_refusal_at_load_resolution_and_save(self):
+        # 1. Refused at load
         with self.assertRaises(RP.ProfileSchemaError) as ctx:
             RP.from_document(
                 {
@@ -2751,22 +2721,13 @@ class VerifyWithDanglingReferenceTests(unittest.TestCase):
         self.assertIn("defaults.verify_with", str(ctx.exception))
         self.assertIn("does not exist", str(ctx.exception))
 
-    def test_an_explicit_unknown_reference_is_refused_at_resolution(self):
-        """Kept separate: the RESOLUTION route, which no load-time table row can reach."""
-
+        # 2. Refused at resolution
         cfg = RP.from_document(_routing_doc())
-        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+        with self.assertRaises(RP.ProfileSchemaError) as ctx2:
             RP.resolve(cfg, runner="oc", profile="cheap", verify_with="nope")
-        self.assertIn("does not exist", str(ctx.exception))
+        self.assertIn("does not exist", str(ctx2.exception))
 
-    def test_a_hand_built_config_cannot_smuggle_a_dangling_reference(self):
-        """Kept separate: builds a record DIRECTLY, bypassing `from_document`, then tries two routes.
-
-        This is the route a table of documents cannot express: `ProfileConfig(...)` never passes
-        through the document validator, so resolution AND save must each refuse it independently.
-        """
-
-        # `_replace` re-validates, so the mutators cannot create one either.
+        # 3. Hand-built config cannot smuggle dangling reference
         smuggled = RP.ProfileConfig(
             profiles={
                 "cheap": RP.LaunchProfile(
@@ -2774,10 +2735,8 @@ class VerifyWithDanglingReferenceTests(unittest.TestCase):
                 )
             }
         )
-        # Resolution refuses even though the record was built directly, bypassing `from_document`.
         with self.assertRaises(RP.ProfileSchemaError):
             RP.resolve(smuggled, runner="oc", profile="cheap")
-        # And it can never be SAVED, because `save` round-trips through the validator.
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(RP.ProfileSchemaError):
                 RP.save(smuggled, Path(d) / "runner-profiles.json")
@@ -3128,14 +3087,7 @@ class RoleVocabularyTests(unittest.TestCase):
     claims about the constant and about `profile_for_role`, not about a document.
     """
 
-    def test_the_role_vocabulary_is_exactly_the_maintainers_five_kinds_plus_verify(
-        self,
-    ):
-        # Pinned LITERALLY so widening it requires editing this test and saying why. The first five
-        # are the maintainer's own categories, taken verbatim rather than reinterpreted; `verify` is
-        # the sixth because the shipped `verify_with` field had to become an ENTRY in this map, and
-        # mapping it onto `check-content` would have made the existing `--verify-with` chain a second
-        # way to set a kind of work (DECISION 01-btot17-D3).
+    def test_role_vocabulary_and_unknown_refusals(self):
         self.assertEqual(
             list(RP.ROLE_NAMES),
             [
@@ -3149,12 +3101,6 @@ class RoleVocabularyTests(unittest.TestCase):
         )
         self.assertEqual(RP.ROLE_VERIFY, "verify")
         self.assertIn(RP.ROLE_VERIFY, RP.ROLE_NAMES)
-        print(f"role vocabulary (closed): {list(RP.ROLE_NAMES)}")
-
-    def test_an_unknown_role_is_refused_at_load_and_the_message_lists_the_vocabulary(
-        self,
-    ):
-        """A misspelled role must be a REFUSAL, never a silent no-op sitting in the store."""
 
         for bad in ("writecode", "write_code", "reviewer", "probe", "WRITE-CODE"):
             with self.subTest(role=bad):
@@ -3162,21 +3108,9 @@ class RoleVocabularyTests(unittest.TestCase):
                     RP.from_document(_roles_doc({bad: "strong"}))
                 message = str(ctx.exception)
                 self.assertIn(repr(bad), message)
-                # The refusal has to be actionable, so it names the legal set.
                 for known in RP.ROLE_NAMES:
                     self.assertIn(known, message)
-        print("unknown roles refused, each message listing the closed vocabulary")
 
-    def test_profile_for_role_refuses_an_unknown_role_rather_than_returning_none(self):
-        """Kept separate: the ACCESSOR's contract, and the distinction is the point.
-
-        `None` means "this role is unset", so an unknown role must NOT return `None` or a caller
-        cannot tell a typo from an unconfigured preference. That is a three-way distinction over one
-        method (a value, a None, a raise), which is why it is not a row in the document table.
-        """
-
-        # The distinction is the point: `None` means "this role is unset", so an unknown role must
-        # NOT return `None` or a caller cannot tell a typo from an unconfigured preference.
         cfg = RP.from_document(_roles_doc({"write-code": "strong"}))
         self.assertEqual(cfg.profile_for_role("write-code"), "strong")
         self.assertIsNone(cfg.profile_for_role("write-prose"))

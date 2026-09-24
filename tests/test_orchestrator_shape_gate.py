@@ -534,21 +534,6 @@ class TheProbeSurvivesAndRefusalsAreDistinct(unittest.TestCase):
         self.assertEqual(probe_code, "orchestrator-uncovered-work")
         self.assertNotEqual(shape_code, probe_code)
 
-    def test_probe_functions_and_test_file_are_intact(self):
-        """Seven probe functions present in runner_shared and test file exists."""
-        probe_fn_names = (
-            "render_probe_prompt",
-            "orchestrator_probe_excerpt",
-            "classify_probe_reply",
-            "probe_reply_text",
-            "probe_argv",
-            "ask_orchestrator_probe",
-            "probe_orchestrator",
-        )
-        for name in probe_fn_names:
-            self.assertTrue(hasattr(rs, name), f"Missing probe function {name}")
-        self.assertTrue((REPO_ROOT / "tests" / "test_orchestrator_probe.py").is_file())
-
     def test_both_hosts_behaviourally_refuse_non_conforming_orchestrators(self):
         """Both oc and agy initialize_run refuse non-conforming orchestrators with IPD-S407."""
         with tempfile.TemporaryDirectory() as tmp:

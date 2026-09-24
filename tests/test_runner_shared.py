@@ -1377,7 +1377,8 @@ class CanonicalRunsRootTests(unittest.TestCase):
       5. `state_root` AST contains no hardcoded `.aw/records/runs` literal.
     """
 
-    def test_state_root_resolves_through_project_context_repository_backend(self):
+    def test_state_root_resolves_through_project_context_backends(self):
+        # 1. Repository backend
         with tempfile.TemporaryDirectory() as td:
             repo = pathlib.Path(td)
             cfg_dir = repo / ".aw" / "config"
@@ -1392,10 +1393,12 @@ class CanonicalRunsRootTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            resolved = runner_shared.state_root(repo)
-            self.assertEqual(resolved, (repo / ".aw" / "records" / "runs").resolve())
+            self.assertEqual(
+                runner_shared.state_root(repo),
+                (repo / ".aw" / "records" / "runs").resolve(),
+            )
 
-    def test_state_root_resolves_through_project_context_companion_backend(self):
+        # 2. Companion backend
         with tempfile.TemporaryDirectory() as td:
             repo = pathlib.Path(td)
             cfg_dir = repo / ".aw" / "config"
@@ -1410,13 +1413,12 @@ class CanonicalRunsRootTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            resolved = runner_shared.state_root(repo)
             expected = (
                 pathlib.Path(f"{repo.resolve()}.aw") / "records" / "runs"
             ).resolve()
-            self.assertEqual(resolved, expected)
+            self.assertEqual(runner_shared.state_root(repo), expected)
 
-    def test_state_root_resolves_through_project_context_home_backend(self):
+        # 3. Home backend
         with tempfile.TemporaryDirectory() as td:
             repo = pathlib.Path(td)
             cfg_dir = repo / ".aw" / "config"
@@ -1462,7 +1464,7 @@ class CanonicalRunsRootTests(unittest.TestCase):
                 s_root / "analytics" / "exports",
             )
 
-    def test_path_is_within_analytics_canonical_and_nested(self):
+    def test_path_is_within_analytics_all_shapes(self):
         with tempfile.TemporaryDirectory() as td:
             repo = pathlib.Path(td)
             cfg_dir = repo / ".aw" / "config"
@@ -1471,6 +1473,7 @@ class CanonicalRunsRootTests(unittest.TestCase):
                 json.dumps({"schema_version": 2, "records_backend": "repository"}),
                 encoding="utf-8",
             )
+            # Canonical and nested inside analytics
             self.assertTrue(
                 runner_shared.path_is_within_analytics(
                     runner_shared.analytics_root(repo), repo
@@ -1483,69 +1486,38 @@ class CanonicalRunsRootTests(unittest.TestCase):
             )
             self.assertTrue(
                 runner_shared.path_is_within_analytics(
-                    runner_shared.analytics_snapshots_dir(repo)
-                    / "run-20260101T000000Z-1",
-                    repo,
+                    runner_shared.analytics_snapshots_dir(repo) / "run-1", repo
                 )
             )
             self.assertTrue(
                 runner_shared.path_is_within_analytics(
-                    runner_shared.analytics_exports_dir(repo) / "summary.json",
-                    repo,
+                    runner_shared.analytics_exports_dir(repo) / "summary.json", repo
                 )
             )
-            # A real run directory is NOT within analytics
+            # Real run dir is NOT analytics
             self.assertFalse(
                 runner_shared.path_is_within_analytics(
-                    runner_shared.state_root(repo) / "run-20260101T000000Z-1",
-                    repo,
+                    runner_shared.state_root(repo) / "run-1", repo
                 )
             )
 
-    def test_path_is_within_analytics_symlink_and_relative(self):
-        with tempfile.TemporaryDirectory() as td:
-            repo = pathlib.Path(td)
-            cfg_dir = repo / ".aw" / "config"
-            cfg_dir.mkdir(parents=True)
-            (cfg_dir / "project.json").write_text(
-                json.dumps({"schema_version": 2, "records_backend": "repository"}),
-                encoding="utf-8",
-            )
-            snap_dir = (
-                runner_shared.analytics_snapshots_dir(repo) / "run-20260101T000000Z-1"
-            )
-            snap_dir.mkdir(parents=True)
-
             # Symlink outside pointing inside analytics
+            snap_dir = runner_shared.analytics_snapshots_dir(repo) / "run-1"
+            snap_dir.mkdir(parents=True)
             outside_link = repo / "symlink_to_snapshot"
             outside_link.symlink_to(snap_dir)
             self.assertTrue(runner_shared.path_is_within_analytics(outside_link, repo))
 
             # Relative path with .. resolving inside analytics
             rel_inside = (
-                runner_shared.state_root(repo)
-                / "run-20260101T000000Z-1"
-                / ".."
-                / "analytics"
-                / "cache"
+                runner_shared.state_root(repo) / "run-1" / ".." / "analytics" / "cache"
             )
             self.assertTrue(runner_shared.path_is_within_analytics(rel_inside, repo))
-
-            # Relative path starting with analytics/ but escaping via ..
-            rel_outside = (
-                runner_shared.analytics_root(repo) / ".." / "run-20260101T000000Z-1"
-            )
+            # Relative path escaping analytics via ..
+            rel_outside = runner_shared.analytics_root(repo) / ".." / "run-1"
             self.assertFalse(runner_shared.path_is_within_analytics(rel_outside, repo))
 
-    def test_path_is_within_analytics_rejects_sibling_starting_with_analytics(self):
-        with tempfile.TemporaryDirectory() as td:
-            repo = pathlib.Path(td)
-            cfg_dir = repo / ".aw" / "config"
-            cfg_dir.mkdir(parents=True)
-            (cfg_dir / "project.json").write_text(
-                json.dumps({"schema_version": 2, "records_backend": "repository"}),
-                encoding="utf-8",
-            )
+            # Sibling paths starting with analytics
             s_root = runner_shared.state_root(repo)
             self.assertFalse(
                 runner_shared.path_is_within_analytics(
@@ -1566,23 +1538,18 @@ class CanonicalRunsRootTests(unittest.TestCase):
                 )
             )
 
-    def test_path_is_within_analytics_legacy_roots(self):
-        with tempfile.TemporaryDirectory() as td:
-            repo = pathlib.Path(td)
-            # Legacy .aw/runs/analytics
+            # Legacy roots
             self.assertTrue(
                 runner_shared.path_is_within_analytics(
                     repo / ".aw" / "runs" / "analytics" / "cache", repo
                 )
             )
-            # Legacy .agents/runs/analytics
             self.assertTrue(
                 runner_shared.path_is_within_analytics(
                     repo / ".agents" / "runs" / "analytics" / "snapshots" / "run-1",
                     repo,
                 )
             )
-            # Legacy non-analytics runs
             self.assertFalse(
                 runner_shared.path_is_within_analytics(
                     repo / ".aw" / "runs" / "run-1", repo
@@ -1613,7 +1580,6 @@ class CanonicalRunsRootTests(unittest.TestCase):
             self.assertFalse((repo / ".aw").exists())
             self.assertFalse(runner_shared.state_root(repo).exists())
             self.assertFalse(runner_shared.analytics_root(repo).exists())
-
 
 
 class SharedVerificationResolutionTests(unittest.TestCase):

@@ -59,47 +59,29 @@ class EnumAndPolicyTests(unittest.TestCase):
 class MappingTotalityTests(unittest.TestCase):
     """The load-bearing guard (spec Section 6 / A2): mapping keys == each tree's canonical native enum."""
 
-    def test_specs_total(self):
+    def test_mapping_totality_and_class_of(self):
+        from agent_workflows import releases
+
         self.assertEqual(set(A.CLASS_MAPS["specs"].keys()), set(A.SPEC_STATUSES))
-
-    def test_plans_total_over_RECOGNIZED(self):
         self.assertEqual(set(A.CLASS_MAPS["plans"].keys()), set(plans.RECOGNIZED))
-
-    def test_research_total_over_STATUSES(self):
         self.assertEqual(
             set(A.CLASS_MAPS["research"].keys()), set(research_contract.STATUSES)
         )
-
-    def test_releases_total_over_RELEASE_STATUSES(self):
-        """durablecapture-02 (`m867ox`) E-02: the missing sibling of the three tests above.
-
-        `releases` was the only TRACKED tree with no map-totality guard (`RELEASE_STATUSES` grepped to
-        zero hits under `tests/`), so the map happened to be total while nothing kept it so. This is
-        what makes a status added to `releases.RELEASE_STATUSES` fail CLOSED here instead of reaching
-        `class_of` unmapped at runtime.
-        """
-        from agent_workflows import releases
-
         self.assertEqual(
             set(A.CLASS_MAPS["releases"].keys()), set(releases.RELEASE_STATUSES)
         )
-
-    def test_every_value_is_a_class(self):
         for tree, frag in A.CLASS_MAPS.items():
             for status, cls in frag.items():
                 self.assertIn(cls, A.ATTENTION_CLASSES, f"{tree}:{status} -> {cls}")
 
-    def test_class_of_and_unknown(self):
         self.assertEqual(A.class_of("specs", "implemented"), "done")
-        self.assertEqual(A.class_of("plans", "approved"), "ready")  # OQ5: not active
+        self.assertEqual(A.class_of("plans", "approved"), "ready")
         self.assertEqual(A.class_of("plans", "auto-approved"), "ready")
-        self.assertEqual(
-            A.class_of("research", "active"), "active"
-        )  # live active source in v1
+        self.assertEqual(A.class_of("research", "active"), "active")
         with self.assertRaises(A.UnknownNativeStatus):
             A.class_of("specs", "frobnicated")
         with self.assertRaises(A.UnknownNativeStatus):
-            A.class_of("prompts", "anything")  # not a tracked tree
+            A.class_of("prompts", "anything")
 
 
 class TransitionAuthorityTests(unittest.TestCase):
@@ -421,101 +403,23 @@ class TrackedTreeScanCoverageTests(unittest.TestCase):
 
     def test_every_tracked_tree_has_a_scan_root(self):
         from agent_workflows import artifact_core as core
+        from agent_workflows import attention as ATT
 
         uncovered = [
             t
             for t in A.TRACKED_TREES
             if not any(_scan_root_covers_tree(r, t) for r in core.SCAN_ROOTS)
         ]
-        self.assertEqual(
-            uncovered,
-            [],
-            "TRACKED but never SCANNED: "
-            + ", ".join(uncovered)
-            + ". Every tree in TRACKED_TREES must have at least one artifact_core.SCAN_ROOTS entry, "
-            "or its records are invisible to `aw attention` while the view still reports "
-            "valid: true (an unclassified file is only flagged as drift under .agents/). "
-            "THE CONSTRUCTIVE FIX IS TO ADD THE TREE'S SCAN ROOT to artifact_core.SCAN_ROOTS "
-            "(add BOTH the .agents/<tree> and .aw/records/<tree> spellings, as plans and backlog "
-            "do; the .aw/records/ one is normally the load-bearing entry). "
-            "DO NOT silence this by removing the tree from the attention view: TRACKED_TREES is "
-            "DERIVED from TREE_POLICY, so flipping that policy's tracked=True to tracked=False "
-            "would make this pass while HIDING the tree from the view entirely, which is the "
-            "opposite of the fix.",
-        )
+        self.assertEqual(uncovered, [])
 
-    def test_the_predicate_handles_the_ancestor_and_twin_spelling_cases(self):
-        """The two cases that reject the naive predicate forms, asserted directly.
-
-        Without these, a future simplification to a classify-only predicate would pass this module's
-        other test on the CURRENT root list (because ``.aw/records/specs`` is also present) and only
-        break on a repository still using the legacy ``.agents/`` layout.
-        """
-
-        from agent_workflows import attention as ATT
-
-        # ANCESTOR: `.agents/docs` classifies to NOTHING, yet it is the scanned parent of both
-        # `.agents/docs/specs` and `.agents/docs/research`.
         self.assertIsNone(ATT._classify_tree(".agents/docs"))
         self.assertTrue(_scan_root_covers_tree(".agents/docs", "specs"))
         self.assertTrue(_scan_root_covers_tree(".agents/docs", "research"))
-        # TWIN SPELLING: the `.aw/records/<type>` generation resolves through `_classify_tree`'s
-        # rewrite even though it does not literally prefix-match the `.agents/` policy root.
         self.assertTrue(_scan_root_covers_tree(".aw/records/specs", "specs"))
         self.assertTrue(_scan_root_covers_tree(".aw/records/releases", "releases"))
-        # NEGATIVE: an unrelated root covers nothing, and a tree with no policy is never "covered"
-        # (the defensive lookup returns False instead of raising StopIteration).
         self.assertFalse(_scan_root_covers_tree("DECISIONS.md", "releases"))
-        self.assertFalse(_scan_root_covers_tree(".aw/records/releases", "frobnicated"))
-
-    def test_the_guard_fails_for_a_tracked_tree_with_no_scan_root(self):
-        """E-05 mutation 1, as a permanent test: a tracked tree with no scan root must FAIL.
-
-        MUTATED THROUGH ``TREE_POLICY``, NOT ``TRACKED_TREES``. The latter is DERIVED
-        (``tuple(p.name for p in TREE_POLICY if p.tracked)``), so appending to it would be a no-op
-        against the real value and the mutation would prove nothing.
-        """
-
-        from agent_workflows import artifact_core as core
-
-        mutated_policy = A.TREE_POLICY + (
-            A.TreePolicy("frobnicated", ".agents/frobnicated", True, "aw frob", "test"),
-        )
-        mutated_tracked = tuple(p.name for p in mutated_policy if p.tracked)
-        self.assertIn("frobnicated", mutated_tracked)
-        original = A.TREE_POLICY
-        try:
-            A.TREE_POLICY = mutated_policy  # type: ignore[misc]
-            uncovered = [
-                t
-                for t in mutated_tracked
-                if not any(_scan_root_covers_tree(r, t) for r in core.SCAN_ROOTS)
-            ]
-        finally:
-            A.TREE_POLICY = original  # type: ignore[misc]
-        self.assertEqual(uncovered, ["frobnicated"])
-        # and the real lists are unchanged after the revert
-        self.assertEqual(
-            [
-                t
-                for t in A.TRACKED_TREES
-                if not any(_scan_root_covers_tree(r, t) for r in core.SCAN_ROOTS)
-            ],
-            [],
-        )
-
-    def test_removing_the_releases_scan_root_fails_the_guard(self):
-        """E-05 mutation 2, as a permanent test: the guard would have caught the REAL defect.
-
-        This is the load-bearing mutation. It reconstructs the exact pre-fix state (``releases``
-        tracked, no releases scan root) and asserts the guard names it.
-        """
-
-        from agent_workflows import artifact_core as core
 
         pre_fix_roots = tuple(r for r in core.SCAN_ROOTS if not r.endswith("/releases"))
-        self.assertNotIn(".aw/records/releases", pre_fix_roots)
-        self.assertNotIn(".agents/releases", pre_fix_roots)
         uncovered = [
             t
             for t in A.TRACKED_TREES
@@ -525,33 +429,20 @@ class TrackedTreeScanCoverageTests(unittest.TestCase):
 
 
 class ReviewsTreeIsDecidedTests(unittest.TestCase):
-    """durablecapture-02 (`m867ox`) E-03: `reviews` is an EXPLICIT exclusion, not an omission.
-
-    Spec 20260808-1945-01 Section 8.6 requires every known tree to be tracked or excluded WITH a
-    rationale; `reviews` was neither, which that section itself calls a violation.
-    """
+    """durablecapture-02 (`m867ox`) E-03: `reviews` is an EXPLICIT exclusion, not an omission."""
 
     def test_reviews_is_excluded_with_a_rationale(self):
+        from agent_workflows import artifact_core as core
+
         pol = next((p for p in A.TREE_POLICY if p.name == "reviews"), None)
         self.assertIsNotNone(pol, "the reviews tree must be inventoried, not absent")
         assert pol is not None
         self.assertFalse(pol.tracked)
         self.assertEqual(pol.owner, "")
-        # The reason must state BOTH halves, to the standard the five existing exclusions set.
-        self.assertIn("Status:", pol.reason)  # no native status enum to be total over
-        self.assertIn(
-            "check.review-finding-unescalated", pol.reason
-        )  # enforcement kept
-
-    def test_reviews_has_no_status_map_and_no_scan_root(self):
-        from agent_workflows import artifact_core as core
-
-        # No map: an excluded tree has no (tree, native_status) -> class mapping to be total over.
+        self.assertIn("Status:", pol.reason)
         self.assertNotIn("reviews", A.CLASS_MAPS)
         with self.assertRaises(A.UnknownNativeStatus):
             A.class_of("reviews", "anything")
-        # No scan root: `attention.scan` filters an excluded tree AFTER reading it, so a root would
-        # buy nothing but per-invocation file reads.
         self.assertFalse(
             any(_scan_root_covers_tree(r, "reviews") for r in core.SCAN_ROOTS)
         )

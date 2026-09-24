@@ -5,7 +5,6 @@ Part of IPD svacmz (reaskscore Set Order 04).
 
 from __future__ import annotations
 
-import ast
 import contextlib
 import io
 import json
@@ -19,12 +18,7 @@ import pytest
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from agent_workflows.runner_shared import turn_attempted_nothing
-from tests.test_rununify_execute_item_gates import (
-    HOSTS,
-    _called_names,
-    _execute_item_ast,
-)
-from tests.test_rununify_run_queue import EQUAL_CONSTANTS
+
 
 DRIVERS = pytest.mark.parametrize(
     "driver", [oc_runipd, agy_runipd], ids=["oc_runipd", "agy_runipd"]
@@ -139,133 +133,6 @@ class TestSharedConstantsByteIdenticalAndUnwidened(unittest.TestCase):
         self.assertIs(
             agy_runipd.EXECUTION_SUCCESS_STATES, runner_shared.EXECUTION_SUCCESS_STATES
         )
-
-
-class TestCrossHostPinsAndOrdering(unittest.TestCase):
-    """E-02 / V-02: Run existing cross-host equality and AST ordering pins unweakened."""
-
-    def _first_line(self, calls: dict[str, list[int]], name: str, host: str) -> int:
-        self.assertIn(name, calls, f"{host}: expected a call to {name}")
-        return min(calls[name])
-
-    def test_equal_constants_cross_host_pin_passes(self) -> None:
-        """Assert that EQUAL_CONSTANTS are equal across oc_runipd and agy_runipd."""
-        for name in EQUAL_CONSTANTS:
-            with self.subTest(symbol=name):
-                self.assertEqual(
-                    set(getattr(oc_runipd, name)),
-                    set(getattr(agy_runipd, name)),
-                    f"{name} must be equal on both hosts",
-                )
-
-    def test_submissions_are_collected_before_the_disposition_is_reconciled(
-        self,
-    ) -> None:
-        """Assert AST ordering: collect_lane_submissions precedes disposition assignment."""
-        for host, module in HOSTS:
-            func = _execute_item_ast(module)
-            collect = [
-                sub.lineno
-                for sub in ast.walk(func)
-                if isinstance(sub, ast.Call)
-                and (
-                    (
-                        isinstance(sub.func, ast.Attribute)
-                        and sub.func.attr == "collect_lane_submissions"
-                    )
-                    or (
-                        isinstance(sub.func, ast.Name)
-                        and sub.func.id == "collect_lane_submissions"
-                    )
-                )
-            ]
-            self.assertTrue(
-                collect, f"{host}.execute_item never collects lane submissions"
-            )
-            disposition_assign = [
-                sub.lineno
-                for sub in ast.walk(func)
-                if isinstance(sub, ast.Assign)
-                and isinstance(sub.targets[0], ast.Tuple)
-                and any(
-                    isinstance(elt, ast.Name) and elt.id == "disposition"
-                    for elt in sub.targets[0].elts
-                )
-            ]
-            self.assertTrue(
-                disposition_assign,
-                f"{host}: could not locate disposition assignments",
-            )
-            self.assertLess(
-                min(collect),
-                max(disposition_assign),
-                f"{host}: submissions must be collected before disposition is computed",
-            )
-
-    def test_the_disposition_is_reconciled_before_integration(self) -> None:
-        """Assert AST ordering: disposition assignment precedes integrate_lane_branch."""
-        for host, module in HOSTS:
-            func = _execute_item_ast(module)
-            calls = _called_names(func)
-            disposition_assign = [
-                sub.lineno
-                for sub in ast.walk(func)
-                if isinstance(sub, ast.Assign)
-                and isinstance(sub.targets[0], ast.Tuple)
-                and any(
-                    isinstance(elt, ast.Name) and elt.id == "disposition"
-                    for elt in sub.targets[0].elts
-                )
-            ]
-            self.assertTrue(
-                disposition_assign,
-                f"{host}: could not locate disposition assignments",
-            )
-            self.assertLess(
-                max(disposition_assign),
-                self._first_line(calls, "integrate_lane_branch", host),
-                f"{host}: disposition must be computed before the lane is integrated",
-            )
-
-    def test_the_post_reask_rescore_precedes_the_integration_gate(self) -> None:
-        """Assert AST ordering: rescore precedes integration_is_earned and follows collection read."""
-        for host, module in HOSTS:
-            func = _execute_item_ast(module)
-            calls = _called_names(func)
-            receipt_read = self._first_line(calls, "read_collection_receipt", host)
-            rescore_predicate = self._first_line(
-                calls, "rescore_is_an_improvement", host
-            )
-            disposition_assign = [
-                sub.lineno
-                for sub in ast.walk(func)
-                if isinstance(sub, ast.Assign)
-                and isinstance(sub.targets[0], ast.Tuple)
-                and any(
-                    isinstance(elt, ast.Name) and elt.id == "disposition"
-                    for elt in sub.targets[0].elts
-                )
-            ]
-            self.assertEqual(
-                2,
-                len(disposition_assign),
-                f"{host}: expected exactly TWO disposition tuple assignments",
-            )
-            self.assertLess(
-                receipt_read,
-                rescore_predicate,
-                f"{host}: receipt must be read before rescore is judged",
-            )
-            self.assertLess(
-                max(disposition_assign),
-                self._first_line(calls, "integration_is_earned", host),
-                f"{host}: rescore must be adopted before integration_is_earned reads disposition",
-            )
-            self.assertLess(
-                self._first_line(calls, "validate_defect_report", host),
-                rescore_predicate,
-                f"{host}: rescore must follow the defect re-ask",
-            )
 
 
 class TestReconstructShapeAComposed:

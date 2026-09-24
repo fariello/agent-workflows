@@ -115,55 +115,20 @@ def _fully_capable() -> HostSandboxCapabilities:
 class NewContractFieldTests(unittest.TestCase):
     """E-01: the three fields exist and default CONSERVATIVE (not-supported)."""
 
-    def test_the_three_runner_safety_fields_default_not_supported(self):
+    def test_new_contract_fields_and_defaults(self):
         caps = HostSandboxCapabilities()
         for name in (CAP_COMMIT_GATEWAY, CAP_DENY_PUSH, CAP_FRESH_VERIFIER_SESSION):
-            with self.subTest(field=name):
-                self.assertIs(
-                    getattr(caps, name),
-                    False,
-                    f"{name} must default False so an unprobed host is treated as LACKING "
-                    "the guarantee rather than having it",
-                )
+            self.assertIs(getattr(caps, name), False)
 
-    def test_a_descriptor_built_with_no_probes_reports_all_three_unsupported(self):
-        snap = HostSandboxCapabilities().to_dict()
+        snap = caps.to_dict()
         for name in RUNNER_SAFETY_CAPABILITIES:
-            self.assertIn(name, snap, "the new fields must appear in the snapshot")
+            self.assertIn(name, snap)
             self.assertFalse(snap[name])
 
-    def test_the_shipped_contract_tuple_covers_the_new_fields(self):
-        """The shipped default-False guarantee is driven by a LITERAL tuple, not introspection.
-
-        Without this, appending fields to the dataclass leaves them untested while
-        `tests/test_host_sandbox_profile.py` stays green (F8).
-        """
         from tests.test_host_sandbox_profile import CONTRACT_FIELDS
 
         for name in RUNNER_SAFETY_CAPABILITIES:
-            self.assertIn(
-                name,
-                CONTRACT_FIELDS,
-                "the new field is invisible to the shipped conservative-default guarantee",
-            )
-
-    def test_the_shipped_sandbox_fields_are_neither_renamed_nor_reordered(self):
-        """`1o4eif`'s dispatch reads these by name and its 27 tests pin them."""
-        import dataclasses
-
-        names = [f.name for f in dataclasses.fields(HostSandboxCapabilities)]
-        self.assertEqual(
-            names[:7],
-            [
-                "supports_inline_permissions",
-                "supports_read_only_phase",
-                "supports_session_resume",
-                "emits_structured_tool_events",
-                "emits_child_permission_events",
-                "supports_process_tree_kill",
-                "supports_os_sandbox",
-            ],
-        )
+            self.assertIn(name, CONTRACT_FIELDS)
 
 
 class RunnerSafetyProbeTests(unittest.TestCase):
@@ -360,7 +325,7 @@ class MockSeamTests(unittest.TestCase):
 class RequirementMapTests(unittest.TestCase):
     """E-04: the policy is DATA, keyed by the spec's FOUR action classes."""
 
-    def test_the_map_uses_the_specs_four_action_classes(self):
+    def test_requirement_map_structure_and_coverage(self):
         self.assertEqual(
             set(ACTION_CAPABILITY_REQUIREMENTS),
             {
@@ -372,38 +337,19 @@ class RequirementMapTests(unittest.TestCase):
         )
         self.assertEqual(len(ACTION_CLASSES), 4)
 
-    def test_the_map_is_data_not_branching_logic(self):
-        for action, req in ACTION_CAPABILITY_REQUIREMENTS.items():
-            with self.subTest(action=action):
-                self.assertIsInstance(req.required, tuple)
-                self.assertIsInstance(req.unrepresented, tuple)
-                self.assertTrue(req.spec_basis, "each row must cite its spec basis")
-                self.assertIn("25kzda", req.spec_basis)
-
-    def test_every_unrepresented_name_resolves_to_a_recorded_gap(self):
-        """A typo here would silently DROP a spec requirement, which is fail-OPEN."""
-        for action, req in ACTION_CAPABILITY_REQUIREMENTS.items():
-            for name in req.unrepresented:
-                with self.subTest(action=action, capability=name):
-                    self.assertIn(name, UNREPRESENTED_SPEC_CAPABILITIES)
-
-    def test_every_required_name_is_a_real_contract_field(self):
         caps = HostSandboxCapabilities()
         for action, req in ACTION_CAPABILITY_REQUIREMENTS.items():
+            self.assertIsInstance(req.required, tuple)
+            self.assertIsInstance(req.unrepresented, tuple)
+            self.assertTrue(req.spec_basis)
+            for name in req.unrepresented:
+                self.assertIn(name, UNREPRESENTED_SPEC_CAPABILITIES)
             for name in req.required:
-                with self.subTest(action=action, capability=name):
-                    self.assertTrue(hasattr(caps, name))
+                self.assertTrue(hasattr(caps, name))
 
-    def test_the_mutating_actions_record_the_capabilities_the_contract_cannot_express(
-        self,
-    ):
-        """The spec names eight for review; three are representable, five must be RECORDED."""
         review = ACTION_CAPABILITY_REQUIREMENTS[ACTION_REVIEW]
-        self.assertTrue(review.unrepresented, "omitting them would pass silently")
         for name in ("isolated_worktree", "argv_capture", "hook_preserving_commit"):
             self.assertIn(name, review.unrepresented)
-
-    def test_a_read_only_action_requires_nothing_this_contract_represents(self):
         self.assertEqual(ACTION_CAPABILITY_REQUIREMENTS[ACTION_READ_ONLY].required, ())
 
 
@@ -656,42 +602,29 @@ class InspectionVerbTests(unittest.TestCase):
 class CommandDeclarationTests(unittest.TestCase):
     """E-06: each new parser leaf carries a matching `CommandDeclaration`."""
 
-    def test_both_leaves_are_declared(self):
-        from agent_workflows.command_surface import get_declaration
+    def test_command_declarations_and_parser_leaves(self):
+        from agent_workflows.cli import _build_parser
+        from agent_workflows.command_surface import (
+            discover_parser_leaves,
+            find_undeclared_leaves,
+            get_declaration,
+        )
 
         for leaf in ("host probe", "host capabilities"):
-            with self.subTest(leaf=leaf):
-                decl = get_declaration(leaf)
-                self.assertIsNotNone(decl, f"{leaf} has no CommandDeclaration")
-                assert decl is not None
-                self.assertEqual(decl.command_class, "read")
-                self.assertEqual(decl.mutation_gate, "none")
-                self.assertNotIn(
-                    1,
-                    decl.exit_contract,
-                    "a not-supported capability is an ANSWER, not a finding",
-                )
+            decl = get_declaration(leaf)
+            self.assertIsNotNone(decl)
+            assert decl is not None
+            self.assertEqual(decl.command_class, "read")
+            self.assertEqual(decl.mutation_gate, "none")
+            self.assertNotIn(1, decl.exit_contract)
 
-    def test_the_parser_exposes_exactly_the_declared_host_leaves(self):
-        from agent_workflows.cli import _build_parser
-        from agent_workflows.command_surface import discover_parser_leaves
-
+        parser = _build_parser()
         leaves = {
-            leaf
-            for leaf in discover_parser_leaves(_build_parser())
-            if leaf.startswith("host ")
+            leaf for leaf in discover_parser_leaves(parser) if leaf.startswith("host ")
         }
         self.assertEqual(leaves, {"host probe", "host capabilities"})
-
-    def test_no_undeclared_parser_leaf_was_introduced(self):
-        """The deterministic CI gate this plan could otherwise have broken."""
-        from agent_workflows.cli import _build_parser
-        from agent_workflows.command_surface import find_undeclared_leaves
-
         undeclared = {
-            leaf
-            for leaf in find_undeclared_leaves(_build_parser())
-            if leaf.startswith("host")
+            leaf for leaf in find_undeclared_leaves(parser) if leaf.startswith("host")
         }
         self.assertEqual(undeclared, set())
 

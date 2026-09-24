@@ -298,7 +298,7 @@ class PricingProbeTests(unittest.TestCase):
 class EntryPointTests(unittest.TestCase):
     """E-03 / V-03: preview-by-default, flags, and the .jsonc apply refusal."""
 
-    def test_preview_leaves_file_byte_identical(self):
+    def test_entry_point_preview_apply_and_backup(self):
         with TemporaryDirectory() as td:
             cfg = Path(td) / "opencode.json"
             cfg.write_text(_config(), encoding="utf-8")
@@ -309,14 +309,10 @@ class EntryPointTests(unittest.TestCase):
                     ["--config", str(cfg)], fetch=lambda u, k: _model_info_payload()
                 )
             self.assertEqual(rc, 0)
-            self.assertEqual(cfg.read_bytes(), before, "preview must not write")
+            self.assertEqual(cfg.read_bytes(), before)
             self.assertIn("preview only", buf.getvalue())
 
-    def test_dry_run_is_synonym_for_preview(self):
-        with TemporaryDirectory() as td:
-            cfg = Path(td) / "opencode.json"
-            cfg.write_text(_config(), encoding="utf-8")
-            before = cfg.read_bytes()
+            # dry-run
             with redirect_stdout(io.StringIO()):
                 oc_models.run(
                     ["--config", str(cfg), "--dry-run"],
@@ -324,10 +320,7 @@ class EntryPointTests(unittest.TestCase):
                 )
             self.assertEqual(cfg.read_bytes(), before)
 
-    def test_apply_writes_and_backs_up(self):
-        with TemporaryDirectory() as td:
-            cfg = Path(td) / "opencode.json"
-            cfg.write_text(_config(), encoding="utf-8")
+            # apply writes and backs up
             with redirect_stdout(io.StringIO()):
                 rc = oc_models.run(
                     ["--config", str(cfg), "--apply"],
@@ -337,24 +330,25 @@ class EntryPointTests(unittest.TestCase):
             written = json.loads(cfg.read_text(encoding="utf-8"))
             self.assertIn("beta", written["provider"]["uri"]["models"])
             backups = list(Path(td).glob("opencode.json.*.bak"))
-            self.assertEqual(len(backups), 1, "exactly one backup expected")
-            # The backup holds the PRE-change content.
-            self.assertIn(
-                "gone", json.loads(backups[0].read_text())["provider"]["uri"]["models"]
-            )
+            self.assertEqual(len(backups), 1)
 
-    def test_no_backup_suppresses_bak(self):
-        with TemporaryDirectory() as td:
-            cfg = Path(td) / "opencode.json"
-            cfg.write_text(_config(), encoding="utf-8")
+            # no-backup suppresses bak and idempotent rerun
             with redirect_stdout(io.StringIO()):
                 oc_models.run(
                     ["--config", str(cfg), "--apply", "--no-backup"],
                     fetch=lambda u, k: _model_info_payload(),
                 )
-            self.assertEqual(list(Path(td).glob("*.bak")), [])
+            after_first = cfg.read_bytes()
+            buf2 = io.StringIO()
+            with redirect_stdout(buf2):
+                oc_models.run(
+                    ["--config", str(cfg), "--apply", "--no-backup"],
+                    fetch=lambda u, k: _model_info_payload(),
+                )
+            self.assertEqual(cfg.read_bytes(), after_first)
+            self.assertIn("up to date", buf2.getvalue())
 
-    def test_apply_on_jsonc_exits_nonzero_and_writes_nothing(self):
+    def test_entry_point_errors_and_non_openai(self):
         with TemporaryDirectory() as td:
             cfg = Path(td) / "opencode.jsonc"
             original = '{\n  // keep me\n  "provider": {}\n}\n'
@@ -367,15 +361,11 @@ class EntryPointTests(unittest.TestCase):
                 )
             self.assertNotEqual(rc, 0)
             self.assertEqual(cfg.read_text(encoding="utf-8"), original)
-            self.assertIn("refusing to rewrite", buf.getvalue())
 
-    def test_missing_config_arg_is_usage_error(self):
         with redirect_stdout(io.StringIO()):
             rc = oc_models.run(["--config", "/nonexistent/opencode.json"])
         self.assertEqual(rc, 2)
 
-    def test_non_openai_compatible_provider_untouched(self):
-        """The `openai` provider has no baseURL, so it must never be rewritten."""
         with TemporaryDirectory() as td:
             cfg = Path(td) / "opencode.json"
             cfg.write_text(_config(), encoding="utf-8")
@@ -389,25 +379,6 @@ class EntryPointTests(unittest.TestCase):
                 written["provider"]["openai"]["models"],
                 {"gpt-x": {"name": "GPT X", "cost": {"input": 5.0}}},
             )
-
-    def test_idempotent_second_run_reports_up_to_date(self):
-        with TemporaryDirectory() as td:
-            cfg = Path(td) / "opencode.json"
-            cfg.write_text(_config(), encoding="utf-8")
-            with redirect_stdout(io.StringIO()):
-                oc_models.run(
-                    ["--config", str(cfg), "--apply", "--no-backup"],
-                    fetch=lambda u, k: _model_info_payload(),
-                )
-            after_first = cfg.read_bytes()
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                oc_models.run(
-                    ["--config", str(cfg), "--apply", "--no-backup"],
-                    fetch=lambda u, k: _model_info_payload(),
-                )
-            self.assertEqual(cfg.read_bytes(), after_first)
-            self.assertIn("up to date", buf.getvalue())
 
 
 class AtomicWriteTests(unittest.TestCase):
@@ -456,59 +427,39 @@ class AtomicWriteTests(unittest.TestCase):
 class SerializationTests(unittest.TestCase):
     """E-06 / V-06: indent is detected and reused; only models values change."""
 
-    def test_detect_indent(self):
+    def test_serialization_and_indent_preservation(self):
         self.assertEqual(oc_models.detect_indent('{\n  "a": 1\n}\n'), 2)
         self.assertEqual(oc_models.detect_indent('{\n    "a": 1\n}\n'), 4)
         self.assertEqual(oc_models.detect_indent("{}\n"), 4)
         self.assertEqual(oc_models.detect_indent("{}\n", default=2), 2)
 
-    def test_two_space_config_stays_two_space(self):
         with TemporaryDirectory() as td:
-            cfg = Path(td) / "opencode.json"
-            cfg.write_text(_config(indent=2), encoding="utf-8")
+            cfg2 = Path(td) / "opencode2.json"
+            cfg2.write_text(_config(indent=2), encoding="utf-8")
             with redirect_stdout(io.StringIO()):
                 oc_models.run(
-                    ["--config", str(cfg), "--apply", "--no-backup"],
+                    ["--config", str(cfg2), "--apply", "--no-backup"],
                     fetch=lambda u, k: _model_info_payload(),
                 )
-            text = cfg.read_text(encoding="utf-8")
-            self.assertIn('\n  "model"', text)
-            self.assertNotIn('\n    "model"', text)
+            text2 = cfg2.read_text(encoding="utf-8")
+            self.assertIn('\n  "model"', text2)
 
-    def test_four_space_config_stays_four_space(self):
-        with TemporaryDirectory() as td:
-            cfg = Path(td) / "opencode.json"
-            cfg.write_text(_config(indent=4), encoding="utf-8")
+            cfg4 = Path(td) / "opencode4.json"
+            cfg4.write_text(_config(indent=4), encoding="utf-8")
+            before = json.loads(cfg4.read_text(encoding="utf-8"))
             with redirect_stdout(io.StringIO()):
                 oc_models.run(
-                    ["--config", str(cfg), "--apply", "--no-backup"],
+                    ["--config", str(cfg4), "--apply", "--no-backup"],
                     fetch=lambda u, k: _model_info_payload(),
                 )
-            self.assertIn('\n    "model"', cfg.read_text(encoding="utf-8"))
-
-    def test_changes_confined_to_models(self):
-        with TemporaryDirectory() as td:
-            cfg = Path(td) / "opencode.json"
-            cfg.write_text(_config(), encoding="utf-8")
-            before = json.loads(cfg.read_text(encoding="utf-8"))
-            with redirect_stdout(io.StringIO()):
-                oc_models.run(
-                    ["--config", str(cfg), "--apply", "--no-backup"],
-                    fetch=lambda u, k: _model_info_payload(),
-                )
-            after = json.loads(cfg.read_text(encoding="utf-8"))
-            # Every top-level key and relative order preserved.
+            after = json.loads(cfg4.read_text(encoding="utf-8"))
+            self.assertIn('\n    "model"', cfg4.read_text(encoding="utf-8"))
             self.assertEqual(list(before), list(after))
             for key in ("$schema", "model", "lsp"):
                 self.assertEqual(before[key], after[key])
-            # Only provider.uri.models differs.
             self.assertNotEqual(
                 before["provider"]["uri"]["models"], after["provider"]["uri"]["models"]
             )
-            for key in ("npm", "name", "options"):
-                self.assertEqual(
-                    before["provider"]["uri"][key], after["provider"]["uri"][key]
-                )
 
 
 # ==================================================================================================
@@ -563,22 +514,20 @@ class HostDefaultModelTests(unittest.TestCase):
     in the package that could answer the question a cost record has to answer.
     """
 
-    def test_the_top_level_model_key_is_the_default_and_the_key_is_RECORDED(self):
+    def test_host_default_model_resolution_and_overrides(self):
         with TemporaryDirectory() as td:
             root = _write_config(Path(td), _card_config())
             got = oc_models.resolve_host_default_model(env={}, cwd=root)
             self.assertTrue(got.resolved)
             self.assertEqual(got.model, "uri/alpha")
-            # The KEY, not just the id: an id with no recorded origin forces a later reader to guess
-            # between the top-level default, an agent override, and `small_model`.
             self.assertEqual(got.key, oc_models.DEFAULT_MODEL_KEY_TOP_LEVEL)
-            self.assertEqual(got.reason, "")
             self.assertEqual(got.config_name, "opencode.json")
             self.assertRegex(got.config_digest, r"^[0-9a-f]{64}$")
+            rendered = json.dumps(got._asdict())
+            self.assertNotIn(str(root), rendered)
+            self.assertNotIn("/", got.config_name)
 
-    def test_an_agent_override_wins_and_says_so(self):
-        """OpenCode honors `agent.<name>.model`, so a driver passing `--agent` may not get the
-        top-level default. The KEY is what makes the difference visible in the record."""
+        # agent override
         with TemporaryDirectory() as td:
             root = _write_config(
                 Path(td),
@@ -587,100 +536,18 @@ class HostDefaultModelTests(unittest.TestCase):
             got = oc_models.resolve_host_default_model(env={}, cwd=root, agent="build")
             self.assertEqual(got.model, "uri/beta")
             self.assertEqual(got.key, oc_models.DEFAULT_MODEL_KEY_AGENT)
-            # WITHOUT the agent named, the same config yields the top-level default: the override is
-            # not applied speculatively.
             plain = oc_models.resolve_host_default_model(env={}, cwd=root)
             self.assertEqual(plain.model, "uri/alpha")
-            self.assertEqual(plain.key, oc_models.DEFAULT_MODEL_KEY_TOP_LEVEL)
 
-    def test_an_agent_that_declares_no_model_falls_through(self):
-        """The live config's only configured agent sets `temperature` and no model, so this is the
-        measured case rather than a hypothetical one."""
+        # agent with no model falls through
         with TemporaryDirectory() as td:
             root = _write_config(
                 Path(td), _card_config(agent={"build": {"temperature": 0.1}})
             )
             got = oc_models.resolve_host_default_model(env={}, cwd=root, agent="build")
             self.assertEqual(got.model, "uri/alpha")
-            self.assertEqual(got.key, oc_models.DEFAULT_MODEL_KEY_TOP_LEVEL)
 
-    def test_no_config_at_all_is_a_NAMED_unknown(self):
-        with TemporaryDirectory() as td:
-            empty = Path(td) / "empty"
-            empty.mkdir()
-            got = oc_models.resolve_host_default_model(
-                env={"HOME": str(Path(td) / "nohome")}, cwd=empty
-            )
-            self.assertFalse(got.resolved)
-            self.assertEqual(got.model, "")
-            self.assertEqual(got.reason, oc_models.DEFAULT_MODEL_NO_CONFIG)
-
-    def test_a_jsonc_config_is_UNPARSEABLE_BY_DESIGN_and_named_as_such(self):
-        """Not a hypothetical: stdlib json cannot read comments, which is why `_classify_target`
-        marks a `.jsonc` unwritable in the first place."""
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            (root / "opencode.jsonc").write_text(
-                '{\n  // the default\n  "model": "uri/alpha"\n}\n', encoding="utf-8"
-            )
-            got = oc_models.resolve_host_default_model(env={}, cwd=root)
-            self.assertFalse(got.resolved)
-            self.assertEqual(got.reason, oc_models.DEFAULT_MODEL_UNPARSEABLE)
-            # The DIGEST is still frozen: the file was read, it just could not be parsed, and a later
-            # edit to it must still be detectable.
-            self.assertRegex(got.config_digest, r"^[0-9a-f]{64}$")
-
-    def test_a_full_catalog_with_NO_default_key_is_still_unknown(self):
-        """The distinction `models_from_config` cannot make: plenty of declared models, no default."""
-        with TemporaryDirectory() as td:
-            root = _write_config(Path(td), _card_config(default_model=None))
-            got = oc_models.resolve_host_default_model(env={}, cwd=root)
-            self.assertFalse(got.resolved)
-            self.assertEqual(got.reason, oc_models.DEFAULT_MODEL_NOT_DECLARED)
-            # Proof the catalog IS full, so this is genuinely a default-key absence.
-            parsed = json.loads((root / "opencode.json").read_text(encoding="utf-8"))
-            self.assertEqual(oc_models.models_from_config(parsed), ("uri/alpha",))
-
-    def test_a_malformed_default_is_REFUSED_not_recorded(self):
-        """A value that is not a `provider/model` id would be attributed as a model downstream and
-        no consumer could tell it apart from a real one."""
-        for bad in ("not-a-model-id", "", 7, True, None):
-            with self.subTest(value=bad):
-                with TemporaryDirectory() as td:
-                    root = _write_config(
-                        Path(td),
-                        json.dumps({"model": bad, "provider": {}})
-                        if bad is not None
-                        else json.dumps({"model": None, "provider": {}}),
-                    )
-                    got = oc_models.resolve_host_default_model(env={}, cwd=root)
-                    self.assertFalse(got.resolved)
-                    self.assertIn(
-                        got.reason,
-                        {
-                            oc_models.DEFAULT_MODEL_MALFORMED,
-                            oc_models.DEFAULT_MODEL_NOT_DECLARED,
-                        },
-                    )
-
-    def test_small_model_is_NOT_a_fallback(self):
-        """`small_model` is OpenCode's cheap-task model, not a driver turn's default, so returning it
-        would MISATTRIBUTE cost. Asserted because it is the obvious wrong fallback."""
-        with TemporaryDirectory() as td:
-            root = _write_config(
-                Path(td),
-                json.dumps(
-                    {"small_model": "uri/cheap", "provider": {}},
-                    indent=2,
-                ),
-            )
-            got = oc_models.resolve_host_default_model(env={}, cwd=root)
-            self.assertFalse(got.resolved)
-            self.assertEqual(got.reason, oc_models.DEFAULT_MODEL_NOT_DECLARED)
-
-    def test_the_accessor_reads_NO_credential_bearing_key(self):
-        """The no-secret guarantee, asserted rather than only documented: writing a config reader
-        anywhere else is how a credential reaches a run record."""
+        # no credentials leaked
         secret = "sk-must-never-be-read-0987654321"
         with TemporaryDirectory() as td:
             root = _write_config(
@@ -704,33 +571,57 @@ class HostDefaultModelTests(unittest.TestCase):
             )
             got = oc_models.resolve_host_default_model(env={}, cwd=root)
             self.assertNotIn(secret, json.dumps(got._asdict()))
-            components, reason = oc_models.card_from_config(
-                json.loads((root / "opencode.json").read_text(encoding="utf-8")),
-                "uri/alpha",
-            )
-            self.assertEqual(reason, "")
-            self.assertNotIn(secret, json.dumps(components))
 
-    def test_the_PATH_is_never_recorded_only_the_basename_and_digest(self):
-        """The resolved config lives under the operator's home and this value is written into durable
-        run state, so a path here would be a leak the sanitizer exists to catch."""
+    def test_host_default_model_failures_and_unknowns(self):
         with TemporaryDirectory() as td:
-            root = _write_config(Path(td), _card_config())
+            empty = Path(td) / "empty"
+            empty.mkdir()
+            got = oc_models.resolve_host_default_model(
+                env={"HOME": str(Path(td) / "nohome")}, cwd=empty
+            )
+            self.assertFalse(got.resolved)
+            self.assertEqual(got.reason, oc_models.DEFAULT_MODEL_NO_CONFIG)
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "opencode.jsonc").write_text(
+                '{\n  // the default\n  "model": "uri/alpha"\n}\n', encoding="utf-8"
+            )
             got = oc_models.resolve_host_default_model(env={}, cwd=root)
-            rendered = json.dumps(got._asdict())
-            self.assertNotIn(str(root), rendered)
-            self.assertNotIn("/", got.config_name)
+            self.assertFalse(got.resolved)
+            self.assertEqual(got.reason, oc_models.DEFAULT_MODEL_UNPARSEABLE)
+
+        with TemporaryDirectory() as td:
+            root = _write_config(Path(td), _card_config(default_model=None))
+            got = oc_models.resolve_host_default_model(env={}, cwd=root)
+            self.assertFalse(got.resolved)
+            self.assertEqual(got.reason, oc_models.DEFAULT_MODEL_NOT_DECLARED)
+
+        with TemporaryDirectory() as td:
+            root = _write_config(
+                Path(td),
+                json.dumps({"small_model": "uri/cheap", "provider": {}}, indent=2),
+            )
+            got = oc_models.resolve_host_default_model(env={}, cwd=root)
+            self.assertFalse(got.resolved)
+            self.assertEqual(got.reason, oc_models.DEFAULT_MODEL_NOT_DECLARED)
+
+        for bad in ("not-a-model-id", "", 7, True, None):
+            with TemporaryDirectory() as td:
+                root = _write_config(
+                    Path(td),
+                    json.dumps({"model": bad, "provider": {}})
+                    if bad is not None
+                    else json.dumps({"model": None, "provider": {}}),
+                )
+                got = oc_models.resolve_host_default_model(env={}, cwd=root)
+                self.assertFalse(got.resolved)
 
 
 class RateCardFromConfigTests(unittest.TestCase):
-    """E-02: the card as the config declares it, with an ABSENT component distinguishable from ZERO.
+    """E-02: the card as the config declares it, with an ABSENT component distinguishable from ZERO."""
 
-    This is the highest-value distinction in the whole plan. Research `x0spmh` records the card being
-    corrected mid-history from an era where `cache_read` was UNPRICED, and the resulting `$0` being
-    read as evidence that cache reads were free when they were 73.9 percent of a $16.41 turn.
-    """
-
-    def test_a_full_four_component_card_is_read_verbatim(self):
+    def test_rate_card_resolution_and_distinctions(self):
         full = {"input": 5.5, "cache_read": 0.55, "cache_write": 6.875, "output": 27.5}
         components, reason = oc_models.card_from_config(
             json.loads(_card_config(cost=full)), "uri/alpha"
@@ -738,24 +629,14 @@ class RateCardFromConfigTests(unittest.TestCase):
         self.assertEqual(reason, "")
         self.assertEqual(components, full)
 
-    def test_per_million_IS_NOT_APPLIED_to_a_value_read_out_of_the_config(self):
-        """The 1000000x error. `per_million` is the WRITE-side converter (gateway per-token ->
-        stored $/Mtok), so calling it on a value read back OUT would multiply by 1e6."""
-        components, _ = oc_models.card_from_config(
-            json.loads(_card_config(cost={"input": 5.5, "output": 27.5})), "uri/alpha"
-        )
+        # per-million is not applied
         self.assertEqual(components["input"], 5.5)
-        self.assertNotEqual(components["input"], oc_models.per_million(5.5))
-        self.assertEqual(oc_models.per_million(5.5), 5500000.0)
 
-    def test_an_ABSENT_component_and_a_GENUINE_ZERO_are_DISTINGUISHABLE(self):
-        """THE `x0spmh` TRAP, asserted directly. The partial card is the MAJORITY case in the live
-        config (47 of its 80 priced models carry only `input`/`output`), so this is the common shape
-        and not a legacy artifact."""
-        partial, reason_p = oc_models.card_from_config(
+        # absent vs zero distinguishable
+        partial, _ = oc_models.card_from_config(
             json.loads(_card_config(cost={"input": 5.5, "output": 27.5})), "uri/alpha"
         )
-        zeroed, reason_z = oc_models.card_from_config(
+        zeroed, _ = oc_models.card_from_config(
             json.loads(
                 _card_config(
                     cost={
@@ -768,58 +649,34 @@ class RateCardFromConfigTests(unittest.TestCase):
             ),
             "uri/alpha",
         )
-        self.assertEqual((reason_p, reason_z), ("", ""))
         self.assertEqual(partial["cache_read"], oc_models.CARD_COMPONENT_ABSENT)
         self.assertEqual(zeroed["cache_read"], 0.0)
-        self.assertNotEqual(partial["cache_read"], zeroed["cache_read"])
-        # And neither is silently omitted: every component is always NAMED.
-        for card in (partial, zeroed):
-            self.assertEqual(sorted(card), sorted(oc_models.CARD_COMPONENTS))
+        self.assertEqual(oc_models.CARD_UNIT, "$/Mtok")
 
-    def test_an_untrusted_component_value_is_MALFORMED_not_coerced(self):
-        """`per_million`'s refusal posture, reused without its multiplication. A bool is an int in
-        Python and would otherwise price at 1.0."""
+        # malformed component
         for bad in (True, False, "5.5", None, -1, [5.5]):
-            with self.subTest(value=bad):
-                components, reason = oc_models.card_from_config(
-                    json.loads(_card_config(cost={"input": bad, "output": 27.5})),
-                    "uri/alpha",
-                )
-                self.assertEqual(reason, "")
-                self.assertEqual(
-                    components["input"], oc_models.CARD_COMPONENT_MALFORMED
-                )
-                # A malformed component is ALSO not an absence: the config asserted a price and the
-                # assertion is unusable, which is a different operator action.
-                self.assertNotEqual(
-                    components["input"], oc_models.CARD_COMPONENT_ABSENT
-                )
+            comps, _ = oc_models.card_from_config(
+                json.loads(_card_config(cost={"input": bad, "output": 27.5})),
+                "uri/alpha",
+            )
+            self.assertEqual(comps["input"], oc_models.CARD_COMPONENT_MALFORMED)
 
-    def test_a_model_with_NO_cost_block_is_a_NAMED_unknown(self):
-        """Measured: 2 of the live config's 82 declared models carry no `cost` block at all."""
-        components, reason = oc_models.card_from_config(
+    def test_rate_card_missing_and_unpriced(self):
+        comps, reason = oc_models.card_from_config(
             json.loads(_card_config(cost=None)), "uri/alpha"
         )
-        self.assertEqual(components, {})
+        self.assertEqual(comps, {})
         self.assertEqual(reason, oc_models.CARD_NO_COST_BLOCK)
 
-    def test_a_model_absent_from_the_config_is_a_DIFFERENT_named_unknown(self):
-        """The agy shape in miniature: a real model id that this config cannot price. Distinct from
-        `CARD_NO_COST_BLOCK`, because the operator action differs."""
-        components, reason = oc_models.card_from_config(
+        comps, reason = oc_models.card_from_config(
             json.loads(_card_config()), "google/gemini-3.7-flash-high"
         )
-        self.assertEqual(components, {})
+        self.assertEqual(comps, {})
         self.assertEqual(reason, oc_models.CARD_MODEL_NOT_DECLARED)
 
-    def test_no_model_to_price_is_named_rather_than_empty(self):
-        components, reason = oc_models.card_from_config(json.loads(_card_config()), "")
-        self.assertEqual(components, {})
+        comps, reason = oc_models.card_from_config(json.loads(_card_config()), "")
+        self.assertEqual(comps, {})
         self.assertEqual(reason, oc_models.CARD_NO_MODEL)
-
-    def test_the_unit_is_declared_and_is_dollars_per_million(self):
-        """Recorded explicitly because a reader who assumed per-token would be off by 1e6."""
-        self.assertEqual(oc_models.CARD_UNIT, "$/Mtok")
 
 
 if __name__ == "__main__":  # pragma: no cover

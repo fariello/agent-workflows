@@ -16,7 +16,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, cli
+from agent_workflows import agy_runipd, cli, runner_shared
 from tests import support
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
@@ -2095,6 +2095,7 @@ class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
             self.assertIn("no Antigravity session exists for this run", out)
             self.assertNotIn("no OpenCode session exists", out)
             self.assertIn("--- Antigravity Session Continuity ---", out)
+
 
 class AgyVerdictMappingTests(unittest.TestCase):
     def test_this_host_binds_the_shared_mapping_and_holds_no_copy(self):
