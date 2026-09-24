@@ -123,7 +123,7 @@ evaluate_durable_carrier(2vw35i) -> "6 obligation(s) name no durable carrier"
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | OQ-01: per-type reachability, or a distinct named check target? | RESOLVED: the distinct named target. Written into the plan with the evidence and the accepted cost, so the executor does not re-derive it. | PER-TYPE: rejected on three measured grounds. The `check_types` comment already refused it for surfacing one rule while four siblings stay invisible (so an admissible per-type form would need a backlog check reading releases and plans, muddying the boundary per-type commands exist to draw); F-4 means its natural CI home is the step that must stay advisory; and F-7/F-8 mean E-03 needs a rule set narrow BY CONSTRUCTION whose advisory state is reasonable about independently of backlog debt. | the quoted `check_types` comment (both points); `tests.yml` advisory step + `DECISION 18-r2ks4k-D1`; the family's measured 2 findings at exit 1 | yes |
 | D-2 | PR-001/PR-002 make the plan's headline deliverable ("CI FAILS on a live ungated bug") unachievable today. REPLAN, or repair? | Repair: keep reachability as the primary deliverable and make the fail-closed flip CONDITIONAL, with an advisory fallback that is still strictly better than today. | REPLAN: rejected because F-1 and F-2 are real, re-confirmed, and unowned elsewhere; the plan's structure, scope fence and three of four E-items survive; and retiring it would strand the inherited `Blocks-Release: next`. Also rejected: keeping fail-closed and clearing the two findings, which would require gating an item the maintainer decided is not a gate and editing an `executed/` plan. | `plan-review.md` Step 2.4 (REPLAN only when bounded edits cannot repair); `AGENTS.md` (executed-plan immutability; shared-checkout rules); `7l1ggb` history | yes |
-| D-3 | Should the review itself clear either blocking family finding so E-03 can land fail-closed? | No. Neither is touched, and the plan is explicitly forbidden from touching them. | Gating `7l1ggb` with `--blocks-release next`: rejected, it overturns a recorded maintainer decision about a specific bug. Editing the `executed/` plan's `From-Backlog: none`: rejected, `AGENTS.md` forbids it and `rgaasb` already recorded it as not-to-be-fixed. Narrowing E-03's rule set to dodge them: rejected as suppression, which inverts the plan's purpose. | `AGENTS.md` (executed plans; do not revert another party's decisions); `rgaasb`'s deferral; `plan-review.md` (review plans only, change no code or data) | no |
+| D-3 | Should the review itself clear either blocking family finding so E-03 can land fail-closed? | No. Neither is touched, and the plan is explicitly forbidden from touching them. | Gating `7l1ggb` with `--blocks-release next`: rejected, it overturns a recorded maintainer decision about a specific bug. Editing the `executed/` plan's `From-Backlog: none`: rejected, `AGENTS.md` forbids it and `rgaasb` already recorded it as not-to-be-fixed. Narrowing E-03's rule set to dodge them: rejected as suppression, which inverts the plan's purpose. | `AGENTS.md` (executed plans; do not revert another party's decisions); `rgaasb`'s deferral; `plan-review.md` (review plans only, change no code or data) | yes |
 | D-4 | Is the `none` sentinel a rule DEFECT (should read as absent, not dangling) that this review should record as such? | Record it as a genuine open verdict question with a HOLDING carrier (`wu8qjy`) and require E-01 to file a dedicated item if it still blocks. Do not decide the verdict here. | Asserting it IS a defect and scoping the fix into this plan: rejected because verdict changes are excluded by this plan's own discipline and by F-5's precedent (`4le6yz`/`0cqf33` are separate items for exactly this reason). Asserting it is CORRECT behavior: rejected as an unverified claim; `none` is plainly a sentinel meaning "no source", which reading as dangling is at least arguable. | the plan's own `FIXING INDIVIDUAL GATE RULES` deferral; `rgaasb`'s treatment of the same finding; `check.from-backlog-dangling`'s registry entry | yes |
 | D-5 | `4le6yz`/`0cqf33` are live gated bugs inside the family E-03 would enforce. Does that block this plan? | No, but it is recorded as a second independent reason the advisory fallback must exist, and as a convention ("a known-false-positive rule must not be made fail-closed"). | Treating it as a blocker requiring those items to be fixed first: rejected because they currently produce ZERO findings on this tree (measured: `check_release_gate_consistency` -> 0), so the risk is latent rather than live and blocking on it would stall a plan that improves visibility today. | `check_release_gate_consistency` driven live -> 0 findings; `4le6yz`'s measured reproduction at an earlier HEAD | yes |
 
@@ -134,6 +134,34 @@ No finding is DEFERRED, OPEN, or REPLAN. Every finding above is FIXED, so no esc
 no `review_findings_gate` key is configured in `.aw/config/project.json`).
 
 OQ-01 is now `- Status: resolved` (D-1), so the plan carries no open question at all.
+
+#### Correction to D-3's `Reversible` column, recorded rather than silently edited
+
+D-3 was first written `Reversible: no` and that was a MIS-CLASSIFICATION, caught by
+`check.review-decision-unescalated` firing on this record. The rule is a backstop and it was right to
+fire, so the honest response is to state why the value changed rather than to quietly satisfy the gate.
+
+The `Reversible` column judges the COST OF BEING WRONG ABOUT THE DECISION THAT WAS MADE. D-3 decided to
+CHANGE NOTHING: not to gate `7l1ggb`, not to edit the `executed/` plan, not to narrow E-03's rule set.
+A decision to leave two artifacts untouched is trivially reversible; a later maintainer who disagrees
+can gate the item or resolve the sentinel question at any time, and nothing was published, migrated, or
+deleted. What is irreversible is the REJECTED alternative (editing an `executed/` plan, or overturning a
+recorded maintainer decision about a specific bug), and that asymmetry is exactly WHY the refusal is
+correct. I had recorded the irreversibility of the path not taken, which is the wrong cell to put it in.
+
+A SECOND, SEPARATE LESSON FROM FIXING IT, worth recording because it is a trap for the next reviewer:
+the corrected cell was first written as `yes (corrected; see the note below)`, and the rule KEPT FIRING.
+`reviews.classify_reversible` normalizes the whole cell and returns `unknown` for any unrecognized
+token, treating a blank and a decorated value identically on the stated ground that "a reader must not
+be told a decision is safely reversible on the strength of a blank". So an annotated `yes` is NOT a
+`yes`. The `Reversible` cell must hold a bare token; commentary belongs in prose, as it now does.
+
+No escalation as a `- Blocking: yes` question is therefore owed, and none is added: manufacturing a
+blocking question for a decision to preserve the status quo would stall the plan for no decision the
+human actually needs to make. The substance is not lost: the two findings are recorded in the plan as
+F-7 and F-8, the `none`-sentinel verdict question is an explicit deferral with a holding carrier and an
+E-01 obligation to file a dedicated item, and E-03 cannot land fail-closed until they are resolved. So
+the obligation is carried by the plan's own gate rather than by a question.
 
 ### Notes on what was NOT changed, and why
 
