@@ -12,7 +12,7 @@
 - Scope: Make every enumeration of spec files recursive AND ignored-path-aware, so a spec in any subdirectory is seen by `aw specs check` while a gitignored one is not, and prove the two currently-disagreeing surfaces agree. EXCLUDES moving any spec (the migration child owns that), and excludes changing what any check REPORTS about a spec.
 - Scope-Paths: agent_workflows/specs.py, tests/test_specs_recursive_read.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: chore
 - Priority: medium
 - Readiness: go-pending-approval
@@ -21,10 +21,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: y4bdoz
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: y4bdoz verified (set specdirs, attempt 1).
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item qzhfk2 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 
