@@ -49,7 +49,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce the chain before changing the writer
 
-- [ ] E-01 REPRODUCE ALL THREE STEPS AT YOUR HEAD, and do it before touching code, because the fix's shape depends on which step you choose to break.
+- [x] E-01 REPRODUCE ALL THREE STEPS AT YOUR HEAD, and do it before touching code, because the fix's shape depends on which step you choose to break.
   STEP 1: show `plan_readiness.is_review_history_entry` returns True for a bookkeeping line of the form `- <date> reviewed (aw set): status set to reviewed`. At authoring: True, identical to a real review record.
   STEP 2: show `newest_verdict` returns `('positive', <real line>)` for a history holding only a real review, and `(None, <bookkeeping line>)` once the bookkeeping line is prepended.
   STEP 3, THE ONE THAT MATTERS: build a plan file with `- Readiness:` ABSENT and show `is_plan_review_approved` returns True before the bookkeeping record and False after. If this step does NOT reproduce, the severity argument collapses and you must report that rather than proceeding as if it held.
@@ -60,11 +60,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CONFIRM THE WRITER'S DEFAULTS: quote the line in `status_set.apply_status_change` that defaults the message to `status set to <status>` and the actor to `aw set`, and quote the `_write_history_anyway` / early-return block that decides whether any record is written at all.
   - Depends on: none
   - Expected outcome: all three steps reproduced with pasted output AND driven through the real CLI; the bare-no-op silence confirmed; the `--message` variant shown to shadow (or not, reported explicitly); the duplication measured; the writer's defaulting line and the early-return block both quoted; any step that fails to reproduce reported explicitly rather than absorbed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix the writer
 
-- [ ] E-02 TAG THE SETTER'S SAME-STATUS RECORD SO NO VERDICT READER ACCEPTS IT, per OQ-01 as RESOLVED at review. This supersedes the pre-review wording, which offered suppression as the recommended option; F-7 measured that suppression cannot work, because the shadowing comes from the STATUS TOKEN and a record carrying an explicit `--message` (which this plan must PRESERVE) shadows identically.
+- [x] E-02 TAG THE SETTER'S SAME-STATUS RECORD SO NO VERDICT READER ACCEPTS IT, per OQ-01 as RESOLVED at review. This supersedes the pre-review wording, which offered suppression as the recommended option; F-7 measured that suppression cannot work, because the shadowing comes from the STATUS TOKEN and a record carrying an explicit `--message` (which this plan must PRESERVE) shadows identically.
   THE PROPERTY TO ACHIEVE, stated so it is testable rather than as a style: after a same-status setter write of ANY kind (defaulted message or explicit `--message`), `plan_readiness.newest_verdict` on the resulting text must still return the REAL review's polarity and raw line, and `is_plan_review_approved` must be unchanged, on a `- Readiness:`-ABSENT fixture.
   THE TAG MUST DEFEAT THE READER AS IT EXISTS TODAY, not as `ycg597` might leave it. `is_review_history_entry` tokenizes the record's MIDDLE field (`m.group("mid")`, split on commas and whitespace) and returns True if ANY token is a review word or carries the review prefix. So the tag must change that middle field, not the message: appending to the actor (the established mechanism, already used for `--by-human`, `--allow-open-questions` and `--allow-terminal-reopen`) does NOT help, because the status token sits in the same middle field and still matches. State explicitly which token you changed and re-run the discriminator to prove it.
   DO NOT FIX THIS IN `plan_readiness`. That reader is owned by `ycg597`/`nwrb0j`/`gv36a7`, and three items already propose changing it; a fourth edit from this direction is how one predicate acquires two incompatible fixes. If you conclude the writer cannot be fixed alone, STOP and report that rather than reaching into the reader.
@@ -73,24 +73,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   BEWARE THE SECOND READER. `same_status_message_is_duplicate` parses the newest record with the same `_HISTORY_RECORD_PARTS_RE` and compares its `mid` group against the status. If the tag changes that group, the dedup stops matching its own prior records and will append forever. Check this and keep the two consistent; E-03 covers the related dedup gap.
   - Depends on: E-01
   - Expected outcome: no same-status setter write, with or without `--message`, can produce a record that `newest_verdict` reads as the newest review; the discriminator is shown returning False on the new form TODAY; an explicit `--message` is still recorded; a real transition is unchanged; `same_status_message_is_duplicate` still recognizes the new form as its own; `plan_readiness` untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 FIX THE FALSE TEXT **AND CLOSE THE DEDUP BYPASS**, independently of the shadowing. `da7w6n` measured that without `--message` the recorded text is "the outright false `status set to approved`" on a write that changed no status; the live default is `message = getattr(args, "message", None) or f"status set to {norm_status}"`.
+- [x] E-03 FIX THE FALSE TEXT **AND CLOSE THE DEDUP BYPASS**, independently of the shadowing. `da7w6n` measured that without `--message` the recorded text is "the outright false `status set to approved`" on a write that changed no status; the live default is `message = getattr(args, "message", None) or f"status set to {norm_status}"`.
   A RECORD MUST NOT ASSERT A TRANSITION THAT DID NOT HAPPEN. That is the same forged-evidence principle `AGENTS.md` applies to attestations: a history line claiming `status set to approved` on a no-op is a false provenance claim, and provenance is the thing this whole family is about.
   AND THE DEFAULTED RECORD MUST BE DEDUPED (F-9, found in review). `same_status_message_is_duplicate` already exists and already compares date, status token and message, but it is consulted ONLY through `_write_history_anyway`, which is gated on an explicit `--message`. So a DEFAULTED record never reaches it: two field-changing same-status writes on one day produced two byte-identical `status set to reviewed` records at review. That is the same unbounded-growth failure `vhbvwz` F-10 measured and fixed for the message case, reachable by a different route. Extend the existing predicate's reach rather than writing a second dedup, so one rule owns "is this record a repeat".
   - Depends on: E-01
   - Expected outcome: no code path can write a history record asserting a status change that did not occur; a repeated same-status write does not accumulate identical records, via the EXISTING dedup predicate rather than a second one; the message for a genuine transition is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: one setter, one rule
 
-- [ ] E-04 RECONCILE THE PLAN AND BACKLOG NO-OP BEHAVIORS so the setter has ONE rule, and EXPECT THIS TO BE A VERIFICATION RATHER THAN A CHANGE. Review found `x6tk1u`'s fix is LIVE in `apply_status_change` (the `_write_history_anyway` block, credited to `vhbvwz` E-01 and `x6tk1u` by name), so the plan's F-6 premise that the two paths still disagree is probably STALE.
+- [x] E-04 RECONCILE THE PLAN AND BACKLOG NO-OP BEHAVIORS so the setter has ONE rule, and EXPECT THIS TO BE A VERIFICATION RATHER THAN A CHANGE. Review found `x6tk1u`'s fix is LIVE in `apply_status_change` (the `_write_history_anyway` block, credited to `vhbvwz` E-01 and `x6tk1u` by name), so the plan's F-6 premise that the two paths still disagree is probably STALE.
   MEASURE BOTH PATHS FIRST, and treat "already unified" as the expected answer. Drive a same-status write on a PLAN and on a BACKLOG item, each with and without `--message`, and paste all four outcomes. If they agree, this item is discharged by that evidence with NO code change, and you must say so plainly rather than manufacturing a diff.
   DO NOT UNIFY BY REGRESSING EITHER SIDE. The correct shared rule preserves a deliberate `--message` on both paths and writes no misleading or verdict-shadowing record on either.
   IF E-02'S TAG APPLIES TO ONLY ONE PATH, THAT IS A NEW DIVERGENCE THIS ITEM MUST CATCH. `apply_status_change` is documented as "the SINGLE" writer, so a tag added there should reach both; confirm it does, because a plan-only tag would leave backlog records still readable as review verdicts.
   - Depends on: E-02, E-03
   - Expected outcome: all four drives pasted; both setter paths shown to follow one rule for a same-status write, including E-02's tag; if `x6tk1u`/`vhbvwz`'s fix already unified them, that is reported with evidence and NO change is made.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -180,25 +180,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output for all three steps (discriminator True on the bookkeeping line; `newest_verdict` positive-then-None; `is_plan_review_approved` True-then-False with `- Readiness:` absent), obtained THROUGH A REAL CLI DRIVE on a throwaway repo and not only from the predicates; plus the bare same-status call shown to write NOTHING; plus the `--message` variant shown to shadow as well (or explicitly reported as not reproducing, which would reopen OQ-01); plus the double-write record count; plus the writer's defaulting line and the `_write_history_anyway`/early-return block quoted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. (1) Step 1: `PR.is_review_history_entry("- 2026-09-22 reviewed (aw set): status set to reviewed")` returns `True`. (2) Step 2: `newest_verdict` on history with positive review returns `('positive', <real line>)`; with prepended bookkeeping line returns `(None, '- 2026-09-22 reviewed (aw set): status set to reviewed')`. (3) Step 3: on plan with `- Readiness:` absent, `is_plan_review_approved` returns `True` before bookkeeping write and `False` after. Driven through CLI on throwaway repo: `aw ipd set reviewed <id6> --priority high --yes` prepended `- 2026-09-24 reviewed (aw set): status set to reviewed`. Bare same-status call (`aw ipd set reviewed <id6> --yes`) wrote nothing (count unchanged). `--message` variant produced `- 2026-09-24 reviewed (aw set): deliberate operator note`, which also shadowed (`newest_verdict` -> `(None, ...)` and `is_plan_review_approved` -> `False`). Double write on same day produced duplicate records under old code due to `same_status_message_is_duplicate` only being called when explicit `--message` was passed. Defaults quoted: `message = getattr(args, "message", None) or f"status set to {norm_status}"`, and early return `if not content_changed and not path_changed and not _write_history_anyway: return rec.path, norm_status`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the F-1/F-2 chain re-run after the fix and pasted, showing `newest_verdict` still returns the REAL review and `is_plan_review_approved` stays True across a same-status write, for BOTH the defaulted-message and the explicit-`--message` case; `is_review_history_entry(<the new tagged line>)` shown False at this HEAD; a statement of WHICH token was changed and why the actor-suffix mechanism alone was insufficient; proof an explicit `--message` is still recorded; proof `same_status_message_is_duplicate` still recognizes the new form (no unbounded append); a real transition shown unchanged; and confirmation by diff that `plan_readiness.py` is unmodified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. (1) F-1/F-2 chain re-run after fix: `PR.newest_verdict` returns `('positive', '- 2026-09-21 /plan-review ...')` across same-status writes for both defaulted message and explicit `--message` (`test_newest_verdict_preserves_real_verdict_across_same_status_writes` PASSED); `is_plan_review_approved` remains True. (2) `is_review_history_entry("- 2026-09-24 same-status (aw set): status unchanged (reviewed)")` returns `False` and `is_review_history_entry("- 2026-09-24 same-status (aw set): deliberate operator note")` returns `False` at this HEAD (`test_tagged_same_status_record_is_not_review_history_entry_at_this_head` PASSED). (3) Changed the middle status token (`m.group("mid")`) from `norm_status` to `"same-status"` because `is_review_history_entry` tokenizes the middle field and would match any review status token even if actor suffix was appended. (4) Explicit `--message` preserved and recorded (`test_the_reasoning_survives_a_same_status_call` PASSED). (5) `same_status_message_is_duplicate` updated to match `same-status` tag preventing unbounded append (`test_the_same_message_repeated_records_once` PASSED). (6) Real transition (`old_status != target_status`) unchanged and records target status and `status set to <status>`. (7) `agent_workflows/plan_readiness.py` is unmodified (0 diff lines).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted proof that no path writes `status set to <status>` for a write that changed no status; pasted proof that two same-status writes on one day leave ONE record for the DEFAULTED-message case (the F-9 bypass) as well as the explicit one, achieved through the existing `same_status_message_is_duplicate` rather than a second predicate; and that a genuine transition's message is unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. (1) In `agent_workflows/status_set.py`, same-status write defaults to `status unchanged ({norm_status})` instead of false `status set to {norm_status}` (`test_same_status_field_write_defaulted_message_is_truthful_and_tagged` PASSED). (2) Dedup bypass closed: `same_status_message_is_duplicate` is evaluated for all same-status writes (`is_same_status`), deduplicating defaulted messages so two field writes on the same day yield exactly ONE history record (`test_same_status_field_write_defaulted_message_deduplicates` PASSED). (3) Genuine transition message remains `status set to {norm_status}`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: all FOUR drives pasted (plan and backlog paths, each with and without `--message`) showing one consistent rule, plus evidence that E-02's tag reaches BOTH paths; or, if `vhbvwz`/`x6tk1u`'s fix already unified them (the expected outcome per F-6), the evidence showing that with NO change made and an explicit statement that no diff was manufactured.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. (1) Both plan (`aw ipd set`) and backlog (`aw backlog set`) paths route through `status_set.apply_status_change`, sharing identical behavior: same-status writes tag history with `same-status`, use `status unchanged (<status>)` for defaulted messages, preserve explicit `--message`, and deduplicate via `same_status_message_is_duplicate` (`test_backlog_same_status_tag_and_dedup` PASSED). (2) All four combinations (plan without message, plan with message, backlog without message, backlog with message) tested and confirmed unified with no manufactured divergence.
+  - Result: pass
 
 ## Approval and execution gate
 
