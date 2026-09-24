@@ -158,10 +158,13 @@ class TestArmedForEveryUnattendedTurn:
     below is what keeps it from quietly widening.
     """
 
-    def test_the_permission_policy_by_contrast_IS_isolation_scoped(self, tmp_path):
+    def test_the_permission_policy_by_contrast_IS_isolation_scoped(
+        self, tmp_path, monkeypatch
+    ):
         """The two scopes differ DELIBERATELY, and confusing them would be a real defect.
 
-        R4.1 scopes the POSTURE to an unattended ISOLATED turn, because a non-isolated turn works in
+        The runner narrows the POSTURE to an unattended ISOLATED turn (`run_opencode`'s deliberate
+        "ISOLATED TURNS ONLY" narrowing, ordered by R4.6), because a non-isolated turn works in
         the main checkout where an external-directory denial would refuse its ordinary work. R4.4a
         scopes the BOUNDS to every turn.
 
@@ -187,6 +190,9 @@ class TestArmedForEveryUnattendedTurn:
         source-text assertion GREEN (`tests/test_lane_permission_posture.py`,
         `test_the_policy_actually_reaches_the_env_handed_to_the_child`).
         """
+
+        monkeypatch.delenv(lane_containment.OPENCODE_RUNTIME_CONFIG_ENV, raising=False)
+        monkeypatch.delenv("AW_EXECUTION_ROLE", raising=False)
 
         captured: dict[str, list[dict[str, str]]] = {"envs": []}
         bounds: dict[str, list[dict[str, object]]] = {"kwargs": []}
@@ -270,7 +276,7 @@ class TestArmedForEveryUnattendedTurn:
         # external-directory denial would refuse its ordinary work.
         assert policy_key not in main_env, (
             "a non-isolated turn must get NO denial policy; it works in the main checkout "
-            "where external-directory denial would refuse its ordinary work (R4.1)"
+            "where external-directory denial would refuse its ordinary work"
         )
         assert "AW_EXECUTION_ROLE" not in main_env
 
