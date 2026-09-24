@@ -15749,6 +15749,57 @@ def enforce_orchestrator_probe_gate(
     )
 
 
+def enforce_orchestrator_shape_gate(
+    state: Mapping[str, Any],
+    *,
+    repo: Path,
+) -> tuple[tuple[ProbeTarget, Any], ...]:
+    """Gate the run on orchestrator checklist shape conformance (spec `r07vma` R8).
+
+    Calls child 01's shared conformance function :func:`ipd_lint.orchestrator_row_conformance`
+    over every queued orchestrator resolved by :func:`queued_orchestrator_targets`.
+
+    COLLECTS EVERY FINDING ACROSS EVERY QUEUED ORCHESTRATOR AND REPORTS THEM TOGETHER
+    BEFORE REFUSING (R8). Does NOT stop at the first non-conforming row or the first
+    non-conforming orchestrator.
+
+    SITED BEFORE ANY AGENT TURN, LANE WORKTREE, SESSION, OR RUN DIRECTORY (OQ-01 / PR-301),
+    and ordered AHEAD of the semantic probe. Siting before the run directory ensures:
+    1. Zero durable writes (no run_dir, no events.jsonl, no state.json) occur before a shape refusal.
+    2. `--prepare-only` runs this deterministic check and refuses non-conforming queues before
+       returning early (avoiding false impression that the queue is cleared).
+    3. Refusing here spends zero model calls because the probe is never reached.
+    """
+    from agent_workflows import ipd_lint as _lint
+
+    targets = queued_orchestrator_targets(state, repo=Path(repo))
+    outcomes: list[tuple[ProbeTarget, _lint.OrchestratorRowResult]] = []
+    for target in targets:
+        res = _lint.orchestrator_row_conformance(target.text)
+        outcomes.append((target, res))
+
+    blocking = [(target, res) for target, res in outcomes if not res.conforming]
+    if not blocking:
+        return tuple(outcomes)
+
+    total_findings = sum(len(res.findings) for _, res in blocking)
+    orch_count = len(blocking)
+    orch_plural = "orchestrator" if orch_count == 1 else "orchestrators"
+    finding_plural = "finding" if total_findings == 1 else "findings"
+
+    lines: list[str] = [
+        f"orchestrator checklist shape check failed ({_lint.C_ORCH_ROW}): "
+        f"{total_findings} {finding_plural} across {orch_count} queued {orch_plural}."
+    ]
+    for target, res in blocking:
+        lines.append(f"  [{target.id6}] ({target.path.name}):")
+        for finding in res.findings:
+            lines.append(f"    - {finding.message}")
+
+    message = "\n".join(lines)
+    raise DriverError(message)
+
+
 # ==================================================================================================
 # orchretire-03 (`pgq326`): THE SHARED ACTION DECIDER AND THE SHARED DISPATCH OUTCOME
 # (spec `77tr3o` R-7, R-8, R-9, R-10)
@@ -23367,32 +23418,6 @@ def initialize_run_core(
         manifest=manifest,
     )
 
-    run_id = getattr(args, "run_id", None) or new_run_id()
-    run_dir = state_root(repo) / run_id
-    if run_dir.exists():
-        raise DriverError(f"Run already exists: {run_id}")
-    for name in ("sessions", "outcomes", "prompts"):
-        (run_dir / name).mkdir(parents=True, exist_ok=True)
-    (run_dir / "decisions-and-questions.md").write_text(
-        f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
-    )
-
-    if manifest_path is None:
-        manifest_path = run_dir / "manifest.json"
-        atomic_write_json(manifest_path, manifest)
-
-    if runbook_path is None:
-        runbook_path = run_dir / "runbook.md"
-        runbook_text = (
-            default_runbook_text
-            if default_runbook_text is not None
-            else (
-                "# IPD Autonomous Execution Runbook\n\n"
-                "This runbook guides automated execution.\n"
-            )
-        )
-        runbook_path.write_text(runbook_text, encoding="utf-8")
-
     initial_session = getattr(args, "session", None)
     set_sessions: dict[str, str] = {}
     queue: list[dict[str, Any]] = []
@@ -23450,6 +23475,49 @@ def initialize_run_core(
                 NEEDS_INPUT_KEY: item_needs_approval(status, action),
             }
         )
+
+    # orchtyped-03 (`0xmk4e`) E-01/E-02: THE PRE-QUEUE ORCHESTRATOR SHAPE GATE, sited HERE ahead
+    # of run directory creation, sessions, worktrees, and ahead of the semantic coverage probe.
+    #
+    # SITED EARLY, WITH THE THREE PRE-QUEUE GATES (draft admission, dependency preflight, and
+    # mixed-type gate, each called above), and that siting is a DECISION (OQ-01 / PR-301) resting
+    # on repository facts rather than invariant-tidiness taste:
+    #
+    # 1. NO DURABLE WRITE: raising before `run_dir` is created ensures no run directory, events.jsonl,
+    #    state.json, or prompt logs are created on a shape refusal.
+    # 2. `--prepare-only` INTEGRATION: `--prepare-only` returns early between run directory creation
+    #    and the probe gate. Siting this deterministic, free check before the run directory ensures
+    #    `--prepare-only` evaluates orchestrator shape conformance and refuses invalid queues rather
+    #    than printing a non-runnable queue.
+    # 3. ZERO MODEL CALLS: because this gate sits ahead of the probe gate, non-conforming queues
+    #    refuse without ever invoking the model coverage probe (criterion 11).
+    enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
+
+    run_id = getattr(args, "run_id", None) or new_run_id()
+    run_dir = state_root(repo) / run_id
+    if run_dir.exists():
+        raise DriverError(f"Run already exists: {run_id}")
+    for name in ("sessions", "outcomes", "prompts"):
+        (run_dir / name).mkdir(parents=True, exist_ok=True)
+    (run_dir / "decisions-and-questions.md").write_text(
+        f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
+    )
+
+    if manifest_path is None:
+        manifest_path = run_dir / "manifest.json"
+        atomic_write_json(manifest_path, manifest)
+
+    if runbook_path is None:
+        runbook_path = run_dir / "runbook.md"
+        runbook_text = (
+            default_runbook_text
+            if default_runbook_text is not None
+            else (
+                "# IPD Autonomous Execution Runbook\n\n"
+                "This runbook guides automated execution.\n"
+            )
+        )
+        runbook_path.write_text(runbook_text, encoding="utf-8")
 
     stall_timeout = (
         getattr(args, "stall_timeout", default_stall_timeout)

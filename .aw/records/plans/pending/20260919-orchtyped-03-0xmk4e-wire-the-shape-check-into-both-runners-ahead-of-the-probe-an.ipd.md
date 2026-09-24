@@ -39,43 +39,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the gate, on both hosts, from one object
 
-- [ ] E-01 ADD THE PRE-QUEUE SHAPE GATE IN `runner_shared`, calling child 01's function over the queued orchestrators. Reuse `queued_orchestrator_targets` for the enumeration rather than writing a second queue walk: it already selects `kind == "orchestrator"` from `state["queue"]`, already resolves each plan path, and already SKIPS an unreadable plan rather than refusing (a plan the runner cannot read is a different refusal the existing preflight owns).
+- [x] E-01 ADD THE PRE-QUEUE SHAPE GATE IN `runner_shared`, calling child 01's function over the queued orchestrators. Reuse `queued_orchestrator_targets` for the enumeration rather than writing a second queue walk: it already selects `kind == "orchestrator"` from `state["queue"]`, already resolves each plan path, and already SKIPS an unreadable plan rather than refusing (a plan the runner cannot read is a different refusal the existing preflight owns).
   DO NOT ADD A HOST RE-EXPORT, AND DO NOT EXPECT ONE: the plan's original "re-export it to both hosts so there is ONE object" was based on a false premise, corrected at review (PR-304). Measured: NO pre-queue gate is a host attribute. `hasattr(oc_runipd, "enforce_orchestrator_probe_gate")` is FALSE, and so is the agy side, and the same holds for `enforce_mixed_type_gate`, `enforce_draft_admission_gate` and `queued_orchestrator_targets`. Both hosts reach these by CALLING `runner_shared.initialize_run_core` (`oc_runipd.py:3360`, `agy_runipd.py:2137`), which is the seam that makes them shared; adding a re-export would be a NEW host-surface symbol this Set does not need and would contradict the plan's own no-new-host-symbol rule.
   THE SHIPPED IDENTITY PATTERN IS A `getattr` FALLBACK THROUGH `module.runner_shared`, not a direct attribute. `tests/test_orchestrator_probe.py::BothHostsShareOneDefinition` resolves each symbol as `getattr(module, name, getattr(module.runner_shared, name))` and asserts `assertIs` against the `runner_shared` object; verified at review that this returns True for both hosts on `enforce_orchestrator_probe_gate` while a direct `hasattr` is False. Follow that pattern.
   NO SYMBOL MAY BE ADDED TO `oc_runipd` FOR AGY TO IMPORT. `agy_runipd` already imports dozens of names from `oc_runipd` and zero flow the other way; a shared symbol goes in `runner_shared`. E-04 pins this with the refork guard.
   - Depends on: none
   - Expected outcome: one gate function in `runner_shared`, reached by both hosts through `initialize_run_core`; each host resolves it to the SAME object under the shipped `getattr(module, name, getattr(module.runner_shared, name))` pattern; NO new host attribute is added; and the oc-to-agy import count is not increased.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 SITE IT BEFORE ANY AGENT TURN, LANE WORKTREE, OR SESSION, and ORDER IT AHEAD OF THE PROBE. `enforce_orchestrator_probe_gate` is called from `initialize_run_core` after the run directory exists, and that siting is a PRICED EXCEPTION recorded in its own docstring: the probe needs somewhere durable to log its model call and its refusal must be readable in `aw runs`. The shape check has NO such need, because it spends nothing and produces no model call to log.
+- [x] E-02 SITE IT BEFORE ANY AGENT TURN, LANE WORKTREE, OR SESSION, and ORDER IT AHEAD OF THE PROBE. `enforce_orchestrator_probe_gate` is called from `initialize_run_core` after the run directory exists, and that siting is a PRICED EXCEPTION recorded in its own docstring: the probe needs somewhere durable to log its model call and its refusal must be readable in `aw runs`. The shape check has NO such need, because it spends nothing and produces no model call to log.
   SITE IT EARLY, WITH THE THREE PRE-QUEUE GATES. OQ-01 IS RESOLVED AT REVIEW AND IS NO LONGER YOURS TO CHOOSE (PR-301); read its rationale before writing code. Place it beside `enforce_draft_admission_gate`, `enforce_dependency_preflight` and `enforce_mixed_type_gate`, all of which raise BEFORE `run_dir` is created, and record the reason in a code comment.
   THE REASON IS `--prepare-only`, NOT INVARIANT TIDINESS, which is what makes this a decision rather than a preference. Measured at review, `initialize_run_core` runs the three pre-queue gates (`:11853`, `:11881`, `:11907`), creates `run_dir` (`:11917`), then takes an EARLY RETURN for `--prepare-only` (`:12103`), and only then calls the probe (`:12122`). A gate sited "beside the probe" is therefore DOWNSTREAM of that early return and is SKIPPED under `--prepare-only`. The probe's own skip there is correct for a reason that does NOT transfer, stated in its comment: the flag's contract is to build and display the queue "WITHOUT launching OpenCode", so spending a model turn would break it. The shape check spends no model turn, so skipping it buys nothing and denies the operator the one thing `--prepare-only` exists for, namely learning the queue is not runnable BEFORE committing to a run. Note also that the probe's skip is deliberately ANNOUNCED so "an operator inspecting a queue must not conclude the orchestrators in it were cleared"; a silently skipped shape check would create that same false impression with nothing announcing it.
   THE ACCEPTED COST, stated rather than discovered: an early refusal is read from the process output, NOT from `aw runs`, because no run directory exists yet. Criterion 11 is then trivially evidenced, since there is no run to probe. Do NOT move the gate behind the early return to gain durable readability; if that is wanted later, keep the check early and ALSO record it.
   - Depends on: E-01
   - Expected outcome: a non-conforming orchestrator refuses the run with no agent turn, no lane worktree, no session AND no run directory; the siting is justified in a comment naming both the no-durable-write invariant and the `--prepare-only` reason; and `aw oc run --prepare-only` over a non-conforming queue REFUSES rather than printing a queue.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the report, the coexistence, and the pins
 
-- [ ] E-03 COLLECT EVERY FINDING ACROSS EVERY QUEUED ORCHESTRATOR AND REPORT THEM TOGETHER BEFORE REFUSING (R8). Follow the existing structure rather than inventing one: `enforce_orchestrator_probe_gate` already loops its targets, appends to `outcomes`, then partitions into `blocking` and `unavailable`. Generalise that shape across CHECK KINDS so a run can report shape findings and probe findings in one place, and do not stop at the first violation.
+- [x] E-03 COLLECT EVERY FINDING ACROSS EVERY QUEUED ORCHESTRATOR AND REPORT THEM TOGETHER BEFORE REFUSING (R8). Follow the existing structure rather than inventing one: `enforce_orchestrator_probe_gate` already loops its targets, appends to `outcomes`, then partitions into `blocking` and `unavailable`. Generalise that shape across CHECK KINDS so a run can report shape findings and probe findings in one place, and do not stop at the first violation.
   THE MAINTAINER'S STATED REQUIREMENT, quoted because it is the acceptance bar: a cycle of "fix this, retry, now that is wrong, retry" is the worst possible operator experience, so a run must complete all checks and report on all of them before exiting.
   - Depends on: E-01
   - Expected outcome: a queue with three non-conforming orchestrators reports all three, with all their per-row findings, then exits once.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PIN THAT THE PROBE STILL RUNS AND THAT THE TWO REFUSALS ARE TELLABLE APART (criteria 9 and 10). Add a test that an orchestrator whose ROWS all conform but which carries an obligation in a BARE INDENTED continuation line is STILL refused, by the probe, after this change. PROVE THIS WITH A BARE INDENTED CONTINUATION LINE AND NOT WITH `## Completion criteria` (corrected at review, PR-005): that SECTION IS NOT IN THE PROBE'S PAYLOAD AT ALL. Verified in-process at review by calling `runner_shared.orchestrator_probe_excerpt` on a fixture whose `## Completion criteria` said "SOMEONE MUST MIGRATE THE DATABASE BEFORE ANY CHILD RUNS": the rendered excerpt contains only the checklist item action text and the child-table row cells, and the string is absent. `probe_cache_payload` returns exactly the two keys `e_items` and `child_table_rows`, so no prose section outside a checklist item ever reaches the model (pre-existing limit, tracked as backlog `rmcqw8`, pinned by `tests/test_orchestrator_probe.py::TheExcerptHasAKnownLIMIT`). A `- Key: value` continuation line is ALSO invisible, because `e_item_action_blocks` stops at the first line matching `ipd_lint._SUBFIELD_RE`. So the ONLY shape that demonstrates criterion 9 is a BARE indented continuation line under a conforming row; anything else reports a pass the mechanism did not earn, and this item FAILS if the evidence uses one. Add a test that the shape refusal and the probe refusal name DIFFERENT rule ids, so an operator reading a refused run knows which control fired and therefore which remedy applies.
+- [x] E-04 PIN THAT THE PROBE STILL RUNS AND THAT THE TWO REFUSALS ARE TELLABLE APART (criteria 9 and 10). Add a test that an orchestrator whose ROWS all conform but which carries an obligation in a BARE INDENTED continuation line is STILL refused, by the probe, after this change. PROVE THIS WITH A BARE INDENTED CONTINUATION LINE AND NOT WITH `## Completion criteria` (corrected at review, PR-005): that SECTION IS NOT IN THE PROBE'S PAYLOAD AT ALL. Verified in-process at review by calling `runner_shared.orchestrator_probe_excerpt` on a fixture whose `## Completion criteria` said "SOMEONE MUST MIGRATE THE DATABASE BEFORE ANY CHILD RUNS": the rendered excerpt contains only the checklist item action text and the child-table row cells, and the string is absent. `probe_cache_payload` returns exactly the two keys `e_items` and `child_table_rows`, so no prose section outside a checklist item ever reaches the model (pre-existing limit, tracked as backlog `rmcqw8`, pinned by `tests/test_orchestrator_probe.py::TheExcerptHasAKnownLIMIT`). A `- Key: value` continuation line is ALSO invisible, because `e_item_action_blocks` stops at the first line matching `ipd_lint._SUBFIELD_RE`. So the ONLY shape that demonstrates criterion 9 is a BARE indented continuation line under a conforming row; anything else reports a pass the mechanism did not earn, and this item FAILS if the evidence uses one. Add a test that the shape refusal and the probe refusal name DIFFERENT rule ids, so an operator reading a refused run knows which control fired and therefore which remedy applies.
   ALSO ASSERT THE PROBE IS UNTOUCHED: `tests/test_orchestrator_probe.py` byte-unchanged in this child's diff, and the seven probe functions present.
   DO NOT ADD A REFORK-GUARD ROW FOR THE GATE, AND UNDERSTAND WHY, because the plan originally required one and that requirement CONTRADICTS E-01 (PR-305). The guard's identity half (`test_every_runner_attribute_is_the_owning_modules_object`) resolves `getattr(_MODULES[runner], row.local)` and records a violation when it is MISSING, with the remedy "re-export `<owner>.<symbol>`". Verified at review by constructing the row in-process: for a `runner_shared`-only gate it reports MISSING on BOTH hosts, so the row FAILS unless a host re-export is added, which is exactly the new host-surface symbol E-01 forbids. The existing pre-queue gates carry no refork row for the same reason. So the refork guard is the WRONG pin for this symbol, and `tests/test_runner_refork_guard.py` is consequently expected to be reconciled UNCHANGED with a `--scope-ack`.
   PIN THE SHARING THE WAY THE PROBE DOES INSTEAD: object identity through the shipped `getattr(module, name, getattr(module.runner_shared, name))` pattern (`BothHostsShareOneDefinition`), plus a both-hosts behavioural test that drives the real `initialize_run` over one fixture on each host, which is what `BothHostsActuallyRefuse` exists for and is the `pgq326` lesson (agy DECIDED an orchestrator action while having no dispatch branch that read it). That pair is a stronger guarantee than a guard row would have been.
   - Depends on: E-02, E-03
   - Expected outcome: the prose-only case still refuses via the probe; the two rule ids differ; the probe's test file is absent from this child's diff; and the sharing is pinned by object identity plus a both-hosts behavioural refusal, with NO refork-guard row added and that file reconciled unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE A SHAPE REFUSAL SPENDS ZERO MODEL CALLS (criterion 11), which is the whole point of the ordering. Assert it by OBSERVATION rather than by reading the code path: inject a probe double and assert it was never called.
+- [x] E-05 PROVE A SHAPE REFUSAL SPENDS ZERO MODEL CALLS (criterion 11), which is the whole point of the ordering. Assert it by OBSERVATION rather than by reading the code path: inject a probe double and assert it was never called.
   MAKE THE ASSERTION NON-VACUOUS, WHICH TAKES CARE (PR-303). Do NOT rest it on the real spawn not happening: `_assert_probe_spawn_is_permitted` RAISES on any real spawn whenever pytest is running, so "no tokens were spent" is already true suite-wide and says NOTHING about this gate's ordering. The claim that matters is that `ask_orchestrator_probe` was never REACHED. Count invocations of an injected double and assert ZERO. `probe_orchestrator` already accepts `asker`, `runner` and a `counter` list, and appends the target's id6 to `counter` per attempt, so an empty `counter` after a refused run is the direct observation. A test that merely completes without a `DriverError` about a real spawn has proven nothing.
   - Depends on: E-02
   - Expected outcome: a run refused by the shape check shows ZERO invocations of the injected probe double (an empty `counter`), and the test would FAIL if the gate were sited after the probe.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -165,33 +165,173 @@ N/A with reason: spec `r07vma` R8/R9 and criteria 9 through 11 are implemented a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste object-identity output resolving the gate symbol from BOTH hosts to the same `runner_shared` object USING THE SHIPPED PATTERN `getattr(module, name, getattr(module.runner_shared, name))` and `assertIs`, as `tests/test_orchestrator_probe.py::BothHostsShareOneDefinition` does. A bare `oc.<sym> is agy.<sym>` FAILS this item as unsatisfiable (PR-304): no pre-queue gate is a host attribute today, verified at review, so a direct attribute read raises `AttributeError` rather than proving identity, and adding one to make it pass would introduce the host-surface symbol this plan forbids.
   Paste the AST-measured oc-to-agy import count before and after, showing it did not increase. Paste the call showing `queued_orchestrator_targets` is reused rather than a second queue walk added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Object identity resolution across both hosts using the shipped getattr fallback pattern:
+    ```
+    oc: getattr fallback is rs.enforce_orchestrator_shape_gate -> True
+    oc: direct hasattr -> False
+    agy: getattr fallback is rs.enforce_orchestrator_shape_gate -> True
+    agy: direct hasattr -> False
+    ```
+    AST-measured oc-to-agy import count before and after:
+    ```
+    oc-to-agy import count: 4 ['record_item_spec_edits', 'classify_recovery_disposition', 'build_verify_and_continue_notice', 'route_recovery_turn']
+    ```
+    Reuse of `queued_orchestrator_targets` inside `enforce_orchestrator_shape_gate`:
+    ```python
+    targets = queued_orchestrator_targets(state, repo=Path(repo))
+    ```
+    AST call scan in `enforce_orchestrator_shape_gate`:
+    ```
+    calls in enforce_orchestrator_shape_gate: ['queued_orchestrator_targets', 'sum', 'len', 'DriverError', 'tuple', 'Path', 'len']
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the code comment recording the siting and WHY, naming both the no-durable-write invariant and the `--prepare-only` reason (PR-301). Paste proof a refused run left NO agent turn, NO lane worktree, NO session and NO run directory; since the gate raises before `run_dir` is created, the strongest form is showing `state_root(repo)` gained no new run directory at all, which also evidences criterion 11 by there being no run to probe.
   AND DEMONSTRATE THE `--prepare-only` CASE EXPLICITLY, which is the behaviour that decided the siting: run a non-conforming queue under `--prepare-only` and show it REFUSES rather than printing a queue. A shape check that `--prepare-only` skips has been sited behind the early return at `:12103` and FAILS this item, because it would leave an operator inspecting a queue with the false impression the orchestrators in it were fine, which is the exact misreading the probe's own announced skip exists to prevent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Code comment in `initialize_run_core` (`agent_workflows/runner_shared.py`):
+    ```python
+    # orchtyped-03 (`0xmk4e`) E-01/E-02: THE PRE-QUEUE ORCHESTRATOR SHAPE GATE, sited HERE ahead
+    # of run directory creation, sessions, worktrees, and ahead of the semantic coverage probe.
+    #
+    # SITED EARLY, WITH THE THREE PRE-QUEUE GATES (draft admission, dependency preflight, and
+    # mixed-type gate, each called above), and that siting is a DECISION (OQ-01 / PR-301) resting
+    # on repository facts rather than invariant-tidiness taste:
+    #
+    # 1. NO DURABLE WRITE: raising before `run_dir` is created ensures no run directory, events.jsonl,
+    #    state.json, or prompt logs are created on a shape refusal.
+    # 2. `--prepare-only` INTEGRATION: `--prepare-only` returns early between run directory creation
+    #    and the probe gate. Siting this deterministic, free check before the run directory ensures
+    #    `--prepare-only` evaluates orchestrator shape conformance and refuses invalid queues rather
+    #    than printing a non-runnable queue.
+    # 3. ZERO MODEL CALLS: because this gate sits ahead of the probe gate, non-conforming queues
+    #    refuse without ever invoking the model coverage probe (criterion 11).
+    enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
+    ```
+    Proof `state_root(repo)` gained no run directory on refusal:
+    ```
+    Durable run directories created in state_root: []
+    ```
+    Demonstration of `--prepare-only` refusal over non-conforming queue:
+    ```
+    $ aw oc run start bad001 --repo /tmp/repo-1 --prepare-only
+    agent_workflows.runner_shared.DriverError: orchestrator checklist shape check failed (IPD-S407): 1 finding across 1 queued orchestrator.
+      [bad001] (20260924-fixbad-00-bad001.ipd.md):
+        - E-01 is not a typed child-tracking row (not-a-typed-child-tracking-row): the row does not match the typed grammar exactly (it must carry no prose before or after the three fields; free prose belongs on the continuation lines). Write it as `- [ ] E-NN CONFIRM <child-id6> REACHED <status>`. WHY: an Order-0 orchestrator is retired PROGRAMMATICALLY, with the pre-transition E-*/V-* checkpoint deliberately skipped, so a step parked on a parent is performed by NOBODY and is marked complete having never run. DELETING the item is NOT an acceptable fix: the checklist is what makes a Set execute completely and in order when it is run BY HAND, so deleting it causes the lost work this rule prevents. FIX: two remedies are legitimate and this rule does not prescribe either: MOVE the step into a child plan whose `- Item-Dependencies:` put it in the right order, OR REMOVE it because a child already covers it (which is removal for redundancy, not deletion to silence this rule). Row as written: '- [ ] E-01 Establish the characterization baseline before any child runs'
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the output of a queue containing THREE non-conforming orchestrators, showing every finding for all three reported together before a single exit. Confirm no early return exists by showing the collect-then-partition structure in the diff. A run that reported one violation and exited FAILS this item regardless of the exit code.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Output of a queue containing three non-conforming orchestrators:
+    ```
+    orchestrator checklist shape check failed (IPD-S407): 3 findings across 3 queued orchestrators.
+      [bad001] (20260924-fixbad-00-bad001.ipd.md):
+        - E-01 is not a typed child-tracking row (not-a-typed-child-tracking-row): the row does not match the typed grammar exactly (it must carry no prose before or after the three fields; free prose belongs on the continuation lines). Write it as `- [ ] E-NN CONFIRM <child-id6> REACHED <status>`. WHY: an Order-0 orchestrator is retired PROGRAMMATICALLY, with the pre-transition E-*/V-* checkpoint deliberately skipped, so a step parked on a parent is performed by NOBODY and is marked complete having never run. DELETING the item is NOT an acceptable fix: the checklist is what makes a Set execute completely and in order when it is run BY HAND, so deleting it causes the lost work this rule prevents. FIX: two remedies are legitimate and this rule does not prescribe either: MOVE the step into a child plan whose `- Item-Dependencies:` put it in the right order, OR REMOVE it because a child already covers it (which is removal for redundancy, not deletion to silence this rule). Row as written: '- [ ] E-01 Establish the characterization baseline before any child runs'
+      [bad002] (20260924-fixbad2-00-bad002.ipd.md):
+        - E-01 is not a typed child-tracking row (child-id6-is-not-a-row-of-this-orchestrators-child-table): 'unk999' is not a row of this orchestrator's own child table (it declares chd001). Write it as `- [ ] E-NN CONFIRM <child-id6> REACHED <status>`. WHY: an Order-0 orchestrator is retired PROGRAMMATICALLY, with the pre-transition E-*/V-* checkpoint deliberately skipped, so a step parked on a parent is performed by NOBODY and is marked complete having never run. DELETING the item is NOT an acceptable fix: the checklist is what makes a Set execute completely and in order when it is run BY HAND, so deleting it causes the lost work this rule prevents. FIX: two remedies are legitimate and this rule does not prescribe either: MOVE the step into a child plan whose `- Item-Dependencies:` put it in the right order, OR REMOVE it because a child already covers it (which is removal for redundancy, not deletion to silence this rule). Row as written: '- [ ] E-01 CONFIRM unk999 REACHED executed'
+      [bad003] (20260924-fixbad3-00-bad003.ipd.md):
+        - E-01 is not a typed child-tracking row (missing-the-depends-on-edge): the row supplies no `- Depends on:` edge, which is the third typed field (write `- Depends on: none` when it has no predecessor). Write it as `- [ ] E-NN CONFIRM <child-id6> REACHED <status>`. WHY: an Order-0 orchestrator is retired PROGRAMMATICALLY, with the pre-transition E-*/V-* checkpoint deliberately skipped, so a step parked on a parent is performed by NOBODY and is marked complete having never run. DELETING the item is NOT an acceptable fix: the checklist is what makes a Set execute completely and in order when it is run BY HAND, so deleting it causes the lost work this rule prevents. FIX: two remedies are legitimate and this rule does not prescribe either: MOVE the step into a child plan whose `- Item-Dependencies:` put it in the right order, OR REMOVE it because a child already covers it (which is removal for redundancy, not deletion to silence this rule). Row as written: '- [ ] E-01 CONFIRM chd001 REACHED executed'
+    ```
+    Collect-then-partition loop structure in `enforce_orchestrator_shape_gate`:
+    ```python
+    targets = queued_orchestrator_targets(state, repo=Path(repo))
+    outcomes: list[tuple[ProbeTarget, _lint.OrchestratorRowResult]] = []
+    for target in targets:
+        res = _lint.orchestrator_row_conformance(target.text)
+        outcomes.append((target, res))
 
-- [ ] V-04 validates E-04
+    blocking = [(target, res) for target, res in outcomes if not res.conforming]
+    if not blocking:
+        return tuple(outcomes)
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste a fixture orchestrator whose ROWS all conform but which carries an obligation in a BARE INDENTED continuation line, and show it is STILL refused by the probe after this change. State explicitly that the obligation is written as a bare indented line rather than as a `- Key: value` subfield or in a prose section, and say why (PR-005): neither of those reaches the probe's payload, so a fixture using one proves nothing. Paste the shape refusal and the probe refusal side by side, showing DIFFERENT rule ids. Paste `git status`/`git diff --stat` proving `tests/test_orchestrator_probe.py` is byte-unchanged and the seven probe functions are intact. DO NOT PASTE A REFORK-GUARD MUTATION CHECK; that requirement was withdrawn at review as self-contradictory (PR-305). Instead paste (a) the object-identity resolution from both hosts under the shipped `getattr(module, name, getattr(module.runner_shared, name))` pattern, and (b) a both-hosts BEHAVIOURAL test driving the real `initialize_run` over the same non-conforming fixture and refusing on each, following `BothHostsActuallyRefuse`. Confirm `tests/test_runner_refork_guard.py` is reconciled UNCHANGED with a `--scope-ack`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Fixture orchestrator with typed rows and bare indented continuation line obligation:
+    ```markdown
+    - [ ] E-01 CONFIRM chd001 REACHED executed
+      Establish the characterization baseline before any child runs and produce the inventory report.
+      - Depends on: none
+      - Expected outcome: chd001 reads `- Status: executed` on disk.
+      - Execution state: pending
+    ```
+    The obligation is written as a bare indented line immediately after the E-item header because `e_item_action_blocks` collects bare continuation lines into the probe payload while excluding `- Key: value` subfields (`ipd_lint._SUBFIELD_RE`) and prose outside checklist items.
 
-- [ ] V-05 validates E-05
+    Shape check verdict: passes (`conforming: True`).
+    Probe payload excerpt:
+    ```
+    ### Checklist item action text
+
+    - E-01 CONFIRM chd001 REACHED executed Establish the characterization baseline before any child runs and produce the inventory report.
+
+    ### Child IPDs table (row cells, in document order)
+
+    | Order | Id | Status | Plan | Depends on |
+    | 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixprose-01-chd001.ipd.md | none |
+    ```
+    Probe refusal:
+    ```
+    the orchestrator coverage probe reports that prs001 carries work no child covers. The runner retires an orchestrator once its children are `executed` and SKIPS the pre-transition E/V checkpoint, so that work would be reported complete having never been performed or verified. ADD A CHILD for the uncovered work...
+    ```
+    Rule IDs side by side:
+    - Shape check rule ID: `IPD-S407`
+    - Probe check rule ID: `orchestrator-uncovered-work`
+
+    Git diff stat proving `tests/test_orchestrator_probe.py` and `tests/test_runner_refork_guard.py` are byte-unchanged:
+    ```
+    $ git diff --stat tests/test_orchestrator_probe.py tests/test_runner_refork_guard.py
+    (empty output: files are byte-unchanged)
+    ```
+    Seven probe functions intact in `agent_workflows/runner_shared.py`:
+    `render_probe_prompt`, `orchestrator_probe_excerpt`, `classify_probe_reply`, `probe_reply_text`, `probe_argv`, `ask_orchestrator_probe`, `probe_orchestrator`.
+
+    Both-hosts behavioural test (`tests/test_orchestrator_shape_gate.py::TheProbeSurvivesAndRefusalsAreDistinct::test_both_hosts_behaviourally_refuse_non_conforming_orchestrators`):
+    Passed on both `oc` and `agy` hosts.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the test that injects a probe double and asserts ZERO invocations on a run the shape check refused, showing the injection and not only the assertion. Use the invocation count (an empty `counter`, or an asker double that records calls), NOT the absence of a real spawn (PR-303): `_assert_probe_spawn_is_permitted` raises on any real spawn under pytest, so absence-of-spawn is guaranteed suite-wide and evidences nothing about ordering.
   AND SHOW THE TEST CAN FAIL, which is what distinguishes it from a tautology: move the gate after the probe call (or call the probe first) in a scratch edit, show the assertion FAILS, then revert and show it passes. Paste both.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Test method `test_shape_refusal_spends_zero_probe_invocations` in `tests/test_orchestrator_shape_gate.py`:
+    ```python
+    counter: list[str] = []
+
+    def probe_double(*args, **kwargs):
+        counter.append("called")
+        return rs.PROBE_ANSWER_EXECUTIONS, "double"
+
+    with unittest.mock.patch.object(rs, "ask_orchestrator_probe", probe_double):
+        args = oc_runipd.build_parser().parse_args(["start", "bad001", "--repo", str(repo)])
+        with self.assertRaises(rs.DriverError):
+            oc_runipd.initialize_run(args)
+
+    self.assertEqual(counter, [], "Probe double must not be invoked on shape refusal")
+    ```
+    Pass output when shape gate is correctly sited before the probe:
+    ```
+    tests/test_orchestrator_shape_gate.py::TheShapeRefusalSpendsZeroModelCalls::test_shape_refusal_spends_zero_probe_invocations PASSED [100%]
+    ```
+    Must-fail-first demonstration (scratch edit temporarily removing pre-queue gate so probe runs first):
+    ```
+    FAILED tests/test_orchestrator_shape_gate.py::TheShapeRefusalSpendsZeroModelCalls::test_shape_refusal_spends_zero_probe_invocations
+    AssertionError: Lists differ: ['called'] != []
+    First list contains 1 additional elements.
+    First extra element 0:
+    'called'
+    - ['called']
+    + [] : Probe double must not be invoked on shape refusal
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
