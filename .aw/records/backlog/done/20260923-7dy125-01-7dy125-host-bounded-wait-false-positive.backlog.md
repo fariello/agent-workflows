@@ -1,0 +1,9 @@
+- Id: 7dy125
+- Status: done
+- Set: 7dy125
+- Priority: medium
+- Work-Kind: bug
+- Summary: agy host bounded-wait line read as truncation by phrase, firing on a healthy 4h wait
+
+## Workflow history
+- 2026-09-23 created (aw backlog): FIXED on main in c2a7b890. classify_host_turn_line treated the bare substring 'waiting up to' as the host admitting it had cut the turn's work. Measured in production on run-20260924T010059Z-999731 item lc4unl: the host emitted 'waiting up to 4h0m0s' (its FULL --print-timeout ceiling, i.e. maximal patience), then waited out the agent's 306s foreground 'python3 -m pytest' (9098 passed in 304.62s is in that session log) and carried on. The driver printed 'TRUNCATED BY ITS HOST' and wrote host_truncation into the run record TWICE for a turn nothing had truncated. That is a false positive, the direction the detector's own FAIL-SILENT note calls 'the dangerous direction', so that note was wrong as written and is corrected too. Cost was bounded because turn_attempted_nothing treats the signal as supporting rather than required, so no spurious retry occurred; the damage was a false operator warning and a false durable record that three pending reaskscore plans treat as trustworthy. FIX: the verdict now turns on the SIZE of the bound (HOST_TOKEN_WAIT_CEILING_SECONDS=60s, between the two measured observations 5s-then-cut and 4h0m0s-then-waited); an unreadable bound yields no verdict rather than a truncation. Shared module only: agy_runipd merely constructs/feeds/records the observer and oc_runipd never calls it. NOT retroactively gated with Blocks-Release, per the AGENTS.md rule that a bug already done must not assert a history that did not happen. Evidence: agent_workflows/lane_containment.py, tests/test_turn_bounds.py; new tests verified to FAIL against the old classifier (25 failed) including an end-to-end driver-loop case reproducing the exact operator warning; full suite on main 9131 passed, 3 skipped, 2 xfailed.
