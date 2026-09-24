@@ -2,11 +2,11 @@
 
 - Date: 2026-09-24
 - Kind: orchestrator
-- Concern: AN OPERATOR READING A RUN SUMMARY CANNOT TELL SUCCESS FROM WORK THAT IS NOWHERE, AND A REFUSAL THEY COULD ANSWER IN ONE TURN COSTS THEM AN ITEM PLUS EVERYTHING BEHIND IT. Both were measured on one run, `run-20260924T050407Z-3108751`. The vocabulary half: `substantially-complete` described BOTH `xdvglg` (6/6 items performed, work correct, landed once a human re-issued its receipt) AND `7p3tt8` (ZERO of 5 items performed, empty evidence), while `failed-safely` described `m7gvuz`, the only plan in the run that refused ITSELF rather than tick a V-item it could not honor. The word an operator reads is anti-correlated with what happened. The response half: `xdvglg`'s refusal was two findings a running agent could have answered, and instead the item failed and `04vf1h` and `a5wdne` cascaded `dependency-blocked` behind it. Neither half is cosmetic: the vocabulary's worst token is a member of the live dependency bar, and the failed item blocked two others.
+- Concern: AN OPERATOR READING A RUN SUMMARY CANNOT TELL SUCCESS FROM WORK THAT IS NOWHERE, AND A REFUSAL THEY COULD ANSWER IN ONE TURN COSTS THEM AN ITEM PLUS EVERYTHING BEHIND IT. Both were measured on one run, `run-20260924T050407Z-3108751`. The vocabulary half: `substantially-complete` described BOTH `xdvglg` (6/6 items performed, work correct, landed once a human re-issued its receipt) AND `7p3tt8` (ZERO of 5 items performed, empty evidence), while `failed-safely` described `m7gvuz`, the only plan in the run that refused ITSELF rather than tick a V-item it could not honor. The word an operator reads is anti-correlated with what happened. The response half: `xdvglg`'s refusal was two findings a running agent could have answered, and instead the item failed and `04vf1h` and `a5wdne` cascaded `dependency-blocked` behind it. Neither half is cosmetic: the vocabulary's worst token is a member of `runner_shared.EXECUTION_SUCCESS_STATES`, which orchestrator retirement (`decide_orchestrator_dispatch`) and the drain/cascade labeling read through `success_states=`, and the failed item blocked two others. STATED BY SYMBOL DELIBERATELY, because the looser phrase "the live dependency bar" is the wording Order 01's round 1 had to correct (PR-002): `edge_satisfied` is NOT a consumer, since its `executed:` branch already resolves the target and requires `plan_bucket(dep_path) == "executed"`.
 - Scope: Orchestrate three children that together make a run status name its refusing authority, make an answerable finalize refusal a question, and show an operator whether each item landed in `main`. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child (`cyamvi` the vocabulary and its exhaustiveness guard, `787hb4` the send-back, `9x7otz` the `Landed` column and the eight spec amendments), and this file contributes no code, no test, and no record of its own. EXCLUDES changing WHICH gate refuses what, in every child without exception.
 - Scope-Paths: .aw/records/plans/pending/20260924-statusvocab-00-zngiya-make-a-run-status-name-its-refusing-authority-and-make-an-an.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: statusvocab
 - Order: 0
 - Highest E allocated: 03
@@ -17,6 +17,7 @@
 - Id: zngiya
 
 ## Workflow history
+- 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-001..PR-003 all FIXED, none deferred, none open. PR-001: the gate carried almost no execution contract (no scope fence, no honesty rule, no commit discipline, no lifecycle transition), which is worse on an orchestrator because retirement skips the E/V checkpoint; rewritten with the conditional transition and the retirement warning both sibling orchestrators already carry. PR-002: the Concern reintroduced the loose 'live dependency bar' wording that cyamvi's own round 1 corrected, so an executor would arrive at the child believing edge_satisfied is a consumer when its live branch already reads the directory; now names decide_orchestrator_dispatch and the cascade pass by symbol. PR-003: IPD-S407 was credited to orchtyped Order 04 68uhp0 when commit 70678847 landed it as Order 01 dpdyed. Record: .aw/records/reviews/20260924-statusvocab-00-zngiya-make-a-run-status-name-its-refusing-authority-and-make-an-an.review.md. Readiness go-pending-approval.
 - 2026-09-24 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored as part of splitting the oversized cyamvi plan into a Set on maintainer instruction; complete enough to critique.
 
 - 2026-09-24 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
@@ -81,7 +82,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Conventions this Set was authored against
 
-- AN ORCHESTRATOR HOLDS ORCHESTRATION, NOT WORK OF ITS OWN, and its checklist must be typed child-tracking rows (`IPD-S407`, landed by `orchtyped` Order 04 `68uhp0`). The runner RETIRES a parent once every child is `executed` and deliberately SKIPS the pre-transition E/V checkpoint, so a step parked here would be marked complete having never run. Every row above is a child confirmation; the reasoning lives on the continuation lines.
+- AN ORCHESTRATOR HOLDS ORCHESTRATION, NOT WORK OF ITS OWN, and its checklist must be typed child-tracking rows (`IPD-S407`, whose grammar and single validation function `ipd_lint.orchestrator_row_conformance` were landed by `orchtyped` Order 01 `dpdyed`; Order 04 `68uhp0` MIGRATED the then-pending orchestrators onto that row). The runner RETIRES a parent once every child is `executed` and deliberately SKIPS the pre-transition E/V checkpoint, so a step parked here would be marked complete having never run. Every row above is a child confirmation; the reasoning lives on the continuation lines.
 - THE ORCHESTRATOR COVERAGE GATE asks a model whether a parent carries work no child covers, and refuses a run unattended when it does. This parent was authored to pass it by construction: the three deliverables are each owned by exactly one child and named in the table.
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 
@@ -124,4 +125,21 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ## Approval and execution gate
 
-Human approval required before execution. Order 01's narrowing of the dependency bar to `{executed}` should be approved explicitly, because it can turn currently-dispatchable items into `fail-depend`.
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Human approval required before execution. Order 01's narrowing of `EXECUTION_SUCCESS_STATES` to `{executed}` should be approved explicitly, because it can turn currently-dispatchable items into `fail-depend`. Measured at Order 01's review and RE-DERIVABLE at execution: all six `executed:` edges across `pending/` name six targets already in `executed/`, so the blast radius is ZERO today.
+
+OPEN QUESTIONS: OQ-01 is the only one, it is `Blocking: no`, and it carries a recorded recommendation (defer the thirteenth label, with the test that would justify one). Nothing here blocks execution, so an executor must NOT re-decide it mid-run; a label change would invalidate Order 01's 209-item census and send it to a third review.
+
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS: this plan's `- Scope-Paths:` is its OWN file alone, which is the honest declaration for a plan whose every item is a child confirmation. It is a declaration and not a stop order: an out-of-scope edit that is genuinely required must be MADE and then JUSTIFIED to `aw ipd finalize` with a `--scope-reason` per path, and a declared path left unmodified needs a `--scope-ack`. Do not halt over a scope question. DO halt for a genuinely unsafe condition (an unresolvable concurrent-edit conflict, or a prerequisite whose symbols are absent).
+
+NOTE FOR AN EXECUTOR READING THIS SET'S SPEC EDITS: Order 03 declares eight `.spec.md` paths and is the ONLY child that may amend a spec. Both runners announce declared spec edits before a run and reconcile them at the end, so an undeclared spec edit from Order 01 or 02 is a defect, not a convenience.
+
+HONESTY RULE (hard MUST): paste the ACTUAL runner output for every `V-*` above. A `V-*` may not be marked complete from the matching `E-*` checkmark, from memory, or from a child's own self-report; V-01 through V-03 each demand a pasted path plus a pasted `- Status: executed` line, and V-03 additionally demands the ORDERING evidence. Never claim a test pass that was not run.
+
+COMMIT DISCIPLINE: commit only the paths this plan declares, path-scoped, through `aw commit`; never `git add -A`, never `-a`, and never push. This is a shared checkout, so run `git diff --cached --name-only` before each commit and unstage anything that is not yours.
+
+LIFECYCLE TRANSITION, AND IT IS CONDITIONAL, WHICH IS THE ONE THING NOT TO GET WRONG HERE. This plan is `- Kind: orchestrator`, so on the RUNNER path it is RETIRED without an agent turn once all three children read `executed` on disk (`runner_shared.dispatch_orchestrator_item` -> `ipd_lifecycle.retire_orchestrator`), and that path deliberately SKIPS the pre-transition E/V checkpoint. Do NOT run `aw ipd finalize` on this file under a runner, and do NOT hand-roll a `git mv` to `executed/` on any path. If this Set is executed BY HAND instead, the executor owns the transition and must genuinely perform V-01 through V-03 with pasted evidence before `aw ipd lint --phase pre-transition` conforms and `aw ipd finalize` moves the file.
+
+BECAUSE RETIREMENT SKIPS THE CHECKPOINT, THE THREE V-ITEMS ABOVE CAN BE MARKED COMPLETE HAVING NEVER BEEN INSPECTED. That is tolerable ONLY because each one restates a fact retirement itself already gates on (every child `executed` on disk), and because the ORCHESTRATOR COVERAGE GATE independently refuses a run whose parent carries work no child covers. Every Set-level completion criterion is owned by a child `V-*`, which is what makes that tolerable rather than a hole.
