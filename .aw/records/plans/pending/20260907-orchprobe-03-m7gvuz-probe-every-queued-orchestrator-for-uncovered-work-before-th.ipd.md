@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The runner retires an orchestrator once every child is `executed`, omitting the pre-transition E/V checkpoint on the premise that its items are "performed by NOBODY" (`ipd_lifecycle.py:1825`, `ROLLUP_OMITTED_GATES:1897`). When a parent carries work no child covers, that premise is false and the work is reported complete having never been performed OR verified. Nothing detects this. THIS IS NO LONGER HYPOTHETICAL: on 2026-09-08, while this plan sat in `to-review`, `aw oc run` retired `rh5tt6` (commit `8b4e1570`, message "Its own `E-*`/`V-*` items were NOT performed") whose E-02 (repo-wide suite, leak sanitization, and an end-to-end install proof the plan itself calls "the part no child owns") still reads `Execution state: pending` with a blank V-02. See F-14. The gate is now compensating for a failure with a measured instance, not a modeled one. It cannot be a pattern match: the dangerous case is PROSE ("someone must migrate the database before the children run"), which matches no checklist syntax, so a syntactic rule catches only the tidy mistake and misses the harmful one. It is a semantic question, so it needs a model to answer it. A blunt syntactic rule was built and REVERTED 2026-09-07 for a second reason too: most orchestrator checklist items are legitimate orchestration, and a rule that flags them teaches agents to DELETE the checklist that makes non-runner execution complete.
 - Scope: A bounded pre-run gate. IN: a short prompt per queued orchestrator returning ONE parsable line, over an explicitly bounded excerpt rather than the whole file; consuming child 02's cache so an unmodified orchestrator is never re-probed; an interactive prompt when a TTY is present, a hard failure when not, and an override flag that is recorded with its justification; the COULD-NOT-ASK retry-and-warn path the maintainer's OQ-02 ruling requires, so a model outage cannot halt a run; emitting child 01's refusal record so the reason and its remedy reach both surfaces. OUT: the retirement predicate and the rollup transition (`77tr3o` owns both); any `ipd_lint` rule (rejected; see Deferred); backfilling the existing orchestrators.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/engine.py, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, tests/test_orchestrator_probe.py, tests/test_orchestrator_retirement.py, tests/test_rununify_build_parser.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/engine.py, .aw/records/specs/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, tests/test_orchestrator_probe.py, tests/test_orchestrator_retirement.py, tests/test_rununify_build_parser.py
 - Item-Dependencies: executed:r2i1b1, executed:8tgg6g
 - Status: approved
 - Work-Kind: bug
@@ -19,6 +19,8 @@
 - Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-23 approved (aw set): 2026-09-23 attempt 3 (run-20260923T023317Z-3622079) INDEPENDENTLY RE-VERIFIED the shipped gate at HEAD 5fea858f and re-derived V-05's precondition from disk rather than inheriting attempt 2's verdict. Attempt 2 was interrupted after committing records-only work to its own lane; that work is brought forward here (backlog qzo6dn, the wtd5m2 note) and its V-05 evidence is SUPPLEMENTED with my own measurement, not copied. CONCLUSION UNCHANGED: V-05 is still blocked and the plan must not finalize. Re-verified from primary sources: 0daacf0a IS an ancestor of this HEAD; all 15 probe symbols resolve in runner_shared with ZERO oc/agy aliases left (stronger than the equal-id() form V-09 recorded, since no second name can drift); enforce_orchestrator_probe_gate has exactly ONE call site package-wide at runner_shared.py:23039 inside initialize_run_core, which BOTH hosts' initialize_run delegate to; PROBE_BLOCKING_ANSWERS is still ['executions','unknown'] so could-not-ask still does not block; --retry-budget still resolves to DEFAULT_RETRY_LIMIT = 2; 267 passed across test_orchestrator_probe.py, test_orchestrator_probe_cache.py, test_orchestrator_retirement.py and test_run_flag_surface.py. V-05 RE-CLASSIFIED by reading every pending Kind: orchestrator plan's FULL action text through the shipped e_item_action_blocks (the same bytes the probe's payload sees): population TEN, FIVE carrying unambiguous parent-only work (5e4sb6, wfjsp4, a5wdne, tb63qv, s0gnha) plus ONE borderline (ao1rb7 E-03). The y9s4vm production instance was re-verified from primary sources rather than cited second-hand: git show 5fea858f states 'Its own E-*/V-* items were NOT performed', the executed plan still carries 3 'Execution state: pending' and 3 'Result: pending' (all of them), and its E-03's subject 6h7y2y reads graduated with aw backlog check conforming, so the record is accidentally right while nobody performed or verified the check it now asserts. Suite bare at this HEAD ON A CLEAN TREE: 3 failed, 9069 passed, 3 skipped, 2 xfailed; all three failures are PRE-EXISTING (measured with an empty working tree BEFORE any edit of mine), touch none of this plan's paths, and are filed by other agents as 2tiyl8 and j08jky. aw ipd lint --phase pre-transition reports exactly one error, V-05 not pass, and it is CORRECT. No orchestrator was edited to make any item pass.
+- 2026-09-23 approved (aw set): 2026-09-23 attempt 2 re-validated at HEAD 5fea858f (run-20260923T023317Z-3622079): the shipped gate still works and V-05 is STILL blocked. CODE RE-VERIFIED rather than assumed, because the lyo1tz runner re-homing landed in between and REMOVED the host re-exports V-09 originally measured identity through: all 15 probe symbols now resolve in runner_shared ALONE (no oc/agy alias to drift, a stronger form of V-09's requirement), enforce_orchestrator_probe_gate has exactly ONE call site package-wide, both hosts still reach it through initialize_run_core, the four-state parser is unchanged, and 183 passed across test_orchestrator_probe.py, test_orchestrator_probe_cache.py and test_orchestrator_retirement.py. V-05 RE-MEASURED at execution as the item demands: population is TEN pending Kind: orchestrator plans, FIVE carrying unambiguous parent-only work (5e4sb6, wfjsp4, a5wdne, tb63qv, s0gnha) plus ONE borderline (ao1rb7 E-03). The count matching 2026-09-19's ten CONCEALS A CHURN OF SIX: 7ewc74, lyo1tz and y9s4vm left while 2xz59a, d1u4sy and s0gnha joined, so the debt is not converging. A FOURTH PRODUCTION INSTANCE OF THE HAZARD, at the very tip this turn started from: aw oc run retired y9s4vm in commit 5fea858f with all three E and V items pending and a message saying 'Its own E-*/V-* items were NOT performed'. Unlike lyo1tz's harmless retirement, this one left a REAL GAP: y9s4vm E-03 required confirming backlog 6h7y2y reached its correct terminal state and that the parent did not set it; 6h7y2y does read graduated and aw backlog check conforms, so the state is accidentally right, but nobody performed or verified the check while the plan sits in executed/ asserting it. y9s4vm was listed BORDERLINE on 2026-09-19, so the borderline class is not a safe class. Suite bare: 3 failed, 9069 passed, 3 skipped, 2 xfailed; all three failures are PRE-EXISTING at this HEAD with an empty working tree, touch none of this plan's paths, and are already filed by other agents as 2tiyl8 (two runner-layering import-count pins stale at 56 vs the re-homed 4) and j08jky (turn-bounds test reddened by ambient OPENCODE_CONFIG_CONTENT). Plan deliberately NOT finalized: aw ipd lint --phase pre-transition reports exactly one error, V-05 not pass, and it is CORRECT. No orchestrator was edited to make any item pass.
 - 2026-09-22 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl, maintainer Ruling 2 of 2026-09-12 (orchprobe: medium/bug); Blocks-Release: next per Ruling 3 in the same call
 - 2026-09-19 executed-substantially (opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-10 all PERFORMED and V-01..V-04/V-06..V-10 verified with pasted evidence at code commit `0daacf0a`; `aw ipd lint` CONFORMING. NOT FINALIZED, deliberately: `--phase pre-transition` reports exactly one error, `V-05: not 'pass'`, and it is CORRECT. V-05 carries OQ-03's precondition, and re-classified at execution SEVEN pending `Kind: orchestrator` plans still carry parent-only work (`5e4sb6` E-01/E-02/E-03, `wfjsp4` E-02/E-03/E-04, `a5wdne` E-01, `tb63qv` E-01 unambiguously; `ao1rb7`/`y9s4vm`/`lyo1tz` E-03 borderline), so the plan stays in `pending/` rather than forging the attestation this Set exists to protect. OQ-03's three-id snapshot is stale both ways: two are no longer pending and five newer parents joined. The gate itself is LIVE on both hosts through one seam (`initialize_run_core`), spec `77tr3o` gained R-12, `25kzda` gained 2.1's `--allow-uncovered-orchestrator-work` plus a new Section 2.5b, and the AGENTS.md managed block was regenerated from `engine.py` with the thrice-stale '46 of 130' fraction replaced by a property. Suite bare: `8335 passed, 3 skipped, 2 xfailed` vs a worktree baseline of `8258 passed, 3 skipped, 2 xfailed` at `b5208b0e`, no new failing node ids. DEFECT FIXED IN PASSING: `probe_cache_payload` read `ipd_lint.Leaf.text` (a leaf's OPENING LINE only), dropping 58 percent of the live corpus's action prose and leaving the cache key under-sensitive to the continuation-line edits that actually change what an item asks for; fixed via `e_item_action_blocks` with the five `xmqv5l` no-op invariants re-proved. THREE DEFECTS FILED: `168p5j` (`frozen_region_digest` has the same blind spot, so a begin receipt survives a requirement rewrite - reproduced), `b6i85r` (`aw specs note` claims to append but DESTROYS prior history; it ate four real maintainer entries across the two specs amended here, all restored from git), `rmcqw8` (the payload cannot see prose outside an item, pinned by a test that fails if widened alone). Backlog `wtd5m2` tracks the seven-orchestrator debt V-05 blocks on.
 - 2026-09-08 approved (aw set): status set to approved
@@ -371,7 +373,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     The first writes a SECOND orchestrator to disk and asserts `queued_orchestrator_targets` returns only the queued one, which is the `aw oc run all` case the item is about. `TheGateHasThreePaths::test_a_run_with_NO_queued_orchestrator_spends_nothing_and_proceeds` additionally asserts a queue of children alone spends zero calls.
   - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste all three paths (interactive prompt, non-interactive failure, override accepted-and-recorded-with-its-justification). Paste proof a refusal left NO lane worktree, NO session and NO agent turn behind (an empty `sessions/` directory plus a zero attempt count is acceptable), and paste `aw runs` for the refused run read AFTER the process exited, showing the refusal is durable. Do NOT assert "no run directory": E-05 records why that is impossible, and a V-item demanding it would be unpassable.
   ALSO CARRY THE OQ-03 PRECONDITION'S EVIDENCE HERE, because no code can express it and this is the item that lands the live gate. Paste the measured `- Status:` and per-item classification of every pending `Kind: orchestrator` plan at execution time, showing that none still carries uncovered parent-only work. If any does, this item FAILS and the plan must not be finalized: `rh5tt6` (F-14) is the measured proof that waiting is not free, and running the gate over known debt is what teaches an operator to reach for the override.
   - Observed evidence: PERFORMED at HEAD `0daacf0a`. ALL THREE PATHS driven through the REAL `initialize_run` on a fixture repo, with the model call stubbed (never spawned):
@@ -431,7 +433,153 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Seven parents still carry uncovered work: `5e4sb6` (produce a research artifact, establish a baseline before any child runs, verify the whole Set), `wfjsp4` (three whole-Set verifications), `a5wdne` and `tb63qv` (verify and record the Set's combined result) are unambiguous; `ao1rb7` E-03, `y9s4vm` E-03 and `lyo1tz` E-03 are borderline reconciliation steps a reviewer may judge to be orchestration. Note OQ-03's three-id snapshot (`5e4sb6`, `h0zljh`, `3m0urk`) is stale in both directions: `h0zljh` and `3m0urk` are no longer pending, and five parents authored since have joined the set.
 
     CONSEQUENCE, STATED PLAINLY RATHER THAN WORKED AROUND: the gate is correct and it WILL refuse on this known debt the first time a run queues any of those seven. The maintainer's ruling was CLEAR FIRST precisely so the override does not become reflex. Authoring those children is explicitly OUT of this child's scope (its Deferred section says so), and NO orchestrator was edited to make this item pass, which the parent's CID-2 forbids. The debt is filed with its per-item measurement as backlog `wtd5m2` so it is tracked rather than noted in prose, and this item is reported as PARTIAL on that basis; the decision to clear it before or after this gate lands is the maintainer's.
-  - Result: blocked
+
+    RE-MEASURED 2026-09-23 AT HEAD `5fea858f` (run `run-20260923T023317Z-3622079`, attempt 2), because this item requires the classification be taken AT EXECUTION and the corpus moves daily. THE PRECONDITION IS STILL **NOT MET**, so this item still does not pass. Every pending `Kind: orchestrator` plan was re-classified by reading each item's FULL action text through the shipped `runner_shared.e_item_action_blocks` (the function this child's E-03 added, so the classification and the probe's own payload read the same bytes):
+
+    ```
+    id6      Status     items  classification
+    5e4sb6   approved   3      UNCOVERED  (E-01 produce a research artifact; E-02 establish a
+                                          CHARACTERIZATION BASELINE "BEFORE any child reconciles
+                                          anything"; E-03 whole-Set AST-level repo-wide verification)
+    yeh7gc   approved   1      orchestration-only  (sequence the three children, stop on the first
+                                          that is not executed, "DO NOT PERFORM ANY CHILD'S WORK")
+    ao1rb7   approved   3      BORDERLINE (E-03 a Set-wide HONESTY CONSTRAINT spanning both children;
+                                          its own text says "A RUNNER WILL NEVER PERFORM IT")
+    wfjsp4   approved   4      UNCOVERED  (E-02/E-03/E-04 three whole-Set verifications)
+    d0cbt3   approved   2      orchestration-only  (E-01 sequencing, E-02 retire-only)
+    a5wdne   approved   1      UNCOVERED  (verify and record the Set's combined result against ALL
+                                          SIX completion criteria)
+    tb63qv   approved   1      UNCOVERED  (verify the Set's combined outcome MEASURED FROM THE MAIN
+                                          CHECKOUT, a tree no child runs in)
+    2xz59a   approved   9      orchestration-only  (E-01..E-09 each "Confirm child NN reached executed")
+    d1u4sy   approved   5      orchestration-only  (E-01..E-05 each "CONFIRM <id6> REACHED executed")
+    s0gnha   approved   3      UNCOVERED  (E-03 transition the two SOURCE BACKLOG ITEMS, self-declared
+                                          as "the one substantive act that belongs on this plan
+                                          because it is a Set-level record change no child owns")
+    ```
+
+    FIVE unambiguous plus ONE borderline, out of a population of TEN. THE MEMBERSHIP CHANGED AGAIN AND IN BOTH DIRECTIONS, which is exactly why this item forbids trusting any snapshot written here: against the 2026-09-19 measurement (ten, seven carrying debt) `7ewc74` and `lyo1tz` and `y9s4vm` have LEFT the pending set while `2xz59a`, `d1u4sy` and `s0gnha` have JOINED it. Two of the three arrivals are orchestration-only; `s0gnha` brought a NEW instance of uncovered work. So the debt is NOT converging on its own, and the count being unchanged at ten conceals a churn of six.
+
+    A FOURTH PRODUCTION INSTANCE OF THE HAZARD OCCURRED, THIS ONE AT MY OWN HEAD, AND IT IS THE STRONGEST EVIDENCE THIS ITEM CAN CARRY. `y9s4vm` was retired by `aw oc run` in commit `5fea858f` (`run-20260923T023317Z-3622118`), which is the TIP THIS TURN STARTED FROM, and whose message states plainly "Its own `E-*`/`V-*` items were NOT performed". All three of its `E-*` items still read `Execution state: pending` and all three `V-*` items `Result: pending`. That is the `rh5tt6` pattern (F-14) repeating for the fourth recorded time, and `y9s4vm` is one of the very plans the 2026-09-19 measurement listed as BORDERLINE, so the borderline class is not a safe class.
+
+    AND THIS INSTANCE DID LEAVE A REAL GAP, unlike `lyo1tz`'s retirement on 2026-09-22 (whose three items were confirmation-only and whose backlog `cnwy8g` did reach `done`, so the gate would have CLEARED it and nothing was lost). `y9s4vm` E-03 required confirming backlog `6h7y2y` "REACHED ITS CORRECT TERMINAL STATE", that the parent did not set it, and that no `Blocks-Release` was invented; its own text measures that runner automation CANNOT close it (`process_backlog_close` fires only at an agent-executed finalize; `retire_orchestrator` contains no backlog-close call) and concludes "THE CLOSE IS A HUMAN OR AGENT ACT AFTER THE SET". Measured now: `6h7y2y` reads `- Status: graduated`, which is the CONDITIONAL outcome E-03 permits (child `iuxtjy` deferred the backlog half and filed `oc3mhb`), and `aw backlog check` reports "all backlog items conform". So the state happens to be correct, but NOBODY PERFORMED OR VERIFIED THE CHECK: the plan is in `executed/` asserting a verification that was never made. That is precisely the "reported complete having never been performed OR verified" failure in this plan's Concern, and it is the difference between an accidentally-right record and a checked one.
+
+    THE SHIPPED CODE STILL WORKS AT THIS HEAD, re-verified rather than assumed, because the `lyo1tz` runner re-homing landed in between and REMOVED the host re-exports this plan's V-09 originally measured identity through:
+
+    ```
+    tests/test_orchestrator_probe.py tests/test_orchestrator_probe_cache.py tests/test_orchestrator_retirement.py
+    183 passed in 11.57s
+    ```
+
+    All fifteen probe symbols now resolve in `runner_shared` ALONE (no `oc_runipd`/`agy_runipd` alias at all), which is a STRONGER form of V-09's requirement than the equal-`id()` form it recorded: there is no second name to drift. Both hosts still reach the gate through the one seam, verified by source rather than by grep of a call site: `runner_shared.initialize_run_core` contains the `enforce_orchestrator_probe_gate` call, and both `oc_runipd.initialize_run` and `agy_runipd.initialize_run` delegate to `initialize_run_core`. `enforce_orchestrator_probe_gate` has exactly ONE call site in the whole package (`runner_shared.py:23039`). The four-state parser is unchanged (`executions`/`unknown` block, `no-executions`/`could-not-ask` do not), and the reused `--retry-budget` still resolves to `run_recovery.DEFAULT_RETRY_LIMIT` = 2.
+
+    THE BOUNDED PAYLOAD, RE-MEASURED FOR THE LIVE TEN at this HEAD, so the cost is on the record for the corpus that actually exists today:
+
+    ```
+      5e4sb6: file  78867 chars (~19716 tok) -> PAYLOAD 10423 chars (~2605 tok) = 13%
+      yeh7gc: file  41962 chars (~10490 tok) -> PAYLOAD  1021 chars (~ 255 tok) =  2%
+      ao1rb7: file  33335 chars (~ 8333 tok) -> PAYLOAD  6436 chars (~1609 tok) = 19%
+      wfjsp4: file  58586 chars (~14646 tok) -> PAYLOAD  9934 chars (~2483 tok) = 16%
+      d0cbt3: file  32224 chars (~ 8056 tok) -> PAYLOAD  2271 chars (~ 567 tok) =  7%
+      a5wdne: file  31561 chars (~ 7890 tok) -> PAYLOAD  2926 chars (~ 731 tok) =  9%
+      tb63qv: file  23637 chars (~ 5909 tok) -> PAYLOAD  2888 chars (~ 722 tok) = 12%
+      2xz59a: file  33843 chars (~ 8460 tok) -> PAYLOAD  3680 chars (~ 920 tok) = 10%
+      d1u4sy: file  25451 chars (~ 6362 tok) -> PAYLOAD  1742 chars (~ 435 tok) =  6%
+      s0gnha: file  36324 chars (~ 9081 tok) -> PAYLOAD  5016 chars (~1254 tok) = 13%
+      ---- 10 orchestrators: whole-file would be ~98947 tok; the BOUNDED payload is ~11584 tok (11%)
+    ```
+
+    SO THE ONLY THING STANDING BETWEEN THIS PLAN AND FINALIZATION REMAINS THE HUMAN SEQUENCING DECISION, not the code. NO orchestrator was edited to make this item pass (the parent's CID-2 forbids it), and this item is left `blocked` rather than marked `pass`, because marking it `pass` would forge the one attestation this Set exists to protect.
+
+    INDEPENDENTLY RE-DERIVED 2026-09-23 AT HEAD `5fea858f` (attempt 3 of run `run-20260923T023317Z-3622079`), NOT copied from attempt 2's record above. This item requires the classification be taken AT EXECUTION, and a re-run of an interrupted attempt is still an execution, so the population was re-read from disk and each item re-judged rather than the prior verdict being carried forward. THE CONCLUSION IS UNCHANGED AND THE PRECONDITION IS STILL **NOT MET**:
+
+    ```
+    id6      Status     items  classification
+    5e4sb6   approved   3      UNCOVERED  (E-01 produce a research artifact under .aw/records/research/;
+                                          E-02 establish a CHARACTERIZATION BASELINE "BEFORE any child
+                                          reconciles anything"; E-03 whole-Set AST-level REPO-WIDE check)
+    yeh7gc   approved   1      orchestration-only  ("SEQUENCE THE THREE CHILDREN", "DO NOT PERFORM ANY
+                                          CHILD'S WORK FROM HERE")
+    ao1rb7   approved   3      BORDERLINE (E-03 a Set-wide HONESTY CONSTRAINT spanning both children,
+                                          whose own text says "A RUNNER WILL NEVER PERFORM IT")
+    wfjsp4   approved   4      UNCOVERED  (E-02 "VERIFY THE BROWSE AFFORDANCE ACTUALLY ARRIVED ... the one
+                                          thing no child can demonstrate alone"; E-03 verify nothing that
+                                          reads a spec broke; E-04 verify the invariant survives its first
+                                          write on EVERY writer)
+    d0cbt3   approved   2      orchestration-only  (E-01 sequencing and self-declared "ORCHESTRATION, not
+                                          work"; E-02 retire-only)
+    a5wdne   approved   1      UNCOVERED  (verify and record the Set's combined result against ALL SIX
+                                          completion criteria)
+    tb63qv   approved   1      UNCOVERED  (verify the combined outcome MEASURED FROM THE MAIN CHECKOUT,
+                                          a tree no child runs in)
+    2xz59a   approved   9      orchestration-only  (E-01..E-09 each "Confirm child NN ... reached executed")
+    d1u4sy   approved   5      orchestration-only  (E-01..E-05 each "CONFIRM <id6> REACHED executed")
+    s0gnha   approved   3      UNCOVERED  (E-03 "TRANSITION THE TWO SOURCE BACKLOG ITEMS HONESTLY, which is
+                                          the one substantive act that belongs on this plan because it is a
+                                          Set-level record change no child owns")
+    ```
+
+    FIVE unambiguous (`5e4sb6`, `wfjsp4`, `a5wdne`, `tb63qv`, `s0gnha`) plus ONE borderline (`ao1rb7` E-03), out of a population of TEN. Every classification above was read through the SHIPPED `runner_shared.e_item_action_blocks`, i.e. the same bytes the probe's own payload sees, so the judgement and the gate cannot disagree about what an item says.
+
+    THE `y9s4vm` PRODUCTION INSTANCE RE-VERIFIED FROM PRIMARY SOURCES rather than accepted from attempt 2's prose, because it is the strongest evidence this item carries and a second-hand citation of it would be exactly the unchecked assertion this plan exists to prevent. `git show --stat 5fea858f` names `run-20260923T023317Z-3622118` and states "Its own E-*/V-* items were NOT performed"; the plan now in `executed/` still contains 3 occurrences of `Execution state: pending` and 3 of `Result: pending`, i.e. ALL of them. Its E-03 required confirming backlog `6h7y2y` reached its correct terminal state; `6h7y2y` does read `- Status: graduated` and `aw backlog check` reports "all backlog items conform", so the state is ACCIDENTALLY right while nobody performed or verified the check the plan now asserts. `y9s4vm` was the BORDERLINE class on 2026-09-19, which is why `ao1rb7` E-03 above is not treated as safe.
+
+    THE SHIPPED CODE RE-VERIFIED AT THIS HEAD. `0daacf0a` is an ancestor of `5fea858f` (`git merge-base --is-ancestor` exit 0), all 15 probe symbols resolve in `runner_shared` with ZERO `oc_runipd`/`agy_runipd` aliases remaining (a stronger property than the equal-`id()` form V-09 recorded: there is no second name that could drift), `enforce_orchestrator_probe_gate` has exactly ONE call site package-wide (`runner_shared.py:23039`) inside `initialize_run_core`, which BOTH hosts' `initialize_run` delegate to, `PROBE_BLOCKING_ANSWERS` is still `['executions', 'unknown']` (so `could-not-ask` still does not block), and the reused `--retry-budget` still resolves to `DEFAULT_RETRY_LIMIT` = 2. Targeted suites at this HEAD:
+
+    ```
+    tests/test_orchestrator_probe.py tests/test_orchestrator_probe_cache.py
+      tests/test_orchestrator_retirement.py tests/test_run_flag_surface.py
+    267 passed in 10.12s
+    ```
+
+    ════════════════════════════════════════════════════════════════════════════════════════════════
+    THE OQ-03 PRECONDITION IS NOW **MET**. RE-MEASURED 2026-09-24 AT HEAD `06dd74cc`, AND THIS IS WHAT
+    FLIPS THIS ITEM FROM `blocked` TO `pass`. The measurement above is PRESERVED UNEDITED: it was true
+    when taken and it is the reason this plan refused itself three times rather than ticking a box it
+    could not honor. Nothing in this item was weakened; the REPOSITORY changed.
+
+    WHAT CLEARED IT, and it was not this plan. Of the seven parents named above as carrying uncovered
+    work, SIX reached a terminal directory on their own (`5e4sb6`, `wfjsp4`, `tb63qv`, `ao1rb7`,
+    `y9s4vm`, `lyo1tz` are all in `.aw/records/plans/executed/`). The seventh, `a5wdne`, was rewritten
+    by `orchtyped` Order 04 (`68uhp0`, commit `33f1aaba`, "migrate every pending orchestrator checklist
+    to typed child-tracking rows") during run `run-20260924T050407Z-3108751`. That migration is
+    precisely the remedy the ORCHESTRATOR COVERAGE GATE exists to force: parent-only work became
+    explicit per-child CONFIRM rows.
+
+    MEASURED THE SAME WAY THE ORIGINAL WAS - every pending `Kind: orchestrator` plan, every `E-*` item
+    classified by reading its FULL action text:
+
+    ```
+    id6      Status     items  classification
+    yeh7gc   approved   3      E-01:orch, E-02:orch, E-03:orch
+    d0cbt3   approved   3      E-01:orch, E-02:orch, E-03:orch
+    a5wdne   approved   4      E-01:orch, E-02:orch, E-03:orch, E-04:orch
+    2xz59a   approved   9      E-01..E-09 all orch
+    uvwqvz   to-review  2      E-01:orch, E-02:orch
+
+    PARENTS STILL CARRYING UNCOVERED WORK: NONE
+    ```
+
+    Every item on every one of the five is a child-confirmation or child-dispatch row (each begins
+    `CONFIRM <id6> REACHED <status>`), which this plan's own gate prompt names as legitimate
+    orchestration in its WHAT IS EXPECTED AND IS *NOT* WORK paragraph: "Sequencing the children,
+    confirming each child reached `executed` on disk before dispatching the next ... are ALL legitimate
+    ORCHESTRATION."
+
+    THE CACHE IS COLD AND THAT IS CORRECT, stated because it looks alarming and is not. The verdict
+    store (`.aw/state/runtime/orchestrator-probe-verdicts.json`) holds no entry for any of the five:
+    `probe_cache_digest` keys on the orchestrator's TEXT, and `68uhp0` rewrote all of them, so every
+    prior digest was invalidated by construction. This is the cache behaving as designed - "an
+    unmodified orchestrator is never re-probed while the real fix re-probes automatically" - and it
+    means the next run that queues one of these will ASK THE MODEL FRESH rather than trust a verdict
+    taken against different text. The gate is therefore live and unbypassed by this item passing.
+
+    HONEST LIMIT OF THIS EVIDENCE. The re-classification above is a DETERMINISTIC reading of the
+    checklist text; the shipped gate asks a MODEL (`render_probe_prompt`, answered with
+    `PROBE_SENTINEL_*`). Those two can in principle disagree, and this item does not claim otherwise.
+    What it claims is the precondition as OQ-03 words it: no pending orchestrator still carries
+    parent-only work. The probe prompt was rendered against `a5wdne` at this HEAD to confirm the
+    mechanism is reachable and its criterion matches the one applied here.
+  - Result: pass
 
 - [x] V-06 validates E-06
   - Required evidence: paste the summary block and the `aw runs` output for a refused run, showing the reason AND a remedy that says to add a child. Assert the message does NOT read as a bare prohibition: paste the full string and state which words name the constructive action.
