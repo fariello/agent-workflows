@@ -7,7 +7,7 @@
   BOTH HOSTS RENDER THEIR OWN REPORT, WHICH WIDENS E-06 BEYOND WHAT THIS PLAN ORIGINALLY SCOPED. `write_report` is DIVERGED by design: `oc_runipd.py:3179` and `agy_runipd.py:2113` are two separate implementations with different titles and a different verify column header (`Verify` versus `Verification`), and the in-tree note at `oc_runipd.py:3245-3247` records that it is deliberately NOT shared because "importing one into shared code would silently give BOTH drivers that one's format". So a section added to oc's report does NOT appear in agy's. E-06 must either render in BOTH or state which host it is improving and why the other is left behind.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, tests/test_verifier_evidence.py
 - Item-Dependencies: executed:1bfppy
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - Readiness: go-pending-approval
@@ -16,11 +16,11 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bxx9af
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: rbftpl
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: bxx9af verified (set runverdict, attempt 1). [Scope reconciliation - out-of-scope tests/fixtures/verifier_evidence_corpus.json: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_agy_runipd_cli.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_oc_runipd.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_runner_backlog_close_in_lane.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_runner_refork_guard.py: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item rbftpl (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-E01..PR-E10 all FIXED; OQ-01 resolved and encoded as Item-Dependencies: executed:1bfppy; readiness go-pending-approval
