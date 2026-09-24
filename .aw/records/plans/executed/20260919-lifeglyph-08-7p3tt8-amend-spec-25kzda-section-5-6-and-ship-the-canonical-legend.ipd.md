@@ -6,7 +6,7 @@
 - Scope: IN: amend `25kzda` Section 5.6 to point at `uonrjg` as the authority for lifecycle color and glyph while leaving its outcome vocabulary, exit codes, reporting columns, and TTY/sole-carrier rule untouched; ADD the missing `integration-deferred` row to `uonrjg` Section 7.2 (E-05); correct the stale 16-color claim AND the retracted non-TTY cutover claim in `docs/cli-human-guide.md`; ship ONE canonical legend in command help and user documentation per Section 12 step 7. OUT: any change to `25kzda`'s vocabulary, exit codes, or report columns (Section 0.5 scopes the override to DISPLAY only), re-correcting the accessibility lens (already corrected during the spec's own review), and editing any CONVERTED VIEW to satisfy Section 9.2's showing rule, which this plan VERIFIES and reports rather than implements (E-03, F-05).
 - Scope-Paths: .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, docs/cli-human-guide.md, agent_workflows/cli.py, tests/test_docs.py
 - Item-Dependencies: executed:qdd5jq
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: medium
 - Blocks-Release: next
@@ -16,10 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7p3tt8
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
 
 ## Workflow history
+- 2026-09-24 executed (opencode/its_direct-pt3-claude-opus-5-1m-us): lifeglyph-08 complete: 25kzda 5.6 points at uonrjg, canonical legend placed in command help, docs ladder corrected, drift guard added and proven non-vacuous by mutation. E-05 took its expected no-edit branch (uonrjg 7.2 already carried merge-retry -> recovering). Two deferred rows re-pointed off executed carriers: row 4 discharged with evidence, row 5 handed to backlog sm0vgn, which is a real outstanding defect (two docs still promise a retracted non-TTY hard cutover). [Scope reconciliation - in-scope-unmodified .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md: E-05 verified the merge-retry -> recovering row already present at Section 7.2 line 330, so the expected no-edit branch held and adding a duplicate row would have been a defect]
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (lifeglyph: medium/feature)
 - 2026-09-19 approved (aw set): status set to approved
 
