@@ -6,7 +6,7 @@
 - Scope: Perform the Set-level acceptance check `a5wdne` E-01 describes, against all SIX completion criteria, and record its evidence. IN: the fork-count measurement using the COMMITTED scanner Order 01 produces; the coupling-guard check; the third-host execution and attribution check; the pre-cutover attribution check; the research immortalization check; and a bare green suite. OUT: any lifting, unifying, guard-rewriting or host-adding work (Orders 01/02/03 own those), and any re-performance of a child's own validation - this plan READS recorded evidence and measures the COMBINED result.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:li44r9, executed:xdvglg
-- Status: approved
+- Status: executed
 - Work-Kind: followup
 - Priority: high
 - Readiness: go-pending-approval
@@ -15,9 +15,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 04vf1h
-- Approval: 2026-09-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: 04vf1h verified (set hostdedup, attempt 1).
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind derived from hostdedup orchestrator a5wdne per planprio-03 lc4unl
 - 2026-09-23 approved (aw set): status set to approved
 - 2026-09-22 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; 6 findings, all FIXED; readiness go-pending-approval; typed review record under .aw/records/reviews/
