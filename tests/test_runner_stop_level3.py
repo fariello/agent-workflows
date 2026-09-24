@@ -1897,6 +1897,9 @@ class ObserverBindingRegressionTests(unittest.TestCase):
             )
 
     def test_stop_at_checkpoint_is_raised_with_the_checkpoint_observer(self):
+        # 13xo5k E-04: These AST/source-text assertions prove only that the raise site passes the
+        # well-formed checkpoint_observer argument, but do not execute the handler body or prove
+        # that the catch runs.
         for name, tree in self._trees():
             wrong = []
             for node in ast.walk(tree):
@@ -1932,3 +1935,210 @@ class ObserverBindingRegressionTests(unittest.TestCase):
             set(),
             "the observers now share attribute names; the source guards above are no longer sound",
         )
+
+
+class SpawnPathStopAtCheckpointHandlerTests(unittest.TestCase):
+    """Executes the level-3 spawn-path deliberate-stop handler body (13xo5k E-03)."""
+
+    def _setup_item_and_state(self, root: Path):
+        repo = root / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.invalid"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+        plan_dir = repo / ".aw/records/plans/pending"
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        plan = plan_dir / "20260919-stopcrash-01-stp003-demo.ipd.md"
+        plan.write_text(
+            "# IPD: stp003\n\n- Date: 2026-09-19\n- Kind: child\n- Status: approved\n- Set: demo\n- Order: 1\n- Id: stp003\n\n## Goal\nDemo.\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+        run_dir = repo / ".aw/records/runs/run-test-l3"
+        (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+        (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+
+        item = {
+            "position": 1,
+            "id6": "stp003",
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-test-l3",
+            "created_at": "2026-09-19T00:00:00+00:00",
+            "updated_at": "2026-09-19T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "model": "opus",
+                "self_finalize": True,
+                "isolate_worktree": True,
+                "no_audit": False,
+            },
+        }
+        return repo, run_dir, state, item
+
+    def test_spawn_path_stop_at_checkpoint_executes_and_persists_stop(self):
+        """E-03/V-03: Spawn-path StopAtCheckpoint is handled, recorded, and persisted cleanly."""
+        from agent_workflows import agy_runipd, oc_runipd, runner_stop
+
+        for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(driver=name), TemporaryDirectory() as temp:
+                repo, run_dir, state, item = self._setup_item_and_state(Path(temp))
+
+                obs = runner_stop.CheckpointObserver(
+                    detector=runner_stop.is_oc_safe_checkpoint
+                    if name == "oc_runipd"
+                    else runner_stop.is_agy_safe_checkpoint
+                )
+                obs.request(runner_stop.LEVEL_NOW, "operator")
+                obs.observe(
+                    json.dumps(
+                        {
+                            "type": "tool_use",
+                            "part": {"tool": "read", "state": {"status": "completed"}},
+                        }
+                        if name == "oc_runipd"
+                        else {
+                            "type": "step_update",
+                            "step_update": {
+                                "state": "DONE",
+                                "tool_info": {"name": "read"},
+                            },
+                        }
+                    )
+                )
+                self.assertTrue(obs.stop_at_checkpoint)
+
+                def fake_turn(st, rd, it, *a, **kwargs):
+                    raise runner_stop.StopAtCheckpoint(obs)
+
+                turn_fn = "run_opencode" if name == "oc_runipd" else "run_agy_turn"
+                with (
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(mod, turn_fn, fake_turn),
+                ):
+                    # Proves WHICH handler ran: spawn-path handler catches StopAtCheckpoint,
+                    # sets state, and RETURNS without re-raising (unlike verify/reconcile which raises).
+                    mod.execute_item(run_dir, state, item, recovery=False)
+
+                # In-memory attempt and item checks
+                self.assertEqual(item["status"], runner_stop.STOPPED_DISPOSITION)
+                self.assertEqual(item["status"], "interrupted")
+                self.assertEqual(len(item["attempts"]), 1)
+                attempt = item["attempts"][0]
+                self.assertEqual(
+                    attempt["disposition"], runner_stop.STOPPED_DISPOSITION
+                )
+                self.assertEqual(
+                    attempt["interrupt_reason"], "deliberate-stop-at-checkpoint"
+                )
+                self.assertNotIn("exit_code", attempt)
+                self.assertIsNotNone(attempt.get("stopped"))
+                self.assertEqual(
+                    attempt["stopped"]["certainty"], runner_stop.CERTAINTY_KNOWN
+                )
+                self.assertTrue(attempt["stopped"]["stopped_deliberately"])
+                self.assertFalse(attempt["stopped"]["failure"])
+
+                # Persisted state.json checks
+                persisted = json.loads(
+                    (run_dir / "state.json").read_text(encoding="utf-8")
+                )
+                persisted_item = persisted["queue"][0]
+                self.assertEqual(
+                    persisted_item["status"], runner_stop.STOPPED_DISPOSITION
+                )
+                persisted_attempt = persisted_item["attempts"][0]
+                self.assertEqual(
+                    persisted_attempt["disposition"], runner_stop.STOPPED_DISPOSITION
+                )
+                self.assertEqual(
+                    persisted_attempt["interrupt_reason"],
+                    "deliberate-stop-at-checkpoint",
+                )
+                self.assertNotIn("exit_code", persisted_attempt)
+                self.assertIsNotNone(persisted_attempt.get("stopped"))
+                self.assertEqual(
+                    persisted_attempt["stopped"]["certainty"],
+                    runner_stop.CERTAINTY_KNOWN,
+                )
+
+    def test_verifier_path_stop_at_checkpoint_re_raises(self):
+        """E-03: StopAtCheckpoint during verify turn re-raises to outer handler."""
+        from agent_workflows import agy_runipd, oc_runipd, runner_stop
+
+        for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(driver=name), TemporaryDirectory() as temp:
+                repo, run_dir, state, item = self._setup_item_and_state(Path(temp))
+
+                obs = runner_stop.CheckpointObserver(
+                    detector=runner_stop.is_oc_safe_checkpoint
+                    if name == "oc_runipd"
+                    else runner_stop.is_agy_safe_checkpoint
+                )
+                obs.request(runner_stop.LEVEL_NOW, "operator")
+                obs.observe(
+                    json.dumps(
+                        {
+                            "type": "tool_use",
+                            "part": {"tool": "read", "state": {"status": "completed"}},
+                        }
+                        if name == "oc_runipd"
+                        else {
+                            "type": "step_update",
+                            "step_update": {
+                                "state": "DONE",
+                                "tool_info": {"name": "read"},
+                            },
+                        }
+                    )
+                )
+
+                (run_dir / "outcomes" / "01-stp003.json").write_text(
+                    json.dumps(
+                        {
+                            "disposition": "executed",
+                            "pushed": False,
+                            "defect_report": {"state": "none-found", "findings": []},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                def fake_turn(st, rd, it, *a, **kwargs):
+                    work_dir = kwargs.get("work_dir")
+                    if (
+                        kwargs.get("fresh_session")
+                        or kwargs.get("log_suffix") == "verify"
+                    ):
+                        raise runner_stop.StopAtCheckpoint(obs)
+                    wt = Path(work_dir) if work_dir else repo
+                    (wt / "src").mkdir(parents=True, exist_ok=True)
+                    (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                    subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+                    subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+                    return 0, "ses1", str(run_dir / "log"), ["driver"]
+
+                turn_fn = "run_opencode" if name == "oc_runipd" else "run_agy_turn"
+                with (
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(mod, turn_fn, fake_turn),
+                ):
+                    with self.assertRaises(runner_stop.StopAtCheckpoint):
+                        mod.execute_item(run_dir, state, item, recovery=False)
+
+                self.assertIsNotNone(item.get("stopped"))
+                self.assertEqual(item["status"], runner_stop.STOPPED_DISPOSITION)

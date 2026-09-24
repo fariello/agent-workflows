@@ -744,6 +744,9 @@ class AgyDriverParityTests(_InvariantAssertions):
 class BothDriversWireLevel4Tests(unittest.TestCase):
     """Orchestrator CID-3, asserted structurally as well as behaviorally."""
 
+    # 13xo5k E-04: Structural identity assertions prove the drivers import the shared level-4
+    # surfaces, but do not execute the handler bodies or prove handler execution.
+
     #: (the level-4 surface, why it must be THE shared one rather than a same-named local copy)
     LEVEL_4_SURFACES = (
         (
@@ -2043,6 +2046,177 @@ class ScopeFenceTests(unittest.TestCase):
         self.assertNotIn(
             runner_stop.FORCED_DISPOSITION, runner_shutdown.KNOWN_ITEM_STATUSES
         )
+
+
+class SpawnPathStopNowForceHandlerTests(unittest.TestCase):
+    """Executes the level-4 spawn-path deliberate-stop handler body (13xo5k E-03)."""
+
+    def _setup_item_and_state(self, root: Path):
+        repo = root / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.invalid"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+        plan_dir = repo / ".aw/records/plans/pending"
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        plan = plan_dir / "20260919-stopcrash-01-stp004-demo.ipd.md"
+        plan.write_text(
+            "# IPD: stp004\n\n- Date: 2026-09-19\n- Kind: child\n- Status: approved\n- Set: demo\n- Order: 1\n- Id: stp004\n\n## Goal\nDemo.\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+        run_dir = repo / ".aw/records/runs/run-test-l4"
+        (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+        (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+
+        item = {
+            "position": 1,
+            "id6": "stp004",
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-test-l4",
+            "created_at": "2026-09-19T00:00:00+00:00",
+            "updated_at": "2026-09-19T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "model": "opus",
+                "self_finalize": True,
+                "isolate_worktree": True,
+                "no_audit": False,
+            },
+        }
+        return repo, run_dir, state, item
+
+    def test_spawn_path_stop_now_force_executes_and_persists_stop(self):
+        """E-03/V-03: Spawn-path StopNowForce is handled, recorded, and persisted cleanly."""
+        from agent_workflows import agy_runipd, oc_runipd, runner_stop
+
+        for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(driver=name), TemporaryDirectory() as temp:
+                repo, run_dir, state, item = self._setup_item_and_state(Path(temp))
+
+                stop_exc = runner_stop.StopNowForce(
+                    level=4, requester="operator", events_seen=3
+                )
+
+                def fake_turn(st, rd, it, *a, **kwargs):
+                    raise stop_exc
+
+                turn_fn = "run_opencode" if name == "oc_runipd" else "run_agy_turn"
+                with (
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(mod, turn_fn, fake_turn),
+                ):
+                    # Proves WHICH handler ran: spawn-path handler catches StopNowForce,
+                    # sets state, and RETURNS without re-raising (unlike verify/reconcile which raises).
+                    mod.execute_item(run_dir, state, item, recovery=False)
+
+                # In-memory attempt and item checks
+                self.assertEqual(item["status"], runner_stop.FORCED_DISPOSITION)
+                self.assertEqual(item["status"], "unknown_outcome")
+                self.assertEqual(len(item["attempts"]), 1)
+                attempt = item["attempts"][0]
+                self.assertEqual(attempt["disposition"], runner_stop.FORCED_DISPOSITION)
+                self.assertEqual(
+                    attempt["interrupt_reason"], "deliberate-stop-now-force"
+                )
+                self.assertNotIn("exit_code", attempt)
+                self.assertIsNotNone(attempt.get("stopped"))
+                self.assertEqual(
+                    attempt["stopped"]["certainty"], runner_stop.CERTAINTY_INDETERMINATE
+                )
+                self.assertEqual(
+                    attempt["stopped"]["disposition"], runner_stop.FORCED_DISPOSITION
+                )
+                self.assertTrue(attempt["stopped"]["stopped_deliberately"])
+                self.assertFalse(attempt["stopped"]["failure"])
+
+                # Persisted state.json checks
+                persisted = json.loads(
+                    (run_dir / "state.json").read_text(encoding="utf-8")
+                )
+                persisted_item = persisted["queue"][0]
+                self.assertEqual(
+                    persisted_item["status"], runner_stop.FORCED_DISPOSITION
+                )
+                persisted_attempt = persisted_item["attempts"][0]
+                self.assertEqual(
+                    persisted_attempt["disposition"], runner_stop.FORCED_DISPOSITION
+                )
+                self.assertEqual(
+                    persisted_attempt["interrupt_reason"], "deliberate-stop-now-force"
+                )
+                self.assertNotIn("exit_code", persisted_attempt)
+                self.assertIsNotNone(persisted_attempt.get("stopped"))
+                self.assertEqual(
+                    persisted_attempt["stopped"]["certainty"],
+                    runner_stop.CERTAINTY_INDETERMINATE,
+                )
+
+    def test_verifier_path_stop_now_force_re_raises(self):
+        """E-03: StopNowForce during verify turn re-raises to outer handler."""
+        from agent_workflows import agy_runipd, oc_runipd, runner_stop
+
+        for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(driver=name), TemporaryDirectory() as temp:
+                repo, run_dir, state, item = self._setup_item_and_state(Path(temp))
+
+                stop_exc = runner_stop.StopNowForce(
+                    level=4, requester="operator", events_seen=3
+                )
+
+                (run_dir / "outcomes" / "01-stp004.json").write_text(
+                    json.dumps(
+                        {
+                            "disposition": "executed",
+                            "pushed": False,
+                            "defect_report": {"state": "none-found", "findings": []},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                def fake_turn(st, rd, it, *a, **kwargs):
+                    work_dir = kwargs.get("work_dir")
+                    if (
+                        kwargs.get("fresh_session")
+                        or kwargs.get("log_suffix") == "verify"
+                    ):
+                        raise stop_exc
+                    wt = Path(work_dir) if work_dir else repo
+                    (wt / "src").mkdir(parents=True, exist_ok=True)
+                    (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                    subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+                    subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+                    return 0, "ses1", str(run_dir / "log"), ["driver"]
+
+                turn_fn = "run_opencode" if name == "oc_runipd" else "run_agy_turn"
+                with (
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(mod, turn_fn, fake_turn),
+                ):
+                    with self.assertRaises(runner_stop.StopNowForce):
+                        mod.execute_item(run_dir, state, item, recovery=False)
+
+                self.assertIsNotNone(item.get("stopped"))
+                self.assertEqual(item["status"], runner_stop.STOPPED_DISPOSITION)
+                self.assertEqual(
+                    item["attempts"][0]["disposition"], runner_stop.FORCED_DISPOSITION
+                )
 
 
 if __name__ == "__main__":  # pragma: no cover

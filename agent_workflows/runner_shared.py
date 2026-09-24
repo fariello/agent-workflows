@@ -24836,6 +24836,7 @@ def _record_forced_stop(
     stop: Any,
     *,
     work_dir: str | Path | None = None,
+    git_status_fn: Callable[[Path], str] | None = None,
 ) -> dict[str, Any]:
     from agent_workflows import runner_stop
 
@@ -24850,7 +24851,9 @@ def _record_forced_stop(
     )
     repo = Path(effective_dir) if effective_dir else Path(state["repo"])
     try:
-        observed_git = git_status(repo)
+        observed_git = (
+            git_status_fn(repo) if git_status_fn is not None else git_status(repo)
+        )
     except Exception as exc:  # noqa: BLE001
         observed_git = f"<unobserved: {exc}>"
     record = runner_stop.forced_disposition(
@@ -26015,11 +26018,12 @@ def execute_item_core(
             )
         except runner_stop.StopNowForce as stop:
             now = utc_now()
-            record = _record_forced_stop(run_dir, state, item, stop, work_dir=work_dir)
+            record = _record_forced_stop(
+                run_dir, state, item, stop, work_dir=work_dir, git_status_fn=git_status
+            )
             attempt["interrupted_at"] = now
             attempt["ended_at"] = now
             attempt["interrupt_reason"] = "deliberate-stop-now-force"
-            attempt["exit_code"] = stop.exit_code
             attempt["stopped"] = record
             attempt["disposition"] = runner_stop.FORCED_DISPOSITION
             item["status"] = runner_stop.FORCED_DISPOSITION
@@ -26035,12 +26039,16 @@ def execute_item_core(
         except runner_stop.StopAtCheckpoint as stop:
             now = utc_now()
             record = _record_checkpoint_stop(
-                run_dir, state, item, stop.observer, work_dir=work_dir
+                run_dir,
+                state,
+                item,
+                stop.observer,
+                work_dir=work_dir,
+                git_status_fn=git_status,
             )
             attempt["interrupted_at"] = now
             attempt["ended_at"] = now
             attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
-            attempt["exit_code"] = stop.exit_code
             attempt["stopped"] = record
             attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
             item["status"] = runner_stop.STOPPED_DISPOSITION
@@ -26445,7 +26453,12 @@ def execute_item_core(
                     attempt["ended_at"] = now
                     attempt["interrupt_reason"] = "deliberate-stop-now-force"
                     record = _record_forced_stop(
-                        run_dir, state, item, stop, work_dir=work_dir
+                        run_dir,
+                        state,
+                        item,
+                        stop,
+                        work_dir=work_dir,
+                        git_status_fn=git_status,
                     )
                     attempt["stopped"] = record
                     attempt["disposition"] = runner_stop.FORCED_DISPOSITION
@@ -26457,7 +26470,12 @@ def execute_item_core(
                     attempt["ended_at"] = now
                     attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
                     record = _record_checkpoint_stop(
-                        run_dir, state, item, stop.observer, work_dir=work_dir
+                        run_dir,
+                        state,
+                        item,
+                        stop.observer,
+                        work_dir=work_dir,
+                        git_status_fn=git_status,
                     )
                     attempt["stopped"] = record
                     attempt["disposition"] = runner_stop.STOPPED_DISPOSITION

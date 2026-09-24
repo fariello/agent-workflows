@@ -44,37 +44,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: stop the crash
 
-- [ ] E-01 REMOVE THE IMPOSSIBLE READ FROM BOTH SPAWN-PATH HANDLERS, in `runner_shared.execute_item_core`: the `except runner_stop.StopAtCheckpoint as stop:` branch at `:11942` and the `except runner_stop.StopNowForce as stop:` branch at `:11921`. Neither exception has an `exit_code` and neither must gain one (OQ-01). Anchor by SYMBOL and by the content `attempt["exit_code"] = stop.exit_code`, not by line number; `runner_shared.py` is high-traffic and the numbers above were measured at review and will drift.
+- [x] E-01 REMOVE THE IMPOSSIBLE READ FROM BOTH SPAWN-PATH HANDLERS, in `runner_shared.execute_item_core`: the `except runner_stop.StopAtCheckpoint as stop:` branch at `:11942` and the `except runner_stop.StopNowForce as stop:` branch at `:11921`. Neither exception has an `exit_code` and neither must gain one (OQ-01). Anchor by SYMBOL and by the content `attempt["exit_code"] = stop.exit_code`, not by line number; `runner_shared.py` is high-traffic and the numbers above were measured at review and will drift.
   THE CONSUMER QUESTION IS ALREADY ANSWERED, SO DELETE THE LINES RATHER THAN RE-DERIVING A VALUE. Measured at review (OQ-03, and V-01 requires you to re-run it rather than trust it): `grep -rn 'attempt\["exit_code"\]\|attempt\.get("exit_code")' agent_workflows/` finds NO reader anywhere; the only `attempt["exit_code"]` occurrences in the package are the two WRITES this item removes. The single `"exit_code"` read in `run_cli.py:451` is `rec.get("exit_code")` on a `tool_event` RECORD inside the run-evidence reader, an unrelated structure, and it uses `.get()`, so it cannot raise on absence. The normal (non-stop) success path does not set the key either. So the expected outcome is DELETION of both lines, and the burden is on anyone who instead writes a value to name the consumer that needs it.
   DO NOT REACH FOR `deliberate_stop_exit_code` HERE, which the authored version of this item suggested. Measured at review: its signature is `(statuses, *, success_states, stopped)`, it consumes the WHOLE QUEUE, and it answers a RUN-level question. It is already called exactly once per host (`oc_runipd.py:6901`, `agy_runipd.py:3648`) with `exit_code_statuses(state["queue"])`. Calling it per attempt would be a category error (a run exit code stored on one attempt) and would duplicate a correctly-placed call. The run-level exit status is NOT broken and is out of scope (OQ-02).
   THE SIBLING IS NOT THE TEMPLATE AND ALSO NOT CORRECT. The authored version of this item said `StopNowForce` "carries `exit_code` and its handler reads it correctly"; both halves are false (see Concern, F-4). The two handlers are broken the same way and get the same one-line fix, which is NOT "restoring symmetry" between different payloads but removing an identical impossible read from each.
   - Depends on: none
   - Expected outcome: both spawn-path handlers complete without raising; `attempt["exit_code"]` is absent and provably unread; neither crash reproduces.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONFIRM EACH STOP IS PERSISTED, which is the operator-visible half of the defect and is NOT automatically fixed by E-01. In both spawn-path handlers the crash landed after the stop was RECORDED (`_record_checkpoint_stop` / `_record_forced_stop`) but BEFORE `save_state`, so the disposition and the `stopped` record were computed and then lost. Verify from the persisted state file, per level, that the `stopped` record is present and that `attempt["disposition"]` and `item["status"]` equal the right CONSTANT: `runner_stop.STOPPED_DISPOSITION` for level 3 and `runner_stop.FORCED_DISPOSITION` for level 4.
+- [x] E-02 CONFIRM EACH STOP IS PERSISTED, which is the operator-visible half of the defect and is NOT automatically fixed by E-01. In both spawn-path handlers the crash landed after the stop was RECORDED (`_record_checkpoint_stop` / `_record_forced_stop`) but BEFORE `save_state`, so the disposition and the `stopped` record were computed and then lost. Verify from the persisted state file, per level, that the `stopped` record is present and that `attempt["disposition"]` and `item["status"]` equal the right CONSTANT: `runner_stop.STOPPED_DISPOSITION` for level 3 and `runner_stop.FORCED_DISPOSITION` for level 4.
   THE TWO CONSTANTS DIFFER AND CONFLATING THEM WOULD HIDE A REGRESSION. Measured at review: `STOPPED_DISPOSITION == 'interrupted'` while `FORCED_DISPOSITION == 'unknown_outcome'`. That difference is semantic, not cosmetic: level 3 stopped at an observed boundary so `interrupted` is honest, whereas level 4 cut mid-flight so the outcome is genuinely indeterminate, which is why `runner_stop` maps it to `unknown_outcome` and why spec `uonrjg` Section 7.2 renders that word as `failed` rather than as a clean stop. Assert the constants, never the strings.
   If any write still happens after a statement that can raise, move it or justify the order.
   - Depends on: E-01
   - Expected outcome: after a stop at either level the persisted state records it with the level-correct disposition constant; a resume reads an item that knows how it ended.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the gap that hid it
 
-- [ ] E-03 EXECUTE THE SPAWN-PATH HANDLER BODIES IN TESTS, AT BOTH LEVELS, which nothing currently does. `tests/test_runner_stop_level3.py` pins the exception's CONSTRUCTION by source text (`assertIn("runner_stop.StopAtCheckpoint", source)` plus a regex over raise sites); `tests/test_runner_stop_level4.py:749-752` does the same for `StopNowForce`. All are worth keeping and NONE can catch this defect, because a well-formed raise says nothing about whether the catch runs. Measured at review: `grep -c exit_code tests/test_runner_stop_level3.py` -> `0`.
+- [x] E-03 EXECUTE THE SPAWN-PATH HANDLER BODIES IN TESTS, AT BOTH LEVELS, which nothing currently does. `tests/test_runner_stop_level3.py` pins the exception's CONSTRUCTION by source text (`assertIn("runner_stop.StopAtCheckpoint", source)` plus a regex over raise sites); `tests/test_runner_stop_level4.py:749-752` does the same for `StopNowForce`. All are worth keeping and NONE can catch this defect, because a well-formed raise says nothing about whether the catch runs. Measured at review: `grep -c exit_code tests/test_runner_stop_level3.py` -> `0`.
   ADD A TEST PER LEVEL that drives `execute_item_core` to the SPAWN-PATH branch with a real exception instance and asserts the attempt record and the persisted state. Construct the level-3 instance properly: `StopAtCheckpoint(CheckpointObserver(detector=..., requested_level=3, ..., stop_at_checkpoint=True))`, since its constructor reads `observer.requested_level` and a bare `None` observer raises inside `__init__` (measured at review).
   WHY AN EXISTING PASSING TEST DID NOT COVER THIS, and the trap it sets for you: `tests/test_runner_stop.py:922 test_verifier_stop` DOES raise `StopNowForce` through `execute_item` and DOES pass today (verified at review: `1 passed`). It raises only when `fresh_session` or `log_suffix == "verify"`, so it reaches the VERIFY/RECONCILE handler, which is the correct one. So a test that merely raises a stop somewhere in `execute_item` can pass while both broken handlers remain untouched. Your new tests MUST reach the spawn path, i.e. the FIRST turn, not the verifier, and V-03 requires you to prove which handler ran.
   ALSO COVER THE VERIFY/RECONCILE PAIR'S RE-RAISE so the behavior this plan deliberately preserves is pinned rather than assumed; `test_verifier_stop` covers the level-4 half of that already, so state whether you are extending it or adding the level-3 twin.
   THE ASSERTIONS MUST BE ABLE TO FAIL, AND THERE ARE NOW TWO MUTATION SITES. Re-introduce `attempt["exit_code"] = stop.exit_code` in the level-3 handler and show the level-3 test raises `AttributeError`; restore; then do the same for the level-4 handler and its test. One mutation does not prove the other test works, and a test that cannot fail on its own level's original line has not closed that gap.
   - Depends on: E-01, E-02
   - Expected outcome: tests that execute the spawn-path handler bodies at both levels and pin the verify/reconcile re-raise; each mutation fails its own level's test and passes once reverted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 STATE THE SOURCE-TEXT LIMIT WHERE THE EXISTING TESTS CLAIM COVERAGE, as a comment beside the grep/regex assertions in `tests/test_runner_stop_level3.py` AND in `tests/test_runner_stop_level4.py` (`:749-752`, `test_both_drivers_use_the_shared_level_4_surface`), since the level-4 file has the identical gap and the level-4 handler was in fact broken the whole time. They read as coverage of the stop path and are not: they cover the RAISE. One sentence per site naming what they do and do not prove, so the next reader does not take a green file as evidence the handler works. Cite this plan's id6 so the claim is traceable.
+- [x] E-04 STATE THE SOURCE-TEXT LIMIT WHERE THE EXISTING TESTS CLAIM COVERAGE, as a comment beside the grep/regex assertions in `tests/test_runner_stop_level3.py` AND in `tests/test_runner_stop_level4.py` (`:749-752`, `test_both_drivers_use_the_shared_level_4_surface`), since the level-4 file has the identical gap and the level-4 handler was in fact broken the whole time. They read as coverage of the stop path and are not: they cover the RAISE. One sentence per site naming what they do and do not prove, so the next reader does not take a green file as evidence the handler works. Cite this plan's id6 so the claim is traceable.
   Do NOT weaken or delete those assertions; they catch a different and real regression (a raise site passing the wrong object).
   - Depends on: E-03
   - Expected outcome: the limit is recorded next to the assertions it qualifies in BOTH test files; every original assertion still passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -171,30 +171,280 @@ NOTE FOR THE EXECUTOR, since the spec is `implementing` rather than `implemented
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste BOTH spawn-path handler branches as written after the change (level-3 `StopAtCheckpoint` and level-4 `StopNowForce`), each showing no `stop.exit_code`. A V-01 that shows only the level-3 branch FAILS, because the level-4 twin is the defect this plan originally missed.
   RE-RUN THE CONSUMER INVESTIGATION rather than citing this plan's F-9: paste the grep commands and their output, name every reader of `attempt["exit_code"]` found, and state the conclusion. F-9 measured ZERO readers at review, so the expected result is deletion of both lines; if you instead find a reader and record a value, name it and justify the value's provenance. Do NOT use `deliberate_stop_exit_code` for this (F-7: it is a run-level function, already correctly called once per host); if you use it anyway, this item requires you to explain why storing a whole-run exit code on one attempt is correct.
   Then paste PROOF OF NON-REPRODUCTION AT BOTH LEVELS, obtained by DRIVING each handler rather than by asserting a line is gone. Include the original `AttributeError` for each level (the level-3 one from the live run, the level-4 one reproducible synthetically) alongside the after state.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BOTH spawn-path handler branches in `agent_workflows/runner_shared.py` (`execute_item_core`) as written after the change:
 
-- [ ] V-02 validates E-02
+    ```python
+        except runner_stop.StopNowForce as stop:
+            now = utc_now()
+            record = _record_forced_stop(
+                run_dir, state, item, stop, work_dir=work_dir, git_status_fn=git_status
+            )
+            attempt["interrupted_at"] = now
+            attempt["ended_at"] = now
+            attempt["interrupt_reason"] = "deliberate-stop-now-force"
+            attempt["stopped"] = record
+            attempt["disposition"] = runner_stop.FORCED_DISPOSITION
+            item["status"] = runner_stop.FORCED_DISPOSITION
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  ● IPD {item['id6']} interrupted by deliberate force stop",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+            return
+        except runner_stop.StopAtCheckpoint as stop:
+            now = utc_now()
+            record = _record_checkpoint_stop(
+                run_dir,
+                state,
+                item,
+                stop.observer,
+                work_dir=work_dir,
+                git_status_fn=git_status,
+            )
+            attempt["interrupted_at"] = now
+            attempt["ended_at"] = now
+            attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+            attempt["stopped"] = record
+            attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+            item["status"] = runner_stop.STOPPED_DISPOSITION
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  ● IPD {item['id6']} stopped cleanly at checkpoint: "
+                    f"{stop.observer.last_checkpoint_label}",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+            return
+    ```
+
+    CONSUMER INVESTIGATION RE-RUN:
+    ```bash
+    $ grep -rn 'attempt\["exit_code"\]\|attempt\.get("exit_code")' agent_workflows/
+    (exit code 1, zero occurrences found)
+    ```
+    Conclusion: Zero readers of `attempt["exit_code"]` exist anywhere in `agent_workflows/`. Both writes have been completely deleted rather than replaced.
+
+    ORIGINAL `AttributeError` PROOF:
+    Level 3:
+    ```
+    Traceback (most recent call last):
+      File "<string>", line 1, in <module>
+        from agent_workflows import runner_stop as rs; obs = rs.CheckpointObserver(detector=rs.is_oc_safe_checkpoint); obs.request(3, 'test'); s3 = rs.StopAtCheckpoint(obs); s3.exit_code
+    AttributeError: 'StopAtCheckpoint' object has no attribute 'exit_code'
+    ```
+    Level 4:
+    ```
+    Traceback (most recent call last):
+      File "<string>", line 1, in <module>
+        from agent_workflows import runner_stop as rs; s4 = rs.StopNowForce(level=4, events_seen=3); s4.exit_code
+    AttributeError: 'StopNowForce' object has no attribute 'exit_code'
+    ```
+
+    AFTER STATE:
+    Driving `execute_item_core` through `execute_item` with `StopAtCheckpoint` and `StopNowForce` on the spawn path executes the handler bodies without raising `AttributeError`, sets attempt dispositions and item statuses honestly, and persists state cleanly (proven by `tests/test_runner_stop_level3.py::SpawnPathStopAtCheckpointHandlerTests` and `tests/test_runner_stop_level4.py::SpawnPathStopNowForceHandlerTests`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the persisted state fragment after a stop AT EACH LEVEL. For level 3, `attempt["disposition"]` and `item["status"]` must both equal `runner_stop.STOPPED_DISPOSITION`; for level 4, both must equal `runner_stop.FORCED_DISPOSITION`. Assert the CONSTANTS and state their values, which differ (`'interrupted'` versus `'unknown_outcome'`, measured at review): a V-02 that shows the same disposition for both levels has either conflated them or broken one. The `stopped` record must be present in each case.
   Paste each handler's write ORDER, showing nothing that can raise now sits between the record and `save_state`. If the order is unchanged, justify why it is safe rather than asserting it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERSISTED STATE FRAGMENTS:
 
-- [ ] V-03 validates E-03
+    Level 3 (`runner_stop.STOPPED_DISPOSITION == "interrupted"`):
+    ```json
+    {
+      "queue": [
+        {
+          "action": "execute",
+          "configured_file": ".aw/records/plans/pending/20260919-stopcrash-01-stp003-demo.ipd.md",
+          "id6": "stp003",
+          "position": 1,
+          "setid": "demo",
+          "status": "interrupted",
+          "attempts": [
+            {
+              "disposition": "interrupted",
+              "interrupt_reason": "deliberate-stop-at-checkpoint",
+              "number": 1,
+              "stopped": {
+                "certainty": "known",
+                "failure": false,
+                "git_state": "",
+                "last_completed_event": "tool_use:read",
+                "last_completed_event_index": 1,
+                "level": 3,
+                "level_name": "now",
+                "requester": "operator",
+                "resume_action": "re-run this item in recovery mode...",
+                "stopped_deliberately": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+    ```
+
+    Level 4 (`runner_stop.FORCED_DISPOSITION == "unknown_outcome"`):
+    ```json
+    {
+      "queue": [
+        {
+          "action": "execute",
+          "configured_file": ".aw/records/plans/pending/20260919-stopcrash-01-stp004-demo.ipd.md",
+          "id6": "stp004",
+          "position": 1,
+          "setid": "demo",
+          "status": "unknown_outcome",
+          "attempts": [
+            {
+              "disposition": "unknown_outcome",
+              "interrupt_reason": "deliberate-stop-now-force",
+              "number": 1,
+              "stopped": {
+                "certainty": "indeterminate",
+                "disposition": "unknown_outcome",
+                "events_seen": 3,
+                "failure": false,
+                "git_state": "",
+                "last_completed_event": null,
+                "last_completed_event_index": null,
+                "level": 4,
+                "level_name": "now-force",
+                "requester": "operator",
+                "requires_reconciliation": true,
+                "resume_action": "reconcile before resuming...",
+                "stopped_deliberately": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+    ```
+
+    WRITE ORDER ANALYSIS:
+    In both spawn-path handlers, the sequence of operations is:
+    1. `now = utc_now()`
+    2. `record = _record_checkpoint_stop(...)` / `_record_forced_stop(...)`
+    3. `attempt["interrupted_at"] = now`
+    4. `attempt["ended_at"] = now`
+    5. `attempt["interrupt_reason"] = ...`
+    6. `attempt["stopped"] = record`
+    7. `attempt["disposition"] = runner_stop.STOPPED_DISPOSITION` / `FORCED_DISPOSITION`
+    8. `item["status"] = runner_stop.STOPPED_DISPOSITION` / `FORCED_DISPOSITION`
+    9. `save_state(run_dir, state)`
+    Between step 2 (`_record_*_stop`) and step 9 (`save_state`), every statement is an in-memory dictionary assignment with immutable string constants or already-computed variables. Nothing between record creation and disk persistence can raise.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste every new test and its passing output. Show that each spawn-path test executes `execute_item_core`'s real branch (not a re-implementation) and asserts the attempt record, at BOTH levels. PROVE WHICH HANDLER RAN, because this is the trap F-6a documents: `test_verifier_stop` already raises a stop through `execute_item`, passes today, and reaches only the verify/reconcile handler. Distinguish them by observable behavior, for example that the spawn-path handler RETURNS (no exception escapes) while the verify/reconcile one RE-RAISES, or by the `interrupt_reason`/disposition written. A test whose passing is compatible with the old broken code has not closed the gap.
   Also show the verify/reconcile re-raise is still pinned, and state whether that is `test_verifier_stop` extended or a new level-3 twin.
   Then the MUTATION CHECK AT BOTH SITES, which is the load-bearing evidence: re-introduce `attempt["exit_code"] = stop.exit_code` in the LEVEL-3 handler, paste the level-3 test FAILING with `AttributeError`, restore, paste it passing; then repeat independently for the LEVEL-4 handler and its test. One mutation does not validate the other level's test. A level whose test does not fail on its own original line FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NEW TESTS:
+    `tests/test_runner_stop_level3.py::SpawnPathStopAtCheckpointHandlerTests` and `tests/test_runner_stop_level4.py::SpawnPathStopNowForceHandlerTests`.
+    Proved which handler ran:
+    - Spawn path: `mod.execute_item(run_dir, state, item, recovery=False)` returns cleanly (no exception escapes), setting `attempt["disposition"]` and `item["status"]` to `STOPPED_DISPOSITION` (level 3) / `FORCED_DISPOSITION` (level 4), and persisting to `state.json`.
+    - Verify/reconcile path: `mod.execute_item(...)` re-raises `StopAtCheckpoint` / `StopNowForce` (caught via `with self.assertRaises(...)`). Both levels are covered (new `test_verifier_path_stop_at_checkpoint_re_raises` in level 3, new `test_verifier_path_stop_now_force_re_raises` in level 4 alongside existing `test_verifier_stop` in `test_runner_stop.py`).
 
-- [ ] V-04 validates E-04
+    PASSING OUTPUT:
+    ```
+    $ python3 -m pytest tests/test_runner_stop_level3.py tests/test_runner_stop_level4.py tests/test_runner_stop.py
+    ......................................................................... [ 71%]
+    ..........................                                               [100%]
+    99 passed in 4.10s
+    ```
+
+    MUTATION CHECK 1 (Level 3):
+    Injected `attempt["exit_code"] = stop.exit_code` into level-3 spawn-path handler in `agent_workflows/runner_shared.py`:
+    ```
+    $ python3 -m pytest tests/test_runner_stop_level3.py -k SpawnPathStopAtCheckpointHandlerTests
+    FAILED tests/test_runner_stop_level3.py::SpawnPathStopAtCheckpointHandlerTests::test_spawn_path_stop_at_checkpoint_executes_and_persists_stop - AttributeError: 'StopAtCheckpoint' object has no attribute 'exit_code'
+    agent_workflows/runner_shared.py:26052: AttributeError
+    1 failed, 1 passed in 3.14s
+    ```
+    Restored and re-tested:
+    ```
+    $ python3 -m pytest tests/test_runner_stop_level3.py -k SpawnPathStopAtCheckpointHandlerTests
+    ..                                                                       [100%]
+    2 passed in 5.51s
+    ```
+
+    MUTATION CHECK 2 (Level 4):
+    Injected `attempt["exit_code"] = stop.exit_code` into level-4 spawn-path handler in `agent_workflows/runner_shared.py`:
+    ```
+    $ python3 -m pytest tests/test_runner_stop_level4.py -k SpawnPathStopNowForceHandlerTests
+    FAILED tests/test_runner_stop_level4.py::SpawnPathStopNowForceHandlerTests::test_spawn_path_stop_now_force_executes_and_persists_stop - AttributeError: 'StopNowForce' object has no attribute 'exit_code'
+    agent_workflows/runner_shared.py:26027: AttributeError
+    1 failed, 1 passed in 4.65s
+    ```
+    Restored and re-tested:
+    ```
+    $ python3 -m pytest tests/test_runner_stop_level4.py -k SpawnPathStopNowForceHandlerTests
+    ..                                                                       [100%]
+    2 passed in 3.20s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the added comment from BOTH test files (level-3 and level-4) and the original assertions each qualifies, and confirm every one still passes UNCHANGED (show they are absent from your diff, or that only a comment was added around them). State in one sentence what those assertions prove and what they do not, and confirm each comment says the same. A comment added to only the level-3 file FAILS this item: the level-4 file's identical gap is why its handler stayed broken.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ADDED COMMENTS AND QUALIFIED ASSERTIONS:
+
+    In `tests/test_runner_stop_level3.py`:
+    ```python
+    def test_stop_at_checkpoint_is_raised_with_the_checkpoint_observer(self):
+        # 13xo5k E-04: These AST/source-text assertions prove only that the raise site passes the
+        # well-formed checkpoint_observer argument, but do not execute the handler body or prove
+        # that the catch runs.
+        for name, tree in self._trees():
+            wrong = []
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                if not ast.unparse(node.func).endswith("StopAtCheckpoint"):
+                    continue
+                arguments = [ast.unparse(arg) for arg in node.args]
+                if arguments != ["checkpoint_observer"]:
+                    wrong.append(f"{ast.unparse(node)} (line {node.lineno})")
+            self.assertEqual(
+                wrong,
+                [],
+                f"{name}: {wrong} must carry the CheckpointObserver (`checkpoint_observer`) and "
+                f"nothing else...",
+            )
+    ```
+
+    In `tests/test_runner_stop_level4.py`:
+    ```python
+    class BothDriversWireLevel4Tests(unittest.TestCase):
+        """Orchestrator CID-3, asserted structurally as well as behaviorally."""
+
+        # 13xo5k E-04: Structural identity assertions prove the drivers import the shared level-4
+        # surfaces, but do not execute the handler bodies or prove handler execution.
+
+        #: (the level-4 surface, why it must be THE shared one rather than a same-named local copy)
+        LEVEL_4_SURFACES = (
+            (
+                "StopNowForce",
+                "the unwind that cuts the turn immediately, with no checkpoint wait",
+            ),
+            ...
+        )
+    ```
+
+    STATEMENT OF LIMIT:
+    These AST and structural identity assertions prove only that raise sites and driver imports reference the expected symbols and argument shapes, but do not execute the handler bodies or prove that the catch blocks run at runtime.
+
+    All original assertions remain unchanged and continue to pass.
+  - Result: pass
 
 ## Approval and execution gate
 
