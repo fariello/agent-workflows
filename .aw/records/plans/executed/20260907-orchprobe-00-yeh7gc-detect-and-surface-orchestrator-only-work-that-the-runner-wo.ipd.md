@@ -6,7 +6,7 @@
 - Scope: Three children: the SURFACING gap (01), the CACHE (02), the PROBE and its gate (03). IN: making a refusal reason and its remedy reach both `aw oc|agy run`'s summary and `aw runs`; a digest-keyed verdict cache; a bounded pre-run probe over queued orchestrators with an interactive prompt, a non-interactive failure, and an override. OUT: any `ipd_lint` rule (see the Rejected shapes below), any change to what the rollup transition itself does, and the retirement predicate (`77tr3o` owns it).
 - Scope-Paths: none
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -16,10 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: yeh7gc
-- Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 - From-Backlog: 5ev6lh
 
 ## Workflow history
+- 2026-09-24 executed (opencode/its_direct-pt3-claude-opus-5-1m-us): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set orchprobe reached executed, so the runner (an unrecorded run) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: r2i1b1, 8tgg6g, m7gvuz.
 - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item 5ev6lh (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-18 approved (aw set): status set to approved
