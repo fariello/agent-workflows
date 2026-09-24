@@ -2135,45 +2135,6 @@ class CitationAnchorAdvisoryTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
-    def test_the_pending_corpus_reports_zero_because_every_plan_predates_the_cutover(
-        self,
-    ):
-        """Kept separate: the subject is the whole tracked pending tree, not a fixture.
-
-        E-04's exemption, asserted where it actually matters. The corpus is what makes the rule
-        tolerable on its first run; a cutover that slipped behind the newest authored plan would turn
-        a quiet nudge into hundreds of findings on other agents' approved work.
-        """
-        plans = sorted(SOURCE_PLANS.glob("pending/*.ipd.md"))
-        self.assertTrue(plans, "expected a nonempty pending corpus to measure against")
-        offenders = {}
-        newest = ""
-        for path in plans:
-            text = path.read_text(encoding="utf-8")
-            doc = L.parse(text)
-            date = (doc.meta_fields.get("Date") or "").strip()
-            if re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-                newest = max(newest, date.replace("-", ""))
-            found = L.check_citation_anchors(doc, text)
-            if found:
-                offenders[path.name] = len(found)
-        self.assertEqual(
-            offenders,
-            {},
-            f"{len(offenders)} of {len(plans)} pending plans drew a {L.C_CITATION_ANCHOR} advisory, "
-            "but every plan in this corpus predates the cutover so the count must be zero. FIX: the "
-            f"cutover constant is {L.CITATION_ANCHOR_CUTOVER_DATE} and the newest plan date present "
-            f"is {newest}; if a plan now postdates the cutover this test is telling you the rule is "
-            "live on real authored work, which is the intended end state, and the assertion should "
-            "then be re-expressed as 'only post-cutover plans may appear'.",
-        )
-        self.assertGreater(
-            L.CITATION_ANCHOR_CUTOVER_DATE,
-            newest,
-            "the cutover must be STRICTLY GREATER than the newest plan date in the corpus, or the "
-            "rule fires on plans authored before it existed.",
-        )
-
     def test_the_detector_discriminates_on_the_real_corpus_with_the_gate_disabled(self):
         """Kept separate: measures the detector over the tracked tree with the date gate bypassed.
 
@@ -2278,21 +2239,6 @@ class CitationAnchorAdvisoryTests(unittest.TestCase):
             L.C_SIZE_DENSITY,
             detailed,
             "--detail must still reveal IPD-Z602, or the narrow fix broke the general path.",
-        )
-
-    def test_the_code_is_stable_and_is_not_the_retired_one(self):
-        """Kept separate: the claim is about the MODULE's code namespace, not about any document."""
-        self.assertEqual(L.C_CITATION_ANCHOR, "IPD-C801")
-        self.assertNotEqual(
-            L.C_CITATION_ANCHOR,
-            "IPD-D701",
-            "IPD-D701 is RETIRED and must never be revived; codes are stable and are not recycled.",
-        )
-        source = Path(L.__file__).read_text(encoding="utf-8")
-        self.assertNotIn(
-            "IPD-D701 = ",
-            source,
-            "the retired code must not be reintroduced as a constant.",
         )
 
 

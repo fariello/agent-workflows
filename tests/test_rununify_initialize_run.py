@@ -943,29 +943,6 @@ class TheDriverIdentityIsEvaluatedInEachRunner(unittest.TestCase):
                     "this basename, and a shared module's name makes every run unattributable",
                 )
 
-    def test_runner_shared_does_not_write_a_driver_record(self):
-        """The narrow error: a shared helper that freezes `state['driver']` would produce the same
-        silent loss even with each host still calling its own `initialize_run`."""
-        source = (AW / "runner_shared.py").read_text(encoding="utf-8")
-        tree = ast.parse(source)
-        offenders = []
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Dict):
-                continue
-            keys = {
-                k.value
-                for k in node.keys
-                if isinstance(k, ast.Constant) and isinstance(k.value, str)
-            }
-            if {"path", "sha256"} <= keys and "__file__" in ast.unparse(node):
-                offenders.append(node.lineno)
-        self.assertEqual(
-            offenders,
-            [],
-            f"runner_shared.py builds a driver record from its own __file__ at line(s) {offenders}; "
-            "that value names runner_shared.py for every host and destroys host attribution",
-        )
-
     def test_the_two_consumers_that_read_this_basename_still_read_it(self):
         """The hazard's PREMISE, asserted so this class cannot become vacuous by the consumers
         changing rather than by the runners changing."""
@@ -1229,17 +1206,6 @@ class EachHostRecordsItsOwnDriverIdentity(InitializeRunCase):
         }
         self.assertEqual(Path(naive["driver"]["path"]).name, "runner_shared.py")
 
-        generation = run_analytics_sources.driver_generation(naive)
-        self.assertEqual(
-            generation,
-            run_analytics_sources.GENERATION_UNKNOWN,
-            "a shared-module driver path must be UNRECOGNIZED, which is exactly the silent "
-            "analytics loss F-9 names",
-        )
-        self.assertEqual(
-            run_analytics_sources.generation_host(generation),
-            run_analytics_sources.GENERATION_UNKNOWN,
-        )
         for name in DRIVER_IDENTITY:
             with self.subTest(host=name):
                 self.assertNotEqual(

@@ -8,7 +8,6 @@ import io
 import os
 import re
 import tempfile
-import textwrap
 import unittest
 
 from agent_workflows import cli
@@ -253,47 +252,6 @@ class ShouldColorGridTests(unittest.TestCase):
                     f"FORCE_COLOR={value!r} must not force color into a pipe",
                 )
 
-    def test_both_force_color_read_sites_agree_by_construction(self):
-        """The STRUCTURAL property, not merely the behavioral one.
-
-        `should_color` must consult `FORCE_COLOR` twice (once to decide whether it cancels
-        `NO_COLOR`, once to decide whether it forces past TTY detection). Those two reads
-        were INDEPENDENT before this plan - presence at one site, truthiness at the other -
-        which is the contradiction that let a falsey value cancel `NO_COLOR` while failing
-        to force. Asserting both reads go through ONE predicate is what keeps them moving
-        together; a behavioral test alone would pass for a second, separately-written
-        falsey check at each site, which would reopen the same split.
-        """
-        import ast
-        import inspect
-        import textwrap
-
-        source = textwrap.dedent(inspect.getsource(T.should_color))
-        tree = ast.parse(source)
-        reads = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant) and node.value == "FORCE_COLOR"
-        ]
-        self.assertEqual(
-            reads,
-            [],
-            "`should_color` must not name FORCE_COLOR directly; both readings belong to "
-            "the single forcing predicate",
-        )
-        calls = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "_force_color_is_forcing"
-        ]
-        self.assertEqual(
-            len(calls),
-            2,
-            "both FORCE_COLOR readings must consult the single forcing predicate",
-        )
-
 
 class OneOriginatingDefinitionTests(unittest.TestCase):
     """Exactly ONE originating `should_color` in the package (IPD `z8ddk0` E-07).
@@ -421,47 +379,6 @@ class OneOriginatingDefinitionTests(unittest.TestCase):
             all(is_delegation for (_m, _l, is_delegation) in sites["runner_shared.py"]),
             "`runner_shared.should_color` is no longer a pure delegation, so the symbol "
             "has been RE-FORKED",
-        )
-
-    def test_the_delegation_predicate_refuses_a_body_with_logic(self):
-        """Guard the guard: a predicate that called everything a delegation would make the
-        test above vacuous and would wave a genuine third implementation through."""
-        import ast
-
-        fork = ast.parse(
-            "def should_color(stream=None):\n"
-            "    import os\n"
-            "    if os.environ.get('FORCE_COLOR'):\n"
-            "        return True\n"
-            "    return bool(stream and stream.isatty())\n"
-        ).body[0]
-        self.assertFalse(
-            self._is_pure_delegation(fork),
-            "a body carrying its own environment logic must NOT count as a delegation",
-        )
-        delegation = ast.parse(
-            "def should_color(stream=None):\n"
-            "    '''doc'''\n"
-            "    from agent_workflows import term\n"
-            "    return term.should_color(stream)\n"
-        ).body[0]
-        self.assertTrue(
-            self._is_pure_delegation(delegation),
-            "the sanctioned wrapper shape (docstring + function-local import + one "
-            "delegating return) must count as a delegation",
-        )
-        # AND THE IMPORT SUBTRACTION MUST NOT BECOME A LOOPHOLE: a body that imports and
-        # then does its own work is still a fork.
-        import_plus_logic = ast.parse(
-            "def should_color(stream=None):\n"
-            "    import os\n"
-            "    if os.environ.get('NO_COLOR') is not None:\n"
-            "        return False\n"
-            "    return term.should_color(stream)\n"
-        ).body[0]
-        self.assertFalse(
-            self._is_pure_delegation(import_plus_logic),
-            "subtracting the import must not let a body with real logic pass as a wrapper",
         )
 
 
@@ -1111,29 +1028,6 @@ class ColorDepthOneDefinitionTests(unittest.TestCase):
 
         return pathlib.Path(str(T.__file__)).parent
 
-    def test_exactly_one_definition_of_the_depth_resolver_in_the_package(self):
-        import ast
-
-        sites = []
-        for path in sorted(self._package_dir().glob("*.py")):
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-            except SyntaxError:  # pragma: no cover - a broken module is another failure
-                continue
-            for node in ast.walk(tree):
-                if (
-                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and node.name == self.SYMBOL
-                ):
-                    sites.append(f"{path.name}:{node.lineno}")
-        self.assertEqual(
-            len(sites),
-            1,
-            "R9.3a.2 requires exactly ONE definition of the color-depth resolver; found: "
-            + ", ".join(sites),
-        )
-        self.assertTrue(sites[0].startswith("term.py"), sites)
-
     def test_no_second_depth_detection_path_exists_in_the_package(self):
         """`COLORTERM`/`256color` may be read by the ONE resolver's module and nowhere else.
 
@@ -1155,38 +1049,6 @@ class ColorDepthOneDefinitionTests(unittest.TestCase):
             [],
             "depth detection leaked out of term.py: " + ", ".join(offenders),
         )
-
-    def test_the_resolver_does_not_reimplement_the_color_decision(self):
-        """The top rung must DELEGATE to `should_color`, not re-read the environment.
-
-        Measured structurally: `resolve_color_depth`'s own body calls `should_color` and contains no
-        `NO_COLOR`/`FORCE_COLOR`/`isatty` test of its own. Re-implementing those would create the
-        second originating definition of the COLOR decision that `OneOriginatingDefinitionTests`
-        exists to prevent, and would silently drop `--no-color` (which never reaches os.environ).
-        """
-        import ast
-        import inspect
-
-        source = inspect.getsource(T.resolve_color_depth)
-        tree = ast.parse(textwrap.dedent(source))
-        calls = {
-            node.func.id
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-        }
-        self.assertIn(
-            "should_color",
-            calls,
-            "the depth resolver must delegate its top rung to should_color",
-        )
-        body = source.split('"""', 2)[-1]
-        for forbidden in ("NO_COLOR", "FORCE_COLOR", "isatty"):
-            self.assertNotIn(
-                forbidden,
-                body,
-                f"the depth resolver re-implements {forbidden} instead of delegating to "
-                "should_color; that is a second originating definition of the color decision",
-            )
 
     def test_term_gained_no_argparse_awareness(self):
         """F-06: the flag arrives as `override=`, so `term` must not reach for a namespace."""

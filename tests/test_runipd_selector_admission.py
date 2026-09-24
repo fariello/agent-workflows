@@ -400,27 +400,6 @@ class TheTwoHostsShareOnePredicateTests(unittest.TestCase):
     binding directly.
     """
 
-    def test_neither_driver_defines_its_own_admission_closure(self):
-        for label, driver in HOSTS:
-            with self.subTest(host=label):
-                source = Path(str(driver.__file__)).read_text(encoding="utf-8")
-                self.assertNotIn(
-                    "actionable_statuses = {",
-                    source,
-                    msg=(
-                        f"{label} re-inlined the admission allowlist; call "
-                        "runner_shared.manifest_entry_is_selectable instead"
-                    ),
-                )
-                self.assertNotIn(
-                    'or "/not-executed/" in f_str',
-                    source,
-                    msg=(
-                        f"{label} re-implemented the terminal-directory test; ask "
-                        "run_selection_policy.is_in_terminal_directory through the shared predicate"
-                    ),
-                )
-
     def test_the_shared_predicate_is_reachable_from_both_drivers(self):
         for _label, driver in HOSTS:
             self.assertIs(

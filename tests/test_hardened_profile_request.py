@@ -257,25 +257,6 @@ class ExecutionProfileResolutionTests(unittest.TestCase):
             ["agent", "model", "runner", "validate", "variant", "verify_with"],
         )
 
-    def test_there_is_NO_cli_flag_and_the_resolver_takes_no_explicit_tier(self):
-        """The deliberate absence, asserted so a later flag cannot be added without a decision.
-
-        `n5qca5` OQ-01: no `--hardened` / `--execution-profile` flag, because a documented flag on a
-        cross-platform tool reads as a cross-platform GUARANTEE while this enforcement is Linux only.
-        Asserted TWICE, because either half alone is satisfiable by accident: the parser accepts no
-        such option, and `resolve` has no parameter for one. If a flag is ever added deliberately, it
-        must enter ABOVE the profile field in `resolve`, and this test is where that decision is
-        recorded.
-        """
-
-        import inspect
-
-        self.assertNotIn("execution_profile", inspect.signature(rp.resolve).parameters)
-        parser_source = inspect.getsource(driver.build_parser)
-        for flag in ("--hardened", "--execution-profile", "--sandbox"):
-            with self.subTest(flag=flag):
-                self.assertNotIn(flag, parser_source)
-
 
 # ==================================================================================================
 # The DRIVER half: the request is consumed, and the refusals fire

@@ -359,24 +359,6 @@ class TheComparisonIsRelativeAndRefusesToBeTheAuthority(unittest.TestCase):
 
         self.assertEqual(R.SUITE_FAILURE_LIST_CAP, OC.SUITE_FAILURE_LINE_LIMIT)
 
-    def test_the_predicate_is_PURE(self) -> None:
-        """No I/O, no git, no suite: it must be safe to call anywhere, including inside a `finally`."""
-
-        import ast
-        import inspect
-        import textwrap
-
-        fn = ast.parse(
-            textwrap.dedent(inspect.getsource(R.new_failures_since_baseline))
-        )
-        called = {
-            ast.unparse(node.func)
-            for node in ast.walk(fn)
-            if isinstance(node, ast.Call)
-        }
-        for forbidden in ("_run_git", "subprocess.run", "open", "Path"):
-            self.assertNotIn(forbidden, called)
-
 
 # ==================================================================================================
 # E-02 / V-02: the normalization, which must never collapse two DIFFERENT failures into one

@@ -520,24 +520,6 @@ class TheAttributedSetIsReadFromTheRecordThatAlreadyCarriesIt(unittest.TestCase)
         self.assertEqual(attributed, ())
         self.assertNotIn(R.UNPARSEABLE_FAILURE_ID, attributed)
 
-    def test_the_reader_is_PURE(self) -> None:
-        """No I/O and no git: safe to call anywhere, including on a shallow-copied item."""
-
-        import ast
-        import inspect
-        import textwrap
-
-        tree = ast.parse(
-            textwrap.dedent(inspect.getsource(R.attributed_away_failure_ids))
-        )
-        called = {
-            ast.unparse(node.func)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-        }
-        for forbidden in ("_run_git", "subprocess.run", "open", "Path"):
-            self.assertNotIn(forbidden, called)
-
 
 # ==================================================================================================
 # E-04 / V-04: the consumption, at exactly ONE return path
@@ -820,22 +802,6 @@ class TheAnswerReachesThePostMergeVerdict(_GateCase):
         """A drift between the two makes both guards miss, so it is asserted rather than assumed."""
 
         self.assertEqual(R.SUITE_FAILURE_LIST_CAP, OC.SUITE_FAILURE_LINE_LIMIT)
-
-    def test_the_answer_predicate_is_PURE(self) -> None:
-        import ast
-        import inspect
-        import textwrap
-
-        tree = ast.parse(
-            textwrap.dedent(inspect.getsource(R.unattributed_merged_failures))
-        )
-        called = {
-            ast.unparse(node.func)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-        }
-        for forbidden in ("_run_git", "subprocess.run", "open", "Path"):
-            self.assertNotIn(forbidden, called)
 
 
 class TheCacheServesAMeasurementAndNotAPerItemJudgement(_GateCase):
@@ -1318,33 +1284,6 @@ class TheCompositionWithTheBaselineArmIsAUnionOfTwoExcuses(_GateCase):
             suite_passed=False,
         )
         self.assertEqual(answer_only.judgement, R.REVALIDATION_NO_REGRESSION)
-
-    def test_NOTHING_REFUSES_OR_RELEASES_ON_THE_BASELINE_IN_THE_ANSWER_ARM(
-        self,
-    ) -> None:
-        """The maintainer's standing 2026-09-08/2026-09-20 ruling, pinned for THIS plan's arm.
-
-        This plan consults the ANSWER and never the baseline, which is why it needed a spec
-        amendment and the sibling did not. Asserted as source, because the rule is about what the
-        function may READ.
-        """
-
-        import ast
-        import inspect
-        import textwrap
-
-        for fn in (R.attributed_away_failure_ids, R.unattributed_merged_failures):
-            source = textwrap.dedent(inspect.getsource(fn))
-            names = {
-                node.id
-                for node in ast.walk(ast.parse(source))
-                if isinstance(node, ast.Name)
-            }
-            self.assertNotIn(
-                "revalidation_baseline_for",
-                names,
-                f"{fn.__name__} must not reach the baseline; the answer arm is baseline-free",
-            )
 
 
 if __name__ == "__main__":

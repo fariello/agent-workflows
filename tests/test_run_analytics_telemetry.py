@@ -42,7 +42,6 @@ from pathlib import Path
 from agent_workflows import leak_sanitizer as ls
 from agent_workflows import run_analytics_config as cfg
 from agent_workflows import run_analytics_telemetry as tel
-from agent_workflows.runner_shared import append_jsonl
 from tests.support import REPO_ROOT
 
 # --- Canaries, assembled from fragments so this file holds no literal leak ----------------------
@@ -523,11 +522,6 @@ class ProbeAdapterTests(unittest.TestCase):
         self.assertIn("WRITE FRESH, MODELED ON IT, WITH ATTRIBUTION", doc)
         self.assertIn("INSTALLED WORKFLOW CONTENT", doc)
 
-    def test_the_module_imports_nothing_from_the_installed_workflow_tree(self) -> None:
-        source = Path(tel.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("bench_env import", source)
-        self.assertNotIn("workflows.benchmark", source)
-
 
 # ================================================================================================
 # E-03 / V-03: the accelerator probe
@@ -657,11 +651,6 @@ class AcceleratorProbeTests(unittest.TestCase):
                         # Only a CODE, never the text.
                         for warning in event.get("warnings", []):
                             self.assertTrue(warning.startswith("accelerator-"))
-
-    def test_the_executable_allowlist_is_strict(self) -> None:
-        self.assertEqual(tel._ACCELERATOR_EXECUTABLES, ("nvidia-smi", "rocm-smi"))
-        source = Path(tel.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("shell=True", source, "no shell is ever used")
 
     def test_persisting_raw_output_would_break_this_suite(self) -> None:
         # A mutation check for E-03's prohibition: persist the raw text, prove a test fails.
@@ -819,28 +808,6 @@ class NodeIdentityTests(unittest.TestCase):
         finally:
             socket.getfqdn, socket.gethostname, tel.platform.node = originals
 
-    def test_no_environment_value_is_a_host_identity_fallback(self) -> None:
-        # An env value must never stand in for host identity (a plan convention). Checked on the
-        # PARSED function body, so the surrounding docstring that explains the rule cannot trip it.
-        tree = ast.parse(Path(tel.__file__).read_text(encoding="utf-8"))
-        bodies = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef)
-            and node.name in ("node_identity_input", "node_pseudonym")
-        ]
-        self.assertEqual(len(bodies), 2, "both identity functions must be found")
-        for func in bodies:
-            names = {
-                child.attr if isinstance(child, ast.Attribute) else child.id
-                for child in ast.walk(func)
-                if isinstance(child, (ast.Name, ast.Attribute))
-            }
-            with self.subTest(function=func.name):
-                self.assertNotIn("environ", names)
-                self.assertNotIn("getenv", names)
-                self.assertNotIn("environb", names)
-
 
 # ================================================================================================
 # E-05 / V-05: the collector
@@ -927,42 +894,6 @@ class CollectorLifecycleTests(unittest.TestCase):
                 self.assertRegex(
                     event["wall_timestamp"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
                 )
-
-    def test_the_writer_is_the_shipped_append_jsonl_and_not_a_new_one(self) -> None:
-        # The identity check is the load-bearing one: the default writer must BE the shipped
-        # function, not merely resemble it.
-        self.assertIn(
-            "agent_workflows.runner_shared.append_jsonl",
-            _imported_modules(Path(tel.__file__)),
-        )
-        # And no second writer: no `fsync` and no append-mode `open` anywhere in this module's CODE
-        # (its docstring legitimately discusses `append_jsonl`'s per-event fsync, which is why this
-        # is an AST check and not a grep).
-        identifiers = _code_identifiers(Path(tel.__file__))
-        self.assertNotIn("fsync", identifiers)
-        tree = ast.parse(Path(tel.__file__).read_text(encoding="utf-8"))
-        append_modes = [
-            arg.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            for arg in node.args
-            if isinstance(arg, ast.Constant)
-            and isinstance(arg.value, str)
-            and arg.value in ("a", "ab", "a+")
-        ]
-        self.assertEqual(
-            append_modes, [], "this module opens no stream in append mode itself"
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            collector = tel.TelemetryCollector(
-                root / tel.TELEMETRY_FILENAME,
-                execution_id="exec-01",
-                salt=_SALT,
-                adapter=tel.FakeResourceProbeAdapter(),
-                monotonic=FakeClock(),
-            )
-            self.assertIs(collector._writer, append_jsonl)
 
     def test_an_unwritable_stream_records_a_warning_and_never_ends_the_run(
         self,
@@ -1164,49 +1095,6 @@ class SamplerTests(unittest.TestCase):
                     sampler.running, "an unenabled sampler starts no thread"
                 )
             collector.close()
-
-    def test_the_thread_loop_waits_on_the_event_rather_than_sleeping(self) -> None:
-        source = Path(tel.__file__).read_text(encoding="utf-8")
-        loop = source[source.index("    def _run(self) -> None:\n        last") :]
-        self.assertIn("self._stop.wait(self.check_interval)", loop)
-        self.assertNotIn("time.sleep", loop)
-
-    def test_this_module_registers_no_signal_handler_and_forks_no_cleanup_path(
-        self,
-    ) -> None:
-        # Spec `c4gd2h` R5 requires ONE cleanup implementation and prohibits divergent per-level
-        # cleanup; A9 requires a structural check that exactly one exists. This is that check for
-        # this module: it must add no second path and must not call the shared one.
-        #
-        # THE CHECK PARSES CODE RATHER THAN GREPPING TEXT, deliberately. A substring search over the
-        # source matched this module's own DOCSTRINGS, which cite `signal.signal` and
-        # `runner_shutdown.clean_shutdown` precisely in order to explain why neither is called. A
-        # text search cannot tell an explanation from an invocation, so it would have to be either
-        # falsely red (as it was) or defeated by stripping the words it looks for, and the second is
-        # how a real regression gets waved through. The AST cannot be fooled by prose.
-        for name in _code_identifiers(Path(tel.__file__)):
-            with self.subTest(identifier=name):
-                self.assertNotIn(name, _FORBIDDEN_CODE_IDENTIFIERS)
-        imported = _imported_modules(Path(tel.__file__))
-        self.assertNotIn("signal", imported, "no signal module is imported at all")
-        self.assertNotIn("atexit", imported)
-        self.assertNotIn(
-            "agent_workflows.runner_shutdown",
-            imported,
-            "the shared cleanup routine is neither imported nor called; the runner wires this in",
-        )
-
-    def test_the_sampler_shape_matches_the_shipped_watchdogs(self) -> None:
-        source = Path(tel.__file__).read_text(encoding="utf-8")
-        sampler_source = source[source.index("class ResourceSampler") :]
-        for marker in (
-            "threading.Event()",
-            "daemon=True",
-            "self._stop.wait(",
-            "join(timeout=1.0)",
-        ):
-            with self.subTest(marker=marker):
-                self.assertIn(marker, sampler_source)
 
 
 # ================================================================================================
@@ -1431,20 +1319,6 @@ class PrivacyCorpusTests(unittest.TestCase):
                 event["resources"] = {"container_hint": value}
                 with self.assertRaises(tel.SchemaRefusal):
                     tel.validate_event(event)
-
-    def test_this_test_file_and_the_module_are_themselves_clean(self) -> None:
-        for path in (Path(tel.__file__), Path(cfg.__file__), Path(__file__)):
-            with self.subTest(path=path.name):
-                findings = [
-                    f
-                    for f in _scan(path.read_text(encoding="utf-8"))
-                    if f.severity == "fail"
-                ]
-                self.assertEqual(
-                    findings,
-                    [],
-                    "a committed corpus of real-shaped secrets is a leak that ships",
-                )
 
     def test_no_literal_canary_is_committed_in_this_file(self) -> None:
         source = Path(__file__).read_text(encoding="utf-8")

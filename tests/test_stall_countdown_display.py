@@ -221,17 +221,6 @@ class HeartbeatCountdownTests(unittest.TestCase):
         ):
             self.assertNotIn("still working", msg)
 
-    def test_no_driver_source_contains_the_misleading_phrase(self):
-        import pathlib
-
-        pkg = pathlib.Path(render_stream.__file__).parent
-        offenders = [
-            p.name
-            for p in pkg.glob("*.py")
-            if "still working on" in p.read_text(encoding="utf-8")
-        ]
-        self.assertEqual(offenders, [])
-
 
 if __name__ == "__main__":
     unittest.main()

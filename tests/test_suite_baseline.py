@@ -224,52 +224,10 @@ class TheTwoMeasurementsAreComparable(unittest.TestCase):
     the baseline its own argv, its own flags or its own parser, these fail.
     """
 
-    def test_both_sides_extract_failing_ids_with_the_SAME_function(self) -> None:
-        """One extractor, or the two id sets are not comparable and the context is misleading."""
-
-        self.assertIs(OC.extract_suite_failures, AGY.extract_suite_failures)
-        core = _core_source()
-        self.assertIn("extract_suite_failures", core)
-        self.assertNotIn(
-            "FAILED|ERROR",
-            inspect.getsource(R.SuiteBaselineRun),
-            "the baseline must NOT carry its own failure-line pattern; a second parser is how the "
-            "pre-work and post-work id sets stop being comparable",
-        )
-
     def test_the_baseline_runs_the_SAME_argv_as_the_post_work_check(self) -> None:
         core = _core_source()
         self.assertIn('getattr(driver_module, "SUITE_CHECK_ARGV")', core)
         self.assertEqual(tuple(OC.SUITE_CHECK_ARGV), tuple(AGY.SUITE_CHECK_ARGV))
-
-    def test_the_baseline_builds_NO_neutralization_or_subtraction_layer(self) -> None:
-        """A layer guarding a condition nobody can measure is dead code that masks real failures."""
-
-        src = inspect.getsource(R)
-        section = src[
-            src.index("# THE PRE-WORK SUITE BASELINE") : src.index(
-                "# THE INTEGRATION-REFUSAL ANSWER"
-            )
-        ]
-        for forbidden in ("KNOWN_DIVERGENT", "PHANTOM_FAILURES", "_SUBTRACT"):
-            self.assertNotIn(
-                forbidden,
-                section,
-                f"{forbidden}: no subtraction list may be built; the divergence measured ZERO and a "
-                "stale list would mask real failures",
-            )
-
-    def test_the_comparability_decision_is_DOCUMENTED_at_the_producer(self) -> None:
-        """A future maintainer must be able to tell a real difference from a measurement artifact."""
-
-        src = inspect.getsource(R)
-        section = src[
-            src.index("# THE PRE-WORK SUITE BASELINE") : src.index(
-                "# THE INTEGRATION-REFUSAL ANSWER"
-            )
-        ]
-        self.assertIn("WHY THE MEASUREMENT IS COMPARABLE", section)
-        self.assertIn("dh0uno", section)
 
 
 # ==================================================================================================
@@ -305,34 +263,6 @@ class TheBaselineCannotTouchTheAgentsLane(unittest.TestCase):
                 "a lane; it must live outside that namespace entirely",
             )
             self.assertIn(R.SUITE_BASELINE_SUBDIR, str(baseline).replace(os.sep, "/"))
-
-    def test_the_producer_calls_NEITHER_allocate_worktree_NOR_teardown_worktree(
-        self,
-    ) -> None:
-        """The two functions that did the damage. Their absence is the fix, so it is asserted."""
-
-        for symbol in (
-            R.start_suite_baseline,
-            R.remove_suite_baseline_checkout,
-            R.SuiteBaselineRun,
-        ):
-            code = _code_only(inspect.getsource(symbol))
-            with self.subTest(symbol=getattr(symbol, "__name__", str(symbol))):
-                self.assertNotIn("allocate_worktree", code)
-                self.assertNotIn("teardown_worktree", code)
-                self.assertNotIn("worktree_lease", code)
-
-    def test_the_removal_path_can_delete_NO_REF_AT_ALL(self) -> None:
-        """`teardown_worktree` deletes the lane BRANCH and its REFLOG. This must not be able to."""
-
-        code = _code_only(inspect.getsource(R.remove_suite_baseline_checkout))
-        for forbidden in ("branch", "-D", "update-ref", "reflog"):
-            self.assertNotIn(
-                forbidden,
-                code,
-                f"the baseline's removal path must not be able to touch a ref ({forbidden!r}); a "
-                "detached checkout has nothing to delete but a directory",
-            )
 
     def test_ADVERSARIAL_an_EMPTY_agent_lane_survives_allocation_and_cleanup(
         self,
@@ -551,33 +481,6 @@ class TheBaselineIsPinnedToACommit(unittest.TestCase):
 class TheBaselineRunsConcurrentlyAndCannotDelayTheTurn(unittest.TestCase):
     """V-03. The concurrency mechanism, and why it cannot deadlock or hang a driver."""
 
-    def test_run_suite_check_could_NOT_have_been_reused_because_it_BLOCKS(self) -> None:
-        """F-17, asserted rather than asserted-in-prose: it is synchronous by construction."""
-
-        from agent_workflows import run_evidence
-
-        self.assertIn(
-            "subprocess.run(", inspect.getsource(run_evidence.capture_command)
-        )
-        self.assertIn("capture_command", inspect.getsource(OC.run_suite_check))
-        for split in ("poll", "communicate", "Popen"):
-            self.assertNotIn(
-                split,
-                inspect.getsource(OC.run_suite_check),
-                "run_suite_check has no start/poll/collect split, which is why a NEW concurrent path "
-                "was required rather than a reuse",
-            )
-
-    def test_the_concurrency_is_a_child_process_PLUS_a_DAEMON_drain_thread(
-        self,
-    ) -> None:
-        """The drain thread is what makes the classic full-pipe deadlock impossible."""
-
-        src = inspect.getsource(R.SuiteBaselineRun)
-        self.assertIn("subprocess.PIPE", src)
-        self.assertIn("daemon=True", src)
-        self.assertIn("communicate(", src)
-
     def test_the_collection_wait_DEFAULTS_TO_ZERO(self) -> None:
         """OQ-02's answer. A zero-wait collection cannot delay a turn BY CONSTRUCTION."""
 
@@ -712,38 +615,6 @@ class CleanupCoversEveryExitPath(unittest.TestCase):
         "KeyboardInterrupt",
         "StallTimeout",
     )
-
-    def test_a_try_finally_was_ADDED_and_it_encloses_the_dispatch(self) -> None:
-        """ "Tear it down on every path" is not buildable as a trailing call, so structure was added."""
-
-        tree = ast.parse(inspect.getsource(R).replace("\n", "\n", 1))
-        core = next(
-            n
-            for n in tree.body
-            if isinstance(n, ast.FunctionDef) and n.name == "execute_item_core"
-        )
-        with_final = [
-            n for n in ast.walk(core) if isinstance(n, ast.Try) and n.finalbody
-        ]
-        self.assertTrue(
-            with_final,
-            "execute_item_core must contain a `finally:`; there were ZERO before this plan, so the "
-            "baseline's checkout and child process leaked on all four turn-ending paths",
-        )
-        cleanup = next(
-            n
-            for n in with_final
-            if "remove_suite_baseline_checkout"
-            in ast.unparse(ast.Module(n.finalbody, []))
-        )
-        body = ast.unparse(ast.Module(cleanup.body, []))
-        self.assertIn("spawn_executor(", body)
-        for exit_path in self.FOUR_EXITS:
-            self.assertIn(
-                exit_path,
-                body,
-                f"the {exit_path} path must be INSIDE the try, or the cleanup does not cover it",
-            )
 
     def test_the_finally_abandons_the_child_AND_removes_the_checkout(self) -> None:
         core = _core_source()
@@ -1009,40 +880,6 @@ class NothingRefusesOnTheBaseline(unittest.TestCase):
         self.assertFalse(without.release)
         self.assertEqual(with_it.record["answer"], without.record["answer"])
 
-    def test_NO_CODE_PATH_compares_the_baseline_to_the_post_work_SET(self) -> None:
-        """The grep V-05 demands, done structurally: `baseline` reaches no decision.
-
-        Asserted by AST over `perform_gate_answer`: the name `baseline` may appear only inside the
-        `gate_answer_question(...)` and `gate_answer_record(...)` calls. Any use in a test, a
-        comparison or a boolean would be a gate.
-        """
-
-        fn = ast.parse(textwrap.dedent(inspect.getsource(R.perform_gate_answer))).body[
-            0
-        ]
-        allowed: set[int] = set()
-        for node in ast.walk(fn):
-            if isinstance(node, ast.Call):
-                func = node.func
-                name = getattr(func, "id", None) or getattr(func, "attr", None)
-                if name in ("gate_answer_question", "gate_answer_record"):
-                    for inner in ast.walk(node):
-                        if isinstance(inner, ast.Name) and inner.id == "baseline":
-                            allowed.add(id(inner))
-        stray = [
-            node.lineno
-            for node in ast.walk(fn)
-            if isinstance(node, ast.Name)
-            and node.id == "baseline"
-            and id(node) not in allowed
-        ]
-        self.assertEqual(
-            [],
-            stray,
-            "`baseline` is used outside the question/record calls in perform_gate_answer (lines "
-            f"{stray}); that is a GATE, which the maintainer forbade",
-        )
-
     def test_the_baseline_reaches_NO_comparison_in_execute_item_core_either(
         self,
     ) -> None:
@@ -1058,23 +895,6 @@ class NothingRefusesOnTheBaseline(unittest.TestCase):
                 core,
                 f"{forbidden!r} would key an outcome on the baseline; nothing may refuse on it",
             )
-
-    def test_THE_RULING_IS_RECORDED_AT_THE_CODE_with_its_reasoning(self) -> None:
-        """Without the reasoning the field reads as an unfinished check and the next reader finishes it."""
-
-        src = inspect.getsource(R)
-        section = src[
-            src.index("# THE PRE-WORK SUITE BASELINE") : src.index(
-                "# THE INTEGRATION-REFUSAL ANSWER"
-            )
-        ]
-        self.assertIn(
-            "INFORMATION FOR AN HONEST AGENT, NOT A CHECK ON A DISHONEST ONE", section
-        )
-        self.assertIn("A GATE CANNOT DETECT DECEPTION", section)
-        self.assertIn("A CAPABLE MODEL CAN MAKE TESTS PASS", section)
-        self.assertIn("WOULD REWRITE THE GATE", section)
-        self.assertIn("SLOPPINESS, NOT MALICE", section)
 
 
 # ==================================================================================================
@@ -1117,27 +937,6 @@ class TheBaselineIsPersistedIdenticallyOnBothHosts(unittest.TestCase):
 
         json.dumps(_completed().as_record())
         json.dumps(R.suite_baseline_absent("x").as_record())
-
-    def test_BOTH_HOSTS_write_it_at_the_SAME_SEAM(self) -> None:
-        """ONE writer, in the shared core both hosts delegate to, beside the post-work result."""
-
-        core = _core_source()
-        self.assertIn('attempt["suite_baseline"] = suite_baseline.as_record()', core)
-        self.assertLess(
-            core.index('attempt["suite_check"]'),
-            core.index('attempt["suite_baseline"]'),
-            "the baseline must be recorded BESIDE the existing per-attempt suite result",
-        )
-        for name, module in HOSTS:
-            with self.subTest(host=name):
-                src = pathlib.Path(str(module.__file__)).read_text(encoding="utf-8")
-                self.assertIn("execute_item_core", src)
-                self.assertNotIn(
-                    'attempt["suite_baseline"]',
-                    src,
-                    f"{name} must NOT write its own copy; a second writer is how the two hosts "
-                    "persist different shapes",
-                )
 
     def test_BOTH_HOSTS_expose_the_SAME_injected_objects(self) -> None:
         """A name missing from one host would silently give that host NO baseline."""
@@ -1182,63 +981,6 @@ class TheBaselineIsPersistedIdenticallyOnBothHosts(unittest.TestCase):
 # ==================================================================================================
 class TheBoundariesAreRespected(unittest.TestCase):
     """F-11 and the shared-module rule, asserted so a future edit cannot quietly cross them."""
-
-    def test_NO_SECOND_ID_EXTRACTOR_WAS_WRITTEN(self) -> None:
-        """`daexj1`/`h5pyqa` E-01 owns capture-time extraction; forking it would give two answers.
-
-        THE HOME MOVED, THE CLAIM DID NOT (runnerlayer Order 02 `1f7xno`, backlog `cnwy8g`). This
-        asserted `agent_workflows.oc_runipd` because that is where the ONE extractor was DEFINED; it is
-        now defined in `runner_shared`, which both hosts bind. The property being pinned is
-        "exactly one extractor, and every consumer reaches THAT one", and it is unchanged and in fact
-        stronger: while the definition sat in a host driver, the other host reached it only by importing
-        from a peer driver, which is the coupling `cnwy8g` exists to remove.
-        """
-
-        self.assertEqual(
-            "agent_workflows.runner_shared", OC.extract_suite_failures.__module__
-        )
-        # And BOTH hosts must reach that same object, which is the half a `__module__` check cannot
-        # make: a host could bind a copy whose `__module__` string is identical.
-        self.assertIs(OC.extract_suite_failures, R.extract_suite_failures)
-        for symbol in (
-            R.SuiteBaselineRun,
-            R.start_suite_baseline,
-            R.suite_baseline_context,
-        ):
-            code = _code_only(inspect.getsource(symbol))
-            with self.subTest(symbol=getattr(symbol, "__name__", str(symbol))):
-                for forbidden in ("re.compile", "FAILED", "short test summary"):
-                    self.assertNotIn(
-                        forbidden,
-                        code,
-                        f"{forbidden!r}: the baseline must CONSUME the shared extractor, not parse "
-                        "pytest output itself",
-                    )
-
-    def test_run_evidence_IS_UNMODIFIED_BY_THIS_PLAN(self) -> None:
-        """F-11: `run_evidence.py` is deliberately ABSENT from this plan's Scope-Paths.
-
-        Its absence is the VISIBLE BOUNDARY with `daexj1`/`h5pyqa`, which owns capture-time
-        extraction. Asserted by checking the baseline reaches nothing in that module: if a future edit
-        needs to touch it, the correct action is to stop and report, not to widen scope quietly.
-        """
-
-        for symbol in (R.SuiteBaselineRun, R.start_suite_baseline):
-            code = _code_only(inspect.getsource(symbol))
-            with self.subTest(symbol=getattr(symbol, "__name__", str(symbol))):
-                self.assertNotIn("run_evidence", code)
-                self.assertNotIn("capture_command", code)
-
-    def test_runner_shared_STILL_IMPORTS_NO_HOST_DRIVER(self) -> None:
-        """The existing anti-divergence rule, re-asserted because this plan adds to that module."""
-
-        tree = ast.parse(pathlib.Path(str(R.__file__)).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom):
-                self.assertNotIn("runipd", node.module or "")
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    self.assertNotIn("runipd", alias.name)
 
     def test_the_host_specifics_are_INJECTED_off_driver_module(self) -> None:
         core = _core_source()

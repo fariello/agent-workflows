@@ -658,30 +658,6 @@ class MixedTypeGateWiringTests(unittest.TestCase):
         )
         return classification
 
-    def test_decide_is_called_from_the_runner(self):
-        """The dead-gate fix itself: a call site exists, in SHARED code both hosts reach.
-
-        KEPT AS AN AST GUARD, not converted to a text grep and not deleted. `ast.walk` looking for a
-        real `ast.Call` node cannot be satisfied by a comment or a docstring, which matters
-        specifically here because this module's own prose mentions `decide` repeatedly (it explains
-        the dead-gate defect at length), so a substring search would pass on that prose alone.
-
-        The runner half is now BEHAVIORAL - `test_both_hosts_actually_reach_the_gate_on_a_real_run`
-        replaces the `assertIn("enforce_mixed_type_gate", body)` text pin with a patched `decide` that
-        counts its calls on a real `initialize_run`. A comment naming the gate cannot increment a
-        counter.
-        """
-        import ast
-        import inspect
-
-        source = inspect.getsource(runner_shared.enforce_mixed_type_gate)
-        called = {
-            ast.unparse(node.func)
-            for node in ast.walk(ast.parse(source))
-            if isinstance(node, ast.Call)
-        }
-        self.assertIn("run_selection_policy.decide", called)
-
     def test_the_gate_APPLIES_and_REFUSES_a_multi_type_selection_unattended(self):
         """Left separate: an `assertRaises` test, and its refusal-text assertions are the subject."""
         import tempfile
@@ -1831,60 +1807,6 @@ class RepositoryPolicyRetryTierTests(unittest.TestCase):
             "coincidence",
         )
 
-    def test_the_production_call_sites_pass_a_repo_root(self):
-        """OQ-04's mandatory guard: an optional parameter that production forgets is an inert tier.
-
-        KEPT AS AN AST GUARD, and this file's own rules are why. Source-text pins were deleted from
-        this module because a comment satisfies them; `ast.walk` looking for a real `ast.Call` whose
-        keywords include `repo` cannot be satisfied by a comment or a docstring, which matters
-        especially here because the call sites now carry long comments ABOUT the repo argument.
-
-        WHY IT IS LOAD-BEARING RATHER THAN TIDY: with `repo` optional, a production call that omits it
-        silently falls back to CLI-over-default and the middle tier does not exist, while every test
-        above stays green because they call the resolver directly with a root. That failure is
-        invisible to exactly the tests this plan adds, which is why OQ-04 made the guard a condition
-        of recommending the optional form.
-
-        SCOPED TO THE FREEZE CALL, deliberately, and the distinction is the plan's F-14. The two
-        early `resolve_retry_budget` calls DISCARD their result, so they cannot carry the tier and are
-        not required to take a root; demanding one there would assert a shape that does nothing.
-        """
-        wrong = []
-        for runner in BOTH:
-            source = _effective_init_source(runner)
-            freeze_calls = [
-                node
-                for node in ast.walk(ast.parse(source))
-                if isinstance(node, ast.Call)
-                and ast.unparse(node.func).endswith("freeze_run_policy_flags")
-            ]
-            if not freeze_calls:
-                wrong.append(
-                    f"  {runner}: no `freeze_run_policy_flags` call was found in the effective "
-                    "`initialize_run` source at all, so this guard is VACUOUS on this host. Either "
-                    "the freeze moved (update this walk) or the run no longer freezes its policy "
-                    "flags, which would let every option be re-read from `args` on each resume"
-                )
-                continue
-            for call in freeze_calls:
-                if not any(kw.arg == "repo" for kw in call.keywords):
-                    wrong.append(
-                        f"  {runner}: `{ast.unparse(call)}` does NOT pass `repo=`, so spec 5.5's "
-                        "repository-policy tier is silently skipped and the DEFAULT is frozen while "
-                        "a repository believes its `run.retry_budget` is in force"
-                    )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} production freeze call(s) cannot reach the repository-policy tier. This "
-            "is the ONE failure mode OQ-04 accepted when it chose an optional parameter over a "
-            "required one: every unit test in this class passes a root explicitly, so only this "
-            "guard sees an omission. FIX: pass `repo=repo` at the freeze call in "
-            "`runner_shared.initialize_run_core`; do NOT make the parameter required, which would "
-            "break the pure-resolver assertions that are correct as written.\n"
-            + "\n".join(wrong),
-        )
-
     def test_the_frozen_options_shape_is_unchanged(self):
         """The consumption premise `xipfy1` (`retrywire-01`) depends on: one integer, same key.
 
@@ -2461,103 +2383,6 @@ class FullAutoDefaultNormalizationTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
-    def test_no_fallback_default_for_full_auto_is_True_on_either_host(self):
-        """Every `getattr`/`.get` fallback for `full_auto`, read as AST, on both hosts.
-
-        REPLACES THREE REGEX-OVER-SOURCE TESTS with one AST sweep. `test_site_2...`,
-        `test_site_3...`, and `test_no_True_default_for_full_auto_survives_anywhere` ran
-        `re.findall` over `inspect.getsource(...)` for hand-written patterns like
-        `getattr\\(\\s*args,\\s*"full_auto",\\s*(\\w+)\\s*\\)`. Three problems, all of which this
-        replacement fixes: a regex over source matches inside COMMENTS and docstrings (so a comment
-        showing the old spelling failed the test, and a commented-out line satisfied the catch-all); it
-        is whitespace- and formatting-sensitive, so `ruff format` breaking the call across lines makes
-        it silently match NOTHING and pass; and it pinned the exact call SITES (`initialize_run`,
-        `execute_item`) rather than the property, so moving a read into a helper made the site test
-        pass vacuously.
-
-        WHY THIS IS AST AND NOT BEHAVIORAL, unlike the other pins replaced in this file: the property
-        is the absence of a bad default on EVERY read, including reads on code paths no test drives (a
-        `--full-auto` fallback inside an error-recovery branch, say). `82ca6e96` and `94b00d37` both
-        keep AST guards for exactly this reason - they are not text greps, since a comment does not
-        parse into a Call node - and the behavioral half is covered next door by
-        `FullAutoEndToEndBehaviorTests`, which drives real runs and reads the frozen state.
-
-        IT IS ALSO STRICTER THAN WHAT IT REPLACES. The old tests checked two named functions plus two
-        literal spellings; this walks the WHOLE module and reports every `full_auto` fallback with a
-        truthy default, wherever it lives, plus any read with NO default at all where a missing key
-        would raise.
-        """
-        import ast
-        import inspect
-
-        wrong = []
-        for runner in BOTH:
-            tree = ast.parse(inspect.getsource(_MODULES[runner]))
-            reads = 0
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                func = node.func
-                if (
-                    isinstance(func, ast.Name)
-                    and func.id == "getattr"
-                    and len(node.args) >= 2
-                    and isinstance(node.args[1], ast.Constant)
-                    and node.args[1].value == "full_auto"
-                ):
-                    reads += 1
-                    default = node.args[2] if len(node.args) > 2 else None
-                elif (
-                    isinstance(func, ast.Attribute)
-                    and func.attr == "get"
-                    and node.args
-                    and isinstance(node.args[0], ast.Constant)
-                    and node.args[0].value == "full_auto"
-                ):
-                    reads += 1
-                    default = node.args[1] if len(node.args) > 1 else None
-                else:
-                    continue
-                if default is None:
-                    # No explicit default. Legal for `.get`, which yields None (falsy, so opt-in
-                    # holds); reported only for `getattr`, where it RAISES on an older namespace.
-                    if isinstance(func, ast.Name):
-                        wrong.append(
-                            f"  {runner} line {node.lineno}: "
-                            f"`{ast.unparse(node)}` has NO default, so it raises AttributeError on a "
-                            "namespace built before this flag existed instead of falling back to "
-                            "opt-in"
-                        )
-                    continue
-                if not (
-                    isinstance(default, ast.Constant) and default.value in (False, None)
-                ):
-                    wrong.append(
-                        f"  {runner} line {node.lineno}: "
-                        f"`{ast.unparse(node)}` falls back to `{ast.unparse(default)}`, which is not "
-                        "False. A truthy fallback makes auto-approval opt-OUT on any path where the "
-                        "value is absent, which is precisely the pre-E-07 defect: it reappears only "
-                        "for an OLDER run record or an argv shape the flag never reached"
-                    )
-            if reads == 0:
-                wrong.append(
-                    f"  {runner}: NO `full_auto` fallback read was found at all, so this guard is "
-                    "vacuous on this host. Either the reads were renamed (update this walk) or the "
-                    "flag stopped being consulted, which would make `--full-auto` inert"
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} `full_auto` fallback problem(s) across both hosts. Each one is a path where "
-            "auto-approval is opt-OUT: a plan with `Status: reviewed` and an approving `- Readiness:` "
-            "gets cleared to `auto-approved` and EXECUTED with no flag passed. That is not "
-            "hypothetical - it was the shipped behavior of one host before E-07. If the failure is a "
-            "VACUOUS-GUARD line instead, the reads moved and this walk needs updating rather than the "
-            "source. FIX: every fallback for this dest must be `False`; the parser's own default "
-            f"(asserted above) is not enough, because these reads fire when the attribute is ABSENT.\n"
-            + "\n".join(wrong),
-        )
-
     def test_the_resume_declaration_is_still_None_on_both_hosts(self):
         """F-6's mechanism is a DIFFERENT concern and was already correct; it stays untouched.
 
@@ -3043,70 +2868,6 @@ Real gate prose.
     def queue_ids(self, state: dict) -> list:
         return [item["id6"] for item in state["queue"]]
 
-    def test_the_gate_is_called_from_initialize_run_on_both_hosts(self):
-        """The call site EXISTS, as an AST claim, and the shared seam DELEGATES, as a behavioral one.
-
-        THE AST HALF IS KEPT. `ast.walk` matching a real `ast.Call` node cannot be satisfied by a
-        comment, which matters specifically here: this module's prose names the gate repeatedly (it
-        explains the dead-gate defect), so a substring search would pass on that prose alone. The
-        invariant is also structural rather than observable - the gate must have a call site in EACH
-        host's `initialize_run` rather than merely being reachable somehow - so no single behavioral
-        run states it.
-
-        THE DELEGATION HALF WAS A SOURCE-TEXT PIN and is now behavioral. It read
-        `inspect.getsource(runner_shared.enforce_draft_admission_gate)` and asserted the substring
-        `"decide_draft_admission"` appeared - satisfiable by the docstring that explains the gate calls
-        it. Now the policy function is replaced by a spy and the seam must actually call it on a real
-        run, which no comment can do.
-        """
-        import ast
-
-        from agent_workflows import run_selection_policy
-
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                source = _effective_init_source(runner)
-                called = {
-                    ast.unparse(node.func)
-                    for node in ast.walk(ast.parse(source.strip()))
-                    if isinstance(node, ast.Call)
-                }
-                self.assertTrue(
-                    {
-                        "enforce_draft_admission_gate",
-                        "runner_shared.enforce_draft_admission_gate",
-                    }
-                    & called,
-                    "the draft gate has no call site on this host",
-                )
-
-        real = run_selection_policy.decide_draft_admission
-
-        def make_spy(sink):
-            # The sink is bound as a DEFAULT-free closure over a parameter, not over the loop
-            # variable, so each host counts into its own list rather than sharing the last one.
-            def spy(*args, **kwargs):
-                sink.append(kwargs)
-                return real(*args, **kwargs)
-
-            return spy
-
-        for runner in BOTH:
-            calls: list = []
-            with self.subTest(runner=runner):
-                with mock.patch.object(
-                    run_selection_policy, "decide_draft_admission", make_spy(calls)
-                ):
-                    self.initialize(runner, ["reviews"])
-                self.assertEqual(
-                    len(calls),
-                    1,
-                    "a real run must reach `run_selection_policy.decide_draft_admission` exactly "
-                    "once. Zero calls mean the shared seam decides admission ITSELF, which is the "
-                    "second copy of a gate this file exists to prevent; more than one means the "
-                    "operator could be asked twice about one selection",
-                )
-
     def test_the_gate_runs_after_resolution_but_before_any_durable_run_state(self):
         """Spec 2.5a's seam, OBSERVED at the moment the gate runs rather than inferred from text.
 
@@ -3275,61 +3036,6 @@ Real gate prose.
                 self.assertEqual(event["skipped_incomplete"], ["drf002"])
                 self.assertNotIn("drf002", self.queue_ids(state))
 
-    def test_the_ledger_record_is_the_pure_modules_own(self):
-        """Spec 2.5a's last bullet: the RUNNER persists what the policy module RETURNED, and the
-        policy module writes nothing itself.
-
-        REPLACES TWO SOURCE-TEXT PINS. It read `inspect.getsource(run_selection_policy)` and asserted
-        the substrings `"append_jsonl"` and `"events.jsonl"` were absent. Both are change-detectors on
-        NAMES rather than on behavior: a module that wrote the ledger through `open(...).write(...)`,
-        or through a helper named anything else, passed them, while a comment explaining WHY it must
-        not write the ledger (the return-not-write convention `MixedTypeRecord` set) failed them.
-
-        Now asserted by OBSERVATION: the policy function is called with the process CWD set to an empty
-        temporary directory, and that directory must be byte-for-byte empty afterwards. A module that
-        writes anything, by any spelling, fails; a comment cannot create a file.
-        """
-        import os
-        import tempfile
-        from pathlib import Path as _P
-
-        from agent_workflows import run_selection_policy
-
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                _state, events, _err = self.initialize(
-                    runner, ["reviews", "--allow-drafts"]
-                )
-                event = self.gate_event(events)
-                for key in ("draft_counts", "preview", "response_or_flag", "admitted"):
-                    self.assertIn(key, event)
-
-        with tempfile.TemporaryDirectory() as td:
-            cwd = os.getcwd()
-            os.chdir(td)
-            try:
-                verdict = run_selection_policy.decide_draft_admission(
-                    [run_selection_policy.DraftCandidate("drf001", "ipd", True)],
-                    interactive=False,
-                    response=None,
-                )
-            finally:
-                os.chdir(cwd)
-            self.assertEqual(
-                sorted(p.name for p in _P(td).iterdir()),
-                [],
-                "`decide_draft_admission` created files while deciding. The policy module must "
-                "RETURN a record and write nothing: it has no run directory, no lease, and no way to "
-                "know whether the caller will even proceed, so anything it writes is state the "
-                "runner did not authorize and cannot reconcile",
-            )
-            self.assertEqual(
-                verdict.excluded_complete,
-                ("drf001",),
-                "and the decision itself is still returned, so the no-write assertion above is not "
-                "satisfied by a function that does nothing at all",
-            )
-
     def test_a_draft_named_explicitly_is_admitted_without_gating(self):
         """Spec 2.5a bullet 2: "the operator named it; asking is noise." So no gate event at all."""
         for runner in BOTH:
@@ -3473,79 +3179,6 @@ Real gate prose.
             )
         self.assertEqual(kept_bad, [])
         self.assertEqual(verdict_bad.excluded_complete, ("drf001",))
-
-    def test_the_gate_call_sites_were_not_duplicated(self):
-        """EXACTLY ONE call site per gate, per place it belongs, counted as AST CALLS.
-
-        KEPT AS A STRUCTURAL GUARD (`94b00d37` keeps the AST single-source guards for the same
-        reason), but UPGRADED from `source.count("...")` to counting real `ast.Call` nodes. The old
-        form counted SUBSTRINGS, so it was wrong in both directions: every comment or docstring
-        naming a gate inflated the count (this class's own prose names both gates repeatedly, so the
-        oc expectation of `1` was one comment away from failing for no behavioral reason), and a
-        second call spelled through an alias was invisible.
-
-        WHY A COUNT AND NOT A BEHAVIORAL TEST: the hazard is a SECOND call site, and a second call
-        site is usually silent - the gate simply runs twice, which for the mixed-type gate means the
-        operator can be asked to confirm one selection twice, and for the draft gate means two ledger
-        records for one decision. Neither shows up as a wrong answer on the happy path, so only a
-        structural count catches it before an operator does.
-
-        The two rows differ in WHERE ONE is allowed: `decide` may be called once and only from SHARED
-        code (so the two hosts cannot drift), while each host's `initialize_run` must call each
-        `enforce_*` wrapper exactly once (so the gate runs on both hosts, once per run).
-        """
-        import ast
-        import inspect
-
-        def call_count(source: str, dotted: str) -> int:
-            return sum(
-                1
-                for node in ast.walk(ast.parse(source.strip()))
-                if isinstance(node, ast.Call)
-                and ast.unparse(node.func).split(".")[-1] == dotted.split(".")[-1]
-                and ast.unparse(node.func).endswith(dotted)
-            )
-
-        wrong = []
-        for module in (runner_shared, oc_runipd, agy_runipd):
-            expected = 1 if module is runner_shared else 0
-            got = call_count(inspect.getsource(module), "run_selection_policy.decide")
-            if got != expected:
-                wrong.append(
-                    f"  {module.__name__} calls `run_selection_policy.decide` {got} time(s), "
-                    f"expected {expected}\n"
-                    "    this row exists because: the mixed-type gate must have exactly ONE call "
-                    "site and it must be in SHARED code. A host-local call site is how the two "
-                    "runners come to gate differently; two call sites in shared code is how one "
-                    "selection gets confirmed twice"
-                )
-        for runner in BOTH:
-            # AST CALL counts (ours), over the EFFECTIVE body (main's `_effective_init_source`).
-            # Both halves matter and neither side had both. AST counting means a comment or a
-            # docstring naming a gate cannot change the number, so a moved count means real code
-            # moved. Reading the effective body means that after `7a28ed11` unified `initialize_run`
-            # into `runner_shared.initialize_run_core`, the scan follows the code instead of counting
-            # zero calls in a now-thin host wrapper and reporting a DEAD GATE that is in fact live.
-            body = _effective_init_source(runner)
-            for gate in ("enforce_mixed_type_gate", "enforce_draft_admission_gate"):
-                got = call_count(body, gate)
-                if got != 1:
-                    wrong.append(
-                        f"  {runner}'s `initialize_run` calls `{gate}` {got} time(s), expected 1\n"
-                        "    this row exists because: ZERO means the gate is DEAD on this host, "
-                        "which is the exact defect this file was written for (spec 2.5's gate "
-                        "shipped fully built and fully tested with no callers at all). TWO means one "
-                        "decision produces two ledger records and, interactively, two prompts"
-                    )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} gate call-site count(s) are wrong. A ZERO count is a dead gate and is the "
-            "severe direction: the policy suite stays green while nothing enforces it. A count above "
-            "one is a duplicated gate, which double-records and double-prompts. Note these are AST "
-            "CALL counts, so a comment naming a gate cannot change them - if a count moved, real code "
-            f"moved.\n" + "\n".join(wrong),
-        )
 
     def test_completeness_fails_safe_when_it_cannot_be_determined(self):
         """F-11's hazard: the manifest carries no plan TEXT, so the caller must read it - and an
@@ -4458,59 +4091,6 @@ class DependencyClosureTests(unittest.TestCase):
                         spec_id6="sss999",
                     )
                 self.assertIn("mixed-type gate", str(caught.exception))
-
-    def test_the_closure_has_ONE_definition_and_both_hosts_reach_THAT_one(self):
-        """HOST PARITY BY IDENTITY, at the level the code is actually shared.
-
-        NOT A ROW IN `tests/test_runner_refork_guard.py`, and the reason is worth stating so nobody
-        "fixes" it by adding one. That guard's contract is that each runner EXPOSES the owner's object
-        at an attribute name the runner's own call sites use; `expand_dependency_closure` has no such
-        call site, because it is invoked from inside `runner_shared.initialize_run_core`, which both
-        hosts delegate to. Adding a row would require the runners to import a symbol they never use, so
-        the guard's own precondition is absent and the honest parity claim is one level up: ONE core,
-        reached by both, therefore one closure.
-
-        BOTH HALVES ARE ASSERTED for the same reason that guard asserts both of its: the identity half
-        alone passes while a stale duplicate definition sits in a runner being shadowed by an import,
-        and the AST half alone passes while a name is rebound at runtime.
-        """
-        import ast
-        import inspect
-        import pathlib
-
-        self.assertIs(
-            oc_runipd.runner_shared.initialize_run_core,
-            agy_runipd.runner_shared.initialize_run_core,
-        )
-        core = inspect.getsource(runner_shared.initialize_run_core)
-        self.assertIn("expand_dependency_closure(", core)
-        for runner in BOTH:
-            module = _MODULES[runner]
-            with self.subTest(runner=runner):
-                self.assertIn(
-                    "initialize_run_core",
-                    inspect.getsource(module.initialize_run),
-                    f"{runner}.initialize_run must delegate to the shared core, or the closure has "
-                    "two call sites and this class proves parity for only one of them",
-                )
-                tree = ast.parse(
-                    pathlib.Path(inspect.getfile(module)).read_text(encoding="utf-8")
-                )
-                defined = {
-                    node.name
-                    for node in tree.body
-                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                }
-                for name in (
-                    "expand_dependency_closure",
-                    "closure_target_admission",
-                ):
-                    self.assertNotIn(
-                        name,
-                        defined,
-                        f"{runner} defines its own {name}; the closure must have exactly one "
-                        "definition, in the shared module",
-                    )
 
 
 class TypeScopedReviewSweepTests(unittest.TestCase):

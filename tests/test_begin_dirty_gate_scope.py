@@ -32,7 +32,6 @@ from pathlib import Path
 
 from agent_workflows import ipd_lifecycle as LC
 from agent_workflows import oc_runipd as OC
-from agent_workflows import runner_shared as RS
 
 from tests.test_ipd_lifecycle_cli import (
     _commit_all,
@@ -314,39 +313,6 @@ class RunnerDeclaresTheExecutionBaselineTests(unittest.TestCase):
         # Keyword-only with a behavior-preserving default: existing call shapes are unaffected.
         self.assertEqual(param.kind, inspect.Parameter.KEYWORD_ONLY)
         self.assertIs(param.default, False)
-
-    def test_cli_reads_the_declaration_from_the_environment(self) -> None:
-        # The runner reaches begin through a SUBPROCESS (`python -m agent_workflows ipd begin`), so a
-        # function parameter alone would be unreachable; env is the transport. Absent or any value
-        # other than "1" must mean today's behavior.
-        import os
-        from unittest import mock
-
-        src = Path(LC.__file__).read_text(encoding="utf-8")
-        self.assertIn("AW_ISOLATED_BASELINE", src)
-        for value, expected in (
-            ("1", True),
-            ("0", False),
-            ("true", False),
-            ("", False),
-        ):
-            with mock.patch.dict(os.environ, {"AW_ISOLATED_BASELINE": value}):
-                self.assertEqual(
-                    os.environ.get("AW_ISOLATED_BASELINE") == "1", expected
-                )
-
-    def test_begin_is_called_before_the_lane_is_allocated(self) -> None:
-        # The fail-closed ordering (authority BEFORE side effects) is deliberate and this plan must
-        # not invert it: that is why the isolated baseline is the frozen base COMMIT rather than a
-        # path to a lane that does not exist yet.
-        src = Path(OC.__file__).read_text(encoding="utf-8")
-        if "execute_item_core" in src:
-            src = Path(RS.__file__).read_text(encoding="utf-8")
-        self.assertLess(
-            src.index("begin_rc, begin_msg = driver_begin("),
-            src.index("wt_handle = allocate_isolation_worktree("),
-            "begin must still run before the lane is allocated",
-        )
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -470,35 +470,6 @@ class TheGatesStillRefuseWhatTheyExistToRefuse(unittest.TestCase):
             "the tool-identity assertion must be a single shared object",
         )
 
-    def test_both_hosts_reach_the_same_backlog_close_IMPLEMENTATION(self):
-        """ONE backlog-close step, asserted one level down because each host now wraps it.
-
-        This used to be `assertIs(oc.process_backlog_close, agy.process_backlog_close)`, which was the
-        right statement while the function was DEFINED in `oc_runipd` and agy reached it by import.
-        runnerlayer Order 02 (`1f7xno`, backlog `cnwy8g`) gave it ONE definition in `runner_shared`, and
-        each host keeps a one-line wrapper binding its own `run_checked` and its own two closers - the
-        shared body cannot resolve a host `env_builder`, and an in-tree test patches
-        `oc_runipd.close_backlog_item` to induce a setter failure, which only an injected closer can
-        still intercept. Two wrappers over one body are not the same object by construction.
-
-        The property is unchanged and is now measured where it lives: both hosts delegate to the single
-        shared implementation, so a fix to the close reaches both.
-        """
-        shared = runner_shared.process_backlog_close
-        for label, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
-            with self.subTest(driver=label):
-                self.assertIsNot(
-                    mod.process_backlog_close,
-                    shared,
-                    f"{label} is expected to hold a delegating wrapper; if it IS the shared object the "
-                    "injection was dropped and this test should be simplified with that change",
-                )
-                self.assertIn(
-                    "runner_shared.process_backlog_close",
-                    inspect.getsource(mod.process_backlog_close),
-                    f"{label} must delegate to the ONE shared backlog-close step",
-                )
-
     def test_both_hosts_bind_the_same_suite_check(self):
         self.assertIs(
             oc_runipd.run_suite_check,

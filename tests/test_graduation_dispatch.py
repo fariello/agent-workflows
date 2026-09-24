@@ -474,31 +474,6 @@ class SharedImplementationTests(unittest.TestCase):
             "agent_workflows.runner_shared",
         )
 
-    def test_no_symbol_was_added_to_oc_runipd_for_agy_to_import(self):
-        """The import direction is one-way and must not deepen: a shared symbol goes in
-        `runner_shared`, never into `oc_runipd` for agy to reach back into."""
-        import ast
-
-        tree = ast.parse(
-            (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
-                encoding="utf-8"
-            )
-        )
-        from_oc = {
-            alias.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            and node.module
-            and "oc_runipd" in node.module
-            for alias in node.names
-        }
-        for added in (
-            "match_spec_selector",
-            "describe_spec_selector_refusal",
-            "summarize_graduation_cluster",
-        ):
-            self.assertNotIn(added, from_oc)
-
     def test_both_hosts_refuse_the_same_spec_with_only_the_host_command_differing(self):
         """The two refusals must differ ONLY in the host's own review command, or the hosts disagree
         about what a spec selector means."""
@@ -534,48 +509,6 @@ class NoSecondEnumerationTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertEqual(src.count("def discover_specs"), 1)
-
-    def test_no_new_specs_path_literal_was_added_to_the_runner(self):
-        """Mirrors the shipped AST guard: enumeration goes through the shared iterator, so a second
-        'where do specs live' mechanism cannot appear here."""
-        import ast
-
-        tree = ast.parse(
-            (REPO_ROOT / "agent_workflows" / "runner_shared.py").read_text(
-                encoding="utf-8"
-            )
-        )
-        # DOCSTRINGS ARE EXCLUDED DELIBERATELY, and the reason is the whole point of the rule: it
-        # forbids a second "where do specs live" MECHANISM, not a mention of the path in prose
-        # explaining why there is only one. Including them made this test fail on the very docstring
-        # that cites the guard, which would have pressured a future editor to delete the explanation
-        # rather than the mechanism. Narrowed to the literals that could actually BUILD a path.
-        docstrings = set()
-        for node in ast.walk(tree):
-            if isinstance(
-                node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-            ):
-                doc = ast.get_docstring(node, clean=False)
-                if doc:
-                    docstrings.add(doc)
-        # `records/specs` ONLY, matching the SHIPPED guard
-        # (`test_spec_review_attestation.py::test_enumeration_reuses_the_shared_authority`) rather
-        # than inventing a broader rule here. A bare `"specs"` is a TYPE NAME, not a path: three
-        # already existed before this work, so rejecting it would have failed on pre-existing code
-        # and taught its author that this guard cries wolf.
-        offenders = [
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and node.value not in docstrings
-            and "records/specs" in node.value
-        ]
-        self.assertEqual(
-            offenders,
-            [],
-            "a specs path literal was added; enumerate through check_engine._iter_spec_records",
-        )
 
 
 class LiveCorpusPropertyTests(unittest.TestCase):

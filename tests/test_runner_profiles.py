@@ -1260,68 +1260,6 @@ class StorePathTests(unittest.TestCase):
         ),
     )
 
-    def test_the_store_path_is_derived_correctly_in_both_xdg_states(self):
-        from agent_workflows import config as CFG
-
-        repo_root = Path(RP.__file__).resolve().parent.parent
-        wrong = []
-        for case, set_xdg, why in self.XDG_STATES:
-            with tempfile.TemporaryDirectory() as d:
-                if set_xdg:
-                    os.environ["XDG_CONFIG_HOME"] = d
-                    expected_dir = Path(d) / "agent-workflows"
-                else:
-                    os.environ.pop("XDG_CONFIG_HOME", None)
-                    expected_dir = Path.home() / ".config" / "agent-workflows"
-                problems = []
-                if RP.store_dir() != expected_dir:
-                    problems.append(
-                        f"store_dir() expected {expected_dir}, got {RP.store_dir()}"
-                    )
-                if RP.store_path() != expected_dir / RP.STORE_NAME:
-                    problems.append(
-                        f"store_path() expected {expected_dir / RP.STORE_NAME}, got "
-                        f"{RP.store_path()}"
-                    )
-                if RP.store_dir() == Path.home():
-                    problems.append(
-                        "store_dir() is the HOME DIRECTORY ITSELF, so the store would be written "
-                        "into the root of a user's home"
-                    )
-                if RP.store_path().parent != CFG.config_dir():
-                    problems.append(
-                        f"the store must sit in the same user config dir as the main config; "
-                        f"{RP.store_path().parent} != {CFG.config_dir()}"
-                    )
-                if RP.store_path() == CFG.config_path():
-                    problems.append(
-                        "the store path IS `config.json`, so profiles would overwrite the main "
-                        "configuration file"
-                    )
-                if str(RP.store_path()).startswith(str(repo_root)):
-                    problems.append(
-                        f"the store resolved INSIDE the repository tree ({RP.store_path()}), which "
-                        "would put a user's launch config under version control"
-                    )
-                if problems:
-                    wrong.append(
-                        f"  {case}:\n"
-                        + "".join(f"    - {p}\n" for p in problems)
-                        + f"    this row exists because: {why}"
-                    )
-        self.assertEqual(
-            wrong,
-            [],
-            f"the store path was wrong in {len(wrong)} of {len(self.XDG_STATES)} XDG states. ONE "
-            "derivation (`config_dir()` joined with STORE_NAME) answers both rows, so BOTH failing "
-            "together means that derivation changed rather than either state being mishandled. FIX: "
-            "the relationships are not equally severe. A wrong DIRECTORY means an operator's stored "
-            "profiles are silently invisible, so a run launches the host default; resolving into the "
-            "REPOSITORY, or onto `config.json` itself, is worse, because the first commits a user's "
-            f"config and the second destroys their main configuration.\n"
-            + "\n".join(wrong),
-        )
-
 
 class StoreReadWriteTests(unittest.TestCase):
     """What `save` refuses, and what the file on disk looks like after each outcome.

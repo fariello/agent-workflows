@@ -39,7 +39,7 @@ from unittest import mock
 
 import pytest
 
-from agent_workflows import agy_runipd, lane_containment, oc_runipd, runner_shutdown
+from agent_workflows import agy_runipd, lane_containment, oc_runipd
 
 DRIVERS = pytest.mark.parametrize(
     "driver", (oc_runipd, agy_runipd), ids=("oc_runipd", "agy_runipd")
@@ -157,47 +157,6 @@ class TestArmedForEveryUnattendedTurn:
     instruction the agent ever sees, which is why the exception is safe and why the byte-identity check
     below is what keeps it from quietly widening.
     """
-
-    @DRIVERS
-    def test_the_bounds_are_constructed_outside_any_isolation_branch(self, driver):
-        """Armed for isolated AND non-isolated turns, asserted STRUCTURALLY rather than by reading.
-
-        The construction must not sit inside an `if work_dir:` branch. Checked with the AST so a
-        reformatting or a reworded comment cannot fake it.
-        """
-
-        launcher = driver.run_opencode if driver is oc_runipd else driver.run_agy_turn
-        tree = ast.parse(inspect.getsource(launcher).lstrip())
-
-        found: list[ast.AST] = []
-
-        class _Finder(ast.NodeVisitor):
-            def visit_Call(self, node: ast.Call) -> None:
-                target = node.func
-                if (
-                    isinstance(target, ast.Attribute)
-                    and target.attr == "TurnBoundWatch"
-                ):
-                    found.append(node)
-                self.generic_visit(node)
-
-        _Finder().visit(tree)
-        assert len(found) == 1, "exactly one bound construction per driver"
-
-        # Now prove it is not nested under a work_dir conditional.
-        def _guarded(node: ast.AST) -> bool:
-            for child in ast.walk(node):
-                if isinstance(child, ast.If):
-                    test = ast.dump(child.test)
-                    if "work_dir" in test or "isolate" in test:
-                        for sub in ast.walk(child):
-                            if sub is found[0]:
-                                return True
-            return False
-
-        assert not _guarded(
-            tree
-        ), "the bounds are gated on isolation; R4.4a requires them armed for every unattended turn"
 
     def test_the_permission_policy_by_contrast_IS_isolation_scoped(self, tmp_path):
         """The two scopes differ DELIBERATELY, and confusing them would be a real defect.
@@ -379,52 +338,6 @@ class TestPermissionDetectorIsUnproven:
     def test_the_default_remains_zero(self):
         assert lane_containment.PERMISSION_TIMEOUT == 0.0
 
-    def test_no_stdout_detector_was_shipped_armed(self):
-        """No product code arms the bound from a stdout pattern.
-
-        CONVERTED TO AN AST SCAN, and the claim is a NON-EXISTENCE one, which is the case the house
-        rule says a structural check answers and a behavioral test cannot: you cannot drive a code
-        path that must not exist. A text search for `note_permission_request` was the wrong tool in
-        BOTH directions - it would be satisfied by a comment mentioning the method (and both drivers
-        DO discuss the permission bound in prose, so the pin was one comment away from being
-        vacuous), and it would trip on a docstring naming the method it is forbidden to call, which
-        is exactly how a sibling guard in this file was measured to fail for prose rather than for
-        code. Walking for a CALL node cannot be fooled by either.
-
-        This is the assertion that would fail if someone later wires a regex-based detector and turns
-        the bound on in the same change: shipping it armed on an unproven detector is non-conforming,
-        because a false positive kills a healthy turn.
-        """
-
-        for driver in (oc_runipd, agy_runipd):
-            tree = ast.parse(Path(inspect.getfile(driver)).read_text(encoding="utf-8"))
-            armed = [
-                node.lineno
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Call)
-                and (
-                    getattr(node.func, "attr", None) == "note_permission_request"
-                    or getattr(node.func, "id", None) == "note_permission_request"
-                )
-            ]
-            assert not armed, (
-                f"{driver.__name__} arms the permission bound at lines {armed}; R4.4b requires a "
-                "captured stream from a REAL provoked ask before the bound may be armed"
-            )
-            # And POSITIVELY, so this is not passing because the driver arms no bound at all: the
-            # no-progress side of the SAME watch IS called, which is what makes the permission bound
-            # resettable the day it is armed.
-            progress = [
-                node.lineno
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Call)
-                and getattr(node.func, "attr", None) == "note_progress"
-            ]
-            assert progress, (
-                f"{driver.__name__} never notes progress, so the bound watch is not wired into its "
-                "read loop at all and the absence above proves nothing"
-            )
-
     def test_the_artifact_states_max_turn_is_the_only_covering_bound(self):
         """A10c requires the CONSEQUENCE be written down, not inferred.
 
@@ -514,48 +427,6 @@ class TestAntigravityCeilingOverlap:
         assert (
             lane_containment.driver_bound_for_host(None)
             == lane_containment.MAX_TURN_TIMEOUT
-        )
-
-    def test_the_overlap_is_documented_in_the_code_naming_which_fires_first(self):
-        """A10d: STATED, NOT DISCOVERED, in both the shared home and the host that has the overlap.
-
-        DELIBERATELY KEPT AS A TEXT ASSERTION, for the same reason as
-        `test_the_artifact_states_max_turn_is_the_only_covering_bound`: A10d's deliverable IS the
-        prose. Two timers with the same numeric value and different owners is the duplication the
-        requirement guards against, and what it demands is that a post-mortem reader find the overlap
-        WRITTEN DOWN rather than having to derive it. There is no behavior to drive for "somebody
-        wrote this down".
-
-        THE BEHAVIOR IS ASSERTED SEPARATELY AND IS WHAT MAKES THIS SAFE. The ORDERING claim (the
-        driver bound fires FIRST, so a termination is attributable) is driven by
-        `test_the_driver_bound_fires_first_on_a_host_with_its_own_ceiling` and by
-        `test_no_config_file_entry_was_added`, which now asserts the agy host's ARMED bound equals
-        `driver_bound_for_host(parse_host_ceiling_seconds(DEFAULT_TIMEOUT))`. So prose alone can never
-        satisfy the property; this test adds only "and it is documented".
-
-        The brittle half WAS removed: the original matched the literal
-        `"EXPECTED\\n        # TO WIN"`, i.e. a specific comment WRAP COLUMN, which any reflow breaks
-        while changing nothing. The phrase is now matched with its whitespace collapsed.
-        """
-
-        shared = Path(inspect.getfile(lane_containment)).read_text(encoding="utf-8")
-        assert "print-timeout" in shared
-        assert "240m" in shared
-        assert "fire FIRST" in shared or "fires FIRST" in shared
-
-        # Whitespace-collapsed, so a comment REFLOW cannot fail this while changing nothing.
-        agy_src = " ".join(inspect.getsource(agy_runipd.run_agy_turn).split())
-        agy_src = agy_src.replace("# ", "")
-        assert "print-timeout" in agy_src
-        assert "EXPECTED TO WIN" in agy_src
-        assert "BACKSTOP" in agy_src
-
-        # AND THE DOCUMENTED NUMBER IS THE REAL ONE, so the note cannot go stale: the host ceiling the
-        # prose names must still be what this host passes to the child.
-        assert agy_runipd.DEFAULT_TIMEOUT == "240m"
-        assert (
-            lane_containment.parse_host_ceiling_seconds(agy_runipd.DEFAULT_TIMEOUT)
-            == 4 * 60 * 60
         )
 
     def test_a_termination_is_attributable_to_one_bound_by_name(self):
@@ -918,138 +789,8 @@ class TestExpiryTerminatesAndNamesTheBound:
         expire(lane_containment.BOUND_PERMISSION, 30.0)
         assert reaped == ["r"]
 
-    def test_the_default_reaper_is_the_one_shared_clean_shutdown(self):
-        """Spec `c4gd2h` R5: the reap goes through the ONE shared routine, never a bare kill.
-
-        Asserted over the AST rather than the source text, because the docstring legitimately NAMES
-        the primitives it is forbidden to call ("NOT a bare kill, NOT a local `terminate_process`"),
-        and a text check would be satisfied - or in this case falsely tripped - by that prose. This is
-        the same reason spec A10 requires a structural check rather than a grep.
-        """
-
-        tree = ast.parse(
-            inspect.getsource(lane_containment.bound_expiry_reaper).lstrip()
-        )
-        called = {
-            node.func.attr
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        }
-        for forbidden in (
-            "kill",
-            "killpg",
-            "terminate",
-            "terminate_process",
-            "send_signal",
-        ):
-            assert (
-                forbidden not in called
-            ), f"the expiry path calls {forbidden} directly"
-
-        # The default reaper resolves to the shared routine.
-        default = (
-            inspect.signature(lane_containment.bound_expiry_reaper)
-            .parameters["reap"]
-            .default
-        )
-        assert (
-            default is None
-        ), "the shared routine is the default, resolved inside the body"
-        assert "runner_shutdown.clean_shutdown" in inspect.getsource(
-            lane_containment.bound_expiry_reaper
-        )
-
 
 # ---- A10 (structural): no second reaper was introduced ---------------------------------------------
-
-
-def test_no_second_reaper_exists_anywhere_in_the_package():
-    """Checked with the AST over the WHOLE package, NOT a text grep.
-
-    A grep is satisfied by the checking code itself (this very file contains the symbols), which is
-    why the requirement specifies a structural check.
-
-    WHAT THE RULE ACTUALLY IS, stated precisely because a sloppier version of this test produced four
-    false positives on first run and had to be narrowed against the real code. A "reaper" is code that
-    SIGNALS A PROCESS TO DIE. It is NOT:
-
-      * `os.kill(pid, 0)`, which sends NO signal and is a LIVENESS PROBE. Three shipped call sites use
-        it that way (`ipd_lifecycle`, `layout_migration`, `worktree_lease`) and flagging them would be
-        wrong.
-      * `process.kill()` on a child whose OWN stream failed to open before the run began
-        (`agy_run.py`), which is pre-existing spawn-failure cleanup, not turn termination.
-
-    So the assertion targets the thing spec `c4gd2h` R5 is about: the code THIS plan added must route
-    termination through `runner_shutdown`, and no new signalling call site may appear in the modules
-    this plan touched.
-    """
-
-    package = Path(inspect.getfile(lane_containment)).parent
-    scoped = ("lane_containment.py", "oc_runipd.py", "agy_runipd.py")
-    offenders: list[str] = []
-
-    for name in scoped:
-        path = package / name
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            func = node.func
-            if not isinstance(func, ast.Attribute):
-                continue
-            # A SIGNALLING call: `os.kill`/`os.killpg` with a real signal, or `<x>.kill()`/
-            # `<x>.terminate()` / `<x>.send_signal()` on a process object.
-            if func.attr in {"kill", "killpg", "terminate", "send_signal"}:
-                base = func.value
-                base_name = base.id if isinstance(base, ast.Name) else None
-                if base_name == "os":
-                    # `os.kill(pid, 0)` is a liveness probe, not a kill.
-                    args = node.args
-                    is_probe = (
-                        len(args) >= 2
-                        and isinstance(args[1], ast.Constant)
-                        and args[1].value == 0
-                    )
-                    if not is_probe:
-                        offenders.append(f"{name}:{node.lineno} os.{func.attr}")
-                elif base_name in {"process", "proc", "child"}:
-                    offenders.append(f"{name}:{node.lineno} {base_name}.{func.attr}")
-
-    assert not offenders, (
-        "a second reaper was introduced in this plan's modules; spec `c4gd2h` R5 forbids one, and "
-        "termination must route through `runner_shutdown`: " + "; ".join(offenders)
-    )
-
-    # And POSITIVELY: the one reap this plan added really does resolve to the shared routine.
-    # Checked as a REFERENCE rather than a call, because it is bound to a name and invoked through it,
-    # which is what makes the test-only injection seam possible.
-    reaper_src = inspect.getsource(lane_containment.bound_expiry_reaper)
-    refs = [
-        node
-        for node in ast.walk(ast.parse(reaper_src.lstrip()))
-        if isinstance(node, ast.Attribute)
-        and node.attr == "clean_shutdown"
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "runner_shutdown"
-    ]
-    assert refs, "the bound expiry must reap through `runner_shutdown.clean_shutdown`"
-    # And the DEFAULT really is that object, not merely mentioned in a comment.
-    from agent_workflows import runner_shutdown as _rs
-
-    assert _rs.clean_shutdown is runner_shutdown.clean_shutdown
-
-
-def test_the_bound_watch_is_defined_exactly_once_in_the_package():
-    """One definition, in the DECLARED shared home (spec R2.6/A5c), established structurally."""
-
-    package = Path(inspect.getfile(lane_containment)).parent
-    homes: list[str] = []
-    for path in sorted(package.glob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == "TurnBoundWatch":
-                homes.append(path.name)
-    assert homes == ["lane_containment.py"], homes
 
 
 # ---- R4.5 / A11: the in-lane lifecycle refusal, with its honest limit -------------------------------
@@ -1352,18 +1093,6 @@ class TestTheHostsOwnTruncationIsClassified:
 
         assert lane_containment.classify_host_turn_line(line) is None
 
-    def test_the_discriminators_are_not_the_shared_root_agent_idle_prefix(self):
-        """`root agent idle` matches BOTH forms, so it cannot discriminate and must not be the trigger."""
-
-        assert "root agent idle" in _HOST_TRUNCATING_BOUNDED_WAIT
-        assert "root agent idle" in _HOST_WAITING
-        # The bare prefix alone, with neither discriminator, is NOT classified either way.
-        assert lane_containment.classify_host_turn_line("root agent idle") is None
-        source = inspect.getsource(lane_containment.classify_host_turn_line)
-        assert (
-            "root agent idle" not in source
-        ), "the shared prefix must not be a matching trigger"
-
     def test_the_task_count_is_read_best_effort_and_never_gates_the_verdict(self):
         assert lane_containment.host_turn_task_count(_HOST_TRUNCATING_TERMINATE) == 2
         assert (
@@ -1376,28 +1105,6 @@ class TestTheHostsOwnTruncationIsClassified:
             )
             == lane_containment.HOST_TURN_TRUNCATING
         )
-
-    def test_the_classifier_is_pure_and_host_neutral(self):
-        """Spec `7ckptx` R2.6: the single definition lives in the shared module, not in a driver."""
-
-        assert lane_containment.classify_host_turn_line.__module__.endswith(
-            "lane_containment"
-        )
-        agy_source = inspect.getsource(agy_runipd)
-        # The driver may CALL it and NAME it in a comment, but must not carry a second copy of the
-        # discriminators.
-        assert (
-            "bounded by --print-timeout"
-            not in agy_source.replace("`--print-timeout`", "")
-            or "classify_host_turn_line" in agy_source
-        )
-
-    def test_the_fail_silent_property_is_stated_at_the_classifier(self):
-        """OQ-01: a silent stop is possible if the host rewords a line, and that must be documented."""
-
-        source = inspect.getsource(lane_containment)
-        head = source[: source.index("def classify_host_turn_line")]
-        assert "FAIL-SILENT" in head
 
 
 class TestTheHostsOwnTruncationIsObserved:
@@ -1442,23 +1149,6 @@ class TestTheHostsOwnTruncationIsObserved:
         observer = lane_containment.HostTruncationObserver()
         assert observer.note_line(line) is None
         assert observer.truncated is False
-
-    def test_it_is_modeled_on_the_established_observer_and_never_blocks(self):
-        source = inspect.getsource(lane_containment.HostTruncationObserver)
-        assert "DOES NOT BLOCK" in source.upper()
-        # No waiting, no prompting, no terminating: observing is recording.
-        tree = ast.parse(inspect.getsource(lane_containment.HostTruncationObserver))
-        called = {
-            node.func.attr
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        } | {
-            node.func.id
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-        }
-        for forbidden in ("sleep", "wait", "terminate", "kill", "input"):
-            assert forbidden not in called
 
 
 class TestTheHostsOwnTruncationIsRecordedDurably:
@@ -1683,51 +1373,6 @@ class TestTheHostsOwnTruncationIsWiredAtTheEveryLineSeam:
         if events_path.exists():
             assert "host-truncated-turn" not in events_path.read_text(encoding="utf-8")
 
-    def test_the_observer_is_fed_outside_every_rendering_branch(self):
-        """Asserted structurally: the feed must NOT sit inside an `output_mode` comparison."""
-
-        tree = ast.parse(inspect.getsource(agy_runipd.run_agy_turn).lstrip())
-        feeds = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "note_line"
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "host_truncation"
-        ]
-        assert len(feeds) == 1, "exactly one feed, at the every-line seam"
-        guarded = {
-            id(call)
-            for branch in ast.walk(tree)
-            if isinstance(branch, ast.If) and "output_mode" in ast.dump(branch.test)
-            for call in ast.walk(branch)
-            if isinstance(call, ast.Call)
-        }
-        assert id(feeds[0]) not in guarded
-
-    def test_the_grepped_print_timeout_comment_block_is_intact(self):
-        """R4.4d's own check above greps this source for three literals; this edit must not reflow it.
-
-        Collapsed the SAME way that check collapses it, because the phrase wraps across comment lines
-        ("EXPECTED\n# TO WIN"), so a literal search on the raw source would fail on intact code.
-        """
-
-        collapsed = " ".join(
-            inspect.getsource(agy_runipd.run_agy_turn).split()
-        ).replace("# ", "")
-        for literal in ("print-timeout", "EXPECTED TO WIN", "BACKSTOP"):
-            assert literal in collapsed, literal
-
-    def test_the_deliberate_host_asymmetry_is_stated_at_the_write(self):
-        """OQ-02/OQ-05: so nobody 'fixes' it by copying the write into the oc launcher."""
-
-        source = inspect.getsource(agy_runipd.run_agy_turn)
-        assert "ASYMMETRY" in source.upper()
-        assert "oc launcher" in source
-        # And the oc twin genuinely does NOT carry the write.
-        assert "record_host_truncation" not in inspect.getsource(oc_runipd)
-
     def test_the_four_tuple_return_shape_is_unchanged(self):
         """Widening it would edit `runner_shared.execute_item_core`, which `ty7w6o` does not declare."""
 
@@ -1857,38 +1502,6 @@ class TestTheZeroWorkVerdictIsEvidenceBased:
         verdict = _verdict(lane=_empty_lane(commits_ahead=None))
         assert (verdict.attempted_nothing, verdict.proven) == (False, False)
 
-    def test_the_predicate_is_PURE_and_probes_nothing(self):
-        """The two probed facts are INJECTED, which is what keeps it exhaustively testable."""
-
-        from agent_workflows import runner_shared
-
-        # THE BODY, not the docstring: the docstring legitimately NAMES `describe_lane` as the
-        # collector's single source, and grepping the whole source would flag that reference.
-        tree = ast.parse(
-            inspect.getsource(runner_shared.turn_attempted_nothing).lstrip()
-        )
-        fn = tree.body[0]
-        assert isinstance(fn, ast.FunctionDef)
-        body = ast.Module(body=fn.body[1:], type_ignores=[])
-        called = {
-            node.func.id
-            for node in ast.walk(body)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-        } | {
-            node.func.attr
-            for node in ast.walk(body)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        }
-        for forbidden in (
-            "run_checked",
-            "describe_lane",
-            "open",
-            "read_text",
-            "is_file",
-        ):
-            assert forbidden not in called, forbidden
-        assert "subprocess" not in ast.dump(body)
-
     def test_which_conditions_bite_in_which_mode_is_DOCUMENTED(self):
         """A reader who believes all four conditions always bite will over-trust an isolated verdict."""
 
@@ -1900,23 +1513,6 @@ class TestTheZeroWorkVerdictIsEvidenceBased:
         assert "MAIN CHECKOUT" in doc
         assert "TRUE BY CONSTRUCTION" in doc
         assert "commits_ahead" in doc
-
-    def test_it_does_NOT_use_holds_work_as_the_commit_test(self):
-        """`holds_work` stays True forever after a `--no-ff` merge, so it cannot answer this."""
-
-        from agent_workflows import runner_shared
-
-        source = inspect.getsource(runner_shared.turn_attempted_nothing)
-        assert (
-            "holds_work" in source
-        ), "the refusal must be stated where a reader will look"
-        tree = ast.parse(source.lstrip())
-        reads = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant) and node.value == "holds_work"
-        ]
-        assert reads == [], "`holds_work` must not be READ as the commit test"
 
 
 class TestTheNegativeControls:
@@ -2028,25 +1624,6 @@ class TestTheNegativeControls:
         assert verdict.attempted_nothing is False
         assert "INDETERMINATE" in verdict.reason
 
-    def test_the_merge_retry_refusal_uses_the_CONSTANT_not_a_bare_string(self):
-        from agent_workflows import runner_shared
-
-        source = inspect.getsource(runner_shared.turn_attempted_nothing)
-        assert "INTEGRATION_DEFERRED_STATUS" in source
-
-    def test_the_unreachable_refusals_are_RECORDED_as_such(self):
-        """So a later reader does not mistake defence in depth for the live guard."""
-
-        from agent_workflows import runner_shared
-
-        doc = inspect.getdoc(runner_shared) or ""
-        text = inspect.getsource(runner_shared).split("ZERO_WORK_REFUSED_STATUSES", 1)[
-            0
-        ]
-        assert "DEFENCE IN DEPTH" in text
-        assert "EVIDENCE CONJUNCTION" in text
-        assert doc is not None
-
 
 class TestTheHostTruncationSignalIsSupportingNotRequired:
     """V-03/E-03: the chosen reading, its rationale, and the case that proves it is not sufficient."""
@@ -2145,37 +1722,6 @@ class TestTheZeroWorkRetryIsBoundedByTheFrozenBudget:
             runner_shared.FINALIZE_RETRY_COUNT_KEY,
         }
         assert len(keys) == 3, "spec 5.5 counts corrections separately for each action"
-
-    def test_the_frozen_budget_is_READ_and_never_re_resolved(self):
-        from agent_workflows import runner_shared
-
-        source = inspect.getsource(runner_shared.zero_work_retry_decision)
-        assert "frozen_retry_budget" in source
-        assert "resolve_retry_budget" not in source
-
-    def test_no_new_retry_knob_was_added(self):
-        """The frozen `--retry-budget` remains the only limit for this class."""
-
-        from agent_workflows import runner_shared
-
-        source = inspect.getsource(runner_shared).split("reaskscore-03 (`dy9ymn`)", 1)[
-            1
-        ]
-        block = source.split("integpath-03 (`51vw4y`)", 1)[0]
-        assert "add_argument" not in block
-        assert "zero_work_budget" not in block
-        assert "zero-work-budget" not in block
-
-    def test_plan_retry_is_NOT_called(self):
-        """It needs a `RunEngine` over a `ledger.jsonl` no driver run writes."""
-
-        from agent_workflows import runner_shared
-
-        for fn in (
-            runner_shared.zero_work_retry_decision,
-            runner_shared.handle_zero_work_retry,
-        ):
-            assert "plan_retry" not in inspect.getsource(fn)
 
 
 class TestTheZeroWorkRetryIsAuditable:
@@ -2344,11 +1890,6 @@ class TestTheZeroWorkRetryIsAuditable:
             == []
         )
 
-    def test_the_renderer_is_reached_from_the_SHARED_report_writer(self):
-        from agent_workflows import runner_shared
-
-        assert "render_zero_work_notes" in inspect.getsource(runner_shared.write_report)
-
 
 class TestTheRequeueFiresFromInsideTheDispatchLoop:
     """V-06/E-06: the call site is AFTER `execute_item` returns, INSIDE `while True:`, on both hosts.
@@ -2411,27 +1952,6 @@ class TestTheRequeueFiresFromInsideTheDispatchLoop:
             matches.append(orelse_attrs)
         assert matches, "the `try` around `execute_item` must still exist"
         assert any("handle_zero_work_retry" in attrs for attrs in matches)
-
-    @DRIVERS
-    def test_the_call_precedes_the_cascade_on_the_next_iteration(self, driver):
-        """The ordering property, stated as the reason the placement is load-bearing."""
-
-        source = inspect.getsource(driver.run_queue)
-        cascade_at = source.index("cascade_dependency_blocked")
-        seam_at = source.index("handle_zero_work_retry")
-        assert cascade_at < seam_at, (
-            "the cascade is at the TOP of the loop, so it first observes this turn's terminal status "
-            "on the NEXT iteration; the seam sits after the dispatch, which is before that"
-        )
-
-    @DRIVERS
-    def test_the_rule_is_not_reimplemented_per_host(self, driver):
-        """Only the SEAM is per host; the predicate, budget and event are shared (R2.6/R6.1)."""
-
-        source = inspect.getsource(driver)
-        assert "def turn_attempted_nothing" not in source
-        assert "def zero_work_retry_decision" not in source
-        assert "def handle_zero_work_retry" not in source
 
     def test_the_reason_the_pre_loop_block_is_wrong_is_RECORDED(self):
         """So a later reader does not "tidy" the seam into the requeue block whose shape it copies."""

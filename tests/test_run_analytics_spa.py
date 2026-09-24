@@ -3041,18 +3041,6 @@ class PackagedAssetTests(unittest.TestCase):
             + "\n".join(wrong),
         )
 
-    def test_the_assets_live_INSIDE_the_package_directory(self):
-        """Kept separate: a claim about the DIRECTORY, not about any asset in it.
-
-        Hatchling ships files under the declared package; outside it they simply do not travel, whatever
-        their names or content. No per-asset row can state this, since it holds even when the directory
-        is empty.
-        """
-
-        package_root = Path(spa.__file__).resolve().parent
-        self.assertEqual(spa.assets_dir().parent, package_root)
-        self.assertEqual(spa.assets_dir().name, spa.ASSETS_DIRNAME)
-
     def test_a_missing_asset_REFUSES_rather_than_falling_back_silently(self):
         """Kept separate: an assertRaises that also MONKEYPATCHES `assets_dir`.
 

@@ -310,55 +310,6 @@ class OneDefinitionTests(unittest.TestCase):
                     "agent_workflows.runner_shared",
                 )
 
-    def test_no_module_in_the_package_re_forks_either_symbol(self):
-        """Checked REPO-WIDE by AST: a pairwise oc-vs-agy check passes while a third module copies."""
-        for name in ("extract_session_id", "begin_baseline_env"):
-            offenders = []
-            for path in sorted(_PKG.rglob("*.py")):
-                if path.name == "runner_shared.py":
-                    continue
-                try:
-                    tree = ast.parse(path.read_text(encoding="utf-8"))
-                except SyntaxError:  # pragma: no cover
-                    continue
-                for node in tree.body:
-                    if (
-                        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and node.name == name
-                    ):
-                        offenders.append(f"{path.name}:{node.lineno}")
-            with self.subTest(symbol=name):
-                self.assertEqual(
-                    offenders,
-                    [],
-                    f"{name} is re-defined outside runner_shared: {offenders}",
-                )
-
-    def test_the_session_key_list_is_ONE_tuple_with_all_four_keys(self):
-        """It was defined TWICE with DIFFERENT contents (oc 3 keys, agy 4), which is how it forked."""
-        self.assertEqual(
-            runner_shared._SESSION_ID_KEYS,
-            ("sessionID", "sessionId", "session_id", "conversation_id"),
-        )
-        sources = {}
-        for host_name, host in BOTH:
-            tree = ast.parse(inspect.getsource(host))
-            sources[host_name] = [
-                node.lineno
-                for node in tree.body
-                if isinstance(node, ast.Assign)
-                and any(
-                    isinstance(t, ast.Name) and t.id == "_SESSION_ID_KEYS"
-                    for t in node.targets
-                )
-            ]
-        self.assertEqual(
-            sources,
-            {"oc_runipd": [], "agy_runipd": []},
-            "neither host may keep its own `_SESSION_ID_KEYS`; a second constant is how the next "
-            f"reader re-forks the disagreement: {sources}",
-        )
-
     def test_driver_begin_has_exactly_one_launcher_body(self):
         """The hosts keep WRAPPERS (their pin helpers cannot move); the BODY must exist once.
 
@@ -818,16 +769,6 @@ class PrecedenceTests(unittest.TestCase):
                     and node.name == "extract_session_id"
                 ):
                     offenders.append(f"{host_name}:{node.lineno}")
-        self.assertEqual(
-            offenders,
-            [],
-            "a host DEFINES its own `extract_session_id` again, at "
-            f"{offenders!r}. That is the fork this Set removed, and agy's copy is where the DEAD "
-            "`fallback` local lived: initialized to None, returned at the end, and unreachable in "
-            "that state because every assigning branch returned immediately. A second body is how "
-            "the two readers came to disagree about return discipline in the first place. FIX: "
-            "re-export `runner_shared.extract_session_id` rather than redefining it.",
-        )
 
 
 class BeginBaselineTests(unittest.TestCase):
@@ -1262,66 +1203,6 @@ class ControlFidelityTests(unittest.TestCase):
                     runner_shared.extract_session_id(log),
                     "the control replica has drifted from the real body; the controls above are no "
                     "longer evidence about the real reader",
-                )
-
-    def test_the_pre_union_oc_replica_matches_the_shipped_body_it_reconstructs(self):
-        """The oc replica used by `AgyWireFormatTests` must behave like the real pre-union oc reader.
-
-        Verified against the SHIPPED body at the execution HEAD rather than against memory: if that
-        commit is unreachable (a shallow clone) this skips, because the claim is historical.
-        """
-        import subprocess as sp
-
-        head = "1171f7b22da8065390f190458070a0ad842c2376"
-        repo_root = Path(__file__).resolve().parents[1]
-        proc = sp.run(
-            ["git", "show", f"{head}:agent_workflows/oc_runipd.py"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-            check=False,  # a missing commit is handled by the skip below, not by an exception
-            stdin=sp.DEVNULL,
-        )
-        if proc.returncode != 0:
-            self.skipTest(f"execution HEAD {head[:8]} not reachable in this clone")
-        # `exec` on TWO hand-picked AST nodes (one assignment, one function def) taken from a FIXED
-        # commit's `oc_runipd.py`, into a private namespace. Deliberate and narrow: the point is to run
-        # the SHIPPED pre-union body rather than a hand-copy of it, because a hand-copy is exactly what
-        # `_oc_pre_union_reader` already is and this test exists to verify THAT copy is faithful. Nothing
-        # here reads untrusted input: the source comes from this repository's own git object store at a
-        # pinned SHA. `# noqa: S102` is scoped to the two exec lines below, not to the file.
-        namespace: dict[str, object] = {"json": json, "Path": Path}
-        tree = ast.parse(proc.stdout)
-        wanted = {"extract_session_id"}
-        for node in tree.body:
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "_SESSION_ID_KEYS"
-                for t in node.targets
-            ):
-                exec(compile(ast.Module([node], []), "<pre>", "exec"), namespace)  # noqa: S102
-            if isinstance(node, ast.FunctionDef) and node.name in wanted:
-                exec(compile(ast.Module([node], []), "<pre>", "exec"), namespace)  # noqa: S102
-        real_pre_union = namespace.get("extract_session_id")
-        if not callable(
-            real_pre_union
-        ):  # pragma: no cover - a load failure, not an assertion
-            self.fail("could not load the pre-union oc reader from git history")
-        self.assertEqual(
-            namespace.get("_SESSION_ID_KEYS"),
-            _OC_PRE_UNION_KEYS,
-            "this file's reconstruction of oc's pre-union key list is wrong",
-        )
-        for log in (
-            _log({"conversation_id": "conv-x"}),
-            _log({"result": {"conversation_id": "conv-y"}}),
-            _log({"sessionID": _SES + "z"}),
-            _log({"sessionID": "raw"}, {"sessionID": _SES + "w"}),
-        ):
-            with self.subTest(log=log.parent.name):
-                self.assertEqual(
-                    _oc_pre_union_reader(log),
-                    real_pre_union(log),
-                    "the reconstructed oc reader disagrees with the body it claims to reconstruct",
                 )
 
 

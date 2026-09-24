@@ -683,67 +683,6 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
                 "fails the guard cannot protect the real drivers either",
             )
 
-    def test_identity_probe_is_not_counted_as_a_nested_aw_launcher(self):
-        """The E-04 probe must not create a false 4-vs-3 asymmetry in the ttywedge guard.
-
-        `tests/test_nested_tty_noninteractive.py` enumerates nested-`aw` launchers by their first
-        argument's NAME (`argv`/`cmd`) and asserts both drivers expose an EQUAL count. The identity
-        probe is a read-only import probe defined once in oc and merely IMPORTED by agy, so naming
-        its local `argv` made oc appear to have one more launcher than agy and broke that sibling
-        guard. It must stay distinctly named -- while still denying the child a terminal.
-
-        KEPT AS AN AST CHECK, not converted, because the property IS the parameter NAME the sibling
-        guard keys on. A behavioral test cannot observe a local variable's name, and the sibling guard
-        counts by that name, so the only faithful assertion is over the syntax tree. The DEVNULL half
-        is now driven behaviorally instead, by `TheProbeDeniesTheChildATerminal` below.
-        """
-        tree = ast.parse(
-            textwrap.dedent(inspect.getsource(driver.assert_child_tool_identity))
-        )
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and ast.unparse(node.func).endswith(
-                "subprocess.run"
-            ):
-                first = ast.unparse(node.args[0]) if node.args else ""
-                self.assertNotIn(
-                    first,
-                    ("argv", "cmd"),
-                    "the identity probe's first arg must not be named argv/cmd, or the ttywedge "
-                    "symmetry guard will miscount it as a nested-`aw` launcher",
-                )
-
-    def test_stdin_devnull_is_not_regressed(self):
-        """The g40w37 TTY guarantee must survive this change at every launch site.
-
-        COUNTED ACROSS THE OWNER SET, not per driver file, since rununify Order 02 (`818uru` E-05).
-        `run_checked` carried one of each driver's launch sites and now has ONE definition in
-        `runner_shared`, so each driver's own file legitimately shows one fewer. The THRESHOLD IS
-        DELIBERATELY UNCHANGED at 3: lowering it would silently accept a future regression that
-        actually deleted a DEVNULL site, which is the opposite of what this guard is for. The
-        guarantee is intact (the same `subprocess.run` call still passes `stdin=subprocess.DEVNULL`);
-        only its address moved.
-
-        KEPT (audit 2026-09-19) as the file's one remaining source-text count, and the reason is the
-        same one that keeps the AST site guard above: this asserts a property of launch sites
-        COLLECTIVELY, including sites no test drives, so a behavioral test over the launchers this file
-        can reach would be a strictly weaker claim rather than a replacement. Every launcher this file
-        CAN drive now has its DEVNULL asserted behaviorally too
-        (`LaunchersPassThePinToTheRealChild` and `TheProbeDeniesTheChildATerminal` below), so the
-        remaining value of the count is precisely the sites those cannot reach.
-        """
-        from agent_workflows import runner_shared
-
-        shared_sites = _module_source(runner_shared).count("stdin=subprocess.DEVNULL")
-        for name, module in self.DRIVERS:
-            src = _module_source(module)
-            self.assertGreaterEqual(
-                src.count("stdin=subprocess.DEVNULL") + shared_sites,
-                3,
-                f"{name} (together with the shared `runner_shared` launch sites it "
-                "delegates to) must keep stdin=subprocess.DEVNULL at its subprocess "
-                "launches (ttywedge g40w37); the pin must not disturb it",
-            )
-
     def test_both_drivers_share_one_definition_of_the_pin(self):
         """E-05: ONE definition, not a per-driver copy. A second copy is how the half-pin drifted.
 

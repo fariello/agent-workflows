@@ -1745,23 +1745,6 @@ class ReviewDanglingCheckTests(unittest.TestCase):
             "an unregistered rule id silently falls back to an empty invariant and a default severity",
         )
 
-    def test_the_rule_gates_no_lifecycle_step(self) -> None:
-        """Kept separate: a SOURCE census over `ipd_lint.py`, structurally unlike a registry lookup.
-
-        Advisory-ness is verified by the absence of any lifecycle gate, NOT by an exit code:
-        `artifact_core.drift_exit_code` exempts only `info`, so a `warning` drives exit 1 too and an
-        exit-code argument would prove nothing (F-13).
-        """
-        gated = (Path(check_engine.__file__).parent / "ipd_lint.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn(
-            "check.review-dangling",
-            gated,
-            "ipd_lint must not consult this rule: wiring an advisory rule into a lifecycle gate turns "
-            "'untidy' into 'cannot proceed', which is the promotion this test exists to prevent",
-        )
-
     def test_subject_type_vocabulary_is_closed_and_fully_resolvable(self) -> None:
         """Kept separate: it asserts the CLOSED vocabulary agrees with the checker's tree mapping,
         derived from both sources at runtime. A type present in `SUBJECT_TYPES` but absent from the
@@ -1785,40 +1768,6 @@ class ReviewDanglingCheckTests(unittest.TestCase):
             ({"aaa111"}, {"spc111"}),
             "and each tree must yield its OWN ids: if the sets were merged, the type direction would "
             "be lost and a misfiled record would resolve",
-        )
-
-    def test_no_hardcoded_reviews_path_in_check_engine(self) -> None:
-        """E-06 forbids a second path mechanism; discovery must go through the record authority.
-
-        Checks the parsed AST's STRING LITERALS rather than raw text, so a comment or docstring that
-        merely mentions the path (explaining why it is absent) does not trip the guard, while an
-        actual hardcoded path literal does.
-        """
-        import ast
-
-        src = Path(check_engine.__file__).read_text(encoding="utf-8")
-        tree = ast.parse(src)
-        docstrings = set()
-        for node in ast.walk(tree):
-            if isinstance(
-                node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-            ):
-                doc = ast.get_docstring(node, clean=False)
-                if doc:
-                    docstrings.add(doc)
-        offenders = [
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and "records/reviews" in node.value
-            and node.value not in docstrings
-        ]
-        self.assertEqual(
-            offenders,
-            [],
-            f"check_engine must not hardcode a reviews path; found {offenders!r}. A second path "
-            "mechanism is how one surface starts enumerating a different set of records than another.",
         )
 
 

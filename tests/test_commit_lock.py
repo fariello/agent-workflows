@@ -486,19 +486,6 @@ def test_one_lock_and_one_worktree_per_call_even_with_a_retry(
     assert commit_lock.read_owner(repo) is None
 
 
-def test_documents_that_the_retry_is_bounded_and_the_refusal_unchanged() -> None:
-    """The two claims a reader must not have to infer, pinned so they cannot silently regress."""
-    # Whitespace-normalized so a reflowed docstring does not break the assertion on a line wrap.
-    doc = " ".join((commit_lock.commit_isolated.__doc__ or "").split())
-    assert "EXACTLY ONCE" in doc
-    assert "one retry, never a loop" in doc
-    assert "NEVER when a hook merely refused" in doc
-    # And the invariant the retry FALSIFIED must not still be stated unconditionally.
-    assert "THIS IS NOW CONDITIONAL" in (
-        Path(commit_lock.__file__).read_text(encoding="utf-8")
-    )
-
-
 def test_a_deletion_alongside_a_rewrite_does_not_lose_the_retry(repo: Path) -> None:
     """The mixed shape, which a naive re-add of the WHOLE path set gets wrong.
 

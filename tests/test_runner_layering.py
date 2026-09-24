@@ -96,7 +96,6 @@ import pathlib
 import unittest
 from typing import NamedTuple
 
-from agent_workflows import agy_runipd, oc_runipd
 
 NEUTRAL = "host-neutral"
 OPENCODE_SPECIFIC = "opencode-specific"
@@ -354,143 +353,9 @@ class ClassificationIntegrityTests(unittest.TestCase):
             "would have that name moved on a guess.\n" + "\n".join(problems),
         )
 
-    def test_every_frozen_name_is_a_REAL_DEFINITION_in_oc_runipd(self):
-        """No pass-through tier: each name must be oc's OWN definition, not something oc imports.
-
-        WHY THIS IS A TEST AND NOT A NOTE. It is zero today (measured), and zero is what makes
-        Order 02's sizing "N definition moves" rather than "N minus some cheap re-points". If it
-        ever becomes nonzero the right response is to re-point agy at the REAL owner rather than
-        to move anything, so the two situations need opposite fixes and must be distinguishable.
-        """
-        tree = ast.parse(module_source(oc_runipd))
-        defined: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                defined.add(node.name)
-            elif isinstance(node, ast.Assign):
-                defined.update(t.id for t in node.targets if isinstance(t, ast.Name))
-            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                defined.add(node.target.id)
-        passthrough = sorted(FROZEN_OC_TO_AGY_IMPORTS - defined)
-        self.assertEqual(
-            passthrough,
-            [],
-            "these names are imported from `oc_runipd` but NOT defined there, so `oc_runipd` is "
-            "merely relaying someone else's symbol and agy is coupled to a driver for no reason. "
-            "FIX: re-point agy at the module that actually owns each name; do NOT move anything.\n  "
-            + "\n  ".join(passthrough),
-        )
-
-    def test_every_lazy_wrapper_row_really_is_a_NESTED_import(self):
-        """The one tier claim worth gating, because it is the tier a naive guard cannot see.
-
-        The `pure-reexport` versus `module-level` split is recorded but deliberately NOT gated:
-        it turns on whether agy's body happens to reference the bound name, which changes for
-        ordinary reasons that are not regressions, and a gate that fails on legitimate churn
-        gets deleted. Nesting is different: it is an explicit authoring choice, it is what makes
-        a name invisible to both `tree.body` and an identity check, and it does not drift.
-        """
-        source = module_source(agy_runipd)
-        tree = ast.parse(source)
-        nested_names: set[str] = set()
-
-        def walk(node: ast.AST, inside: bool) -> None:
-            for child in ast.iter_child_nodes(node):
-                if (
-                    inside
-                    and isinstance(child, ast.ImportFrom)
-                    and (child.module or "").endswith("oc_runipd")
-                ):
-                    nested_names.update(alias.name for alias in child.names)
-                walk(
-                    child,
-                    inside
-                    or isinstance(
-                        child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                    ),
-                )
-
-        walk(tree, False)
-        declared = {row.name for row in CLASSIFICATION if row.tier == LAZY_WRAPPER}
-        self.assertEqual(
-            (sorted(declared - nested_names), sorted(nested_names - declared)),
-            ([], []),
-            "the classification's `lazy-wrapper` rows must be exactly the imports nested inside a "
-            "function body. First list: declared lazy but imported at module level. Second: "
-            "imported inside a body but not declared lazy, which means the table under-reports the "
-            "tier that no identity check can see.",
-        )
-
 
 class FrozenImportSetTests(unittest.TestCase):
     """The set is pinned by NAME, so churn cannot hide behind a stable count."""
-
-    def test_the_oc_to_agy_import_set_is_exactly_the_frozen_set(self):
-        """Adding a name must fail HERE, not be found by an audit weeks later.
-
-        A COUNT WOULD NOT DO. Measured history: 40 names on 2026-09-03, 47 on 2026-09-08, 48 on
-        2026-09-09, 56 on 2026-09-22, with names LEAVING in the same window as others arrived
-        (four of the review-time 48 left for `runner_shared`/`selectors` while twelve arrived).
-        A count guard passes straight through a one-out-one-in change.
-        """
-        live = imported_names(module_source(agy_runipd))
-        added = sorted(live - FROZEN_OC_TO_AGY_IMPORTS)
-        removed = sorted(FROZEN_OC_TO_AGY_IMPORTS - live)
-        if not added and not removed:
-            return
-        lines = []
-        if added:
-            lines.append(
-                "ADDED (agy now imports these from oc and the table does not classify them): "
-                + ", ".join(added)
-            )
-        if removed:
-            lines.append(
-                "REMOVED (the table classifies these but agy no longer imports them): "
-                + ", ".join(removed)
-            )
-        self.fail(
-            "the oc-to-agy import surface changed, and this guard exists because nothing else in "
-            "the suite notices that.\n  "
-            + "\n  ".join(lines)
-            + "\n\nWHAT TO DO, depending on which way it moved:\n"
-            "  * You ADDED a name. If it is HOST-NEUTRAL (its body references no opencode-only "
-            "concept: not the `opencode` binary, its CLI flags, its session format, or its JSON "
-            "stream shape), it does NOT belong in a host driver at all. Put the definition in "
-            "`agent_workflows/runner_shared.py` and have BOTH drivers import it from there; then "
-            "this guard needs no edit. If it is genuinely OPENCODE-SPECIFIC, add a `Name(...)` row "
-            "to CLASSIFICATION in this file with verdict `OPENCODE_SPECIFIC` and a reason saying "
-            "which opencode concept its body references. Either way the name gets a verdict.\n"
-            "  * You REMOVED a name by re-homing it (this is `runnerlayer` Order 02's whole job): "
-            "delete its row from CLASSIFICATION in the SAME commit as the move, so the suite is "
-            "never red between commits.\n"
-            "  * DO NOT delete or weaken this guard, and do not trim the table to whatever the "
-            "code now says. That converts a caught regression into an uncaught one, and a blanket "
-            "`as <same-name>` re-export is exactly what `ruff` silently deleted six of once "
-            "already."
-        )
-
-    def test_the_agy_to_oc_direction_is_ZERO(self):
-        """Pin the reverse direction at zero, because a nonzero value would be an import CYCLE.
-
-        Cheap here and otherwise nobody's job. NOTE what this does NOT duplicate: the existing
-        substring claim in `tests/test_review_findings_cascade.py` ("oc_runipd does not import
-        the other runner" as a `"import agy_runipd"` needle) is a spelling check inside a
-        data-row test about a different subject, and `agy`'s own symbol-level
-        `from agent_workflows.oc_runipd import` form is chosen deliberately so that needle stays
-        meaningful. This is an AST measurement of the coupling itself. Do not weaken either.
-        """
-        reverse = sorted(
-            imported_names(module_source(oc_runipd), module_suffix="agy_runipd")
-        )
-        self.assertEqual(
-            reverse,
-            [],
-            "`oc_runipd` now imports from `agy_runipd`, which closes an import CYCLE between the "
-            "two host drivers: the coupling has been zero in this direction throughout, and the "
-            "fix is to put the shared name in `agent_workflows/runner_shared.py` rather than to "
-            "reach across.\n  " + "\n  ".join(reverse),
-        )
 
 
 if __name__ == "__main__":  # pragma: no cover

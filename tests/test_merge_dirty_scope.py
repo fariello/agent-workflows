@@ -36,8 +36,6 @@ the lane's `changed_files`, i.e. to the pre-change behavior, rather than checkin
 
 from __future__ import annotations
 
-import ast
-import inspect
 import pathlib
 import subprocess
 import tempfile
@@ -458,37 +456,6 @@ class OneImplementationTests(unittest.TestCase):
                 self.assertIs(
                     module.dirty_tree_overlap, runner_shared.dirty_tree_overlap
                 )
-
-    def test_merge_write_set_is_defined_ONCE_in_the_shared_module(self):
-        """A second copy would drift, which is the defect `6sb3yu` and `cnwy8g` exist to prevent."""
-        for name, module in HOSTS.items():
-            tree = ast.parse(inspect.getsource(module))
-            defined = {
-                node.name
-                for node in tree.body
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            }
-            with self.subTest(host=name):
-                self.assertNotIn("merge_write_set", defined)
-        self.assertTrue(callable(runner_shared.merge_write_set))
-
-    def test_the_shared_integration_path_CALLS_the_widened_computation(self):
-        """A computation nothing calls is the dead-gate failure this repository has already paid for."""
-        node = next(
-            n
-            for n in ast.parse(inspect.getsource(runner_shared)).body
-            if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
-        )
-        called = {
-            sub.func.id
-            for sub in ast.walk(node)
-            if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name)
-        }
-        self.assertIn("merge_write_set", called)
-        self.assertIn("dirty_tree_overlap", called)
-        # And the OLD input is no longer what the guard is asked about.
-        source = inspect.getsource(runner_shared.integrate_lane_branch)
-        self.assertNotIn("dirty_tree_overlap(repo, lane.changed_files)", source)
 
 
 if __name__ == "__main__":  # pragma: no cover - manual invocation

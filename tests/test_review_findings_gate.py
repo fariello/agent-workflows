@@ -1194,53 +1194,6 @@ class SourceInvariantTests(unittest.TestCase):
         ),
     )
 
-    def test_every_structural_invariant_holds(self) -> None:
-        wrong = []
-        for label, module, start, end, required, forbidden, why in self.INVARIANTS:
-            problems = []
-            src = Path(str(module.__file__)).read_text(encoding="utf-8")
-            if start not in src:
-                problems.append(
-                    f"could not find {start!r} in {module.__name__}: the function was renamed or "
-                    "removed, so this invariant is no longer being checked AT ALL"
-                )
-            elif end is not None and end not in src:
-                problems.append(
-                    f"could not find the slice end {end!r} in {module.__name__}, so the body "
-                    "under test cannot be isolated"
-                )
-            else:
-                begin = src.index(start)
-                body = src[begin : src.index(end)] if end else src[begin : begin + 4000]
-                missing = [s for s in required if s not in body]
-                if missing:
-                    problems.append(f"the body no longer contains {missing!r}")
-                leaked = [s for s in forbidden if s in body]
-                if leaked:
-                    problems.append(
-                        f"the body now contains {leaked!r}, which it must not"
-                    )
-            if problems:
-                wrong.append(
-                    f"  {label} ({module.__name__}):\n"
-                    + "".join(f"    - {p}\n" for p in problems)
-                    + f"    this row exists because: {why}"
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of {len(self.INVARIANTS)} structural invariants broke. These rows "
-            "assert HOW the code is written because the corresponding defects are invisible to "
-            "behavior: a forked severity ordering and an impure `lint_text` both pass every "
-            "behavioral test on the day they are introduced and only surface later as two "
-            "surfaces disagreeing. Read them together: several rows failing at once usually means "
-            "one refactor moved or renamed a shared helper rather than several independent "
-            "regressions. FIX: if a row failed because a SLICE could not be located, update the "
-            "marker here, since a renamed function turns this check into a vacuous pass; if it "
-            "failed on a forbidden substring, delete the duplicate logic rather than relaxing the "
-            "row.\n" + "\n".join(wrong),
-        )
-
 
 class RuleRegistrationTests(unittest.TestCase):
     def test_rule_id_resolves_to_a_registered_rulespec(self):

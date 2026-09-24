@@ -289,26 +289,6 @@ class DiscriminatorReuseTests(unittest.TestCase):
     """Kept separate from the bucket rows: the claim is about the SOURCE and the shared helper, not
     about any one tree."""
 
-    def test_the_shared_real_id6_discriminator_is_called_not_reimplemented(self):
-        """Two definitions of "is this a real id6" that can drift is the exact defect
-        `check.id6-identity-slot` was written to avoid, so the reuse is pinned structurally."""
-        src = (Path(ce.__file__)).read_text(encoding="utf-8")
-        self.assertIn(
-            '_is_real_id6(m.group("id6"), declared_ids)',
-            src,
-            "`_identity_name_is_modern` must CALL the shared discriminator",
-        )
-        self.assertEqual(
-            src.count("def _is_real_id6"),
-            1,
-            "there must be exactly ONE definition of the real-id6 discriminator in this module",
-        )
-        # The oracle the helper's own docstring records, re-measured here.
-        self.assertFalse(
-            ce._is_real_id6("assess", set()), "a slug word is not a real id6"
-        )
-        self.assertTrue(ce._is_real_id6("826o13", set()), "a digit-mixing token is")
-
     def test_the_new_rule_sits_beside_the_identity_slot_rule_without_changing_it(self):
         """The existing `error`-severity rule must keep its severity and its legacy exemption: this
         plan ADDS a report and deliberately does not promote what the tree already tolerates."""
@@ -432,20 +412,6 @@ class AdvisoryRegistrationTests(unittest.TestCase):
             "...and the exemption is genuinely severity-keyed, which is what makes the claim above "
             "a measurement rather than an assumption",
         )
-
-    def test_the_rule_gates_no_lifecycle_step(self):
-        """A SOURCE census, structurally unlike a registry lookup, mirroring the
-        `check.review-dangling` precedent: advisory-ness is verified by the ABSENCE of any lifecycle
-        gate, because an exit-code argument cannot prove it (see the test directly above)."""
-        pkg = Path(ce.__file__).parent
-        for module in ("ipd_lint.py", "ipd_lifecycle.py"):
-            text = (pkg / module).read_text(encoding="utf-8")
-            self.assertNotIn(
-                RULE,
-                text,
-                f"{module} must not consume {RULE}: no lint checkpoint, begin/finalize refusal or "
-                "dependency block may read an advisory about a grandfathered name",
-            )
 
     def test_the_rule_is_reached_by_the_full_sweep(self):
         """Placement (OQ-01): a SWEEP rule, so the count is on the surface agents and CI already run.

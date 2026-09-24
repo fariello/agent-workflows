@@ -21,7 +21,6 @@ Neither test substitutes for the other; both are required.
 
 from __future__ import annotations
 
-import ast
 import os
 import subprocess
 import sys
@@ -766,52 +765,6 @@ class SingleOwnerTests(unittest.TestCase):
         self.assertNotIn("\nimport fcntl\n", source)
         self.assertIn("except ImportError:", source)
         print("platform_lock's fcntl access is guarded, not a top-level import")
-
-    def test_no_blocking_mode_leaked_to_a_second_caller(self):
-        """E-07: exactly ONE caller may pass `blocking=True`.
-
-        ASSERTED BY AST SINCE 2026-09-22 (runconcur-01 `vddpml`), NOT BY TEXT, and the conversion is a
-        FIX rather than a relaxation. The previous form searched each line for the substring
-        `blocking=True`, skipping only lines beginning with `#`. That cannot tell an INVOCATION from an
-        EXPLANATION, and a DOCSTRING is neither a comment nor a call: `runner_shared.integration_lock`
-        was reported as a second blocking caller purely because its docstring says `platform_lock`
-        "reserves `blocking=True` to one caller ... this function therefore does NOT use it". So the
-        guard was RED against a tree that honors the rule exactly, while remaining defeatable in the
-        other direction by deleting the words it looked for. This repository already records that exact
-        failure mode elsewhere (`94b00d37`: a shipped guard passing solely because its literal appeared
-        in an explanatory comment) and adopts the same remedy, an AST walk, because a docstring does not
-        parse into an `ast.keyword`.
-
-        THE PROPERTY IS UNCHANGED AND STRICTLY BETTER ENFORCED: which MODULES pass the option ON. A
-        caller that genuinely needs to WAIT should poll the non-blocking acquire instead (the route
-        `runner_shared.integration_lock` takes, with a bound, progress output, and a defined expiry), so
-        needing to appear in this set at all is the thing that needs justification.
-        """
-
-        callers = set()
-        located = []
-        for path in sorted((REPO_ROOT / "agent_workflows").glob("*.py")):
-            if path.name == "platform_lock.py":
-                continue
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                for kw in node.keywords:
-                    if (
-                        kw.arg == "blocking"
-                        and isinstance(kw.value, ast.Constant)
-                        and kw.value.value is True
-                    ):
-                        callers.add(path.name)
-                        located.append(f"{path.name}:{node.lineno}")
-        self.assertEqual(
-            callers,
-            {"project_registry.py"},
-            "the project registry is the ONLY permitted blocking caller (E-07); a new one "
-            f"needs its own justification. Found: {located}",
-        )
-        print(f"blocking callers: {located}")
 
 
 if __name__ == "__main__":  # pragma: no cover

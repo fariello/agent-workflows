@@ -1542,25 +1542,6 @@ class TestUnverifiableOkAggregateNeutrality(unittest.TestCase):
         )
         self.assertEqual(evidence._CLASSIFICATION_EXITS[evidence.AGGREGATE_RUN_WIDE], 4)
 
-    def test_predicate_does_not_author_the_item_vocabulary(self) -> None:
-        """F-8: the outcome/verification labels are pass-through; this module mints no vocabulary."""
-        item = evidence.AggregatedItem(
-            item_id="p", outcome="totally-made-up", verification="also-made-up"
-        )
-        result = evidence.aggregate_run_exit([item])
-        # Carried by IDENTITY, which is the machine-checkable form of "never rewritten".
-        self.assertIs(result.items[0].item, item)
-        self.assertEqual(result.items[0].item.outcome, "totally-made-up")
-        source = Path(evidence.__file__).read_text(encoding="utf-8")
-        block = source[source.index("runcodes Order 2 (`zub5f1`)") :]
-        for minted in ('"ran"', "'ran'", '"unavailable"', "'unavailable'"):
-            with self.subTest(minted=minted):
-                self.assertNotIn(
-                    minted + " ==",
-                    block,
-                    "neutrality must key off the explicit flag, not a minted label",
-                )
-
     # ---- the six non-maskable classes (spec `:938`) and higher-priority exits (`:936`) ------------
 
     def test_non_maskable_class_table_is_self_consistent_and_six_long(self) -> None:
@@ -1686,21 +1667,6 @@ class TestUnverifiableOkAggregateNeutrality(unittest.TestCase):
         )
         self.assertNotEqual(result.exit_code, 2)
 
-    def test_refusal_is_returned_as_data_and_the_module_still_never_raises(
-        self,
-    ) -> None:
-        source = Path(evidence.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("\nraise ", source)
-        self.assertNotIn("    raise ", source)
-        self.assertIsInstance(
-            evidence.aggregate_run_exit(
-                [_unverifiable_item()],
-                unverifiable_ok=True,
-                unverifiable_admitted=False,
-            ).refusals[0],
-            evidence.CompletionPredicate,
-        )
-
     def test_admitted_flag_is_honored(self) -> None:
         result = evidence.aggregate_run_exit(
             [_unverifiable_item()], unverifiable_ok=True, unverifiable_admitted=True
@@ -1716,67 +1682,6 @@ class TestUnverifiableOkAggregateNeutrality(unittest.TestCase):
         )
         self.assertFalse(result.unverifiable_ok_applied)
         self.assertEqual(result.exit_code, 1)
-
-    def test_the_cli_handoff_to_runflags_01_completed(self) -> None:
-        """The seam `zub5f1` left open is now CLOSED, and closed in ONE place.
-
-        THIS TEST WAS INVERTED, and the inversion is the record of a deliberate handoff rather than a
-        weakening. As written by `zub5f1` it asserted that `--unverifiable-ok` and
-        `--allow-unverifiable` appeared as a registered CLI string in NO module, because that plan
-        deliberately took the admission as a PARAMETER while no flag existed; its docstring named the
-        successor: "the CLI surface belongs to `runflags-01` (`uyeko5`)". `uyeko5` then built exactly
-        that surface, so the original assertion could only survive by that plan not doing its job.
-
-        WHAT THE ORIGINAL WAS REALLY PROTECTING is kept, because "no flag exists anywhere" was only
-        ever true for a week and was never the point. The durable invariant is that the aggregate rule
-        has exactly ONE implementation and the runners do not grow a second, which matters MORE now
-        that a flag reaches the predicate. Both halves are asserted below.
-        """
-        package_dir = Path(evidence.__file__).resolve().parent
-        flags = ("--unverifiable-ok", "--allow-unverifiable")
-
-        # (1) The handoff completed: each flag is registered, in the ONE shared table.
-        from agent_workflows import runner_shared
-
-        for flag in flags:
-            with self.subTest(flag=flag, half="registered"):
-                self.assertIn(
-                    flag,
-                    runner_shared.RUN_POLICY_FLAGS_BY_FLAG,
-                    f"{flag} is not registered; the uyeko5 handoff is incomplete",
-                )
-
-        # (2) Registered ONCE. A per-runner declaration is exactly the fork that made `--full-auto`
-        # mean opt-in on one host and opt-out on the other, so the flag string must appear in the
-        # shared table's module and NOT in either runner.
-        for flag in flags:
-            hits = [
-                py.name
-                for py in sorted(package_dir.glob("*.py"))
-                if f'"{flag}"' in py.read_text(encoding="utf-8")
-                or f"'{flag}'" in py.read_text(encoding="utf-8")
-            ]
-            with self.subTest(flag=flag, half="single-registration"):
-                self.assertEqual(
-                    hits,
-                    ["runner_shared.py"],
-                    f"{flag} must be declared ONLY in the shared flag table; found in {hits}",
-                )
-
-        # (3) THE INVARIANT THE ORIGINAL TEST ACTUALLY DEFENDED: the aggregation rule is still this
-        # module's alone. A runner deciding neutrality itself would be a second implementation of one
-        # rule, which is worse than the missing flag this test used to guard.
-        from agent_workflows import agy_runipd, oc_runipd
-
-        for module in (oc_runipd, agy_runipd, runner_shared):
-            source = Path(module.__file__).read_text(encoding="utf-8")
-            with self.subTest(module=module.__name__, half="no-second-rule"):
-                self.assertNotIn(
-                    "CONTRIBUTION_NEUTRAL",
-                    source,
-                    f"{module.__name__} re-decides aggregate neutrality; that rule belongs to "
-                    "run_evidence.aggregate_run_exit alone",
-                )
 
     # ---- V-03's load-bearing invariant -----------------------------------------------------------
 

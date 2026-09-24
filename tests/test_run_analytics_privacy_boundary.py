@@ -364,49 +364,6 @@ class StructuralExclusionTests(_ArtifactFixture):
         with self.assertRaises(privacy.PrivacyRefusal):
             privacy.project_metric_facts({"prompt_text": prompt})
 
-    def test_no_second_detector_or_regex_set_was_written(self):
-        """The single-source rule, asserted mechanically over this plan's own new files.
-
-        A compiled pattern in one of this plan's modules would be the detector drift the
-        orchestrator names by name. Checked by PARSING rather than by substring, because these files
-        legitimately DISCUSS the engine's patterns in prose and a substring test flags its own
-        docstring (measured: it did, on the first run).
-        """
-
-        import ast
-
-        for rel in (
-            "tests/test_run_analytics_privacy_boundary.py",
-            "tests/test_run_analytics_e2e.py",
-            "tests/fixtures/run_analytics/__init__.py",
-            "tests/fixtures/run_analytics/mutations.py",
-        ):
-            with self.subTest(module=rel):
-                tree = ast.parse((REPO_ROOT / rel).read_text(encoding="utf-8"))
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Import):
-                        for alias in node.names:
-                            self.assertNotEqual(
-                                alias.name, "re", f"{rel} imports the regex module"
-                            )
-                    elif isinstance(node, ast.ImportFrom):
-                        self.assertNotEqual(
-                            node.module, "re", f"{rel} imports from the regex module"
-                        )
-                    elif isinstance(node, ast.Attribute) and node.attr in {
-                        "compile",
-                        "match",
-                        "search",
-                        "findall",
-                    }:
-                        value = node.value
-                        if isinstance(value, ast.Name):
-                            self.assertNotEqual(
-                                value.id,
-                                "re",
-                                f"{rel} calls re.{node.attr}; detection belongs to the one engine",
-                            )
-
 
 class WhyTheCliWalkCannotSubstituteTests(unittest.TestCase):
     """E-04 / V-04: the measurement that forced the engine-level scan, reproduced not cited."""

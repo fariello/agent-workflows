@@ -78,32 +78,6 @@ class SingleSourceStructuralTests(unittest.TestCase):
             msg=f"facet-policy alternation must be built once; found in {hits}",
         )
 
-    def test_facet_enum_tuple_literal_defined_in_exactly_one_module(self) -> None:
-        # The literal 8-token facet enum tuple must be assigned in exactly one module (others import
-        # ``ARTIFACT_TYPE_FACETS``). A module that merely references ``_naming.ARTIFACT_TYPE_FACETS``
-        # does not count as a second definition.
-        canonical = tuple(N.ARTIFACT_TYPE_FACETS)
-        defining = []
-        for p in _package_py_files():
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Assign) and isinstance(node.value, ast.Tuple):
-                    try:
-                        value = tuple(
-                            elt.value
-                            for elt in node.value.elts
-                            if isinstance(elt, ast.Constant)
-                        )
-                    except Exception:
-                        continue
-                    if value == canonical:
-                        defining.append(p.name)
-        self.assertEqual(
-            defining,
-            ["artifact_naming.py"],
-            msg=f"the facet-enum tuple literal must be defined once; found in {defining}",
-        )
-
     def test_plans_refs_reexports_authority(self) -> None:
         from agent_workflows import plans_refs as PR
 

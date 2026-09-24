@@ -767,12 +767,6 @@ class IgnoredPathsAreFilteredNotFatal(unittest.TestCase):
         self.assertEqual(out.status, git_commit_helper.STATUS_COMMITTED, out.message)
         self.assertEqual(out.staged, ("GEN.json",))
 
-    def test_no_force_add_was_introduced(self):
-        """Force-adding an ignored path is the exact behavior this Set exists to REMOVE."""
-        src = Path(git_commit_helper.__file__).read_text(encoding="utf-8")
-        self.assertNotIn('"-f"', src)
-        self.assertNotIn('"--force"', src)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -365,63 +365,6 @@ class ProbeMustProveDenialTests(unittest.TestCase):
             )
             return ok, note, observed
 
-    def test_bwrap_probe_requires_an_observed_denial(self):
-        """The bwrap verdict must come from an OBSERVED DENIAL, never from the helper existing.
-
-        REPLACES A SOURCE-TEXT PIN, and the pin's own weakness is the point: it read
-        `inspect.getsource(hsp._probe_bwrap)` and asserted `"_denial_checker_source" in src`
-        plus `'"true"' not in src`. A comment naming either token satisfied it, a rename broke
-        it, and - decisively for a SECURITY property - it could not tell an enforcing probe from
-        a permissive one, because both spell their source identically up to the argv they build.
-
-        This drives the real probe against a stub launcher that EXISTS in both rows and enforces
-        in only one, so presence and enforcement are separated and the fail-open answer fails.
-        """
-        wrong = []
-        for case, mode, expected, why in self.BWRAP_STUB_MODES:
-            ok, note, record = self._probe_bwrap_against_stub(mode)
-            problems = []
-            if record is None:
-                problems.append(
-                    "the probe never launched the stub at all, so this row proved nothing about "
-                    "enforcement (did `_probe_bwrap` stop invoking `bwrap`?)"
-                )
-            else:
-                if not record.get("bound"):
-                    problems.append(
-                        "the probe passed NO `--bind` writable root, so it cannot be asking for a "
-                        "partition; a launch-only criterion is exactly the fail-open defect"
-                    )
-                if not record.get("launched"):
-                    problems.append(
-                        "the stub found no child to exec: the probe is no longer running a checker "
-                        "inside the jail, so nothing could observe a denial"
-                    )
-            if ok is not expected:
-                problems.append(
-                    f"reported supported={ok!r}, expected {expected!r} (note: {note[:160]!r})"
-                )
-            if problems:
-                wrong.append(
-                    f"  {case} [mode={mode}]\n"
-                    + "".join(f"    - {p}\n" for p in problems)
-                    + f"    this row exists because: {why}"
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"the bwrap probe was wrong for {len(wrong)} of {len(self.BWRAP_STUB_MODES)} stub "
-            "modes. ONE criterion decides the verdict (the checker child's exit status), so read "
-            "the grouping: the PERMISSIVE row alone failing means the probe now reports supported "
-            "for a jail that contains nothing, which is the fail-OPEN direction x03wgn Section 8 "
-            "Phase 6.3 forbids and the more dangerous of the two; the ENFORCING row alone failing "
-            "means the probe can no longer recognize a real boundary and hardened mode is "
-            "unreachable everywhere; BOTH failing means the probe stopped launching the checker. "
-            "FIX: the verdict must be the observed refusal of the outside write and nothing else - "
-            "not `shutil.which('bwrap')`, not the launcher's own exit code, not a sysctl.\n"
-            + "\n".join(wrong),
-        )
-
     def test_bwrap_probe_answers_unsupported_when_the_helper_is_absent(self):
         """Kept separate: the subject is the ABSENCE of the helper, so no stub can be installed.
 

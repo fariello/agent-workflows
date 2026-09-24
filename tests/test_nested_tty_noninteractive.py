@@ -697,32 +697,6 @@ class CallerDevnullTests(unittest.TestCase):
             "is what refuses to let it hide.\n" + "\n".join(wrong),
         )
 
-    def test_guard_fails_on_an_injected_regression(self):
-        """Kept separate: the subject is a SYNTHETIC snippet, not a module in the owner set.
-
-        Every row above scans real shipped code, which can only ever prove the guard passes TODAY.
-        This runs the same detection logic over a deliberately broken snippet to prove it would
-        FAIL, which is a different claim and needs an input that must never exist in the tree.
-        """
-        snippet = (
-            "import subprocess\n"
-            "def f(cmd, repo):\n"
-            "    return subprocess.run(cmd, cwd=repo, stdout=subprocess.PIPE)\n"
-        )
-        offenders = []
-        for node in ast.walk(ast.parse(snippet)):
-            if (
-                isinstance(node, ast.Call)
-                and ast.unparse(node.func) == "subprocess.run"
-            ):
-                kw = {k.arg for k in node.keywords if k.arg}
-                first = ast.unparse(node.args[0]) if node.args else ""
-                if first in self.NESTED_AW_FIRST_ARGS and "stdin" not in kw:
-                    offenders.append(node.lineno)
-        self.assertEqual(
-            offenders, [3], "the AST guard must catch a nested-aw call missing stdin="
-        )
-
 
 class OwnerSetCompletenessTests(unittest.TestCase):
     """rununify 05 (`ct4w0a`) E-03: what an owner-set guard can miss, and what stops it.

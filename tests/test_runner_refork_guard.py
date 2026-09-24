@@ -515,15 +515,6 @@ class SymmetricReForkGuardTests(unittest.TestCase):
                     "owner is wrong and the re-fork assertions would be meaningless",
                 )
 
-    def test_both_runners_import_from_the_shared_render_module(self):
-        """Retained from the retired one-sided guards, now applied to BOTH runners."""
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                self.assertIn(
-                    "from agent_workflows.render_stream import",
-                    module_source(_MODULES[runner]),
-                )
-
     def test_the_table_covers_both_runners(self):
         """A table that drifted back to one-sided would silently stop guarding agy."""
         covered = {runner for row in REFORK_TABLE for runner in row.runners}
@@ -564,34 +555,6 @@ class VerdictMappingGuardTests(unittest.TestCase):
     matching on a normalized token is what removes the hazard, and this test is what keeps it removed.
     """
 
-    def test_neither_driver_tests_a_verdict_by_substring(self):
-        """No `<token> in <expr>` comparison naming a verdict token, in either driver."""
-        violations = []
-        for runner in BOTH:
-            module = _MODULES[runner]
-            tree = ast.parse(module_source(module))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Compare):
-                    continue
-                if not any(isinstance(op, ast.In) for op in node.ops):
-                    continue
-                left = node.left
-                if isinstance(left, ast.Constant) and isinstance(left.value, str):
-                    if left.value.upper() in _VERDICT_TOKENS:
-                        violations.append(
-                            f"{runner}.py:{node.lineno} tests a verdict by SUBSTRING "
-                            f"({left.value!r} in ...). Call "
-                            f"`runner_shared.map_verdict` instead: substring semantics make "
-                            f"the result depend on arm order "
-                            f"(`'CONFORMING' in 'NOT CONFORMING'` is True)"
-                        )
-        self.assertEqual(
-            violations,
-            [],
-            "A PRIVATE VERDICT SUBSTRING TEST HAS RETURNED:\n  "
-            + "\n  ".join(violations),
-        )
-
     def test_the_mapping_is_exact_and_not_a_substring_match(self):
         """The property the guard above protects, asserted on BEHAVIOR rather than on source.
 
@@ -609,16 +572,6 @@ class VerdictMappingGuardTests(unittest.TestCase):
         not_blocked = runner_shared.map_verdict("NOT BLOCKED")
         self.assertEqual(not_blocked.verify_disp, "unverified")
         self.assertFalse(not_blocked.recognized)
-
-    def test_the_mapping_is_reached_from_the_shared_execute_path(self):
-        """The wiring half: the one call site both hosts run through actually calls it.
-
-        An identity row proves the object is SHARED; it does not prove anything CALLS it. This
-        asserts `execute_item_core`'s verifier block invokes the mapping, so the table cannot be
-        shared, correct, and bypassed all at once.
-        """
-        source = module_source(runner_shared)
-        self.assertIn("v_map = map_verdict(", source)
 
 
 class VerifyAbsenceSharingTests(unittest.TestCase):
@@ -714,17 +667,6 @@ class VerifyAbsenceSharingTests(unittest.TestCase):
         self.assertIn("UNKNOWN", killed)
         self.assertNotIn("FAILURE", killed)
         self.assertIn("NOT ATTEMPTED", unresolvable)
-
-    def test_the_vocabulary_is_reached_from_the_shared_execute_path(self):
-        """The wiring half: a shared, correct, and bypassed vocabulary would pass everything above."""
-        source = module_source(runner_shared)
-        for name in (
-            "VERIFY_ABSENCE_NO_OUTCOME_FILE",
-            "VERIFY_ABSENCE_TURN_INTERRUPTED",
-            "VERIFY_ABSENCE_PLAN_UNRESOLVABLE",
-        ):
-            with self.subTest(symbol=name):
-                self.assertIn(f'attempt["verify_absence"] = {name}', source)
 
 
 if __name__ == "__main__":

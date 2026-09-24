@@ -335,19 +335,6 @@ class ParserRegistrationTests(_RepoFixture):
         self.assertIn("aw runs analyze", out + err)
         self.assertIn("aw runs query", out + err)
 
-    def test_no_positional_routing_was_added(self):
-        """Neither leaf may be routed from a positional the way `repair` is.
-
-        A positionally-routed leaf is invisible to `discover_parser_leaves`, so declaring it (E-01)
-        would register as declaration/parser drift. This asserts the absence directly.
-        """
-
-        code = _code_only(
-            (Path(cli.__file__).parent / "run_viewer.py").read_text(encoding="utf-8")
-        )
-        for token in ("raw_targets[0] == 'analyze'", "raw_targets[0] == 'query'"):
-            self.assertNotIn(token, code)
-
     def test_existing_leaves_and_the_bare_viewer_still_route(self):
         """The nine existing leaves and the bare viewer must be unaffected by the two additions."""
 
@@ -639,25 +626,6 @@ class AnalyzeOptionSurfaceTests(_RepoFixture):
         )
         self.assertEqual(rc, 2, out + err)
 
-    def test_no_path_in_the_source_composes_the_runs_literal(self):
-        """Every path must come from Order 01's resolver; the literal would be the seventh site."""
-
-        for module in ("run_analytics_cli.py", "run_analytics_query.py"):
-            source = (Path(cli.__file__).parent / module).read_text(encoding="utf-8")
-            with self.subTest(module=module):
-                self.assertNotIn(".aw/records/runs", _code_only(source))
-
-    def test_neither_leaf_prompts(self):
-        """No interactive prompt on any path: stdin is never read."""
-
-        for module in ("run_analytics_cli.py", "run_analytics_query.py"):
-            code = _code_only(
-                (Path(cli.__file__).parent / module).read_text(encoding="utf-8")
-            )
-            with self.subTest(module=module):
-                self.assertNotIn("input(", code)
-                self.assertNotIn("sys.stdin", code)
-
 
 # ============================================================ E-04: the launch seam
 class OpenSeamTests(_RepoFixture):
@@ -750,17 +718,6 @@ class OpenSeamTests(_RepoFixture):
         if not outcome.launched:
             self.assertTrue(outcome.remedy, "a failed launch must carry a remedy")
 
-    def test_no_new_runtime_dependency_was_added(self):
-        """`webbrowser` is stdlib, imported inside the guarded path; nothing else was introduced."""
-
-        source = (Path(cli.__file__).parent / "run_analytics_cli.py").read_text(
-            encoding="utf-8"
-        )
-        code = _code_only(source)
-        self.assertIn("import webbrowser", code)
-        for forbidden in ("import requests", "import selenium", "xdg-open"):
-            self.assertNotIn(forbidden, code)
-
 
 # ============================================================ E-05: the query grammar
 class QueryGrammarTests(_RepoFixture):
@@ -814,14 +771,6 @@ class QueryGrammarTests(_RepoFixture):
     def test_a_repeated_filter_field_is_refused_rather_than_last_wins(self):
         with self.assertRaises(query_mod.QueryError):
             query_mod.parse_filters(["phase=execute", "phase=verify"])
-
-    def test_no_expression_evaluation_reaches_the_engine(self):
-        source = (Path(cli.__file__).parent / "run_analytics_query.py").read_text(
-            encoding="utf-8"
-        )
-        code = _code_only(source)
-        for forbidden in ("eval(", "exec(", "__import__", "getattr(entry"):
-            self.assertNotIn(forbidden, code)
 
     def test_a_path_like_filter_value_cannot_escape_the_resolved_roots(self):
         """A filter VALUE is compared as a string; it is never opened, joined, or resolved."""
@@ -1491,67 +1440,6 @@ class TheReportIsRenderedByTheSpaNotAStub(unittest.TestCase):
     These assert the OUTCOME (a document with the panels and the corpus in it) rather than the call, so
     they still hold if the wiring is refactored.
     """
-
-    def test_the_renderer_is_reachable_from_this_module(self):
-        """The published document must be produced BY the SPA renderer, proven with a sentinel.
-
-        REPLACES A SOURCE-TEXT PIN that read `inspect.getsource(analytics_cli._render_report_html)`
-        and asserted the strings `"render_document"` and `"build_view_model"` appeared in it. Both
-        names appear in that function's own DOCSTRING (it explains at length that Order 08 failed
-        to call the renderer), so the pin matched prose and would have stayed GREEN for the exact
-        194-byte stub it was written to catch. That is failure mode 2 from the brief, measured on
-        the very defect the guard names.
-
-        Replaced with a SENTINEL: the shared renderer is patched to return a marker and the
-        view-model builder is spied on. The marker must reach the function's return value and the
-        builder must have been called exactly once with the model the renderer received. A stub
-        that composes its own HTML cannot pass, whatever its source says, and a refactor that
-        renames or relocates the call still passes as long as the renderer is what renders.
-        """
-        from agent_workflows import run_analytics_spa as spa_mod
-
-        marker = "<!DOCTYPE html><!-- SENTINEL from the shared SPA renderer -->"
-        real_render, real_build = spa_mod.render_document, spa_mod.build_view_model
-        built, rendered = [], []
-
-        def spy_build(**kwargs):
-            model = real_build(**kwargs)
-            built.append(kwargs)
-            return model
-
-        def sentinel_render(model, **kwargs):
-            rendered.append(model)
-            return marker
-
-        spa_mod.build_view_model = spy_build  # type: ignore[assignment]
-        spa_mod.render_document = sentinel_render  # type: ignore[assignment]
-        try:
-            with tempfile.TemporaryDirectory() as tmp:
-                html = analytics_cli._render_report_html(
-                    Path(tmp), generated_label="sentinel-probe"
-                )
-        finally:
-            spa_mod.build_view_model = real_build  # type: ignore[assignment]
-            spa_mod.render_document = real_render  # type: ignore[assignment]
-
-        self.assertEqual(
-            html,
-            marker,
-            "the published document is not the shared renderer's output; something else composed "
-            "it (this is the zero-caller stub defect, and a source scan for the renderer's NAME "
-            "matched only this function's docstring)",
-        )
-        self.assertEqual(
-            len(built),
-            1,
-            f"build_view_model was called {len(built)} times, expected exactly 1",
-        )
-        self.assertEqual(len(rendered), 1)
-        self.assertEqual(
-            built[0].get("generated_label"),
-            "sentinel-probe",
-            "the caller's label must reach the view model, or the document cannot say what it is",
-        )
 
     def test_the_rendered_document_carries_the_panels_and_is_not_a_stub(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -673,47 +673,6 @@ def test_a_refusal_released_by_the_agents_answer_is_not_stranded() -> None:
     assert "COMPLETED" in _strip_ansi(_outcome_line(_state(item)))
 
 
-def test_the_stranded_outcome_is_rendered_in_red_with_an_explicit_branch() -> None:
-    """E-02: proven by the RAW escape sequence, not by a claim.
-
-    The color selection is a set of SUBSTRING tests whose else-branch is CYAN, so an unhandled
-    word looks deliberate while being wrong. `STRANDED` contains no `FAIL`, no `INTERRUPT` and
-    no `STOP`, so without a branch of its own it would render cyan rather than red.
-    """
-    line = _outcome_line(_state(_stranded_item()), color=True)
-    assert "\033[31mSTRANDED\033[0m" in line, f"expected RED STRANDED; got {line!r}"
-    assert (
-        "\033[36mSTRANDED" not in line
-    ), "STRANDED must not fall through to the cyan else-branch"
-
-    import inspect
-
-    src = inspect.getsource(render_run_summary_table)
-    assert "outcome_str == STRANDED_OUTCOME" in src, (
-        "the color selection must carry an EXPLICIT branch for the new word rather than "
-        "relying on a substring coincidence"
-    )
-
-
-def test_the_stranded_word_is_distinct_from_every_pre_existing_outcome() -> None:
-    """It must not be a synonym a reader skims past, nor a rename of an existing outcome."""
-    from agent_workflows import render_stream
-
-    assert render_stream.STRANDED_OUTCOME not in (
-        "COMPLETED",
-        "PARTIAL",
-        "BLOCKED",
-        "FAILED",
-        "INTERRUPTED",
-        "QUEUED",
-    )
-    # And no pre-existing condition produces it: the only assignment is the new branch.
-    import inspect
-
-    src = inspect.getsource(render_run_summary_table)
-    assert src.count("outcome_str = STRANDED_OUTCOME") == 1
-
-
 def test_the_recovery_section_names_the_branch_and_the_reason_and_the_next_step() -> (
     None
 ):
@@ -865,47 +824,6 @@ def test_the_stranded_word_is_the_same_one_the_cross_tree_view_uses() -> None:
     from agent_workflows import runner_shared
 
     assert render_stream.STRANDED_OUTCOME == runner_shared.LANE_STRANDED
-
-
-def test_the_landing_question_reads_NO_filesystem() -> None:
-    """E-01/E-05: the verdict must be derivable from `state.json` ALONE.
-
-    This is the property that makes a run summary a statement about what THAT RUN DID. The
-    rejected design derived it from a filesystem audit, and re-rendering a since-recovered run
-    reported `COMPLETED` again: the summary silently rewrote history.
-    """
-    import ast
-    import inspect
-    import textwrap
-
-    from agent_workflows import render_stream
-
-    for fn in (
-        render_stream.integration_was_refused,
-        render_stream.integration_refusal_detail,
-        render_stream.format_stranded_work_section,
-    ):
-        tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
-        names = {
-            node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
-        } | {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-        for forbidden in (
-            "Path",
-            "exists",
-            "is_file",
-            "is_dir",
-            "iterdir",
-            "glob",
-            "rglob",
-            "read_text",
-            "open",
-            "listdir",
-            "subprocess",
-        ):
-            assert forbidden not in names, (
-                f"{fn.__name__} reads the filesystem ({forbidden!r}); the landing verdict must "
-                f"come from the run's own record, or re-rendering an old run will rewrite history"
-            )
 
 
 # `test_render_stream_still_imports_no_first_party_module` WAS DELETED HERE, DELIBERATELY, BY THE

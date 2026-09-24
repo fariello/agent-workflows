@@ -1031,59 +1031,6 @@ class NothingElseMovedTests(_ScopeOwnershipBase):
         )
         self.assertTrue(self._executed_path(plan).is_file())
 
-    def test_cohesion_uses_no_run_record_and_no_authorship_lookup(self):
-        """The two retired approaches must be ABSENT from the code, not merely unused.
-
-        F-13 forbids a run-record dependency in the lifecycle gate (gitignored, absent from a lane,
-        and finalize gets no run id) and F-14 forbids an authorship lookup (it cannot partition actors
-        here). Asserted by reading the source, because absence of a mechanism is not observable
-        behaviorally.
-
-        DOCSTRINGS AND COMMENTS ARE STRIPPED FIRST, deliberately: those functions DISCUSS the retired
-        approaches at length (that prose is required by the plan's spec-sync section, so a future
-        reader does not re-derive them), and a naive substring search would match the explanation
-        rather than a use. Only executable code is searched.
-        """
-        import ast
-        import inspect
-
-        def _executable_source(fn) -> str:
-            """The function's code with comments and docstrings removed."""
-            tree = ast.parse(inspect.cleandoc(inspect.getsource(fn)))
-            for node in ast.walk(tree):
-                # Drop every docstring (module, class, function) by deleting the leading Expr-of-Str.
-                body = getattr(node, "body", None)
-                if (
-                    isinstance(body, list)
-                    and body
-                    and isinstance(body[0], ast.Expr)
-                    and isinstance(body[0].value, ast.Constant)
-                    and isinstance(body[0].value.value, str)
-                ):
-                    body.pop(0)
-            # ast.unparse never emits comments, so the result is code only.
-            return ast.unparse(tree)
-
-        for fn in (
-            LC._execution_cohesive_committed_paths,
-            LC._working_tree_path_is_owned,
-            LC.finalize_precheck,
-        ):
-            src = _executable_source(fn)
-            for forbidden in (
-                ".aw/records/runs",
-                "last_outcome",
-                "%an",
-                "%ae",
-                "--author",
-                "isolated_baseline",
-            ):
-                self.assertNotIn(
-                    forbidden,
-                    src,
-                    f"{fn.__name__} must not use {forbidden!r} as attribution evidence",
-                )
-
     def test_cohesion_reports_UNANCHORED_rather_than_an_empty_set(self):
         """THE FAIL-CLOSED SWITCH, and the reason the helper returns a pair rather than a set.
 

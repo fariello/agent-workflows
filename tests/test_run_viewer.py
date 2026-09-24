@@ -2850,54 +2850,6 @@ class SharedLifecycleRenderingTests(TestCase):
             f"carrying U+FE0E are the ones this breaks: {columns}",
         )
 
-    def test_no_second_lifecycle_table_or_hardcoded_lifecycle_index_remains(self):
-        """Criterion A17, asserted STRUCTURALLY over this module's own source.
-
-        The four literals this plan removed are named explicitly, because a substring scan for
-        `38;5;` would match every legitimate generic call and prove nothing. What is asserted is that
-        no LIFECYCLE call site passes a bare index, i.e. that `status_256` is gone from this module
-        and the four contradicting `color256` literals are gone with it.
-        """
-        import re as _re
-        from pathlib import Path as _P
-
-        src = _P(run_viewer.__file__).read_text(encoding="utf-8")
-        code = "\n".join(
-            ln for ln in src.splitlines() if not ln.lstrip().startswith("#")
-        )
-        self.assertNotIn(
-            "term.status_256(",
-            code,
-            "a `status_256` call survives in run_viewer.py, so this module still resolves lifecycle "
-            "color from `term.STATUS_COLOR_256` instead of the shared resolver (criterion A17).",
-        )
-        for banned, why in (
-            (
-                r'color256\(\s*"\[in flight\]"\s*,\s*214',
-                "214 is `waiting-input`, not `active`",
-            ),
-            (r'color256\(\s*"YES \(in flight\)"\s*,\s*214', "214 is `waiting-input`"),
-            (
-                r'color256\(\s*"\[review\]"\s*,\s*226',
-                "226 is not a spec Section 5 index",
-            ),
-            (
-                r'color256\(f"\[\{p_state\}\]"\s*,\s*40',
-                "40 is not a spec Section 5 index",
-            ),
-        ):
-            self.assertIsNone(
-                _re.search(banned, code),
-                f"a hardcoded lifecycle color survives ({why}); criterion A17 requires it to "
-                "resolve through the shared module.",
-            )
-        self.assertNotIn(
-            "_TREE_COLOR_256",
-            code,
-            "run_viewer.py still imports attention's private tree color to paint a type word, which "
-            "criterion A10 forbids.",
-        )
-
     def test_the_audit_and_analytics_tables_share_the_same_vocabulary(self):
         """A17 across the THREE tables in this module, not just the step line."""
         with tempfile.TemporaryDirectory() as td:

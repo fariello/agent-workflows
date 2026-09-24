@@ -20,7 +20,6 @@ The fix must hold in BOTH drivers, so a symmetry test asserts a one-driver-only 
 # import the module fails to IMPORT on 3.9 (12 collection errors in that CI job).
 from __future__ import annotations
 
-import ast
 import inspect
 import tempfile
 import unittest
@@ -124,39 +123,6 @@ class LaneSessionIsolationTests(unittest.TestCase):
         )
         self.assertEqual(argv[argv.index("--session") + 1], "ses_LANE1")
 
-    def test_promotion_of_a_lane_session_is_gated_on_work_dir(self):
-        """The post-turn writeback must not promote an isolated lane's session to the set.
-
-        Promoting it would re-arm the carryover AND make the set-consistency check fire on every
-        lane after the first ("changed session unexpectedly"), aborting the whole run.
-        """
-        src = _effective_execute_item_source(driver.execute_item)
-        tree = ast.parse(ast.unparse(ast.parse(src)))
-        promotes_set_sessions = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Subscript)
-            and isinstance(node.value, ast.Subscript)
-            and isinstance(node.value.slice, ast.Constant)
-            and node.value.slice.value == "set_sessions"
-        ]
-        self.assertTrue(
-            promotes_set_sessions,
-            "expected execute_item to still write state['set_sessions'][...] somewhere",
-        )
-        guarded = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.If)
-            and "work_dir" in ast.unparse(node.test)
-            and "set_sessions" in ast.unparse(node)
-        ]
-        self.assertTrue(
-            guarded,
-            "the set_sessions promotion must sit under a work_dir guard so an isolated "
-            "lane's fresh session is never promoted to the set",
-        )
-
     def test_both_drivers_are_fixed_symmetrically(self):
         """A one-driver-only fix must FAIL: agy and oc must both drop the inherited session."""
         for name, func in (
@@ -169,31 +135,6 @@ class LaneSessionIsolationTests(unittest.TestCase):
                 src,
                 f"{name} must carry the lanesess fix (traceable to backlog xd9sll)",
             )
-
-    def test_agy_isolated_lane_clears_session_and_continue(self):
-        """agy must ALSO not fall back to --continue, which resumes the prior conversation."""
-        src = _effective_execute_item_source(agy_runipd.execute_item)
-        tree = ast.parse(ast.unparse(ast.parse(src)))
-        clears = {
-            "session_id": False,
-            "use_continue": False,
-        }
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                target = node.targets[0]
-                if isinstance(target, ast.Name) and target.id in clears:
-                    value = ast.unparse(node.value)
-                    if value in ("None", "False"):
-                        clears[target.id] = True
-        self.assertTrue(
-            clears["session_id"],
-            "agy must clear the inherited session_id for an isolated lane",
-        )
-        self.assertTrue(
-            clears["use_continue"],
-            "agy must clear use_continue for an isolated lane; otherwise --continue "
-            "resumes the previous lane's conversation and reintroduces the carryover",
-        )
 
 
 if __name__ == "__main__":

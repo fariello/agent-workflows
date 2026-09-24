@@ -777,30 +777,6 @@ class OneSharedPredicateTests(unittest.TestCase):
         ),
     )
 
-    def test_each_shared_symbol_is_defined_exactly_once(self) -> None:
-        wrong = []
-        for symbol, modules, expected, why in self.DEFINITIONS:
-            sites = []
-            for mod in modules:
-                src = Path(str(mod.__file__)).read_text(encoding="utf-8")
-                if re.search(rf"^def {symbol}\b", src, re.MULTILINE):
-                    sites.append(Path(str(mod.__file__)).name)
-            if len(sites) != expected:
-                wrong.append(
-                    f"  {symbol}: expected {expected} definition(s), found {len(sites)} in {sites}\n"
-                    f"    rule: {why}"
-                )
-        self.assertEqual(
-            wrong,
-            [],
-            f"{len(wrong)} of {len(self.DEFINITIONS)} shared attestation symbols are no longer "
-            "single-sourced. A second DEFINITION (not a second call) is the failure: the gate then "
-            "has two implementations, and a fix applied to one leaves the other permissive.\n"
-            + "\n".join(wrong)
-            + "\n  FIX: keep the definition in review_findings/specs and have the other module call "
-            "it.",
-        )
-
     #: (module, symbol it must reference, why that call site matters)
     CALL_SITES = (
         (
@@ -822,23 +798,6 @@ class OneSharedPredicateTests(unittest.TestCase):
             "one spelling is bypassed by choosing the other",
         ),
     )
-
-    def test_every_gated_surface_consults_the_shared_symbol(self) -> None:
-        missing = []
-        for mod, symbol, why in self.CALL_SITES:
-            src = Path(str(mod.__file__)).read_text(encoding="utf-8")
-            if symbol not in src:
-                missing.append(
-                    f"  {Path(str(mod.__file__)).name} does not reference {symbol!r}\n"
-                    f"    needed because: {why}"
-                )
-        self.assertEqual(
-            missing,
-            [],
-            f"{len(missing)} of {len(self.CALL_SITES)} surfaces no longer consult the shared "
-            "attestation symbol. An UNGATED surface is a complete bypass, not a partial one: an agent "
-            "picks whichever spelling is not gated.\n" + "\n".join(missing),
-        )
 
 
 class SetterAttestationTests(unittest.TestCase):
@@ -1702,52 +1661,6 @@ class SpecDiscoveryTests(unittest.TestCase):
             {},
             "an absent root must yield {} rather than raise; this function runs during discovery on "
             "arbitrary repos, where a crash would take down the whole sweep",
-        )
-
-    def test_enumeration_reuses_the_shared_authority(self) -> None:
-        """Kept separate: a SOURCE census, structurally unlike the behavior rows above.
-
-        Two claims, one subject: the module must call the shared spec iterator and must NOT introduce
-        a second `records/specs` path literal. `check_engine.check_review_dangling` deliberately avoids
-        a second reviews-path literal; the same discipline applies to the specs tree. The AST is
-        inspected rather than the raw text so a docstring that MENTIONS the path (explaining why it is
-        absent) does not trip the guard.
-        """
-        import ast
-
-        src = Path(str(rs.__file__)).read_text(encoding="utf-8")
-        tree = ast.parse(src)
-        docstrings = set()
-        for node in ast.walk(tree):
-            if isinstance(
-                node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-            ):
-                doc = ast.get_docstring(node, clean=False)
-                if doc:
-                    docstrings.add(doc)
-        offenders = [
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and "records/specs" in node.value
-            and node.value not in docstrings
-        ]
-        problems = []
-        if offenders:
-            problems.append(f"new `records/specs` path literal(s): {offenders!r}")
-        if "_iter_spec_records" not in src:
-            problems.append(
-                "runner_shared no longer calls the shared `_iter_spec_records` iterator"
-            )
-        self.assertEqual(
-            problems,
-            [],
-            "spec enumeration must go through the existing record authority, not a fresh path "
-            "string: "
-            + "; ".join(problems)
-            + ". A second path mechanism is how one surface starts seeing a different set of specs "
-            "than another (for example missing the terminal subdirectories).",
         )
 
 

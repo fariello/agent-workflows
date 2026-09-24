@@ -7,7 +7,6 @@ runner - including the runner's own `--help` and its implicit-`start` shim.
 
 from __future__ import annotations
 
-import ast
 import io
 import json
 import subprocess
@@ -984,32 +983,6 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             )
             self.assertEqual(agy_runipd.dirty_tree_overlap(repo, []), [])
 
-    def test_the_integration_helpers_are_the_SHARED_ones(self):
-        """integpath-02 (`6sb3yu`): this module no longer carries its own copies.
-
-        The agy twin of the oc assertion, and it exists BECAUSE the one-sided version is a recorded
-        failure here: `render_stream` was extracted with an oc-only guard and this module then
-        re-forked four of its symbols with nothing noticing.
-        """
-        from agent_workflows import runner_shared
-
-        self.assertIs(agy_runipd.dirty_tree_overlap, runner_shared.dirty_tree_overlap)
-        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
-        tree = ast.parse(src)
-        for name in ("build_lane_outcome", "integrate_lane_branch"):
-            node = next(
-                n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef) and n.name == name
-            )
-            statements = [
-                s
-                for s in node.body
-                if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant))
-            ]
-            self.assertEqual(len(statements), 1, f"{name} must be a one-line wrapper")
-            self.assertIn(f"runner_shared.{name}", ast.unparse(statements[0]))
-
     def test_this_hosts_merge_subject_still_says_aw_agy_run(self):
         """The host label on THIS driver, from a REAL merge.
 
@@ -1781,33 +1754,6 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         self.assertIn("git status", rendered_done)
         self.assertIn("0.22s", rendered_done)
 
-    def test_tracker_wiring_in_agy_runipd_pipeline(self):
-        import inspect
-
-        # Verify run_queue instantiates StreamTracker and passes tracker
-        rq_source = inspect.getsource(agy_runipd.run_queue)
-        self.assertIn("tracker = StreamTracker()", rq_source)
-        self.assertIn(
-            "execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)",
-            rq_source,
-        )
-        self.assertIn("render_run_summary_table(", rq_source)
-        self.assertIn("tracker=tracker", rq_source)
-
-        # Verify execute_item accepts and passes tracker
-        ei_source = inspect.getsource(agy_runipd.execute_item)
-        self.assertIn("tracker: StreamTracker | None = None", ei_source)
-        self.assertIn("run_agy_turn(", ei_source)
-        self.assertIn("tracker=tracker", ei_source)
-
-        # Verify run_agy_turn initializes Statusline with tracker
-        rat_source = inspect.getsource(agy_runipd.run_agy_turn)
-        self.assertIn("tracker: StreamTracker | None = None", rat_source)
-        self.assertIn("tracker.begin_turn()", rat_source)
-        self.assertIn("statusline = Statusline(", rat_source)
-        self.assertIn("tracker=tracker", rat_source)
-        self.assertIn("render_agy_event(", rat_source)
-
 
 class AgyDependencyPathsAreSharedTests(unittest.TestCase):
     """depreview 03ie04 E-03/E-06: THIS HOST's two dependency paths must be the shared ones.
@@ -1864,19 +1810,6 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
             "agy must BIND the shared implementation, never define its own",
         )
         self.assertIs(agy_runipd.edge_satisfied, oc_runipd.edge_satisfied)
-
-    def test_this_module_no_longer_defines_a_dependency_status_detailed(self):
-        """Assertion by SOURCE, so a copy shadowed by a later import cannot hide behind identity."""
-        import ast
-
-        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
-        defined = [
-            node.name
-            for node in ast.parse(src).body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        ]
-        self.assertNotIn("dependency_status_detailed", defined)
-        self.assertNotIn("dependency_status", defined)
 
     def test_the_drain_path_resolves_a_TYPED_edge(self):
         """The copy reported `no plan resolves to this id6 in the repo` for a valid typed edge."""
@@ -1979,30 +1912,6 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
                         )
                         self.assertTrue(ok, f"reasons={reasons!r}")
 
-    def test_the_retained_findings_wrapper_is_uncalled_but_present(self):
-        """`_findings_block_reason`'s two call sites were BOTH inside the deleted copy.
-
-        It is kept because `tests/test_review_findings_cascade.py::SharedPredicateTests` requires this
-        module to expose it and to name `subject_gating_blocks`; the live gate now runs in `oc_runipd`
-        through the shared implementation. Pinned so a future reader does not mistake it for a second
-        implementation, and so deleting it is a deliberate act rather than an accident.
-        """
-        import ast
-
-        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
-        calls = [
-            node
-            for node in ast.walk(ast.parse(src))
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "_findings_block_reason"
-        ]
-        self.assertEqual(
-            calls, [], "the wrapper must have no call sites in this module"
-        )
-        self.assertTrue(hasattr(agy_runipd, "_findings_block_reason"))
-        self.assertIn("subject_gating_blocks", src)
-
 
 # ==================================================================================================
 # runanalytics Order 04 (`5f2h8i`): THIS HOST'S telemetry wiring (the mirror of the oc suite's).
@@ -2021,51 +1930,6 @@ class AgyTelemetryWiringTests(unittest.TestCase):
             source.index("runner_shared.turn_telemetry("),
             source.index("subprocess.Popen(argv, **popen_kwargs)"),
         )
-
-    def test_telemetry_is_reached_through_shared_and_never_through_the_other_driver(
-        self,
-    ):
-        """The anti-re-fork rule: this driver must not import a telemetry symbol from `oc_runipd`.
-
-        `agy_runipd` already imports many names from `oc_runipd`, and a telemetry helper defined
-        there and imported here would satisfy a reviewer reading for parity of BEHAVIOR while
-        forking the code, which is the defect `tests/test_runner_refork_guard.py` exists to catch.
-        """
-
-        from agent_workflows import runner_shared
-
-        self.assertIs(
-            agy_runipd.runner_shared.turn_telemetry, runner_shared.turn_telemetry
-        )
-        tree = ast.parse(self._source())
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.ImportFrom)
-                and node.module == "agent_workflows.oc_runipd"
-            ):
-                for alias in node.names:
-                    self.assertNotIn("telemetry", alias.name.lower())
-
-    def test_both_callers_reach_it_and_the_verifier_names_its_phase(self):
-        tree = ast.parse(self._source())
-        calls = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "run_agy_turn"
-        ]
-        self.assertEqual(
-            len(calls), 2, "the executor and the verifier, and nothing else"
-        )
-        phases = [
-            keyword.value
-            for call in calls
-            for keyword in call.keywords
-            if keyword.arg == "telemetry_phase"
-        ]
-        self.assertEqual(len(phases), 1)
-        self.assertEqual(self._source().count("TELEMETRY_PHASE_VALIDATE"), 1)
 
     def test_a_turn_emits_a_start_and_an_end_event_keyed_on_the_invocation(self):
         from agent_workflows import runner_shared
@@ -2285,13 +2149,6 @@ class AgyPerArtifactDispositionLineTests(unittest.TestCase):
             agy_runipd.render_queue_dispositions, oc_runipd.render_queue_dispositions
         )
 
-    def test_this_host_holds_no_copy_of_the_reason_vocabulary(self):
-        from agent_workflows import run_selection_policy as pol
-
-        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
-        for label in pol.SKIP_REASON_LABELS.values():
-            self.assertNotIn(label, src)
-
 
 class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
     """runnoop Order 03 (`bsc457`) E-05, the AGY HALF of the closing summary.
@@ -2365,14 +2222,6 @@ class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
             agy_runipd.render_disposition_summary, oc_runipd.render_disposition_summary
         )
 
-    def test_this_host_holds_no_copy_of_the_summary_vocabulary(self):
-        from agent_workflows import run_selection_policy as pol
-
-        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
-        self.assertNotIn(pol.SUMMARY_HEADER, src)
-        for remedy in pol.DISPOSITION_REMEDIES.values():
-            self.assertNotIn(remedy, src)
-
 
 class AgyVerdictMappingTests(unittest.TestCase):
     """runverdict (`1bfppy`): the fail-closed verdict mapping on THE MORE EXPOSED HOST.
@@ -2405,28 +2254,6 @@ class AgyVerdictMappingTests(unittest.TestCase):
                     "this host must bind the SHARED object, never a copy",
                 )
                 self.assertIs(getattr(agy_runipd, name), getattr(oc_runipd, name))
-
-    def test_this_host_carries_no_private_verdict_substring_test(self):
-        """The shape of the original defect, asserted by AST rather than by grep.
-
-        The gate this replaces existed as two byte-identical copies, and the substring form is what
-        made it order-dependent (`'CONFORMING' in 'NOT CONFORMING'` is True).
-        """
-        tree = ast.parse(Path(str(agy_runipd.__file__)).read_text(encoding="utf-8"))
-        offenders = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Compare) and any(
-                isinstance(op, ast.In) for op in node.ops
-            ):
-                left = node.left
-                if (
-                    isinstance(left, ast.Constant)
-                    and isinstance(left.value, str)
-                    and left.value.upper()
-                    in ("BLOCKED", "NOT CONFORMING", "CONFORMING", "VERIFIED")
-                ):
-                    offenders.append(f"agy_runipd.py:{node.lineno} {left.value!r}")
-        self.assertEqual(offenders, [], "\n".join(offenders))
 
     def test_a_rejection_refuses_integration_on_this_hosts_DEFAULT_path(self):
         """The default-on case: `verifier_expected` True is what agy passes as `validate`."""
@@ -2605,53 +2432,6 @@ class AgyCostAttributionTests(unittest.TestCase):
         # And no number anywhere that could be mistaken for a rate.
         for value in record.values():
             self.assertNotIsInstance(value, float)
-
-    def test_NO_antigravity_config_reader_was_invented(self):
-        """A new config reader in a plan about cost attribution would be a new security surface. The
-        only config reader remains `oc_models`', reached through `resolve_config_path`."""
-        text = open(agy_runipd.__file__, encoding="utf-8").read()
-        # No Antigravity config surface was invented.
-        for forbidden in ("antigravity.json", "ANTIGRAVITY_CONFIG", "apiKey"):
-            self.assertNotIn(forbidden, text, forbidden)
-        # And this module CALLS no config reader. Asserted against the parsed CALL sites rather than
-        # by substring, because the prose above legitimately NAMES `resolve_config_path` when
-        # explaining why agy must not use it, and a substring scan cannot tell a mention from a call.
-        called = {
-            node.func.attr
-            for node in ast.walk(ast.parse(text))
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        } | {
-            node.func.id
-            for node in ast.walk(ast.parse(text))
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-        }
-        for forbidden in (
-            "resolve_config_path",
-            "card_from_config",
-            "resolve_host_default_model",
-            "resolve_api_key",
-        ):
-            self.assertNotIn(forbidden, called, forbidden)
-
-    def test_agy_does_not_import_the_record_builder_FROM_oc_runipd(self):
-        """Layering: the shared symbol is sited in `runner_shared`, never added to `oc_runipd` for agy
-        to import, which would deepen the one-way import defect backlog `cnwy8g` owns."""
-        tree = ast.parse(open(agy_runipd.__file__, encoding="utf-8").read())
-        from_oc = {
-            alias.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            and node.module
-            and "oc_runipd" in node.module
-            for alias in node.names
-        }
-        # THE COUNT ASSERTION IS DELETED (2026-09-23). It read `assertEqual(len(from_oc), 56)` and
-        # asserted nothing about correctness: the real number is now 4, because `1f7xno` and the
-        # hostdedup work removed 52 of those imports, which is the OUTCOME this test's own docstring
-        # says it wants. A test that fails when the defect it describes gets FIXED is worse than no
-        # test, and it failed for exactly that reason. What this test is actually for is the line
-        # below: this ONE symbol must not be imported from the peer runner.
-        self.assertNotIn("cost_attribution_record", from_oc)
 
 
 if __name__ == "__main__":

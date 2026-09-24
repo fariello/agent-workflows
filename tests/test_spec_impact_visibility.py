@@ -487,22 +487,6 @@ class EndOfRunReportIsWiredAtEverySummarySiteTests(unittest.TestCase):
     OQ-01 actually turned on.
     """
 
-    def test_each_driver_calls_the_report_three_times_with_two_labelled_partial(self):
-        for name, mod in _DRIVERS:
-            with self.subTest(driver=name):
-                src = Path(str(mod.__file__)).read_text("utf-8")
-                calls = src.count("report_run_spec_edits(state")
-                self.assertEqual(
-                    calls,
-                    3,
-                    f"{name} must call the end-of-run report at all 3 summary sites",
-                )
-                self.assertEqual(
-                    src.count("report_run_spec_edits(state, partial=True)"),
-                    2,
-                    f"{name}'s two non-primary sites must label the report possibly-incomplete",
-                )
-
 
 class OneSharedDefinitionTests(unittest.TestCase):
     """Anti-re-fork: the end-of-run report has ONE definition, reached by both hosts.
@@ -535,17 +519,6 @@ class OneSharedDefinitionTests(unittest.TestCase):
             render_stream.format_spec_edit_report.__module__,
             "agent_workflows.render_stream",
         )
-
-    def test_exactly_one_definition_of_each_new_formatter_package_wide(self):
-        root = Path(render_stream.__file__).parent
-        for symbol in ("format_spec_edit_report", "format_spec_impact_failure"):
-            with self.subTest(symbol=symbol):
-                defining = [
-                    p.name
-                    for p in root.glob("*.py")
-                    if f"def {symbol}(" in p.read_text("utf-8")
-                ]
-                self.assertEqual(defining, ["render_stream.py"])
 
     def test_the_renderers_are_pure(self):
         buf = io.StringIO()

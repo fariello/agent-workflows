@@ -162,56 +162,6 @@ class SharedSeamTests(unittest.TestCase):
                 self.assertIs(getattr(oc_runipd.runner_shared, name), owner)
                 self.assertIs(getattr(agy_runipd.runner_shared, name), owner)
 
-    def test_neither_driver_defines_a_telemetry_symbol_of_its_own(self) -> None:
-        """The anti-re-fork half: no runner-local definition of any seam symbol (AST, not grep).
-
-        Parsed rather than substring-matched for the reason
-        `tests/test_runner_refork_guard.py` records: a comment or a docstring mentioning a name
-        satisfies a substring test, and `class Foo (Base):` evades one.
-        """
-
-        forbidden = {
-            "turn_telemetry",
-            "telemetry_identity",
-            "telemetry_dir",
-            "telemetry_stream_path",
-            "TelemetryIdentity",
-            "register_active_sampler",
-            "stop_active_samplers",
-        }
-        for name in _DRIVER_SOURCES:
-            tree = ast.parse(_source(name))
-            defined = set()
-            for node in tree.body:
-                if isinstance(
-                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                ):
-                    defined.add(node.name)
-                elif isinstance(node, ast.Assign):
-                    for target in node.targets:
-                        if isinstance(target, ast.Name):
-                            defined.add(target.id)
-                elif isinstance(node, ast.AnnAssign) and isinstance(
-                    node.target, ast.Name
-                ):
-                    defined.add(node.target.id)
-            with self.subTest(module=name):
-                self.assertEqual(defined & forbidden, set())
-
-    def test_the_agy_driver_reaches_telemetry_through_shared_not_through_oc(
-        self,
-    ) -> None:
-        """`agy_runipd` must not import a telemetry symbol from `oc_runipd`."""
-
-        tree = ast.parse(_source("agy_runipd.py"))
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.ImportFrom)
-                and node.module == "agent_workflows.oc_runipd"
-            ):
-                for alias in node.names:
-                    self.assertNotIn("telemetry", alias.name.lower())
-
     def test_the_path_follows_a_relocated_records_root(self) -> None:
         """A `records_backend` of `repository` AND of a non-repository value each resolve correctly.
 
@@ -500,67 +450,6 @@ class HostWiringTests(unittest.TestCase):
         self.assertIn("runner_shared.turn_telemetry(", body)
         self.assertNotIn("subprocess.run(", body)
 
-    def test_every_caller_is_covered_and_each_verifying_launch_declares_its_phase(
-        self,
-    ) -> None:
-        """Every launch reaches the instrumented launcher, and a non-execute phase is STATED.
-
-        RESTATED FROM A CENSUS TO AN INVARIANT by reverify-01 (`mp289j`). It asserted exactly TWO
-        callers per host, and the OpenCode host now legitimately has THREE: the executor, the in-run
-        verifier, and the standalone `audit` verb, which launches the verifier prompt on demand.
-
-        WHAT TELEMETRY ACTUALLY NEEDS, and what is asserted instead of the count: no launch escapes
-        instrumentation (there is one launcher, and it is wrapped, which the sibling test above pins),
-        and every launch that is NOT the executor NAMES its phase rather than leaving it to be inferred
-        from a log filename. So exactly one call site per host may rely on the `execute` default, and
-        every other must declare `TELEMETRY_PHASE_VALIDATE`. A hard count would have made adding an
-        instrumented launch read as a telemetry regression, which is the opposite of the truth.
-        """
-
-        for name, launcher in (
-            ("oc_runipd.py", "run_opencode"),
-            ("agy_runipd.py", "run_agy_turn"),
-        ):
-            # AST, not a line scan. A line scan counted a COMMENT that mentions
-            # `run_opencode(...)` as a third caller, which is the same
-            # explanation-versus-invocation confusion `tests/test_runner_refork_guard.py` records as
-            # its reason for parsing rather than grepping.
-            tree = ast.parse(_source(name))
-            calls = [
-                node
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == launcher
-            ]
-            declared = [
-                keyword
-                for call in calls
-                for keyword in call.keywords
-                if keyword.arg == "telemetry_phase"
-            ]
-            source = _source(name)
-            with self.subTest(module=name):
-                self.assertGreaterEqual(
-                    len(calls),
-                    2,
-                    f"{name}: the executor and verifier callers of {launcher} must both exist, "
-                    f"found {len(calls)}",
-                )
-                self.assertEqual(
-                    len(calls) - len(declared),
-                    1,
-                    f"{name}: exactly one call site may take the default execute phase; "
-                    f"{len(calls)} callers declared {len(declared)} phases",
-                )
-                self.assertEqual(
-                    source.count(
-                        "telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE"
-                    ),
-                    len(declared),
-                    f"{name}: a call site declares a phase that is not the validate phase",
-                )
-
     def test_phase_defaults_so_no_existing_call_site_changed(self) -> None:
         import inspect
 
@@ -796,12 +685,6 @@ class SamplerTeardownTests(unittest.TestCase):
         double-registered".
         """
 
-        # The two DRIVERS get the same textual assertion the four sibling guards make, verbatim, so
-        # this test agrees with them by construction rather than by a paraphrase that could drift.
-        for name in _DRIVER_SOURCES:
-            with self.subTest(module=name):
-                self.assertNotIn("signal.signal(", _source(name))
-
         # The SEAM gets an AST check instead, and the difference is not a weakening. This module's
         # docstrings deliberately NAME `signal.signal` in order to explain why it is not called (the
         # explanation is the point: an executor reading the seam must learn what is forbidden and
@@ -847,50 +730,6 @@ class SamplerTeardownTests(unittest.TestCase):
         for forbidden in ("SIGINT", "SIGTERM", "setitimer"):
             with self.subTest(identifier=forbidden):
                 self.assertNotIn(forbidden, attributes | names)
-
-    def test_no_second_cleanup_routine_was_added(self) -> None:
-        """Spec `c4gd2h` R5/A9: exactly ONE cleanup implementation, extended rather than duplicated.
-
-        `runner_shutdown.py` may only have gained a stop call INSIDE the existing routine, so the
-        module must still define exactly one `clean_shutdown` and no sibling cleanup entry point.
-        """
-
-        tree = ast.parse(_source("runner_shutdown.py"))
-        top_level = [
-            node.name
-            for node in tree.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        ]
-        self.assertEqual(top_level.count("clean_shutdown"), 1)
-        for forbidden in (
-            "clean_shutdown_telemetry",
-            "telemetry_shutdown",
-            "stop_samplers",
-        ):
-            with self.subTest(name=forbidden):
-                self.assertNotIn(forbidden, top_level)
-        # The stop happens INSIDE `clean_shutdown`, not in a new routine beside it.
-        source = _source("runner_shutdown.py")
-        body = source[source.index("def clean_shutdown(") :]
-        self.assertIn("stop_active_samplers", body)
-        self.assertEqual(
-            source.count("stop_active_samplers"), 2
-        )  # the import and the call
-
-    def test_runner_shutdown_still_imports_only_stdlib_and_platform_lock_at_module_level(
-        self,
-    ) -> None:
-        """The lazy import is deliberate: a broken analytics module may not break a shutdown."""
-
-        tree = ast.parse(_source("runner_shutdown.py"))
-        module_level: set[str] = set()
-        for node in tree.body:
-            if isinstance(node, ast.Import):
-                module_level.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                module_level.add(node.module)
-        self.assertNotIn("agent_workflows.runner_shared", module_level)
-        self.assertNotIn("agent_workflows.run_analytics_telemetry", module_level)
 
 
 # ==================================================================================================

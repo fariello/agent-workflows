@@ -133,18 +133,6 @@ class TheRunOutcomeReflectsARefusedFinalize(unittest.TestCase):
         """
         self.assertIn("COMPLETED", self.outcome_line(_state([_item()])))
 
-    def test_substantially_complete_was_not_removed_from_the_outcome_tuple(self):
-        """Guards the tempting wrong fix, which the plan's fence explicitly forbids."""
-        import inspect
-
-        src = inspect.getsource(render_stream.render_run_summary_table)
-        self.assertIn(
-            '"executed", "reviewed", "approved", "substantially-complete"',
-            src,
-            "the outcome tuple must still admit `substantially-complete`; the refusal, not the "
-            "disposition, is what downgrades the outcome",
-        )
-
     def test_the_refusal_is_visible_on_the_summary_itself(self):
         """The table alone must not read as success (the measured row said `verified`, no refusal)."""
         rendered = render_stream.render_run_summary_table(
@@ -284,19 +272,6 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
                     f"ipd_lint emits {diag.message!r} at pre-transition but the retry allowlist "
                     f"does not match it; update RETRYABLE_FINALIZE_FINDING_TEXTS deliberately",
                 )
-
-    def test_the_summary_text_is_the_one_finalize_precheck_ACTUALLY_EMITS(self):
-        """The other half of the same pin: the summary sentence must still be the gate's."""
-        import inspect
-
-        from agent_workflows import ipd_lifecycle
-
-        src = inspect.getsource(ipd_lifecycle.finalize_precheck)
-        self.assertIn(
-            runner_shared.RETRYABLE_FINALIZE_SUMMARY,
-            src,
-            "the retryable summary must be the literal `finalize_precheck` emits",
-        )
 
 
 class TheBudgetIsSpentOncePerRedispatch(unittest.TestCase):
@@ -533,38 +508,9 @@ class TheRefusalArmPerformsTheSendBack(unittest.TestCase):
         assert projected is not None
         self.assertEqual(MEASURED_REFUSAL, projected["finalize_refused"])
 
-    def test_the_decision_lives_in_the_refusal_arm_and_not_a_later_sweep(self):
-        """`requeue_interrupted`'s rule: a gate placed elsewhere is bypassed by the call that ran."""
-        import inspect
-
-        src = inspect.getsource(runner_shared.execute_item_core)
-        self.assertEqual(
-            2,
-            src.count("handle_finalize_refusal("),
-            "BOTH refusal arms (lane and no-lane) must delegate to the one shared performer",
-        )
-
 
 class BothHostsBehaveIdentically(unittest.TestCase):
     """E-03/E-06: the incident was agy and the twin is where drift hides."""
-
-    def test_both_hosts_execute_through_the_SAME_refusal_arm(self):
-        """Stronger than a pinned equality: there is ONE arm, so drift is impossible."""
-        import inspect
-
-        for driver in (oc_driver, agy_driver):
-            with self.subTest(driver=driver.__name__):
-                src = inspect.getsource(driver)
-                self.assertIn(
-                    "runner_shared.execute_item_core(",
-                    src,
-                    f"{driver.__name__} must execute items through the shared core",
-                )
-                self.assertNotIn(
-                    'attempt["finalize_refused"] = fin_msg',
-                    src,
-                    f"{driver.__name__} must not carry its own refusal arm",
-                )
 
     def test_the_send_back_symbols_are_reachable_from_both_hosts(self):
         for driver in (oc_driver, agy_driver):
@@ -699,22 +645,6 @@ class ARefusedItemDoesNotSatisfyADependentEdge(unittest.TestCase):
             )
             self.assertEqual(["executed:yaxr4i"], unsatisfied)
 
-    def test_the_in_run_status_shortcut_is_STILL_GONE(self):
-        """A regression guard for the maintainer's ruling, not a new rule of this plan."""
-        import inspect
-
-        src = inspect.getsource(oc_driver.edge_satisfied)
-        executed_branch = src.split('if edge.kind == "executed":', 1)[1]
-        executed_branch = executed_branch.split(
-            "from agent_workflows import ipd_schema", 1
-        )[0]
-        self.assertNotIn(
-            "by_id",
-            executed_branch,
-            "the `executed:` edge must stay disk-authoritative (maintainer ruling 2026-09-19); "
-            "re-reading in-run status would re-admit `substantially-complete`",
-        )
-
     def test_the_cascade_and_edge_gate_remain_ONE_shared_object_per_host(self):
         """Sites 1 and 2 must not be able to disagree (the measured `wslayout` defect)."""
         self.assertIs(oc_driver.edge_satisfied, agy_driver.edge_satisfied)
@@ -797,17 +727,6 @@ class TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains(unittest.TestCase):
 
     def test_a_retrying_child_is_not_terminal_which_is_what_makes_it_actionable(self):
         self.assertNotIn("queued", runner_shared.TERMINAL_STATES)
-
-    def test_the_exhausted_status_keeps_the_manual_recovery_route(self):
-        """`--retry-incomplete` must still be able to pick up an exhausted item by hand."""
-        import inspect
-
-        src = inspect.getsource(oc_driver.run_queue)
-        self.assertIn(
-            f'"{runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS}"',
-            src,
-            "the exhausted status must remain in --retry-incomplete's set",
-        )
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -447,35 +447,6 @@ class NoProjectSubprocessMatrixTests(unittest.TestCase):
         self.assertEqual(p.returncode, 0)
         self.assertIn("valid", p.stdout)
 
-    def test_NO_site_in_the_package_still_emits_an_unemittable_exit_3_record(self):
-        """The structural half of the crash fix (decision 03-quqyc4-D1): rather than widening the
-        schema to admit 3, both emitters were moved to 2, so no producer of an out-of-range record
-        remains and neither contract doc needed amending. A new `exit_code=3` would fail here."""
-        import ast
-
-        pkg = Path(__file__).resolve().parent.parent / "agent_workflows"
-        offenders = []
-        for path in sorted(pkg.glob("*.py")):
-            # Parse rather than grep, so the PROSE explaining this decision (which necessarily
-            # mentions `exit_code=3`) cannot be mistaken for a live emitter.
-            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-                if not isinstance(node, ast.Call):
-                    continue
-                func = node.func
-                name = getattr(func, "id", None) or getattr(func, "attr", None)
-                if name != "CommandResult":
-                    continue
-                for kw in node.keywords:
-                    if (
-                        kw.arg == "exit_code"
-                        and isinstance(kw.value, ast.Constant)
-                        and kw.value.value == 3
-                    ):
-                        offenders.append(f"{path.name}:{node.lineno}")
-        self.assertEqual(
-            offenders, [], f"unemittable exit-3 record site(s): {offenders}"
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

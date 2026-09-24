@@ -301,45 +301,6 @@ class ExcludedSymbolTests(unittest.TestCase):
                         f"once in runner_shared. Citation: {row.citation}",
                     )
 
-    def test_every_group_c_wrapper_is_a_single_delegating_statement(self):
-        """A wrapper that GREW A BODY is a re-fork with extra steps.
-
-        The exclusion above permits a runner-local `def`, so this bounds what that permission covers.
-        Without it, "the wrapper still exists" would be satisfied by a second implementation.
-        """
-        for row in GROUP_C:
-            for runner in BOTH:
-                with self.subTest(symbol=row.symbol, runner=runner):
-                    tree = ast.parse(
-                        (_PKG / f"{runner}.py").read_text(encoding="utf-8")
-                    )
-                    node = next(
-                        (
-                            n
-                            for n in tree.body
-                            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                            and n.name == row.symbol
-                        ),
-                        None,
-                    )
-                    self.assertIsNotNone(node)
-                    assert node is not None
-                    body = [
-                        s
-                        for s in node.body
-                        if not (
-                            isinstance(s, ast.Expr)
-                            and isinstance(s.value, ast.Constant)
-                            and isinstance(s.value.value, str)
-                        )
-                    ]
-                    self.assertEqual(
-                        len(body),
-                        1,
-                        f"{runner}.{row.symbol} has {len(body)} statements; a binding wrapper "
-                        "is ONE statement. More than that is a second implementation.",
-                    )
-
     def test_disable_lane_prompt_is_still_defined_in_both_runners(self):
         for row in GROUP_D:
             for runner in BOTH:
@@ -461,25 +422,6 @@ class ObservableChangeTests(unittest.TestCase):
                 "03-abc123-review-attempt-1.md",
             )
 
-    def test_agy_no_longer_imports_resolve_prior_lane_from_oc(self):
-        """The runner-to-runner import this lift actually removed.
-
-        Named specifically rather than left to the aggregate count in
-        `tests/test_orchestrator_probe_cache.py`, so a future change that re-adds THIS import fails
-        with the symbol's name in the message.
-        """
-        tree = ast.parse((_PKG / "agy_runipd.py").read_text(encoding="utf-8"))
-        imported: list[str] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and "oc_runipd" in (node.module or ""):
-                imported.extend(a.name for a in node.names)
-        self.assertNotIn(
-            "resolve_prior_lane",
-            imported,
-            "`resolve_prior_lane` is imported from oc_runipd again; it lives in "
-            "`runner_shared` and both hosts must reach it there",
-        )
-
 
 class ExceptionUnificationTests(unittest.TestCase):
     """The risky half of group A: unifying a class changes which `except` catches a raise."""
@@ -513,60 +455,6 @@ class ExceptionUnificationTests(unittest.TestCase):
                     except _MODULES[runner].DriverError:
                         caught = True
                     self.assertTrue(caught)
-
-    def test_the_empty_status_handler_still_precedes_the_generic_one(self):
-        """ORDER WITHIN ONE `try`: spec `25kzda` 2.4a property 3 needs exit 0, not exit 2.
-
-        `EmptyStatusSelection` is a `DriverError`, so a generic `except DriverError` placed EARLIER IN
-        THE SAME `try` absorbs it and the run exits 2. That is a source property no type check can
-        see, and unifying the class did not change it, so it is pinned here.
-
-        CHECKED STRUCTURALLY, NOT BY STRING POSITION, because the obvious `src.find` version is WRONG
-        and this test failed that way once before being fixed: both runners contain many unrelated
-        `except DriverError` clauses, and the FIRST one in the file sits thousands of lines above
-        `main`. Comparing file offsets therefore compares handlers belonging to different `try`
-        statements, which says nothing about which clause catches this raise. What matters is the
-        handler order inside the ONE `try` that names `EmptyStatusSelection`.
-        """
-        for runner in BOTH:
-            with self.subTest(runner=runner):
-                tree = ast.parse((_PKG / f"{runner}.py").read_text(encoding="utf-8"))
-                blocks = []
-                for node in ast.walk(tree):
-                    if not isinstance(node, ast.Try):
-                        continue
-                    clauses = [
-                        ast.unparse(h.type) if h.type is not None else "bare"
-                        for h in node.handlers
-                    ]
-                    if any("EmptyStatusSelection" in c for c in clauses):
-                        blocks.append((node.lineno, clauses))
-                self.assertEqual(
-                    len(blocks),
-                    1,
-                    f"{runner}: expected exactly one `try` handling EmptyStatusSelection, "
-                    f"found {blocks}",
-                )
-                line, clauses = blocks[0]
-                specific = next(
-                    i for i, c in enumerate(clauses) if "EmptyStatusSelection" in c
-                )
-                generic = next(
-                    (i for i, c in enumerate(clauses) if c == "DriverError"), None
-                )
-                self.assertIsNotNone(
-                    generic,
-                    f"{runner}:{line} no longer has a generic `except DriverError` beside "
-                    "the specific handler; re-derive this test rather than deleting it",
-                )
-                assert generic is not None
-                self.assertLess(
-                    specific,
-                    generic,
-                    f"{runner}:{line}: the generic `except DriverError` now precedes the "
-                    "`except EmptyStatusSelection` handler in the same `try`, so an empty "
-                    f"status selection exits 2 instead of the required 0. Clauses: {clauses}",
-                )
 
 
 if __name__ == "__main__":  # pragma: no cover

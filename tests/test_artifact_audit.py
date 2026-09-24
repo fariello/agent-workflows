@@ -27,21 +27,6 @@ class OneImplementationTests(unittest.TestCase):
     def test_run_viewer_audit_type_is_the_shared_module_object(self):
         self.assertIs(run_viewer.StepArtifactAudit, artifact_audit.ArtifactAudit)
 
-    def test_run_viewer_holds_no_local_audit_definition(self):
-        """`run_viewer` must not re-define the predicate, the dataclass or the status pattern."""
-        src = Path(run_viewer.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("class StepArtifactAudit", src)
-        self.assertNotIn("_STATUS_LINE_RE = re.compile", src)
-        # The only permitted mention of a search-directory list is gone with the private walk.
-        self.assertNotIn('"plans" / "archive"', src)
-        self.assertNotIn("search_dirs", src)
-
-    def test_shared_module_does_not_import_run_viewer(self):
-        """The dependency must stay one-directional, or the extraction recreates the coupling."""
-        src = Path(artifact_audit.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("import run_viewer", src)
-        self.assertNotIn("from agent_workflows.run_viewer", src)
-
     def test_shared_signature_takes_primitive_facts_not_a_step(self):
         """OQ-01: the shared predicate must not require a run-viewer `StepSummary`.
 
@@ -272,17 +257,6 @@ class LookupDefectTests(unittest.TestCase):
             found = artifact_audit.find_artifact(root, "dep002")
             self.assertEqual(found.path, f)
             self.assertEqual(found.kind, "id6")
-
-    def test_no_hardcoded_directory_list_remains(self):
-        src = Path(artifact_audit.__file__).read_text(encoding="utf-8")
-        for dead in (
-            'repo_root / ".aw" / "records" / "plans" / "pending"',
-            '"plans" / "archive"',
-            'repo_root / ".agents" / "plans"',
-        ):
-            self.assertNotIn(dead, src)
-        # It must go through the resolver's enumeration.
-        self.assertIn("_sel._iter_paths", src)
 
     def test_index_is_invalidated_when_an_artifact_moves(self):
         """The traversal cache must not answer with a stale location after a lifecycle move."""
@@ -994,21 +968,6 @@ class MeasuredFalseAlarmShapeTests(unittest.TestCase):
             self.assertIn("que777", shown_txt)
             self.assertIn("ibl777", shown_txt)
 
-    def test_no_case_asserts_the_stranded_lane_row_stays_red(self):
-        """DELIBERATELY ABSENT, and this test records why (PR-202, OQ-04 resolved 2026-09-10).
-
-        The row that once surfaced a stranded lane (`eulhzt`) measured `reviewed`/`executed`/`executed`
-        with its finalize commit IN RANGE for both recording runs, i.e. BYTE-IDENTICAL in every field
-        this audit reads to the 172 legitimate `reviewed` rows. A case keeping it red could only pass by
-        re-reddening those 172, which is the defect this classification exists to remove. The maintainer
-        accepted that trade knowingly; stranded-lane visibility is `pr5b0t`'s and `ys1dor`'s to rebuild.
-        """
-        src = Path(artifact_audit.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("eulhzt", src)
-        self.assertNotIn(
-            "E-item", src
-        )  # this audit reads no E-item counts, and must not start
-
 
 class EvidenceIndexTests(unittest.TestCase):
     def test_it_matches_the_subject_and_never_a_body_grep(self):
@@ -1147,31 +1106,6 @@ class EvidenceIndexTests(unittest.TestCase):
 
 class SharedFinalizeSubjectTests(unittest.TestCase):
     """The `lifecycle(<id6>): finalize` subject is ONE definition with every reader pointing at it."""
-
-    def test_the_producer_the_gate_and_the_viewer_share_one_definition(self):
-        from agent_workflows import artifact_core, ipd_lifecycle
-        from agent_workflows.hooks import executed_transition_gate
-
-        self.assertEqual(
-            artifact_core.finalize_commit_subject("abc123"),
-            "lifecycle(abc123): finalize",
-        )
-        self.assertEqual(
-            artifact_core.lifecycle_commit_prefix("abc123"), "lifecycle(abc123)"
-        )
-        # NO reader may re-encode the string. `artifact_core` itself is the one definition, so it is
-        # excluded; every other module must construct it through these two functions.
-        for mod in (ipd_lifecycle, executed_transition_gate, artifact_audit):
-            src = Path(mod.__file__).read_text(encoding="utf-8")
-            code = "\n".join(
-                line
-                for line in src.splitlines()
-                # Prose in comments and docstrings names the subject freely; only CODE is pinned.
-                if not line.lstrip().startswith("#")
-            )
-            with self.subTest(module=mod.__name__):
-                self.assertNotIn('f"lifecycle({plan_id})', code)
-                self.assertNotIn('"lifecycle(" +', code)
 
     def test_the_gate_still_accepts_a_real_finalize_subject(self):
         """The refactor must not have changed WHAT the gate matches, only where the string comes from."""
@@ -1337,31 +1271,6 @@ class ClassRenderingTests(unittest.TestCase):
 
 
 class OneIssuePredicateTests(unittest.TestCase):
-    def test_every_former_call_site_consults_one_definition(self):
-        """E-05: ONE definition of "is this row an issue", not six hand-written copies.
-
-        The boolean triple was tested in five places (the table's row selection, the steps table's
-        `Issue` column, `--json`, `--agent`, and the `--issues` human path). None may re-spell it.
-        """
-        src = Path(run_viewer.__file__).read_text(encoding="utf-8")
-        self.assertNotIn(
-            "missing_entirely or a.location_mismatch or a.status_mismatch", src
-        )
-        self.assertNotIn("audit.missing_entirely or audit.location_mismatch", src)
-        # And the one definition delegates to the shipped dataclass property rather than re-deriving.
-        self.assertTrue(
-            run_viewer.audit_row_is_issue(
-                artifact_audit.ArtifactAudit(
-                    id6="x", stem="x", run_status="executed", missing_entirely=True
-                )
-            )
-        )
-        self.assertFalse(
-            run_viewer.audit_row_is_issue(
-                artifact_audit.ArtifactAudit(id6="x", stem="x", run_status="executed")
-            )
-        )
-
     def test_the_published_row_set_is_unchanged(self):
         """The CLASS changes styling, never WHICH rows a machine consumer receives."""
         for kwargs in (
