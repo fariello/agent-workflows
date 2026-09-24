@@ -1,11 +1,12 @@
 - Id: qliia1
-- Status: open
+- Status: done
 - Set: qliia1
 - Priority: high
 - Work-Kind: followup
 - Summary: 14 aw/lane/* branches hold commits that never reached main; the work needs triaging or deliberate discarding
 
 ## Workflow history
+- 2026-09-24 done (aw set): Discharged by research record ebh1ap: full triage and disposition of the 14 lane branches
 - 2026-09-17 created (aw backlog): 14 aw/lane/* branches hold commits that never reached main; the work needs triaging or deliberate discarding
 
 MEASURED 2026-09-17 from the shared git object store (readable from any worktree), at main 1171f7b2:
