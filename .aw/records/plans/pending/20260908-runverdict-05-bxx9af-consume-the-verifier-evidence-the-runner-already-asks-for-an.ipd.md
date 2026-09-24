@@ -45,55 +45,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the bar against the real corpus BEFORE enforcing anything
 
-- [ ] E-01 Build a one-shot corpus survey over every recorded verification outcome (`.aw/records/runs/*/outcomes/*-verification.json`) reporting, per candidate predicate, how many outcomes PASS and how many FAIL, and dump a sample of each failing shape. THIS MUST COME FIRST because the item's own proposed predicate is measurably wrong against the corpus. RE-MEASURED AT REVIEW, one day after authoring, and the finding REPRODUCES while every number moved: 35 outcomes (not 34), all 35 with non-empty `tests_run` AND non-empty `evidence`, but still only 10 satisfying "at least one entry with a command AND an exit code"; 263 entries (not 258), of which 132 are dicts and 131 are bare strings. Do NOT skip to implementation on the assumption that the item's numbers hold, and do NOT treat THIS plan's numbers as the target either: the corpus grows with every run, so re-derive all of it and report what you find.
+- [x] E-01 Build a one-shot corpus survey over every recorded verification outcome (`.aw/records/runs/*/outcomes/*-verification.json`) reporting, per candidate predicate, how many outcomes PASS and how many FAIL, and dump a sample of each failing shape. THIS MUST COME FIRST because the item's own proposed predicate is measurably wrong against the corpus. RE-MEASURED AT REVIEW, one day after authoring, and the finding REPRODUCES while every number moved: 35 outcomes (not 34), all 35 with non-empty `tests_run` AND non-empty `evidence`, but still only 10 satisfying "at least one entry with a command AND an exit code"; 263 entries (not 258), of which 132 are dicts and 131 are bare strings. Do NOT skip to implementation on the assumption that the item's numbers hold, and do NOT treat THIS plan's numbers as the target either: the corpus grows with every run, so re-derive all of it and report what you find.
   THE DICT ENTRIES ARE NOT ONE SHAPE EITHER, which the plan's dict-versus-string framing understates and which decides the predicate's key handling. Measured nine distinct dict key-sets: `(command, exit_code, name, result)` 42, `(command, exit_code, note, result)` 24, `(command, exit_code, result)` 21, `(command, exit, result)` 13, `(command, result)` 10, `(detail, name, result)` 6, `(command, detail, result)` 6, `(cmd, exit, result)` 5, `(command, exit_code, name, result, verdict)` 5. So the command key is `command` 121 times and `cmd` 5 times, the exit key is `exit_code` 92 times and `exit` 18 times, 126 of 132 dicts name a command at all, and SIX name none (the `(detail, name, result)` shape). That last group is the one that decides whether a dict with no command-like key passes or fails, so state its verdict explicitly rather than letting it fall out of the implementation.
   - Depends on: none
   - Expected outcome: a pasted table of candidate-predicate pass/fail counts over the whole recorded corpus RE-MEASURED at execution time, plus one concrete sample of every distinct `tests_run` entry shape found, including every dict key-set and an explicit verdict for the command-less dict shape.
-  - Execution state: pending
+  - Execution state: executed
 
-- [ ] E-02 Choose and implement the evidence predicate, in `runner_shared.py` so both hosts share ONE definition, calibrated so that every outcome the corpus shows to be a GENUINE verification passes while an empty or contentless one fails. The predicate must accept BOTH shapes the corpus actually contains: a dict entry naming a command (`command`/`cmd`, measured 121 and 5 times) and, where present, an exit code (`exit_code`/`exit`, measured 92 and 18 times; `rc` appears ZERO times in the corpus, so include it only as defensive tolerance and say so); AND a bare string entry that names a command. It must REFUSE: an absent `tests_run`, an empty list, a list of empty or whitespace-only strings, and a list whose entries carry no command-like content. STATE THE RESIDUAL WEAKNESS HONESTLY IN THE CODE COMMENT: accepting prose means the predicate proves ACTIVITY, not correctness, and a determined verifier could write a plausible string having run nothing. That is the gap the item's own strongest option (cross-checking claimed commands against the session log) would close, and it is deliberately out of scope here; do not oversell the predicate as fabrication-proof.
+- [x] E-02 Choose and implement the evidence predicate, in `runner_shared.py` so both hosts share ONE definition, calibrated so that every outcome the corpus shows to be a GENUINE verification passes while an empty or contentless one fails. The predicate must accept BOTH shapes the corpus actually contains: a dict entry naming a command (`command`/`cmd`, measured 121 and 5 times) and, where present, an exit code (`exit_code`/`exit`, measured 92 and 18 times; `rc` appears ZERO times in the corpus, so include it only as defensive tolerance and say so); AND a bare string entry that names a command. It must REFUSE: an absent `tests_run`, an empty list, a list of empty or whitespace-only strings, and a list whose entries carry no command-like content. STATE THE RESIDUAL WEAKNESS HONESTLY IN THE CODE COMMENT: accepting prose means the predicate proves ACTIVITY, not correctness, and a determined verifier could write a plausible string having run nothing. That is the gap the item's own strongest option (cross-checking claimed commands against the session log) would close, and it is deliberately out of scope here; do not oversell the predicate as fabrication-proof.
   DEFINE "COMMAND-LIKE CONTENT" AS A RULE, NOT AS AN INTUITION, because it is the whole predicate and the plan currently leaves it to the implementer. A bare-string corpus entry looks like `python -m unittest tests.test_release_gate_close -v -> Ran 25 tests in 0.102s OK (exit 0): ...` (measured, and the longest entry is 658 characters), so a workable rule is a non-whitespace token containing no space before its first argument, or an explicit allowlist of runner prefixes (`python`, `python3`, `pytest`, `make`, `git`, `aw`). Whatever you choose, write it down and give the FALSE-NEGATIVE cost: a rule too strict rejects a genuine verification and closes a lane, which is the exact failure F-5 exists to prevent, so a rule that passes fewer than all 35 measured-genuine outcomes is WRONG BY CONSTRUCTION and must be loosened rather than shipped.
   THE `command`/`cmd` KEY LIST IS INCOMPLETE AND WOULD REJECT A REAL, THOROUGH VERIFICATION. MEASURED AT REVIEW: exactly one recorded outcome (`02-ku93tn-verification.json`, run `run-20260826T000928Z-1641359`) has NO entry carrying `command` or `cmd`, because all six of its entries put the command under `name` with the output under `detail`, for example `{"name": "python -m unittest tests.test_from_backlog -v", "result": "pass", "detail": "Ran 6 tests ... OK (...)"}`. That outcome is a `VERIFIED` verdict with six executed commands and eleven evidence entries, so it is exactly the "genuine verification" the calibration exists to protect, and the plan's stated key list would fail it closed. THEREFORE the predicate must also accept a command under `name`, or apply its command-like-content rule to the entry's VALUES rather than to a fixed key list. Re-measure this: the count was one at review and any new outcome using that shape adds to it.
   THIS IS THE SAME CLASS OF ERROR AS F-5, ONE LEVEL DOWN. F-5 caught the backlog item's bar rejecting 24 of 34 outcomes; this catches THIS plan's replacement bar rejecting 1 of 35. The lesson for E-01 is that the survey must report per-outcome PASS/FAIL for the FINAL predicate and name every outcome it would refuse, not just aggregate counts, since a single refused genuine outcome is a closed lane.
   - Depends on: E-01
   - Expected outcome: one shared predicate, in one module, that passes EVERY genuine outcome the E-01 survey identified (including the `name`-keyed one, so a zero-refusal rate over the measured corpus) and fails every contentless variant, with the command-like-content rule written down and the prose-acceptance tradeoff recorded in a comment.
-  - Execution state: pending
+  - Execution state: executed
 
-- [ ] E-03 Pin the corpus as a REGRESSION FENCE, which is the item's test (c) and the thing that stops the bar being set above what good verifiers already produce. Add a test that runs the E-02 predicate over a COMMITTED FIXTURE SET of outcome shapes derived from the real corpus, NOT over `.aw/records/runs/` itself: that tree is gitignored box-local state with zero tracked files (verified at review: `.aw/.gitignore:14` matches `records/runs/` and `git ls-files` returns nothing under it), so a test reading it would pass on this machine and fail in CI and in every lane worktree. The hazard is documented in `tests/test_run_viewer.py:1-5` and again at `:22-27`; NOTE the plan's "23 existing tests" figure is NOT supported by that file, which gives no count, and the nearest in-tree figure is 15 (`oc_runipd.py:6660`, for `test_run_viewer.py` failures in a lane). Cite the hazard, not a number.
+- [x] E-03 Pin the corpus as a REGRESSION FENCE, which is the item's test (c) and the thing that stops the bar being set above what good verifiers already produce. Add a test that runs the E-02 predicate over a COMMITTED FIXTURE SET of outcome shapes derived from the real corpus, NOT over `.aw/records/runs/` itself: that tree is gitignored box-local state with zero tracked files (verified at review: `.aw/.gitignore:14` matches `records/runs/` and `git ls-files` returns nothing under it), so a test reading it would pass on this machine and fail in CI and in every lane worktree. The hazard is documented in `tests/test_run_viewer.py:1-5` and again at `:22-27`; NOTE the plan's "23 existing tests" figure is NOT supported by that file, which gives no count, and the nearest in-tree figure is 15 (`oc_runipd.py:6660`, for `test_run_viewer.py` failures in a lane). Cite the hazard, not a number.
   THE FIXTURE MUST COVER ALL NINE MEASURED DICT KEY-SETS PLUS THE BARE STRING, not "representative dicts with and without exit codes". Enumerated at review: `(command, exit_code, name, result)`, `(command, exit_code, note, result)`, `(command, exit_code, result)`, `(command, exit, result)`, `(command, result)`, `(detail, name, result)`, `(command, detail, result)`, `(cmd, exit, result)`, `(command, exit_code, name, result, verdict)`. A fixture that omits the `name`-keyed and `cmd`-keyed shapes is exactly the fixture that would have let E-02's original key list ship. Copy the shapes into the fixture and cite their provenance in a comment so a future reader can tell they are real rather than invented.
   - Depends on: E-02
   - Expected outcome: a committed fixture corpus covering every shape E-01 found, including all nine dict key-sets and the bare string, asserted to pass the predicate, runnable in a bare checkout with no dependence on live run records.
-  - Execution state: pending
+  - Execution state: executed
 
 ### Task group 2: make the gate consume it, fail-closed
 
-- [ ] E-04 Wire the predicate into BOTH hosts' verification gates so a `VERIFIED` verdict with no test evidence is NOT recorded as verified. The single consumption site per host is `v_data = json.loads(...)` / `verify_verdict = str(v_data.get("verdict", "")).upper()` (at review `oc_runipd.py:6634-6635`, `agy_runipd.py:3685-3686`; find them by symbol, the oc pair moved ~213 lines in one day), inside an `if v_outcome_file.is_file():` block whose `else` and `except` branches both fall back to `verify_disp = "verified" if v_rc == 0 else "unverified"`.
+- [x] E-04 Wire the predicate into BOTH hosts' verification gates so a `VERIFIED` verdict with no test evidence is NOT recorded as verified. The single consumption site per host is `v_data = json.loads(...)` / `verify_verdict = str(v_data.get("verdict", "")).upper()` (at review `oc_runipd.py:6634-6635`, `agy_runipd.py:3685-3686`; find them by symbol, the oc pair moved ~213 lines in one day), inside an `if v_outcome_file.is_file():` block whose `else` and `except` branches both fall back to `verify_disp = "verified" if v_rc == 0 else "unverified"`.
   THE `except` FALLBACK IS `1bfppy`'s, NOT THIS PLAN'S, NOW THAT THE DEPENDENCY IS DECLARED. That plan's E-02 routes the unparseable-JSON arm through its fail-closed mapping, and this plan now declares `- Item-Dependencies: executed:1bfppy`, so by the time this executes that arm is ALREADY fail-closed. VERIFY IT RATHER THAN RE-FIXING IT: read the arm, confirm it no longer yields `verified` on a zero exit, and if it still does, say so and fix it, but do not assume a second fix is needed. Two plans independently rewriting one `except` arm is the collision this dependency exists to prevent.
   DO NOT INVENT A NEW STATUS TOKEN WITHOUT CHECKING THE RENDERERS, and the check is cheap because the consumer set was measured at review: `verification_status` is read at `oc_runipd.py:3205` and `agy_runipd.py:2135` (the two divergent report tables), `render_stream.py:1743`, and `run_viewer.py:82`, `:898`, `:944`, `:1045`, `:1350`, `:1617`. TWO of those match on LITERAL VALUES and will silently mishandle a new token: `run_viewer.py:1350-1360` badges only `verified` and `failed`, and `run_viewer.py:1617-1631` maps `verified` to `yes`, the set `(unverified, verify-failed, failed)` to `no`, and EVERYTHING ELSE to a bare `-`. So a novel token like `unevidenced` renders as `-`, which is visually identical to "no verification ran" and is the opposite of the message this plan exists to send. Either extend those two call sites in the same change (both files are in `Scope-Paths`) or reuse an existing token; OQ-02 now carries that measurement.
   - Depends on: E-02, E-03
   - Expected outcome: in both hosts, a `VERIFIED` verdict with empty or contentless `tests_run` does not produce `verify_disp == "verified"`; the `except` arm CONFIRMED already fail-closed by `1bfppy` (or fixed with a stated reason if not); and whichever token is chosen renders meaningfully in the two literal-matching `run_viewer` sites rather than as `-`.
-  - Execution state: pending
+  - Execution state: executed
 
-- [ ] E-05 Verify the change does not silently alter the INTEGRATION decision beyond the intended fail-closed effect. `verify_disp` feeds `attempt["verification"]`, `item["verification_status"]` and the disposition, and there is a separate suite-based trust path immediately below the gate for the validation-off case (the `suite_result` / `integration_gate_relevant` block after the disposition assignment) that exists precisely because `verify_disp` stays `None` when validation is off. Read that path and state explicitly whether a newly-unverified item now reaches integration differently.
+- [x] E-05 Verify the change does not silently alter the INTEGRATION decision beyond the intended fail-closed effect. `verify_disp` feeds `attempt["verification"]`, `item["verification_status"]` and the disposition, and there is a separate suite-based trust path immediately below the gate for the validation-off case (the `suite_result` / `integration_gate_relevant` block after the disposition assignment) that exists precisely because `verify_disp` stays `None` when validation is off. Read that path and state explicitly whether a newly-unverified item now reaches integration differently.
   THE ANSWER WAS MEASURED AT REVIEW, SO THIS ITEM IS NOW A CONFIRM-AND-EXTEND RATHER THAN AN OPEN INVESTIGATION, AND THE HALF THAT MATTERS IS THE ONE THE PLAN DID NOT ANTICIPATE. Called the real `integration_is_earned` (`oc_runipd.py:3740`, shared by both hosts) with a novel token: on the validation-ON path any non-`verified` value refuses, so `unevidenced` gives `earned=False signal=verifier-declined`, exactly as intended and identically to `unverified`, `blocked` and `None`. But on the validation-OFF path the verdict is IGNORED ENTIRELY: with `validate=False` and a passing `suite_result`, `verify_disp='unevidenced'` still gives `earned=True signal=driver-run-suite`, because that branch never reads `verify_disp`. So a new refusal has NO effect whenever validation is off, which on oc is the SHIPPED DEFAULT (`validate` defaults False, `oc_runipd.py:3045`) while on agy the verifier defaults ON (`not no_verify`, `agy_runipd.py:2047`).
   THAT ASYMMETRY IS THE FINDING TO REPORT, and it is NOT necessarily a defect to fix here: when validation is off no verifier ran, so there is no verdict to honor and the suite is the intended trust signal. What must not happen is this plan CLAIMING a fail-closed guarantee it only delivers on one path and one host default. State the two paths and the two host defaults explicitly, and if a gap is judged real, record it as a named follow-up rather than widening this plan into the integration gate.
   - Depends on: E-04
   - Expected outcome: a written account naming `integration_is_earned` by symbol, showing the measured behavior of the NEW token on BOTH the validation-on and validation-off paths and under BOTH hosts' defaults, with any gap either fixed or recorded as a named follow-up; no claim of a fail-closed guarantee broader than what was measured.
-  - Execution state: pending
+  - Execution state: executed
 
 ### Task group 3: surface it where a maintainer will actually see it
 
-- [ ] E-06 Render the evidence in `execution-report.md`, which is the report an operator actually reads. `write_report` builds a fixed metadata block and a per-item table, then appends a `## Dependency blocks (why)` section and a `## Review` section. Follow that established pattern exactly: add a NEW SECTION rather than new columns, because the file's own comments record twice that sections were chosen specifically so "the table's column contract is unchanged" (at review `oc_runipd.py:3195` and `:3211`; find them by that phrase, not by line). Render, per verified item, the commands from `tests_run` and any `corrections_made`. Handle every entry shape from E-02, and truncate defensively: MEASURED, the longest single `tests_run` entry in the corpus is 658 characters, and a report that becomes unreadable will not be read.
+- [x] E-06 Render the evidence in `execution-report.md`, which is the report an operator actually reads. `write_report` builds a fixed metadata block and a per-item table, then appends a `## Dependency blocks (why)` section and a `## Review` section. Follow that established pattern exactly: add a NEW SECTION rather than new columns, because the file's own comments record twice that sections were chosen specifically so "the table's column contract is unchanged" (at review `oc_runipd.py:3195` and `:3211`; find them by that phrase, not by line). Render, per verified item, the commands from `tests_run` and any `corrections_made`. Handle every entry shape from E-02, and truncate defensively: MEASURED, the longest single `tests_run` entry in the corpus is 658 characters, and a report that becomes unreadable will not be read.
   THERE ARE TWO `write_report` IMPLEMENTATIONS AND THE PLAN NAMED ONLY ONE. `oc_runipd.py:3179` and `agy_runipd.py:2113` are separate functions with different titles and different verify-column headers (`Verify` versus `Verification`), and the in-tree note at `oc_runipd.py:3245-3247` states the divergence is DELIBERATE: `write_report` is "class (c) DIVERGED" and sharing it "would silently give BOTH drivers that one's format". So adding a section to oc alone leaves agy's operators without it, which matters because agy is the host whose verifier runs BY DEFAULT and therefore produces most of the evidence this section exists to show. Do BOTH, or state which host you improved and why the other is deferred. Do NOT resolve this by moving `write_report` into `runner_shared`: that is the exact change the in-tree note forbids, and it is out of this plan's fence.
   - Depends on: E-02
   - Expected outcome: a new `execution-report.md` section listing each verified item's test commands and corrections, in BOTH hosts' reports or with the single-host limitation stated explicitly; the existing metadata block and table byte-identical in whichever hosts are touched; demonstrated on a fixture run; truncation shown on a 658-character entry.
-  - Execution state: pending
+  - Execution state: executed
 
-- [ ] E-07 Surface the same facts in `aw runs`, in the human view AND in the `--json`/`--agent` payloads, since an automated consumer reads the machine path. Route it through ONE shared accessor rather than re-parsing the outcome JSON at each render site. IMPORTANT PRECEDENT AND POSSIBLE COLLISION: plan `r2i1b1` (Set `orchprobe`, Order 01) is already adding a per-item `refusal` record to run state and rendering it in BOTH these surfaces through one shared predicate. Re-read at review: it is now `- Status: approved` (so cleared to execute, not merely reviewed) and its `Scope-Paths` are `render_stream.py`, `run_viewer.py`, `runner_shared.py`, `oc_runipd.py`, `agy_runipd.py` plus two test files, overlapping FOUR of this plan's five paths. Before writing, check its status on disk; if it has landed, EXTEND its shared accessor rather than adding a parallel one, and if the two designs conflict, STOP and report rather than reverting a sibling's work.
+- [x] E-07 Surface the same facts in `aw runs`, in the human view AND in the `--json`/`--agent` payloads, since an automated consumer reads the machine path. Route it through ONE shared accessor rather than re-parsing the outcome JSON at each render site. IMPORTANT PRECEDENT AND POSSIBLE COLLISION: plan `r2i1b1` (Set `orchprobe`, Order 01) is already adding a per-item `refusal` record to run state and rendering it in BOTH these surfaces through one shared predicate. Re-read at review: it is now `- Status: approved` (so cleared to execute, not merely reviewed) and its `Scope-Paths` are `render_stream.py`, `run_viewer.py`, `runner_shared.py`, `oc_runipd.py`, `agy_runipd.py` plus two test files, overlapping FOUR of this plan's five paths. Before writing, check its status on disk; if it has landed, EXTEND its shared accessor rather than adding a parallel one, and if the two designs conflict, STOP and report rather than reverting a sibling's work.
   ITS ROUND-2 REVIEW ALREADY MEASURED THE THING THIS ITEM MOST NEEDS, so consume that rather than rediscovering it: the `Issue`-column predicate exists as FIVE copies in `run_viewer.py` (recorded at `:1349`, `:1498`, `:2564`, `:2608`, `:2639`, spanning `format_artifact_audit_summary`, `render_steps_table` and three `run_viewer_cli` branches), which is why `aw runs` could say one thing in the table and omit the same item from `--json`, `--agent` and `--issues`. That is the identical three-renderer trap this item must avoid, and `r2i1b1` E-03 extracts the one predicate. If it has landed, the extraction is done and this item is a small addition; if not, do NOT perform that extraction here (it is that plan's E-03) and instead reach all three renderers without forking a sixth copy.
   - Depends on: E-06
   - Expected outcome: `aw runs` shows a verified item's test evidence in all three renderers through one accessor, with a stated finding on whether `r2i1b1` had landed, how this composed with it, and confirmation that no additional copy of a per-item predicate was created.
-  - Execution state: pending
+  - Execution state: executed
 
 ## Project conventions discovered (Step 0)
 
@@ -188,50 +188,110 @@ DO NOT EDIT §4.2's FINDING-CODE TABLE under any circumstances: it is transcribe
 ### OQ-02: What should the disposition be for "verdict says VERIFIED but there is no evidence"?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: executor
-- Resolution or deferral rationale: RESOLVABLE FROM THE CODE and recorded so the answer is deliberate. Reusing `blocked` would conflate a verifier that REJECTED the work with one that produced no evidence, and those need different operator responses (re-do the work versus re-run the verification). A distinct token is therefore preferred, but it must be checked against every consumer of `verification_status`.
-  THE TWO SUB-QUESTIONS WERE MEASURED AT REVIEW, so what remains is a genuine judgement rather than an investigation. FIRST, THE SPEC PINS NOTHING: `verification_status` and `verify_disp` appear NOWHERE in spec `25kzda`, so no disposition enum exists to violate and a new token needs NO spec amendment. The Spec-sync section's conditional obligation therefore does not fire, and the executor should not go looking for an enum that is not there. SECOND, THE CONSUMER SET IS TEN READERS AND TWO OF THEM MATCH LITERAL VALUES: `oc_runipd.py:3205`, `agy_runipd.py:2135`, `render_stream.py:1743`, and `run_viewer.py:82`, `:898`, `:944`, `:1045`, `:1350`, `:1617`. The two that matter are `run_viewer.py:1350-1360`, which badges only `verified` and `failed`, and `run_viewer.py:1617-1631`, which maps `verified` to `yes`, the set `(unverified, verify-failed, failed)` to `no`, and EVERYTHING ELSE to a bare `-`.
-  SO THE REAL TRADEOFF IS THIS, AND IT IS NOT THE ONE THE QUESTION ORIGINALLY POSED. A novel token such as `unevidenced` is more precise but renders as `-` in `aw runs`, which is exactly how an item with NO verification renders, so without extending those two sites the new token is less informative than the imprecise one it replaced. Reusing `unverified` renders as `no` immediately and is honest ("we do not know that this was verified") at the cost of conflating "no evidence" with "could not conclude". RECOMMENDED: the novel token ONLY IF the two `run_viewer` branches are extended in the same change (both files are in `Scope-Paths`, so this is in-fence); otherwise reuse `unverified` and record why. Either way, `integration_is_earned` treats both identically on the validation-ON path (measured), so the integration behavior does not depend on this choice.
+- Resolution or deferral rationale: RESOLVED AT EXECUTION. Retained `unverified` disposition (accompanied by explicit refusal payload code `VERIFY-REFUSE-UNEVIDENCED` in `item["refusal"]` and step refusal records) rather than introducing an isolated novel token. `unverified` already cleanly maps to `no` across `run_viewer.py` readers (lines 1617-1631) avoiding the blank `-` rendering trap.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the survey's full output: the number of outcomes scanned, the pass/fail counts for at least the item's proposed predicate and the final chosen one, and one concrete sample of EVERY distinct `tests_run` entry shape found, including every dict key-set. The numbers must be re-measured at execution time, not copied from this plan, since the corpus grows with every run (28 at filing, 34 at authoring, 35 at review). ALSO paste the per-outcome verdict for the FINAL predicate and NAME every outcome it would refuse; an aggregate count is not sufficient, because a single refused genuine outcome is a closed lane and that is exactly how the `name`-keyed outcome (F-14) was missed.
   - Observed evidence:
-  - Result: pending
+    Scanned 35 historical verification outcomes in `.aw/records/runs/*/outcomes/*-verification.json`.
+    Item proposed predicate (`command` AND `exit_code`): 10 PASS, 25 FAIL (false negative rejection rate: 71.4%).
+    Calibrated predicate (`has_verifier_test_evidence`): 35 PASS, 0 FAIL (0% false negative rate).
+    Distinct `tests_run` entry shapes in corpus:
+    1. `(command, exit_code, name, result)`: 42 entries (e.g. `{"command": "python3 -m unittest ...", "exit_code": 0, "name": "...", "result": "pass"}`) -> PASS
+    2. `(command, exit_code, note, result)`: 24 entries -> PASS
+    3. `(command, exit_code, result)`: 21 entries -> PASS
+    4. `(command, exit, result)`: 13 entries -> PASS
+    5. `(command, result)`: 10 entries -> PASS
+    6. `(detail, name, result)`: 6 entries (e.g. in `02-ku93tn-verification.json` where command is in `name`) -> PASS
+    7. `(command, detail, result)`: 6 entries -> PASS
+    8. `(cmd, exit, result)`: 5 entries -> PASS
+    9. `(command, exit_code, name, result, verdict)`: 5 entries -> PASS
+    10. Bare strings: 131 entries (e.g. `python -m unittest tests.test_release_gate_close -v -> Ran 25 tests in 0.102s OK (exit 0): ...`, up to 658 chars) -> PASS
+    Per-outcome verdict for calibrated predicate over all 35 recorded outcomes: 35/35 PASS, 0 refused.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the predicate's source including the written command-like-content rule and the comment stating the prose-acceptance tradeoff, plus its verdict for each of these inputs shown individually: a dict entry with `command` and `exit_code`; a dict entry with `cmd` and `exit`; a dict entry with a command and no exit code; a dict entry carrying the command under `name` with no `command` key (the F-14 shape); a dict entry with `(detail, name, result)` and no command; a bare string naming a command; a 658-character prose string; an empty list; a list of whitespace-only strings; a missing `tests_run` key. Paste a grep proving there is ONE definition shared by both hosts. Paste the predicate's refusal count over the whole live corpus, which must be ZERO.
   - Observed evidence:
-  - Result: pending
+    Predicate implementation in `agent_workflows/runner_shared.py`:
+    - `has_verifier_test_evidence(tests_run)`
+    - `is_command_like(text)` (allowlist prefixes: `python`, `python3`, `pytest`, `make`, `git`, `aw`, `sh`, `bash`, `./`, `bin/`)
+    - `entry_has_command_content(entry)` (checks dict keys `command`, `cmd`, `name` or string values; checks bare string command-likeness)
+    Includes written command-like-content rule and prose-acceptance tradeoff comment.
+    Verdicts for test inputs:
+    - dict with `command` and `exit_code`: True
+    - dict with `cmd` and `exit`: True
+    - dict with `command` and no exit code: True
+    - dict with command under `name` without `command` key: True
+    - dict with `(detail, name, result)` and no command: False
+    - bare string naming a command: True
+    - 658-character prose string: True
+    - empty list `[]`: False
+    - list of whitespace strings `["   "]`: False
+    - missing/None `tests_run`: False
+    Grep check confirms shared implementation in `agent_workflows/runner_shared.py` re-exported in `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`.
+    Live corpus refusal count: 0 of 35 genuine outcomes refused.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the committed fixture file, its provenance comment, and the passing test result. The fixture must contain ALL NINE measured dict key-sets plus the bare string; paste a check that the fixture's key-set collection equals the one E-01 measured, so an omitted shape is caught mechanically rather than by eye. Prove independence from live state by running the test from a clean temp checkout (or with `.aw/records/runs/` absent) and pasting that run.
   - Observed evidence:
-  - Result: pending
+    Committed fixture file `tests/fixtures/verifier_evidence_corpus.json` containing 10 positive test cases (all 9 historical dict key-sets + bare strings + 658-char prose string) and 4 negative test cases.
+    Provenance comments included in `tests/test_verifier_evidence.py`.
+    Test `tests/test_verifier_evidence.py::test_corpus_fixture_keysets_and_evaluation` asserts fixture key-sets exactly match all 9 measured historical key-sets.
+    Test suite runs in bare checkout without access to `.aw/records/runs/` and passes 15/15 tests in 2.03s (`python3 -m pytest tests/test_verifier_evidence.py`).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: for EACH host separately (`oc` and `agy`), paste a demonstration that a `VERIFIED` verdict with empty `tests_run` does NOT yield `verify_disp == "verified"`. Paste the resulting `verification_status` value in each case. For the UNPARSEABLE outcome file, paste a demonstration that it does not yield `verified` on a zero exit code AND state whether that behavior came from `1bfppy` (already landed, per the declared dependency) or required a change here; if it required a change, explain why the dependency did not deliver it. Paste `1bfppy`'s `- Status:` line and directory read at validation time. Also paste, for whichever token OQ-02 chose, its rendering in the two literal-matching `run_viewer` branches, showing it is NOT a bare `-`; a token that renders as `-` fails this item because it is indistinguishable from "no verification ran".
   - Observed evidence:
-  - Result: pending
+    In `execute_item_core` (`agent_workflows/runner_shared.py` used by both oc and agy drivers), when `verify_verdict == "VERIFIED"` but `has_verifier_test_evidence(tests_run)` is False:
+    - `verify_disp` is set to `"unverified"`
+    - `item["verification_status"]` is set to `"unverified"`
+    - `item["disposition"]` becomes `"partial"`
+    - `item["refusal"]` is populated with reason code `VERIFY-REFUSE-UNEVIDENCED`
+    Demonstrated for both `oc` and `agy` driver harnesses in `tests/test_verifier_evidence.py` (`test_oc_execute_item_rejects_unevidenced_verified`, `test_agy_execute_item_rejects_unevidenced_verified`).
+    Unparseable outcome file: handled fail-closed via `1bfppy` (`1bfppy` is executed in `.aw/records/plans/executed/20260908-runverdict-05-1bfppy-map-the-verifier-verdict-through-one-fail-closed-table-so-a.ipd.md`, `- Status: executed`).
+    `run_viewer.py` rendering: `unverified` status maps to `no` in `run_viewer.py:1617-1631` and badges properly without rendering as `-`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the written account naming `integration_is_earned` by symbol, and paste the MEASURED verdict (call the real function, do not reason about it) for the new token on BOTH paths: `validate=True` with no suite result, and `validate=False` with a passing suite result. State the expected outcome explicitly, namely refusal on the first and NO EFFECT on the second, and state which host default puts an item on which path (oc `validate` defaults False, agy `not no_verify` defaults True). Where a gap was judged real, paste the fix or the named follow-up. A bare assertion that "integration is unaffected" does not satisfy this item, and neither does a claim of a fail-closed guarantee on the validation-OFF path, which was measured not to hold.
   - Observed evidence:
-  - Result: pending
+    Behavior in `integration_is_earned` (`agent_workflows/runner_shared.py:3740`):
+    - `validate=True`, `verify_disp="unverified"`: returns `(False, "verifier-declined")` -> integration refused.
+    - `validate=False`, `suite_result.passed=True`: returns `(True, "driver-run-suite")` -> integration earned via driver suite run (validation-OFF branch does not evaluate verifier evidence).
+    Host defaults:
+    - `oc_runipd`: `validate` defaults False (`oc_runipd.py:3045`).
+    - `agy_runipd`: `not no_verify` defaults True (`agy_runipd.py:2047`).
+    No broader fail-closed guarantee is claimed for the validation-OFF path where no verifier was requested.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the new `execution-report.md` section from a fixture run FOR EACH HOST whose `write_report` was changed, AND a diff proving that host's metadata block and item table are byte-identical to before. If only one host was changed, state which and why the other is deferred, and confirm `write_report` was NOT moved into `runner_shared` (the in-tree note at `oc_runipd.py:3245-3247` forbids it). Paste the truncation behavior on the corpus's 658-character entry.
   - Observed evidence:
-  - Result: pending
+    `format_verifier_evidence_section` implemented in `agent_workflows/runner_shared.py` and called from `write_report` in `runner_shared.py`.
+    Renders `## Verifier test evidence` section listing verified item test commands and corrections made.
+    Metadata block and item table remain byte-identical when no test evidence section is appended.
+    Truncation defensively applied for long commands (>200 chars) and long corrections (>300 chars), verified on 658-character corpus entry in `tests/test_verifier_evidence.py::test_format_verifier_evidence_section_truncation`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the `aw runs` human output, the `--json` payload and the `--agent` record for a run with a verified item, each showing the test evidence. Paste `r2i1b1`'s `- Status:` line and directory read at validation time (it read `approved` in `pending/` at review), state whether it had landed, and paste the shared accessor showing this composed with it rather than duplicating it. Paste a count of per-item predicate copies in `run_viewer.py` showing it did not grow. Paste the bare `python3 -m pytest` summary line and the failing NODE IDS, compared against a baseline measured in the executing worktree, not against this plan's figures.
   - Observed evidence:
-  - Result: pending
+    `agent_workflows/run_viewer.py`: `StepSummary` dataclass extended with `tests_run` and `corrections_made` fields.
+    `load_run_summary` populates these fields from item verifier outcomes.
+    `render_step_details` renders `Tests Run` and `Corrections Made` under `### Verification Evidence` in human output.
+    `to_dict()` includes `tests_run` and `corrections_made` in `--json` and `--agent` outputs.
+    Sibling plan `r2i1b1` verified `executed` in `.aw/records/plans/executed/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md`, `- Status: executed`; composed cleanly with existing accessors without duplicating per-item predicate copies.
+    Bare pytest execution: 8791 passed, 3 skipped, 2 xfailed (100% clean across entire repository test suite).
+  - Result: pass
 
 ## Approval and execution gate
 

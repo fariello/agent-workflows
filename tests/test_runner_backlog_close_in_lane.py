@@ -308,7 +308,15 @@ def _fake_agent(run_dir: Path, *, observe: dict | None = None):
                 run_dir
                 / "outcomes"
                 / f"{item['position']:02d}-{item['id6']}-verification.json"
-            ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
+            ).write_text(
+                json.dumps(
+                    {
+                        "verdict": "VERIFIED",
+                        "tests_run": ["python3 -m unittest tests.test_from_backlog -v"],
+                    }
+                ),
+                encoding="utf-8",
+            )
             return 0, "vses", str(run_dir / "vlog"), ["oc"]
         tree = Path(work_dir) if work_dir else Path(state["repo"])
         (tree / "src").mkdir(parents=True, exist_ok=True)
@@ -943,7 +951,17 @@ class AgyHostClosesInTheLaneToo(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
+                ).write_text(
+                    json.dumps(
+                        {
+                            "verdict": "VERIFIED",
+                            "tests_run": [
+                                "python3 -m unittest tests.test_from_backlog -v"
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
                 return 0, "vses", str(run_dir / "vlog"), ["agy"]
             tree = Path(work_dir) if work_dir else Path(state["repo"])
             (tree / "src").mkdir(parents=True, exist_ok=True)

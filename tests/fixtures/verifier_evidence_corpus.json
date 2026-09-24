@@ -1,0 +1,173 @@
+{
+  "description": "Committed regression fence corpus covering all 9 dict key-sets and bare string shapes measured across historical verification outcomes",
+  "provenance": "Derived from .aw/records/runs/*/outcomes/*-verification.json corpus analyzed during plan bxx9af authoring and review",
+  "shapes": [
+    {
+      "name": "dict_command_exit_code_name_result",
+      "keys": ["command", "exit_code", "name", "result"],
+      "entry": {
+        "command": "python3 -m unittest tests.test_from_backlog -v",
+        "exit_code": 0,
+        "name": "unit_tests",
+        "result": "pass"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "dict_command_exit_code_note_result",
+      "keys": ["command", "exit_code", "note", "result"],
+      "entry": {
+        "command": "python3 -m pytest tests/test_runner_refork_guard.py",
+        "exit_code": 0,
+        "note": "all refork checks passed",
+        "result": "pass"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "dict_command_exit_code_result",
+      "keys": ["command", "exit_code", "result"],
+      "entry": {
+        "command": "pytest tests/test_release_gate_close.py",
+        "exit_code": 0,
+        "result": "pass"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "dict_command_exit_result",
+      "keys": ["command", "exit", "result"],
+      "entry": {
+        "command": "make test",
+        "exit": 0,
+        "result": "pass"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "dict_command_result",
+      "keys": ["command", "result"],
+      "entry": {
+        "command": "git diff --stat",
+        "result": "pass"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "dict_detail_name_result",
+      "keys": ["detail", "name", "result"],
+      "entry": {
+        "name": "python -m unittest tests.test_from_backlog -v",
+        "result": "pass",
+        "detail": "Ran 6 tests in 0.050s OK"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "dict_command_detail_result",
+      "keys": ["command", "detail", "result"],
+      "entry": {
+        "command": "aw runs --json",
+        "detail": "parsed successfully",
+        "result": "pass"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "dict_cmd_exit_result",
+      "keys": ["cmd", "exit", "result"],
+      "entry": {
+        "cmd": "python3 -m pytest tests/test_verify_roles_packet.py",
+        "exit": 0,
+        "result": "pass"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "dict_command_exit_code_name_result_verdict",
+      "keys": ["command", "exit_code", "name", "result", "verdict"],
+      "entry": {
+        "command": "pytest tests/test_run_viewer.py",
+        "exit_code": 0,
+        "name": "viewer_tests",
+        "result": "pass",
+        "verdict": "VERIFIED"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "bare_string_standard",
+      "keys": null,
+      "entry": "python -m unittest tests.test_release_gate_close -v -> Ran 25 tests in 0.102s OK (exit 0): all checks pass",
+      "expected_valid": true
+    },
+    {
+      "name": "bare_string_658_chars",
+      "keys": null,
+      "entry": "python -m unittest tests.test_release_gate_close -v -> Ran 25 tests in 0.102s OK (exit 0): ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------",
+      "expected_valid": true
+    },
+    {
+      "name": "dict_rc_tolerated",
+      "keys": ["command", "rc", "result"],
+      "entry": {
+        "command": "python3 -m unittest tests.test_foo",
+        "rc": 0,
+        "result": "pass"
+      },
+      "expected_valid": true
+    }
+  ],
+  "negative_cases": [
+    {
+      "name": "missing_tests_run",
+      "outcome": {
+        "schema_version": 1,
+        "id6": "bxx9af",
+        "verdict": "VERIFIED"
+      }
+    },
+    {
+      "name": "none_tests_run",
+      "outcome": {
+        "tests_run": null
+      }
+    },
+    {
+      "name": "empty_list",
+      "outcome": {
+        "tests_run": []
+      }
+    },
+    {
+      "name": "whitespace_only_strings",
+      "outcome": {
+        "tests_run": ["", "   ", "\t\n"]
+      }
+    },
+    {
+      "name": "contentless_prose",
+      "outcome": {
+        "tests_run": ["all tests passed", "looks good", "verified", "none", "N/A"]
+      }
+    },
+    {
+      "name": "dict_without_command_content",
+      "outcome": {
+        "tests_run": [
+          {
+            "name": "manual check",
+            "result": "pass",
+            "detail": "looks good"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dict_empty",
+      "outcome": {
+        "tests_run": [{}]
+      }
+    }
+  ]
+}

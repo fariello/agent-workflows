@@ -238,6 +238,30 @@ from agent_workflows.runner_shared import (
     VERIFY_ABSENCE_VERDICT_UNREADABLE as VERIFY_ABSENCE_VERDICT_UNREADABLE,
 )
 
+# runverdict-05 (`bxx9af`): verifier test evidence predicate, extractors and refusal text.
+# Bound from `runner_shared` and NEVER defined here.
+from agent_workflows.runner_shared import (
+    extract_verifier_corrections as extract_verifier_corrections,
+)
+from agent_workflows.runner_shared import (
+    extract_verifier_test_commands as extract_verifier_test_commands,
+)
+from agent_workflows.runner_shared import (
+    format_verifier_evidence_section as format_verifier_evidence_section,
+)
+from agent_workflows.runner_shared import (
+    has_verifier_test_evidence as has_verifier_test_evidence,
+)
+from agent_workflows.runner_shared import (
+    verifier_evidence_refusal_text as verifier_evidence_refusal_text,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_COMMAND_PREFIXES as VERIFY_COMMAND_PREFIXES,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_REFUSAL_CODE_UNEVIDENCED as VERIFY_REFUSAL_CODE_UNEVIDENCED,
+)
+
 # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, bound HERE rather than reached through
 # `runner_shared.` at the call site, because the cross-driver symmetry guard
 # (`tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`) requires each driver to CARRY

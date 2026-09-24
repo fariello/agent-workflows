@@ -238,6 +238,30 @@ from agent_workflows.runner_shared import (
     VERIFY_ABSENCE_VERDICT_UNREADABLE as VERIFY_ABSENCE_VERDICT_UNREADABLE,
 )
 
+# runverdict-05 (`bxx9af`): verifier test evidence predicate, extractors and refusal text.
+# Bound from `runner_shared` and NEVER defined here.
+from agent_workflows.runner_shared import (
+    extract_verifier_corrections as extract_verifier_corrections,
+)
+from agent_workflows.runner_shared import (
+    extract_verifier_test_commands as extract_verifier_test_commands,
+)
+from agent_workflows.runner_shared import (
+    format_verifier_evidence_section as format_verifier_evidence_section,
+)
+from agent_workflows.runner_shared import (
+    has_verifier_test_evidence as has_verifier_test_evidence,
+)
+from agent_workflows.runner_shared import (
+    verifier_evidence_refusal_text as verifier_evidence_refusal_text,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_COMMAND_PREFIXES as VERIFY_COMMAND_PREFIXES,
+)
+from agent_workflows.runner_shared import (
+    VERIFY_REFUSAL_CODE_UNEVIDENCED as VERIFY_REFUSAL_CODE_UNEVIDENCED,
+)
+
 # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, imported from `runner_shared` and NOT from
 # `oc_runipd`. This host already imports 53 names from that driver (AST-measured), and adding to that
 # pile would deepen the layering defect backlog `cnwy8g` owns; `7nkcgp`'s F-11 caught a proposed shared

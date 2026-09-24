@@ -285,6 +285,13 @@ REFORK_TABLE: tuple[Owned, ...] = (
     Owned("normalize_verdict", "runner_shared", BOTH),
     Owned("verdict_refusal_text", "runner_shared", BOTH),
     Owned("VerdictMapping", "runner_shared", BOTH),
+    # --- runner_shared: THE VERIFIER EVIDENCE API, added by `runverdict` Order 05 (`bxx9af`) --------
+    Owned("has_verifier_test_evidence", "runner_shared", BOTH),
+    Owned("extract_verifier_test_commands", "runner_shared", BOTH),
+    Owned("extract_verifier_corrections", "runner_shared", BOTH),
+    Owned("verifier_evidence_refusal_text", "runner_shared", BOTH),
+    Owned("VERIFY_COMMAND_PREFIXES", "runner_shared", BOTH),
+    Owned("VERIFY_REFUSAL_CODE_UNEVIDENCED", "runner_shared", BOTH),
     # --- runner_shared: WHY THERE WAS NO VERDICT, added by `runverdict` Order 06 (`fzxfph`) --------
     #
     # The sibling rows above answer "what did the verifier SAY". These answer "why did it say

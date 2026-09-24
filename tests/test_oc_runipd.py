@@ -3496,7 +3496,13 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             )
             # verifier outcome -> verified
             (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
-                json.dumps({"verdict": "VERIFIED"}), encoding="utf-8"
+                json.dumps(
+                    {
+                        "verdict": "VERIFIED",
+                        "tests_run": ["python3 -m unittest tests.test_from_backlog -v"],
+                    }
+                ),
+                encoding="utf-8",
             )
 
             finalize_calls = []
@@ -3598,7 +3604,13 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
-                json.dumps({"verdict": "VERIFIED"}), encoding="utf-8"
+                json.dumps(
+                    {
+                        "verdict": "VERIFIED",
+                        "tests_run": ["python3 -m unittest tests.test_from_backlog -v"],
+                    }
+                ),
+                encoding="utf-8",
             )
 
             with (
@@ -3735,7 +3747,17 @@ class WorktreeIsolationTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
+                ).write_text(
+                    json.dumps(
+                        {
+                            "verdict": "VERIFIED",
+                            "tests_run": [
+                                "python3 -m unittest tests.test_from_backlog -v"
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
             # execute turn -> commit an in-scope change in the WORKTREE.
             wt = Path(work_dir)
@@ -3837,7 +3859,17 @@ class WorktreeIsolationTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
+                ).write_text(
+                    json.dumps(
+                        {
+                            "verdict": "VERIFIED",
+                            "tests_run": [
+                                "python3 -m unittest tests.test_from_backlog -v"
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
 
             with mock.patch.object(driver, "run_opencode", fake_run):
@@ -4029,7 +4061,17 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
+                ).write_text(
+                    json.dumps(
+                        {
+                            "verdict": "VERIFIED",
+                            "tests_run": [
+                                "python3 -m unittest tests.test_from_backlog -v"
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
             wt = Path(work_dir)
             (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -4073,7 +4115,17 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
+                ).write_text(
+                    json.dumps(
+                        {
+                            "verdict": "VERIFIED",
+                            "tests_run": [
+                                "python3 -m unittest tests.test_from_backlog -v"
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
             wt = Path(work_dir)
             (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -4202,7 +4254,17 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
+                ).write_text(
+                    json.dumps(
+                        {
+                            "verdict": "VERIFIED",
+                            "tests_run": [
+                                "python3 -m unittest tests.test_from_backlog -v"
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
             wt = Path(work_dir)
             subprocess.run(["git", "mv", orig, dest], cwd=wt, check=True)

@@ -18578,6 +18578,229 @@ def verify_absence_text(code: str, *, plan_hint: str = "") -> tuple[str, str]:
 
 
 # ==================================================================================================
+# THE VERIFIER TEST EVIDENCE PREDICATE (runverdict-05, `bxx9af`)
+#
+# SHARED EVIDENCE PREDICATE AND CONSUMERS, calibrated against the recorded verification corpus.
+#
+# The verifier outcome schema requests `tests_run` and `corrections_made`, but the runner historically
+# consumed only `verdict` as a single opaque bit. This gate makes `verified` require REAL TEST EVIDENCE
+# in `tests_run`, preventing an unevidenced assertion from being recorded as verified.
+#
+# COMMAND-LIKE CONTENT RULE:
+# A `tests_run` entry carries command-like content if:
+#   1. It is a dict and any of its command-holding fields (`command`, `cmd`, `name`) or other string
+#      values contains non-whitespace text whose first argument/token matches a recognized runner prefix
+#      (`python`, `python3`, `pytest`, `make`, `git`, `aw`, `sh`, `bash`, `cargo`, `npm`, `node`, `uv`,
+#      `tox`, `./`, `bin/`) or common command pattern. Exit codes (`exit_code`, `exit`, `rc`) are tolerated.
+#   2. It is a bare string whose first argument/token matches a recognized runner prefix or command pattern.
+#
+# RESIDUAL WEAKNESS / SCOPE BOUNDARY (honestly stated):
+# Accepting prose strings and dict entries without session log cross-checking proves ACTIVITY (the verifier
+# recorded commands executed), not correctness or proof of non-fabrication. Cross-checking claimed commands
+# against session log tool invocations is a separate failure model and is scoped separately.
+# ==================================================================================================
+
+#: Refusal code: the verifier reported VERIFIED but provided no test evidence in `tests_run`.
+VERIFY_REFUSAL_CODE_UNEVIDENCED: str = "verifier-no-test-evidence"
+
+#: Recognized test runner command prefixes.
+VERIFY_COMMAND_PREFIXES: tuple[str, ...] = (
+    "python",
+    "python3",
+    "pytest",
+    "make",
+    "git",
+    "aw",
+    "sh",
+    "bash",
+    "cargo",
+    "npm",
+    "node",
+    "uv",
+    "tox",
+    "./",
+    "bin/",
+)
+
+
+def is_command_like(text: Any) -> bool:
+    """Determine if a string carries command-like execution content."""
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    if not stripped:
+        return False
+    first_token = stripped.split()[0].rstrip(":,")
+    first_token_lower = first_token.lower()
+    if first_token_lower in VERIFY_COMMAND_PREFIXES or any(
+        first_token_lower.startswith(prefix) for prefix in VERIFY_COMMAND_PREFIXES
+    ):
+        return True
+    stripped_lower = stripped.lower()
+    if any(stripped_lower.startswith(prefix) for prefix in VERIFY_COMMAND_PREFIXES):
+        return True
+    for pattern in (
+        "python -m",
+        "python3 -m",
+        "pytest ",
+        "pytest\n",
+        "make ",
+        "git ",
+        "aw ",
+    ):
+        if pattern in stripped_lower:
+            return True
+    return False
+
+
+def entry_has_command_content(entry: Any) -> bool:
+    """Check whether a single `tests_run` entry (dict or string) carries command content."""
+    if isinstance(entry, str):
+        return is_command_like(entry)
+    if isinstance(entry, dict):
+        for key in ("command", "cmd", "name"):
+            val = entry.get(key)
+            if isinstance(val, str) and is_command_like(val):
+                return True
+        for val in entry.values():
+            if isinstance(val, str) and is_command_like(val):
+                return True
+    return False
+
+
+def has_verifier_test_evidence(v_data: Any) -> bool:
+    """Decide whether a verifier outcome dict carries real test evidence in `tests_run`.
+
+    Calibrated against historical verification outcomes (plan `bxx9af` E-01/E-02).
+    Requires a non-empty `tests_run` list with at least one entry satisfying the command content rule.
+    """
+    if not isinstance(v_data, dict):
+        return False
+    tests_run = v_data.get("tests_run")
+    if not isinstance(tests_run, list) or not tests_run:
+        return False
+    return any(entry_has_command_content(entry) for entry in tests_run)
+
+
+def extract_verifier_test_commands(v_data: Any, max_len: int = 120) -> list[str]:
+    """Extract cleaned, truncated command strings from `tests_run` in a verifier outcome."""
+    if not isinstance(v_data, dict):
+        return []
+    tests_run = v_data.get("tests_run")
+    if not isinstance(tests_run, list):
+        return []
+    commands: list[str] = []
+    for entry in tests_run:
+        cmd_str = ""
+        if isinstance(entry, str):
+            cmd_str = entry.strip()
+        elif isinstance(entry, dict):
+            for key in ("command", "cmd", "name"):
+                val = entry.get(key)
+                if isinstance(val, str) and val.strip():
+                    cmd_str = val.strip()
+                    break
+            if not cmd_str:
+                for val in entry.values():
+                    if isinstance(val, str) and is_command_like(val):
+                        cmd_str = val.strip()
+                        break
+        if cmd_str:
+            clean = " ".join(cmd_str.split())
+            if max_len > 0 and len(clean) > max_len:
+                clean = clean[: max_len - 3] + "..."
+            commands.append(clean)
+    return commands
+
+
+def extract_verifier_corrections(v_data: Any, max_len: int = 120) -> list[str]:
+    """Extract cleaned, truncated correction strings from `corrections_made`."""
+    if not isinstance(v_data, dict):
+        return []
+    corrections = v_data.get("corrections_made")
+    if not isinstance(corrections, list):
+        return []
+    results: list[str] = []
+    for corr in corrections:
+        corr_str = str(corr).strip()
+        if corr_str:
+            clean = " ".join(corr_str.split())
+            if max_len > 0 and len(clean) > max_len:
+                clean = clean[: max_len - 3] + "..."
+            results.append(clean)
+    return results
+
+
+def verifier_evidence_refusal_text(v_data: Any) -> tuple[str, str, str]:
+    """Return (code, reason, remedy) for a verifier that reported VERIFIED without test evidence."""
+    return (
+        VERIFY_REFUSAL_CODE_UNEVIDENCED,
+        (
+            "the verifier reported 'VERIFIED' but provided no test evidence in 'tests_run', "
+            "so the turn is recorded NOT VERIFIED and was not integrated. The framework requires "
+            "claims to be backed by pasted test execution evidence"
+        ),
+        (
+            "read the verifier's outcome file in the run's `outcomes/` directory: ensure test "
+            "commands were actually executed and recorded in `tests_run`, then re-run this item's "
+            "verification. The lane is PRESERVED and nothing was merged, so do NOT re-run the plan "
+            "from scratch"
+        ),
+    )
+
+
+def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> list[str]:
+    """Render the `## Verification evidence` section for `execution-report.md`.
+
+    Returns [] if no items have verified test evidence, ensuring unaffected reports are byte-identical.
+    """
+    queue = state.get("queue", [])
+    verified_items: list[tuple[dict[str, Any], list[str], list[str]]] = []
+    for item in queue:
+        pos = item.get("position", 1)
+        id6 = item.get("id6", "")
+        v_outcome_file = run_dir / "outcomes" / f"{pos:02d}-{id6}-verification.json"
+        v_data: dict[str, Any] = {}
+        if v_outcome_file.is_file():
+            try:
+                v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        tests_run = item.get("tests_run") or v_data.get("tests_run") or []
+        corrections = (
+            item.get("corrections_made") or v_data.get("corrections_made") or []
+        )
+        v_status = item.get("verification_status")
+        if v_status == VERIFY_DISP_VERIFIED or (
+            v_data.get("verdict") == "VERIFIED" and tests_run
+        ):
+            cmds = extract_verifier_test_commands({"tests_run": tests_run})
+            corrs = extract_verifier_corrections({"corrections_made": corrections})
+            if cmds or corrs:
+                verified_items.append((item, cmds, corrs))
+
+    if not verified_items:
+        return []
+
+    lines = ["", "## Verification evidence", ""]
+    for it, cmds, corrs in verified_items:
+        lines.append(f"- `{it['id6']}` (position {it['position']}):")
+        lines.append("  - Tests run:")
+        if cmds:
+            for cmd in cmds:
+                lines.append(f"    - `{cmd}`")
+        else:
+            lines.append("    - (none recorded)")
+        lines.append("  - Corrections made:")
+        if corrs:
+            for corr in corrs:
+                lines.append(f"    - {corr}")
+        else:
+            lines.append("    - (none recorded)")
+    return lines
+
+
+# ==================================================================================================
 # THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)
 #
 # WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
@@ -22367,6 +22590,8 @@ def write_report(
     from agent_workflows import lane_containment
 
     lines.extend(lane_containment.format_preserved_lanes(state))
+    # runverdict-05 (`bxx9af`) E-06: render verified items' test evidence and corrections in execution-report.md
+    lines.extend(format_verifier_evidence_section(state, run_dir))
     lines.extend(
         [
             "",
@@ -26047,7 +26272,36 @@ def execute_item_core(
                         )
                         attempt["verify_verdict_state"] = v_map.state
                         attempt["verify_verdict_recognized"] = v_map.recognized
-                        if verify_disp != VERIFY_DISP_VERIFIED:
+
+                        # runverdict-05 (`bxx9af`) E-04: require real test evidence before verify_disp can be 'verified'
+                        v_has_evidence = False
+                        if not v_unreadable and isinstance(v_data, dict):
+                            v_has_evidence = has_verifier_test_evidence(v_data)
+                            attempt["tests_run"] = v_data.get("tests_run", [])
+                            attempt["corrections_made"] = v_data.get(
+                                "corrections_made", []
+                            )
+                            item["tests_run"] = v_data.get("tests_run", [])
+                            item["corrections_made"] = v_data.get(
+                                "corrections_made", []
+                            )
+                        attempt["verify_has_evidence"] = v_has_evidence
+
+                        if verify_disp == VERIFY_DISP_VERIFIED and not v_has_evidence:
+                            verify_disp = VERIFY_DISP_UNVERIFIED
+                            disposition = "partial"
+                            v_code, v_reason, v_remedy = verifier_evidence_refusal_text(
+                                v_data
+                            )
+                            record_refusal(
+                                item, code=v_code, reason=v_reason, remedy=v_remedy
+                            )
+                            print(
+                                pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                                file=sys.stderr,
+                            )
+                            print(pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr)
+                        elif verify_disp != VERIFY_DISP_VERIFIED:
                             # E-05: SAY WHAT TO DO. A gate that only refuses gets worked around, and
                             # this refusal's destructive "fix" is expensive (re-running a plan whose
                             # lane already holds the work). Recorded through `r2i1b1`'s ONE refusal

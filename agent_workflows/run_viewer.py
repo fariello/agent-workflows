@@ -39,6 +39,7 @@ from agent_workflows.render_stream import (
 from agent_workflows.runner_shared import (
     ANALYTICS_DIRNAME,
     analytics_root,
+    extract_verifier_test_commands,
     path_is_within_analytics,
     state_root,
 )
@@ -181,6 +182,9 @@ class StepSummary:
     # dict rather than the dataclass so `dataclasses.asdict` renders it directly into the `--json` and
     # `--agent` payloads as DISCRETE FIELDS; read it through `step_refusal`, never by hand.
     refusal: dict[str, str] | None = None
+    # runverdict (bxx9af) E-07: verifier evidence (tests_run / corrections_made) surfaced in StepSummary
+    tests_run: list[Any] = field(default_factory=list)
+    corrections_made: list[str] = field(default_factory=list)
 
     @property
     def is_projected(self) -> bool:
@@ -1005,6 +1009,32 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     fallback_end=_parse_iso_timestamp_utc(updated_at),
                 )
 
+                item_tests_run = item.get("tests_run")
+                item_corrections = item.get("corrections_made")
+                if (item_tests_run is None or item_corrections is None) and run_dir:
+                    v_outcome_file = (
+                        run_dir / "outcomes" / f"{pos:02d}-{id6}-verification.json"
+                    )
+                    if v_outcome_file.is_file():
+                        try:
+                            _v_data = json.loads(
+                                v_outcome_file.read_text(encoding="utf-8")
+                            )
+                            if item_tests_run is None:
+                                item_tests_run = _v_data.get("tests_run")
+                            if item_corrections is None:
+                                item_corrections = _v_data.get("corrections_made")
+                        except Exception:
+                            pass
+                tests_run_list = (
+                    list(item_tests_run) if isinstance(item_tests_run, list) else []
+                )
+                corrections_list = (
+                    [str(c) for c in item_corrections]
+                    if isinstance(item_corrections, list)
+                    else []
+                )
+
                 steps.append(
                     StepSummary(
                         position=pos,
@@ -1038,6 +1068,9 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                             if (_rf := refusal_of_item(item)) is not None
                             else None
                         ),
+                        # runverdict (bxx9af) E-07: verifier evidence in StepSummary
+                        tests_run=tests_run_list,
+                        corrections_made=corrections_list,
                     )
                 )
 
@@ -2117,6 +2150,24 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
                     term.color256(f"  * tokens: {tok_str}", 245)
                     if getattr(term, "color", False)
                     else f"  * tokens: {tok_str}"
+                )
+        if step.tests_run:
+            cmds = extract_verifier_test_commands({"tests_run": step.tests_run})
+            for cmd in cmds:
+                truncated = cmd if len(cmd) <= 120 else cmd[:117] + "..."
+                details.append(
+                    term.color256(f"  > test: {truncated}", 36)
+                    if getattr(term, "color", False)
+                    else f"  > test: {truncated}"
+                )
+        if step.corrections_made:
+            for corr in step.corrections_made:
+                corr_str = str(corr).strip()
+                truncated = corr_str if len(corr_str) <= 120 else corr_str[:117] + "..."
+                details.append(
+                    term.color256(f"  ~ correction: {truncated}", 33)
+                    if getattr(term, "color", False)
+                    else f"  ~ correction: {truncated}"
                 )
         if details:
             item_id = step.stem or (
