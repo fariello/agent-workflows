@@ -76,3 +76,63 @@ ONE DEFECT FOUND AND DELIBERATELY NOT FIXED HERE, recorded so it is not lost: th
 `blocked` items leave NO reason field on the item, unlike all four pre-flight gates which record one.
 That is a missing-record defect, not a vocabulary defect, and this plan renames outcomes rather than
 adding records. It needs its own plan.
+
+## Round 2
+
+Opened at the maintainer's direction after they challenged round 1's PR-008 fix: if the label is meant
+to name the authority that refused, why do `aw ipd begin` refusing and a lane failing to allocate both
+land on `fail-gate`? They were right, and round 1 under-split. `- Status:` was `reviewed` and NOT yet
+`approved`, so amending the plan is legitimate rather than a post-approval edit.
+
+ROUND 1 WAS INCOMPLETE, NOT WRONG. It corrected the plan's false claim that the agent sets `blocked`,
+and split the verifier arms out to `fail-verify`. What it missed is that the four remaining producers
+answer to THREE authorities, so `fail-gate` still bundled unrelated causes:
+
+```text
+209 'blocked' items across all run records in .aw/records/runs/
+  179  clean_base_refusal   -> fail-gate    read next: git status in the driver's checkout
+    9  begin_refusal        -> fail-begin   read next: the plan's open questions / Scope-Paths
+    5  worktree_error       -> fail-lane    read next: git branch --list 'aw/lane/*'
+   16  (verifier verdict)   -> fail-verify  read next: the verifier's own output
+```
+
+The `begin_refusal` texts are specific and actionable (`IPD-S404 OQ-03: unresolved blocking question at
+pre-execution`; `refusing to begin: uncommitted changes to paths INSIDE this plan's Scope-Paths`), and
+all five `worktree_error` texts are one recurring cause:
+
+```text
+git worktree add failed for lane '8zgybk': fatal: a branch named 'aw/lane/8zgybk' already exists
+```
+
+WHAT "MY TREE" MEANS, since the maintainer asked and round 1 left it vague. The dirty-base guard runs
+`git status --porcelain --untracked-files=no` against the DRIVER's repo path, BEFORE any lane exists
+(`evaluate_clean_base_for_launch` precedes both `allocate_isolation_worktree` call sites in
+`execute_item_core`), so the tree measured is the MAIN CHECKOUT and never a lane. Untracked files never
+refuse. And the consequence splits on isolation, per `lane_containment.evaluate_clean_base`'s
+`shared_tree` flag: a dirty ISOLATED base is reported and PROCEEDS, a dirty SHARED tree REFUSES. So the
+179 refusals are shared-tree runs (`--no-isolate-worktree`) meeting uncommitted tracked changes in the
+main checkout.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-009 | HIGH | IN-SCOPE | F (KISS / naming) | `agent_workflows/runner_shared.py` `execute_item_core` refusal arms; `.aw/records/runs/*/state.json` | ROUND 1's `fail-gate` STILL BUNDLED THREE AUTHORITIES, breaking the plan's own rule that a label names whose output to read next. Measured over 209 `blocked` items: the dirty-base gate (179), `aw ipd begin` declining authority (9), and lane allocation failing (5) send an operator to three different places, so one label cannot serve them. Ten labels was therefore one too few by two. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added `fail-begin` and `fail-lane`; vocabulary target is now TWELVE. E-03 carries a per-producer table with counts and a READ NEXT per label; E-01's canonical set updated; V-03 now requires each of the four producers driven and its token pasted, since a test asserting only "no legacy token" would pass with all four collapsed. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-3 | Should `worktree_error` map to `fail-lane` or to the generic `failed`? | `fail-lane`. | `failed` (rejected on evidence): defensible because the site is an `except Exception` and so is mechanically a crash rather than a deliberate refusal. | All five measured occurrences carry ONE named, recurring, fixable cause (`fatal: a branch named 'aw/lane/<id6>' already exists`), so the cause is diagnosed, not unknown. This plan reserves `failed` for "broken in a way none of the above covers"; filing a known cause there is how `substantially-complete` became meaningless, which is the defect this plan exists to remove. Maintainer concurred 2026-09-24. | yes |
+| D-4 | The legacy `blocked` token now splits four ways on WRITE. What should a legacy READ map to? | `fail-gate`, single-valued. | Per-producer reconstruction (rejected): a historical run record carries the reason FIELD but the alias map is keyed on the status token alone, so the map cannot see it; a reader wanting the finer answer already has `clean_base_refusal` / `begin_refusal` / `worktree_error` on the item. | `fail-gate` is the 179-of-209 majority, so a legacy read is right 86% of the time and never claims the work landed. E-02's requirement is that a legacy token classify identically to its replacement for TERMINALITY, which holds for all four. | yes |
+
+### Round 2 verdict
+
+APPROVE WITH REVISIONS APPLIED. One finding (PR-009), FIXED. Two decisions recorded (D-3, D-4), both
+reversible. Round 1's eight findings remain FIXED and are not reopened. Readiness stays
+`go-pending-approval`; the plan is still awaiting the human approval its own gate asks for, and E-05
+(the one behavior change) still warrants explicit separate sign-off.
+
+The missing-reason defect for the 16 verifier cases is unchanged and still needs its own plan: the four
+pre-flight producers each record a reason on the item, the verifier arms record none, so `fail-verify`
+names an authority whose output the item does not point to.
