@@ -6,7 +6,7 @@
 - Scope: IN: own the verification the parent's E-02 and E-03 describe, as a child whose own V-items force pasted evidence. Reconstruct both measured failure shapes on the merged result; prove the truncated-and-rescued case is rescored and not retried, and that the predicate ORDERING guarantees it rather than leaving it to chance; assert the five named constants byte-identical and the cross-host equality pins and AST ordering pins pass unweakened. OUT: any product change whatsoever. This plan adds tests and evidence only, and MUST NOT modify runner behavior, because the three siblings own every behavioral change and a fourth hand in the same predicates is how a Set loses its safety property.
 - Scope-Paths: tests/test_rununify_execute_item_gates.py, tests/test_rununify_run_queue.py, tests/test_reaskscore_composed.py
 - Item-Dependencies: executed:skn8uk, executed:ty7w6o, executed:dy9ymn
-- Status: approved
+- Status: executed
 - Priority: high
 - Readiness: go-pending-approval
 - Set: reaskscore
@@ -14,12 +14,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: svacmz
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: yxfw4k
 - Blocks-Release: next
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: svacmz verified (set reaskscore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_rununify_execute_item_gates.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_rununify_run_queue.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-23 approved (aw set): Backfilled Priority by inheritance from source backlog item yxfw4k (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 
