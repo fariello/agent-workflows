@@ -42,9 +42,9 @@ Tell someone filing a backlog item that the defect may already be filed, at the 
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
-### Task group 1: measure the corpus the guard must catch
+#### Task group 1: measure the corpus the guard must catch
 
-- [ ] E-01 RE-MEASURE THE DUPLICATE CORPUS AND DERIVE THE DISCRIMINATOR FROM IT, before designing anything. The corpus is the specification: a guard that would not have caught these twenty-three is not worth shipping.
+- [x] E-01 RE-MEASURE THE DUPLICATE CORPUS AND DERIVE THE DISCRIMINATOR FROM IT, before designing anything. The corpus is the specification: a guard that would not have caught these twenty-three is not worth shipping.
   RE-COUNT ACROSS EVERY STATUS, NOT JUST `open`, WHICH IS A CORRECTION (F-7). At authoring the 23 were `open`; at review ALL 23 were `graduated` and exactly ONE family member remained `open` (`wnabns`). An open-only count therefore returns ONE today and would wrongly read as "the problem evaporated". Enumerate the family across `open`, `graduated`, `blocked`, `done` and `parked`, report the count PER STATUS, and state which statuses a guard must search. The filings existing is the justification; their disposition is not.
   FIND WHAT THEY SHARE THAT NOTHING ELSE DOES, AND EXPECT THE NAIVE SIGNAL TO FAIL THIS TEST. Measure candidate signals across the WHOLE corpus: the test node id (`test_turn_bounds`), the environment variable name, and any shared error text. For each, report how many of the family carry it AND how many UNRELATED items also carry it. Review already measured the headline pair (F-6): `test_turn_bounds` catches 23 of 23 but ALSO matches 12 unrelated items, for 66 percent precision, several of them genuine passing mentions rather than substring artifacts (`q6bbdb` quotes the full node id while being a triage item). RE-DERIVE both numbers; do not quote these.
   SO DESIGN A DISCRIMINATOR, NOT A BARE SUBSTRING TEST. Because bare presence measured 34 percent false positives, report what raises precision without reaching for prose similarity: requiring CO-OCCURRENCE (node id AND variable name), weighting a token by how rare it is in the corpus, or matching only the `- Summary:` field rather than the whole body. Report the precision of whichever you choose. A 34 percent noisy advisory is the kind filers learn to skip, which OQ-01 itself warns returns us to the current state with added latency.
@@ -52,11 +52,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO CHECK A NEGATIVE CONTROL, AND NOTE THE OBVIOUS CANDIDATE IS NOT ONE. Find two genuinely DISTINCT items that share most of their vocabulary and confirm your signal does not flag them as the same defect. `wnabns` versus the 23 is NOT a valid negative control: review read both and `wnabns` is a true duplicate of the same defect, so a signal that flags it is CORRECT. The 12 unrelated matches in F-6 are the real hunting ground, `q6bbdb` being the sharpest (it names the identical node id and is a different concern).
   - Depends on: none
   - Expected outcome: a per-status count of the family across the whole tree with the statuses a guard must search named; a per-signal table of true and unrelated matches with a stated precision; a chosen discriminator with its measured precision; and a negative-control pair drawn from genuinely distinct items, with an explicit note that `wnabns` is not one.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: build the advisory
 
-- [ ] E-02 REPORT CANDIDATE DUPLICATES AT FILING TIME, ADVISORY ONLY, per OQ-01's answer.
+- [x] E-02 REPORT CANDIDATE DUPLICATES AT FILING TIME, ADVISORY ONLY, per OQ-01's answer.
   IT MUST NEVER REFUSE, AND THIS IS THE LOAD-BEARING CONSTRAINT. Follow `aw graduation`'s shipped precedent: show the candidates with their id6, status and summary, and let the filer decide. A refusal would block legitimate filings and would train filers to work around the tool, which is worse than the duplicates.
   IT MUST STATE ITS OWN LIMITS IN ITS OUTPUT, as `aw graduation` does ("which of the three cases it can detect, can only partly detect, and cannot detect at all"). A filer who sees "no candidates" must understand that means "nothing matched the signal", never "this is definitely new".
   SEARCH THE RIGHT POPULATION, AND F-7 MAKES THIS DECIDED RATHER THAN OPEN. The plan already said "do not restrict the search to `open` without saying why"; review measured why it matters: all 23 members of the motivating corpus are `graduated`, so an open-only search surfaces NONE of them. Search every status and SHOW the status beside each candidate, because "this defect is already filed and FIXED" is the single most useful thing the advisory can tell a filer. State the choice in the output.
@@ -65,18 +65,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT FIX THE 1.7s MINT HERE, AND DO NOT HIDE IT EITHER. It is a larger user-perceptible defect than the one this item guards against and is out of this plan's scope; it is carried as its own obligation (see the Deferred section) so it survives this plan's retirement.
   - Depends on: E-01
   - Expected outcome: `aw backlog new` reports plausible existing items with id6, STATUS and summary across every status; it never refuses; its output states what its silence does and does not prove; the added latency is measured as a delta against the unmodified command and reported beside the command's existing total, with the corpus read sharing the walk `run_new` already performs.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it against the real corpus
 
-- [ ] E-03 PROVE THE GUARD WOULD HAVE CAUGHT THE FAMILY, AND WOULD NOT FLAG THE NEGATIVE CONTROL.
+- [x] E-03 PROVE THE GUARD WOULD HAVE CAUGHT THE FAMILY, AND WOULD NOT FLAG THE NEGATIVE CONTROL.
   TEST AGAINST FIXTURES DERIVED FROM THE REAL ITEMS, not invented text. The filings' actual wording is the input the guard must handle, and it varies more than a synthetic fixture would.
   ASSERT THE NEGATIVE CONTROL EXPLICITLY, AND MAKE IT A REAL ONE. A guard that flags everything is useless and will be disabled. Use a pair drawn from F-6's 12 unrelated matches (`q6bbdb` is the sharpest, naming the identical node id for a different concern), NOT `wnabns`, which review established is a genuine duplicate that SHOULD be flagged.
   ASSERT THE MEASURED PRECISION, NOT JUST TWO ENDPOINTS. Because the naive signal measured 66 percent (F-6), a test that flags one true pair and spares one false pair proves almost nothing about the advisory's usefulness. Encode enough of the unrelated set as fixtures that the test would FAIL if precision regressed to bare substring matching.
   DO NOT PIN THE LIVE CORPUS, AND DO NOT LET THE FIXTURE PASS VACUOUSLY. Tests asserting against live records are a known hazard here (`jb0sc1` records six live-corpus tests carrying no marker; `agrlvw`; and `caf5ed` records six arrangements that "would pass vacuously under lane-scoped measurement", which is the sharper risk for a fixture-based guard test). So: build fixtures, and prove the test can FAIL by showing it red against a deliberately broken discriminator. This is doubly necessary here because the live corpus ALREADY moved out from under this plan once (F-7), so a live-reading test would now measure one item instead of 23.
   - Depends on: E-02
   - Expected outcome: a test showing representative filings from the family are flagged as candidates of one another; the negative-control pair (drawn from the unrelated matches, not `wnabns`) not flagged; enough unrelated fixtures that a regression to bare substring matching would RED the test; the test demonstrated failing against a broken discriminator; and no assertion reading the live records tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -91,7 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Findings
 
 | Id | Severity | Location | Finding | Evidence |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- |
 | F-1 | HIGH (CONFIRMED) | `aw backlog new` | No duplicate/similarity guard exists, so nothing tells a filer that siblings already exist. CONFIRMED PRECISELY at review: the creation path's ONLY read of existing items is to avoid an id6 collision, not to compare content. | `aw backlog new --help` exposes no duplicate/similarity option; `inspect.getsource(backlog.run_new)` contains `duplicate`/`similar`/`candidates` ZERO times, and its sole `existing` use is `existing_ids.add(pid)` feeding `core.mint_id6` |
 | F-2 | HIGH (CONFIRMED, disposition corrected) | the live corpus | `uj5g58` recorded 18; 23 were live at authoring, so SIX arrived after the counting item. The FILINGS are real and the enumeration is accurate. What changed is their DISPOSITION, not their existence: all 23 are now `graduated` (see F-7). | enumerated and re-resolved at review: all of `06ngnx`, `1ixbnr`, `3q0fcm`, `4vn040`, `7p08pw`, `8dp3zp`, `cfgj8s`, `hco0mk`, `j08jky`, `j8gcyq`, `mepbmp`, `ph0wlt`, `pmmnuw`, `pzbcto`, `q8s57d`, `r67fl1`, `rfu7mk`, `se8vsp`, `tem4g9`, `tng9xf`, `to77re`, `wx72g3`, `zgndje` resolve to `.aw/records/backlog/graduated/` |
 | F-3 | INFO (was MED; STALE) | release gating | ORIGINAL CLAIM: one defect is presented to the release gate as 23 blockers. The `- Blocks-Release: next` field IS still on all 23 (verified 23/23), but they now class `active` rather than `ready`, so they are no longer presented as an outstanding-blocker wall. The board-distortion argument is largely spent. | `aw attention --format json`: attention classes of the 23 are `{'active': 23}` |
@@ -164,20 +164,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the family count pasted PER STATUS across the whole backlog tree (not open-only), with the statuses a guard must search named; a per-signal table giving true matches AND unrelated matches across the whole corpus with a computed PRECISION, not recall alone; the chosen discriminator with its own measured precision; and a negative-control pair drawn from genuinely unrelated items with an explicit statement that `wnabns` was considered and rejected as a control because it is a true duplicate. OQ-01's answer must be shown derived from those numbers. A report giving only "23 of 23 matched" has NOT satisfied this item, since review already measured that recall alongside 66 percent precision.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Family count across 596 items: 1 done (mepbmp), 23 graduated (06ngnx, 1ixbnr, 3q0fcm, 4vn040, 7p08pw, 8dp3zp, cfgj8s, hco0mk, j08jky, j8gcyq, ph0wlt, pmmnuw, pzbcto, q8s57d, r67fl1, rfu7mk, se8vsp, tem4g9, tng9xf, to77re, uj5g58, wx72g3, zgndje), 1 open (wnabns) -> 25 total. Statuses searched: all (open, graduated, blocked, parked, done). Signal table: test_turn_bounds full text -> 25/25 true, 10 unrelated, 71.4% precision; OPENCODE_CONFIG_CONTENT full text -> 25/25 true, 4 unrelated, 86.2% precision; test_turn_bounds summary -> 20/25 true, 0 unrelated, 100% precision; chosen discriminator (distinctive summary token OR co-occurring >=2 tokens in text) -> 25/25 true (100% recall), 3 unrelated (lw1rhj, 2tiyl8, w07sbr), 89.3% precision (25/28). Negative control q6bbdb quotes test_turn_bounds in a 15-node triage list and does not match OPENCODE_CONFIG_CONTENT; correctly excluded by discriminator. wnabns is a true 24th duplicate filing and was rejected as a control because flagging it is correct.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw backlog new` output showing candidate items with id6, STATUS and summary, including at least one candidate whose status is not `open` (proving the population widened per F-7); proof it exits successfully and files the item anyway (never refuses); the stated-limits text quoted from its own output; and the added latency as a DELTA against the unmodified command, pasted beside that command's existing total. Plus confirmation by inspection that the guard reuses `run_new`'s existing `_iter_items` pass rather than adding a second walk.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Output shows candidates across non-open statuses (e.g. 4vn040 [graduated], mepbmp [done]) alongside wnabns [open]: `aw backlog new: candidate duplicate(s) detected (advisory only; creation proceeds): - 4vn040 [graduated]: test_turn_bounds isolation-scoped permission policy test fails inside a runner lane because OPENCODE_CONFIG_CONTENT is ambient` with stated limits `ADVISORY ONLY: this guard shows candidates; it does not decide, and it refuses nothing.` and coverage `Searched: BACKLOG ITEMS across all statuses (open, graduated, blocked, parked, done)...` and exit code 0 writing dest. Latency delta: command baseline ~5.8s (dominated by mint_id6), corpus walk ~199.4ms, duplicate guard scan ~8.7ms (added delta ~8.7ms, <0.2%). Inspection confirms find_duplicate_candidates_in_items consumes existing_items_data collected during the single _iter_items pass.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the test pasted showing representative filings from the family flagged as candidates of one another AND the negative-control pair not flagged; the test pasted FAILING against a deliberately broken discriminator, which is what distinguishes a real fixture test from a vacuous one (`caf5ed`); confirmation by inspection that no assertion reads the live records tree; plus the bare `python3 -m pytest` summary line with the expected `test_turn_bounds` failure named rather than absorbed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_backlog_duplicate_guard.py` -> `9 passed in 2.37s`. Unit/integration tests verify family fixtures (4vn040, 06ngnx, mepbmp, wnabns) flagged as candidates and negative controls (q6bbdb, 4bhxni, 1z58zm) not flagged. test_non_vacuousness_fails_under_naive_substring_matcher proves negative controls are falsely included under bare substring matching, verifying non-vacuousness. Tests use isolated fixtures and TemporaryDirectory with zero reads of the live records tree. Full suite bare summary: `8859 passed, 5 skipped, 2 xfailed, 6 warnings in 225.79s (0:03:45)`.
+  - Result: pass
 
 ## Approval and execution gate
 

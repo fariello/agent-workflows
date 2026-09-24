@@ -112,6 +112,173 @@ _SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(?P<value>.+?)[ \t]*$")
 _BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:[ \t]*(?P<value>\S+)[ \t]*$")
 
 
+class CandidateDuplicate:
+    """A candidate duplicate backlog item identified by the near-duplicate guard."""
+
+    __slots__ = ("id", "status", "summary", "path", "shared_tokens", "reason")
+
+    def __init__(
+        self,
+        *,
+        id: str,
+        status: str,
+        summary: str,
+        path: Optional[str] = None,
+        shared_tokens: Optional[set] = None,
+        reason: Optional[str] = None,
+    ) -> None:
+        self.id = id
+        self.status = status
+        self.summary = summary
+        self.path = path
+        self.shared_tokens = shared_tokens or set()
+        self.reason = reason or ""
+
+
+#: Near-duplicate advisory detection limits and coverage (IPD fwgq2u / OQ-01 / E-02).
+#: Follows aw graduation's advisory-not-refusal precedent (graduate jxxec8) of stating its own
+#: detection limits in output so silence is never misread as proof of uniqueness.
+BACKLOG_DUPLICATE_GUARD_LIMITS: Tuple[Tuple[str, str, str], ...] = (
+    (
+        "exact identifier and token overlap",
+        "DETECTABLE",
+        "items sharing distinctive identifiers (e.g. test node ids, function names, environment variables) or distinctive summary tokens are reported",
+    ),
+    (
+        "paraphrased defect descriptions",
+        "PARTLY DETECTABLE",
+        "defects described with entirely different vocabulary and no shared distinctive identifiers cannot be matched mechanically",
+    ),
+    (
+        "distinct issues referencing the same test or symbol",
+        "NOT DETECTABLE",
+        "items citing the same test or symbol may be distinct concerns (e.g. different assertions or triage lists); human review is required",
+    ),
+)
+
+BACKLOG_DUPLICATE_GUARD_COVERAGE: str = (
+    "Searched: BACKLOG ITEMS across all statuses (open, graduated, blocked, parked, done), "
+    "matched by distinctive token overlap and co-occurrence. Items outside the backlog tree or "
+    "using disjoint vocabulary are not indexed."
+)
+
+_DISTINCTIVE_TOKEN_RE = re.compile(
+    r"\b(?:"
+    r"test_[a-zA-Z0-9_]+"
+    r"|Test[A-Za-z0-9]+"
+    r"|[A-Z][A-Z0-9_]{2,}[A-Z0-9]"
+    r"|[a-zA-Z0-9_]+\.py"
+    r"|[a-z0-9]+(?:_[a-z0-9]+){2,}"
+    r")\b"
+)
+
+_DISTINCTIVE_TOKEN_EXCLUSIONS = frozenset(
+    {
+        "OPEN",
+        "DONE",
+        "TODO",
+        "GATE",
+        "HTTP",
+        "JSON",
+        "HTML",
+        "YAML",
+        "JSONL",
+        "HEAD",
+        "SPEC",
+        "TRUE",
+        "FALSE",
+        "WORK_KIND",
+        "GATE_KIND",
+        "GATE_REF",
+        "BLOCKS_RELEASE",
+        "SET",
+        "STATUS",
+        "PRIORITY",
+        "SUMMARY",
+        "ID",
+    }
+)
+
+
+def extract_distinctive_tokens(text: str) -> set:
+    """Extract distinctive identifiers (test functions, test classes, env vars, python files, multi-part symbols)."""
+    found = set()
+    for m in _DISTINCTIVE_TOKEN_RE.finditer(text):
+        tok = m.group(0)
+        if tok.isupper() and "_" not in tok:
+            continue
+        if tok in _DISTINCTIVE_TOKEN_EXCLUSIONS:
+            continue
+        found.add(tok)
+    return found
+
+
+def find_duplicate_candidates_in_items(
+    items_data: List[Tuple[Path, BacklogItem, str]],
+    summary: str,
+    body: str = "",
+) -> List[CandidateDuplicate]:
+    """Scan existing backlog items for potential near-duplicates using distinctive token overlap.
+
+    Advisory-only: never refuses, reports candidates across every status dir (open, graduated,
+    blocked, parked, done).
+    """
+    in_sum_tokens = extract_distinctive_tokens(summary or "")
+    in_all_tokens = extract_distinctive_tokens(f"{summary or ''} {body or ''}")
+    if not in_all_tokens:
+        return []
+
+    candidates: List[CandidateDuplicate] = []
+    for f, item, text in items_data:
+        if not item.id:
+            continue
+        item_summary = item.summary or ""
+        # 1. Shared distinctive token in summary (strongest signal)
+        shared_sum = {tok for tok in in_sum_tokens if tok in item_summary}
+        if shared_sum:
+            candidates.append(
+                CandidateDuplicate(
+                    id=item.id,
+                    status=item.status or "open",
+                    summary=item_summary,
+                    path=str(f),
+                    shared_tokens=shared_sum,
+                    reason="summary token overlap",
+                )
+            )
+            continue
+        # 2. Co-occurrence of >= 2 distinctive tokens in full text
+        shared_all = {tok for tok in in_all_tokens if tok in text}
+        if len(shared_all) >= 2:
+            candidates.append(
+                CandidateDuplicate(
+                    id=item.id,
+                    status=item.status or "open",
+                    summary=item_summary,
+                    path=str(f),
+                    shared_tokens=shared_all,
+                    reason="co-occurring tokens",
+                )
+            )
+    return candidates
+
+
+def find_duplicate_candidates(
+    repo_root: Path,
+    summary: str,
+    body: str = "",
+) -> List[CandidateDuplicate]:
+    """Scan the repo's backlog items for potential duplicates of a proposed filing."""
+    items_data: List[Tuple[Path, BacklogItem, str]] = []
+    for f in _iter_items(repo_root):
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        items_data.append((f, parse_item(text), text))
+    return find_duplicate_candidates_in_items(items_data, summary=summary, body=body)
+
+
 class BacklogItem:
     """Parsed backlog item fields (from the leading `- Field:` bullet block)."""
 
@@ -467,10 +634,16 @@ def run_new(args) -> int:
         return 2
     item = BacklogItem()
     existing_ids = set()
+    existing_items_data: List[Tuple[Path, BacklogItem, str]] = []
     for f in _iter_items(repo_root):
-        pid = parse_item(f.read_text(encoding="utf-8")).id
-        if pid:
-            existing_ids.add(pid)
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        parsed = parse_item(text)
+        if parsed.id:
+            existing_ids.add(parsed.id)
+        existing_items_data.append((f, parsed, text))
     # IPD sk7ggr E-01: mint against the REPOSITORY-WIDE id6 set (terminal artifacts included), not
     # just this tree's ids. The backlog set is unioned in, so this is strictly stronger than before.
     item.id = core.mint_id6(repo_root, existing_ids)
@@ -554,6 +727,15 @@ def run_new(args) -> int:
 
         rendered = _releases.set_blocks_release_line(rendered, br)
 
+    # IPD fwgq2u E-02 / OQ-01: near-duplicate advisory guard. Reuses the existing_items_data walk
+    # performed above rather than doing a second corpus pass (which would be 59t9x5 double-read in
+    # miniature). Advisory-only: never refuses.
+    candidates = find_duplicate_candidates_in_items(
+        existing_items_data,
+        summary=item.summary,
+        body=body,
+    )
+
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         Change,
@@ -596,6 +778,80 @@ def run_new(args) -> int:
 
     gate_data, gate_evidence = _gate_notice_fields()
 
+    def _duplicate_notice_fields() -> tuple:
+        cand_list = [
+            {
+                "id": c.id,
+                "status": c.status,
+                "summary": c.summary,
+                "path": c.path,
+                "shared_tokens": sorted(c.shared_tokens),
+                "reason": c.reason,
+            }
+            for c in candidates
+        ]
+        limits_data = [
+            {"case": case, "verdict": verdict, "why": why}
+            for case, verdict, why in BACKLOG_DUPLICATE_GUARD_LIMITS
+        ]
+        dup_data = {
+            "duplicate_candidates": cand_list,
+            "duplicate_candidate_count": len(candidates),
+            "duplicate_guard_advisory": True,
+            "duplicate_guard_limits": limits_data,
+            "duplicate_guard_coverage": BACKLOG_DUPLICATE_GUARD_COVERAGE,
+        }
+        dup_evidence = [
+            Evidence(
+                key="duplicate-candidates",
+                value=len(candidates),
+                status="verified",
+                detail=f"{len(candidates)} candidate duplicate(s) detected",
+            ),
+            Evidence(
+                key="duplicate-guard-coverage",
+                value=BACKLOG_DUPLICATE_GUARD_COVERAGE,
+                status="verified",
+            ),
+        ] + [
+            Evidence(
+                key=f"limit:{case}",
+                value=verdict,
+                status="verified",
+                detail=why,
+            )
+            for case, verdict, why in BACKLOG_DUPLICATE_GUARD_LIMITS
+        ]
+        return dup_data, dup_evidence
+
+    dup_data, dup_evidence = _duplicate_notice_fields()
+
+    def _render_duplicate_advisory() -> str:
+        lines = []
+        if candidates:
+            lines.append(
+                "aw backlog new: candidate duplicate(s) detected (advisory only; creation proceeds):"
+            )
+            for c in candidates:
+                lines.append(f"  - {c.id} [{c.status}]: {c.summary}")
+            lines.append(
+                "  ADVISORY ONLY: this guard shows candidates; it does not decide, and it refuses nothing."
+            )
+            lines.append("  What it can and cannot tell you:")
+            for case, verdict, why in BACKLOG_DUPLICATE_GUARD_LIMITS:
+                lines.append(f"    - {case}: {verdict} - {why}")
+            lines.append(f"  {BACKLOG_DUPLICATE_GUARD_COVERAGE}")
+        else:
+            lines.append("aw backlog new: no duplicate candidates detected.")
+            lines.append(
+                "  ADVISORY ONLY: this silence means nothing matched the signal, not that the defect is definitely new."
+            )
+            lines.append("  What it can and cannot tell you:")
+            for case, verdict, why in BACKLOG_DUPLICATE_GUARD_LIMITS:
+                lines.append(f"    - {case}: {verdict} - {why}")
+            lines.append(f"  {BACKLOG_DUPLICATE_GUARD_COVERAGE}")
+        return "\n".join(lines) + "\n"
+
     ctx = select_output(args)
     if not getattr(args, "apply", False):
         if ctx.is_agent or ctx.is_json:
@@ -605,14 +861,15 @@ def run_new(args) -> int:
                 exit_code=0,
                 summary=f"would write {dest}",
                 changes=[Change(path=str(dest), kind="create", applied=False)],
-                data={"path": str(dest), "id": item.id, **gate_data},
-                evidence=gate_evidence,
+                data={"path": str(dest), "id": item.id, **gate_data, **dup_data},
+                evidence=gate_evidence + dup_evidence,
                 verified=True,
                 complete=True,
             )
             return get_renderer(ctx).emit(res, ctx)
         if gate_default_notice:
             sys.stdout.write(f"aw backlog new: {gate_default_notice}\n")
+        sys.stdout.write(_render_duplicate_advisory())
         sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
         return 0
 
@@ -643,8 +900,8 @@ def run_new(args) -> int:
             exit_code=0,
             summary=f"wrote {dest}",
             changes=[Change(path=str(dest), kind="create", applied=True)],
-            data={"path": str(dest), "id": item.id, **gate_data},
-            evidence=gate_evidence,
+            data={"path": str(dest), "id": item.id, **gate_data, **dup_data},
+            evidence=gate_evidence + dup_evidence,
             verified=True,
             complete=True,
         )
@@ -652,6 +909,7 @@ def run_new(args) -> int:
 
     if gate_default_notice:
         sys.stdout.write(f"aw backlog new: {gate_default_notice}\n")
+    sys.stdout.write(_render_duplicate_advisory())
     sys.stdout.write(f"aw backlog new: wrote {dest}\n")
     return 0
 
