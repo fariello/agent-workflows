@@ -6,7 +6,7 @@
 - Scope: Perform the `specdirs` Set's whole-Set verification. IN: confirm the children landed in dependency order, prove the browse affordance exists by directory listing, prove every spec-reading surface still works with the count read from `--json`, and prove the location-equals-status invariant survives a write from all three writers. OUT: making any reader recursive (`y4bdoz`), building the placement library (`r9uvwc`), moving any spec (`1bdxcp`), and promoting the invariant to a fail-closed check rule.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:y4bdoz, executed:r9uvwc, executed:1bdxcp
-- Status: approved
+- Status: executed
 - Work-Kind: chore
 - Priority: medium
 - Readiness: go-pending-approval
@@ -15,10 +15,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ingpvc
-- Approval: 2026-09-22, recorded via aw ipd set: status set to approved
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: ingpvc verified (set specdirs, attempt 1).
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item qzhfk2 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-22 approved (aw set): status set to approved
 - 2026-09-21 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL; PR-001..PR-006, all FIXED. Reviewed at HEAD 65a14010 in an isolated lane worktree; aw ipd lint conformed at --phase author and reports ZERO findings at --phase review-finalize. The plan's premise and shape check out: ROLLUP_OMITTED_GATES carries exactly one omission (pre-transition-ev-checkpoint) with the recorded reason that an orchestrator's items are performed by nobody, and the plan's approach matches runner_shared.probe_refusal_remedy verbatim. Ran evaluate_set_retirement: eligible=False for unfinished-children, NOT unauthored-child-rows, confirming r9uvwc cleared that refusal. SIX FINDINGS FIXED. PR-001: the plan claimed adding its row 'lets the coverage gate pass'; the gate is a MODEL judgement over the parent's own checklist text plus row cells (rendered excerpt 9934 chars, still containing all four VERIFY/RUN THE SUITE items) and the prompt names whole-Set verification as work-no-child-covers with 'any doubt resolves to CONTAINS EXECUTIONS', so a refusal stays legitimate; corrected with the remedy named and deletion of the parent's items forbidden. PR-002: E-02 demanded a BEFORE ls of the specs tree while the plan declares executed:1bdxcp, so it can never observe the pre-migration state; repaired with git ls-tree reconstruction that must be labelled and its commit named. PR-003: the 51/33/18 citation figures do not reproduce (three defensible enumerations gave 68/28/40, 54/28/26, 44/28/16) and the two-danglers claim is too strong; the METHOD must now be stated before any number. PR-004: the plan's own dual-spelling citations were stale (the comments are at status_set.py:611-617 and :643-649). PR-005: the gate lacked a scope fence and an explicit honesty rule and instructed finalize unconditionally; also recorded that the declared Scope-Paths is redundant and costs one --scope-ack. PR-006: 'sorts it last' is imprecise; the orchestrator is depth 3 and dispatches after this plan. Verified sound: the specs check --json count 36, the 36/19/36 retired-filter triple, the distribution, both carriers live, and the per-rule-id and suite-delta instructions. OQ-01 stays open and non-blocking by decision D-1.
