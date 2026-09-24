@@ -298,3 +298,109 @@ def run_cli(
         env=merged_env,
         **kwargs,
     )
+
+
+# ==================================================================================================
+# THE ONE PLAN FIXTURE BUILDER
+# ==================================================================================================
+#
+# WHY THIS EXISTS, measured rather than asserted. Twenty-one test files each carried their OWN private
+# copy of "write a throwaway plan", and they were near-identical: most called
+# `ipd_authoring.build_skeleton` and then line-patched `- Status:`, `- Scope-Paths:` and
+# `- Item-Dependencies:` in the same way. When `planprio` (`lkexaw`) made `Priority` and `Work-Kind`
+# REQUIRED at the ready-to-execute gate, all twenty-one broke at once: 175 failed, 8686 passed. One
+# rule change, twenty-one files to repair, because the shape was duplicated twenty-one times.
+#
+# THE SCAFFOLD IS NOT THE PROBLEM AND MUST NOT BE "FIXED". `build_skeleton` correctly emits
+# `- Priority: unresolved` / `- Work-Kind: unresolved`: a DRAFT has not decided them yet, and the
+# sentinel is what makes the gate refuse an unfinished plan. A fixture that wants to be
+# EXECUTION-READY is the thing that must resolve them, exactly as a human author would.
+#
+# WHY REAL VALUES AND NOT THE `grandfathered` SENTINEL (maintainer decision, 2026-09-24). Both satisfy
+# the gate, but `grandfathered` is advisory-satisfied rather than silent, so every fixture would carry a
+# permanent "a re-reviewed or new plan should declare a real priority" nudge that nobody will ever
+# action; and the sentinel ASSERTS the plan predates the rule, which is false for a plan created
+# milliseconds ago in a temp directory. `grandfathered` stays reserved for the legacy corpus it was
+# designed for, and for the handful of tests that assert grandfathering itself.
+READY_PLAN_PRIORITY = "medium"
+READY_PLAN_WORK_KIND = "chore"
+
+
+def ready_plan_text(
+    *,
+    plan_id: str = "abc123",
+    kind: str = "child",
+    title: str = "demo",
+    author: str = "tester",
+    when: str = "2026-08-24",
+    set_name: str = "demo",
+    order: int = 1,
+    status: str = "approved",
+    scope_paths: str = "agent_workflows/demo.py, tests/test_demo.py",
+    item_dependencies: str = "none",
+    priority: str | None = None,
+    work_kind: str | None = None,
+    approval: str | None = "2026-08-24, human: approved",
+) -> str:
+    """A plan that lints CONFORMING at the `pre-execution` checkpoint.
+
+    BUILT FROM THE REAL GENERATOR (`ipd_authoring.build_skeleton`) rather than from a hand-written
+    string, so a change to the authored skeleton reaches every fixture instead of drifting away from
+    twenty-one hand-maintained copies. Then it resolves exactly the fields a DRAFT leaves open and an
+    execution-ready plan must decide:
+
+      * `Status:`             -> `approved` (overridable), because the gate fires for a plan whose
+                                persisted status is in `READY_TO_EXECUTE` regardless of checkpoint.
+      * `Scope-Paths:`        -> real paths, since the scaffold emits a `TODO` placeholder.
+      * `Item-Dependencies:`  -> `none`, since the scaffold emits `unresolved`, which is correctly
+                                blocked at `pre-execution`.
+      * `Priority:`/`Work-Kind:` -> real vocabulary values, since the scaffold emits `unresolved`.
+      * `Approval:`           -> added BESIDE `Status:` when the status is at the gate, because
+                                `IPD-M104` requires an approval attestation whenever `Status` is
+                                `approved` and the scaffold (a draft) carries none. Pass
+                                `approval=None` to omit it and test that refusal.
+
+    `priority` and `work_kind` are OVERRIDABLE so a test asserting the gate's own behavior can pass
+    `"unresolved"`, `"grandfathered"`, or a bogus value and get the refusal it is testing. Passing
+    `None` (the default) means "resolve it to a real value", which is what a conforming fixture wants.
+    """
+
+    from agent_workflows import ipd_authoring as _authoring
+
+    text = _authoring.build_skeleton(
+        kind=kind,
+        title=title,
+        author=author,
+        when=when,
+        set_name=set_name,
+        order=order,
+        plan_id=plan_id,
+    )
+    status_block = f"- Status: {status}"
+    if approval is not None and status in ("approved", "auto-approved"):
+        status_block += f"\n- Approval: {approval}"
+    replacements = {
+        "- Status:": status_block,
+        "- Scope-Paths:": f"- Scope-Paths: {scope_paths}",
+        "- Item-Dependencies:": f"- Item-Dependencies: {item_dependencies}",
+        "- Priority:": f"- Priority: {priority or READY_PLAN_PRIORITY}",
+        "- Work-Kind:": f"- Work-Kind: {work_kind or READY_PLAN_WORK_KIND}",
+    }
+    out: list[str] = []
+    in_meta = True
+    for line in text.splitlines():
+        # THE METADATA REGION ONLY. A `## ` heading ends it, and every later line is body prose that
+        # may legitimately quote a bullet (a plan discussing `- Status:` is normal), so rewriting
+        # outside the region would corrupt the very prose some tests assert on.
+        if line.startswith("## "):
+            in_meta = False
+        if in_meta:
+            for prefix, replacement in replacements.items():
+                if line.startswith(prefix):
+                    out.append(replacement)
+                    break
+            else:
+                out.append(line)
+            continue
+        out.append(line)
+    return "\n".join(out) + "\n"

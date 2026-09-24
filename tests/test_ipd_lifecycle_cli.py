@@ -46,36 +46,15 @@ def _ready_plan_text(
     plan_id: str = "abc123",
     scope_paths: str = "agent_workflows/demo.py, tests/test_demo.py",
 ) -> str:
-    """A conforming child IPD that lints CONFORMING at the pre-execution checkpoint."""
-    txt = A.build_skeleton(
-        kind="child",
-        title="demo",
-        author="tester",
-        when="2026-08-24",
-        set_name="demo",
-        order=1,
-        plan_id=plan_id,
-    )
-    out = []
-    in_meta = True
-    for ln in txt.splitlines():
-        if ln.startswith("## "):
-            in_meta = False
-        if in_meta and ln.startswith("- Status:"):
-            out.append("- Status: approved")
-            continue
-        if in_meta and ln.startswith("- Scope-Paths:"):
-            out.append("- Scope-Paths: " + scope_paths)
-            continue
-        if in_meta and ln.startswith("- Item-Dependencies:"):
-            # ipddeps ovbnyq: an EXECUTION-READY fixture resolves its cross-IPD deps (the scaffold
-            # emits `unresolved`, which is correctly blocked at pre-execution/pre-transition).
-            out.append("- Item-Dependencies: none")
-            continue
-        out.append(ln)
-        if in_meta and ln.startswith("- Author:"):
-            out.append("- Approval: 2026-08-24, human: approved")
-    return "\n".join(out) + "\n"
+    """A conforming child IPD that lints CONFORMING at the pre-execution checkpoint.
+
+    DELEGATES to the ONE shared fixture builder (`tests/support.ready_plan_text`). This file used to
+    carry its own copy, and twenty-one such copies is why `planprio` (`lkexaw`) making `Priority` and
+    `Work-Kind` required at the ready-to-execute gate broke 175 tests across 21 files at once. See that
+    function's note for why it resolves real vocabulary values rather than the `grandfathered` sentinel.
+    """
+
+    return support.ready_plan_text(plan_id=plan_id, scope_paths=scope_paths)
 
 
 def _completed_plan_text(

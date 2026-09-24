@@ -2883,6 +2883,8 @@ _CONFORMING_PLAN = """\
 - Set: demo
 - Order: 1
 - Highest E allocated: 01
+- Priority: medium
+- Work-Kind: chore
 - Author: test
 - Id: {id6}
 - Approval: 2026-08-28, recorded via aw ipd set: status set to approved

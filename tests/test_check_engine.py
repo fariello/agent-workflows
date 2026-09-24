@@ -98,6 +98,14 @@ def _plan_text(id6, setid="demo", desc=None, status="approved"):
         f"- Set: {setline}\n"
         "- Order: 1\n"
         "- Highest E allocated: 01\n"
+        # planprio (`lkexaw`): REQUIRED at the ready-to-execute gate, and this fixture defaults to
+        # `approved`, which IS that gate. Real vocabulary values rather than the `grandfathered`
+        # sentinel, per the maintainer's 2026-09-24 decision: the sentinel is advisory-SATISFIED, so it
+        # would add a permanent nudge to every row, and it asserts the plan predates the rule, which a
+        # fixture built milliseconds ago does not. Fixing the FIXTURE rather than the assertions is this
+        # helper's own stated discipline (see its docstring).
+        "- Priority: medium\n"
+        "- Work-Kind: chore\n"
         "- Author: fixture\n"
         f"- Id: {id6}\n"
         f"{approval}"
