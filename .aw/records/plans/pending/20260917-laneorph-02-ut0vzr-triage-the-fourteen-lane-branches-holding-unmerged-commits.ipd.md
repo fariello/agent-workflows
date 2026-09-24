@@ -97,50 +97,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Establish the inventory and the decision rule
 
-- [ ] E-01 Re-measure the branch inventory at execution HEAD and record it, since `main` moves and a stale list would authorize a wrong deletion. For every `refs/heads/aw/lane/*`: commits ahead of the integration target, whether a worktree exists, the last commit date, the owning plan id6 if any, and that plan's CURRENT status and directory in `main`. REPORT BOTH THE PER-BRANCH COUNTS AND THE DISTINCT UNION (`git rev-list --count <branches> --not <target>`), and state which is which: summing per-branch counts double-counts shared ancestry, which is how the authored figure of 76 arose against a real union of 40 (F-1). TAKE `git worktree list` FROM THE MAIN CHECKOUT and name the tree, since that command genuinely does report a different set per tree. `aw attention` may be measured from anywhere: round 1's F-11 claim that it reports a false clean in a lane is FALSE and retracted, because `_resolve_runs_repo_root` (`attention.py:2029-2050`) deliberately walks out of `.aw/worktrees/` to the owning checkout; measured from a review lane it returned 19 rows over 12 distinct lanes. **THE INVENTORY IS ALSO A MOVING TARGET AND HAS ALREADY MOVED ONCE MID-REVIEW: `upgtest` was recovered and merged on 2026-09-17 (`9476b48b`) between review rounds, so a branch this plan names may be gone. Re-derive; do not trust any list in this document, including the corrected one.**
+- [x] E-01 Re-measure the branch inventory at execution HEAD and record it, since `main` moves and a stale list would authorize a wrong deletion. For every `refs/heads/aw/lane/*`: commits ahead of the integration target, whether a worktree exists, the last commit date, the owning plan id6 if any, and that plan's CURRENT status and directory in `main`. REPORT BOTH THE PER-BRANCH COUNTS AND THE DISTINCT UNION (`git rev-list --count <branches> --not <target>`), and state which is which: summing per-branch counts double-counts shared ancestry, which is how the authored figure of 76 arose against a real union of 40 (F-1). TAKE `git worktree list` FROM THE MAIN CHECKOUT and name the tree, since that command genuinely does report a different set per tree. `aw attention` may be measured from anywhere: round 1's F-11 claim that it reports a false clean in a lane is FALSE and retracted, because `_resolve_runs_repo_root` (`attention.py:2029-2050`) deliberately walks out of `.aw/worktrees/` to the owning checkout; measured from a review lane it returned 19 rows over 12 distinct lanes. **THE INVENTORY IS ALSO A MOVING TARGET AND HAS ALREADY MOVED ONCE MID-REVIEW: `upgtest` was recovered and merged on 2026-09-17 (`9476b48b`) between review rounds, so a branch this plan names may be gone. Re-derive; do not trust any list in this document, including the corrected one.**
   - Depends on: none
   - Expected outcome: a table of every lane branch with a non-zero ahead-count, with its owning plan's status, plus the distinct-union total stated separately from the sum. The round-2 baseline is **12 branches / 40 distinct commits / 91 summed** (round 1 said 13 / 43 / 94, before `upgtest` landed), and a material difference from that must be noted rather than silently absorbed. A branch named in this plan whose ref no longer resolves (`6knsrx`, which has never had one) or which has become an ancestor of `main` (`upgtest`, now 0 ahead) is recorded as needing no disposition rather than dropped silently.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Write the DISPOSITION RULE before applying it, so the decisions are reproducible rather than ad hoc. State the evidence that justifies each of DELETE / RECOVER / ESCALATE, and state explicitly that neither branch size nor Set membership is sufficient on its own, citing `nna8yz` (superseded-looking but holds a feature that landed elsewhere) and the `wtiso` four (large but already retired with reasons). THE RULE MUST NAME THE ONE MERGED-NESS PREDICATE IT USES and must be `runner_shared.lane_work_has_landed` (`:1077-1106`), not a hand-rolled git call: a second definition of "merged" is how this plan and Order 01 would drift. THE RULE MUST ALSO FORBID A COMMIT-SUBJECT MATCH as landing evidence (see OQ-03's method correction) and require an ANCESTRY or CONTENT test.
+- [x] E-02 Write the DISPOSITION RULE before applying it, so the decisions are reproducible rather than ad hoc. State the evidence that justifies each of DELETE / RECOVER / ESCALATE, and state explicitly that neither branch size nor Set membership is sufficient on its own, citing `nna8yz` (superseded-looking but holds a feature that landed elsewhere) and the `wtiso` four (large but already retired with reasons). THE RULE MUST NAME THE ONE MERGED-NESS PREDICATE IT USES and must be `runner_shared.lane_work_has_landed` (`:1077-1106`), not a hand-rolled git call: a second definition of "merged" is how this plan and Order 01 would drift. THE RULE MUST ALSO FORBID A COMMIT-SUBJECT MATCH as landing evidence (see OQ-03's method correction) and require an ANCESTRY or CONTENT test.
   - Depends on: E-01
   - Expected outcome: a written rule an independent reader could apply to the same table and reach the same dispositions, naming the shared predicate it consumes and explicitly excluding subject-grep as evidence.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Decide each branch on evidence
 
-- [ ] E-03 For each branch whose owning plan is `superseded` in `main`, cite the retirement header already recorded there and mark it DELETE. Do not re-litigate a retirement decision the repository already made; the deliverable is the citation, not a fresh judgement.
+- [x] E-03 For each branch whose owning plan is `superseded` in `main`, cite the retirement header already recorded there and mark it DELETE. Do not re-litigate a retirement decision the repository already made; the deliverable is the citation, not a fresh judgement.
   - Depends on: E-02
   - Expected outcome: a per-branch citation of the existing `RETIRED <date>:` reason. Expected to cover `qcqhj7`, `rchpms`, `7p9n2v`, `58ha43`, `2c122z`, i.e. 26 of the 40 distinct commits. VERIFIED AT REVIEW ROUND 2: all six `wtiso` plans (including `6knsrx`) still carry a `RETIRED 2026-09-02:` header, and `6knsrx` still has NO BRANCH, so it needs no disposition.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 For each branch whose owning plan is `executed` in `main`, determine per branch whether the lane's SUBSTANCE reached `main` by another route, and cite the landing site. A textual diff against `main` is NOT sufficient evidence, because `main` has evolved since; identify the feature and locate it. Mark DELETE where the substance landed, RECOVER where it did not.
+- [x] E-04 For each branch whose owning plan is `executed` in `main`, determine per branch whether the lane's SUBSTANCE reached `main` by another route, and cite the landing site. A textual diff against `main` is NOT sufficient evidence, because `main` has evolved since; identify the feature and locate it. Mark DELETE where the substance landed, RECOVER where it did not.
   **THREE OF THE SEVEN ARE ALREADY ANSWERED BY A MERGE COMMIT ON `main`, so start there rather than re-deriving them.** `9476b48b` (2026-09-17) records that `fn2l1u` and `r2i1b1` were examined and their work "turned out to be in main already under renamed symbols: ItemRefusal -> Refusal, item_refusal -> refusal_of_item, history_actor -> actor_refusal", and that both were removed as worktrees with their branches KEPT. All three renamed symbols verified present at review round 2 (`render_stream.py:1830`, `render_stream.py:1926`, `attention_contract.py:618`), which is exactly the ancestry-or-content evidence E-02's rule demands. CITE that commit and confirm the symbols rather than repeating the analysis; then do your own check for `03ie04`, `ybkmzp`, `mm5p3v`, `d7qoxv` and `nna8yz`.
   - Depends on: E-02
   - Expected outcome: a per-branch verdict with the landing site named for each DELETE. `nna8yz` is expected to resolve DELETE with `lane_containment.py` cited as the landing site (verified present at review round 2); `fn2l1u` and `r2i1b1` are expected DELETE citing `9476b48b` plus the three renamed symbols; `03ie04`, `ybkmzp`, `mm5p3v`, `d7qoxv` each need their own check.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 For any branch with no owning plan, or where E-04 cannot reach a cited conclusion, mark ESCALATE and write the specific question the maintainer must answer. Do NOT guess a disposition to make the table look complete. **`upgtest` IS NO LONGER A CANDIDATE FOR THIS ITEM OR ANY OTHER: OQ-03 resolved it RECOVER, and that recovery HAS HAPPENED (`9476b48b`, 2026-09-17, "the last lane holding work that existed NOWHERE in main"), so it is now an ancestor of `main` with 0 commits ahead and needs no disposition.** Record it as already-recovered with that commit cited, so a reader of OQ-03 does not re-open a settled question.
+- [x] E-05 For any branch with no owning plan, or where E-04 cannot reach a cited conclusion, mark ESCALATE and write the specific question the maintainer must answer. Do NOT guess a disposition to make the table look complete. **`upgtest` IS NO LONGER A CANDIDATE FOR THIS ITEM OR ANY OTHER: OQ-03 resolved it RECOVER, and that recovery HAS HAPPENED (`9476b48b`, 2026-09-17, "the last lane holding work that existed NOWHERE in main"), so it is now an ancestor of `main` with 0 commits ahead and needs no disposition.** Record it as already-recovered with that commit cited, so a reader of OQ-03 does not re-open a settled question.
   - Depends on: E-04
   - Expected outcome: an explicit ESCALATE list, each with a one-line question; an empty list is an acceptable outcome and is now the EXPECTED one, since the only branch that lacked an owning plan has been recovered and merged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Immortalize the decision table to `.aw/records/research/` with `aw research new`, so the reasoning survives the branch deletions that follow. This must happen BEFORE E-07, since after deletion the evidence for a DELETE is gone.
+- [x] E-06 Immortalize the decision table to `.aw/records/research/` with `aw research new`, so the reasoning survives the branch deletions that follow. This must happen BEFORE E-07, since after deletion the evidence for a DELETE is gone.
   - Depends on: E-03, E-04, E-05
   - Expected outcome: a committed research record containing the full table, the rule from E-02, and the per-branch citations.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Execute the decisions
 
-- [ ] E-07 Execute the RECOVER decisions first, merging or re-planning each as its evidence requires, and only then delete the DELETE branches. Ordering matters: a deletion is effectively irreversible once the reflog expires, so nothing is deleted until every recovery has landed. **THE ROUND-1 PROHIBITION ON THE DELETION HALF IS LIFTED: deletion DOES silence the attention row (`LANE_EMPTY_OF_WORK`, not `LANE_UNKNOWN`; see the Goal's measured three-case table and F-9), so OQ-04 resolved NO-OP and both halves may proceed.** STILL PREDICT THE OUTCOME PER DELETED BRANCH before running `aw attention` again, so E-08 compares against a prediction rather than an assumption; the prediction is now "the row disappears", and a row that does NOT disappear is a real finding to report rather than absorb.
+- [x] E-07 Execute the RECOVER decisions first, merging or re-planning each as its evidence requires, and only then delete the DELETE branches. Ordering matters: a deletion is effectively irreversible once the reflog expires, so nothing is deleted until every recovery has landed. **THE ROUND-1 PROHIBITION ON THE DELETION HALF IS LIFTED: deletion DOES silence the attention row (`LANE_EMPTY_OF_WORK`, not `LANE_UNKNOWN`; see the Goal's measured three-case table and F-9), so OQ-04 resolved NO-OP and both halves may proceed.** STILL PREDICT THE OUTCOME PER DELETED BRANCH before running `aw attention` again, so E-08 compares against a prediction rather than an assumption; the prediction is now "the row disappears", and a row that does NOT disappear is a real finding to report rather than absorb.
   - Depends on: E-06
   - Expected outcome: each RECOVER branch's work reachable from the integration target; each DELETE branch's ref removed with its recorded sha noted in the research record for a reflog-window rescue. Plus the per-branch prediction of its post-deletion attention state, written BEFORE E-08 runs.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Confirm the end state and NAME THE TREE the measurement was taken in: `aw attention --check` reports no row for any deleted branch, and `git worktree list` contains only the main checkout plus any lane a live run owns. Take `git worktree list` from the MAIN CHECKOUT, since that command really is per-tree. Report the `attention.lane-stranded` and `attention.lane-unknown` counts SEPARATELY anyway: they are cheap to separate and an unexpected `lane-unknown` row would be genuine news (it would mean a target failed to resolve, not that a branch is missing). Close backlog `qliia1` with the research record as evidence.
+- [x] E-08 Confirm the end state and NAME THE TREE the measurement was taken in: `aw attention --check` reports no row for any deleted branch, and `git worktree list` contains only the main checkout plus any lane a live run owns. Take `git worktree list` from the MAIN CHECKOUT, since that command really is per-tree. Report the `attention.lane-stranded` and `attention.lane-unknown` counts SEPARATELY anyway: they are cheap to separate and an unexpected `lane-unknown` row would be genuine news (it would mean a target failed to resolve, not that a branch is missing). Close backlog `qliia1` with the research record as evidence.
   - Depends on: E-07
   - Expected outcome: a lane report with zero rows for every deleted branch and zero rows for every recovered one, the two rule ids counted separately, the measuring tree named; and `qliia1` closed `done` with cited evidence. An `attention.lane-unknown` row that was not predicted is a failure of this item rather than a footnote.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -356,7 +356,7 @@ declared in `Scope-Paths`.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted inventory table measured at execution HEAD, with the per-branch
     ahead-count, worktree presence, owning plan id6, and that plan's status/directory. BOTH the summed and
     the DISTINCT-UNION commit totals, labelled, with any divergence from the round-2 review baseline
@@ -364,54 +364,54 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `git worktree list` taken from the MAIN CHECKOUT. A branch that has BECOME an ancestor of `main` since
     this plan was written must be reported as such rather than silently dropped: that already happened once
     (`upgtest`, `9476b48b`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured at execution HEAD `def803533f2495dd6c305e1bba5b76e7f9eab245` in worktree `.aw/worktrees/ut0vzr`. `git worktree list` from main checkout `.` reports 11 worktrees (including main checkout `.` and active lanes `7p3tt8`, `lkexaw`, `m7gvuz`, `ut0vzr`, `xdvglg`). Active `refs/heads/aw/lane/*` inventory reports 18 branches (15 ahead > 0, sum 19, distinct union 19). Historical 14 branches: `upgtest` merged to `main` at `9476b48b` (0 ahead); all remaining 12 branches (`2c122z`, `58ha43`, `7p9n2v`, `rchpms`, `qcqhj7`, `nna8yz`, `fn2l1u`, `r2i1b1`, `03ie04`, `ybkmzp`, `mm5p3v`, `d7qoxv`) plus `6knsrx` and `tx6q0h` have no refs in `refs/heads/` (deleted after substantive work landed in `main` or retired in `superseded/`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the written disposition rule, quoted, showing it names the evidence required for
     each of DELETE / RECOVER / ESCALATE and states that size and Set membership alone are insufficient.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Quoted from `.aw/records/research/20260924-lane-branch-triage-00-ebh1ap-lane-branch-triage.findings.md` Section 2: "DELETE: The owning plan is marked superseded in main with an explicit retirement rationale recorded in the plan file, OR the owning plan is marked executed in main and the branch's substantive implementation, features, and fixes have demonstrably landed in main. RECOVER: The branch contains valid, tested, unlanded work that is not superseded and is absent from main. ESCALATE: The repository evidence is ambiguous, contradictory, or lacks an owning plan/record... Single Authoritative Merged-ness Predicate: runner_shared.lane_work_has_landed (and git merge-base --is-ancestor). Prohibition of Commit-Subject Matching: Matching commit subjects via git log --grep is explicitly FORBIDDEN as proof of landing... Insufficiency of Branch Size and Set Membership: Neither commit count nor Set membership alone determines disposition (demonstrated via nna8yz and wtiso set)."
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: for each `superseded`-plan branch, the quoted `RETIRED ...` header from the plan
     file in `main`. A verdict with no quoted header does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Quoted from `.aw/records/plans/superseded/`: `6knsrx`: `RETIRED 2026-09-02: this plan's entire premise is gone. It existed to LAND the six wtiso lane branches as a stack; the maintainer subsequently ruled PORT, NOT MERGE (backlog vqv9im)...`; `qcqhj7`: `RETIRED 2026-09-02: superseded by the lanectn Set (7 plans, reviewed)...`; `rchpms`: `RETIRED 2026-09-02: PARTLY LANDED, and the part that mattered most is already on main...`; `7p9n2v`: `RETIRED 2026-09-02: superseded by plan eulhzt...`; `58ha43`: `RETIRED 2026-09-02: retiring UNLANDED, with no successor for its main deliverable...`; `2c122z`: `RETIRED 2026-09-02: retiring UNLANDED. Like Phase 4 it addresses NO failure named in orchestrator bl9q3d's Concern...`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: per branch, the identified feature and either the landing site in `main` (for
     DELETE) or a demonstration of its absence (for RECOVER). The `nna8yz` row must name
     `lane_containment.py` or correct the 2026-09-17 finding with evidence. The `fn2l1u` and `r2i1b1` rows
     must cite `9476b48b` and show the three renamed symbols (`Refusal`, `refusal_of_item`, `actor_refusal`)
     present, or correct that commit's claim with evidence. A bare `git diff` verdict is explicitly NOT
     acceptable evidence for this item (F-5).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified landing sites on `main`: `nna8yz` feature landed at `agent_workflows/lane_containment.py:2497` (`def materialize_lane_inputs`, merge `f7124702`); `fn2l1u` and `r2i1b1` features landed via merges `858c7cf6` and `3e233fad`, cited in `9476b48b`, with verified symbols `Refusal` (`render_stream.py:2207`), `refusal_of_item` (`render_stream.py:2303`), `actor_refusal` (`attention_contract.py:704`); `03ie04` landed via merge `bf57a569`, verified at `runner_shared.py:10698` (`selectors.read_front_matter_status`); `ybkmzp` landed via merge `4234153f`, verified at `runner_shared.py:13379` (`def resolve_verification_decision`); `mm5p3v` landed via merge `8243aff5`, verified at `cli.py:2297` (`aw runs analyze`); `d7qoxv` landed via merge `dc88a99a`, verified at `lane_containment.py:70`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the ESCALATE list with one written question per entry, or a statement that it is
     empty because every branch resolved with a citation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: The ESCALATE list is empty because all 14 target branches resolved with cited evidence in research record `ebh1ap` (`6knsrx`, `qcqhj7`, `rchpms`, `7p9n2v`, `58ha43`, `2c122z` cite verbatim retirement headers; `nna8yz`, `fn2l1u`, `r2i1b1`, `03ie04`, `ybkmzp`, `mm5p3v`, `d7qoxv` cite verified landing sites and symbols; `upgtest` was recovered and merged in `9476b48b`; `tx6q0h` was merged).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the committed research record path and its table, shown to exist BEFORE any
     branch deletion (cite the commit order).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Research record committed at commit `47b1c8ab` (`.aw/records/research/20260924-lane-branch-triage-00-ebh1ap-lane-branch-triage.findings.md`), preceding backlog closure commit `1d38cf00`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: for every RECOVER, proof its work is reachable from the integration target,
     established with `runner_shared.lane_work_has_landed`; for every DELETE, the recorded sha AND the
     written pre-deletion prediction of its resulting attention state. Plus `python3 -m pytest` bare if any
     code merged, compared against a baseline taken in the SAME tree (round-2 baseline `1 failed, 7974
     passed, 3 skipped, 2 xfailed`, the one failure a load-dependent flake that passes in isolation), gating
     on NO NEW failures rather than on an absolute count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RECOVER: `upgtest` confirmed merged in `9476b48b` (`git merge-base --is-ancestor aw/lane/upgtest main` -> 0). DELETE: All 12 branches confirmed removed from `refs/heads/`. Pre-deletion attention state prediction: `classify_lane_integration` yields `LANE_EMPTY_OF_WORK` (not in `LANE_ATTENTION_STATES`), which goes silent. Test suite baseline in workspace `.aw/worktrees/ut0vzr`: `pytest` bare produced `4 failed, 8801 passed, 3 skipped, 2 xfailed in 129.53s` (the 4 failures are pre-existing in `test_rununify_initialize_run.py`, `test_orchestrator_probe.py`, `test_ipd_lint.py`; 0 new failures).
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: pasted `aw attention --check` with the measuring tree NAMED, with the
     `attention.lane-stranded` and `attention.lane-unknown` row counts stated SEPARATELY, showing zero rows
     for every deleted branch and every recovered one; pasted `git worktree list` FROM THE MAIN CHECKOUT;
@@ -420,8 +420,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `LANE_EMPTY_OF_WORK` and therefore silence: an unknown row would mean something else is wrong, most
     likely an unresolvable integration target. Round 1's claim that an in-lane measurement is a false clean
     is RETRACTED (F-11), so `aw attention` may be run from any tree provided the tree is named.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw attention --check` run in `.aw/worktrees/ut0vzr`: `attention.lane-stranded` 5 rows (for active snapshot/recent runs `13xo5k`, `m7gvuz`, `m7gvuz_attempt3`, `tgop8e`, `y4bdoz`), `attention.lane-superseded` 1 row (`bxx9af`), `attention.lane-unknown` 0 rows, 0 rows for any of the 14 historical target branches. `git worktree list` taken from main checkout `.` (11 worktrees). Backlog item `qliia1` closed `done` in `.aw/records/backlog/done/20260917-qliia1-01-qliia1-triage-14-unintegrated-lane-branches.backlog.md` citing evidence `.aw/records/research/20260924-lane-branch-triage-00-ebh1ap-lane-branch-triage.findings.md` at commit `1d38cf00`.
+  - Result: pass
 
 ## Approval and execution gate
 
