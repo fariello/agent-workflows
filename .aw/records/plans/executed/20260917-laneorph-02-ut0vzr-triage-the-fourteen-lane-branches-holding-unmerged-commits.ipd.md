@@ -6,7 +6,7 @@
 - Scope: Decide, per branch, one of THREE dispositions with cited evidence: RECOVER (real work absent from `main`, needs merging or re-planning), DELETE (superseded, or its substance provably landed elsewhere), or ESCALATE (cannot be decided from repository evidence; needs the maintainer). Then execute the DELETE and RECOVER decisions. This plan produces a decision RECORD first and acts second, because a branch deletion is irreversible in practice and 40 commits of history is not something to guess at.
 - Scope-Paths: .aw/records/research, .aw/records/backlog
 - Item-Dependencies: executed:65cuw0
-- Status: approved
+- Status: executed
 - Work-Kind: followup
 - Priority: high
 - Readiness: go-pending-approval
@@ -16,9 +16,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: ut0vzr
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-24 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: ut0vzr verified (set laneorph, attempt 1).
 - 2026-09-23 approved (aw set): Backfilled Priority and Work-Kind by inheritance from source backlog item qliia1 (planprio Order 02, plan 8u6770, E-03); no lifecycle transition occurred.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (aw set): plan-review round 2: APPROVE WITH REVISIONS APPLIED; PR-101..PR-107 all FIXED; round 1's BLOCKER (PR-002/OQ-04) RETRACTED as false on measurement - deleting a lane branch yields LANE_EMPTY_OF_WORK (silent), not LANE_UNKNOWN, because classify_lane_integration tests holds_work before the landing question; round 1's F-11 also retracted (aw attention resolves out of a lane by design); upgtest already recovered and merged (9476b48b) so the inventory is 12 branches / 40 distinct commits; readiness go-pending-approval
