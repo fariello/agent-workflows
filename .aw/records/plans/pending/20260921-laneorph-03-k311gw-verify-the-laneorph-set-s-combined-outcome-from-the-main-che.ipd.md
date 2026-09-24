@@ -102,11 +102,11 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - ANY CODE CHANGE. Lane reclaim, teardown, and attention behavior belong to Order 01 `65cuw0`; branch
   disposition belongs to Order 02 `ut0vzr`. This plan measures their combined effect and touches no
   product code, which is why its `Scope-Paths` name only records.
-  - Carrier: ut0vzr
+  - Carrier-Evidence: .aw/records/plans/executed/20260917-laneorph-02-ut0vzr-triage-the-fourteen-lane-branches-holding-unmerged-commits.ipd.md
 - RE-PERFORMING EITHER CHILD'S VALIDATION. E-02 is a receipt check by design (see its own wording): a
   receipt check that quietly becomes a re-verification conceals an upstream validation failure instead of
   reporting it.
-  - Carrier: ut0vzr
+  - Carrier-Evidence: .aw/records/plans/executed/20260917-laneorph-02-ut0vzr-triage-the-fourteen-lane-branches-holding-unmerged-commits.ipd.md
 - THE PARENT'S CHECKLIST. `tb63qv` E-01 stays exactly as written; only its child table gains a row. See
   the conventions section for why deleting it would be the defect rather than the fix.
   - Carrier-Declined: NOT AN OBLIGATION, BUT ITS OPPOSITE. This row records that something must be LEFT
