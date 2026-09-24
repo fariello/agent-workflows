@@ -2147,7 +2147,15 @@ class CitationAnchorAdvisoryTests(unittest.TestCase):
         maintenance burden that gets deleted, while a band still fails loudly if the detector
         regresses to the naive form (measured: 3 of 2304, 0%) or degenerates into flagging everything.
         """
-        plans = sorted(SOURCE_PLANS.glob("pending/*.ipd.md"))
+        # THE GLOB IS WIDENED PAST `pending/`, which is the remedy the floor's own note prescribes
+        # rather than lowering the floor a second time. `pending/` is a WORK QUEUE: it shrinks every
+        # time a plan executes, so a corpus-size assertion over it measures how much work is
+        # outstanding, not whether the detector discriminates. Measured 2026-09-24: it fell to 150
+        # citations and then to 73 across two batches of finalizations, failing twice for the same
+        # non-reason. Every disposition directory carries the same prose and the same citation habits,
+        # so reading them all keeps the denominator stable as plans move between directories, which is
+        # exactly the property this assertion needs and `pending/` alone cannot provide.
+        plans = sorted(SOURCE_PLANS.glob("*/*.ipd.md"))
         self.assertTrue(plans, "expected a nonempty pending corpus to measure against")
         citations = 0
         flagged = 0
