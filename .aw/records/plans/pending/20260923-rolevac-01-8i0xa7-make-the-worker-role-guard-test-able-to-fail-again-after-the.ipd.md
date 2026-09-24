@@ -25,17 +25,19 @@
 - Scope: Restore a FALSIFIABLE assertion of the driver-unmarked property without touching the test another plan owns, and close the agent-side half honestly. IN: (a) ADD a differently-named test asserting the property at a seam the session scrub does not pre-clean, per OQ-01, leaving `test_driver_own_process_is_not_worker_role` byte-unchanged; (b) establish what scrub coverage is genuinely missing given that `tests/test_role_declaration_guard.py` already asserts the stronger invariance property, and record the choice; (c) decide and record, per OQ-02, whether the runners should scrub the marking for a suite invocation so a managed target repo gets the same protection without shipping our conftest. OUT, and the first two exclusions are REVIEW CORRECTIONS rather than author choices: MODIFYING OR REMOVING `test_driver_own_process_is_not_worker_role` - executed plan `8b9ufm` declares that file and says "Do not \"fix\" it"/"do not modify it", and `tests/test_role_declaration_guard.py` REQUIRES it to fail under its probe as the meta-check keeping five protected files guarded, so changing it would silently un-guard them. ALSO OUT: writing E-03's originally specified duplicate of the shipped invariance guard; FIXING THE 42-TEST ROLE-INHERITANCE REGRESSION in `tests/test_ipd_lifecycle_cli.py` that review measured (F-9), which is `e4lkv5`'s unfinished work and needs its own artifact; re-tiering `test_role_declaration_guard.py` out of `slow`, a bare-suite runtime cost decision belonging to the maintainer; relaxing the guard assertion (backlog `1uq1cu` names that as the wrong fix and the conftest agrees); removing the marking from the agent turn, which is load-bearing for `AW-LIFECYCLE-ROLE-001` and incident `i452hf`; and the `env -u` bypass (`c4yixg`), which needs an OS sandbox or separate principal and is documented out of scope.
 - Scope-Paths: conftest.py, tests/test_worker_role_refusal.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: rolevac
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 8i0xa7
+- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: 6z5yos
 - Blocks-Release: next
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED. TWO BLOCKERS. PR-001: E-02 instructed an edit that EXECUTED plan 8b9ufm forbids ('Do not fix it', 'do not modify it') and that would silently disable a second guard, because tests/test_role_declaration_guard.py names the test _KNOWN_AMBIENT_ASSERTING and its meta-check asserts marked.returncode != 0, i.e. REQUIRES it to fail under a re-assert probe; 6z5yos misread 8b9ufm's F-18 (a constraint on NEW assertions) as a design for the fix. E-02 now ADDS a test and leaves the owned one byte-unchanged. PR-002: measured a LIVE regression falsifying the plan's premise - 42 failed, 447 passed with the marking re-asserted over the five PROTECTED_FILES against 489 passed clean, all 42 in test_ipd_lifecycle_cli.py because only 1 of its 11 classes declares a role; the catching guard is pytest.mark.slow so a bare suite misses it, and the quoted figure of 31 is stale. Excluded with a STOP condition. PR-003: the vacuity claim was too strong (the guard still fails under a pytest_configure plugin), F-1 downgraded BLOCKER to HIGH. PR-004: E-03's deliverable already exists and is stronger, so E-03 is re-scoped and writing nothing is legitimate. F-2/F-3/F-5 re-measured TRUE. OQ-01 and OQ-02 stay open, both Blocking: no. Readiness: GO - PENDING HUMAN APPROVAL.
 
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. SELF-REVIEW (same agent and model authored the plan), so its value rests on RUNNING the claims. Structural lint conformed at `author` before semantic review and at `review-finalize` after.

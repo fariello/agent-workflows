@@ -11,17 +11,19 @@
 - Scope: Close the detection gaps `4y7nzh` names, at the two layers it recommends. IN: (a) make the write-time self-check ask the COMMITTED-tree claimant question and report BOTH broken counts (0 and >1) from it, keeping its report-never-raise discipline (REVISED in review per F-6: the authored scope was "report the ZERO-claimant case as well as the many-claimant case" against the existing working-tree query, which cannot observe either corruption); (b) add the startup report of recommendation (iii), so a run tells the operator BEFORE spawning anything that the cross-tree view is currently invalid and names the offending rule ids; (c) tests for both, including the zero case that has no coverage anywhere. OUT: recommendation (ii)'s opt-in pre-commit hook, deferred per OQ-01 because the item itself calls it "defensible" while noting local hooks are uncloned and `--no-verify`-skippable; the commit-path CAUSE of the absent-record shape, which is `hv9gar`'s (`movehalf`) subject, so this plan must not also change `offer_commit`; and making the CI gate louder, which the item explicitly forbids ("DO NOT fix this by making the CI gate louder alone: the gate was already correct, already fail-closed, and already red").
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_backlog_close.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: intgzero
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: o3cfk4
+- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: 4y7nzh
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): status set to reviewed
 
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009, all FIXED. Findings recorded in `.aw/records/reviews/20260923-intgzero-01-o3cfk4-...review.md` Round 1. Structural lint `conforming` at `author` before review and at `review-finalize` after.

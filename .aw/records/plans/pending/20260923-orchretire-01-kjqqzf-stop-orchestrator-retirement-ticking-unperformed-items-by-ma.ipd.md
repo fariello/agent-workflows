@@ -11,17 +11,19 @@
 - Scope: Make a retirement that proceeds state honestly what it did not do, and close the ONE measured hole that lets a parent reach `executed` with untyped, uncovered items. RE-SCOPED AT REVIEW after the original scope's premise was falsified (see the Concern's CORRECTION and findings PR-001..PR-004). IN: (a) E-03, unchanged in intent: a retired parent's FILE must stop asserting by form what its own commit message denies, without ticking any box; (b) E-02, RE-AIMED from "add a structural precondition" (already shipped, `evaluate_set_retirement`'s `unfinished-children` refusal) to "close the `IPD-S407` blind spot", namely that the typed child-tracking row rule exists and fires at `review-finalize`/`pre-transition` but is short-circuited to `legacy/not evaluated` for any plan already in a terminal directory, so it audits nothing about a parent at the moment retirement is decided; (c) E-04, a regression test for whichever of (a)/(b) lands, built on a SYNTHETIC fixture. OUT: adding a second structural precondition to `evaluate_set_retirement` (already present, and duplicating it is the re-fork this repo spends plans preventing); re-authoring coverage children (all exist); reversing the two completed retirements, which `AGENTS.md` forbids fixing in place and which F-6/PR-002 show cost no work; `rh5tt6`'s 2026-09-08 gap, which `wtd5m2` defers to the maintainer; and widening the probe cache key, which PR-001 shows would not have changed any measured outcome because the probe does not gate retirement.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_lint.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: kjqqzf
+- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: wtd5m2
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED; readiness go-pending-approval
 
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007, all FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260923-orchretire-01-kjqqzf-stop-orchestrator-retirement-ticking-unperformed-items-by-ma.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review, so nothing found was structural; `--phase review-finalize` conforms after. DISCLOSURE: the same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them.

@@ -12,17 +12,19 @@
 - Scope: Close the TWO holes this plan may legitimately close, and make each one's regression test use the NEWEST-FIRST shape production actually writes. IN: (a) make the migration slimmer's retention agree with the writers' newest-first contract, or stop slimming, per OQ-01; (b) add the `x6tk1u` same-status dedup to the specs writer by CONSUMING the existing shared predicate; (c) re-point `tests/test_record_history_migrate.py`'s fixture to newest-first so hole (a) is actually covered. OUT, and the first exclusion is a REVIEW CORRECTION rather than an author's choice: FIXING THE LEGACY OLDEST-FIRST READER (`jhrao5`). Both options the plan proposed for it are explicitly forbidden - a date-aware reader is measured to widen the unattended approval gate, and bulk-reordering is refused by `jhrao5` and by approved spec `2vev8j` 4.3, which rules that ordering becomes an explicit per-artifact `seq` rather than being inferred from position at all. E-03 is therefore a REPORT-ONLY item and `attention_contract.py` is no longer in scope. ALSO OUT: re-fixing `specs._append_history`/`backlog._reattach_history` preservation, which `vhbvwz` already shipped and which this plan VERIFIES rather than changes; re-tracking the gitignored `.aw/records/history.jsonl` sidecar (that was `raxuyq` fix option (a), and the maintainer chose inline-is-durable instead on 2026-09-10); implementing `2vev8j`'s `seq` contract, which is a separate plan carrying `- From-Spec: 2vev8j`; and any change to plans' inline history, which `IPD-S405` requires in full and which the migration correctly excludes.
 - Scope-Paths: agent_workflows/record_history.py, agent_workflows/specs.py, tests/test_record_history_migrate.py, tests/test_specs_verbs.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: histresid
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 7jqev2
+- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: 8pcdoa
 - Blocks-Release: next
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED. BLOCKER PR-001: E-03 instructed work that approved spec 2vev8j 4.3 and its own source item jhrao5 explicitly forbid (a date-aware reader is measured to widen the unattended approval gate; bulk-reordering the 77 legacy files is refused on shared-checkout grounds), and the plan recommended PREFERRING the option jhrao5 names first while citing 2vev8j nowhere. E-03 converted to report-only and attention_contract.py removed from Scope-Paths, with two STOP conditions added. PR-002: migrate_inline_history is reachable from NO shipped command (sole caller is its own test module), which 8pcdoa states and the plan omitted, so F-1 is downgraded BLOCKER to HIGH as a LATENT trap with the fix still owed. PR-003: tests/test_specs.py was declared and validated against but DOES NOT EXIST (pytest reports 'no tests ran'), re-pointed to tests/test_specs_verbs.py. F-1/F-2/F-3/F-5 re-measured TRUE; F-4 upgraded to behavioral evidence while its severity was corrected MED to LOW per 4vh5nb's own low/chore fields. OQ-01 stays open and Blocking: no. Readiness: GO - PENDING HUMAN APPROVAL.
 
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. SELF-REVIEW (same agent and model authored the plan), so its value rests on RUNNING the claims. Structural lint conformed at `author` before semantic review and at `review-finalize` after.

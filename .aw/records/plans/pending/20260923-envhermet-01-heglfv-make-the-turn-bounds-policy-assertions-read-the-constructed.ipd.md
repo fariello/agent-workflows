@@ -12,17 +12,19 @@
 - Scope: Make the assertion measure what the runner CONSTRUCTS rather than what the process inherited, so it is true or false for code reasons only. IN: (a) make the non-isolated policy assertion hermetic against an ambient `OPENCODE_CONFIG_CONTENT`, per OQ-01, without weakening what `R4.1` asserts; (b) audit the rest of `tests/test_turn_bounds.py` for the same ambient-read pattern, since twenty-three filings name several different test methods and the family may be wider than one assertion; (c) prove hermeticity by running the file with the variable set. OUT: the duplicate-filing half, which is child 02 (`fwgq2u`); removing the variable from `run_opencode`, which is load-bearing for a turn's configuration; and the conftest-style session scrub used for `AW_EXECUTION_ROLE`, which is rejected under OQ-01 for a reason recorded there.
 - Scope-Paths: tests/test_turn_bounds.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: envhermet
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: heglfv
+- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: mepbmp
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-207, all FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260923-envhermet-01-heglfv-make-the-turn-bounds-policy-assertions-read-the-constructed.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them.
   THE DEFECT IS CONFIRMED AND THE FIX IS WORTH MAKING: at HEAD `3eb35740` in a lane, `python3 -m pytest tests/test_turn_bounds.py` gives `1 failed, 147 passed` and `env -u OPENCODE_CONFIG_CONTENT -u AW_EXECUTION_ROLE` gives `148 passed`, no code change between. Counts drifted from the plan's `144`/`143`, so E-01 now re-derives rather than quotes.
   TWO ATTRIBUTIONS WERE WRONG AND AN EXECUTOR ACTING ON EITHER WOULD HAVE GONE ASTRAY. FIRST (PR-201): the plan says `R4.1` "genuinely requires that a non-isolated turn receive NO denial policy". Spec `7ckptx` says "An unattended ISOLATED turn MUST run under the STRONGEST permission posture its host supports" and is SILENT on the non-isolated turn; its only normative non-isolated statements are R1.3 and R4.4a. The assertion is still worth keeping, but it defends `run_opencode`'s deliberate "ISOLATED TURNS ONLY" narrowing (R4.6-ordered), not an R4.1 obligation. SECOND (PR-202): the plan says `run_opencode` "always sets" the variable. The assignment is inside `if work_dir:`, so the runner sets it for isolated turns ONLY; the real chain is that the OUTER driver set it and the test's INNER `run_opencode(work_dir=None)` inherits it via `pinned_child_env`, which begins `os.environ.copy()`.

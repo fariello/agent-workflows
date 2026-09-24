@@ -13,17 +13,19 @@
 - Scope: Make a live ungated release-blocking bug VISIBLE to CI as its own named step, without red-lining `main`. IN: (a) make the release-gate rule family reachable outside the full-sweep seam, as a WHOLE family rather than one rule of it, per OQ-01 and consistent with the recorded decision F-6 quotes; (b) add a NAMED CI step running exactly those rules, fail-closed if and only if the family is clean and otherwise advisory with the blocking findings named (REVISED in review per F-7/F-8: the authored scope said "fail-closed" unconditionally, which reds `main` on two findings this plan may not fix), leaving the existing advisory `check backlog` step as it is; (c) tests proving every family member is reachable, that it fires on a synthetic violation, and that it does NOT fire on a clean one or on a legitimately handed-off bug. OUT: flipping the existing `check backlog` step to fail-closed, which `DECISION 18-r2ks4k-D1` defers to a separate baseline-cleaning migration and which the measured 4 findings would immediately red; cleaning that naming debt; and adding `aw check all` wholesale to CI, which would enforce 49 findings' worth of unrelated rules in one step.
 - Scope-Paths: agent_workflows/check_engine.py, .github/workflows/tests.yml, tests/test_check_engine_release_gate.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: gateci
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 2vw35i
+- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: wu8qjy
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 reviewed (aw set): status set to reviewed
 
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009, all FIXED. Findings recorded in `.aw/records/reviews/20260923-gateci-01-2vw35i-...review.md` Round 1. Structural lint `conforming` at `author` before review and at `review-finalize` after.

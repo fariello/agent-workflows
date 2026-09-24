@@ -10,17 +10,19 @@
 - Scope: Order and track the two children this needs. IN: child 01 (`heglfv`) makes the turn-bounds policy assertions read the constructed child env rather than the ambient one, preserving the `R4.1` guarantee; child 02 (`fwgq2u`) gives `aw backlog new` an advisory near-duplicate guard following `aw graduation`'s shipped precedent. OUT, and owned by neither child: retroactively consolidating the twenty-three items (a records act needing human judgement about which filing survives, safe only once child 01 has landed); removing `OPENCODE_CONFIG_CONTENT` from `run_opencode`, which carries the turn's configuration; and the `AW_EXECUTION_ROLE` variant some filings describe, which `conftest.py` already scrubs and whose residue `rolevac` `8i0xa7` owns.
 - Scope-Paths: .aw/records/plans/pending/20260923-envhermet-01-heglfv-make-the-turn-bounds-policy-assertions-read-the-constructed.ipd.md, .aw/records/plans/pending/20260923-envhermet-02-fwgq2u-give-aw-backlog-new-a-near-duplicate-guard-so-one-defect-can.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: envhermet
 - Order: 0
 - Highest E allocated: 02
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: uvwqvz
+- Approval: 2026-09-24, recorded via aw ipd set: status set to approved
 - From-Backlog: uj5g58
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-24 approved (aw set): status set to approved
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-106, all FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260923-envhermet-00-uvwqvz-fix-the-turn-bounds-ambient-env-defect-once-and-stop-it-bein.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural; the `IPD-S407` typed child-tracking row check reports CONFORMING for both rows, so no repair loop was entered. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them.
   THE CORE DEFECT IS CONFIRMED BY DIRECT MEASUREMENT, which is the most important thing a reviewer of this plan can establish. In a lane at HEAD `a16698cc`: `python3 -m pytest tests/test_turn_bounds.py` -> `1 failed, 147 passed`; `env -u OPENCODE_CONFIG_CONTENT -u AW_EXECUTION_ROLE python3 -m pytest tests/test_turn_bounds.py` -> `148 passed`, no code change between the two. The failing assertion is `policy_key not in main_env`. So the premise is real and the Set is worth running.
   TWO MEASUREMENTS HAD DRIFTED, AND THE DIRECTION MATTERS. The suite counts moved `144`/`143` to `148`/`147`, and the filing corpus moved 23 to 25, of which TWENTY-FOUR are now already `graduated` carrying `- Graduated-To: envhermet`. That retires F-3 (the "23 live release blockers" claim) to INFO and adds CID-4 requiring both children to re-derive rather than quote, since the plan's own numbers went stale twice within days.
