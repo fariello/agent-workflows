@@ -156,16 +156,16 @@ Added at review (2026-09-24), independently measured in this lane at HEAD `f768c
 ### OQ-01: Should records artifacts filed during a plan's execution (backlog items, and also specs) become an implicit allowance, now that the hole that silently admitted them closes?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Default, which the plan proceeds with: NO new allowance. Spec Section 4.5 limits implicit allowances to "A plan's own lifecycle artifacts", and `cfab6d` itself was filed precisely because `aw commit 8u6770` accepted a backlog path under a plan whose declared scope was `.aw/records/plans/pending`, which the filer treated as a defect. RE-MEASURED AT REVIEW (F-10), which also WIDENS this question: over `--since=2026-08-01` rather than the author's 2026-09-22 window, 11 files across 6 `work:` commits were admitted only through the hole, and one of them is a `.spec.md`, not a backlog item. So the newly refused class is "any records path", and a `.aw/records/backlog/**` allowance alone would NOT have covered the measured spec case; a maintainer choosing to add an allowance should decide the class deliberately rather than inheriting the backlog framing. Finalize is unaffected because the runner auto-supplies `--scope-reason` (verified at review: `runner_shared.compute_scope_reconciliation` builds one reason per `out_of_scope` path). E-07 makes the refusal self-explanatory in the meantime, which is what keeps the default tolerable without a policy change.
+- Resolution or deferral rationale: RESOLVED 2026-09-25 by the maintainer, who accepted this question's stated default (interactive session clearing CI's check.ipd-uncarried-obligation). Default as recorded: Default, which the plan proceeds with: NO new allowance. Spec Section 4.5 limits implicit allowances to "A plan's own lifecycle artifacts", and `cfab6d` itself was filed precisely because `aw commit 8u6770` accepted a backlog path under a plan whose declared scope was `.aw/records/plans/pending`, which the filer treated as a defect. RE-MEASURED AT REVIEW (F-10), which also WIDENS this question: over `--since=2026-08-01` rather than the author's 2026-09-22 window, 11 files across 6 `work:` commits were admitted only through the hole, and one of them is a `.spec.md`, not a backlog item. So the newly refused class is "any records path", and a `.aw/records/backlog/**` allowance alone would NOT have covered the measured spec case; a maintainer choosing to add an allowance should decide the class deliberately rather than inheriting the backlog framing. Finalize is unaffected because the runner auto-supplies `--scope-reason` (verified at review: `runner_shared.compute_scope_reconciliation` builds one reason per `out_of_scope` path). E-07 makes the refusal self-explanatory in the meantime, which is what keeps the default tolerable without a policy change.
 
 ### OQ-02: Should the `.aw/records/**/index.md` allowance be corrected to the real uppercase manifest names?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Default: leave it. F-6 shows no tracked `index.md` exists under `.aw/records/` and the real `INDEX.*` manifests are gitignored, so neither spelling ever reaches the fence today; changing it is cosmetic and would also require amending the spec's allowance sentence.
+- Resolution or deferral rationale: RESOLVED 2026-09-25 by the maintainer, who accepted this question's stated default (interactive session clearing CI's check.ipd-uncarried-obligation). Default as recorded: Default: leave it. F-6 shows no tracked `index.md` exists under `.aw/records/` and the real `INDEX.*` manifests are gitignored, so neither spelling ever reaches the fence today; changing it is cosmetic and would also require amending the spec's allowance sentence.
 
 ## Validation and cross-check (verify before reporting done)
 

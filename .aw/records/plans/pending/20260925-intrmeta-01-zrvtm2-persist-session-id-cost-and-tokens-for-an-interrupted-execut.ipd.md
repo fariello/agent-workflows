@@ -146,9 +146,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-02: A clean-tree `KeyboardInterrupt` pops the attempt, taking its recorded spend with it. Preserve it?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Default: accept for this plan. The session id still reaches `set_sessions` (written on `state`, not the popped attempt), which fully fixes `hyit04`; only the spend of an attempt that changed nothing disappears, matching `reconcile_item_on_interrupt`'s "as if it never ran before" contract. If the maintainer wants that spend kept, the follow-up is to move the popped attempt's `cost`/`tokens` onto an item-level `discarded_attempts` list the table also sums.
+- Resolution or deferral rationale: RESOLVED 2026-09-25 by the maintainer, who accepted this question's stated default (interactive session clearing CI's check.ipd-uncarried-obligation). Default as recorded: Default: accept for this plan. The session id still reaches `set_sessions` (written on `state`, not the popped attempt), which fully fixes `hyit04`; only the spend of an attempt that changed nothing disappears, matching `reconcile_item_on_interrupt`'s "as if it never ran before" contract. If the maintainer wants that spend kept, the follow-up is to move the popped attempt's `cost`/`tokens` onto an item-level `discarded_attempts` list the table also sums.
 - SHARPENED AT REVIEW, because the question is not yet live and the authored text implied it was. The pop is guarded by `attempts[-1].get("attempt") == attempt_no`, while the attempt record's key is `"number"`, so on current code the predicate is `None == 1` and the pop NEVER FIRES. `87jnym` clause (c) ("make the no-changes arm's attempt pop match the attempt record's real `"number"` key") is what makes it fire, so this question becomes real exactly when this plan's declared dependency lands. Two consequences for the executor: the E-06 `KeyboardInterrupt` cases must write an untracked file (as E-06 already specifies) so the attempt is PRESERVED and the assertions have an attempt to read; and if `87jnym` has landed and a clean-tree case is added later, its expected result is a popped attempt, not a missing field.
 
 ## Validation and cross-check (verify before reporting done)

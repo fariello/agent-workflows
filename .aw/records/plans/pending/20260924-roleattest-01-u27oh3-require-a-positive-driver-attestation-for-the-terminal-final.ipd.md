@@ -176,9 +176,9 @@ What this closes and what it does not, stated honestly: it CLOSES the observed o
 ### OQ-02: Should `aw ipd begin` from a lane get the same attestation requirement?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Default: NO in this plan. The incident's harm came from the terminal transition consuming the receipt; begin is run by the driver before the turn and is currently gated only by the env selector. Extending it is mechanically identical (same predicate, `driver_begin` plumbing) but widens scope beyond the brief; a reviewer may add it as E-items or file a backlog item.
+- Resolution or deferral rationale: RESOLVED 2026-09-25 by the maintainer, who accepted this question's stated default (interactive session clearing CI's check.ipd-uncarried-obligation). Default as recorded: Default: NO in this plan. The incident's harm came from the terminal transition consuming the receipt; begin is run by the driver before the turn and is currently gated only by the env selector. Extending it is mechanically identical (same predicate, `driver_begin` plumbing) but widens scope beyond the brief; a reviewer may add it as E-items or file a backlog item.
 
 ## Validation and cross-check (verify before reporting done)
 
