@@ -44,6 +44,22 @@ os.environ.setdefault("SSH_ASKPASS", "/bin/echo")
 os.environ.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=5")
 os.environ.setdefault("GIT_CONFIG_NOSYSTEM", "1")
 
+# Teardown-race guard: git's auto-gc / auto-maintenance can DETACH a background process that keeps
+# writing under a throwaway repo's `.git` after the test's own git call returned, so the
+# `TemporaryDirectory` cleanup then fails with "Directory not empty: '.git'" (measured once on the
+# ubuntu py3.10 CI runner, test_runner_shared ReintegrationVerbTests). Disable both for every git
+# child via the env-config mechanism (git >= 2.31), appending to any count a caller already set.
+_git_cfg_n = int(os.environ.get("GIT_CONFIG_COUNT", "0") or 0)
+for _k, _v in (
+    ("gc.auto", "0"),
+    ("gc.autoDetach", "false"),
+    ("maintenance.auto", "false"),
+):
+    os.environ["GIT_CONFIG_KEY_%d" % _git_cfg_n] = _k
+    os.environ["GIT_CONFIG_VALUE_%d" % _git_cfg_n] = _v
+    _git_cfg_n += 1
+os.environ["GIT_CONFIG_COUNT"] = str(_git_cfg_n)
+
 # Interactive-prompt guard: many CLI paths (install wizard, `sanitize --configure`, the
 # `config`/`setup` roots interview, exclude guard) call `input()` behind a `sys.stdin.isatty()`
 # gate. Under CI or a piped runner `isatty()` is False, so those paths take their non-interactive
