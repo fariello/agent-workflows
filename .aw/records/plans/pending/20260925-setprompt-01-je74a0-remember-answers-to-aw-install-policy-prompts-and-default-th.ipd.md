@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/config.py, tests/test_installer.py, tests/test_config.py, tests/test_cli.py, CHANGELOG.md, README.md, docs/**
 - Item-Dependencies: state:backlog:done:72qlya
 - Status: reviewed
+- Readiness: no-go
 - Work-Kind: feature
 - Priority: high
 - Set: setprompt
@@ -19,7 +20,7 @@
 
 ## Workflow history
 - 2026-09-25 reviewed (aw set): status set to reviewed
-- 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-B01..PR-B07. The plan's own F-1/F-2/F-3 all reproduced. PR-B01 is the finding that changes the plan's shape: flipping the migration default to YES routes unattended installs into a SHIPPED crash (backlog `72qlya`), measured end to end with a patched yes-default, so the plan now declares `- Item-Dependencies: state:backlog:done:72qlya` and carries a blocking open question (OQ-03). Also found: the raised `PreflightGateError` is uncaught and kills a whole `install all` fleet run (PR-B02); `config.normalize` silently DROPS a non-bool `defaults.*`, so `defaults.leftovers` cannot round-trip as written (PR-B03, driven); three existing tests pin the old default and were unlisted (PR-B04); `config set <key> -` cannot clear a bool key (PR-B05); README's compatibility-window prose was undeclared (PR-B06); the gate carried no fence, honesty rule, or approval statement (PR-B07).
+- 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; readiness no-go (two BLOCKING questions unresolved, OQ-03 and OQ-04); PR-B01..PR-B07. The plan's own F-1/F-2/F-3 all reproduced. PR-B01 is the finding that changes the plan's shape: flipping the migration default to YES routes unattended installs into a SHIPPED crash (backlog `72qlya`), measured end to end with a patched yes-default, so the plan now declares `- Item-Dependencies: state:backlog:done:72qlya` and carries a blocking open question (OQ-03). Also found: the raised `PreflightGateError` is uncaught and kills a whole `install all` fleet run (PR-B02); `config.normalize` silently DROPS a non-bool `defaults.*`, so `defaults.leftovers` cannot round-trip as written (PR-B03, driven); three existing tests pin the old default and were unlisted (PR-B04); `config set <key> -` cannot clear a bool key (PR-B05); README's compatibility-window prose was undeclared (PR-B06); the gate carried no fence, honesty rule, or approval statement (PR-B07).
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog kapm7y. Reproduced at HEAD: `install --yes` on a legacy repo kept the layout; `config set defaults.migrate_layout true` -> unknown key. Maintainer rulings 2026-09-25: `--yes` uses the saved answer if there is one, otherwise the built-in default; the built-in default for the migration is YES.
 
 ## Goal
@@ -126,9 +127,10 @@ F-1 through F-3 were measured by the author at `0c2e7970`; F-4 through F-11 were
 - Applying the helper to other prompts (commit offers, install confirmation).
   - Carrier-Declined: those are one-off confirmations, not policies; kapm7y's case is the policy prompts, and each other prompt would need its own ruling on what a remembered answer means.
 - The `.agents/skills` classifier fix itself (`layout_inventory.classify_item`).
-  - Carrier: backlog `72qlya`, which already exists, is `open`, `Work-Kind: bug`, `Blocks-Release: next`, and carries a suggested fix. It is NOT merely deferred: this plan declares `- Item-Dependencies: state:backlog:done:72qlya`, so the dependency is machine-readable and the runner re-checks it at dispatch. Fixing it inside this plan would mean editing `layout_inventory.py`, which is outside these Scope-Paths, and would take a disposition decision (`preserve` in place versus relocate) that deserves its own review, which is the same reasoning plan `z1yefm` recorded when it filed the item.
+  - Carrier: 72qlya
+  - Rationale: that item already exists and is `open`, `Work-Kind: bug`, `Blocks-Release: next`, with a suggested fix. It is NOT merely deferred: this plan declares `- Item-Dependencies: state:backlog:done:72qlya`, so the dependency is machine-readable and the runner re-checks it at dispatch. Fixing it inside this plan would mean editing `layout_inventory.py`, which is outside these Scope-Paths, and would take a disposition decision (`preserve` in place versus relocate) that deserves its own review, which is the same reasoning plan `z1yefm` recorded when it filed the item.
 - The `partial-aw` `.gitignore` / `setup-repo-needed.md` classification (F-7).
-  - Carrier: NONE YET, and this is the one gap a human should note. It is a second, independent trigger for the same refusal and is not covered by `72qlya`'s text, which is specific to `.agents/skills`. Raised as OQ-04 rather than silently folded into the dependency, because closing `72qlya` may leave this plan still blocked.
+  - Carrier-Declined: there is deliberately NO carrier yet, and that is the point of the finding rather than an omission. It is a second, independent trigger for the same refusal and is NOT covered by `72qlya`'s text, which is specific to `.agents/skills`. Whether to widen `72qlya` or file a separate item is the maintainer's call, raised as OQ-04 (`Blocking: yes`) rather than silently folded into the dependency edge, because closing `72qlya` may leave this plan still blocked and an edge asserting otherwise would be a false safety claim.
 
 ## Scope check
 
@@ -170,7 +172,8 @@ User-facing docs and CHANGELOG are updated in E-08, because this changes what `a
 - Blocking: yes
 - Status: open
 - Owner: maintainer
-- Finding: F-4
+- Finding: PR-B01
+- Carrier: 72qlya
 - Resolution or deferral rationale: OPEN, and this is what holds the plan. Making the migration the unattended default routes `aw install --yes` into a SHIPPED crash for any repo carrying `.agents/skills`, which is the shape the tool's own keep-legacy install creates (F-4, F-5, F-6, all driven at review). The net effect of landing this plan alone is that a command which today succeeds while printing a deprecation warning instead exits 1 with a traceback and installs nothing, and in an `install all` fleet run it also strands every repo queued after the first failure. The plan now declares `- Item-Dependencies: state:backlog:done:72qlya` so a runner will not dispatch it until that item is `done`, and E-04 adds fail-soft handling so the crash degrades to a skip even if some other refusal remains. The maintainer's call is whether to (a) fix `72qlya` first and then run this, (b) run this with E-04's fail-soft as sufficient protection, accepting that affected repos silently stay on the legacy layout, or (c) fold the classifier fix into this Set as a new child plan. A reviewer cannot choose: (b) trades a crash for a silent no-op on the very upgrade 2.0.0 exists to perform, and that trade is a release-scope judgement.
 
 ### OQ-04: Who fixes the `partial-aw` refusal (F-7), which `72qlya` does not cover?
@@ -178,7 +181,8 @@ User-facing docs and CHANGELOG are updated in E-08, because this changes what `a
 - Blocking: yes
 - Status: open
 - Owner: maintainer
-- Finding: F-7
+- Finding: PR-B01, PR-B02
+- Carrier: 72qlya
 - Resolution or deferral rationale: OPEN. `.aw/.gitignore` and `.aw/setup-repo-needed.md` classify `block-unknown` through the `partial-aw` arm, reproduced at review on a fixture carrying NO `.agents/skills` at all, so it is an independent trigger for the same `PreflightGateError`. Backlog `72qlya`'s text is specific to `.agents/skills` and does not mention it, which means satisfying this plan's declared dependency may still leave the default-migration path refusing. Both files are written by the tool itself during a legacy install (F-6). The decision needed is whether to widen `72qlya`'s scope to cover the `partial-aw` arm or to file a second item; either is cheap, but leaving it unrecorded would let the dependency edge assert a safety it does not deliver. This is `Blocking: yes` for the same reason as OQ-03: if it is not resolved, the plan's central behavior change can still crash.
 
 ### OQ-05: Does the implemented layout spec's "OFFER to migrate" forbid an unattended migration?
