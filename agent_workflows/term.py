@@ -896,6 +896,35 @@ ASCII_GLYPHS = {
 }
 
 
+def ensure_encodable_stdio() -> None:
+    """Make stdout/stderr unable to raise ``UnicodeEncodeError`` on a non-UTF-8 console.
+
+    On Windows a redirected or legacy console stream defaults to the ANSI code page (cp1252),
+    and several renderers (run summary tables, lifecycle glyphs) emit characters that code page
+    cannot represent. Without this, ``print`` raises mid-run and the entry point dies with a
+    traceback AFTER durable state was written, so the run looks failed when it did its work.
+    Measured on the Windows CI runner: every driver ``--prepare-only`` invocation crashed in
+    ``runner_shared.print_status`` this way.
+
+    Keep the stream's own encoding (so an ASCII/cp1252 consumer still gets bytes it can read)
+    and only switch the error handler to ``replace``. A UTF-8 stream is left untouched.
+    Idempotent and never raises.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        enc = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        if enc in ("utf8", "utf_8"):
+            continue
+        if getattr(stream, "errors", None) in ("replace", "backslashreplace"):
+            continue
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(errors="replace")
+        except Exception:
+            pass
+
+
 def should_unicode(stream: Optional[TextIO] = None) -> bool:
     """Decide whether to emit Unicode glyphs for ``stream`` (default stdout).
 

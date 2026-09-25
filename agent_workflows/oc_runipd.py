@@ -5148,6 +5148,9 @@ def extract_profile_clause(argv: list[str]) -> tuple[list[str], str | None]:
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
+    from agent_workflows import term as _term_stdio
+
+    _term_stdio.ensure_encodable_stdio()
 
     # THE IMPLICIT-START SHIM. Any first token NOT in this set is treated as a selector and gets
     # `start` prepended. runstop 71vjbn (E-03): `"stop"` MUST be listed here. This shim lives in
