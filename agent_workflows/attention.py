@@ -4253,11 +4253,17 @@ def run(args) -> int:
         else:
             hidden_count = 0
 
-        count_noun = "artifact" if total_matching == 1 else "artifacts"
+        # Lead with what is ON SCREEN. `737 matching artifacts (723 hidden)` above a 14-row table
+        # read as a row count and was wrong at a glance (maintainer, 2026-09-24).
+        shown_count = total_matching - hidden_count
+        count_noun = "artifact" if shown_count == 1 else "artifacts"
         if hidden_count > 0:
-            count_line = f"{total_matching} matching {count_noun} ({hidden_count} hidden; use --all)"
+            count_line = (
+                f"{shown_count} {count_noun} shown ({hidden_count} done or parked hidden;"
+                f" {total_matching} total matched; use --all)"
+            )
         else:
-            count_line = f"{total_matching} matching {count_noun}"
+            count_line = f"{shown_count} {count_noun} shown"
 
         if board.strip():
             board = board.rstrip("\n") + "\n" + count_line + "\n"
@@ -4328,16 +4334,9 @@ def run(args) -> int:
                 board += f"- {notice}\n"
 
         footer_lines: list[str] = []
-        has_hidden = (
-            any(it.attention_class in (A.DONE, A.PARKED) for it in items)
-            and not show_all
-        )
         needs_setup = setup_needed(repo_root)
-        if needs_setup and has_hidden:
-            footer_lines.append(
-                "TODO: Run `/aw setup-repo` to set up this repo. Use `aw att --all` to see old stuff."
-            )
-        elif needs_setup:
+        if needs_setup:
+            # The --all hint lives on the count line now; do not repeat it here.
             footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
 
         if footer_lines:

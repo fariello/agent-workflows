@@ -3037,22 +3037,25 @@ class AttentionMatchingArtifactsCountTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             rc, out = self._run(_mk_repo(Path(td)))
             self.assertEqual(rc, 0)
-            self.assertIn("3 matching artifacts\n", out)
+            self.assertIn("3 artifacts shown\n", out)
             self.assertNotIn("hidden", out)
 
     def test_count_singular(self):
         with tempfile.TemporaryDirectory() as td:
             rc, out = self._run(_mk_repo(Path(td)), selectors=["abc123"])
             self.assertEqual(rc, 0)
-            self.assertIn("1 matching artifact\n", out)
-            self.assertNotIn("matching artifacts", out)
+            self.assertIn("1 artifact shown\n", out)
+            self.assertNotIn("artifacts shown", out)
 
     def test_count_names_hidden_terminal_items(self):
         with tempfile.TemporaryDirectory() as td:
             root = _mk_repo(Path(td))
             self._add_done_spec(root)
             _, out = self._run(root)
-            self.assertIn("4 matching artifacts (1 hidden; use --all)\n", out)
+            self.assertIn(
+                "3 artifacts shown (1 done or parked hidden; 4 total matched; use --all)\n",
+                out,
+            )
             self.assertNotIn("see old stuff", out)
 
     def test_count_with_all_hides_nothing(self):
@@ -3060,5 +3063,5 @@ class AttentionMatchingArtifactsCountTests(unittest.TestCase):
             root = _mk_repo(Path(td))
             self._add_done_spec(root)
             _, out = self._run(root, show_all=True)
-            self.assertIn("4 matching artifacts\n", out)
+            self.assertIn("4 artifacts shown\n", out)
             self.assertNotIn("hidden", out)
