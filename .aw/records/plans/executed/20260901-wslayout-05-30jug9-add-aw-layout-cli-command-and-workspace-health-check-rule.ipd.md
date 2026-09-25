@@ -443,7 +443,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
       EXIT=0
 
       $ python3 -m agent_workflows check roadmaps --agent
-      {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"roadmaps","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/roadmaps/20260712-1426-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md","rule":"check.name-nonconformant"}],"next":"run 'aw rename roadmaps ...'"}
+      {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"roadmaps","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md","rule":"check.name-nonconformant"}],"next":"run 'aw rename roadmaps ...'"}
       EXIT=1
       ```
 

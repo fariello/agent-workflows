@@ -16,7 +16,7 @@ WHAT IS WRONG: artifact_rename._update_frontmatter_metadata injects a '- Id: <id
 
 WHERE: agent_workflows/artifact_rename.py:_update_frontmatter_metadata (the insert_at fallback loop).
 
-MEASURED 2026-09-23 in this repository: at least 10 tracked walkthroughs and 1 roadmap have no '- Status:' or '- Date:' bullet in their first 6 lines, so 'aw rename walkthroughs <legacy> --to-id6' (the flag is GENERIC on the shared rename verb, not per type) would place '- Id:' directly under their H1. Examples: .aw/records/walkthroughs/20260823-highpbacklog0822-execution-decisions.walkthrough.md, .aw/records/roadmaps/20260712-1426-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md.
+MEASURED 2026-09-23 in this repository: at least 10 tracked walkthroughs and 1 roadmap have no '- Status:' or '- Date:' bullet in their first 6 lines, so 'aw rename walkthroughs <legacy> --to-id6' (the flag is GENERIC on the shared rename verb, not per type) would place '- Id:' directly under their H1. Examples: .aw/records/walkthroughs/20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md, .aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md.
 
 WHY ubac5n DID NOT FIX IT: for prompts the consequence is a violation of approved spec 20260808-1958-01-prompt-purity-lint (visible text in a pasteable prompt), so ubac5n E-04 routed prompts to their own metadata comment and DELIBERATELY did not widen the change ('DO NOT WIDEN THIS INTO THE OTHER TYPES'). For walkthroughs/roadmaps there is no purity spec, so the harm is cosmetic-to-moderate (a stray bullet in prose) rather than a contract breach, which is why this is filed rather than folded in.
 

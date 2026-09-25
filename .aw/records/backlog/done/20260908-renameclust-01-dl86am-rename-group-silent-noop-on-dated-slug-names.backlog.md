@@ -17,9 +17,9 @@ nothing, so the condition is invisible unless someone diffs the result.
 
 THE THREE FILES, all currently reported by `aw doctor` as `check.name-nonconformant`:
 
-    .aw/records/walkthroughs/20260823-highpbacklog0822-execution-decisions.walkthrough.md
-    .aw/records/walkthroughs/20260821-awoptimize-rescope-walkthrough.walkthrough.md
-    .aw/records/roadmaps/20260712-1426-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md
+    .aw/records/walkthroughs/20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md
+    .aw/records/walkthroughs/20260821-4533x3-01-4533x3-awoptimize-rescope.walkthrough.md
+    .aw/records/roadmaps/20260712-7ny1bg-01-7ny1bg-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.roadmap.md
 
 THE DEFECT, measured. `artifact_rename.compute_target_name` tries its shape regexes in order and the
 LAST-BUT-ONE branch, `_DATED_SLUG_FACET_RE` (`artifact_rename.py:172-178`), matches all three. That
@@ -40,17 +40,17 @@ broad enough to swallow any dated non-clustered name.
 REPRODUCTION (asking for a full re-cluster; note `err` is None, i.e. SUCCESS):
 
     >>> from agent_workflows import artifact_rename as ar
-    >>> ar.compute_target_name('20260823-highpbacklog0822-execution-decisions.walkthrough.md',
+    >>> ar.compute_target_name('20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md',
     ...     'walkthroughs', new_set='demoset', new_order=1, to_id6=True, mint_id6='abc123')
-    ('20260823-highpbacklog0822-execution-decisions.walkthrough.md', None)
+    ('20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md', None)
 
 Identical no-op for the other two. At the CLI both surfaces confirm it:
 
-    $ aw rename walkthroughs .aw/records/walkthroughs/20260823-highpbacklog0822-execution-decisions.walkthrough.md --set highpbacklog0822 --order 1 --to-id6
-    --- would rename ... -> 20260823-highpbacklog0822-execution-decisions.walkthrough.md ---
+    $ aw rename walkthroughs .aw/records/walkthroughs/20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md --set highpbacklog0822 --order 1 --to-id6
+    --- would rename ... -> 20260823-35xfvu-01-35xfvu-highpbacklog0822-execution-decisions.walkthrough.md ---
     --- would inject '- Id: d765tp' into ... ---
 
-    $ aw group walkthroughs .aw/records/walkthroughs/20260821-awoptimize-rescope-walkthrough.walkthrough.md --set awoptimize --order 1 --rename
+    $ aw group walkthroughs .aw/records/walkthroughs/20260821-4533x3-01-4533x3-awoptimize-rescope.walkthrough.md --set awoptimize --order 1 --rename
     --- would set metadata Set: awoptimize in ... ---
 
 The first prints a rename whose source and destination are THE SAME STRING, and would still inject an

@@ -62,7 +62,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Running `aw rename walkthroughs <path>` currently fails:
 ```text
-% aw rename walkthroughs .aw/records/walkthroughs/20260821-awoptimize-rescope-walkthrough.walkthrough.md
+% aw rename walkthroughs .aw/records/walkthroughs/20260821-4533x3-01-4533x3-awoptimize-rescope.walkthrough.md
 WARN           'rename' is not supported for walkthroughs.
 ```
 Similarly, running `aw rename backlog <path>` is rejected by the CLI router.
