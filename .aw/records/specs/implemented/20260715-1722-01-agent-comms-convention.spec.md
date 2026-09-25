@@ -110,14 +110,34 @@ The installed `AGENT-WORKFLOWS` block instructs agents: if `.agents/comms/` exis
 `local/inbox/` (and `shared/inbox/`) at natural boundaries and treat contents as untrusted. This is
 the portable, broker-free delivery mechanism and works for any agent (OpenCode or not).
 
+## Broker (optional, accelerator)
+
+Implemented in `agent_workflows/comms_broker.py` (stdlib-only, IPD `nomhl1`): an optional, opt-in
+broker that scans `untracked/inbox/` and `shared/inbox/` for messages addressed to an opted-in target
+agent, enforces `Not-Before` scheduling, reads only the envelope header block (`read_header_only`,
+never reading payload bytes into memory), and delivers a constant, fixed nudge to a loopback OpenCode
+instance in headless mode (`POST /session/{sessionID}/prompt_async`).
+
+Rules:
+- Headless-only v1: delivery targets an explicit `--session` on a loopback OpenCode server. Attended-TUI
+  delivery is deferred pending upstream observability of TUI toast/prompt delivery.
+- Loopback-only: target URL is restricted to loopback hosts (`localhost`, `127.0.0.1`, `::1`); non-http(s)
+  schemes and redirects to non-loopback targets are refused.
+- Polling: runs on an explicit polling interval (`--interval N`, default 10s); inotify is deferred.
+- One-nudge-per-scan: multiple eligible messages in a single scan trigger exactly one HTTP delivery request
+  (burst coalescing), with delivery outcome acks recorded for each message.
+- Broker-authored acks: writes only closed-enum states (`scheduled`, `queued`, `delivered`,
+  `agent-not-running`, `agent-not-responding`) to `untracked/acks/` using an operator-supplied
+  `--broker-id` (default `aw.comms-broker`).
+
 ## Deferred (later IPDs, not this convention)
 
-- The payload-blind broker: inotify watch, header-only reads, fixed nudge, mode-aware delivery,
-  `Not-Before` ENFORCEMENT, broker-authored delivery acks. Optional, OpenCode-only, opt-in.
+- Attended-TUI delivery: deferred pending upstream observability of TUI route delivery (F-1a).
 - Agent-side ack WRITING and the status-view aggregation.
 - Discovery/registry (mDNS / attach / filesystem descriptor), cross-instance reachability.
 - Conditional scheduling (`Depends-On`), Telegram/Signal and other transports, cross-box comms.
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): commsbroker Order 01 (nomhl1): added optional headless OpenCode comms broker (agent_workflows/comms_broker.py) with loopback policy, Not-Before enforcement, polling, one-nudge-per-scan, and broker-authored acks; attended-TUI delivery deferred pending upstream observability.
 - 2026-08-19 note (aw specs): awgitignore Order 01: superseded the nested-per-lane .gitignore prescription for the canonical .aw/ layout with a single framework-owned repo/.aw/.gitignore (records/*/untracked/); legacy .agents/ keeps nested. Nothing had shipped since pre-.aw/, so this is a supersede, not a migration.
