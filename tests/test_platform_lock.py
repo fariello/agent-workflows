@@ -35,6 +35,16 @@ from agent_workflows import platform_lock, run_viewer, runner_shutdown
 from tests.support import REPO_ROOT
 
 _CHILD_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
+
+#: Windows byte-range locks are MANDATORY: while one handle holds the lock, every OTHER handle is
+#: refused reads and writes of the locked range, and the holder's handle refuses delete/rename. So a
+#: test that reads or rewrites a HELD lock file through a fresh `open()` asserts POSIX advisory-lock
+#: semantics that cannot hold there. Such reads go through the holder's own descriptor on Windows.
+_WINDOWS = sys.platform == "win32"
+_MANDATORY_LOCKS = (
+    "Windows byte-range locks are mandatory: no other handle may read, write, or replace a held "
+    "lock file, so this POSIX advisory-lock property cannot be observed from outside the holder"
+)
 # Every subprocess probe is bounded, so a reintroduced deadlock FAILS the suite rather than hanging it.
 _CHILD_TIMEOUT = 30.0
 
@@ -411,6 +421,7 @@ class ProbeDoesNotMutateTests(unittest.TestCase):
         )
         print("probe of an absent lock file: reported free, created nothing")
 
+    @unittest.skipIf(_WINDOWS, _MANDATORY_LOCKS)
     def test_probing_a_live_holder_preserves_its_record(self):
         """The driver records `pid=` INSIDE driver.lock and `aw runs` reads it back."""
 
@@ -495,8 +506,13 @@ class OperatorMessageTests(unittest.TestCase):
 
         with TemporaryDirectory() as temp:
             run_dir = Path(temp) / "run-z"
-            with oc_runipd.run_lock(run_dir):
-                content = (run_dir / "driver.lock").read_text(encoding="utf-8")
+            with oc_runipd.run_lock(run_dir) as lock:
+                if _WINDOWS:
+                    # Mandatory locking: only the holder's own (dup'd) handle may read the range.
+                    lock.handle.seek(0)
+                    content = lock.handle.read()
+                else:
+                    content = (run_dir / "driver.lock").read_text(encoding="utf-8")
             self.assertIn(f"pid={os.getpid()}", content)
             print(f"driver.lock content while held: {content.strip()!r}")
 
@@ -548,7 +564,19 @@ class LockHandleDescriptorTests(unittest.TestCase):
         stream.write("pid=4242 started=now\n")
         stream.flush()
         stream.close()  # closing the DUP must NOT release the lock
-        self.assertEqual(path.read_text(encoding="utf-8"), "pid=4242 started=now\n")
+        if _WINDOWS:
+            # Mandatory locking: a fresh open() is refused, so read through another dup of the
+            # LOCKED descriptor, which still proves the write landed on the locked file.
+            reader = held.dup_stream("r")
+            assert reader is not None
+            try:
+                reader.seek(0)
+                written = reader.read()
+            finally:
+                reader.close()
+        else:
+            written = path.read_text(encoding="utf-8")
+        self.assertEqual(written, "pid=4242 started=now\n")
         self.assertEqual(
             platform_lock.probe_free(path),
             False,
@@ -556,6 +584,11 @@ class LockHandleDescriptorTests(unittest.TestCase):
         )
         print("wrote through a dup'd descriptor; lock still held after closing it")
 
+    @unittest.skipIf(
+        _WINDOWS,
+        "Windows refuses to replace a file another handle holds open without share-delete "
+        "(WinError 5), so the replaced-inode race this check guards cannot occur there",
+    )
     def test_the_run_lock_inode_check_still_detects_a_replaced_file(self):
         """End to end: `holds_current_path` must be FALSE when the path names another inode."""
 
@@ -647,7 +680,12 @@ class ImportsWithoutFcntlTests(unittest.TestCase):
         print("STILL-EXCLUSIVE")
     held.release()
 
-    # And the PROBE must report UNDETERMINED rather than guessing "free".
+    # And the PROBE must report UNDETERMINED rather than guessing "free". On Windows the probe has a
+    # second primitive (`msvcrt`), which cannot be import-blocked here because `filelock` itself
+    # needs it, so the simulated "neither primitive" host hides it at the one accessor instead.
+    import os
+    if os.name == "nt":
+        platform_lock.windows_primitive = lambda: None
     probe_path = d / "probe.lock"
     probe_path.write_text("x\\n")
     print("PROBE=%r" % (platform_lock.probe_free(probe_path),))

@@ -343,15 +343,8 @@ def inspect_run_pid_and_runtime(
     pid: int | None = None
     lock_p = run_dir / "driver.lock"
     if lock_p.is_file():
-        try:
-            m = re.search(
-                r"pid=(\d+)",
-                lock_p.read_text(encoding="utf-8", errors="ignore"),
-            )
-            if m:
-                pid = int(m.group(1))
-        except OSError:
-            pass
+        # Via `platform_lock`: on Windows a LIVE holder's mandatory lock makes a plain read raise.
+        pid = platform_lock.read_lock_record_pid(lock_p)
     if pid is None:
         m = re.search(r"-(\d+)$", run_dir.name)
         if m:

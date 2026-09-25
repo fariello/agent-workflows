@@ -74,7 +74,8 @@ class _AdoptRepo(unittest.TestCase):
 
     def _drop(self, name: str, text: str) -> Path:
         p = self.inbox / name
-        p.write_text(text, encoding="utf-8")
+        # Bytes, not text mode: text mode would translate "\n" to CRLF on Windows.
+        p.write_bytes(text.encode("utf-8"))
         return p
 
     def _run(self, argv):
@@ -346,7 +347,8 @@ class VerbatimBodyTests(_AdoptRepo):
         self.assertEqual(rc, 0, out)
         files = self._adopted_files()
         self.assertEqual(len(files), 1, files)
-        adopted = files[0].read_text(encoding="utf-8")
+        # Decode the raw bytes (no newline translation) so a CRLF-writing product cannot pass.
+        adopted = files[0].read_bytes().decode("utf-8")
         self.assertTrue(
             adopted.endswith(self.BODY),
             "the body must be appended VERBATIM below the front matter and provenance",

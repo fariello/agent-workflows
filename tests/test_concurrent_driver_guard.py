@@ -48,7 +48,6 @@ from __future__ import annotations
 
 import json
 import multiprocessing
-import os
 import subprocess
 import sys
 import tempfile
@@ -288,6 +287,17 @@ class LaneWorktreeResolutionTests(unittest.TestCase):
         )
 
 
+def _mp_context():
+    """`fork` where the platform has it (fast, and what these tests were measured with), else `spawn`.
+
+    Windows has no `fork`. `spawn` is equally a REAL second process, which is the whole point of
+    these tests, and `_hold_then_signal` is a module-level function so a spawned child can import it.
+    """
+
+    methods = multiprocessing.get_all_start_methods()
+    return multiprocessing.get_context("fork" if "fork" in methods else "spawn")
+
+
 def _hold_then_signal(lock_dir: str, held_evt, release_evt) -> None:
     """Child process: hold the repository integration lock, then release on the parent's signal."""
 
@@ -311,7 +321,7 @@ class RealTwoProcessContentionTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_a_second_holder_is_genuinely_EXCLUDED_and_the_holder_is_NAMED(self):
-        ctx = multiprocessing.get_context("fork")
+        ctx = _mp_context()
         held, release = ctx.Event(), ctx.Event()
         child = ctx.Process(
             target=_hold_then_signal, args=(str(self.repo), held, release)
@@ -349,7 +359,7 @@ class RealTwoProcessContentionTests(unittest.TestCase):
             child.join(30)
 
     def test_the_lock_is_reacquirable_after_the_holder_exits(self):
-        ctx = multiprocessing.get_context("fork")
+        ctx = _mp_context()
         held, release = ctx.Event(), ctx.Event()
         child = ctx.Process(
             target=_hold_then_signal, args=(str(self.repo), held, release)
@@ -372,14 +382,14 @@ class RealTwoProcessContentionTests(unittest.TestCase):
         holder line does not survive into the next hold.
         """
 
-        ctx = multiprocessing.get_context("fork")
+        ctx = _mp_context()
         held, release = ctx.Event(), ctx.Event()
         child = ctx.Process(
             target=_hold_then_signal, args=(str(self.repo), held, release)
         )
         child.start()
         self.assertTrue(held.wait(30))
-        os.kill(child.pid, 9)
+        child.kill()  # SIGKILL on POSIX, TerminateProcess on Windows
         child.join(30)
         with runner_shared.integration_lock(
             self.repo, holder_label="after-kill", timeout=5
@@ -405,10 +415,15 @@ class RealTwoProcessContentionTests(unittest.TestCase):
         path = runner_shared.integration_lock_path(self.repo)
         with runner_shared.integration_lock(self.repo, holder_label="x") as outcome:
             self.assertTrue(outcome.acquired)
-        self.assertTrue(
-            path.is_file(),
-            "the lock file must SURVIVE release; unlinking it breaks mutual exclusion",
-        )
+        if sys.platform != "win32":
+            # POSIX ONLY. `filelock`'s Windows backend removes the lock file on release by design,
+            # and the hazard this pins cannot arise there: every lock handle is opened WITHOUT
+            # FILE_SHARE_DELETE, so the path cannot be unlinked while any holder or waiter has it
+            # open, and no "fresh inode under a live holder" can exist.
+            self.assertTrue(
+                path.is_file(),
+                "the lock file must SURVIVE release; unlinking it breaks mutual exclusion",
+            )
         # The holder SIDECAR is the thing cleared, so a stale name cannot outlive the hold.
         self.assertEqual(runner_shared.read_integration_lock_holder(self.repo), "")
 
@@ -724,9 +739,18 @@ class OperatorVerbTests(unittest.TestCase):
                 "--",
                 sys.executable,
                 "-c",
-                "import time; print('held', flush=True); time.sleep(20)",
+                # Hold until STDIN closes, bounded at 20s. Closing our end ends the grandchild
+                # cleanly on every OS; `proc.kill()` alone reaches only the verb on Windows (no
+                # process groups), orphaning a grandchild whose cwd pins the temp repo so teardown
+                # cannot delete it (WinError 32, then RecursionError inside rmtree on the runner).
+                "import sys, threading, time; print('held', flush=True); "
+                "threading.Thread(target=sys.stdin.read, daemon=True).start(); "
+                "t = time.monotonic()\n"
+                "while time.monotonic() - t < 20 and threading.active_count() > 1: "
+                "time.sleep(0.05)",
             ],
             cwd=str(Path(runner_shared.__file__).parent.parent),
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -742,8 +766,15 @@ class OperatorVerbTests(unittest.TestCase):
                     "the driver must be excluded by the operator verb's lock",
                 )
         finally:
-            proc.kill()
-            proc.wait(30)
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+            try:
+                proc.wait(30)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(30)
 
 
 if __name__ == "__main__":

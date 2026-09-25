@@ -1115,10 +1115,15 @@ def expanded_excludes(config: Dict[str, Any]) -> List[str]:
     A leading ``~`` (or ``$VAR``) is expanded; a glob with no ``~`` is returned unchanged.
     """
 
-    return [
-        os.path.expandvars(os.path.expanduser(str(e)))
-        for e in repo_setting(config, "exclude")
-    ]
+    out: List[str] = []
+    for e in repo_setting(config, "exclude"):
+        raw = str(e)
+        expanded = os.path.expandvars(os.path.expanduser(raw))
+        # An entry that expansion CHANGED is a path: normalize it so `~/src/x` does not come back
+        # with mixed separators on Windows (a backslash home joined to `/src/x`). An unexpanded entry is left
+        # byte-for-byte, since it may be an fnmatch glob.
+        out.append(os.path.normpath(expanded) if expanded != raw else raw)
+    return out
 
 
 # --------------------------------------------------------------------------------------

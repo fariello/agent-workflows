@@ -344,7 +344,8 @@ def atomic_write(path: Path, text: str, *, prefix: str = ".aw-tmp-") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=prefix, suffix=".md")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        # newline="\n": never translate to CRLF on Windows; the written bytes are the text's bytes.
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         os.replace(tmp, str(path))
     except BaseException:

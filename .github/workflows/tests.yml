@@ -69,6 +69,11 @@ jobs:
         # `build` stays explicit: it belongs to the packaging gate, not to the test environment.
         run: python -m pip install --upgrade pip build && python -m pip install -e ".[test]"
 
+      - name: TEMP telemetry probe (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python .ci-probe/telemetry_probe.py || true
+
       - name: Run self-tests (parallel)
         shell: bash
         # Process-based parallelism; the suite is xdist-safe (per-process AW_HOME sandbox,

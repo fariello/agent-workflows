@@ -488,17 +488,13 @@ def acquire_finalize_lock(repo_root: Path, plan_id: str) -> None:
             data = {}
         pid = data.get("pid")
         if pid and pid != os.getpid():
-            alive = True
-            try:
-                os.kill(int(pid), 0)
-            except ValueError:
-                alive = False
-            except PermissionError:
-                alive = True  # EPERM: the process EXISTS (owned by another user), so it is alive
-            except ProcessLookupError:
-                alive = False  # ESRCH: no such process -> stale
-            except OSError:
-                alive = False
+            # `platform_lock.pid_alive`, NOT `os.kill(pid, 0)`: on Windows `os.kill` calls
+            # TerminateProcess, so the liveness idiom would KILL the live lock holder. Same POSIX
+            # classification as before (EPERM alive, ESRCH stale); an undeterminable answer stays
+            # "stale", exactly as the old catch-all `except OSError` did.
+            from agent_workflows import platform_lock as _platform_lock
+
+            alive = _platform_lock.pid_alive(pid) is True
             if alive:
                 raise TransactionLockError(
                     "ipd finalize writer lock held by active PID {0} (plan {1}); wait for it to "

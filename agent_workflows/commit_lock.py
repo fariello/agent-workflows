@@ -79,18 +79,15 @@ def lock_path(repo_root: Path) -> Path:
 
 
 def _pid_alive(pid: Any) -> bool:
-    """True iff ``pid`` names a live process. Mirrors `ipd_lifecycle`'s classification exactly."""
-    try:
-        os.kill(int(pid), 0)
-    except ValueError:
-        return False
-    except PermissionError:
-        return True  # EPERM: the process EXISTS (owned by another user), so it is alive
-    except ProcessLookupError:
-        return False  # ESRCH: no such process -> stale
-    except OSError:
-        return False
-    return True
+    """True iff ``pid`` names a live process. Mirrors `ipd_lifecycle`'s classification exactly.
+
+    Delegates to `platform_lock.pid_alive` rather than `os.kill(pid, 0)`, because on Windows
+    `os.kill` calls TerminateProcess and would KILL the lock holder it is asking about. EPERM is
+    alive, ESRCH is stale, and an undeterminable answer is stale, as before.
+    """
+    from agent_workflows import platform_lock
+
+    return platform_lock.pid_alive(pid) is True
 
 
 def read_owner(repo_root: Path) -> Optional[Dict[str, Any]]:

@@ -10,6 +10,7 @@ filtering for the machine convention. Stdlib only (Python 3.9+).
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
@@ -70,6 +71,42 @@ _HOME_PATH_RE = re.compile(
 # --------------------------------------------------------------------------------------------------
 
 
+_DRIVE_ABS_RE = re.compile(r"^[A-Za-z]:/")
+
+
+def _relative_to_root(path: str, repo_root: str) -> Optional[str]:
+    """Return ``path`` relative to ``repo_root`` as a forward-slashed string, or None if outside.
+
+    Both sides are compared as ``os.path.normcase(os.path.realpath(...))`` so an 8.3 short name,
+    a symlinked parent, or a case difference on a case-insensitive filesystem cannot defeat the
+    match. A relative ``path`` is taken relative to ``repo_root``, matching how callers report it.
+    """
+
+    try:
+        root_n = os.path.normcase(os.path.realpath(repo_root))
+        p = path if os.path.isabs(path) else os.path.join(repo_root, path)
+        p_n = os.path.normcase(os.path.realpath(p))
+        if os.path.splitdrive(root_n)[0] != os.path.splitdrive(p_n)[0]:
+            return None
+        rel = os.path.relpath(p_n, root_n)
+    except (OSError, ValueError):
+        return None
+    if rel == os.curdir:
+        return "."
+    if rel == os.pardir or rel.startswith(os.pardir + os.sep) or os.path.isabs(rel):
+        return None
+    # `normcase` lowercases on Windows; recover the caller's casing from the original path tail
+    # when the component count matches so the emitted path keeps its real spelling.
+    parts = rel.split(os.sep)
+    orig_parts = [x for x in path.replace("\\", "/").split("/") if x]
+    if (
+        len(orig_parts) >= len(parts)
+        and [os.path.normcase(x) for x in orig_parts[-len(parts) :]] == parts
+    ):
+        parts = orig_parts[-len(parts) :]
+    return "/".join(parts)
+
+
 def normalize_repo_path(
     path: Union[str, Path], repo_root: Optional[Union[str, Path]] = None
 ) -> str:
@@ -82,17 +119,21 @@ def normalize_repo_path(
 
     path_str = str(path).replace("\\", "/")
 
-    # If repo_root is provided, make path relative to repo_root
+    # If repo_root is provided, make path relative to repo_root. Compare NORMALIZED RESOLVED forms
+    # (realpath + normcase) rather than raw strings: the same directory is routinely spelled two ways
+    # (a Windows 8.3 short name such as `EXAMPL~1` from `tempfile` versus the long name `resolve()`
+    # yields, or a macOS/Linux symlinked TMPDIR), and a spelling mismatch must not leak the absolute
+    # path into an agent record.
     if repo_root is not None:
-        try:
-            root_resolved = Path(repo_root).resolve()
-            p_resolved = Path(path_str).resolve()
-            rel = p_resolved.relative_to(root_resolved)
-            return str(rel).replace("\\", "/")
-        except (ValueError, Exception):
-            pass
+        rel_str = _relative_to_root(path_str, str(repo_root))
+        if rel_str is not None:
+            return rel_str
 
-    # If the path looks absolute or starts with /home or /Users, strip down to relative tail
+    # If the path looks absolute (POSIX `/...`, a Windows drive `C:/...`, or UNC `//host/...`),
+    # strip it down to a relative tail. Without the drive-letter case a Windows absolute path fell
+    # through unchanged and tripped the home-path validator.
+    if _DRIVE_ABS_RE.match(path_str):
+        path_str = path_str[2:]
     if path_str.startswith("/"):
         parts = [p for p in path_str.split("/") if p]
         # Look for well-known repo subdirs or keep trailing 2-3 components

@@ -582,7 +582,9 @@ def _relativize_path(raw: str, repo_root: str | Path | None = None) -> str:
     if not raw:
         return raw
     candidate = Path(raw)
-    if not candidate.is_absolute():
+    # A ROOTED path is a relativization candidate even without a drive: on Windows `/repo/x`
+    # is rooted but not `is_absolute()`, and it is still not a repo-relative path.
+    if not (candidate.is_absolute() or candidate.root):
         return raw
     roots: list[Path] = []
     if repo_root:

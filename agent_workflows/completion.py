@@ -879,6 +879,23 @@ class CompletionInstallError(RuntimeError):
     """A drop-in install/uninstall could not be performed safely (e.g. a foreign file present)."""
 
 
+def _shell_home() -> Path:
+    """The home directory the SHELL sees: ``$HOME`` when set, else ``Path.home()``.
+
+    On POSIX these agree. On Windows ``Path.home()`` reads ``USERPROFILE`` and ignores ``$HOME``,
+    but bash (Git Bash, MSYS2, Cygwin) resolves ``~/.bashrc`` and ``~/.local/share`` against
+    ``$HOME``, so that is where a completion file or rc stanza must go to be found.
+    """
+    raw = os.environ.get("HOME")
+    return Path(raw) if raw else Path.home()
+
+
+def _write_text_exact(path: Path, text: str) -> None:
+    """Write ``text`` with NO newline translation (a text-mode write emits CRLF on Windows, which
+    bash then reads as a stray ``$'\\r'`` on every line)."""
+    path.write_bytes(text.encode("utf-8"))
+
+
 def resolve_completion_dir(shell: str, custom_dir: Optional[Path] = None) -> Path:
     """Return the drop-in auto-discovery directory for ``shell`` (jolfpj E-01).
 
@@ -894,7 +911,7 @@ def resolve_completion_dir(shell: str, custom_dir: Optional[Path] = None) -> Pat
         return Path(custom_dir).expanduser()
     env_var, fallback, subdir, _name = _DROPIN_LAYOUT[shell]
     raw = os.environ.get(env_var)
-    base = Path(raw).expanduser() if raw else Path.home() / fallback
+    base = Path(raw).expanduser() if raw else _shell_home() / fallback
     return base / subdir
 
 
@@ -1015,7 +1032,7 @@ def install_shell_completion(
     # unlink it first so a stale link can never redirect the write).
     if primary.is_symlink():
         primary.unlink()
-    primary.write_text(_script_with_sentinel(shell), encoding="utf-8")
+    _write_text_exact(primary, _script_with_sentinel(shell))
     primary.chmod(0o644)
 
     written = [primary]
@@ -1026,7 +1043,7 @@ def install_shell_completion(
             link.symlink_to(primary.name)
         except OSError:
             # A filesystem without symlink support still gets working completion via a real copy.
-            link.write_text(_script_with_sentinel(shell), encoding="utf-8")
+            _write_text_exact(link, _script_with_sentinel(shell))
         written.append(link)
 
     return {
@@ -1334,7 +1351,7 @@ def rc_path_for_shell(shell: str) -> Optional[Path]:
     """
     if shell != "bash":
         return None
-    return Path.home() / ".bashrc"
+    return _shell_home() / ".bashrc"
 
 
 def _read_rc_text(path: Optional[Path]) -> Optional[str]:
@@ -1347,7 +1364,9 @@ def _read_rc_text(path: Optional[Path]) -> Optional[str]:
     if path is None:
         return None
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        # newline="": keep the file's own line endings so a rewrite preserves them byte-for-byte.
+        with path.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            return fh.read()
     except OSError:
         return None
 
@@ -1532,7 +1551,7 @@ def install_rc_stanza(
         }
     tmp = rc_path.parent / f".{rc_path.name}.aw-tmp"
     try:
-        tmp.write_text(new_text, encoding="utf-8")
+        _write_text_exact(tmp, new_text)
         os.replace(tmp, rc_path)
     except OSError:
         # Never leave a half-written temp file behind in the user's home directory.
@@ -1583,7 +1602,7 @@ def remove_rc_stanza(rc_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
         }
     tmp = rc_path.parent / f".{rc_path.name}.aw-tmp"
     try:
-        tmp.write_text(stripped, encoding="utf-8")
+        _write_text_exact(tmp, stripped)
         os.replace(tmp, rc_path)
     except OSError:
         try:
