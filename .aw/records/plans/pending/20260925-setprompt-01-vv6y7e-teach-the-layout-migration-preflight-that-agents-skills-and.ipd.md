@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: THE 2.0.0 LAYOUT MIGRATION REFUSES ESSENTIALLY EVERY REAL LEGACY REPO, FOR THREE INDEPENDENT REASONS, ALL OF THEM FILES THE INSTALLER ITSELF WRITES. `layout_inventory.classify_item` falls through to `{ownership: unknown, disposition: block-unknown}` for (1) anything under `.agents/skills/` in the `agents` arm, and for (2) `.aw/.gitignore` and (3) `.aw/setup-repo-needed.md` in the `partial-aw` arm. The inventory turns each into an `unknown-owner` error, and `layout_migration.MigrationManager.execute_migration` raises `PreflightGateError` ("Migration plan invalid"). Measured at HEAD `eec5dc49` on four scratch repos: legacy-without-skills migrates (dry run OK); legacy-with-skills, legacy-plus-`.aw/.gitignore`, and legacy-plus-`.aw/setup-repo-needed.md` each raise `PreflightGateError` naming exactly that path. `.agents/skills` is the intended skills location for BOTH layouts (`engine.SKILLS_DIR`, `engine.resolve_skills_dir`), and a keep-legacy install creates both it and `.aw/.gitignore` (plan `je74a0` F-6), so every repo installed by a recent version is in a refused shape.
 - Scope: IN: (a) an explicit `skills` branch in `classify_item`'s `agents` arm that PRESERVES the directory in place, with the prefix read from `engine.SKILLS_DIR` via the existing `layout_migration._skills_prefix` authority rather than re-spelled; (b) explicit `partial-aw` branches for `.gitignore` and `setup-repo-needed.md` that leave both where they already are (they are framework-owned files already at their final `.aw/` location); (c) behavioral tests over the four measured shapes plus a combined shape, driving the real inventory and a real dry-run `execute_migration`, and asserting skills content survives an APPLIED migration with `leftover_disposition="remove"`; (d) widening backlog `72qlya`'s text to name all three triggers, per the maintainer's 2026-09-25 ruling. OUT: the install-time default flip, the remembered-answer config, and the fail-soft guard (all plan `je74a0`, Order 2 of this Set, which depends on this plan); any other `block-unknown` path not measured here; changing the preflight's fail-closed rule itself.
-- Scope-Paths: agent_workflows/layout_inventory.py, tests/test_layout_inventory.py, .aw/records/backlog/open/20260923-72qlya-01-72qlya-migrate-layout-refuses-agents-skills.backlog.md
+- Scope-Paths: agent_workflows/layout_inventory.py, tests/test_layout_inventory.py, .aw/records/backlog/graduated/20260923-72qlya-01-72qlya-migrate-layout-refuses-agents-skills.backlog.md
 - Item-Dependencies: none
 - Status: to-review
 - Work-Kind: bug
@@ -16,9 +16,11 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: vv6y7e
+- Readiness: go-pending-approval
 
 ## Workflow history
 
+- 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, no open questions. Every claim re-measured at HEAD dd9e7e62: all three PreflightGateError refusals and the BASE control reproduce exactly, and the proposed dispositions were PROTOTYPED on a scratch copy of the package: the combined shape then dry-runs, APPLIES, and ROLLS BACK with all three paths byte-identical and .agents/mystery.txt still block-unknown. Revisions: Scope-Paths named the backlog item's stale open/ path (it is in graduated/); E-05's note and graduation are already recorded, so E-05 now confirms rather than re-writes and uses the real --message flag; the skills branch is stated to cover the directory entries the walker yields; the deleted walker test and the mocked-only coverage are named; a rollback case was added; the _legacy_class clause was resolved (informational only, not a gate).
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Authored on the maintainer's 2026-09-25 /askme rulings on plan je74a0 OQ-03 (fold the classifier fix into this Set, ordered first) and OQ-04 (cover the partial-aw files too). Graduated from backlog 72qlya. All three refusals re-measured at HEAD eec5dc49 on scratch repos.
 - 2026-09-25 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -39,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: classify the three paths
 
-- [ ] E-02 ADD THE SKILLS BRANCH to `layout_inventory.classify_item`'s `label == "agents"` arm, BEFORE its terminal `block-unknown` return: when `first == "skills"` return `{"ownership": "host-adapter-candidate", "lifecycle_class": "host-adapter-candidate", "expected_destination_class": "host-adapter-in-place", "disposition": "preserve"}`, which is the treatment the host-adapter branch already gives regenerable shims a host tool discovers at a fixed path, for the same reason. `execute_migration` already skips every mapping whose `destination_root_class` is `host-adapter-in-place` ("they are NEVER moved"), so this keeps the directory in place without new migration logic. Derive `"skills"` from `engine.SKILLS_DIR` (strip the leading `.agents/`) rather than re-spelling it, following `layout_migration._skills_prefix`'s stated reason ("so a future relocation of the skills directory moves this guard with it"); import lazily inside the branch to keep `layout_inventory`'s import graph unchanged, as `_skills_prefix` does. Carry a comment citing `72qlya`. Also update `layout_inventory`'s coarse root classifier (the function ending `return "unknown-agents-content"`) only if E-01 or the tests show it gates the preflight; otherwise leave it and say so.
+- [ ] E-02 ADD THE SKILLS BRANCH to `layout_inventory.classify_item`'s `label == "agents"` arm, BEFORE its terminal `block-unknown` return: when `first == "skills"` (which matches the directory entries `skills` and `skills/assess` that `layout_inventory._walk` yields, as well as the files beneath them; measured at review, all three fall to `block-unknown` today) return `{"ownership": "host-adapter-candidate", "lifecycle_class": "host-adapter-candidate", "expected_destination_class": "host-adapter-in-place", "disposition": "preserve"}`, which is the treatment the host-adapter branch already gives regenerable shims a host tool discovers at a fixed path, for the same reason. `execute_migration` already skips every mapping whose `destination_root_class` is `host-adapter-in-place` ("they are NEVER moved"), so this keeps the directory in place without new migration logic. Derive `"skills"` from `engine.SKILLS_DIR` (strip the leading `.agents/`) rather than re-spelling it, following `layout_migration._skills_prefix`'s stated reason ("so a future relocation of the skills directory moves this guard with it"); import lazily inside the branch to keep `layout_inventory`'s import graph unchanged, as `_skills_prefix` does. Carry a comment citing `72qlya`. Do NOT change `layout_inventory._legacy_class` (the function ending `return "unknown-agents-content"`): verified at review, its only use is the informational `legacy_class` field set in the inventory item loop, and the preflight error pass reads only `ownership` and `disposition`, so it does not gate migration.
   - Depends on: E-01
   - Expected outcome: `classify_item("agents", "skills/assess/SKILL.md")` returns `disposition: preserve` with `expected_destination_class: host-adapter-in-place`; the legacy-with-skills dry run succeeds.
   - Execution state: pending
@@ -51,14 +53,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: prove it
 
-- [ ] E-04 ADD `tests/test_layout_inventory.py` (it does not exist; the nearest classifier coverage is indirect, via mocked `execute_migration` in `tests/test_installer.py`'s `InstallLeftoverDispositionThreadingTests`, which cannot see a classification). Drive the REAL inventory and the REAL `MigrationManager` on temp git repos built as in E-01, with `AW_HOME` isolated to a temp dir. Cases: (1) the three single-trigger shapes each dry-run cleanly; (2) a COMBINED shape carrying all three triggers dry-runs cleanly, since a fix for one could still leave the repo refused by another; (3) an APPLIED migration (`dry_run=False`, `leftover_disposition="remove"`) on the combined shape leaves `.agents/skills/assess/SKILL.md`, `.aw/.gitignore`, and `.aw/setup-repo-needed.md` present and byte-identical, and creates `.aw/system/`; (4) direct `classify_item` assertions for the three paths; (5) a NEGATIVE control: an unrelated unknown path such as `.agents/mystery.txt` still classifies `block-unknown` and still refuses, so the fix did not open the gate wholesale.
+- [ ] E-04 ADD `tests/test_layout_inventory.py` (it does not exist; a `tests/test_layout_inventory_gitignore.py` covering the walker was deleted by the test trim `19313eed`, and the only remaining migration coverage mocks `layout_migration.MigrationManager` in `tests/test_installer.py`, e.g. `InstallLeftoverDispositionThreadingTests`, so no test can see a classification). Drive the REAL inventory and the REAL `MigrationManager` on temp git repos built as in E-01, with `AW_HOME` isolated to a temp dir. Cases: (1) the three single-trigger shapes each dry-run cleanly; (2) a COMBINED shape carrying all three triggers dry-runs cleanly, since a fix for one could still leave the repo refused by another; (3) an APPLIED migration (`dry_run=False`, `leftover_disposition="remove"`) on the combined shape leaves `.agents/skills/assess/SKILL.md`, `.aw/.gitignore`, and `.aw/setup-repo-needed.md` present and byte-identical, and creates `.aw/system/`; (4) direct `classify_item` assertions for the three paths; (5) a NEGATIVE control: an unrelated unknown path such as `.agents/mystery.txt` still classifies `block-unknown` and still refuses, so the fix did not open the gate wholesale; (6) after the applied migration in case (3), `MigrationManager.rollback_migration()` leaves all three paths present, so the in-place treatment also holds on the rollback path.
   - Depends on: E-02, E-03
-  - Expected outcome: all cases pass; cases (1) through (4) fail against the pre-change classifier and case (5) passes both before and after.
+  - Expected outcome: all cases pass; cases (1) through (4) and (6) fail against the pre-change classifier (the migration refuses before it can apply) and case (5) passes both before and after.
   - Execution state: pending
 
-- [ ] E-05 WIDEN BACKLOG `72qlya` so its record states the maintainer's ruling: add a history record with `aw backlog note 72qlya -m "..."` naming the two `partial-aw` triggers, the 2026-09-25 ruling that this plan covers both, and this plan's id6. Do NOT set the item `done` or `graduated` here: `graduated` is set when this plan is approved and handed off (it is being set at authoring, see the gate), and `done` requires the code to be executed and validated, which happens at finalize.
+- [ ] E-05 CONFIRM BACKLOG `72qlya` ALREADY RECORDS THE WIDENED SCOPE, and add a note ONLY if it does not. Verified at review (2026-09-25): the item is already `- Status: graduated` in `.aw/records/backlog/graduated/`, carries `- Graduated-To: setprompt`, and its history already holds the 2026-09-25 note "Maintainer ruling 2026-09-25 (/askme on je74a0 OQ-04): scope widened to all three refusal triggers, .agents/skills AND the partial-aw .aw/.gitignore and .aw/setup-repo-..." plus a `graduated` record naming `vv6y7e`. So the normal outcome is to READ and paste those two records and write nothing. If, at execution, the note does not name all three triggers and this plan's id6, add one with `aw backlog note 72qlya --message "..."` (the flag is `--message`; `-m` is not accepted). Do NOT set the item `done` here: `done` requires the code executed and validated, and happens after finalize (see the gate).
   - Depends on: none
-  - Expected outcome: `72qlya`'s workflow history names all three triggers and cites this plan.
+  - Expected outcome: `72qlya`'s history names all three triggers and `vv6y7e`, either already (the expected case) or via one new note.
   - Execution state: pending
 
 - [ ] E-06 RUN THE BARE SUITE `python3 -m pytest` before and after the change and compare failing node IDs.
@@ -114,7 +116,7 @@ All measured at HEAD `eec5dc49`.
 
 ## Required tests / validation
 
-- `tests/test_layout_inventory.py` (new): the three single triggers, the combined shape, an applied migration preserving all three byte-identically, direct classifier assertions, and a negative control. Cases (1) to (4) shown failing against the pre-change classifier.
+- `tests/test_layout_inventory.py` (new): the three single triggers, the combined shape, an applied migration preserving all three byte-identically, direct classifier assertions, a negative control, and a rollback case. Cases (1) to (4) and (6) shown failing against the pre-change classifier.
 - Bare `python3 -m pytest` before and after; compare failing node IDs.
 
 ## Spec / documentation sync
@@ -158,12 +160,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste `python3 -m pytest tests/test_layout_inventory.py -o addopts="" -q` passing with the case count; then the same command with the E-02 and E-03 hunks temporarily reverted, showing cases (1) to (4) FAILING and case (5) still passing; then passing again after restoring.
+  - Required evidence: paste `python3 -m pytest tests/test_layout_inventory.py -o addopts="" -q` passing with the case count; then the same command with the E-02 and E-03 hunks temporarily reverted, showing cases (1) to (4) and (6) FAILING and case (5) still passing; then passing again after restoring.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the `aw backlog note` output and the resulting top history record of `72qlya` naming all three triggers and this plan's id6.
+  - Required evidence: paste `72qlya`'s `- Status:` and the history records naming all three triggers and `vv6y7e`; if a note had to be added, also paste the `aw backlog note` output.
   - Observed evidence:
   - Result: pending
 
