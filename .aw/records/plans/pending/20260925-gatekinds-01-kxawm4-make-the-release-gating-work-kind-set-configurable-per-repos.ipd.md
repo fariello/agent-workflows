@@ -6,7 +6,7 @@
 - Scope: Add a `release_gate_work_kinds` key to `.aw/config/project.json`, read by one new `config` reader that defaults to `bug` alone, and route BOTH consumers of the hardcoded set (`backlog.decide_gate_default` and `check_engine.check_live_bug_gate`) through it; update the AGENTS.md sentence and the `backlog.py` comment that say it is unbuilt.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/backlog.py, agent_workflows/check_engine.py, AGENTS.md, tests/test_config_release_gate_kinds.py, tests/test_check_engine_release_gate.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -18,6 +18,7 @@
 - From-Backlog: 0htqmm
 
 ## Workflow history
+- 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-307 all FIXED, no deferrals, no open questions (OQ-02 resolved from the recorded config posture). The plan's survey is accurate and its precedent well chosen; F-1, F-2, F-3 and F-4 all re-verified independently, and F-3's boundary re-proved because acting on its opposite is a measured hazard a sibling review retracted. Findings: E-03 and E-04 each named fewer hardcoded kind strings than exist (three notices in backlog.py, two drift fields in check_engine.py, plus a docstring condition and a RuleSpec comment that assert `bug` alone); V-01's schema assertion targeted `project_schema.py`, a module this plan never edits, so it would pass regardless; E-02's round-trip is real but the serializer is `to_dict`, not `as_dict`; the vocabulary-duplication choice needed the `REVIEW_GATE_THRESHOLDS` precedent stated; and the `RuleSpec` determinism tag must NOT change. Added F-5..F-10, measured the 13-test baseline and the zero-drift-when-widened result, and rewrote the gate with a scope fence, honesty rule and two stop conditions. Split E-03 and E-05 to clear two IPD-Z602 size advisories my own clarifications raised; E/V renumbered to E-01..E-08 / V-01..V-08.
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog 0htqmm; re-measured that no gating-kind config key exists (only `backlog.GATE_DEFAULT_KINDS`, consumed at `backlog.decide_gate_default` and `check_engine.check_live_bug_gate`) and that the AGENTS.md sentence is hand-maintained with no generator in `engine.py`.
