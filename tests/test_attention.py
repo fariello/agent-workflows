@@ -3004,3 +3004,61 @@ class SelectorNoMatchIsReportedTests(unittest.TestCase):
             rc_bare, _, err_bare = _attsel_run(root, selectors=[])
             self.assertEqual(rc_bare, 0)
             self.assertEqual(err_bare, "")
+
+
+class AttentionMatchingArtifactsCountTests(unittest.TestCase):
+    """The board ends with how many artifacts matched, and how many are hidden without --all."""
+
+    def _run(self, root, selectors=(), show_all=False):
+        args = argparse.Namespace(
+            dir=str(root),
+            format=None,
+            check=False,
+            selectors=list(selectors),
+            types=[],
+            no_color=True,
+            all=show_all,
+            long=False,
+            details=False,
+        )
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            rc = att.run(args)
+        return rc, buf.getvalue()
+
+    def _add_done_spec(self, root):
+        (root / ".agents" / "docs" / "specs" / "done.md").write_text(
+            "# Spec: done\n\n- Date: 2026-08-08\n- Status: implemented\n- Author: t\n\n"
+            "## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+            encoding="utf-8",
+        )
+
+    def test_count_all_visible(self):
+        with tempfile.TemporaryDirectory() as td:
+            rc, out = self._run(_mk_repo(Path(td)))
+            self.assertEqual(rc, 0)
+            self.assertIn("3 matching artifacts\n", out)
+            self.assertNotIn("hidden", out)
+
+    def test_count_singular(self):
+        with tempfile.TemporaryDirectory() as td:
+            rc, out = self._run(_mk_repo(Path(td)), selectors=["abc123"])
+            self.assertEqual(rc, 0)
+            self.assertIn("1 matching artifact\n", out)
+            self.assertNotIn("matching artifacts", out)
+
+    def test_count_names_hidden_terminal_items(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+            self._add_done_spec(root)
+            _, out = self._run(root)
+            self.assertIn("4 matching artifacts (1 hidden; use --all)\n", out)
+            self.assertNotIn("see old stuff", out)
+
+    def test_count_with_all_hides_nothing(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+            self._add_done_spec(root)
+            _, out = self._run(root, show_all=True)
+            self.assertIn("4 matching artifacts\n", out)
+            self.assertNotIn("hidden", out)

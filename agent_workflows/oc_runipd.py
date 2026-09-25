@@ -93,6 +93,7 @@ from agent_workflows.plan_readiness import (
 )
 from agent_workflows.render_stream import (
     activity_for_item,
+    dispatchable_work_total,
     resolve_item_lifecycle,
     _ANSI_CODES,
     _ANSI_RESET,
@@ -3542,7 +3543,7 @@ def run_opencode(
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
 
     queue = state.get("queue", [])
-    total_items = len(queue) or 1
+    total_items = dispatchable_work_total(queue) or 1
     # When working on item at 1-based execution sequence S, number of completed items is S - 1 (e.g. 0 of 2 done).
     seq = execution_index(item, state)
     current_idx = max(0, seq - 1)

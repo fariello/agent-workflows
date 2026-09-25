@@ -4243,6 +4243,27 @@ def run(args) -> int:
                 runs_mode=runs_mode,
                 run_map=run_map,
             )
+
+        total_matching = len(items)
+        if not show_all:
+            visible_count = len(
+                [it for it in items if it.attention_class not in (A.DONE, A.PARKED)]
+            )
+            hidden_count = total_matching - visible_count
+        else:
+            hidden_count = 0
+
+        count_noun = "artifact" if total_matching == 1 else "artifacts"
+        if hidden_count > 0:
+            count_line = f"{total_matching} matching {count_noun} ({hidden_count} hidden; use --all)"
+        else:
+            count_line = f"{total_matching} matching {count_noun}"
+
+        if board.strip():
+            board = board.rstrip("\n") + "\n" + count_line + "\n"
+        else:
+            board = count_line + "\n"
+
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the
         # exit code). Surfaces orphaned-live-blocker (an open blocking item already handed off to a
         # plan) with a de-gate/close hint.
@@ -4318,8 +4339,6 @@ def run(args) -> int:
             )
         elif needs_setup:
             footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
-        elif has_hidden and colored:
-            footer_lines.append("Use `aw att --all` to see old stuff.")
 
         if footer_lines:
             board = board.rstrip("\n") + "\n" + "\n".join(footer_lines) + "\n"

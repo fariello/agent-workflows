@@ -2106,12 +2106,21 @@ def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
     """
     executed = (state.get("run_order") or {}).get("executed")
     id6 = str(item.get("id6") or "")
-    if executed and id6 in executed:
-        return executed.index(id6) + 1
-
     queue = state.get("queue") or []
+    # Count only entries this run can dispatch, so the NUMERATOR matches the
+    # `dispatchable_work_total` denominator. Without this, a Set with 4 of 10 members already
+    # executed opened at `5/6` instead of `1/6` (the denominator was fixed on 2026-09-22 and the
+    # index was not; branch `statusbar-run-progress` held the original fix).
+    not_work = {str(it.get("id6")) for it in queue if not item_is_dispatchable_work(it)}
+    if executed and id6 in executed:
+        if id6 in not_work:
+            return executed.index(id6) + 1
+        return [x for x in executed if x not in not_work].index(id6) + 1
+
     completed = 0
     for it in queue:
+        if str(it.get("id6")) in not_work:
+            continue
         if str(it.get("id6")) != id6 and (
             it.get("status")
             in {
