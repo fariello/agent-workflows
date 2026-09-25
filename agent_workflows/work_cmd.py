@@ -7,9 +7,9 @@ mutate, (b) make the compliant path the EASY path, and (c) produce evidence AT t
 This module supplies the four primitives, each calling the phase-1 shared policy engine
 (``check_engine``) and REUSING the existing machinery rather than forking a second path:
 
-  * ``aw work begin <ipd>``  - validate the plan via the phase-1 engine (fail closed on findings) and
-    allocate/associate an ISOLATED git worktree via ``worktree_lease.allocate_worktree`` + a recorded
-    lease. No second worktree path.
+  * ``aw work begin <ipd>``  - validate the plan via the phase-1 engine (fail closed on error-severity
+    findings; warnings are printed as advisories) and allocate/associate an ISOLATED git worktree
+    via ``worktree_lease.allocate_worktree`` + a recorded lease. No second worktree path.
   * ``aw test <ipd> -- <cmd>`` - run ``<cmd>``, capture stdout/stderr/exit + env metadata (command
     line, cwd, timestamp, git HEAD/tree), and bind that evidence to the current tree/commit under the
     plan's LOCAL run-record area. HONEST label: the evidence is locally produced and forgeable by a
@@ -246,13 +246,32 @@ def _atomic_write_json(path: Path, obj) -> None:
             os.unlink(tmp)
 
 
-def _validate_plan_via_engine(repo_root: Path, plan_path: Path) -> List[_core.Drift]:
-    """Run the phase-1 shared policy engine over plans and return ONLY the findings for this plan
-    (fail-closed inputs to `aw work begin`). Advisory (info-severity) findings are excluded so a
-    mere draft-readiness nudge does not block starting work."""
+def _validate_plan_via_engine(
+    repo_root: Path, plan_path: Path
+) -> Tuple[List[_core.Drift], List[_core.Drift]]:
+    """Run the phase-1 shared policy engine over plans and return findings for this plan
+    partitioned into ``(blocking, advisory)``.
+
+    Findings are partitioned by severity:
+      * ``warning`` findings are returned in ``advisory`` (printed as visible notices, not blocking).
+      * ``info`` findings are dropped (silent advisory nudges).
+      * Everything else is returned in ``blocking`` (refuses the action: ``error``, unregistered
+        rules stamped ``error`` by ``_DEFAULT_RULESPEC``, empty or unrecognized severity strings;
+        fails closed on error-severity findings).
+
+    NOTE ON STAGED SEVERITY AND THE TWO-CONTRACTS DISTINCTION (IPD s7cu7n):
+    `warning` here means "not blocking at THIS lifecycle gate" (`aw commit` / `aw work begin`). It
+    is NOT a claim about the `aw check` exit code: `artifact_core.drift_exit_code` exempts only
+    `info`, so a `warning` still fails CI and pre-commit checks. Furthermore, two `warning` rules
+    reaching this gate (`check.ipd-priority-required` and `check.ipd-work-kind-required`) are
+    deliberately staged toward `error` (precedent: `lkexaw` E-04 records that their end state is
+    `error` once the pending corpus is free of sentinels). Once promoted to `error`, those rules
+    will block here again by design; `warning` is not a permanent exemption.
+    """
     drift = _ce.check_type(repo_root, "plans")
     target = str(plan_path.resolve())
-    out: List[_core.Drift] = []
+    blocking: List[_core.Drift] = []
+    advisory: List[_core.Drift] = []
     for d in drift:
         try:
             same = str(Path(d.location).resolve()) == target
@@ -262,9 +281,12 @@ def _validate_plan_via_engine(repo_root: Path, plan_path: Path) -> List[_core.Dr
             continue
         enriched = _ce.enrich_drift(d)
         if enriched.severity == "info":
-            continue  # advisory nudge, not a blocking finding
-        out.append(enriched)
-    return out
+            continue  # advisory nudge, dropped silently
+        if enriched.severity == "warning":
+            advisory.append(enriched)
+        else:
+            blocking.append(enriched)
+    return blocking, advisory
 
 
 # --------------------------------------------------------------------------------------
@@ -273,7 +295,7 @@ def _validate_plan_via_engine(repo_root: Path, plan_path: Path) -> List[_core.Dr
 
 
 def run_work_begin(args: argparse.Namespace) -> int:
-    """`aw work begin <ipd>`: validate the plan (fail closed) then allocate an isolated worktree."""
+    """`aw work begin <ipd>`: validate the plan (fail closed on error-severity findings; warnings are printed as advisories) then allocate an isolated worktree."""
     repo_root = _resolve_repo_root(args)
     selector = getattr(args, "plan", None) or getattr(args, "selector", None)
     plan_path, err = _resolve_plan(repo_root, selector)
@@ -287,13 +309,19 @@ def run_work_begin(args: argparse.Namespace) -> int:
         return 2
     plan_id = _plan_id6(text) or plan_path.stem
 
-    # Validate BEFORE mutating (findings 7.4): fail closed on any blocking finding.
-    findings = _validate_plan_via_engine(repo_root, plan_path)
-    if findings:
+    # Validate BEFORE mutating (findings 7.4): fail closed on error-severity findings; warnings are printed as advisories.
+    blocking, advisory = _validate_plan_via_engine(repo_root, plan_path)
+    if advisory:
         print(
-            f"aw work begin: refusing to start - {len(findings)} finding(s) on {plan_path.name}:"
+            f"aw work begin: note - {len(advisory)} advisory (warning) finding(s) on {plan_path.name} (not blocking):"
         )
-        for d in findings:
+        for d in advisory:
+            print(f"  {d.rule}: {d.detail}")
+    if blocking:
+        print(
+            f"aw work begin: refusing to start - {len(blocking)} finding(s) on {plan_path.name}:"
+        )
+        for d in blocking:
             print(f"  {d.rule}: {d.detail}")
         return 1
 
@@ -574,15 +602,22 @@ def run_commit(args: argparse.Namespace) -> int:
             "paths without scope enforcement"
         )
 
-    # Run the phase-1 engine before mutating (validate-then-act). Blocking findings refuse the
-    # commit. SKIPPED under --no-plan: this validates the PLAN, so it has no subject without one.
+    # Run the phase-1 engine before mutating (validate-then-act). Blocking (error-severity)
+    # findings refuse the commit; warning-severity findings are printed as non-blocking advisories.
+    # SKIPPED under --no-plan: this validates the PLAN, so it has no subject without one.
     if plan_path is not None:
-        findings = _validate_plan_via_engine(repo_root, plan_path)
-        if findings:
+        blocking, advisory = _validate_plan_via_engine(repo_root, plan_path)
+        if advisory:
             print(
-                f"aw commit: refusing - {len(findings)} finding(s) on {plan_path.name}:"
+                f"aw commit: note - {len(advisory)} advisory (warning) finding(s) on {plan_path.name} (not blocking):"
             )
-            for d in findings:
+            for d in advisory:
+                print(f"  {d.rule}: {d.detail}")
+        if blocking:
+            print(
+                f"aw commit: refusing - {len(blocking)} finding(s) on {plan_path.name}:"
+            )
+            for d in blocking:
                 print(f"  {d.rule}: {d.detail}")
             return 1
 
