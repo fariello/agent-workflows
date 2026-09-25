@@ -141,6 +141,7 @@ import contextlib
 import datetime as dt
 import functools
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -380,6 +381,39 @@ def state_root(repo: Path | str | None = None) -> Path:
     if not records_dir.exists() and (target / ".aw" / "records").is_dir():
         records_dir = (target / ".aw" / "records").resolve()
     return records_dir / "runs"
+
+
+_RUN_ATTESTATIONS: dict[str, str] = {}
+
+
+def get_run_attestation(run_dir: Path | str | None) -> str | None:
+    """Retrieve the in-memory driver attestation for a run directory, or load from token file if present."""
+    if run_dir is None:
+        return None
+    rd = Path(run_dir).resolve()
+    val = _RUN_ATTESTATIONS.get(str(rd))
+    if val is not None:
+        return val
+    from agent_workflows import ipd_lifecycle as _lifecycle
+
+    token_file = rd / _lifecycle.DRIVER_ATTEST_FILENAME
+    if token_file.is_file():
+        try:
+            token = token_file.read_text(encoding="utf-8").strip()
+            if token:
+                attestation = f"{rd.name}:{token}"
+                _RUN_ATTESTATIONS[str(rd)] = attestation
+                return attestation
+        except OSError:
+            pass
+    if rd.is_dir():
+        try:
+            attestation = _lifecycle.mint_driver_attestation(rd)
+            _RUN_ATTESTATIONS[str(rd)] = attestation
+            return attestation
+        except OSError:
+            pass
+    return None
 
 
 # ---- analytics namespace reservation -------------------------------------------------------------
@@ -17049,6 +17083,7 @@ def dispatch_orchestrator_item(
                 children=[m.id6 for m in read_set_membership(repo, setid).children],
                 eligibility=eligibility,
                 apply=True,
+                driver_attestation=get_run_attestation(run_dir),
             )
         if result is not None and result.exit_code == 0:
             item["status"] = "executed"
@@ -24172,6 +24207,11 @@ def initialize_run_core(
         f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
     )
 
+    from agent_workflows import ipd_lifecycle as _lifecycle
+
+    attestation = _lifecycle.mint_driver_attestation(run_dir)
+    _RUN_ATTESTATIONS[str(run_dir.resolve())] = attestation
+
     if manifest_path is None:
         manifest_path = run_dir / "manifest.json"
         atomic_write_json(manifest_path, manifest)
@@ -24719,6 +24759,7 @@ def driver_finalize(
     labels: HostLabels,
     env_builder: Callable[[], Mapping[str, str]],
     argv_builder: Callable[[Sequence[str]], list[str]],
+    attestation: str | None = None,
 ) -> tuple[int, str]:
     """Run `aw ipd finalize <id6> --actor --message --apply` after a verified turn.
 
@@ -24759,10 +24800,15 @@ def driver_finalize(
         cmd.extend(["--scope-reason", f"{path}={reason}"])
     for path, note in acks.items():
         cmd.extend(["--scope-ack", f"{path}={note}"])
+    env = dict(env_builder())
+    if attestation:
+        from agent_workflows import ipd_lifecycle as _lifecycle
+
+        env[_lifecycle.DRIVER_ATTEST_ENV] = attestation
     result = subprocess.run(
         cmd,
         cwd=str(repo),
-        env=env_builder(),
+        env=env,
         text=True,
         # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
         # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
@@ -25170,6 +25216,12 @@ def locked_run(run_dir: Path):
         try:
             yield lock
         finally:
+            from agent_workflows import ipd_lifecycle as _lifecycle
+
+            token_path = run_dir / _lifecycle.DRIVER_ATTEST_FILENAME
+            with contextlib.suppress(OSError):
+                token_path.unlink(missing_ok=True)
+            _RUN_ATTESTATIONS.pop(str(run_dir.resolve()), None)
             report = runner_shutdown.clean_shutdown(
                 lock=lock, run_dir=run_dir, repo=repo
             )
@@ -26270,6 +26322,41 @@ def record_item_spec_edits(
     }
     item["spec_edits_reconciliation"] = record
     return record
+
+
+def _call_driver_finalize(
+    driver_finalize_fn: Any,
+    repo: Path,
+    plan_path: Path,
+    id6: str,
+    actor: str,
+    message: str,
+    attestation: str | None = None,
+) -> tuple[int, str]:
+    try:
+        sig = inspect.signature(driver_finalize_fn)
+        has_kw = "attestation" in sig.parameters or any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+        )
+    except (ValueError, TypeError):
+        has_kw = True
+
+    if has_kw:
+        return driver_finalize_fn(
+            repo,
+            plan_path,
+            id6,
+            actor,
+            message,
+            attestation=attestation,
+        )
+    return driver_finalize_fn(
+        repo,
+        plan_path,
+        id6,
+        actor,
+        message,
+    )
 
 
 # ---- rununify: execute_item_core -----------------------------------------------------------------
@@ -28167,12 +28254,14 @@ def execute_item_core(
                     ),
                 )
                 sync_receipt_into_worktree(repo, finalize_repo, item["id6"])
-                fin_rc, fin_msg = driver_finalize(
+                fin_rc, fin_msg = _call_driver_finalize(
+                    driver_finalize,
                     finalize_repo,
                     current_plan_for_finalize,
                     item["id6"],
                     actor,
                     fin_message,
+                    attestation=get_run_attestation(run_dir),
                 )
                 if fin_rc == 0:
                     process_backlog_close(
@@ -28390,8 +28479,14 @@ def execute_item_core(
                         r, p, labels=host_labels
                     ),
                 )
-                fin_rc, fin_msg = driver_finalize(
-                    repo, current_plan_for_finalize, item["id6"], actor, fin_message
+                fin_rc, fin_msg = _call_driver_finalize(
+                    driver_finalize,
+                    repo,
+                    current_plan_for_finalize,
+                    item["id6"],
+                    actor,
+                    fin_message,
+                    attestation=get_run_attestation(run_dir),
                 )
                 attempt["ending_head"] = git_head(repo)
                 attempt["ending_status"] = git_status(repo)

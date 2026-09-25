@@ -69,6 +69,8 @@ behavior-preserving install refactor, and the bug-fix / install-path corrections
 (previously staged for a separate 1.2.1 patch, now folded into this single release). Final release
 scoping is confirmed at release-review.
 
+- Security: the terminal finalize and retire transitions inside a lane worktree now require a positive driver attestation (AW_DRIVER_ATTEST). Stripping AW_EXECUTION_ROLE from a lane worker turn no longer grants driver authority, closing an authority bypass where an agent could execute the driver-owned finalize transaction directly and consume its single-use begin receipt.
+
 - Fixed: the `aw` CLI now detects when it is executed inside a checkout of `agent-workflows` whose package differs from the installed one (for example, in a lane worktree when the editable install points to a different tree). When a mismatch is detected, `aw` prints a one-line notice on stderr and re-runs using the invoked checkout's package, ensuring evidence commands run against the active tree's code. Set `AW_NO_REEXEC=1` in the environment to disable the re-run.
 
 - Added: `.agents/prompts/local/` gitignored quarantine lane (DECISIONS D94). Raw, sensitive, or

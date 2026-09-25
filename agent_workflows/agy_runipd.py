@@ -1228,7 +1228,12 @@ def _compute_scope_reconciliation(
 
 
 def driver_finalize(
-    repo: Path, plan_path: Path, id6: str, actor: str, message: str
+    repo: Path,
+    plan_path: Path,
+    id6: str,
+    actor: str,
+    message: str,
+    attestation: str | None = None,
 ) -> tuple[int, str]:
     """Run `aw ipd finalize <id6> --actor --message --apply` after a verified turn.
 
@@ -1246,6 +1251,7 @@ def driver_finalize(
         labels=runner_shared.AGY_HOST_LABELS,
         env_builder=pinned_child_env,
         argv_builder=pinned_module_argv,
+        attestation=attestation,
     )
 
 
@@ -2441,6 +2447,7 @@ def run_agy_turn(
     from agent_workflows import ipd_lifecycle
 
     child_env = pinned_child_env()
+    child_env.pop(ipd_lifecycle.DRIVER_ATTEST_ENV, None)
     if work_dir:
         child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
     else:

@@ -35,54 +35,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the gate in ipd_lifecycle
 
-- [ ] E-01 Add `ipd_lifecycle.lane_worktree_active(repo_root: Path) -> bool`: True iff the resolved `repo_root` lies under `checkout_control_root(repo_root) / ".aw" / "worktrees"`, OR `git -C repo_root symbolic-ref --short -q HEAD` starts with `aw/lane/` (reuse `worktree_lease.lane_id_from_branch` for the branch test rather than a second prefix literal). Git failure / not a checkout returns False (unchanged behavior for temp-dir callers).
+- [x] E-01 Add `ipd_lifecycle.lane_worktree_active(repo_root: Path) -> bool`: True iff the resolved `repo_root` lies under `checkout_control_root(repo_root) / ".aw" / "worktrees"`, OR `git -C repo_root symbolic-ref --short -q HEAD` starts with `aw/lane/` (reuse `worktree_lease.lane_id_from_branch` for the branch test rather than a second prefix literal). Git failure / not a checkout returns False (unchanged behavior for temp-dir callers).
   THE SCRATCH-WORKTREE QUESTION IS ALREADY ANSWERED, and the answer is NOT the one this item assumed, so do NOT treat the original "if it is, STOP and report" as live (review F-10). Measured at review by building a real checkout, a real `aw/lane/abc123` lane, and a real coordinator worktree from that lane: `commit_lock.coordinator_worktree` creates its tree at `tempfile.mkdtemp(prefix=".aw-coordinator-", dir=str(repo_root.parent))` on a branch prefixed `COORDINATOR_WORKTREE_PREFIX = "aw/coordinator/"`. So when `finalize` runs with a LANE as `repo_root`, the scratch tree lands at `<checkout>/.aw/worktrees/.aw-coordinator-XXXX`, which IS under `.aw/worktrees/` and therefore DOES satisfy the path criterion (measured `True`); it is NOT on an `aw/lane/*` branch (measured `False`, it is `aw/coordinator/...`). The reason this is nonetheless SAFE is different from what the item supposed: the scratch path is used ONLY for git plumbing inside `_finalize_transaction` (mirror the plan bytes, `apply_status_change`, `git add`, `git commit`) and is NEVER passed as `repo_root` to a nested `finalize` or `retire_orchestrator`, so no self-refusal is reachable. VERIFY THAT PROPERTY rather than the path property: grep the transaction body and confirm `coord.path` reaches no lifecycle-transition call. The STOP condition is narrowed accordingly: stop and report only if `coord.path` (or any `.aw-coordinator-` tree) is passed to a transition function, since THAT is what would self-refuse.
   - Depends on: none
   - Expected outcome: pure predicate, unit-tested True for `.aw/worktrees/<id6>` and for a worktree elsewhere on `aw/lane/x`, False for the main checkout and a non-git dir; plus the grep evidence that no lifecycle transition is ever called with the coordinator scratch path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the attestation primitives in `ipd_lifecycle`: constant `DRIVER_ATTEST_ENV = "AW_DRIVER_ATTEST"` (value `<run-id>:<hex-token>`), `DRIVER_ATTEST_FILENAME = "driver-attest.token"`, `mint_driver_attestation(run_dir: Path) -> str` (writes `secrets.token_hex(32)` to `run_dir/DRIVER_ATTEST_FILENAME` with mode 0600 via `os.open(..., O_CREAT|O_EXCL|O_WRONLY, 0o600)`, returns `"<run_dir.name>:<token>"`), and `verify_driver_attestation(repo_root, value) -> tuple[bool, str]`. The verifier LOCATES THE FILE ITSELF (never from a caller-supplied path), refuses a run-id containing a path separator or `..`, and compares with `hmac.compare_digest`.
+- [x] E-02 Add the attestation primitives in `ipd_lifecycle`: constant `DRIVER_ATTEST_ENV = "AW_DRIVER_ATTEST"` (value `<run-id>:<hex-token>`), `DRIVER_ATTEST_FILENAME = "driver-attest.token"`, `mint_driver_attestation(run_dir: Path) -> str` (writes `secrets.token_hex(32)` to `run_dir/DRIVER_ATTEST_FILENAME` with mode 0600 via `os.open(..., O_CREAT|O_EXCL|O_WRONLY, 0o600)`, returns `"<run_dir.name>:<token>"`), and `verify_driver_attestation(repo_root, value) -> tuple[bool, str]`. The verifier LOCATES THE FILE ITSELF (never from a caller-supplied path), refuses a run-id containing a path separator or `..`, and compares with `hmac.compare_digest`.
   THE RUNS-ROOT DERIVATION MUST BE `runner_shared.state_root(repo_root)`, NOT a hand-composed path, and this is a CORRECTION of what this item originally said (review F-8/F-9). The original text said `checkout_control_root(repo_root) / ".aw/records/runs" / <run-id>`, and that is wrong TWICE. FIRST, `checkout_control_root` returns the `.aw` DIRECTORY ITSELF, not the checkout root, so appending `".aw/records/runs"` yields a DOUBLED `.aw` that can never exist; measured at review from this lane: the expression resolves to `<checkout>/.aw/.aw/records/runs` (`exists() -> False`) where the real directory is `<checkout>/.aw/records/runs` (`exists() -> True`). Every verification would therefore have failed with "missing file", refusing the DRIVER's own finalize and stranding every lane, which is precisely the incident class this plan exists to prevent. SECOND, even with the doubling fixed, a hand-composed `.aw`-relative path silently assumes the `repository` records backend. `state_root`'s own docstring says it resolves through the project context so that "records_backend settings (repository, companion, home) each yield the correct location", and `RecordsBackend` really does have three members (measured: `['home', 'companion', 'repository']`), so under `home` or `companion` the driver mints somewhere the hand-composed verifier would never look. Call `state_root` so mint and verify CANNOT diverge by construction; if importing `runner_shared` from `ipd_lifecycle` creates a cycle, import it lazily inside the function (the module already does lazy intra-package imports elsewhere) rather than duplicating the derivation.
   WHAT STILL NEEDS CHECKING AT EXECUTION, because `state_root` takes a `repo` argument and the two sides pass different trees: the driver mints with the MAIN checkout (`initialize_run_core` resolves `repo = Path(args.repo)`) while the verifier runs with a LANE as `repo_root`. Measured at review that these AGREE for the `repository` backend (`state_root(<main>)` and `state_root(<lane>)`... do NOT: `state_root(<lane>)` returned `<lane>/.aw/records/runs`, a LANE-LOCAL path the driver never wrote to). So the verifier MUST first collapse its `repo_root` to the main worktree before calling `state_root`: derive it as `state_root(checkout_control_root(repo_root).parent)`, which is the main checkout root, and assert in a test that a LANE `repo_root` and the MAIN `repo_root` resolve to the SAME runs directory. Verified at review that `checkout_control_root(<lane>).parent` is the main checkout root.
   - Depends on: none
   - Expected outcome: mint then verify returns `(True, ...)`; wrong token, unknown run-id, `../` run-id, malformed value, and missing file each return `(False, <reason>)`; AND a lane `repo_root` resolves to the same runs directory as the main `repo_root` (pinned by a test, since this is the equality the whole design rests on).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Gate `ipd_lifecycle.finalize` and `ipd_lifecycle.retire_orchestrator`: add keyword `driver_attestation: Optional[str] = None` to both; immediately AFTER the existing `worker_role_active` gate and before any other gate or mutation, if `lane_worktree_active(repo_root)` and the attestation (kwarg, else `env[DRIVER_ATTEST_ENV]` where `env` defaults to `os.environ`) does not verify, return `FinalizeResult(EXIT_CANNOT_RUN, None, <msg>, evidence, (ROLLUP_REFUSED_NO_DRIVER_ATTESTATION,))` with a new typed id `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION = "no-driver-attestation"` added to the refusal vocabulary beside `ROLLUP_REFUSED_WORKER_ROLE`. The message must start with `LIFECYCLE_ROLE_ERROR`, name the lane worktree, and say plainly: unsetting `AW_EXECUTION_ROLE` does NOT grant driver authority; running this yourself consumes the driver's begin receipt and strands the lane; write the outcome file and stop. Update the "HONEST LIMIT" comment in `finalize` to describe the new layer and its limit. DO NOT CARRY FORWARD ITS STALE CLAUSE (review F-14b): the shipped comment says the `env -u` habit "is driven by a real defect - lifecycle tests fail inside a lane (backlog `770fkp`/`s0303g`) - so agents will keep reaching for it until that is fixed", and `770fkp` and the follow-on `6z5yos` are both `done` now (measured at review), so the rewritten comment must state the CURRENT limit (a same-user agent can still read the minted token by absolute path; defeating that needs the `1o4eif` sandbox) rather than repeating a fixed defect as live motivation. No change to `status_set` is needed because `status_set`'s `_life.finalize` call inherits the gate through `finalize`'s `env` default; verify that rather than assuming it (confirmed at review: that call passes no `env=`, so the default applies).
+- [x] E-03 Gate `ipd_lifecycle.finalize` and `ipd_lifecycle.retire_orchestrator`: add keyword `driver_attestation: Optional[str] = None` to both; immediately AFTER the existing `worker_role_active` gate and before any other gate or mutation, if `lane_worktree_active(repo_root)` and the attestation (kwarg, else `env[DRIVER_ATTEST_ENV]` where `env` defaults to `os.environ`) does not verify, return `FinalizeResult(EXIT_CANNOT_RUN, None, <msg>, evidence, (ROLLUP_REFUSED_NO_DRIVER_ATTESTATION,))` with a new typed id `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION = "no-driver-attestation"` added to the refusal vocabulary beside `ROLLUP_REFUSED_WORKER_ROLE`. The message must start with `LIFECYCLE_ROLE_ERROR`, name the lane worktree, and say plainly: unsetting `AW_EXECUTION_ROLE` does NOT grant driver authority; running this yourself consumes the driver's begin receipt and strands the lane; write the outcome file and stop. Update the "HONEST LIMIT" comment in `finalize` to describe the new layer and its limit. DO NOT CARRY FORWARD ITS STALE CLAUSE (review F-14b): the shipped comment says the `env -u` habit "is driven by a real defect - lifecycle tests fail inside a lane (backlog `770fkp`/`s0303g`) - so agents will keep reaching for it until that is fixed", and `770fkp` and the follow-on `6z5yos` are both `done` now (measured at review), so the rewritten comment must state the CURRENT limit (a same-user agent can still read the minted token by absolute path; defeating that needs the `1o4eif` sandbox) rather than repeating a fixed defect as live motivation. No change to `status_set` is needed because `status_set`'s `_life.finalize` call inherits the gate through `finalize`'s `env` default; verify that rather than assuming it (confirmed at review: that call passes no `env=`, so the default applies).
   - Depends on: E-01, E-02
   - Expected outcome: from a lane root with no/invalid attestation both functions refuse with no side effect (no journal, no commit, receipt intact); from the main checkout they behave exactly as before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Thread the CLI: `ipd_lifecycle.run_finalize` reads nothing new from argv (NO `--driver-token` flag, because argv is visible in `ps` and in agent session logs); `finalize` reads `DRIVER_ATTEST_ENV` from its `env`.
+- [x] E-04 Thread the CLI: `ipd_lifecycle.run_finalize` reads nothing new from argv (NO `--driver-token` flag, because argv is visible in `ps` and in agent session logs); `finalize` reads `DRIVER_ATTEST_ENV` from its `env`.
   CORRECTION (review F-11): this item said to "confirm `run_finalize` passes the process env through". It does NOT, and the confirmation would have failed. Measured at review: `run_finalize` calls `worker_role_active(os.environ)` for its OWN early refusal, then calls `finalize(repo_root, plan_path, actor, message, apply=..., scope_reasons=..., scope_acks=..., interactive=..., prompt=..., plan_selector=...)` with NO `env` argument at all; `status_set`'s `_life.finalize(...)` call likewise passes no `env`. So both rely on `finalize`'s internal `os.environ if env is None else env` default. That default is what makes E-03 work through both routes, so the correct instruction is to VERIFY THE DEFAULT IS RELIED ON DELIBERATELY and add no `env=` threading: `finalize` must read `DRIVER_ATTEST_ENV` from `os.environ if env is None else env`, exactly as it reads the role marker, so the CLI and the `aw set executed` route both pick up the driver's subprocess env with no new plumbing. Do NOT add an `env=` kwarg to either call site; that would be a behavior change beyond this plan and would diverge the two routes.
   - Depends on: E-03
   - Expected outcome: the only way to present the attestation to the CLI is the env var set by the driver on its own subprocess; `run_finalize` and `status_set` are UNMODIFIED (neither is in `- Scope-Paths:`), and the gate reaches both purely through `finalize`'s existing env default.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: plumb the token through the driver's legitimate call sites (both hosts)
 
-- [ ] E-05 Mint and carry the token in `runner_shared`: in `runner_shared.initialize_run_core` (which creates the run dir and the `run_id` state) call `ipd_lifecycle.mint_driver_attestation(run_dir)` and keep the value in the DRIVER's in-memory run state (never in `os.environ`, never in `events.jsonl` or any written state file). Then: (a) `runner_shared.driver_finalize` gains `attestation: str | None` and sets `DRIVER_ATTEST_ENV` on the env it builds for its OWN `aw ipd finalize ... --dir <lane>` subprocess only (`env = dict(env_builder()); env[DRIVER_ATTEST_ENV] = attestation`); (b) both call sites in `runner_shared.execute_item_core` (the isolated one passing `finalize_repo = Path(work_dir)` and the in-place one passing `repo`) pass it; (c) the thin wrappers `oc_runipd.driver_finalize` and `agy_runipd.driver_finalize` forward the new argument (the `getattr(driver_module, "driver_finalize")` lookup in `execute_item_core` means both signatures must change together); (d) `runner_shared.dispatch_orchestrator_item`'s in-process `_lifecycle.retire_orchestrator(repo, plan_path, actor, ...)` call passes `driver_attestation=`. Enumerate with `grep -n "driver_finalize(\|retire_orchestrator(" agent_workflows/*.py` after editing and confirm no legitimate caller is left without it (measured at review: exactly FIVE non-definition sites, matching F-5 precisely: `oc_runipd.py` and `agy_runipd.py` each forwarding to `runner_shared.driver_finalize`, two `driver_finalize(` sites inside `runner_shared.execute_item_core`, and the one `_lifecycle.retire_orchestrator(` in `dispatch_orchestrator_item`; plus `status_set.py`'s `_life.finalize(` as the human route).
+- [x] E-05 Mint and carry the token in `runner_shared`: in `runner_shared.initialize_run_core` (which creates the run dir and the `run_id` state) call `ipd_lifecycle.mint_driver_attestation(run_dir)` and keep the value in the DRIVER's in-memory run state (never in `os.environ`, never in `events.jsonl` or any written state file). Then: (a) `runner_shared.driver_finalize` gains `attestation: str | None` and sets `DRIVER_ATTEST_ENV` on the env it builds for its OWN `aw ipd finalize ... --dir <lane>` subprocess only (`env = dict(env_builder()); env[DRIVER_ATTEST_ENV] = attestation`); (b) both call sites in `runner_shared.execute_item_core` (the isolated one passing `finalize_repo = Path(work_dir)` and the in-place one passing `repo`) pass it; (c) the thin wrappers `oc_runipd.driver_finalize` and `agy_runipd.driver_finalize` forward the new argument (the `getattr(driver_module, "driver_finalize")` lookup in `execute_item_core` means both signatures must change together); (d) `runner_shared.dispatch_orchestrator_item`'s in-process `_lifecycle.retire_orchestrator(repo, plan_path, actor, ...)` call passes `driver_attestation=`. Enumerate with `grep -n "driver_finalize(\|retire_orchestrator(" agent_workflows/*.py` after editing and confirm no legitimate caller is left without it (measured at review: exactly FIVE non-definition sites, matching F-5 precisely: `oc_runipd.py` and `agy_runipd.py` each forwarding to `runner_shared.driver_finalize`, two `driver_finalize(` sites inside `runner_shared.execute_item_core`, and the one `_lifecycle.retire_orchestrator(` in `dispatch_orchestrator_item`; plus `status_set.py`'s `_life.finalize(` as the human route).
   NOTE ON (d), recorded so it is not mistaken for dead work (review F-12): `dispatch_orchestrator_item` takes `repo: Path` and passes that same `repo` straight to `retire_orchestrator`, and that `repo` is the MAIN checkout, never a lane. So `lane_worktree_active` is already False there and the retirement would pass the E-03 gate WITHOUT an attestation. Pass it anyway, for two reasons worth stating: it makes the driver's authority explicit at every terminal transition rather than resting on the incidental fact that this one runs from main, and it keeps the gate correct if a future change ever retires from a lane. But do NOT claim in `V-05` that this site would otherwise refuse; the honest claim is that it is belt-and-braces.
   - Depends on: E-03
   - Expected outcome: every driver-owned terminal transition presents a verifying attestation; the token appears in no agent-visible env, file inside a lane, argv, or log.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Keep the token out of every agent child env: in `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn`, where `child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER` is set, also unconditionally `child_env.pop(ipd_lifecycle.DRIVER_ATTEST_ENV, None)` (defense in depth: `runner_shared.pinned_child_env` copies `os.environ`, so if an operator or a nested driver ever exports it, it must still not reach the agent). Delete the run's token file when the run finishes (success or failure) in the same place the run is closed out, best-effort.
+- [x] E-06 Keep the token out of every agent child env: in `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn`, where `child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER` is set, also unconditionally `child_env.pop(ipd_lifecycle.DRIVER_ATTEST_ENV, None)` (defense in depth: `runner_shared.pinned_child_env` copies `os.environ`, so if an operator or a nested driver ever exports it, it must still not reach the agent). Delete the run's token file when the run finishes (success or failure) in the same place the run is closed out, best-effort.
   - Depends on: E-05
   - Expected outcome: an agent child env built while `AW_DRIVER_ATTEST` is set in the driver's `os.environ` does not contain it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: regression tests and suite
 
-- [ ] E-07 Create `tests/test_driver_attestation_gate.py` (use `tests/support.py` `init_repo` and the plan-text helpers pattern from `tests/test_ipd_lifecycle_cli.py`; set up a REAL `git worktree add -b aw/lane/<id6> .aw/worktrees/<id6>` lane and `aw ipd begin` the plan so a receipt exists). Cases: (1) THE INCIDENT SHAPE: `subprocess.run(["env", "-u", "AW_EXECUTION_ROLE", sys.executable, "-m", "agent_workflows", "ipd", "finalize", id6, "--actor", "a", "--message", "m", "--apply"], cwd=<lane>)` exits nonzero, output contains `no-driver-attestation` or the new message text, plan still in `pending/`, main and lane HEADs unchanged, receipt still present; (2) the `aw set executed <id6>` route from the lane cwd is refused the same way; (3) wrong token and a `../`-style run-id are refused; (4) DRIVER WITH TOKEN: mint into `<main>/.aw/records/runs/run-test/`, run the same finalize with `AW_DRIVER_ATTEST` set, exits 0 and the plan moves to `executed/`; (5) MAIN-CHECKOUT HUMAN: finalize from the main checkout with neither variable set exits 0; (6) `retire_orchestrator(<lane root>, ..., env={})` refuses with `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION`; (7) the child env built by `oc_runipd.run_opencode` / `agy_runipd.run_agy_turn` omits `AW_DRIVER_ATTEST` when the driver's env has it. CORRECTION (review F-13): this case originally said to imitate `tests/test_worker_role_refusal.py::ChildEnvWorkerRoleTests::test_both_drivers_mark_only_an_isolated_turn`. THAT FILE DOES NOT EXIST (measured: `ls tests/ | grep -iE "worker|role"` returns nothing, and the class name appears nowhere in `tests/`), so there is no pattern to copy and no file to avoid modifying. Build the case directly against the two child-env construction sites, each of which is a single line (`child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER`, one in `oc_runipd.py` and one in `agy_runipd.py`), and declare the test's own role with `tests/support.declare_execution_role`, which is the facility that actually exists for this; (8) `runner_shared.driver_finalize` with a stub `argv_builder` and a `subprocess.run` capture puts the attestation in the subprocess `env` and NOT in argv. Each subprocess case passes an explicit `env=` dict built from `os.environ` so the conftest scrub does not decide the outcome.
+- [x] E-07 Create `tests/test_driver_attestation_gate.py` (use `tests/support.py` `init_repo` and the plan-text helpers pattern from `tests/test_ipd_lifecycle_cli.py`; set up a REAL `git worktree add -b aw/lane/<id6> .aw/worktrees/<id6>` lane and `aw ipd begin` the plan so a receipt exists). Cases: (1) THE INCIDENT SHAPE: `subprocess.run(["env", "-u", "AW_EXECUTION_ROLE", sys.executable, "-m", "agent_workflows", "ipd", "finalize", id6, "--actor", "a", "--message", "m", "--apply"], cwd=<lane>)` exits nonzero, output contains `no-driver-attestation` or the new message text, plan still in `pending/`, main and lane HEADs unchanged, receipt still present; (2) the `aw set executed <id6>` route from the lane cwd is refused the same way; (3) wrong token and a `../`-style run-id are refused; (4) DRIVER WITH TOKEN: mint into `<main>/.aw/records/runs/run-test/`, run the same finalize with `AW_DRIVER_ATTEST` set, exits 0 and the plan moves to `executed/`; (5) MAIN-CHECKOUT HUMAN: finalize from the main checkout with neither variable set exits 0; (6) `retire_orchestrator(<lane root>, ..., env={})` refuses with `ROLLUP_REFUSED_NO_DRIVER_ATTESTATION`; (7) the child env built by `oc_runipd.run_opencode` / `agy_runipd.run_agy_turn` omits `AW_DRIVER_ATTEST` when the driver's env has it. CORRECTION (review F-13): this case originally said to imitate `tests/test_worker_role_refusal.py::ChildEnvWorkerRoleTests::test_both_drivers_mark_only_an_isolated_turn`. THAT FILE DOES NOT EXIST (measured: `ls tests/ | grep -iE "worker|role"` returns nothing, and the class name appears nowhere in `tests/`), so there is no pattern to copy and no file to avoid modifying. Build the case directly against the two child-env construction sites, each of which is a single line (`child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER`, one in `oc_runipd.py` and one in `agy_runipd.py`), and declare the test's own role with `tests/support.declare_execution_role`, which is the facility that actually exists for this; (8) `runner_shared.driver_finalize` with a stub `argv_builder` and a `subprocess.run` capture puts the attestation in the subprocess `env` and NOT in argv. Each subprocess case passes an explicit `env=` dict built from `os.environ` so the conftest scrub does not decide the outcome.
   - Depends on: E-03, E-05, E-06
   - Expected outcome: new file passes; case (1) demonstrably fails with the E-03 gate temporarily reverted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run the bare suite `python3 -m pytest` and record its summary line; also run the families that exercise the driver's real finalize in a lane (`tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py`, `tests/test_orchestrator_retirement.py`, `tests/test_orchestrate_isolation.py`, `tests/test_ipd_lifecycle_cli.py`), since a missed plumbing site shows up there as a new `no-driver-attestation` refusal. Add a CHANGELOG.md entry (user-facing prose: no em or en dashes) UNDER `## 1.3.0 (pending)`, NOT under an "Unreleased" heading: measured at review that this CHANGELOG has NO such heading (`grep -c Unreleased CHANGELOG.md` -> `0`; its four headings are `## 2.0.0 (pending)`, `## 1.3.0 (pending)`, `## 1.2.0`, `## Earlier`) and that recent entries land under `1.3.0 (pending)`. Re-derive the correct heading at execution time, since a release cut between review and execution would move it. Classify the entry as Security, since this closes an authority bypass.
+- [x] E-08 Run the bare suite `python3 -m pytest` and record its summary line; also run the families that exercise the driver's real finalize in a lane (`tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py`, `tests/test_orchestrator_retirement.py`, `tests/test_orchestrate_isolation.py`, `tests/test_ipd_lifecycle_cli.py`), since a missed plumbing site shows up there as a new `no-driver-attestation` refusal. Add a CHANGELOG.md entry (user-facing prose: no em or en dashes) UNDER `## 1.3.0 (pending)`, NOT under an "Unreleased" heading: measured at review that this CHANGELOG has NO such heading (`grep -c Unreleased CHANGELOG.md` -> `0`; its four headings are `## 2.0.0 (pending)`, `## 1.3.0 (pending)`, `## 1.2.0`, `## Earlier`) and that recent entries land under `1.3.0 (pending)`. Re-derive the correct heading at execution time, since a release cut between review and execution would move it. Classify the entry as Security, since this closes an authority bypass.
   - Depends on: E-07
   - Expected outcome: bare suite green; named families green; one CHANGELOG entry under the real pending heading.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -176,53 +176,162 @@ What this closes and what it does not, stated honestly: it CLOSES the observed o
 ### OQ-02: Should `aw ipd begin` from a lane get the same attestation requirement?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Default: NO in this plan. The incident's harm came from the terminal transition consuming the receipt; begin is run by the driver before the turn and is currently gated only by the env selector. Extending it is mechanically identical (same predicate, `driver_begin` plumbing) but widens scope beyond the brief; a reviewer may add it as E-items or file a backlog item.
+- Resolution or deferral rationale: Resolved: NO in this plan. Gated on the terminal finalize/retire transitions where the receipt consumption vulnerability occurred. The begin transition is run by the driver before turn dispatch and remains gated by the execution role selector.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the unit test output for `lane_worktree_active` covering `.aw/worktrees/<id6>` True, off-tree `aw/lane/x` True, main checkout False, non-git dir False. For the coordinator scratch worktree, paste its PATH and BRANCH and state honestly which criteria it matches: per F-10 it DOES match the path criterion when finalize runs from a lane (it lands at `<checkout>/.aw/worktrees/.aw-coordinator-XXXX`) and does NOT match the branch criterion (`aw/coordinator/...`). Do NOT paste a claim that it "matches neither criterion"; that was the original wording and it is false. Instead paste the grep evidence that `coord.path` reaches no lifecycle-transition call, which is the property that actually makes it safe.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    `python3 -m pytest tests/test_driver_attestation_gate.py -k "LaneWorktreeActiveTests" -o addopts="" -v`:
+    ```
+    tests/test_driver_attestation_gate.py::LaneWorktreeActiveTests::test_non_git_dir_returns_false PASSED [ 25%]
+    tests/test_driver_attestation_gate.py::LaneWorktreeActiveTests::test_offtree_lane_branch_returns_true PASSED [ 50%]
+    tests/test_driver_attestation_gate.py::LaneWorktreeActiveTests::test_main_checkout_returns_false PASSED [ 75%]
+    tests/test_driver_attestation_gate.py::LaneWorktreeActiveTests::test_lane_worktree_in_dot_aw_worktrees_returns_true PASSED [100%]
+    4 passed, 14 deselected in 0.34s
+    ```
+    Coordinator scratch worktree:
+    Path `<checkout>/.aw/worktrees/.aw-coordinator-XXXX` (matches path criterion when finalize runs from a lane); branch `aw/coordinator/...` (does NOT match `aw/lane/*` branch criterion).
+    `grep -n "coord\.path" agent_workflows/ipd_lifecycle.py agent_workflows/commit_lock.py`:
+    ```
+    agent_workflows/ipd_lifecycle.py:4359:            wt_plan = coord.path / plan_rel
+    agent_workflows/ipd_lifecycle.py:4362:            wt_rec = _ss.read_artifact_record(wt_plan, coord.path)
+    agent_workflows/ipd_lifecycle.py:4368:            wt_dest, _norm = _ss.apply_status_change(wt_rec, "executed", coord.path, ns)
+    agent_workflows/ipd_lifecycle.py:4374:            dest_rel = _repo_relative(coord.path, wt_dest)
+    agent_workflows/ipd_paths = [p for p in owned_paths if (coord.path / p).exists()]
+    agent_workflows/ipd_lifecycle.py:4394:                rc, _out, err = _git(coord.path, ["add", "--", *add_paths])
+    agent_workflows/ipd_lifecycle.py:4408:            rc, out, err = _git(coord.path, ["commit", "-m", commit_msg])
+    agent_workflows/ipd_lifecycle.py:4415:            rc, sha, err = _git(coord.path, ["rev-parse", "HEAD"])
+    ```
+    `coord.path` is used only for git mirror/commit and reaches no lifecycle-transition call.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste test output showing mint-then-verify True and wrong-token, unknown run-id, `../` run-id, malformed value, missing file each False with a reason; paste `stat -c %a` of a minted file showing `600`; paste the grep proving `hmac.compare_digest` is used. THEN, the two checks F-8/F-9 exist to force: paste the verifier's runs-root expression showing it calls `runner_shared.state_root` and does NOT hand-compose an `.aw`-relative path (no `".aw/records/runs"` literal anywhere in the new code); and paste the test asserting that a LANE `repo_root` and the MAIN `repo_root` resolve to the SAME runs directory, with both resolved paths printed so a reader can see they are equal. That equality is the single assumption the whole design rests on: if it fails, the driver's own finalize is refused and every lane strands.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    `python3 -m pytest tests/test_driver_attestation_gate.py -k "DriverAttestationPrimitivesTests" -o addopts="" -v -s`:
+    ```
+    tests/test_driver_attestation_gate.py::DriverAttestationPrimitivesTests::test_lane_and_main_resolve_same_runs_dir Main checkout runs dir: /tmp/aw-test-home-flsptyt5/projects/tmpymt_oodk-c6d56a/records/runs
+    Lane derived runs dir:  /tmp/aw-test-home-flsptyt5/projects/tmpymt_oodk-c6d56a/records/runs
+    PASSED
+    tests/test_driver_attestation_gate.py::DriverAttestationPrimitivesTests::test_verify_traversal_run_id_refused PASSED
+    tests/test_driver_attestation_gate.py::DriverAttestationPrimitivesTests::test_verify_unknown_run_id_refused PASSED
+    tests/test_driver_attestation_gate.py::DriverAttestationPrimitivesTests::test_verify_malformed_value_refused PASSED
+    tests/test_driver_attestation_gate.py::DriverAttestationPrimitivesTests::test_mint_and_verify_happy_path PASSED
+    tests/test_driver_attestation_gate.py::DriverAttestationPrimitivesTests::test_verify_wrong_token_refused PASSED
+    6 passed, 12 deselected in 0.62s
+    ```
+    `stat -c %a` on minted token file: `600`.
+    `grep -n "compare_digest" agent_workflows/ipd_lifecycle.py`:
+    `215:        if hmac.compare_digest(token, expected):`
+    Verifier runs-root expression in `ipd_lifecycle.py`:
+    `runs_root = _rs.state_root(main_repo)` where `main_repo = checkout_control_root(repo_root).parent`
+    Lane `repo_root` and main `repo_root` resolve to the exact same runs directory (`/tmp/aw-test-home-flsptyt5/projects/tmpymt_oodk-c6d56a/records/runs`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste in-process results of `finalize(<lane>, ..., env={}, apply=True)` and `retire_orchestrator(<lane>, ..., env={})` each returning `('no-driver-attestation',)` with HEAD and receipt unchanged; paste the new refusal message text containing the "does NOT grant driver authority" sentence; paste `aw set executed <id6>` from the lane refused.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    `tests/test_driver_attestation_gate.py::IncidentShapeAndGateRefusalTests`:
+    - `test_incident_shape_stripping_execution_role_is_refused` -> `proc.returncode == 2` (`EXIT_CANNOT_RUN`), output contains `no-driver-attestation`, plan remains in `pending/`, main and lane HEADs unchanged, receipt intact.
+    - `test_retire_orchestrator_from_lane_is_refused` -> `res.exit_code == 2`, `res.findings == ('no-driver-attestation',)`, message: `AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role process must not run them (refused: terminal finalize transaction in lane '...': missing or malformed driver attestation). Unsetting AW_EXECUTION_ROLE does NOT grant driver authority; running this yourself consumes the driver's begin receipt and strands the lane. Write the outcome file named in your turn prompt and stop.`
+    - `test_aw_set_executed_from_lane_is_refused` -> `proc.returncode != 0`, output contains `no-driver-attestation` / `Unsetting AW_EXECUTION_ROLE does NOT grant driver authority`, plan remains in `pending/`.
+    ```
+    tests/test_driver_attestation_gate.py::IncidentShapeAndGateRefusalTests::test_aw_set_executed_from_lane_is_refused PASSED
+    tests/test_driver_attestation_gate.py::IncidentShapeAndGateRefusalTests::test_incident_shape_stripping_execution_role_is_refused PASSED
+    tests/test_driver_attestation_gate.py::IncidentShapeAndGateRefusalTests::test_retire_orchestrator_from_lane_is_refused PASSED
+    tests/test_driver_attestation_gate.py::IncidentShapeAndGateRefusalTests::test_main_checkout_human_succeeds_without_token PASSED
+    tests/test_driver_attestation_gate.py::IncidentShapeAndGateRefusalTests::test_driver_with_token_succeeds_from_lane PASSED
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m agent_workflows ipd finalize --help` showing no token flag, and the test case where the CLI subprocess succeeds only when `AW_DRIVER_ATTEST` is in its env. Also paste `git diff -- agent_workflows/ipd_lifecycle.py` evidence that `run_finalize`'s `finalize(...)` call is UNCHANGED (no `env=` added) and `git status --porcelain agent_workflows/status_set.py` showing it was not modified, which is what F-11's correction requires: the gate must reach both routes through `finalize`'s existing `os.environ if env is None else env` default, not through new threading.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    `python3 -m agent_workflows ipd finalize --help`:
+    ```
+    usage: agent-workflows ipd finalize [-h] [--no-color | --color] [--agent]
+                                        [--json] --actor ACTOR --message MESSAGE
+                                        [--apply] [--scope-reason PATH=WHY]
+                                        [--scope-ack PATH[=NOTE]] [--dir DIR]
+                                        plan
+    ```
+    No `--driver-token` / `--driver-attest` flag exposed.
+    Subprocess with `AW_DRIVER_ATTEST` succeeds in `test_driver_with_token_succeeds_from_lane`.
+    `run_finalize`'s `finalize(...)` call is unmodified (no `env=` added).
+    `git status --porcelain agent_workflows/status_set.py` is empty (unmodified).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `grep -n "driver_finalize(\|retire_orchestrator(" agent_workflows/*.py` with every non-definition call site passing the attestation (expect FIVE non-definition sites plus `status_set`'s `_life.finalize`; if the count differs from the review measurement, say so and name the new site); paste E-07 case (8) passing (token in subprocess env, absent from argv); paste `grep -rn AW_DRIVER_ATTEST .aw/records/runs/<a test run>/events.jsonl` or equivalent showing the token is not written to run logs. Per F-12, do NOT claim the `dispatch_orchestrator_item` retirement site would refuse without the attestation: it passes the MAIN checkout as `repo`, so the lane predicate is already False there and the plumbing is belt-and-braces. State it that way.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    `grep -n "driver_finalize(\|retire_orchestrator(" agent_workflows/*.py`:
+    ```
+    agent_workflows/agy_runipd.py:1245:    return runner_shared.driver_finalize(
+    agent_workflows/oc_runipd.py:1282:    return runner_shared.driver_finalize(
+    agent_workflows/runner_shared.py:17078:            result = _lifecycle.retire_orchestrator(
+    agent_workflows/runner_shared.py:28262:                fin_rc, fin_msg = _call_driver_finalize(
+    agent_workflows/runner_shared.py:28487:                fin_rc, fin_msg = _call_driver_finalize(
+    ```
+    Plus `agent_workflows/status_set.py:1494: result = _life.finalize(`.
+    Case (8) `test_driver_finalize_places_attestation_in_subprocess_env_not_argv` PASSED.
+    `grep -rn "AW_DRIVER_ATTEST" .aw/records/runs/` -> CLEAN: not in run logs.
+    `dispatch_orchestrator_item` passes main checkout repo root, so `lane_worktree_active` is False there and attestation passing is belt-and-braces.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste E-07 case (7) passing for BOTH hosts, and show it FAILING when the `pop` is removed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    `python3 -m pytest tests/test_driver_attestation_gate.py -k "test_child_env_scrubs_driver_attest_for_both_hosts" -o addopts="" -v`:
+    ```
+    tests/test_driver_attestation_gate.py::ChildEnvAndDriverFinalizeTests::test_child_env_scrubs_driver_attest_for_both_hosts PASSED [100%]
+    1 passed, 17 deselected in 0.72s
+    ```
+    With `child_env.pop(ipd_lifecycle.DRIVER_ATTEST_ENV, None)` temporarily commented out in `oc_runipd.py`:
+    ```
+    FAILED tests/test_driver_attestation_gate.py::ChildEnvAndDriverFinalizeTests::test_child_env_scrubs_driver_attest_for_both_hosts
+    AssertionError: 'AW_DRIVER_ATTEST' unexpectedly found in {'AW_DRIVER_ATTEST': 'run-secret:12345', 'PATH': '/bin', 'AW_EXECUTION_ROLE': 'worker', 'OPENCODE_CONFIG_CONTENT': '{"permission": {"external_directory": "deny", "question": "deny"}}'}
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest tests/test_driver_attestation_gate.py -o addopts="" -q` summary (all passed); paste case (1) FAILING with the E-03 gate locally reverted (and then restored); quote the exact `env -u AW_EXECUTION_ROLE ... ipd finalize <id6> ... --apply` argv the test runs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    `python3 -m pytest tests/test_driver_attestation_gate.py -o addopts="" -q`:
+    ```
+    ..................                                                       [100%]
+    18 passed in 3.67s
+    ```
+    With E-03 gate in `finalize` locally reverted (`if False and lane_worktree_active(repo_root):`):
+    ```
+    FAILED tests/test_driver_attestation_gate.py::IncidentShapeAndGateRefusalTests::test_incident_shape_stripping_execution_role_is_refused
+    AssertionError: 1 != 2
+    ```
+    Exact argv tested:
+    `[sys.executable, "-m", "agent_workflows", "ipd", "finalize", self.plan_id, "--actor", "agent/lane", "--message", "lane turn done", "--apply"]` with `cwd=self.lane_dir` and `env` stripped of `AW_EXECUTION_ROLE`.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the bare `python3 -m pytest` summary line (N passed, 0 failed) AND the pre-change baseline summary you measured at this execution HEAD, so the comparison is against the same tree; paste the summary of the five driver/lifecycle families named in E-08; paste `grep -n "^## " CHANGELOG.md | head -5` showing which pending heading the file actually carries, then `git diff -- CHANGELOG.md` showing the entry under THAT heading and not under an invented "Unreleased" one (F-14a); paste `git diff CHANGELOG.md | grep "^+" | grep -nP "[\x{2013}\x{2014}]"` returning nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified.
+    Pre-change baseline at execution HEAD: `1 failed, 2101 passed, 1 skipped, 3 warnings in 52.59s`
+    Bare `python3 -m pytest` summary: `1 failed, 2119 passed, 1 skipped, 3 warnings in 56.65s` (+18 passed in `tests/test_driver_attestation_gate.py`, known `DerivationIsUnchangedTests` baseline fixture mismatch unchanged).
+    Five driver/lifecycle families (`test_oc_runipd.py`, `test_agy_runipd_cli.py`, `test_orchestrator_retirement.py`, `test_orchestrate_isolation.py`, `test_ipd_lifecycle_cli.py`): `329 passed in 21.92s`.
+    `grep -n "^## " CHANGELOG.md | head -5`:
+    ```
+    7:## 2.0.0 (pending) - AW project layout, storage backends, install wizard, and operational state
+    64:## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes
+    348:## 1.2.0 - first PyPI publish
+    370:## Earlier (git tags, not on PyPI)
+    ```
+    `git diff -- CHANGELOG.md` shows Security entry placed directly under `## 1.3.0 (pending)`.
+    `git diff CHANGELOG.md | grep "^+" | grep -nP "[\x{2013}\x{2014}]"` returned nothing (clean, no em/en dashes).
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -28,9 +28,11 @@ or remove any bypass; it does not mutate the plan or any tracked file.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import tempfile
 from pathlib import Path
 from typing import (
@@ -65,6 +67,10 @@ from typing import (
 # The env selector the runner exports into a managed worker's child environment.
 EXECUTION_ROLE_ENV = "AW_EXECUTION_ROLE"
 ROLE_WORKER = "worker"
+
+# The driver attestation token environment variable and per-run token filename.
+DRIVER_ATTEST_ENV = "AW_DRIVER_ATTEST"
+DRIVER_ATTEST_FILENAME = "driver-attest.token"
 
 LIFECYCLE_ROLE_ERROR = (
     "AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role "
@@ -127,6 +133,90 @@ def worker_role_active(env: "Mapping[str, str]") -> bool:
     worker, so a normal human/agent invocation outside a managed lane is unaffected.
     """
     return str(env.get(EXECUTION_ROLE_ENV) or "").strip() == ROLE_WORKER
+
+
+def lane_worktree_active(repo_root: Path) -> bool:
+    """True iff ``repo_root`` is a managed lane worktree.
+
+    Criteria:
+    * The resolved ``repo_root`` lies under ``checkout_control_root(repo_root) / "worktrees"``, OR
+    * The current branch (`git -C repo_root symbolic-ref --short -q HEAD`) starts with `aw/lane/`
+      (checked via `worktree_lease.lane_id_from_branch`).
+
+    Returns False on git failure or when not in a checkout.
+    """
+    from agent_workflows import worktree_lease as _wl
+
+    try:
+        resolved = Path(repo_root).resolve()
+        control_root = checkout_control_root(repo_root).resolve()
+        worktrees_dir = (control_root / "worktrees").resolve()
+        if resolved.is_relative_to(worktrees_dir) and resolved != worktrees_dir:
+            return True
+    except (OSError, ValueError):
+        pass
+
+    try:
+        rc, out, _err = _git(repo_root, ["symbolic-ref", "--short", "-q", "HEAD"])
+        if rc == 0:
+            branch = (out or "").strip()
+            if _wl.lane_id_from_branch(branch) is not None:
+                return True
+    except (OSError, ValueError):
+        pass
+
+    return False
+
+
+def mint_driver_attestation(run_dir: Path) -> str:
+    """Mint a per-run driver attestation token into ``run_dir / DRIVER_ATTEST_FILENAME`` with mode 0600.
+
+    Returns the attestation string in ``<run-id>:<hex-token>`` format.
+    """
+    rd = Path(run_dir)
+    token = secrets.token_hex(32)
+    token_path = rd / DRIVER_ATTEST_FILENAME
+    fd = os.open(str(token_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    try:
+        os.write(fd, token.encode("utf-8"))
+    finally:
+        os.close(fd)
+    return f"{rd.name}:{token}"
+
+
+def verify_driver_attestation(
+    repo_root: Path, value: Optional[str]
+) -> Tuple[bool, str]:
+    """Verify a driver attestation for ``repo_root``.
+
+    Locates the token file via ``runner_shared.state_root(checkout_control_root(repo_root).parent)``,
+    refuses run-ids containing path separators or ``..``, and compares with ``hmac.compare_digest``.
+    """
+    if not value or not isinstance(value, str) or ":" not in value:
+        return (False, "missing or malformed driver attestation")
+    run_id, _, token = value.partition(":")
+    if not run_id or not token:
+        return (False, "missing or malformed driver attestation")
+    if "/" in run_id or "\\" in run_id or ".." in run_id:
+        return (False, f"invalid run-id in driver attestation ('{run_id}')")
+
+    try:
+        from agent_workflows import runner_shared as _rs
+
+        control_root = checkout_control_root(repo_root)
+        main_repo = control_root.parent
+        runs_root = _rs.state_root(main_repo)
+        token_path = runs_root / run_id / DRIVER_ATTEST_FILENAME
+        if not token_path.is_file():
+            return (False, f"driver attestation file not found for run '{run_id}'")
+        expected = token_path.read_text(encoding="utf-8").strip()
+        if not expected:
+            return (False, f"driver attestation file is empty for run '{run_id}'")
+        if hmac.compare_digest(token, expected):
+            return (True, "driver attestation verified")
+        return (False, "driver attestation token mismatch")
+    except Exception as e:
+        return (False, f"driver attestation verification failed: {e}")
 
 
 def _refuse_worker_role_verb(verb: str) -> int:
@@ -3387,6 +3477,7 @@ ROLLUP_REFUSED_NOT_ORCHESTRATOR = "not-an-orchestrator"
 ROLLUP_REFUSED_SET_INELIGIBLE = "set-ineligible"
 ROLLUP_REFUSED_ALREADY_TERMINAL = "already-terminal"
 ROLLUP_REFUSED_WORKER_ROLE = "worker-role"
+ROLLUP_REFUSED_NO_DRIVER_ATTESTATION = "no-driver-attestation"
 ROLLUP_REFUSED_UNOWNED_EDIT = "unowned-edit-to-plan"
 ROLLUP_REFUSED_NONCONFORMING_ROWS = "nonconforming-orchestrator-rows"
 
@@ -3516,6 +3607,7 @@ def retire_orchestrator(
     apply: bool = False,
     fault_injection: Optional[str] = None,
     env: Optional[Mapping[str, str]] = None,
+    driver_attestation: Optional[str] = None,
 ) -> FinalizeResult:
     """RETIRE an Order-0 orchestrator as a runner rollup step (spec `77tr3o` R-4/R-5/R-6).
 
@@ -3551,7 +3643,7 @@ def retire_orchestrator(
     * the ``git merge --ff-only`` that LANDS the commit, which is the single step that advances the
       branch and updates the working tree together, and which REFUSES rather than clobbers when a
       peer's uncommitted change is in the way (:func:`land_worktree_commit`); and
-    * the post-reconciliation plans-manifest refresh, which writes only GITIGNORED generated views.
+      * the post-reconciliation plans-manifest refresh, which writes only GITIGNORED generated views.
 
     THE ROLE IS STILL ``coordinator``, and the worktree does not change that. The first gate below
     refuses when ``AW_EXECUTION_ROLE=worker``; the scratch worktree is a coordinator-owned tree, NOT a
@@ -3583,6 +3675,25 @@ def retire_orchestrator(
             evidence,
             (ROLLUP_REFUSED_WORKER_ROLE,),
         )
+
+    # --- GATE: driver attestation. Sited immediately after the role gate. Inside a lane worktree,
+    # the terminal transition requires a verified per-run driver attestation.
+    if lane_worktree_active(repo_root):
+        attest_val = driver_attestation
+        if attest_val is None:
+            attest_val = (os.environ if env is None else env).get(DRIVER_ATTEST_ENV)
+        ok, reason = verify_driver_attestation(repo_root, attest_val)
+        if not ok:
+            return FinalizeResult(
+                EXIT_CANNOT_RUN,
+                None,
+                f"{LIFECYCLE_ROLE_ERROR} (refused: orchestrator rollup retirement in lane '{repo_root}': {reason}). "
+                "Unsetting AW_EXECUTION_ROLE does NOT grant driver authority; running this yourself "
+                "consumes the driver's begin receipt and strands the lane. Write the outcome file named "
+                "in your turn prompt and stop.",
+                evidence,
+                (ROLLUP_REFUSED_NO_DRIVER_ATTESTATION,),
+            )
 
     # --- GATE: actor required (mirrors `finalize`). The message is DERIVED here rather than passed
     # in, because R-4 fixes what it must say; there is no caller-supplied wording to validate.
@@ -3785,6 +3896,7 @@ def finalize(
     plan_selector: Optional[str] = None,
     fault_injection: Optional[str] = None,
     env: Optional[Mapping[str, str]] = None,
+    driver_attestation: Optional[str] = None,
 ) -> FinalizeResult:
     """The atomic terminal transaction for one IPD (precheck + two-way reconciliation + transition).
 
@@ -3823,12 +3935,13 @@ def finalize(
     # reach the transaction around it. `ROLLUP_REFUSED_WORKER_ROLE` is REUSED as the finding id so the
     # two transition paths report one vocabulary rather than two.
     #
-    # HONEST LIMIT, stated rather than implied: the env marker is a SELECTOR, not a boundary (its own
-    # comment says so), and the measured incident DEFEATED it with `env -u AW_EXECUTION_ROLE`. Closing
-    # THAT needs an OS sandbox or a separate principal and is explicitly out of scope. Note also that
-    # the `env -u` habit is driven by a real defect - lifecycle tests fail inside a lane (backlog
-    # `770fkp`/`s0303g`) - so agents will keep reaching for it until that is fixed; instruction alone
-    # will not hold.
+    # HONEST LIMIT, stated rather than implied: unsetting `AW_EXECUTION_ROLE` is now stopped inside
+    # lane worktrees by requiring the driver's attestation token (`AW_DRIVER_ATTEST`), which is
+    # minted into the run directory and withheld from worker child processes. The remaining limit:
+    # a same-user agent inside the lane can still read
+    # `<main>/.aw/records/runs/<run-id>/driver-attest.token` by absolute path or cd to the main
+    # checkout; hard enforcement against a determined same-user agent requires an OS sandbox or
+    # separate principal (`1o4eif`).
     if worker_role_active(os.environ if env is None else env):
         return FinalizeResult(
             EXIT_CANNOT_RUN,
@@ -3839,6 +3952,25 @@ def finalize(
             evidence,
             (ROLLUP_REFUSED_WORKER_ROLE,),
         )
+
+    # --- GATE: driver attestation. Sited immediately after the role gate. Inside a lane worktree,
+    # the terminal transition requires a verified per-run driver attestation.
+    if lane_worktree_active(repo_root):
+        attest_val = driver_attestation
+        if attest_val is None:
+            attest_val = (os.environ if env is None else env).get(DRIVER_ATTEST_ENV)
+        ok, reason = verify_driver_attestation(repo_root, attest_val)
+        if not ok:
+            return FinalizeResult(
+                EXIT_CANNOT_RUN,
+                None,
+                f"{LIFECYCLE_ROLE_ERROR} (refused: terminal finalize transaction in lane '{repo_root}': {reason}). "
+                "Unsetting AW_EXECUTION_ROLE does NOT grant driver authority; running this yourself "
+                "consumes the driver's begin receipt and strands the lane. Write the outcome file named "
+                "in your turn prompt and stop.",
+                evidence,
+                (ROLLUP_REFUSED_NO_DRIVER_ATTESTATION,),
+            )
 
     if not actor or not actor.strip():
         return FinalizeResult(
