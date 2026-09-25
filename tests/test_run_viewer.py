@@ -1571,7 +1571,8 @@ class RunsRepairHelpTests(TestCase):
 class AnalyticsIsolationTests(TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        # Canonical root: discover_run_dirs returns runs under the symlink-resolved records root.
+        self.root = Path(self.temp_dir.name).resolve()
         self.runs_dir = self.root / ".aw" / "records" / "runs"
         self.runs_dir.mkdir(parents=True)
         self.run_1 = self.runs_dir / "run-20260901T000000Z-1"

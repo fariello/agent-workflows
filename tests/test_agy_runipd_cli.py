@@ -488,7 +488,13 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
             receipt = ipd_lifecycle.receipt_path_for(repo, "agy001")
             self.assertEqual(
                 receipt,
-                repo / ".aw" / "state" / "ipd-lifecycle" / "agy001.receipt.json",
+                # git reports the canonical (symlink-resolved) checkout, so compare against
+                # the resolved repo (macOS /var -> /private/var, Windows 8.3 short names).
+                repo.resolve()
+                / ".aw"
+                / "state"
+                / "ipd-lifecycle"
+                / "agy001.receipt.json",
             )
             self.assertFalse(
                 receipt.is_file(),

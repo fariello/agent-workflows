@@ -28,5 +28,9 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Install the project (runtime deps, e.g. filelock)
+        # The CLI imports `filelock` at parser build; a bare checkout cannot run it.
+        run: python -m pip install --upgrade pip && python -m pip install -e .
+
       - name: Scan tracked files for local leaks
         run: python -m agent_workflows check-local-leaks .
