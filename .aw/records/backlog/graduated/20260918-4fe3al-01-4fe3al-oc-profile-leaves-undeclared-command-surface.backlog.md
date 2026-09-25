@@ -1,5 +1,6 @@
 - Id: 4fe3al
-- Status: open
+- Status: graduated
+- Graduated-To: cmdsurf
 - Blocks-Release: next
 - Set: 4fe3al
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: the five 'aw oc profile *' parser leaves are undeclared in command_surface, failing test_zero_undeclared_parser_leaves outside the default -m 'not slow' subset
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into cmdsurf (plan 0yrtne); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): the five 'aw oc profile *' parser leaves are undeclared in command_surface, failing test_zero_undeclared_parser_leaves outside the default -m 'not slow' subset
 
 Found while executing plan `di08i9` (Set `nobugship`). That plan's scope check told the executor to

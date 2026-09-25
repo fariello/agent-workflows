@@ -1,5 +1,6 @@
 - Id: kapm7y
-- Status: open
+- Status: graduated
+- Graduated-To: setprompt
 - Blocks-Release: next
 - Set: kapm7y
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: Prompted defaults are not persistable: an interactive choice cannot be saved, so a user is re-asked on every install and the 2.0.0 migration prompt would nag
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into setprompt (plan je74a0); verified live at 8e74dcac
 - 2026-09-12 created (aw backlog): Maintainer-requested during plan-review of the migleftover Set; blocking on 2.0.0
 
 WHAT IS NEEDED. When aw asks an interactive question whose answer is a POLICY rather than a one-off (migrate this legacy layout? clean up leftovers? which leftover disposition?), it must be able to offer 'remember this choice for future installs' and persist it, so the user is not re-prompted forever. Without it, defaulting a prompt to the behavior we WANT (see below) turns into a nag on every subsequent run, which trains people to type --yes and stop reading.

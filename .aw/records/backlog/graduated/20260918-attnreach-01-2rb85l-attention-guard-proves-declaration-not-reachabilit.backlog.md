@@ -1,11 +1,13 @@
 - Id: 2rb85l
-- Status: open
+- Status: graduated
+- Graduated-To: smallfix
 - Set: attnreach
 - Priority: low
 - Work-Kind: followup
 - Summary: The tracked-tree scan-root guard proves DECLARATION not REACHABILITY, so a tracked tree can still be scan-rooted and never surfaced
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into smallfix (plan 0i4fkt); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): Deferred by plan m867ox with a reason; filed so the gap has a durable carrier rather than living only in that plan's prose.
 
 MEASURED at HEAD cdace6a5 while executing plan m867ox, which ADDED the guard in question.

@@ -1,11 +1,13 @@
 - Id: e85snf
-- Status: open
+- Status: graduated
+- Graduated-To: smallfix
 - Set: e85snf
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether aw check backlog should become fail-closed in CI instead of advisory
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into smallfix (plan 0i4fkt); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): Decide whether aw check backlog should become fail-closed in CI instead of advisory
 
 Named as explicitly OUT OF SCOPE by durablecapture 01 (`rnkqrc`) and filed here so the open decision has a durable carrier.

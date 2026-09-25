@@ -1,11 +1,13 @@
 - Id: mod4ml
-- Status: open
+- Status: graduated
+- Graduated-To: specfb
 - Set: mod4ml
 - Priority: low
 - Work-Kind: chore
 - Summary: aw specs set has no --from-backlog flag, so a spec-first graduation has no setter route to record or inherit its gate
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into specfb (plan uruqaz); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): aw specs set has no --from-backlog flag, so a spec-first graduation has no setter route to record or inherit its gate
 
 Found while executing plan `di08i9` (Set `nobugship`) building that plan's V-03 route inventory. The

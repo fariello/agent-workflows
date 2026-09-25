@@ -1,5 +1,6 @@
 - Id: 4le6yz
-- Status: open
+- Status: graduated
+- Graduated-To: gatesame
 - Blocks-Release: next
 - Set: 4le6yz
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: check.from-backlog-gate-mismatch fires on an id6-vs-next gate spelling difference that denotes the SAME release
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into gatesame (plan ooydp3); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): check.from-backlog-gate-mismatch fires on an id6-vs-next gate spelling difference that denotes the SAME release
 
 Found while executing plan `di08i9` (Set `nobugship`), establishing that plan's required CHECKER

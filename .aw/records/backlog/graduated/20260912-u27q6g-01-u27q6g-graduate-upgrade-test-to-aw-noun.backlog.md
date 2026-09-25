@@ -1,11 +1,13 @@
 - Id: u27q6g
-- Status: open
+- Status: graduated
+- Graduated-To: upgrehearse
 - Set: u27q6g
 - Priority: low
 - Work-Kind: feature
 - Summary: Graduate tools/aw_upgrade_test.py to a first-class aw noun once the rehearsal workflow has proven itself
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into upgrehearse (plan 8ud1is); verified live at 8e74dcac
 - 2026-09-12 created (aw backlog): Deliberate follow-up: shipped as a maintainer script first, per the maintainer's script-now-promote-later decision
 
 tools/aw_upgrade_test.py currently lives in tools/ as a maintainer rehearsal rig. It is arguably useful to END USERS too, who would want to rehearse an upgrade against a copy of their own repo before running it for real.

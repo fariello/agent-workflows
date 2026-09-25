@@ -1,11 +1,13 @@
 - Id: 3yr30q
-- Status: open
+- Status: graduated
+- Graduated-To: carrierauth
 - Set: 3yr30q
 - Priority: low
 - Work-Kind: chore
 - Summary: Walkthroughs are tracked=False and filename-only checked, so a defect recorded only in a walkthrough is invisible to every gate
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into carrierauth (plan vtkfq8); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): Walkthroughs are tracked=False and filename-only checked, so a defect recorded only in a walkthrough is invisible to every gate
 
 Named as explicitly OUT OF SCOPE by durablecapture 01 (`rnkqrc`) F-8, and filed here so the gap has a durable carrier instead of living only in that plan's prose (which is the exact failure mode `rnkqrc` exists to close, so leaving it uncarried would have been self-refuting).

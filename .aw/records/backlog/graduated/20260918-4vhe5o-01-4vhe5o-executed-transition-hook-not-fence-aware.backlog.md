@@ -1,5 +1,6 @@
 - Id: 4vhe5o
-- Status: open
+- Status: graduated
+- Graduated-To: fencegate
 - Blocks-Release: next
 - Set: 4vhe5o
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: the executed-transition pre-commit hook is not fence-aware, so a plan quoting '- Status: executed' inside a code fence is refused as a raw transition
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into fencegate (plan kecxnb); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): the executed-transition pre-commit hook is not fence-aware, so a plan quoting '- Status: executed' inside a code fence is refused as a raw transition
 
 Found while executing plan `di08i9` (Set `nobugship`), committing that plan's own evidence update.

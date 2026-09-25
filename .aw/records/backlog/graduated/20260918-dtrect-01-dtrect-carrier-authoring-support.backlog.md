@@ -1,11 +1,13 @@
 - Id: dtrect
-- Status: open
+- Status: graduated
+- Graduated-To: carrierauth
 - Set: dtrect
 - Priority: medium
 - Work-Kind: feature
 - Summary: Deferred-section carrier subfields have no authoring or scaffold support, so an author must hand-write the typed field aw ipd scaffold does not emit
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into carrierauth (plan vtkfq8); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): Deferred-section carrier subfields have no authoring or scaffold support, so an author must hand-write the typed field aw ipd scaffold does not emit
 
 durablecapture 01 (`rnkqrc`) added the typed carrier vocabulary (`ipd_schema.CARRIER_FIELDS`) and the gate that reads it, but NOT authoring support for it. Measured 2026-09-18: `aw ipd scaffold` emits a `## Deferred / out of scope (with reason)` section with no carrier subfield and no hint that one is now required, and there is no verb that adds one to an existing row.
