@@ -6,7 +6,7 @@
 - Scope: Replace the whole-tree `plans_index.scan_plans` / `research_index._scan_docs` call on the SELECTOR branch of `cli._find_type_records` with a per-path entry builder applied only to the resolver's matched paths; the no-selector branch, the matching semantics, and the displayed output stay byte-identical. INCLUDES preserving three behaviors the whole-tree scan currently supplies as side effects and a per-path builder can silently lose: the once-per-scan `artifact_core.get_ignored_dirs` result (a `git ls-files` SUBPROCESS, measured 2.7ms, which must not be re-run per matched path, F-6); the research scan's SKIP of a doc whose name or frontmatter does not parse, which today makes two resolver-matchable files display as "no matching research" (F-7); and `scan_plans`'s unguarded `read_text`, which a per-path builder must not turn into a new exception path (F-8).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/plans_index.py, agent_workflows/research_index.py, agent_workflows/selectors.py, tests/test_find_single_read.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qfpnrm
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701..PR-708, all FIXED, no deferrals. EVERY MEASUREMENT IN THIS PLAN REPRODUCES, which is unusual and worth recording: at review's HEAD `find plans <id6>` opened 1555 files for 777 unique plans with all 777 opened twice, `find plans` (no selector) opened 777 with zero doubles, `find research <id6>` 249/124/124, `find specs` and `find backlog` one double each; the warm in-process split measured `scan_plans` 128.0ms and `resolve` 91.6ms of 323.4ms (plan: 129.6/89.3/316.3), and the cold subprocess best-of-7 was 0.58s against a 0.26s `--version` floor (plan: 0.61s/0.35s). THE MATERIAL FINDINGS ARE THREE BEHAVIORS THE WHOLE-TREE SCAN SUPPLIES THAT A PER-PATH BUILDER LOSES. (a) `scan_plans`/`_scan_docs` each call `artifact_core.get_ignored_dirs` ONCE per scan and it spawns a `git ls-files` subprocess (2.7ms measured); a per-path `plan_entry` computing it internally would spawn one per matched path and could make a multi-match query SLOWER, so the ignored set must be hoisted and passed in (PR-701). (b) `_scan_docs` SKIPS a doc whose filename or frontmatter does not parse, and the resolver does not: measured live, `aw find research template` resolves to two real files and prints "no matching research", so `_doc_entry` must return None for exactly those and E-02 must pin that output (PR-702). (c) `scan_plans` calls `read_text` with NO error handling while the resolver's filename rules deliberately match unreadable files, so on the selector path an unreadable matched plan becomes a NEW crash (PR-703). Also: the sort-order caution is CORRECT but its consequence was overstated, because `pi.query` re-sorts whenever any filter flag is present (PR-704); E-01/E-05's absolute timings are live-artifact measurements needing re-derivation (PR-705); E-01's corpus names selectors that may match nothing (PR-706); the two named old test files are already absent so V-03's `test_plans_index.py` is the only pre-existing guard (PR-707); and the gate was missing most of its required elements (PR-708).
