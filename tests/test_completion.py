@@ -46,6 +46,30 @@ from agent_workflows import cli, completion
 from agent_workflows.term import Term
 
 
+def _usable_bash():
+    """Absolute path of a bash that can run these scripts, or ``None``.
+
+    Resolved through ``shutil.which`` (PATH order) rather than handing ``"bash"`` to
+    ``subprocess``: on Windows ``CreateProcess`` searches ``System32`` BEFORE ``PATH``, so a bare
+    ``"bash"`` reaches the WSL launcher (``System32\\bash.exe``), which exits 1 with no usable
+    distro. That launcher is rejected here too, since it cannot read Windows temp paths.
+    """
+    found = shutil.which("bash")
+    if not found:
+        return None
+    if sys.platform == "win32" and "system32" in os.path.normcase(found):
+        return None
+    return found
+
+
+_BASH = _usable_bash()
+
+
+def _shell_path(path) -> str:
+    """A path spelled so the shell can open it: forward slashes, which Git Bash/MSYS accept."""
+    return Path(path).as_posix()
+
+
 def _run(argv):
     out = io.StringIO()
     with redirect_stdout(out):
@@ -222,21 +246,26 @@ class GeneratorSyntaxTests(unittest.TestCase):
 
     def test_shells_parse_under_syntax_checks(self) -> None:
         checks = [
-            ("bash", ["bash", "-n"], completion.generate_bash_completion),
+            ("bash", [_BASH or "bash", "-n"], completion.generate_bash_completion),
             ("zsh", ["zsh", "-n"], completion.generate_zsh_completion),
             ("fish", ["fish", "--no-execute"], completion.generate_fish_completion),
         ]
         for shell, cmd, gen in checks:
+            if shell == "bash" and _BASH is None:
+                continue
             if shutil.which(shell):
                 self._check_shell(shell, cmd, gen)
 
     def _check_shell(self, shell, cmd, gen):
         script = gen(self.tree)
-        with tempfile.NamedTemporaryFile("w", suffix=f".{shell}", delete=False) as fh:
-            fh.write(script)
+        # Binary mode: a text-mode write emits CRLF on Windows, which no shell parses.
+        with tempfile.NamedTemporaryFile("wb", suffix=f".{shell}", delete=False) as fh:
+            fh.write(script.encode("utf-8"))
             path = fh.name
         try:
-            proc = subprocess.run(cmd + [path], capture_output=True, text=True)
+            proc = subprocess.run(
+                cmd + [_shell_path(path)], capture_output=True, text=True
+            )
             self.assertEqual(
                 proc.returncode, 0, f"{shell} -n failed: {proc.stderr}\n{script}"
             )
@@ -262,11 +291,11 @@ def _drive_bash_completion(script: str, words, cword=None):
         cword = len(words) - 1
     with tempfile.TemporaryDirectory() as tmp:
         script_path = Path(tmp) / "aw.bash"
-        script_path.write_text(script, encoding="utf-8")
+        script_path.write_bytes(script.encode("utf-8"))  # LF endings on every OS
         # `printf '%s\n'` with an empty COMPREPLY would emit one blank line, so the count is printed
         # first and used to decide whether any candidate lines follow.
         driver = (
-            f"source {shlex.quote(str(script_path))}\n"
+            f"source {shlex.quote(_shell_path(script_path))}\n"
             f"COMP_WORDS=({' '.join(shlex.quote(w) for w in words)})\n"
             f"COMP_CWORD={cword}\n"
             "_aw_completion\n"
@@ -274,7 +303,7 @@ def _drive_bash_completion(script: str, words, cword=None):
             'if [[ ${#COMPREPLY[@]} -gt 0 ]]; then printf "%s\\n" "${COMPREPLY[@]}"; fi\n'
         )
         proc = subprocess.run(
-            ["bash", "-c", driver], capture_output=True, text=True, check=False
+            [_BASH or "bash", "-c", driver], capture_output=True, text=True, check=False
         )
     if proc.returncode != 0:
         raise AssertionError(
@@ -285,7 +314,7 @@ def _drive_bash_completion(script: str, words, cword=None):
     return sorted(lines[1 : 1 + count])
 
 
-@unittest.skipUnless(shutil.which("bash"), "bash not installed")
+@unittest.skipUnless(_BASH, "no usable bash installed")
 class BashCompletionDrivenTests(unittest.TestCase):
     """The generated bash function is EXECUTED, and a command completes its OWN arguments.
 
@@ -506,7 +535,7 @@ class CompletionSurfaceParityTests(unittest.TestCase):
         ),
     )
 
-    @unittest.skipUnless(shutil.which("bash"), "bash not installed")
+    @unittest.skipUnless(_BASH, "no usable bash installed")
     def test_both_surfaces_return_the_same_static_candidates(self) -> None:
         script = completion.generate_bash_completion()
         wrong = []
@@ -1844,7 +1873,9 @@ class CompletionInstallCliTests(_DropInFixture):
             problems = []
             if rc != expected_rc:
                 problems.append(f"exit code expected {expected_rc}, got {rc}")
-            missing = [n for n in needles if n not in out]
+            # Needles are spelled with "/"; a Windows path prints with the native "\\".
+            out_posix = out.replace(os.sep, "/")
+            missing = [n for n in needles if n not in out_posix]
             if missing:
                 problems.append(
                     f"stdout is missing {missing!r}; it printed {out.strip()[:200]!r}"

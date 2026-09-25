@@ -1079,11 +1079,24 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         import json as _json
         import os as _os
 
+        import subprocess as _subprocess
+        import sys as _sys
+
+        # A genuinely LIVE pid that is not ours. Not PID 1: that is `init` on POSIX but names no
+        # process at all on Windows (whose PIDs are multiples of 4), so it would test nothing there.
+        other = _subprocess.Popen(
+            [_sys.executable, "-c", "import time; time.sleep(60)"]
+        )
+        self.addCleanup(other.wait)
+        self.addCleanup(other.kill)
         data = _json.loads(lock.read_text())
-        data["pid"] = 1  # init process is always alive and != our pid
+        data["pid"] = other.pid
         lock.write_text(_json.dumps(data), encoding="utf-8")
         with self.assertRaises(LC.TransactionLockError):
             LC.acquire_finalize_lock(self.root, "abc123")
+        self.assertIsNone(
+            other.poll(), "the liveness probe must OBSERVE the holder, never kill it"
+        )
 
         # Reclaim stale lock (dead PID 2**31 - 1)
         lock.write_text(

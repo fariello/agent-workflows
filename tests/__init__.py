@@ -59,6 +59,22 @@ try:
     os.dup2(_devnull, 0)
     os.close(_devnull)
     sys.stdin = open(os.devnull, "r")
+    if sys.platform == "win32":
+        # On Windows `NUL` is a CHARACTER DEVICE, so `open(os.devnull).isatty()` is True and the
+        # guard above silently fails: gates keyed on `sys.stdin.isatty()` (the human-only approval
+        # floor, the self-commit prompt) then believed a human was present, which let
+        # `aw specs set --status approved` through without `--by-human` and printed the commit prompt
+        # into `--json` stdout on the Windows CI runner. Wrap it so `isatty()` reports the truth.
+        # A TextIOWrapper subclass keeps a per-instance `__dict__`, so tests that
+        # `patch("sys.stdin.isatty", ...)` still override this.
+        import io as _io
+
+        class _NotATty(_io.TextIOWrapper):
+            def isatty(self) -> bool:  # noqa: D401 - a stream predicate
+                return False
+
+        _raw = sys.stdin.buffer.detach()
+        sys.stdin = _NotATty(_raw, encoding="utf-8")
 except OSError:
     # If stdin cannot be redirected (unusual sandbox), leave it as-is; the git guards above
     # and per-test mocks still apply.

@@ -157,21 +157,36 @@ def signal_process(process: subprocess.Popen, sig: int) -> bool:
         return True
     except (ProcessLookupError, OSError):
         return False
+    except ValueError:
+        # Windows `Popen.send_signal` accepts only SIGTERM and the CTRL_* console events and raises
+        # ValueError for anything else (SIGINT included). Report "not delivered" so the reaper's
+        # ladder escalates to the next rung instead of dying mid-reap with the child still alive.
+        return False
 
 
 def pause_live_children() -> list[subprocess.Popen]:
-    """Send SIGSTOP to all currently running child processes and their process groups."""
+    """Send SIGSTOP to all currently running child processes and their process groups.
+
+    A no-op where the platform has no SIGSTOP (Windows): nothing is paused, so nothing is returned
+    for :func:`resume_live_children` to resume.
+    """
     paused: list[subprocess.Popen] = []
+    sigstop = getattr(signal, "SIGSTOP", None)
+    if sigstop is None:
+        return paused
     for p in live_children():
-        if signal_process(p, signal.SIGSTOP):
+        if signal_process(p, sigstop):
             paused.append(p)
     return paused
 
 
 def resume_live_children(processes: Sequence[subprocess.Popen]) -> None:
     """Send SIGCONT to unpause previously stopped child processes."""
+    sigcont = getattr(signal, "SIGCONT", None)
+    if sigcont is None:
+        return
     for p in processes:
-        signal_process(p, signal.SIGCONT)
+        signal_process(p, sigcont)
 
 
 _TERMINATE_LOCK = threading.Lock()

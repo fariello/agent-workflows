@@ -267,21 +267,23 @@ class PhysicalPolicyMatrixTests(unittest.TestCase):
         ctx = resolve_project_context(
             target_repo=self.target_repo, aw_home=self.aw_home
         )
+        # Compare as Paths: the resolver reports POSIX-separated strings, while os.path.join
+        # uses the native separator ("\\" on Windows); Path equality normalizes both.
         self.assertEqual(
-            ctx.physical_classes[RootClass.SYSTEM.value],
-            os.path.join(self.target_repo, canary_data["expected_system"]),
+            Path(ctx.physical_classes[RootClass.SYSTEM.value]),
+            Path(self.target_repo, canary_data["expected_system"]),
         )
         self.assertNotEqual(
-            ctx.physical_classes[RootClass.SYSTEM.value],
-            os.path.join(self.target_repo, canary_data["prohibited_system"]),
+            Path(ctx.physical_classes[RootClass.SYSTEM.value]),
+            Path(self.target_repo, canary_data["prohibited_system"]),
         )
         self.assertEqual(
-            ctx.physical_classes[RootClass.CONFIG_LOCAL.value],
-            os.path.join(self.target_repo, canary_data["local_config"]),
+            Path(ctx.physical_classes[RootClass.CONFIG_LOCAL.value]),
+            Path(self.target_repo, canary_data["local_config"]),
         )
         self.assertEqual(
-            ctx.physical_classes[RootClass.STATE_RUNTIME.value],
-            os.path.join(self.target_repo, ".aw", "state", "runtime"),
+            Path(ctx.physical_classes[RootClass.STATE_RUNTIME.value]),
+            Path(self.target_repo, ".aw", "state", "runtime"),
         )
 
         # 2. Plant local config and runtime state canaries in real git repo

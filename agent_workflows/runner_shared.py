@@ -4988,20 +4988,14 @@ def _peer_pid(run_dir: Path) -> int | None:
     DIAGNOSTIC ONLY, never a liveness signal: a recorded PID can be REUSED by an unrelated process, so
     `run_viewer.driver_holder_state`'s `flock` acquirability remains the authority (its docstring
     records the same reasoning).
+
+    Read through `platform_lock.read_lock_record_pid`, because on Windows a LIVE holder's lock is
+    mandatory over the file's first byte and a plain read of the file raises `PermissionError`.
     """
 
-    lock_path = Path(run_dir) / "driver.lock"
-    try:
-        text = lock_path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return None
-    match = re.search(r"pid=(\d+)", text)
-    if not match:
-        return None
-    try:
-        return int(match.group(1))
-    except ValueError:
-        return None
+    from agent_workflows import platform_lock
+
+    return platform_lock.read_lock_record_pid(Path(run_dir) / "driver.lock")
 
 
 def _peer_selectors(run_dir: Path) -> tuple[str, ...]:
@@ -11594,7 +11588,10 @@ def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
                 rel_paths = []
                 for p in res.paths:
                     try:
-                        rel_paths.append(str(p.resolve().relative_to(r.resolve())))
+                        # POSIX separators so the message is identical on every OS.
+                        rel_paths.append(
+                            p.resolve().relative_to(r.resolve()).as_posix()
+                        )
                     except ValueError:
                         rel_paths.append(str(p))
                 joined_paths = ", ".join(rel_paths)

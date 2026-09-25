@@ -528,7 +528,9 @@ class EnterSandboxTests(unittest.TestCase):
                 f"expected the landlock bootstrap launcher, got {wrapped!r}",
             )
             boot = Path(wrapped[1]).read_text(encoding="utf-8")
-            self.assertIn(str(lane.resolve()), boot)
+            # The bootstrap embeds paths as Python literals (`{writable!r}`), so on Windows the
+            # backslashes are doubled; assert on the repr the script actually carries.
+            self.assertIn(repr(str(lane.resolve())), boot)
             self.assertIn("landlock_restrict_self", boot)
             self.assertIn(repr(argv), boot, "the real worker argv must be exec'd")
 

@@ -24,6 +24,7 @@ import argparse
 import dataclasses
 import io
 import json
+import sys
 import unittest
 from contextlib import contextmanager, redirect_stdout
 
@@ -279,7 +280,10 @@ class RunnerSafetyProbeTests(unittest.TestCase):
             )
 
     def test_a_platform_we_are_not_running_on_asserts_nothing(self):
-        caps = detect_host_capabilities("opencode", "win32")
+        # Ask about a platform that is NOT the one running this test (on a Windows runner a
+        # hard-coded "win32" would be the running platform and legitimately probed).
+        other = "darwin" if sys.platform == "win32" else "win32"
+        caps = detect_host_capabilities("opencode", other)
         for name in RUNNER_SAFETY_CAPABILITIES:
             self.assertFalse(
                 getattr(caps, name),

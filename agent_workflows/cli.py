@@ -12542,7 +12542,17 @@ def _run_completion(args: argparse.Namespace, term: Optional[Term] = None) -> in
     if target in ("install", "uninstall"):
         return _run_completion_install(args, verb=target, term=term)
     shell = target if target else _detect_shell()
-    sys.stdout.write(_completion.generate(shell))
+    script = _completion.generate(shell)
+    # A shell script must reach the shell with LF endings: Windows text-mode stdout would turn
+    # every "\n" into CRLF, which bash rejects (`$'\r': command not found`). Write the bytes
+    # directly when the stream exposes a binary buffer; a captured StringIO keeps the text path.
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is not None and os.linesep != "\n":
+        sys.stdout.flush()
+        buffer.write(script.encode("utf-8", errors="replace"))
+        buffer.flush()
+    else:
+        sys.stdout.write(script)
     return 0
 
 

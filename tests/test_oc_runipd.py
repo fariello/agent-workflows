@@ -12,6 +12,7 @@ import contextlib
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -127,6 +128,12 @@ class DriverTests(unittest.TestCase):
         )
         self.assertEqual(queue, queue_prefix)
 
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
+        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
+        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
+    )
     def test_atomic_state_and_set_session_continuity(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -246,6 +253,12 @@ class DriverTests(unittest.TestCase):
 
 
 class ReviewPlanRoutingTests(unittest.TestCase):
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
+        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
+        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
+    )
     def test_to_review_plans_invoke_plan_review_and_share_session(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1531,6 +1544,19 @@ class HeartbeatFormattingTests(unittest.TestCase):
         self.assertNotIn("still working", msg)
 
 
+#: The reaper's LAST rung. Windows has no SIGKILL, and `runner_shutdown.terminate_process` escalates
+#: to `getattr(signal, "SIGKILL", signal.SIGTERM)`; the ladder tests assert that same fallback.
+_SIGKILL = getattr(signal, "SIGKILL", signal.SIGTERM)
+
+
+def _restore_os_attr(name: str, original) -> None:
+    """Put `os.<name>` back EXACTLY: reinstate it, or remove a fake the platform never had."""
+    if original is not None:
+        setattr(os, name, original)
+    elif hasattr(os, name):
+        delattr(os, name)
+
+
 class ProcessGroupTerminationTests(unittest.TestCase):
     def test_terminate_process_signals_process_group_with_escalation(self):
         import io
@@ -1547,19 +1573,19 @@ class ProcessGroupTerminationTests(unittest.TestCase):
 
             def poll(self):
                 if len(signals_sent) >= 3:
-                    return -signal.SIGKILL
+                    return -_SIGKILL
                 return None
 
             def wait(self, timeout=None):
                 if len(signals_sent) < 3:
                     raise subprocess.TimeoutExpired(["dummy"], timeout)
-                return -signal.SIGKILL
+                return -_SIGKILL
 
             def send_signal(self, sig):
                 signals_sent.append(("single", sig))
 
             def kill(self):
-                signals_sent.append(("kill", signal.SIGKILL))
+                signals_sent.append(("kill", _SIGKILL))
 
         proc = DummyProcess()
 
@@ -1583,19 +1609,19 @@ class ProcessGroupTerminationTests(unittest.TestCase):
                 [
                     ("group", 9999, signal.SIGINT),
                     ("group", 9999, signal.SIGTERM),
-                    ("group", 9999, signal.SIGKILL),
+                    ("group", 9999, _SIGKILL),
                 ],
             )
             self.assertTrue(proc.stdout.closed)
         finally:
             driver._SIGINT_GRACE_SECONDS = orig_sigint_grace
             driver._SIGTERM_GRACE_SECONDS = orig_sigterm_grace
-            if orig_killpg is not None:
-                os.killpg = orig_killpg
-            if orig_getpgid is not None:
-                os.getpgid = orig_getpgid
-            if orig_getpgrp is not None:
-                os.getpgrp = orig_getpgrp
+            # Restore EXACTLY, including REMOVING a fake where the platform had no such function
+            # (Windows): leaving it installed made a later real reap "signal" a recording lambda,
+            # so the child was never killed (ChildTerminationTests failed order-dependently).
+            _restore_os_attr("killpg", orig_killpg)
+            _restore_os_attr("getpgid", orig_getpgid)
+            _restore_os_attr("getpgrp", orig_getpgrp)
 
     def test_terminate_process_non_posix_fallback(self):
         import io
@@ -1612,19 +1638,19 @@ class ProcessGroupTerminationTests(unittest.TestCase):
 
             def poll(self):
                 if len(signals_sent) >= 3:
-                    return -signal.SIGKILL
+                    return -_SIGKILL
                 return None
 
             def wait(self, timeout=None):
                 if len(signals_sent) < 3:
                     raise subprocess.TimeoutExpired(["dummy"], timeout)
-                return -signal.SIGKILL
+                return -_SIGKILL
 
             def send_signal(self, sig):
                 signals_sent.append(("single", sig))
 
             def kill(self):
-                signals_sent.append(("kill", signal.SIGKILL))
+                signals_sent.append(("kill", _SIGKILL))
 
         proc = DummyProcess()
 
@@ -1645,18 +1671,23 @@ class ProcessGroupTerminationTests(unittest.TestCase):
                 [
                     ("single", signal.SIGINT),
                     ("single", signal.SIGTERM),
-                    ("single", signal.SIGKILL),
+                    ("single", _SIGKILL),
                 ],
             )
             self.assertTrue(proc.stdout.closed)
         finally:
             driver._SIGINT_GRACE_SECONDS = orig_sigint_grace
             driver._SIGTERM_GRACE_SECONDS = orig_sigterm_grace
-            if orig_killpg is not None:
-                os.killpg = orig_killpg
+            _restore_os_attr("killpg", orig_killpg)
 
 
 class StallWatchdogTests(unittest.TestCase):
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
+        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
+        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
+    )
     def test_stall_watchdog_terminates_silent_child_and_marks_interrupted(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1748,6 +1779,12 @@ class StallWatchdogTests(unittest.TestCase):
             self.assertEqual(item["status"], "queued")
             self.assertTrue(item.get("recovery_next"))
 
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
+        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
+        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
+    )
     def test_stall_watchdog_does_not_trip_on_active_child(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -2071,6 +2108,12 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             )
             self.assertFalse(driver.is_plan_review_approved(p_nogo))
 
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
+        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
+        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
+    )
     def test_full_auto_reviews_approves_and_executes_plan(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -2203,6 +2246,12 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             self.assertIn("auto-approved", plan_text)
             self.assertNotIn("--by-human", plan_text)
 
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
+        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
+        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
+    )
     def test_without_full_auto_stops_at_reviewed(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -6232,7 +6281,20 @@ class OcStreamTrackerOutputModeTests(unittest.TestCase):
 
                 stream_events = [
                     '{"type":"step_finish","part":{"tokens":{"total":1500,"input":1200,"output":300},"cost":0.015}}\n',
-                    f'{{"type":"tool_use","part":{{"tool":"write","state":{{"status":"completed","metadata":{{"filepath":"{repo}/src/foo.py"}}}}}}}}\n',
+                    # json.dumps, not an f-string: a Windows path's backslashes must be escaped.
+                    json.dumps(
+                        {
+                            "type": "tool_use",
+                            "part": {
+                                "tool": "write",
+                                "state": {
+                                    "status": "completed",
+                                    "metadata": {"filepath": f"{repo}/src/foo.py"},
+                                },
+                            },
+                        }
+                    )
+                    + "\n",
                 ]
 
                 class FakeProc:

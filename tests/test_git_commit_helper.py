@@ -43,7 +43,9 @@ def repo(tmp_path: Path) -> Path:
 def _write(repo: Path, rel: str, text: str) -> str:
     p = repo / rel
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
+    # Bytes, not text mode: on Windows text mode writes CRLF, and the whitespace-fixing hook
+    # below rewrites with LF, which would turn a whitespace-only edit into a real line-ending diff.
+    p.write_bytes(text.encode("utf-8"))
     return rel
 
 

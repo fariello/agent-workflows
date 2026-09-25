@@ -60,12 +60,21 @@ waiting requirement is met without a second caller acquiring the power to hang a
 future caller that wants an UNBOUNDED, SILENT wait is the thing still forbidden here; a bounded,
 reporting, deferring wait built from the non-blocking primitive needs no exception to this rule.
 
-PLATFORM REACH, STATED HONESTLY. This module removes the import-time barrier and nothing more.
-:func:`acquire` works wherever ``filelock`` works. :func:`probe_free` answers only where the
-POSIX primitive is available and returns ``None`` (undetermined) elsewhere, which is the same
-conservative answer the probe callers already documented: failing to prove a holder is alive is
-not proof that it is dead. This module makes NO claim that the runners work on a non-POSIX host;
-the signal ladder and the process-tree kill remain POSIX-only for unrelated reasons.
+PLATFORM REACH, STATED HONESTLY. :func:`acquire` works wherever ``filelock`` works.
+:func:`probe_free` answers on POSIX (``fcntl.flock``) and on Windows (``msvcrt.locking`` on the
+same one-byte range at offset 0 that ``filelock``'s Windows backend locks, so the two genuinely
+conflict), and returns ``None`` (undetermined) anywhere else, which is the same conservative
+answer the probe callers already documented: failing to prove a holder is alive is not proof that
+it is dead. This module makes NO claim that the runners work on a non-POSIX host; the signal ladder
+and the process-tree kill remain POSIX-only for unrelated reasons.
+
+WINDOWS LOCKS ARE MANDATORY, NOT ADVISORY, and callers must not assume otherwise. A held byte-range
+lock makes the locked range unreadable and unwritable through every OTHER handle, and the holder's
+open handle refuses delete/rename of the file. So on Windows a ``pid=`` record written INSIDE a
+held lock file can be read only through the holder's own descriptor; a separate reader gets
+``PermissionError`` (every reader in this package already treats that as "unrecorded"). Also note
+``msvcrt.locking`` locks from the CURRENT file position, and a ``dup``ed descriptor shares that
+position, which is why :meth:`LockHandle.release` rewinds before unlocking.
 """
 
 from __future__ import annotations
@@ -73,6 +82,7 @@ from __future__ import annotations
 import contextlib
 import errno
 import os
+import re
 from pathlib import Path
 from typing import Any, Iterator, Optional, Union
 
@@ -86,6 +96,10 @@ __all__ = [
     "probe_free",
     "release_raw",
     "posix_primitive",
+    "windows_primitive",
+    "pid_alive",
+    "read_lock_record",
+    "read_lock_record_pid",
 ]
 
 PathLike = Union[str, "os.PathLike[str]", Path]
@@ -133,6 +147,175 @@ def posix_primitive() -> Optional[Any]:
     except ImportError:  # pragma: no cover - exercised only on a non-POSIX host
         return None
     return fcntl
+
+
+def windows_primitive() -> Optional[Any]:
+    """Return the ``msvcrt`` module on Windows, or ``None`` anywhere else.
+
+    The probe's Windows counterpart to :func:`posix_primitive`, guarded the same way. It is only
+    consulted where ``fcntl`` is absent, so a POSIX host never reaches it.
+    """
+
+    if os.name != "nt":
+        return None
+    try:
+        import msvcrt
+    except ImportError:  # pragma: no cover - a Windows build without msvcrt
+        return None
+    return msvcrt
+
+
+def pid_alive(pid: int) -> Optional[bool]:
+    """Does ``pid`` name a running process? ``True``/``False``, or ``None`` when undeterminable.
+
+    NEVER ``os.kill(pid, 0)`` ON WINDOWS. There, ``os.kill`` with any signal other than the two
+    console control events calls ``TerminateProcess``, so the "is it alive?" idiom KILLS the process
+    it asks about (and a stale-lock check would terminate the live lock holder). Windows is answered
+    with ``OpenProcess`` + ``GetExitCodeProcess`` instead, which only observes.
+
+    POSIX keeps the classic classification: ``ESRCH`` is gone, ``EPERM`` is alive (it exists but is
+    another user's), any other ``OSError`` is undeterminable. Caveat on Windows: a process that EXITED
+    with code 259 (``STILL_ACTIVE``) reads as alive, which errs in the safe direction for a lock.
+    """
+
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except (OSError, OverflowError):
+            return None
+        return True
+    try:  # pragma: no cover - exercised only on a Windows host
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.GetExitCodeProcess.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        process_query_limited_information = 0x1000
+        still_active = 259
+        error_access_denied = 5
+        handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not handle:
+            # ACCESS_DENIED: it exists but is not ours to query. Anything else (typically
+            # ERROR_INVALID_PARAMETER) means no process has this id.
+            return ctypes.get_last_error() == error_access_denied
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return None
+            return code.value == still_active
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:  # pragma: no cover - ctypes unavailable or pid out of DWORD range
+        return None
+
+
+#: Matches a ``pid=<n>`` record even when its FIRST byte was unreadable (see
+#: :func:`read_lock_record`), so a Windows reader that sees ``id=<n>`` still recovers the pid.
+LOCK_RECORD_PID_RE = re.compile(r"(?<!\w)p?id=(\d+)")
+
+
+def read_lock_record(path: PathLike) -> Optional[str]:
+    """The diagnostic text a holder recorded INSIDE its lock file, or ``None`` if unreadable.
+
+    On POSIX this is simply the file's text: ``flock`` is advisory, so anyone may read it.
+
+    On Windows the lock is MANDATORY over the one byte ``filelock`` locks (offset 0, length 1), so
+    reading from offset 0 through any handle but the holder's raises ``PermissionError`` while a
+    holder is live. Everything AFTER that byte stays readable, so the fallback reads the remainder.
+    The first character is therefore missing from a LIVE holder's record on Windows (``pid=42``
+    reads as ``id=42``); :data:`LOCK_RECORD_PID_RE` tolerates exactly that. Read-only either way:
+    no ``O_CREAT``, no ``O_TRUNC``, no write.
+    """
+
+    target = Path(path)
+    try:
+        return target.read_text(encoding="utf-8", errors="ignore")
+    except PermissionError:
+        if os.name != "nt":
+            return None
+    except OSError:
+        return None
+    try:  # pragma: no cover - exercised only on a Windows host
+        with open(target, "rb") as stream:
+            stream.seek(1)
+            return stream.read().decode("utf-8", errors="ignore")
+    except OSError:  # pragma: no cover
+        return None
+
+
+def read_lock_record_pid(path: PathLike) -> Optional[int]:
+    """The ``pid=`` a holder recorded inside ``path``, or ``None``. DIAGNOSTIC ONLY, never liveness."""
+
+    text = read_lock_record(path)
+    if not text:
+        return None
+    match = LOCK_RECORD_PID_RE.search(text)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _probe_free_windows(msvcrt: Any, target: Path) -> Optional[bool]:
+    """The Windows half of :func:`probe_free`: try the SAME byte ``filelock`` locks, then let go.
+
+    ``filelock``'s Windows backend locks ONE byte at offset 0 (``msvcrt.locking`` in older releases,
+    ``LockFileEx`` in newer ones; both are the same NT byte-range lock), so a non-blocking
+    ``msvcrt.locking`` of byte 0 through a fresh handle conflicts with a live holder in any process,
+    including this one, because Windows byte-range locks are per HANDLE. The OS drops the lock when
+    the holder's handle closes, which includes process death, so acquirability stays authoritative.
+
+    Opened with ``O_RDWR`` only: no ``O_CREAT`` and no ``O_TRUNC``, so observing a lock authors and
+    destroys nothing, exactly as on POSIX.
+    """
+
+    try:
+        fd = os.open(str(target), os.O_RDWR | getattr(os, "O_BINARY", 0))
+    except OSError:
+        return None
+    try:
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            if exc.errno in (
+                errno.EACCES,
+                errno.EAGAIN,
+                getattr(errno, "EDEADLK", errno.EACCES),
+                getattr(errno, "EDEADLOCK", errno.EACCES),
+            ):
+                return False
+            return None
+        # Acquired, so nothing else held it. Unlock the same byte and leave the file alone.
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+        return True
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
 
 
 class LockHandle:
@@ -200,6 +383,15 @@ class LockHandle:
         if self._released:
             return
         self._released = True
+        # REWIND FIRST. Older ``filelock`` Windows backends (e.g. 3.19) unlock with
+        # ``msvcrt.locking(fd, LK_UNLCK, 1)``, which targets the byte at the CURRENT position, and a
+        # ``dup_stream`` write moves that shared position. Unlocking at the wrong offset raised,
+        # which leaked the descriptor AND left the lock held (measured on the Windows CI runner).
+        # Harmless on POSIX, where ``flock`` ignores the file position.
+        fd = self.fileno()
+        if fd is not None:
+            with contextlib.suppress(Exception):
+                os.lseek(fd, 0, os.SEEK_SET)
         with contextlib.suppress(Exception):
             self._lock.release()
 
@@ -292,7 +484,10 @@ def probe_free(path: PathLike) -> Optional[bool]:
         return True
     fcntl = posix_primitive()
     if fcntl is None:  # pragma: no cover - exercised only on a non-POSIX host
-        return None
+        msvcrt = windows_primitive()
+        if msvcrt is None:
+            return None
+        return _probe_free_windows(msvcrt, target)
     try:
         # No O_CREAT and no O_TRUNC: observing a lock must not author or destroy content.
         fd = os.open(str(target), os.O_RDWR)
