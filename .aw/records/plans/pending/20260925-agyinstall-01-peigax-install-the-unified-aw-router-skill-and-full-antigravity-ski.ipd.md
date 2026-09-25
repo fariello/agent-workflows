@@ -6,7 +6,7 @@
 - Scope: Add a generated `aw` router skill package to the canonical adapter bundle so every install writes `.agents/skills/aw/SKILL.md`; map antigravity's native `skill` feature to the router role and list it among the v1 hosts; test and document it.
 - Scope-Paths: agent_workflows/host_adapters.py, tests/test_agy_skill_install.py, docs/skill-selection.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -19,6 +19,7 @@
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 
 ## Workflow history
+- 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED, no open blocking question. Two prescriptions were driven at review and found broken: the specified digest compile is a CONSTANT (`semantic_view` projects `body` away, so all-rows and empty-rows hash identically) and a backticked manifest path FAILS `validate_skill_package`. Also found: `explicit_invocation` (a shipped disable-safety contract) unspecified and undetectable by the plan's own validation; the verb list at 9752 bytes against an 8192-byte budget; the collision guard checking one string rather than the package-name uniqueness invariant it needs to enforce. Record: `.aw/records/reviews/20260925-agyinstall-01-peigax-install-the-unified-aw-router-skill-and-full-antigravity-ski.review.md`.
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog u0fmeu; re-measured a real `aw install` into a scratch repo (46 skill packages, no `.agents/skills/aw/`, 17 workflows with no skill) and the antigravity rows of `V1_HOSTS` / `HOST_FEATURE_ROLE_MAP`.
