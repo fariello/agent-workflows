@@ -3,13 +3,14 @@
 - Date: 2026-09-24
 - Kind: child
 - Concern: `ipd_lifecycle._scope_match` is the ONE predicate behind every Scope-Paths fence in the toolkit: the pre-commit refusal in `work_cmd.run_commit` (via `work_cmd._in_scope`), the finalize scope reconciliation in `ipd_lifecycle.finalize_precheck` (directly and via `ipd_lifecycle._working_tree_path_is_owned` / `ipd_lifecycle._is_implicitly_allowed`), the begin baseline dirty check (`dirty_within(str(repo_root), scope_paths, _scope_match)`), the post-execution scope-drift rule in `check_engine` (`_life._scope_match(c, pat)`), and `wtiso_gate.check_scope`. For any pattern containing `**` that `fnmatch` rejects, it falls back to `prefix = pat.split("**", 1)[0].rstrip("/")` and returns a bare directory-prefix test, DISCARDING the suffix. Re-measured at HEAD `877545fc`: `_scope_match('tests/anything.txt', 'tests/**/*.py')` and `_scope_match('agent_workflows/README.md', 'agent_workflows/**/*.py')` are `True`, and the implicit allowance `.aw/records/**/index.md` admits ANY path under `.aw/records/`, e.g. `.aw/records/backlog/open/x.md`. The hole is not theoretical: 10 backlog files in 5 `work:` commits since 2026-09-22 entered plan-governed commits ONLY through that allowance (F-5). A second, smaller gap in the same branch: plain `fnmatch` lets `*` cross `/`, so `tests/*.py` admits `tests/sub/a.py`, contradicting the function's own comment "`dir/*.py` should not match nested" (F-3).
-- Scope: IN: replace the glob branch of `ipd_lifecycle._scope_match` with a small pure, segment-aware matcher (`**` = zero or more whole segments, `*`/`?`/`[...]` confined to one segment, the remainder after `**` must match); keep the `dir/`, `dir/**`, and literal/bare-directory branches byte-equivalent in behavior; add a focused unit-test module pinning the backlog's rows plus positive `dir/**` and zero-segment `**` cases and the `aw commit` incident row; add one sentence to spec `ipd-structure-and-linting` Section 4.5 stating the matching semantics. OUT: the separate `fnmatch` fences in `orchestrate_isolation` and `verify_roles` (different grammar, fail-closed direction, F-7), renaming the lowercase `index.md` allowance (OQ-02), and adding any new implicit allowance for backlog filing (OQ-01).
-- Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_scope_match.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+- Scope: IN: replace the glob branch of `ipd_lifecycle._scope_match` with a small pure, segment-aware matcher (`**` = zero or more whole segments, `*`/`?`/`[...]` confined to one segment, the remainder after `**` must match); keep the `dir/`, `dir/**`, and literal/bare-directory branches byte-equivalent in behavior; add a focused unit-test module pinning the backlog's rows plus positive `dir/**` and zero-segment `**` cases and the `aw commit` incident row; add one sentence to spec `ipd-structure-and-linting` Section 4.5 stating the matching semantics; add a REMEDY HINT to the `aw commit` out-of-scope refusal (E-07), which this change makes routine rather than rare (F-5, F-9) and which today names no way forward. OUT: the separate `fnmatch` fences in `orchestrate_isolation` and `verify_roles` (different grammar, fail-closed direction, F-7), renaming the lowercase `index.md` allowance (OQ-02), and adding any new implicit allowance for backlog filing (OQ-01).
+- Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/work_cmd.py, tests/test_scope_match.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: scopeglob
 - Order: 1
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mxja4g
 - From-Backlog: cfab6d
@@ -18,7 +19,8 @@
 - Work-Kind: bug
 
 ## Workflow history
-
+- 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us step=plan-review): plan-review complete: 5 findings (F-9..F-15) all FIXED, 5 recorded decisions, none irreversible; review-finalize lint clean
+- 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed; APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, none deferred, none open. Every one of the author's eight findings was independently re-derived at HEAD f768cadd and HELD, including the zero-narrowing blast radius (re-derived over 444 plans and 2623 tracked paths) and the uniqueness of the `split("**")` fallback; E-02's proposed matcher was implemented at review and behaves exactly as specified on all 14 rows, with the pathological pattern returning False in about 0.0001s (F-15). The findings are about what the plan did NOT say: the `aw commit` refusal this change makes routine names no remedy, so E-07 and V-07 were added and `work_cmd.py` declared (PR-001, F-9); F-5's own behavior-change measurement was an undercount that also misframed the affected class as backlog-only when a spec path is included, which widened OQ-01 (PR-002, F-10); four live artifact counts were stated as acceptance bars rather than context (PR-003, F-11/F-12); the plan named five fences without saying which can actually regress, now enumerated after verifying three are inert or permissive (PR-004, F-13/F-14); and the gate missed this plan's self-application hazard, since E-02 changes the predicate that judges its own commit (PR-005). Lint: `--phase author` conforming before review, `--phase review-finalize` clean with zero findings after.
 - 2026-09-24 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog cfab6d; re-measured all four suffix-dropping rows and the two must-refuse rows at HEAD 877545fc, measured zero narrowing across all 438 plans declaring Scope-Paths, found 10 backlog files committed only through the hole since 2026-09-22, and ran the full bare suite with a segment-aware matcher patched in (1826 passed, identical to baseline).
 
 ## Goal
@@ -62,9 +64,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: one added sentence in Section 4.5, nothing else in the spec changed; the probe reports 0 narrowed plans (or, if a newly authored plan narrows, it is named in the V-05 evidence with the paths it loses).
   - Execution state: pending
 
-- [ ] E-06 RUN the bare suite `python3 -m pytest` (no extra flags) after E-02..E-05.
-  - Depends on: E-03, E-04, E-05
-  - Expected outcome: summary line with 0 failed; count equals the pre-change baseline plus the new tests.
+- [ ] E-07 ADD A REMEDY HINT to the `aw commit` out-of-scope refusal in `work_cmd.run_commit` (F-9). After the existing `"  declared Scope-Paths: "` line and before `return 1`, print one additional line naming the two legitimate routes: commit the path in a separate `aw commit --no-plan -m <msg> -- <paths>`, or declare it in the plan's `- Scope-Paths:` if the approved work genuinely requires it. Change NOTHING else in that branch: the refusal, its exit code 1, and the existing two message lines stay byte-identical, because `tests/test_work_primitives.py` and the scope-refusal tests read this surface. WHY THIS IS IN SCOPE rather than a follow-up: E-02 is what makes this refusal fire routinely (F-5 measured 11 files across 6 commits that will now be refused), so shipping the narrowing without the hint would introduce a newly common dead-end refusal traceable to this plan. Add a test row in `tests/test_scope_match.py` asserting the refusal text contains both `--no-plan` and `Scope-Paths`.
+  - Depends on: E-02
+  - Expected outcome: the refusal prints the offending paths, the declared Scope-Paths, AND one remedy line; the pre-existing message lines and the exit code are unchanged.
+  - Execution state: pending
+
+- [ ] E-06 RUN the bare suite `python3 -m pytest` (no extra flags) after E-02..E-05 and E-07.
+  - Depends on: E-03, E-04, E-05, E-07
+  - Expected outcome: summary line with 0 failed; count equals the pre-change baseline plus the new tests. RE-DERIVE the baseline at execution time (the author measured `1826 passed`, a LIVE figure that drifts); do not assert the old number.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -91,6 +98,18 @@ All measured at HEAD `877545fc` in this worktree with `python3` calling `agent_w
 | F-7 | LOW | `orchestrate_isolation.execute_merge_and_revalidate_gate` (`fnmatch.fnmatch(f, pat) for pat in declared_scope`), `verify_roles.procedure_scope_audit` (`fnmatch.fnmatch(path, a_pat)`) | Two OTHER scope fences use raw `fnmatch`, not `_scope_match`. They do NOT share the suffix-dropping bug (`fnmatch.fnmatch('tests/a.txt','tests/**/*.py')` -> `False`). Their divergence is `*` crossing `/` and `dir/**/*.py` NOT matching the zero-segment `dir/a.py`, i.e. mostly fail-closed. The only runtime caller of the merge gate (`runner_shared`, `execute_merge_and_revalidate_gate(... full_validation_runner=validation_runner,)`) passes NO `declared_scope`, so that branch is inert in production. Out of scope. | `grep -rn "declared_scope=" agent_workflows/runner_shared.py` -> no match; python probe above. |
 | F-8 | INFO | suite | A segment-aware matcher breaks NO existing test. Full bare suite with the new matcher monkeypatched in via a `-p` plugin's `pytest_configure`: identical to baseline. No existing test references `_scope_match` with a `**`-suffix or `dir/*` pattern (only `tests/test_ipd_lifecycle_cli.py` touches scope matching, with literal paths). | `PYTHONPATH=/tmp/opencode/probe-scopeglob python3 -m pytest -p scopeprobe` -> `1826 passed, 1 skipped, 3 warnings in 25.92s`; baseline `python3 -m pytest` -> `1826 passed, 1 skipped, 3 warnings in 27.16s`. |
 
+Added at review (2026-09-24), independently measured in this lane at HEAD `f768cadd`. Every author row above was re-derived and HELD; these are additions and two corrections, not contradictions.
+
+| Id | Severity | Location | Finding | Evidence |
+| --- | --- | --- | --- | --- |
+| F-9 | HIGH | `work_cmd.run_commit` refusal message | THE REFUSAL F-5 MAKES COMMON NAMES NO REMEDY. The out-of-scope refusal prints the offending paths and the declared Scope-Paths, then returns 1. It does NOT mention `--no-plan`, declaring the path, or anything else the operator could do. That was tolerable while the hole made the refusal rare; F-5 measures it becoming routine (11 files across 6 commits in about five weeks), and the agent hitting it is mid-execution with a commit to land. A one-line remedy hint belongs in the same change that makes the refusal fire, because shipping a newly common dead-end refusal is a usability regression traceable to this plan. | `work_cmd.run_commit`: `print("aw commit: refusing - out-of-scope change(s) present:")` then the paths, then `"  declared Scope-Paths: "`, then `return 1`; no remedy string anywhere in the branch |
+| F-10 | MED (author undercount) | F-5's history probe | F-5 UNDERSTATES ITS OWN BLAST RADIUS AND MISCHARACTERIZES IT AS BACKLOG-ONLY. Re-measured over `--since=2026-08-01` rather than 2026-09-22: 11 files across 6 `work:` commits, not 10 across 5. The sixth commit (`4f7f5461`) admitted a `.spec.md` path, so the newly refused class is "any records path", not "backlog files". This matters because OQ-01 is framed entirely around a backlog allowance, which would not have covered the spec case. | probe over `git log --format=... --name-only --since=2026-08-01`, counting files admitted by an allowance today and not by the segment-aware matcher: 6 commits, 11 files, one of them `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` |
+| F-11 | MED (author undercount) | F-1's count | F-1's "1147 tracked paths" is 1151 at this HEAD, and all 1151 come from the single `.aw/records/**/index.md` allowance. The drift is benign (the tree grew) but the figure is a LIVE artifact count, so it must be re-derived at execution rather than asserted. | probe: `tracked paths admitted by allowances TODAY but not after fix: 1151`, `by allowance: {'.aw/records/**/index.md': 1151}`; `git ls-files` -> 2623 tracked |
+| F-12 | INFO (confirms F-4 independently) | every plan's `- Scope-Paths:` | ZERO plans narrow, re-derived independently over 2623 tracked paths and 444 plans declaring Scope-Paths (pending 14, executed 402, superseded 27, not-executed 1, reusable 0). All 10 distinct glob entries in the whole plans tree end in `/**` and take the UNCHANGED branch. The author's per-directory counts differ slightly (10/400/27/1) because the tree grew; the narrowed count is 0 in both measurements, which is the load-bearing part. | per-directory probe output; the 10 entries are `.aw/records/backlog/**`, `.aw/records/plans/**`, `.aw/records/specs/**`, `.claude/commands/**`, `.opencode/commands/**`, `agent_workflows/**`, `agent_workflows/run_analytics_assets/**`, `docs/**`, `tests/**`, `tests/fixtures/run_analytics/**` |
+| F-13 | INFO | `check_engine.check_scope_drift`, `wtiso_gate.check_scope` | TWO of the five fences cannot regress on this change right now, for reasons worth recording so a reviewer need not re-derive them. The post-execution drift rule is gated on a LIVE begin receipt (`read_receipt` then `_receipt_is_live`), and this tree has NO receipts, so it has no subject; `aw check` reports zero `check.scope-drift` findings today. `wtiso_gate.check_scope` has ZERO callers by deliberate design (its own docstring, asserted structurally by `tests/test_containment_predicates.py`). So the fix's live blast radius is `work_cmd.run_commit` (F-5/F-9) and `finalize_precheck` (auto-reconciled). | `find .aw/state -name "*receipt*"` -> empty; `aw check --agent` -> 11 findings, none `check.scope-drift`; `check_scope_drift` body `if not receipt: continue` / `if not _receipt_is_live(...): continue` |
+| F-14 | INFO | `run_evidence.dirty_within` | The begin baseline dirty check gets STRICTLY MORE PERMISSIVE (fewer paths match, so fewer spurious "dirty in scope" refusals). That is the safe direction and needs no mitigation, but it is a behavior change on a fifth caller the plan lists without saying which direction it moves. | `dirty_within` returns the matcher's HITS as the refusal reason; narrowing the matcher can only shrink that set |
+| F-15 | INFO | E-02's proposed semantics | THE PROPOSED MATCHER WAS IMPLEMENTED AT REVIEW EXACTLY AS E-02 SPECIFIES AND PRODUCES THE STATED RESULT ON ALL 14 ROWS, including the pathological pattern returning `False` in well under a millisecond with `lru_cache` memoization. So E-02's design is confirmed workable before execution, not merely plausible. | reviewer's reference implementation: all 6 must-refuse rows `False`, all 8 must-accept rows `True`, `a/**/**/**/**/**/**/z` against a 30-segment path -> `False` in about 0.0001s |
+
 ## Proposed changes (ordered, validatable)
 
 1. E-01 re-confirms F-1..F-3 at execution HEAD.
@@ -98,7 +117,8 @@ All measured at HEAD `877545fc` in this worktree with `python3` calling `agent_w
 3. E-03 pins matcher semantics with a table including the backlog's rows, `dir/**`, zero-segment `**`, and a no-blowup row.
 4. E-04 pins the two fence callers, including the `8u6770` incident and the three implicit allowances.
 5. E-05 states the semantics in spec Section 4.5 and re-runs the blast-radius probe.
-6. E-06 runs the bare suite.
+6. E-07 adds the remedy hint to the `aw commit` refusal this change makes routine.
+7. E-06 runs the bare suite.
 
 ## Deferred / out of scope (with reason)
 
@@ -112,14 +132,17 @@ All measured at HEAD `877545fc` in this worktree with `python3` calling `agent_w
 ## Scope check
 
 - Over-scope: F-3 (single `*` confined to one segment) is not named in `cfab6d`, but it lives in the same branch E-02 rewrites, the function's own comment already states it as intended behavior, and F-4 measured zero plans narrowing from it. Splitting it out would require E-02 to deliberately re-implement a known bug.
-- Under-scope: none. `grep -rn 'split("\*\*"' agent_workflows/` finds only `_scope_match`; every Scope-Paths fence delegates to it (Project conventions).
+- Over-scope, ADDED AT REVIEW and justified rather than removed: E-07 edits `work_cmd.py`, which the original plan did not declare. It is admitted because it is a DIRECT CONSEQUENCE of E-02 rather than an independent improvement: E-02 converts a rare refusal into a routine one (F-5: 11 files, 6 commits), and that refusal currently names no remedy (F-9), so the narrowing and the hint are one user-visible change. The alternative considered and rejected was a follow-up plan, which would ship the dead-end refusal for the interval between the two. `work_cmd.py` is added to `- Scope-Paths:` accordingly.
+- Under-scope: none for the matcher. `grep -rn 'split("\*\*"' agent_workflows/` finds only `_scope_match`; every Scope-Paths fence delegates to it (Project conventions).
+- FIVE FENCES, AND WHICH ONES CAN ACTUALLY REGRESS (F-13, F-14, verified at review, recorded so a reviewer need not re-derive it): `work_cmd.run_commit` is the live behavior change (F-5, mitigated by E-07); `finalize_precheck` reclassifies such a path as `out_of_scope`, which the runner auto-reconciles; `check_engine.check_scope_drift` is gated on a LIVE begin receipt and this tree has none, so it has no subject; `wtiso_gate.check_scope` has ZERO callers by deliberate design; and `run_evidence.dirty_within` gets strictly MORE PERMISSIVE, which is the safe direction. So the fix cannot silently start refusing through the three inert or permissive fences.
 
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_scope_match.py -o addopts="" -q` passing, and the must-refuse rows shown FAILING with E-02 reverted (proves the test can fail).
 - `python3 -m pytest tests/test_ipd_schema.py tests/test_ipd_lifecycle_cli.py -o addopts="" -q` still passing (grammar and lifecycle callers).
+- `python3 -m pytest tests/test_work_primitives.py tests/test_containment_predicates.py tests/test_check_engine_release_gate.py -o addopts="" -q` still passing (the `aw commit` surface E-07 edits, the zero-caller structural assertion on `wtiso_gate.check_scope`, and the drift-rule source assertion).
 - The blast-radius probe re-run (E-05) reporting narrowed-plan counts.
-- Bare `python3 -m pytest` summary line pasted.
+- Bare `python3 -m pytest` summary line pasted, with the baseline RE-DERIVED at execution rather than compared to the authored `1826`.
 
 ## Spec / documentation sync
 
@@ -128,12 +151,12 @@ All measured at HEAD `877545fc` in this worktree with `python3` calling `agent_w
 
 ## Open questions
 
-### OQ-01: Should backlog items filed during a plan's execution become an implicit allowance, now that the hole that silently admitted them closes?
+### OQ-01: Should records artifacts filed during a plan's execution (backlog items, and also specs) become an implicit allowance, now that the hole that silently admitted them closes?
 
 - Blocking: no
 - Status: open
 - Owner: maintainer
-- Resolution or deferral rationale: Default, which the plan proceeds with: NO new allowance. Spec Section 4.5 limits implicit allowances to "A plan's own lifecycle artifacts", and `cfab6d` itself was filed precisely because `aw commit 8u6770` accepted a backlog path under a plan whose declared scope was `.aw/records/plans/pending`, which the filer treated as a defect. F-5 measured the practical cost: about 10 files across 5 commits in two days would instead need a separate `aw commit --no-plan`. Finalize is unaffected because the runner auto-supplies `--scope-reason`. The maintainer may choose to add `.aw/records/backlog/**` as an allowance later; that is a scope-policy decision and a separate change.
+- Resolution or deferral rationale: Default, which the plan proceeds with: NO new allowance. Spec Section 4.5 limits implicit allowances to "A plan's own lifecycle artifacts", and `cfab6d` itself was filed precisely because `aw commit 8u6770` accepted a backlog path under a plan whose declared scope was `.aw/records/plans/pending`, which the filer treated as a defect. RE-MEASURED AT REVIEW (F-10), which also WIDENS this question: over `--since=2026-08-01` rather than the author's 2026-09-22 window, 11 files across 6 `work:` commits were admitted only through the hole, and one of them is a `.spec.md`, not a backlog item. So the newly refused class is "any records path", and a `.aw/records/backlog/**` allowance alone would NOT have covered the measured spec case; a maintainer choosing to add an allowance should decide the class deliberately rather than inheriting the backlog framing. Finalize is unaffected because the runner auto-supplies `--scope-reason` (verified at review: `runner_shared.compute_scope_reconciliation` builds one reason per `out_of_scope` path). E-07 makes the refusal self-explanatory in the meantime, which is what keeps the default tolerable without a policy change.
 
 ### OQ-02: Should the `.aw/records/**/index.md` allowance be corrected to the real uppercase manifest names?
 
@@ -147,7 +170,7 @@ All measured at HEAD `877545fc` in this worktree with `python3` calling `agent_w
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the probe command and its full output at the execution HEAD (`git rev-parse --short HEAD` pasted too), showing `True` for the four F-1/F-2 rows and the F-3 row, and `False` for `.aw/records/specs/x.spec.md` vs `.aw/records/plans/**`.
+  - Required evidence: paste the probe command and its full output at the execution HEAD (`git rev-parse --short HEAD` pasted too), showing `True` for the four F-1/F-2 rows and the F-3 row, and `False` for `.aw/records/specs/x.spec.md` vs `.aw/records/plans/**`. The per-row BOOLEANS are the bar and are stable code facts; the tracked-path COUNT in F-1 (1147 authored, 1151 at review, F-11) is a live figure, so if you report it, re-derive it and say so rather than repeating either number.
   - Observed evidence:
   - Result: pending
 
@@ -167,12 +190,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste `git diff -- .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` showing exactly one added sentence in Section 4.5; paste the blast-radius probe command and its per-directory output lines (`<dir> plans with Scope-Paths: N narrowed: M`), naming any narrowed plan and the paths it loses.
+  - Required evidence: paste `git diff -- .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` showing exactly one added sentence in Section 4.5 and NOTHING else changed (in particular the implicit-allowance sentence and the `Value grammar` bullets unchanged); paste the blast-radius probe command and its per-directory output lines (`<dir> plans with Scope-Paths: N narrowed: M`), naming any narrowed plan and the paths it loses. The counts are LIVE artifact figures: report what the probe says at execution HEAD, do not reproduce the authored `10/400/27/1` or the reviewer's `14/402/27/1`; the REQUIRED PROPERTY is `narrowed: 0` in every directory, and a nonzero count is a finding to report rather than a number to paste past.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: paste `git diff -- agent_workflows/work_cmd.py` showing ONLY the added remedy line in the out-of-scope refusal branch (the two pre-existing message lines and `return 1` byte-identical); paste the new test row asserting the refusal text contains both `--no-plan` and `Scope-Paths`, and that test passing; paste `python3 -m pytest tests/test_work_primitives.py -o addopts="" -q` summary with 0 failed.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: paste the final summary line of bare `python3 -m pytest`, showing 0 failed and a passed count at least the baseline `1826 passed` plus the new tests.
+  - Required evidence: paste the final summary line of bare `python3 -m pytest`, showing 0 failed. Also paste the PRE-CHANGE baseline summary line you measured at this execution HEAD (re-derived, since `1826 passed` was a live figure at authoring), and state the delta as the count of tests E-03/E-04/E-07 added, so the comparison is against a baseline from the same tree.
   - Observed evidence:
   - Result: pending
 
@@ -181,4 +209,18 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is `to-review` and requires explicit human approval before execution. OQ-01 and OQ-02 are `Blocking: no` and the plan proceeds on their stated defaults. The executor commits only the `- Scope-Paths:` paths via `aw commit mxja4g -- <paths>`, never `git add -A`, and never pushes; test claims paste actual runner output. After every V-* passes and `aw ipd lint --phase pre-transition` conforms, finalize with `aw ipd finalize` to move the plan to `.aw/records/plans/executed/`, and close backlog `cfab6d` via the From-Backlog handoff.
+This plan is `to-review` and requires explicit human approval before execution. OQ-01 and OQ-02 are `Blocking: no` and the plan proceeds on their stated defaults.
+
+WHAT A HUMAN IS APPROVING, stated plainly because this tightens a fence every plan is judged against: after this lands, a path that today slips into a plan-governed `aw commit` through a matching bug will be REFUSED. Measured cost (F-5 as re-measured by F-10): 11 files across 6 `work:` commits in about five weeks would instead need `aw commit --no-plan` or an explicit declaration, and one of those was a spec rather than a backlog item, so the newly refused class is "any records path". The judgement being accepted is that a fence meaning what its author wrote is worth that friction, and E-07 is what keeps the friction self-explanatory. Finalize is NOT blocked (the runner auto-supplies `--scope-reason`), and zero existing plans lose any declared path (F-4, re-derived as F-12 over 444 plans and 2623 tracked paths). A maintainer who would rather widen the allowance instead should answer OQ-01 before approving, since that reverses the intent.
+
+SCOPE FENCE (a DECLARATION, not a stop): the declared paths are exactly `- Scope-Paths:`, which now includes `agent_workflows/work_cmd.py` for E-07. Make whatever edit the work needs, then JUSTIFY it: `aw ipd finalize` refuses to complete without a `--scope-reason` per out-of-scope path and a `--scope-ack` per declared-but-unmodified path. Do NOT stop over a scope question.
+
+SELF-APPLICATION, and it is the one sequencing subtlety in this plan: E-02 changes the very predicate `aw commit` uses, so the commit that lands this change is judged by the NEW matcher if the tooling is re-imported, and by the OLD one if not. Verified at review that this plan's own four declared paths are in scope under BOTH matchers, so the commit cannot refuse itself either way. If it nonetheless refuses, that is a genuine STOP condition (report it; do not pass `--no-plan` to force this plan's own scoped change through, which would bypass the fence this plan exists to repair).
+
+STOP CONDITIONS, both genuinely unsafe rather than scope questions: (1) E-01 finds any defect row already returning the CORRECT value, meaning someone else fixed it and this plan may now be redundant or conflicting; (2) the blast-radius probe (E-05) reports a NONZERO narrowed count, meaning some plan's declared scope really does shrink, which is a behavior change no `V-*` here authorizes and which needs a human decision about that plan.
+
+HONESTY: paste ACTUAL runner output. Run the suite BARE (`python3 -m pytest`); a second `-q` compounds into `-qq` and suppresses the summary line V-06 requires. Do NOT use `git stash` to produce the E-02-reverted runs V-03/V-04 demand (forbidden in a shared checkout); revert by hand and restore, or copy the old function body into a throwaway module.
+
+COMMITS: only the `- Scope-Paths:` paths via `aw commit mxja4g -- <paths>`, never `git add -A`, never push. Verify the staged set with `git diff --cached --name-only` before each commit; this is a shared checkout.
+
+After every `V-*` passes and `aw ipd lint --phase pre-transition` conforms, the terminal transition is the RUNNER's in a managed lane and otherwise the executor's via `aw ipd finalize` (do not hand-roll a `git mv` to `executed/`). Backlog `cfab6d` closes through the `- From-Backlog:` handoff, which is already in place: this plan carries `- From-Backlog: cfab6d` and the same `- Blocks-Release: next`, so the HANDOFF route is satisfied and the bare `aw backlog set done cfab6d` will not fail closed.
