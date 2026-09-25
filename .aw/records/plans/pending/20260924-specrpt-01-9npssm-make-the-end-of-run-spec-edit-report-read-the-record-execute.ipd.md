@@ -6,19 +6,21 @@
 - Scope: Make ONE record, written by the ONE recorder the runners call and read by the ONE reader. IN: (a) `runner_shared.record_item_spec_edits` builds its record with `runner_shared.spec_edit_record` (so it carries `declared`/`modified_not_declared`/`declared_not_modified` and a `state` constant) and stores it under `item["spec_edits"]`, keeping its existing refused-detection logic; (b) `runner_shared.spec_edit_summary` tolerates the legacy `spec_edits_reconciliation` record already on disk by converting it losslessly through `spec_edit_record`; (c) retire the dead `oc_runipd.record_item_spec_edits` fork so the two definitions cannot diverge again (both hosts bind the shared one; `runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD` shrinks by one); (d) behavioral tests driving the real finalize-to-report path on both hosts, plus the silence and legacy cases. OUT: changing the report's wording or adding a new "declared and modified" section (OQ-01); changing `compute_scope_reconciliation` or `finalize_precheck`; the start-of-run announcement (already correct, `st5klo`).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_shared.py
 - Item-Dependencies: executed:cdxcbh
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: specrpt
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9npssm
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: tm5vnx
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 readiness re-check (opencode/its_direct/pt3-claude-opus-5.5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-25, findings PR-001..F-7. Recomputed at HEAD `7835a4d5`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-25 same-status (aw set): OQ-03 resolved by maintainer 2026-09-25: run cdxcbh first
 

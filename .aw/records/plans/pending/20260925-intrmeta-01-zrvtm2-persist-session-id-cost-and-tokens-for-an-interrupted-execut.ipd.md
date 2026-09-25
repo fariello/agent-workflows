@@ -6,7 +6,7 @@
 - Scope: IN: (a) one shared helper in `runner_shared` that reads the attempt's own session log (`attempt["log"]`) with the existing readers `extract_session_id` and `run_viewer.extract_log_metrics`, and writes `attempt["session_id"]`, `attempt["cost"]`, `attempt["tokens"]` and (main-tree turns only, drift-safe) `state["set_sessions"][setid]` / `state["session_id"]`; (b) call it from the three existing interrupt handlers and from the `except KeyboardInterrupt` handler `87jnym` adds, before their `save_state`; (c) behavioral tests through both hosts' real `execute_item`, including the summary table. OUT: parsing session logs in the summary table (rejected by `pfh5qa`, P8 two-derivations hazard); the verifier-turn interrupt handlers; other success-only attempt fields (`exit_code`, `ending_head`, `ending_status`, `argv`); whether spend of a POPPED clean-no-changes attempt survives (OQ-02).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_interrupt_attempt_metadata.py
 - Item-Dependencies: executed:87jnym
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: zrvtm2
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-107 all FIXED, no deferrals, OQ-01 resolved and OQ-02 sharpened (non-blocking). Re-reproduced F-2 on all FOUR interrupt paths against the real `oc_runipd.execute_item`. Removed the proposed `session_turn_counts` bump (the counter is the session-rotation trigger and the cited precedent does not bump it); corrected E-04's `render_continuation_hint` call, which omitted the required positional `run_dir` and raises `TypeError` as authored; showed `StopAtCheckpoint` IS constructible without a live stream so all four raises are testable (6 tests -> 8); added E-05 pinning the exclusive-precedence no-double-count property the whole fix rests on; corrected the verifier Deferred reason (the success path DOES write `verify_cost`/`verify_tokens`) and recorded F-7, that the summary table reads the misnamed `verification_cost`; strengthened F-3 to state that the `KeyboardInterrupt` call site does not exist at all and `87jnym` is approved-but-unexecuted; rewrote the gate with a scope fence, honesty rule and two stop conditions. Split E-01 per the size advisory; E/V renumbered to E-01..E-07 / V-01..V-07.
