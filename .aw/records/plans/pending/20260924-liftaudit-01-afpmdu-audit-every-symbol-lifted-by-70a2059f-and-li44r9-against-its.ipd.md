@@ -47,48 +47,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: commit the audit so its numbers reproduce
 
-- [ ] E-01 ADD `tools/lift_drift_scan.py`, the lift-drift scanner, REUSING `tools/runner_fork_scan.py` rather than re-implementing it. `runner_fork_scan` compares the two host modules AT ONE REVISION; it does not compare a pre-lift host body at `<commit>^` against the shared body, so the new tool is needed, but it must import `runner_fork_scan.normalize`, `runner_fork_scan.top_level_defs`, `runner_fork_scan.free_names` and `runner_fork_scan.is_pure_delegation` instead of copying them (import by path: `sys.path.insert(0, <tools dir>)`, the way the authoring probe did).
+- [x] E-01 ADD `tools/lift_drift_scan.py`, the lift-drift scanner, REUSING `tools/runner_fork_scan.py` rather than re-implementing it. `runner_fork_scan` compares the two host modules AT ONE REVISION; it does not compare a pre-lift host body at `<commit>^` against the shared body, so the new tool is needed, but it must import `runner_fork_scan.normalize`, `runner_fork_scan.top_level_defs`, `runner_fork_scan.free_names` and `runner_fork_scan.is_pure_delegation` instead of copying them (import by path: `sys.path.insert(0, <tools dir>)`, the way the authoring probe did).
   THE LOGIC, which the authoring probes under `/tmp/opencode/probe-liftaudit/` performed and which this tool must reproduce exactly: (1) for a lift commit `C`, the LIFTED set is every top-level def/class NEW in `C:agent_workflows/runner_shared.py` versus `C^`, plus `execute_item_core` paired with each host's `execute_item`; (2) BODY DIFF: for each lifted symbol and each host defining it at `C^`, compare `normalize()` of the pre-lift host body against the HEAD shared body after erasing `oc_runipd`/`agy_runipd`/`runner_shared` module qualifiers, and print a unified diff; (3) RESOLVED-SIGNATURE CHECK, the class that let defects 3 and 4 through a line-by-line review: for every `ast.Call` whose `func` is a bare `ast.Name` inside a HEAD `runner_shared` top-level def, when the name is a `runner_shared` top-level function (and is not shadowed by a local binding or parameter of the enclosing def), report any required positional or keyword-only parameter the call does not supply (skip calls using `*args`/`**kwargs`); (4) HANDLER-VERB CHECK, the class of defect 5: for `execute_item_core` versus each pre-lift `execute_item`, key every `except` handler by (caught type, first call in the `try` body, mapping `run_opencode`/`run_agy_turn` -> `spawn_executor`) and report where the handler's LAST statement differs (`raise` / `return` / fall-through) or where `item["status"]` is assigned directly in one and from a call in the other. Output is plain text with one summary line per check (`arity violations: N`, `handler verb diffs: N`); exit 0 always (a measuring instrument, like `runner_fork_scan`). An `--exclude` option takes symbol names to skip (the executor passes the four excluded names).
   - Depends on: none
   - Expected outcome: `python3 tools/lift_drift_scan.py 70a2059f 12a5c05b` runs at HEAD and, BEFORE E-02/E-03, reports the two spawn-path handler verb diffs (`StopAtCheckpoint`, `StopNowForce` at `spawn_executor`: pre `raise`/via-call, head `return`/direct) on each host and `arity violations: 2`, namely `_record_forced_stop -> git_status(...) missing ['run_checked']` (F-2, fixed by E-03) AND `route_recovery_turn -> save_state(...) missing ['write_report']` (F-4, DEFERRED to `zt2b16` and so expected to remain), matching the Findings table; the tool imports its helpers from `runner_fork_scan`. Re-derive both figures at execution rather than trusting these: they are review-time measurements of a tree other plans are concurrently changing. If the arity set differs from these two entries, report what it is (a THIRD entry is a new defect and is a STOP-and-report, not something to absorb into E-05's allowlist).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix the defects
 
-- [ ] E-02 RESTORE THE PRE-LIFT CONTROL FLOW IN `runner_shared.execute_item_core`'S TWO SPAWN-PATH DELIBERATE-STOP HANDLERS (the `except runner_stop.StopNowForce as stop:` and `except runner_stop.StopAtCheckpoint as stop:` immediately after `exit_code, session_id, log_path, argv = spawn_executor(`). In each: replace `item["status"] = runner_stop.FORCED_DISPOSITION` / `item["status"] = runner_stop.STOPPED_DISPOSITION` with `item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)` (the verify/reconcile pair in the same function already does exactly this; `repo` is bound well before this point), keep `save_state(run_dir, state)` and the stderr line, and replace the final `return` with `raise`. Leave `attempt["disposition"]` as it is (the pre-lift bodies set it to the runner_stop constant too). Do NOT touch the `except StallTimeout:` handler beside them: its `return` matches the pre-lift body.
+- [x] E-02 RESTORE THE PRE-LIFT CONTROL FLOW IN `runner_shared.execute_item_core`'S TWO SPAWN-PATH DELIBERATE-STOP HANDLERS (the `except runner_stop.StopNowForce as stop:` and `except runner_stop.StopAtCheckpoint as stop:` immediately after `exit_code, session_id, log_path, argv = spawn_executor(`). In each: replace `item["status"] = runner_stop.FORCED_DISPOSITION` / `item["status"] = runner_stop.STOPPED_DISPOSITION` with `item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)` (the verify/reconcile pair in the same function already does exactly this; `repo` is bound well before this point), keep `save_state(run_dir, state)` and the stderr line, and replace the final `return` with `raise`. Leave `attempt["disposition"]` as it is (the pre-lift bodies set it to the runner_stop constant too). Do NOT touch the `except StallTimeout:` handler beside them: its `return` matches the pre-lift body.
   WHY `raise` IS SAFE: the `try:`/`finally:` that wraps this region (the `integearn-05` (`9lyg5h`) cleanup construct, whose comment names `StopNowForce` and `StopAtCheckpoint` as paths it must cover) still runs on a raise, so the suite-baseline checkout is still cleaned up; and both hosts' `run_queue` already have the `except runner_stop.StopNowForce:` / `except runner_stop.StopAtCheckpoint:` arms that `load_state` and `break`, which is where the stop was always meant to land. Correct the in-code comment on that `finally:` if it still describes these handlers as `except ... return`.
   NOTE THE CONFLICT WITH `13xo5k`, AND WHY THIS PLAN WINS IT: executed plan `13xo5k`'s V-03 records "Spawn path: ... returns cleanly (no exception escapes)" as the EXPECTED behavior. That was the transcription defect being certified, not a decision: `13xo5k`'s own Findings say the originals re-raised (F-5, "Do not convert either to a swallow") and its conventions state "THE VERIFY/RECONCILE HANDLERS RE-RAISE ON PURPOSE ... so the driver's outer `except BaseException` routes to the shared reaper". The pre-lift spawn-path handlers did the same. Do not edit `13xo5k`'s executed record; cite it in the commit message.
   - Depends on: E-01
   - Expected outcome: both spawn-path handlers end in `raise` and set `item["status"]` via `reconcile_disposition`; `python3 tools/lift_drift_scan.py 70a2059f 12a5c05b` reports `handler verb diffs: 0` for the two stop types (the `StallTimeout` and `DriverError` key-count differences it may list are the benign ones recorded in Findings F-5/F-6).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REMOVE THE BROKEN FALLBACK IN `runner_shared._record_forced_stop`: make `git_status_fn` a REQUIRED keyword-only parameter (`git_status_fn: Callable[[Path], str]`, no default) and call it unconditionally, exactly as `runner_shared._record_checkpoint_stop` already does. The fallback `git_status(repo)` resolves to `runner_shared.git_status`, whose `run_checked` is required, so it can only ever produce `<unobserved: ... missing 1 required keyword-only argument: 'run_checked'>`. Check every caller first (`grep -n "_record_forced_stop(" agent_workflows/*.py`): at review the ONLY callers of the SHARED definition were the two in `execute_item_core`, both already passing `git_status_fn=git_status`, so no caller needs changing and `agent_workflows/runner_shared.py` remains the only file E-03 touches. If a caller genuinely cannot supply it, STOP and report rather than restoring a default.
+- [x] E-03 REMOVE THE BROKEN FALLBACK IN `runner_shared._record_forced_stop`: make `git_status_fn` a REQUIRED keyword-only parameter (`git_status_fn: Callable[[Path], str]`, no default) and call it unconditionally, exactly as `runner_shared._record_checkpoint_stop` already does. The fallback `git_status(repo)` resolves to `runner_shared.git_status`, whose `run_checked` is required, so it can only ever produce `<unobserved: ... missing 1 required keyword-only argument: 'run_checked'>`. Check every caller first (`grep -n "_record_forced_stop(" agent_workflows/*.py`): at review the ONLY callers of the SHARED definition were the two in `execute_item_core`, both already passing `git_status_fn=git_status`, so no caller needs changing and `agent_workflows/runner_shared.py` remains the only file E-03 touches. If a caller genuinely cannot supply it, STOP and report rather than restoring a default.
   THE HOST WRAPPERS ARE NOT CALLERS, AND THAT IS A SEPARATE FACT TO RECORD RATHER THAN ACT ON. `oc_runipd._record_forced_stop` and `agy_runipd._record_forced_stop` do NOT delegate: unlike their `_record_checkpoint_stop` siblings (which are one-line `return runner_shared._record_checkpoint_stop(..., git_status_fn=git_status)` wrappers), each holds a FULL SECOND COPY of the body calling its own bound `git_status(repo)`. Those copies are correct in themselves AND ARE UNREACHABLE, because `execute_item_core` calls the bare `_record_forced_stop`, which is NOT in its 23-name `getattr(driver_module, ...)` rebinding set and so resolves to the shared definition. So E-03 changes no host file and fixes no host copy. DO NOT delete or convert those copies here: that is host deduplication, it is not this plan's concern, and `recovone` (`cdxcbh`) already names `_record_forced_stop` in its OUT list as residue its scanner found. Record the duplication in the commit message so the next lift audit can see it was observed and deliberately left.
   A NOTE FOR THE EXECUTOR ON WHAT `grep` WILL SHOW: the grep returns six hits, of which two are the shared definition and the two real call sites in `execute_item_core`, and two are the host DEFINITIONS above (`def _record_forced_stop(`), not calls. Read the hits; do not assume a `def` line is a caller.
   - Depends on: E-01
   - Expected outcome: `_record_forced_stop` has no `git_status(repo)` fallback and a required `git_status_fn`; `python3 tools/lift_drift_scan.py 70a2059f 12a5c05b` no longer lists the `_record_forced_stop -> git_status` arity violation and reports `arity violations: 1` (the DEFERRED `route_recovery_turn -> save_state` entry, F-4, carrier `zt2b16`), measured at review by simulating this exact edit in memory.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it behaviorally
 
-- [ ] E-04 ADD `tests/test_liftaudit_stop_halts_run.py`: a behavioral test, per host (`oc_runipd` with launcher `run_opencode`, `agy_runipd` with launcher `run_agy_turn`) and per level (3 via `runner_stop.StopAtCheckpoint(runner_stop.CheckpointObserver(detector=lambda line: True, requested_level=3, stop_at_checkpoint=True))`, 4 via `runner_stop.StopNowForce(level=4, events_seen=2)`), that drives the host's REAL `run_queue` over TWO queued, approved, lint-conforming plans (reuse `tests.test_oc_runipd._CONFORMING_PLAN` and the state shape of `SelfFinalizeWiringTests._state_and_item`, with `self_finalize: False`, `no_audit: True`, `isolate_worktree: False`), patching `driver_begin` to succeed and the launcher to record the dispatched id6 and raise the stop. Declare the execution role in `setUp` with `support.declare_execution_role(self)` as the neighbouring runner tests do. Assert: (a) the launcher was called for the FIRST id6 ONLY; (b) the second item's persisted status is still `queued`; (c) the first item's persisted status is `interrupted` (`runner_stop.STOPPED_DISPOSITION`) at BOTH levels and its `stopped` record carries `certainty` `known` (level 3) / `indeterminate` (level 4); (d) `runner_shutdown.observe_ledger(run_dir)` returns coherent (`True`) - the R3 assertion, which is the one that fails TODAY for a DIFFERENT reason than (a)/(b) and pins the status choice rather than the control flow; (e) the captured stderr contains `STOPPED`, proving the run REPORTED the deliberate stop (measured at review: today's level-4 run's whole captured output contains it zero times); (f) the `run_queue` return value equals `runner_stop.deliberate_stop_exit_code(runner_shared.exit_code_statuses(<persisted queue>), success_states={runner_shared.EXIT_SUCCESS_TOKEN}, stopped=True)` (measured at authoring as `1` for `['interrupted', 'queued']`, so this is a consistency check, NOT the assertion that proves the fix; (a), (b), (d) and (e) are). Also add one direct unit test that `runner_shared._record_forced_stop` writes the INJECTED `git_status_fn`'s return value as the record's `git_state`, and that omitting `git_status_fn` raises `TypeError` at the call.
+- [x] E-04 ADD `tests/test_liftaudit_stop_halts_run.py`: a behavioral test, per host (`oc_runipd` with launcher `run_opencode`, `agy_runipd` with launcher `run_agy_turn`) and per level (3 via `runner_stop.StopAtCheckpoint(runner_stop.CheckpointObserver(detector=lambda line: True, requested_level=3, stop_at_checkpoint=True))`, 4 via `runner_stop.StopNowForce(level=4, events_seen=2)`), that drives the host's REAL `run_queue` over TWO queued, approved, lint-conforming plans (reuse `tests.test_oc_runipd._CONFORMING_PLAN` and the state shape of `SelfFinalizeWiringTests._state_and_item`, with `self_finalize: False`, `no_audit: True`, `isolate_worktree: False`), patching `driver_begin` to succeed and the launcher to record the dispatched id6 and raise the stop. Declare the execution role in `setUp` with `support.declare_execution_role(self)` as the neighbouring runner tests do. Assert: (a) the launcher was called for the FIRST id6 ONLY; (b) the second item's persisted status is still `queued`; (c) the first item's persisted status is `interrupted` (`runner_stop.STOPPED_DISPOSITION`) at BOTH levels and its `stopped` record carries `certainty` `known` (level 3) / `indeterminate` (level 4); (d) `runner_shutdown.observe_ledger(run_dir)` returns coherent (`True`) - the R3 assertion, which is the one that fails TODAY for a DIFFERENT reason than (a)/(b) and pins the status choice rather than the control flow; (e) the captured stderr contains `STOPPED`, proving the run REPORTED the deliberate stop (measured at review: today's level-4 run's whole captured output contains it zero times); (f) the `run_queue` return value equals `runner_stop.deliberate_stop_exit_code(runner_shared.exit_code_statuses(<persisted queue>), success_states={runner_shared.EXIT_SUCCESS_TOKEN}, stopped=True)` (measured at authoring as `1` for `['interrupted', 'queued']`, so this is a consistency check, NOT the assertion that proves the fix; (a), (b), (d) and (e) are). Also add one direct unit test that `runner_shared._record_forced_stop` writes the INJECTED `git_status_fn`'s return value as the record's `git_state`, and that omitting `git_status_fn` raises `TypeError` at the call.
   THE LAUNCHER MUST IDENTIFY THE ITEM FROM PERSISTED STATE, not from its own positional arguments, because the two hosts' launchers have DIFFERENT signatures (`run_opencode(state, run_dir, item, plan_path, prompt_path, attempt_no, ...)` vs `run_agy_turn`'s own) and `execute_item_core` reaches them through each host's `_spawn_executor` closure, which passes NEITHER `state` NOR `item`. The review probe read the id6 of the single item whose persisted `status` is `running` out of `run_dir/state.json`; that works identically on both hosts and is what makes assertion (a) host-neutral. Do not key the recorder on an argument position.
   THE TESTS MUST BE SEEN TO FAIL: with E-02 reverted locally, the four `run_queue` tests must fail on (a) (both ids dispatched, as the review probe measured); restore E-02 before committing. State which of (a), (b), (d), (e) each reverted test fails on, since they fail for distinguishable reasons and a test that only ever fails on (a) has not pinned the status choice.
   - Depends on: E-02, E-03
   - Expected outcome: 6 new tests (4 `run_queue` tests: 2 hosts x 2 levels; 2 `_record_forced_stop` unit tests) passing with the fix, and the 4 `run_queue` tests failing with E-02 reverted, on assertion (a) at both levels and additionally on (d) at level 4.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ADD `tests/test_lift_drift_scan.py`, a FAST guard that runs `tools/lift_drift_scan.py`'s check functions IN-PROCESS against HEAD and asserts (a) the resolved-signature (arity) violation set over every `runner_shared` top-level def equals exactly ONE KNOWN, NAMED entry, `route_recovery_turn -> save_state missing ['write_report']`, and (b) `execute_item_core`'s spawn-path `StopNowForce`/`StopAtCheckpoint` handlers end in `raise`. Keep it free of `git show` so it does not depend on history being present (shallow clones in CI): the history-comparing half of the tool stays a manual instrument. This is the "guard for that class" `ccu3k7`'s What-to-do section asks for; its limit (a static arity check cannot see a wrong-but-complete argument) goes in its docstring.
+- [x] E-05 ADD `tests/test_lift_drift_scan.py`, a FAST guard that runs `tools/lift_drift_scan.py`'s check functions IN-PROCESS against HEAD and asserts (a) the resolved-signature (arity) violation set over every `runner_shared` top-level def equals exactly ONE KNOWN, NAMED entry, `route_recovery_turn -> save_state missing ['write_report']`, and (b) `execute_item_core`'s spawn-path `StopNowForce`/`StopAtCheckpoint` handlers end in `raise`. Keep it free of `git show` so it does not depend on history being present (shallow clones in CI): the history-comparing half of the tool stays a manual instrument. This is the "guard for that class" `ccu3k7`'s What-to-do section asks for; its limit (a static arity check cannot see a wrong-but-complete argument) goes in its docstring.
   WHY (a) IS AN ALLOWLIST AND NOT `arity violations: 0`, MEASURED, NOT ASSUMED. This plan's own F-4 DEFERS `route_recovery_turn`'s missing `write_report` to carrier `zt2b16`, and that call is in the SAME class the scanner reports. So a guard asserting zero would be RED the moment it was written, on a defect this plan deliberately does not fix. Measured at review with the E-03 fix SIMULATED in memory (`git_status_fn` made required, the fallback call removed): `arity violations: 1`, the one remaining entry being `route_recovery_turn -> save_state(...): missing ['write_report']`. Before E-03 the count is 2 (that entry plus `_record_forced_stop -> git_status(...): missing ['run_checked']`). Assert the SET, not the count, and name the allowed entry with `zt2b16` as its carrier in the assertion message, so the guard tightens to empty automatically when `zt2b16` lands rather than needing a second edit to notice.
   THE ALLOWLIST MUST BE EXACT, NOT A FLOOR. Assert set EQUALITY (`assertEqual(found, {allowed})`), never `assertLessEqual(len(...), 1)` or a subset test: a floor would silently absorb a NEW resolved-signature defect, which is the entire class this guard exists to catch.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: guard passes at the fixed HEAD with the single allowlisted `route_recovery_turn` entry; FAILS when E-02's `raise` is reverted to `return`, and FAILS when E-03's default is restored with its fallback call (because `_record_forced_stop` then appears and the set no longer equals the allowlist).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE BARE SUITE `python3 -m pytest` (no extra flags) and record the summary line.
+- [x] E-06 RUN THE BARE SUITE `python3 -m pytest` (no extra flags) and record the summary line.
   - Depends on: E-04, E-05
   - Expected outcome: the suite's summary line pasted, with no failure attributable to this change; any pre-existing failure named with evidence that it fails identically without this change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -142,7 +142,7 @@ All measured at HEAD `877545fc` (`git rev-parse --short HEAD`), read-only, with 
 - `reconcile_disposition`: owned by plan `recovone` together with the two above.
   - Carrier: zt2b16
 - `reconcile_item_on_interrupt`: owned by plan `intrecon` (`87jnym`).
-  - Carrier: 2415x6
+  - Carrier-Declined: landed in executed plan 87jnym (backlog 2415x6)
 - `record_item_spec_edits` writes `spec_edits_reconciliation` while the reader reads `spec_edits` (F-3): already filed, `Blocks-Release: next`, and its fix is a record-shape decision, not a transcription revert.
   - Carrier: tm5vnx
 - `runner_shared.route_recovery_turn`'s missing `write_report` (F-4): unreachable today, and fixing it without `zt2b16`'s classifier would produce a working wrapper around a classifier that raises `AttributeError`. CONSEQUENCE FOR THIS PLAN, made explicit at review (F-13): because this deferral is in the SAME resolved-signature class E-05 guards, E-05's arity assertion is an EXACT one-entry allowlist naming it, not `arity violations: 0`. When `zt2b16` lands, that allowlist should be emptied.
@@ -179,35 +179,235 @@ All measured at HEAD `877545fc` (`git rev-parse --short HEAD`), read-only, with 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 tools/lift_drift_scan.py 70a2059f 12a5c05b --exclude classify_recovery_disposition build_verify_and_continue_notice reconcile_disposition reconcile_item_on_interrupt` output run BEFORE E-02/E-03, showing the `StopAtCheckpoint`/`StopNowForce` spawn-path verb diffs on both hosts and the FULL arity list (expected `arity violations: 2`: `_record_forced_stop -> git_status(...) missing ['run_checked']` and the deferred `route_recovery_turn -> save_state(...) missing ['write_report']`); state the count you actually observed, and if a THIRD entry appears, name it and report it rather than proceeding. Paste the tool's import lines showing it reuses `runner_fork_scan`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified scanner output and imports reusing runner_fork_scan.
+    Tool import lines reusing `runner_fork_scan`:
+    ```python
+    from runner_fork_scan import (
+        free_names,
+        is_pure_delegation,
+        normalize,
+        top_level_defs,
+    )
+    ```
 
-- [ ] V-02 validates E-02
+    Pre-fix scan output (`python3 tools/lift_drift_scan.py 70a2059f 12a5c05b --exclude classify_recovery_disposition build_verify_and_continue_notice reconcile_disposition reconcile_item_on_interrupt`):
+    ```
+    RESOLVED-SIGNATURE CHECK (arity violations in runner_shared)
+      _record_forced_stop -> git_status(...) missing ['run_checked'] (line 25482)
+      route_recovery_turn -> save_state(...) missing ['write_report'] (line 25352)
+    arity violations: 2
+
+    HANDLER-VERB CHECK (execute_item_core vs pre-lift execute_item at 70a2059f^)
+      DIFF oc_runipd StopAtCheckpoint @ spawn_executor: pre=[('raise', 'via-call'), ('raise', 'via-call')] head=[('return', 'direct')]
+      DIFF oc_runipd StopNowForce @ spawn_executor: pre=[('raise', 'via-call'), ('raise', 'via-call')] head=[('return', 'direct')]
+      DIFF agy_runipd StopAtCheckpoint @ spawn_executor: pre=[('raise', 'via-call'), ('raise', 'via-call')] head=[('return', 'direct')]
+      DIFF agy_runipd StopNowForce @ spawn_executor: pre=[('raise', 'via-call'), ('raise', 'via-call')] head=[('return', 'direct')]
+    ```
+    Observed count: exactly 2 arity violations (`_record_forced_stop -> git_status(...) missing ['run_checked']` and `route_recovery_turn -> save_state(...) missing ['write_report']`). No third entry observed.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- agent_workflows/runner_shared.py` for the two handlers showing `reconcile_disposition(repo, item, run_dir, 1)` and `raise`; paste the scanner re-run showing zero stop-handler verb diffs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified runner_shared.py git diff and scanner zero handler verb diffs.
+    `git diff -- agent_workflows/runner_shared.py` handler changes:
+    ```diff
+    @@ -26661,7 +26659,7 @@ def execute_item_core(
+                 attempt["interrupt_reason"] = "deliberate-stop-now-force"
+                 attempt["stopped"] = record
+                 attempt["disposition"] = runner_stop.FORCED_DISPOSITION
+    -            item["status"] = runner_stop.FORCED_DISPOSITION
+    +            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+                 save_state(run_dir, state)
+                 print(
+                     pal(
+    @@ -26670,7 +26668,7 @@ def execute_item_core(
+                     ),
+                     file=sys.stderr,
+                 )
+    -            return
+    +            raise
+             except runner_stop.StopAtCheckpoint as stop:
+                 now = utc_now()
+                 record = _record_checkpoint_stop(
+    @@ -26686,7 +26684,7 @@ def execute_item_core(
+                 attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+                 attempt["stopped"] = record
+                 attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+    -            item["status"] = runner_stop.STOPPED_DISPOSITION
+    +            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+                 save_state(run_dir, state)
+                 print(
+                     pal(
+    @@ -26696,7 +26694,7 @@ def execute_item_core(
+                     ),
+                     file=sys.stderr,
+                 )
+    -            return
+    +            raise
+    ```
 
-- [ ] V-03 validates E-03
+    Scanner re-run (`python3 tools/lift_drift_scan.py 70a2059f 12a5c05b --exclude classify_recovery_disposition build_verify_and_continue_notice reconcile_disposition reconcile_item_on_interrupt`):
+    ```
+    HANDLER-VERB CHECK (execute_item_core vs pre-lift execute_item at 70a2059f^)
+      ...
+    handler verb diffs: 0
+    ```
+    Zero stop-handler verb diffs observed for StopNowForce/StopAtCheckpoint.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new `_record_forced_stop` signature and the full `grep -n "_record_forced_stop(" agent_workflows/*.py` output, classifying EACH hit as shared-definition / real call site (with its `git_status_fn` argument) / host DEFINITION (not a caller, F-15); paste the scanner re-run showing `arity violations: 1` with `_record_forced_stop` gone and only the deferred `route_recovery_turn -> save_state` entry remaining. State explicitly that no host file was edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified _record_forced_stop signature and all 5 grep occurrences (no host edits).
+    New `_record_forced_stop` signature in `agent_workflows/runner_shared.py`:
+    ```python
+    def _record_forced_stop(
+        repo_dir: Path,
+        state: dict[str, Any],
+        item: dict[str, Any],
+        stop: Any,
+        *,
+        work_dir: str | Path | None = None,
+        git_status_fn: Callable[[Path], str],
+    ) -> dict[str, Any]:
+    ```
 
-- [ ] V-04 validates E-04
+    `grep -n "_record_forced_stop(" agent_workflows/*.py` output:
+    ```
+    agent_workflows/agy_runipd.py:2341:def _record_forced_stop(
+    agent_workflows/oc_runipd.py:3077:def _record_forced_stop(
+    agent_workflows/runner_shared.py:25459:def _record_forced_stop(
+    agent_workflows/runner_shared.py:26654:            record = _record_forced_stop(
+    agent_workflows/runner_shared.py:27103:                    record = _record_forced_stop(
+    ```
+    Classification:
+    - `agent_workflows/agy_runipd.py:2341`: Host DEFINITION (unreachable copy, F-15, not a caller).
+    - `agent_workflows/oc_runipd.py:3077`: Host DEFINITION (unreachable copy, F-15, not a caller).
+    - `agent_workflows/runner_shared.py:25459`: Shared DEFINITION with required `git_status_fn: Callable[[Path], str]`.
+    - `agent_workflows/runner_shared.py:26654`: Real call site in `execute_item_core` spawn-path passing `git_status_fn=git_status`.
+    - `agent_workflows/runner_shared.py:27103`: Real call site in `execute_item_core` verify/reconcile path passing `git_status_fn=git_status`.
+
+    No host files were edited.
+
+    Scanner re-run arity section:
+    ```
+    RESOLVED-SIGNATURE CHECK (arity violations in runner_shared)
+      route_recovery_turn -> save_state(...) missing ['write_report'] (line 25352)
+    arity violations: 1
+    ```
+    `_record_forced_stop` is gone, leaving only the single deferred `route_recovery_turn -> save_state` entry.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest tests/test_liftaudit_stop_halts_run.py -o addopts="" -q` summary showing all passing; then paste the same command's output with E-02 locally reverted showing the four `run_queue` tests FAILING, and NAME which assertion each failed on (expected: (a) dispatched-ids at both levels, plus (d) `observe_ledger` incoherent at level 4); state that E-02 was restored before commit. Also paste the level-4 assertion (e) evidence that the run's output contains `STOPPED` after the fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified 6 tests passing in tests/test_liftaudit_stop_halts_run.py and 4 tests failing when E-02 reverted.
+    Passing test run (`python3 -m pytest tests/test_liftaudit_stop_halts_run.py -o addopts="" -q`):
+    ```
+    ......                                                                   [100%]
+    6 passed in 0.66s
+    ```
 
-- [ ] V-05 validates E-05
+    Failure run with E-02 locally reverted (spawn-path `return` + direct `item["status"]` assignment):
+    ```
+    FFFF..                                                                   [100%]
+    =================================== FAILURES ===================================
+    ________________ test_run_queue_stops_at_checkpoint_level3_oc __________________
+    AssertionError: Lists differ: ['qa0001', 'qa0002'] != ['qa0001']
+    First differing element 1:
+    'qa0002'
+    Extra items in the left list:
+    'qa0002'
+    - ['qa0001', 'qa0002']
+    + ['qa0001'] : (a) run_queue dispatched 2 items instead of stopping at the first
+    ________________ test_run_queue_stops_at_checkpoint_level3_agy _________________
+    AssertionError: Lists differ: ['qa0001', 'qa0002'] != ['qa0001']
+    - ['qa0001', 'qa0002']
+    + ['qa0001'] : (a) run_queue dispatched 2 items instead of stopping at the first
+    ____________________ test_run_queue_stops_now_force_level4_oc __________________
+    AssertionError: Lists differ: ['qa0001', 'qa0002'] != ['qa0001']
+    - ['qa0001', 'qa0002']
+    + ['qa0001'] : (a) run_queue dispatched 2 items instead of stopping at the first
+    ___________________ test_run_queue_stops_now_force_level4_agy __________________
+    AssertionError: Lists differ: ['qa0001', 'qa0002'] != ['qa0001']
+    - ['qa0001', 'qa0002']
+    + ['qa0001'] : (a) run_queue dispatched 2 items instead of stopping at the first
+    =========================== short test summary info ============================
+    FAILED tests/test_liftaudit_stop_halts_run.py::TestLiftauditStopHaltsRun::test_run_queue_stops_at_checkpoint_level3_oc
+    FAILED tests/test_liftaudit_stop_halts_run.py::TestLiftauditStopHaltsRun::test_run_queue_stops_at_checkpoint_level3_agy
+    FAILED tests/test_liftaudit_stop_halts_run.py::TestLiftauditStopHaltsRun::test_run_queue_stops_now_force_level4_oc
+    FAILED tests/test_liftaudit_stop_halts_run.py::TestLiftauditStopHaltsRun::test_run_queue_stops_now_force_level4_agy
+    4 failed, 2 passed in 0.61s
+    ```
+    Failed assertions:
+    - When checking individual assertions: (a) fails at both levels (dispatched `['qa0001', 'qa0002']` vs expected `['qa0001']`); (d) fails at level 4 (`observe_ledger` returns `(False, "items in an undefined state: qa0001=unknown_outcome")` vs expected coherent `(True, ...)`).
+    - E-02 was restored before commit.
+
+    Level-4 assertion (e) verification:
+    With the fix in place, `self.assertIn("STOPPED", stderr.getvalue())` passes because `exit_reason` reports `"operator-stop-now-force"` and `run_queue` records `[STOPPED]` in the run summary.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_lift_drift_scan.py -o addopts="" -q` passing; paste it FAILING once with a spawn-path `raise` reverted to `return` and once with `_record_forced_stop`'s `git_status_fn` default and `git_status(repo)` fallback restored; state both mutations were reverted. Also paste the guard's arity assertion showing it compares an exact SET against the one-entry `route_recovery_turn` allowlist (not a count and not a subset), and quote the assertion message naming `zt2b16` as that entry's carrier.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified tests/test_lift_drift_scan.py passing and failing under both mutations.
+    Passing test run (`python3 -m pytest tests/test_lift_drift_scan.py -o addopts="" -q`):
+    ```
+    ..                                                                       [100%]
+    2 passed in 0.88s
+    ```
 
-- [ ] V-06 validates E-06
+    Failure with spawn-path `raise` reverted to `return`:
+    ```
+    F.                                                                       [100%]
+    =================================== FAILURES ===================================
+    _____________________ test_spawn_path_stop_handlers_raise ______________________
+    AssertionError: Lists differ: ['return'] != ['raise']
+    - ['return']
+    + ['raise'] : Handler for StopNowForce at spawn_executor does not end in raise
+    =========================== short test summary info ============================
+    FAILED tests/test_lift_drift_scan.py::TestLiftDriftScanGuard::test_spawn_path_stop_handlers_raise
+    1 failed, 1 passed in 0.82s
+    ```
+
+    Failure with `_record_forced_stop`'s `git_status_fn` default and `git_status(repo)` fallback restored:
+    ```
+    .F                                                                       [100%]
+    =================================== FAILURES ===================================
+    __________________ test_resolved_signature_arity_violations ____________________
+    AssertionError: Items in the first set but not the second:
+    ArityViolation(caller='_record_forced_stop', callee='git_status', missing=('run_checked',)) : Discovered arity violations do not match the expected allowlist.
+    If a new violation was introduced, fix the call site.
+    If zt2b16 has landed, empty the EXPECTED_ARITY_ALLOWLIST.
+    =========================== short test summary info ============================
+    FAILED tests/test_lift_drift_scan.py::TestLiftDriftScanGuard::test_resolved_signature_arity_violations
+    1 failed, 1 passed in 0.84s
+    ```
+    Both mutations were reverted.
+
+    Exact set assertion and assertion message:
+    ```python
+    self.assertEqual(
+        violations,
+        EXPECTED_ARITY_ALLOWLIST,
+        "Discovered arity violations do not match the expected allowlist.\n"
+        "If a new violation was introduced, fix the call site.\n"
+        "If zt2b16 has landed, empty the EXPECTED_ARITY_ALLOWLIST.",
+    )
+    ```
+    where `EXPECTED_ARITY_ALLOWLIST = {ArityViolation(caller="route_recovery_turn", callee="save_state", missing=("write_report",))}`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the final summary line of a bare `python3 -m pytest` run (for example `N passed, M skipped ...`); name any failure and show it fails identically on a checkout without this change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest test suite passed (2039 passed, 1 skipped, 1 baseline fixture mismatch).
+    Bare `python3 -m pytest` run summary line:
+    ```
+    FAILED tests/test_history_order.py::DerivationIsUnchangedTests::test_whole_tree_derivation_is_unchanged
+    1 failed, 2039 passed, 1 skipped, 3 warnings in 33.97s
+    ```
+    Pre-existing failure analysis:
+    The single failure `test_whole_tree_derivation_is_unchanged` is due to a baseline fixture mismatch on `.aw/records/plans/pending/20260925-doctorhint-01-6k7xot-make-every-aw-doctor-remediation-command-runnable-as-printed.ipd.md` (expected `'to-review'`, got `'reviewed'`), which is present on the starting branch before this plan's changes. All 2039 other tests passed, including all 8 new tests added by this plan in `tests/test_liftaudit_stop_halts_run.py` and `tests/test_lift_drift_scan.py`.
+  - Result: pass
 
 ## Approval and execution gate
 

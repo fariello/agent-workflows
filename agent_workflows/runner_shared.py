@@ -25463,7 +25463,7 @@ def _record_forced_stop(
     stop: Any,
     *,
     work_dir: str | Path | None = None,
-    git_status_fn: Callable[[Path], str] | None = None,
+    git_status_fn: Callable[[Path], str],
 ) -> dict[str, Any]:
     from agent_workflows import runner_stop
 
@@ -25478,9 +25478,7 @@ def _record_forced_stop(
     )
     repo = Path(effective_dir) if effective_dir else Path(state["repo"])
     try:
-        observed_git = (
-            git_status_fn(repo) if git_status_fn is not None else git_status(repo)
-        )
+        observed_git = git_status_fn(repo)
     except Exception as exc:  # noqa: BLE001
         observed_git = f"<unobserved: {exc}>"
     record = runner_stop.forced_disposition(
@@ -26628,9 +26626,9 @@ def execute_item_core(
     # integearn-05 (`9lyg5h`) E-02/E-03: THE CLEANUP CONSTRUCT, and it had to be ADDED rather than
     # appended to. MEASURED at authoring: `execute_item_core` contained ZERO `finally:` blocks, and
     # between the dispatch point below and the collection point near the end there are FOUR paths that
-    # leave this function without reaching the collection - `StopNowForce`, `StopAtCheckpoint`,
-    # `StallTimeout` (each an `except ... return` on the spawn call immediately below) and
-    # `KeyboardInterrupt` (which propagates out untouched). A trailing `remove_...()` call would
+    # leave this function without reaching the collection - `StopNowForce`, `StopAtCheckpoint`
+    # (each an `except ... raise`), `StallTimeout` (an `except ... return` on the spawn call immediately below)
+    # and `KeyboardInterrupt` (which propagates out untouched). A trailing `remove_...()` call would
     # therefore have leaked the baseline's checkout and its running child process on every one of them.
     # This `try:`/`finally:` wraps the whole post-dispatch remainder of the function so ALL FOUR are
     # covered, plus the two `raise DriverError` session-drift paths and every ordinary `return`.
@@ -26661,7 +26659,7 @@ def execute_item_core(
             attempt["interrupt_reason"] = "deliberate-stop-now-force"
             attempt["stopped"] = record
             attempt["disposition"] = runner_stop.FORCED_DISPOSITION
-            item["status"] = runner_stop.FORCED_DISPOSITION
+            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
             save_state(run_dir, state)
             print(
                 pal(
@@ -26670,7 +26668,7 @@ def execute_item_core(
                 ),
                 file=sys.stderr,
             )
-            return
+            raise
         except runner_stop.StopAtCheckpoint as stop:
             now = utc_now()
             record = _record_checkpoint_stop(
@@ -26686,7 +26684,7 @@ def execute_item_core(
             attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
             attempt["stopped"] = record
             attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
-            item["status"] = runner_stop.STOPPED_DISPOSITION
+            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
             save_state(run_dir, state)
             print(
                 pal(
@@ -26696,7 +26694,7 @@ def execute_item_core(
                 ),
                 file=sys.stderr,
             )
-            return
+            raise
         except KeyboardInterrupt as exc:
             reconcile_item_on_interrupt(
                 repo,
