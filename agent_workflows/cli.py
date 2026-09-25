@@ -13801,6 +13801,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
         checkout_pin.check_and_reexec()
 
+    _term_mod.ensure_encodable_stdio()
     _entry_color_override = _term_mod.get_color_override()
     try:
         return _dispatch(argv)
