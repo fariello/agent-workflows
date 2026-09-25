@@ -6,7 +6,7 @@
 - Scope: Add a `run.isolate_worktree` member to `.aw/config/project.json` taking per-action booleans (`execute`, `review`), resolve it once at queue build into frozen run options, and have the launch-site reads in `runner_shared` consult the per-action value; `--no-isolate-worktree` stays a shorthand that disables both. ALSO IN, added at review because the feature is unsafe without them: a route for a NON-ISOLATED review's output to reach the repository rather than being silently discarded (or a refusal of the `review: false` value), and a run-start warning whenever policy disables isolation for either action. Orchestrator retirement is NOT made configurable (see F-3). OUT: adding this key to the closed `RUN_POLICY_FLAGS` table, a per-action CLI flag, sparse or `--no-checkout` worktrees, and the separate `aw oc audit` isolation flag.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_isolation_per_action.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -18,6 +18,7 @@
 - From-Backlog: h2mpru
 
 ## Workflow history
+- 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-207, all FIXED, no deferrals; OQ-01 resolved from evidence and built as E-06, new non-blocking OQ-02 raised for the maintainer and escalated with `- Finding: F-6`. THE MATERIAL FINDING: `review: false` as authored would DISCARD the review's output, because the whole review-output path (`commit_review_lane_output` then `integrate_review_lane_branch`) is gated on `if is_review and wt_handle is not None:` and no lane means no handle, leaving the plan edit and review record uncommitted in the shared checkout - exactly the behavior executed plan `ajxr5d` removed after measuring it live, and reached by BYPASSING the existing fail-closed guard rather than tripping it. Added E-05 (land the output or refuse the value) and E-06 (run-start warning). Also: corrected E-04, whose `isolate` assignment feeds FOUR reads not two; corrected E-03, since `isolate_worktree` is not in `RUN_POLICY_FLAGS` so a generic namespace leaves it ABSENT and `args.isolate_worktree` raises, and named all four namespace states; corrected V-01, which asserted against `project_schema.py`, an unrelated module, instead of `config.CONFIG_SCHEMA`; verified the audit subparser is provably unaffected by parsing both; strengthened the CLI-flag deferral with the closed-table contract; and rewrote the gate with a scope fence, honesty rule and two stop conditions. E/V renumbered to E-01..E-08 / V-01..V-08.
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog h2mpru; re-measured that only `options["isolate_worktree"]` exists (read in `runner_shared` for the review sweep session and the launch `isolate`), that no project-policy isolation key exists in `config.py`, and that orchestrator retirement already always uses `commit_lock.coordinator_worktree` independent of the flag.
