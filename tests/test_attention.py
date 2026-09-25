@@ -222,7 +222,7 @@ class StaleResearchReclassifyTests(unittest.TestCase):
     def test_stale_research_reclassification_and_class_of(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            # RUN prompt-set: intake report with prompt sibling -> stale/parked
+            # RUN prompt-set: intake report in synthesized set -> stale/parked
             self._write_research(
                 root,
                 set_id="runset",
@@ -236,19 +236,28 @@ class StaleResearchReclassifyTests(unittest.TestCase):
                 root,
                 set_id="runset",
                 order=1,
+                id6="recon01",
+                slug="recon",
+                status="reference",
+                kind="reconciliation-report",
+            )
+            self._write_research(
+                root,
+                set_id="runset",
+                order=2,
                 id6="rprt01",
                 slug="ans",
                 status="intake",
                 kind="research-report",
             )
-            # UNRUN prompt: intake prompt -> ready
+            # UNRUN prompt: statusless prompt -> ready
             self._write_research(
                 root,
                 set_id="unrunset",
                 order=0,
                 id6="prmpt9",
                 slug="ask",
-                status="intake",
+                status=None,
                 kind="research-prompt",
             )
             # active doc -> active
@@ -314,6 +323,70 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             self.assertEqual(A.class_of("research", "active"), "active")
             self.assertEqual(A.class_of("research", "reference"), "done")
             self.assertEqual(A.class_of("research", "archive"), "parked")
+
+    def test_prompt_pipeline_position_reclassification_and_shelf_precedence(self):
+        """IPD 5e3nj2 E-08: unrun statusless -> READY, partial statusless -> ACTIVE, archive in partial set -> PARKED."""
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            # 1. Unrun statusless prompt -> READY
+            self._write_research(
+                root,
+                set_id="unrunset",
+                order=0,
+                id6="prm001",
+                slug="ask-unrun",
+                status=None,
+                kind="research-prompt",
+            )
+
+            # 2. Partial statusless prompt -> ACTIVE
+            self._write_research(
+                root,
+                set_id="partset",
+                order=0,
+                id6="prm002",
+                slug="ask-partial",
+                status=None,
+                kind="research-prompt",
+            )
+            self._write_research(
+                root,
+                set_id="partset",
+                order=1,
+                id6="rpt002",
+                slug="ans-partial",
+                status="todo",
+                kind="research-report",
+            )
+
+            # 3. Archive prompt in a partial set -> PARKED (shelf outranks position, regression guard for F-9)
+            self._write_research(
+                root,
+                set_id="archset",
+                order=0,
+                id6="prm003",
+                slug="ask-archive",
+                status="archive",
+                kind="research-prompt",
+            )
+            self._write_research(
+                root,
+                set_id="archset",
+                order=1,
+                id6="rpt003",
+                slug="ans-archive",
+                status="todo",
+                kind="research-report",
+            )
+
+            items, drift = att.scan(root)
+            self.assertFalse(
+                [dd for dd in drift if dd.rule == "attention.unknown-status"]
+            )
+            by_id = {it.id: it for it in items if it.tree == "research"}
+            self.assertEqual(by_id["prm001"].attention_class, "ready")
+            self.assertEqual(by_id["prm002"].attention_class, "active")
+            self.assertEqual(by_id["prm003"].attention_class, "parked")
 
     def test_selectors_filtering_and_run(self):
         with tempfile.TemporaryDirectory() as td:

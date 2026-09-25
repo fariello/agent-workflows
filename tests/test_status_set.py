@@ -140,7 +140,13 @@ Test spec goal.
         return p
 
     def create_research(
-        self, filename: str, id6: str, set_id: str, status: str = "active"
+        self,
+        filename: str,
+        id6: str,
+        set_id: str,
+        status: str | None = "active",
+        kind: str = "research-report",
+        disposition: str = "reference/202609",
     ) -> Path:
         """A research doc, needed because setidfix `w2y5ac`'s measured corpus shape spans research.
 
@@ -148,23 +154,17 @@ Test spec goal.
         types use (`selectors.py` documents the split; 0 of 103 research files carry a `- Id:`
         bullet), so this helper must not be modelled on `create_plan`.
         """
-        p = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "research"
-            / "reference"
-            / "202609"
-            / filename
-        )
+        base = self.repo_root / ".aw" / "records" / "research"
+        p = (base / disposition / filename) if disposition else (base / filename)
         p.parent.mkdir(parents=True, exist_ok=True)
+        status_line = f"status: {status}\n" if status is not None else ""
         content = f"""---
 id: {id6}
-status: {status}
-set: {set_id}
+kind: {kind}
+{status_line}set: {set_id}
 ---
 
-# Research: Test report {id6}
+# Research: Test {kind} {id6}
 
 ## Summary
 Test research report.
@@ -2439,6 +2439,76 @@ class SameStatusMessageIsRecordedTests(StatusSetTestBase):
             ss.same_status_message_is_duplicate(
                 "# IPD: x\n", status="reviewed", date="2026-09-22", message="m"
             )
+        )
+
+
+class ResearchStatusSetTests(StatusSetTestBase):
+    def test_set_done_refuses_for_research(self):
+        report = self.create_research(
+            "20260924-rs0001-01-rs0001-test-report.research-report.md",
+            "rs0001",
+            "rsset",
+            status="active",
+        )
+        before = report.read_text(encoding="utf-8")
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                ["set", "done", "rs0001", "--yes", "--dir", str(self.repo_root)]
+            )
+        self.assertEqual(rc, 1)
+        self.assertEqual(report.read_text(encoding="utf-8"), before)
+        self.assertIn("Status 'done' is not valid for research", buf.getvalue())
+
+    def test_set_active_writes_status_for_report(self):
+        report = self.create_research(
+            "20260924-rs0002-01-rs0002-test-report.research-report.md",
+            "rs0002",
+            "rsset",
+            status="todo",
+        )
+        rc = cli.main(
+            ["set", "active", "rs0002", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("status: active", report.read_text(encoding="utf-8"))
+
+    def test_set_reference_refuses_naming_research_promote(self):
+        self.create_research(
+            "20260924-rs0003-01-rs0003-test-report.research-report.md",
+            "rs0003",
+            "rsset",
+            status="active",
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                ["set", "reference", "rs0003", "--yes", "--dir", str(self.repo_root)]
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn(
+            "Setting research status to 'reference' is not supported via aw set; use 'aw research promote rs0003 --to reference' instead.",
+            buf.getvalue(),
+        )
+
+    def test_set_hot_status_on_prompt_refuses(self):
+        self.create_research(
+            "20260924-rs0004-00-rs0004-test-prompt.research-prompt.md",
+            "rs0004",
+            "rsset",
+            status=None,
+            kind="research-prompt",
+            disposition="",
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                ["set", "active", "rs0004", "--yes", "--dir", str(self.repo_root)]
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn(
+            "a research-prompt carries no hot status; its pipeline position is derived",
+            buf.getvalue(),
         )
 
 

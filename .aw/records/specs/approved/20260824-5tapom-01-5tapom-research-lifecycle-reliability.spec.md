@@ -66,24 +66,22 @@ tool-WRITTEN-at-creation but not tool-MAINTAINED.
 
 ## 3. Design
 
-### 3.1 Unrun detection is STRUCTURAL, not status-typed (satisfies B1)
+### 3.1 Unrun detection is STRUCTURAL and body-aware, not status-typed (satisfies B1)
 
-"Not yet run" is derived, not hand-declared: a research SET whose `NN=00` member is a
-`kind: research-prompt` and which has NO `NN>=01` sibling members is UNRUN. A set with `NN>=01`
-outputs is RUN. This is computed from the manifest (set membership + kind + order), so it is reliable
-regardless of whether anyone updated `status`. The tool exposes it (Section 3.4) so "which research
-must I still run?" is answerable without reading the corpus and without trusting hand-typed state.
+"Not yet run" is derived from set shape and member body presence, not hand-declared. A research set's pipeline position is:
+- `synthesized` if any landed (bodied) member's kind is a synthesis kind (`reconciliation-report`, `findings`);
+- `partial` if any landed (bodied) member exists otherwise;
+- `unrun` if no landed member exists AND every prompt in the set has `outcome: none-yet` AND no cold shelf status (`reference`/`archive`);
+- absent if the set contains no prompt, or if its prompts are already cold-shelved or adopted provenance documents.
 
-### 3.2 State is tool-ADVANCED and drift-checked (satisfies H2)
+This derivation is computed from the manifest (set membership, kind, and non-whitespace body presence), so it is reliable regardless of whether anyone updated frontmatter status. The tool exposes it (Section 3.4) so "which research must I still run?" is answerable without reading the corpus and without trusting hand-typed state.
 
-- `status` stays the four-state vocabulary (`intake`/`active`/`reference`/`archive`); NO new state.
-- `aw research index --check` (and `aw check`) gains a DRIFT rule: a doc at `intake`/`active` whose set
-  is RUN (has `NN>=01` outputs) OR which is cited by an executed plan/spec/backlog is flagged as
-  stale-state to promote. This makes the unreliable case VISIBLE and fail-closed in CI rather than
-  silently accumulating.
-- A one-time, reviewed triage pass (the parent's migration step 4: "cited -> reference; uncited/dead-end
-  -> archive, as a reviewed pass, not a blind default") is provided as a tool-assisted classifier the
-  maintainer confirms, not an automatic mutation.
+### 3.2 Two-axis state: shelf status for answer docs, derived pipeline position for prompt sets (satisfies H2)
+
+- Shelf status (`todo`/`active`/`reference`/`archive`) applies to answer documents. A `research-prompt` carries NO hot status (`todo`/`active` refused); it may carry a cold shelf status (`reference`/`archive`) when explicitly shelved.
+- Derived set-level pipeline position (`unrun`/`partial`/`synthesized`) tracks pipeline execution progress for prompt sets, absent for sets without prompts. At every read site, an explicit COLD shelf status outranks derived pipeline position.
+- `aw research index --check` (and `aw check`) gains a DRIFT rule: a doc at `todo`/`active` whose set is `synthesized` OR which is cited by an executed plan/spec/backlog is flagged as stale-state to promote. This makes the unreliable case VISIBLE and fail-closed in CI rather than silently accumulating.
+- A one-time, reviewed triage pass (the parent's migration step 4: "cited -> reference; uncited/dead-end -> archive, as a reviewed pass, not a blind default") is provided as a tool-assisted classifier the maintainer confirms, not an automatic mutation.
 
 ### 3.3 `outcome` and `consumed-by` become tooled and validated (satisfies B2, provenance)
 
@@ -106,18 +104,14 @@ must I still run?" is answerable without reading the corpus and without trusting
 
 ## 4. Non-goals
 
-- No change to the filename grammar, the four `status` values, the `outcome` vocabulary, the shard
-  layout, or `INDEX.md`'s bounded hot-glance design. Those shipped and work.
+- No change to the filename grammar, the four `status` values (though their applicability is kind-specific: prompts carry no hot status and derive pipeline position), the `outcome` vocabulary, the shard layout, or `INDEX.md`'s bounded hot-glance design. Those shipped and work.
 - No automatic status mutation without human confirmation for the initial triage (H2's whole point is
   distrust of blind writes); ongoing drift is REPORTED by `--check`, remediated deliberately.
 
 ## 5. Acceptance criteria (Definition of done for the reslife IPD Set)
 
-1. `aw research pending`/`find --unrun` lists exactly the UNRUN prompts (structural derivation), proven
-   against a fixture where a set with outputs is excluded and a bare `NN=00` prompt is included.
-2. `aw research index --check` / `aw check` flag: (a) an `intake`/`active` doc whose set is RUN or which
-   is cited by an executed artifact; (b) a dangling `consumed-by`; (c) `outcome: adopted` with empty
-   `consumed-by`. Each with a regression test; clean when satisfied.
+1. `aw research pending`/`find --position unrun` lists exactly the UNRUN prompts (body-aware pipeline derivation), proven against a fixture where a set with bodied outputs is excluded and an unrun comparison stub set or bare `NN=00` prompt is included.
+2. `aw research index --check` / `aw check` flag: (a) an `intake`/`active`/`todo` doc whose set is `synthesized` or which is cited by an executed artifact; (b) a dangling `consumed-by`; (c) `outcome: adopted` with empty `consumed-by`. Each with a regression test; clean when satisfied.
 3. `aw research set-outcome` writes `outcome` and `consumed-by`; `INDEX.json` carries both.
 4. `aw attention` no longer files finished-but-unpromoted research under `ready`.
 5. The one-time triage classifier (Section 3.2) exists as a tool-assisted, human-confirmed
@@ -152,6 +146,8 @@ must I still run?" is answerable without reading the corpus and without trusting
   (Section 5, AC 5) so it cannot be silently dropped, closing the review finding SR-001.
 
 ## Workflow history
+
+- 2026-09-25 note (aw specs): Amended via IPD 5e3nj2: two-axis research state (shelf status for answer docs, derived pipeline position unrun/partial/synthesized for prompt sets) and body-aware unrun derivation.
 - 2026-08-28 approved (aw set, --by-human): status set to approved
 
 - 2026-08-27 note (aw specs): Cross-ref: backlog sr47pt renames research status 'intake' -> 'todo' (intuitive 'you still need to do this'). The rename should RIDE WITH this spec's tool-owned state-advancement so 'todo' means genuinely-not-started (not the current overload where finished-but-unadvanced docs also read 'intake'). Same reliability gap this spec (H2) targets.

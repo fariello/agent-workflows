@@ -76,7 +76,7 @@ def build_frontmatter(
     topic: List[str],
     model: Optional[str],
     kind: str,
-    status: str,
+    status: Optional[str] = None,
     outcome: str,
     summary: str,
     consumed_by: Optional[List[str]] = None,
@@ -101,11 +101,16 @@ def build_frontmatter(
         f"topic: {topic_str}",
         f"model: {model_str}",
         f"kind: {kind}",
-        f"status: {status}",
-        f"outcome: {outcome}",
-        f"summary: {summary}",
-        f"consumed-by: {consumed_str}",
     ]
+    if status is not None:
+        lines.append(f"status: {status}")
+    lines.extend(
+        [
+            f"outcome: {outcome}",
+            f"summary: {summary}",
+            f"consumed-by: {consumed_str}",
+        ]
+    )
     if priority:
         lines.append(f"priority: {priority}")
     lines += ["---", ""]
@@ -210,6 +215,7 @@ def plan_new(
         kind=kind,
     )
     filename = R.format_name(name)
+    init_status = None if kind == "research-prompt" else "todo"
     content = build_frontmatter(
         id6=id6,
         created=today,
@@ -218,7 +224,7 @@ def plan_new(
         topic=topic or [],
         model=model,
         kind=kind,
-        status="todo",
+        status=init_status,
         outcome="none-yet",
         summary=summary,
         priority=priority,
@@ -272,6 +278,7 @@ def plan_new_comparison(
             model=model,
             kind=kind,
         )
+        init_status = None if kind == "research-prompt" else "todo"
         content = build_frontmatter(
             id6=id6,
             created=today,
@@ -280,7 +287,7 @@ def plan_new_comparison(
             topic=topic or [],
             model=model,
             kind=kind,
-            status="todo",
+            status=init_status,
             outcome="none-yet",
             summary=sm or summary,
         )

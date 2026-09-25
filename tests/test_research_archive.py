@@ -323,7 +323,18 @@ class IndexRefreshTests(unittest.TestCase):
         self.assertNotIn("aaaaaa", md)  # archived -> excluded from the hot glance
 
 
-def _write_kind_doc(root, *, set_id, order, id6, slug, status, created, kind):
+def _write_kind_doc(
+    root,
+    *,
+    set_id,
+    order,
+    id6,
+    slug,
+    status,
+    created,
+    kind,
+    body: str | None = None,
+):
     rroot = root / R.RESEARCH_ROOT
     rroot.mkdir(parents=True, exist_ok=True)
     name = R.format_name(
@@ -349,6 +360,8 @@ def _write_kind_doc(root, *, set_id, order, id6, slug, status, created, kind):
         outcome="none-yet",
         summary="s",
     )
+    if body:
+        content += f"\n{body}\n"
     p = rroot / name
     p.write_text(content, encoding="utf-8")
     return p
@@ -381,6 +394,7 @@ class SuggestTriageTests(unittest.TestCase):
             status="intake",
             created="20260803",
             kind="research-report",
+            body="## Report\nFindings.",
         )
         # A stale, UNCITED, non-run-prompt intake doc must NOT be classified (genuinely untriaged).
         _write_kind_doc(
@@ -448,6 +462,7 @@ class SuggestTriageTests(unittest.TestCase):
             status="intake",
             created="20260701",
             kind="research-report",
+            body="## Report\nDeadend findings.",
         )
         moves = A.suggest_triage(self.root, self.rroot)
         by_id = {m.id6: m.new_status for m in moves}
@@ -512,6 +527,96 @@ class IntakeToTodoMigrationTests(unittest.TestCase):
             R.parse_frontmatter(self.doc.read_text(encoding="utf-8"))
         )
         self.assertFalse(any(e.field == "status" for e in errs))
+
+
+def _write_prompt(root: Path, *, set_id, order=0, id6, slug, created, status=None):
+    rroot = root / R.RESEARCH_ROOT
+    rroot.mkdir(parents=True, exist_ok=True)
+    name = R.format_name(
+        R.ResearchName(
+            date=created,
+            set_id=set_id,
+            order=f"{order:02d}",
+            id6=id6,
+            slug=slug,
+            model=None,
+            kind="research-prompt",
+        )
+    )
+    content = C.build_frontmatter(
+        id6=id6,
+        created=created,
+        set_id=set_id,
+        order=f"{order:02d}",
+        topic=["t"],
+        model=None,
+        kind="research-prompt",
+        status=status,
+        outcome="none-yet",
+        summary="s",
+    )
+    p = rroot / name
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
+class PromptArchiveTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        _init_git(self.root)
+        self.rroot = self.root / R.RESEARCH_ROOT
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_hot_status_refused_for_prompt(self):
+        _write_prompt(
+            self.root,
+            set_id="prmset",
+            order=0,
+            id6="prm001",
+            slug="test-prompt",
+            created="20260701",
+            status=None,
+        )
+        mv, err = A.plan_transition(self.rroot, "prm001", "todo")
+        self.assertIsNone(mv)
+        self.assertEqual(
+            err,
+            "a research-prompt carries no hot status; its pipeline position is derived",
+        )
+        mv2, err2 = A.plan_transition(self.rroot, "prm001", "active")
+        self.assertIsNone(mv2)
+        self.assertEqual(
+            err2,
+            "a research-prompt carries no hot status; its pipeline position is derived",
+        )
+
+    def test_statusless_prompt_promote_to_reference_inserts_status(self):
+        _write_prompt(
+            self.root,
+            set_id="prmset2",
+            order=0,
+            id6="prm002",
+            slug="test-prompt-2",
+            created="20260701",
+            status=None,
+        )
+        mv, err = A.plan_transition(self.rroot, "prm002", "reference")
+        self.assertIsNone(err)
+        self.assertIn("reference/202607", mv.new_path.as_posix())
+        A.apply_moves(self.root, self.rroot, [mv])
+        moved = list((self.rroot / R.REFERENCE_DIR).rglob("*prm002*.md"))
+        self.assertEqual(len(moved), 1)
+        content = moved[0].read_text(encoding="utf-8")
+        self.assertIn("status: reference", content)
+        fm = R.parse_frontmatter(content)
+        self.assertEqual(fm["id"], "prm002")
+        self.assertEqual(fm["status"], "reference")
+        errs = R.validate_frontmatter(fm)
+        self.assertEqual(errs, [])
 
 
 if __name__ == "__main__":

@@ -38,17 +38,31 @@ generated `INDEX.json`/`INDEX.md`.
 
 ## States and layout
 
-`status:` frontmatter, tool-owned, is one of:
+Research documents carry two distinct axes: per-document shelf status and set-level pipeline position. A research prompt carries no hot status; its pipeline position is derived.
+
+### Shelf status
+
+`status:` frontmatter, tool-owned for answer documents, is one of:
 
 | State | Meaning | On disk |
 |-------|---------|---------|
-| `intake` | landed, not yet triaged | hot root |
+| `todo` (legacy `intake`) | landed, not yet triaged | hot root |
 | `active` | informing in-flight work | hot root |
 | `reference` | cold but it mattered (durable provenance) | `reference/YYYYMM/` monthly shard |
 | `archive` | cold and just-in-case (dead-end, rejected) | `archive/YYYYMM/` monthly shard |
 
-Hot states (`intake`/`active`) stay flat at this directory's root and cluster by name. Cold states
-live in monthly `YYYYMM` shards. `INDEX.md` shows the most-recent-N plus intake and includes
+### Pipeline position
+
+A derived, set-level position computed from set members and body presence:
+
+| Position | Meaning |
+|----------|---------|
+| `unrun` | prompt exists, no landed response bodies |
+| `partial` | one or more response reports have landed |
+| `synthesized` | reconciliation or findings summary has landed |
+
+Hot states (`todo`/`active`) stay flat at this directory's root and cluster by name. Cold states
+live in monthly `YYYYMM` shards. `INDEX.md` shows the most-recent-N plus needs addressing (todo and unrun/partial prompts) and includes
 `reference`; `archive` is excluded from the hot glance but present in `INDEX.json`.
 
 ## The index

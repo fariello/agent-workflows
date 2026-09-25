@@ -399,7 +399,11 @@ _RESEARCH_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("reference", DONE),
     ("archive", PARKED),
     ("archived", PARKED),  # legacy/prose spelling of the same state
+    ("unrun", READY),
+    ("partial", ACTIVE),
+    ("synthesized", DONE),
 )
+
 
 # --- 6.5 Prompts ----------------------------------------------------------------------
 # PROMPT STATUS IS CARRIED BY DIRECTORY, not by a status enum: `prompts.py` defines only

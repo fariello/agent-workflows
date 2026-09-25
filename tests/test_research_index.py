@@ -19,7 +19,18 @@ from agent_workflows import research_index as I
 
 
 def _write(
-    root: Path, *, set_id, order, id6, slug, status, created, kind="notes", model=None
+    root: Path,
+    *,
+    set_id,
+    order,
+    id6,
+    slug,
+    status,
+    created,
+    kind="notes",
+    model=None,
+    body: str | None = None,
+    outcome: str = "none-yet",
 ):
     rroot = root / R.RESEARCH_ROOT
     rroot.mkdir(parents=True, exist_ok=True)
@@ -43,9 +54,11 @@ def _write(
         model=model,
         kind=kind,
         status=status,
-        outcome="none-yet",
+        outcome=outcome,
         summary=f"summary {id6}",
     )
+    if body:
+        content += f"\n{body}\n"
     (rroot / name).write_text(content, encoding="utf-8")
     return rroot / name
 
@@ -259,18 +272,18 @@ class UnrunDerivationTests(unittest.TestCase):
             order=0,
             id6="prmpt1",
             slug="ask",
-            status="intake",
+            status=None,
             created="20260801",
             kind="research-prompt",
         )
-        # RUN: a NN=00 research-prompt WITH a NN=01 report sibling.
+        # RUN: a NN=00 research-prompt WITH a NN=01 report sibling with body.
         _write(
             self.root,
             set_id="runset",
             order=0,
             id6="prmpt2",
             slug="ask",
-            status="intake",
+            status=None,
             created="20260802",
             kind="research-prompt",
         )
@@ -280,9 +293,10 @@ class UnrunDerivationTests(unittest.TestCase):
             order=1,
             id6="rprt01",
             slug="answer",
-            status="intake",
+            status="todo",
             created="20260803",
             kind="research-report",
+            body="## Report\nReport findings body.",
         )
 
     def test_derive_unrun_excludes_run_set_includes_bare_prompt(self):
@@ -334,7 +348,7 @@ class StaleStateDriftTests(unittest.TestCase):
         )
 
     def test_trigger_a_run_set_flags_intake_and_clean_after_promote(self):
-        # A RUN prompt-set with an intake report member -> stale-state-to-promote.
+        # A RUN (synthesized) prompt-set with an intake report member -> stale-state-to-promote.
         _write(
             self.root,
             set_id="runset",
@@ -345,15 +359,27 @@ class StaleStateDriftTests(unittest.TestCase):
             created="20260802",
             kind="research-prompt",
         )
-        rpt = _write(
+        _write(
             self.root,
             set_id="runset",
             order=1,
+            id6="recon1",
+            slug="reconcile",
+            status="reference",
+            created="20260803",
+            kind="reconciliation-report",
+            body="## Reconciliation\nSynthesized findings.",
+        )
+        rpt = _write(
+            self.root,
+            set_id="runset",
+            order=2,
             id6="rprt01",
             slug="answer",
             status="intake",
-            created="20260803",
+            created="20260804",
             kind="research-report",
+            body="## Report\nBody.",
         )
         self._regen()
         drift = I.check_drift(self.root, self.rroot)
@@ -580,7 +606,7 @@ class PendingQueryTests(unittest.TestCase):
             order=0,
             id6="prmpt1",
             slug="ask",
-            status="intake",
+            status=None,
             created="20260801",
             kind="research-prompt",
         )
@@ -591,7 +617,7 @@ class PendingQueryTests(unittest.TestCase):
             order=0,
             id6="prmpt2",
             slug="ask",
-            status="intake",
+            status=None,
             created="20260802",
             kind="research-prompt",
         )
@@ -601,9 +627,10 @@ class PendingQueryTests(unittest.TestCase):
             order=1,
             id6="rprt01",
             slug="answer",
-            status="intake",
+            status="todo",
             created="20260803",
             kind="research-report",
+            body="## Report\nFindings.",
         )
 
     def _run(self, agent=False):
@@ -768,6 +795,244 @@ class IndexOutcomeWordsAreNotLifecycleStatusesTests(unittest.TestCase):
                     out,
                     f"criterion A14/A11 violation: `aw index research` emitted ANSI in {label} mode.",
                 )
+
+
+class PipelinePositionDerivationTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / R.RESEARCH_ROOT
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_all_stub_comparison_set_is_unrun(self):
+        _write(
+            self.root,
+            set_id="stubcmp",
+            order=0,
+            id6="prm001",
+            slug="ask",
+            status=None,
+            created="20260801",
+            kind="research-prompt",
+        )
+        _write(
+            self.root,
+            set_id="stubcmp",
+            order=1,
+            id6="rpt001",
+            slug="ans1",
+            status="todo",
+            created="20260801",
+            kind="research-report",
+            body=None,
+        )
+        _write(
+            self.root,
+            set_id="stubcmp",
+            order=2,
+            id6="rpt002",
+            slug="ans2",
+            status="todo",
+            created="20260801",
+            kind="research-report",
+            body=None,
+        )
+        entries, _ = I._scan_docs(self.rroot)
+        positions = I.derive_pipeline_positions(entries)
+        self.assertEqual(positions.get("stubcmp"), "unrun")
+        unrun = I.derive_unrun_prompts(entries)
+        self.assertEqual([e.id6 for e in unrun], ["prm001"])
+
+    def test_one_bodied_report_of_two_is_partial(self):
+        _write(
+            self.root,
+            set_id="partset",
+            order=0,
+            id6="prm002",
+            slug="ask",
+            status=None,
+            created="20260801",
+            kind="research-prompt",
+        )
+        _write(
+            self.root,
+            set_id="partset",
+            order=1,
+            id6="rpt003",
+            slug="ans1",
+            status="todo",
+            created="20260801",
+            kind="research-report",
+            body="## Report\nLanded body.",
+        )
+        _write(
+            self.root,
+            set_id="partset",
+            order=2,
+            id6="rpt004",
+            slug="ans2",
+            status="todo",
+            created="20260801",
+            kind="research-report",
+            body=None,
+        )
+        entries, _ = I._scan_docs(self.rroot)
+        positions = I.derive_pipeline_positions(entries)
+        self.assertEqual(positions.get("partset"), "partial")
+        self.assertEqual(I.run_prompt_set_ids(entries), {"partset"})
+        unrun = I.derive_unrun_prompts(entries)
+        self.assertEqual([e.id6 for e in unrun if e.set_id == "partset"], [])
+
+    def test_bodied_reconciliation_is_synthesized(self):
+        _write(
+            self.root,
+            set_id="synset",
+            order=0,
+            id6="prm003",
+            slug="ask",
+            status=None,
+            created="20260801",
+            kind="research-prompt",
+        )
+        _write(
+            self.root,
+            set_id="synset",
+            order=1,
+            id6="rpt005",
+            slug="recon",
+            status="todo",
+            created="20260801",
+            kind="reconciliation-report",
+            body="## Summary\nReconciled findings.",
+        )
+        entries, _ = I._scan_docs(self.rroot)
+        positions = I.derive_pipeline_positions(entries)
+        self.assertEqual(positions.get("synset"), "synthesized")
+        self.assertEqual(I.run_prompt_set_ids(entries), {"synset"})
+
+    def test_adopted_lone_prompt_and_archive_lone_prompt_are_absent(self):
+        _write(
+            self.root,
+            set_id="adoptedset",
+            order=0,
+            id6="prm004",
+            slug="adopted-prompt",
+            status=None,
+            created="20260801",
+            kind="research-prompt",
+            outcome="adopted",
+        )
+        _write(
+            self.root,
+            set_id="archiveset",
+            order=0,
+            id6="prm005",
+            slug="archive-prompt",
+            status="archive",
+            created="20260801",
+            kind="research-prompt",
+        )
+        entries, _ = I._scan_docs(self.rroot)
+        positions = I.derive_pipeline_positions(entries)
+        self.assertNotIn("adoptedset", positions)
+        self.assertNotIn("archiveset", positions)
+        unrun = I.derive_unrun_prompts(entries)
+        self.assertEqual(unrun, [])
+
+    def test_set_with_no_prompt_is_absent(self):
+        _write(
+            self.root,
+            set_id="noprompt",
+            order=0,
+            id6="rpt006",
+            slug="report-only",
+            status="todo",
+            created="20260801",
+            kind="research-report",
+            body="## Body\nContent.",
+        )
+        entries, _ = I._scan_docs(self.rroot)
+        positions = I.derive_pipeline_positions(entries)
+        self.assertNotIn("noprompt", positions)
+
+
+class PositionFilterTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / R.RESEARCH_ROOT
+        _write(
+            self.root,
+            set_id="unrunset",
+            order=0,
+            id6="prm010",
+            slug="ask-unrun",
+            status=None,
+            created="20260801",
+            kind="research-prompt",
+        )
+        _write(
+            self.root,
+            set_id="partset",
+            order=0,
+            id6="prm011",
+            slug="ask-part",
+            status=None,
+            created="20260801",
+            kind="research-prompt",
+        )
+        _write(
+            self.root,
+            set_id="partset",
+            order=1,
+            id6="rpt011",
+            slug="ans-part",
+            status="todo",
+            created="20260801",
+            kind="research-report",
+            body="## Report\nLanded.",
+        )
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_query_filter_by_position(self):
+        entries, _ = I._scan_docs(self.rroot)
+        res_unrun = I.query(entries, position="unrun")
+        self.assertEqual([e.id6 for e in res_unrun], ["prm010"])
+        res_part = I.query(entries, position="partial")
+        self.assertEqual([e.id6 for e in res_part], ["prm011"])
+        res_syn = I.query(entries, position="synthesized")
+        self.assertEqual(res_syn, [])
+
+    def test_run_find_by_position(self):
+        import argparse
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = I.run_find(
+                argparse.Namespace(
+                    dir=str(self.root),
+                    position="unrun",
+                    status=None,
+                    set=None,
+                    topic=None,
+                    model=None,
+                    kind=None,
+                    id=None,
+                    agent=False,
+                    json=False,
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertIn("prm010", buf.getvalue())
+        self.assertNotIn("prm011", buf.getvalue())
 
 
 if __name__ == "__main__":

@@ -6,7 +6,6 @@ order: 00
 topic: [storage, trackedness, privacy, records-backend, multi-machine]
 model:
 kind: research-prompt
-status: todo
 outcome: none-yet
 summary: Originating prompt: when aw records live in a separate PRIVATE repo, which currently-untracked artifacts should become tracked by default, and which stay untracked for reasons a private repo does not dissolve.
 consumed-by: []

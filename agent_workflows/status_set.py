@@ -32,6 +32,7 @@ from agent_workflows import ipd_schema as _ipd_schema
 from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import lifecycle_style as _LS
 from agent_workflows import plans as _plans_mod
+from agent_workflows import research_contract as _research_contract
 from agent_workflows import selectors as _sel
 from agent_workflows.result_types import Change
 from agent_workflows.term import Term
@@ -75,12 +76,8 @@ TYPE_STATUSES: dict[str, set[str]] = {
         "blocked",
         "shipped",
     },
-    "research": {
-        "open",
-        "active",
-        "done",
-        "parked",
-    },
+    # resstatus Order 01 (5e3nj2) E-09: DERIVED from `research_contract.HOT_STATUSES`, never re-listed.
+    "research": set(_research_contract.HOT_STATUSES),
     "other": {
         "draft",
         "to-review",
@@ -228,9 +225,17 @@ def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
 
     id_match = _ID_RE.search(text)
     id6 = id_match.group(1) if id_match else None
+    if not id6:
+        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", text)
+        if yaml_id:
+            id6 = yaml_id.group(1)
 
     status_match = _STATUS_RE.search(text)
     status = status_match.group(1) if status_match else None
+    if not status:
+        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", text)
+        if yaml_status:
+            status = yaml_status.group(1)
 
     set_match = _SET_RE.search(text)
     set_id = None
@@ -600,6 +605,28 @@ def validate_transition_allowed(
     """
     norm_status = normalize_target_status(target_status, rec.record_type)
     valid_statuses = TYPE_STATUSES.get(rec.record_type, set())
+    # resstatus Order 01 (5e3nj2) E-09: research-specific validation
+    if rec.record_type == "research":
+        if (
+            norm_status in _research_contract.SHARDED_STATUSES
+            or target_status.strip().lower() in _research_contract.SHARDED_STATUSES
+        ):
+            target_id = rec.id6 or rec.path.name
+            return (
+                False,
+                f"Setting research status to '{target_status}' is not supported via aw set; use 'aw research promote {target_id} --to {target_status}' instead.",
+            )
+        is_prompt = (
+            rec.path.name.endswith(".research-prompt.md")
+            or "- Kind: research-prompt" in rec.raw_text
+            or "kind: research-prompt" in rec.raw_text
+        )
+        if is_prompt and norm_status in _research_contract.HOT_STATUSES:
+            return (
+                False,
+                "a research-prompt carries no hot status; its pipeline position is derived",
+            )
+
     if norm_status not in valid_statuses:
         return (
             False,

@@ -212,6 +212,8 @@ STATUS_NORMALIZATIONS: Dict[str, str] = {"intake": "todo"}
 OUTCOMES: FrozenSet[str] = frozenset(
     ("adopted", "rejected", "informational", "none-yet")
 )
+PIPELINE_POSITIONS: FrozenSet[str] = frozenset(("unrun", "partial", "synthesized"))
+SYNTHESIS_KINDS: FrozenSet[str] = frozenset(("reconciliation-report", "findings"))
 
 
 def _closest(token: str, vocab: FrozenSet[str]) -> Optional[str]:
@@ -476,6 +478,8 @@ def validate_frontmatter(data: Dict[str, object]) -> List[FrontmatterError]:
 
     # Presence
     for field in FRONTMATTER_FIELDS:
+        if field == "status" and data.get("kind") == "research-prompt":
+            continue
         if field not in data:
             errors.append(FrontmatterError(field, f"missing required field '{field}'"))
 
@@ -519,13 +523,36 @@ def validate_frontmatter(data: Dict[str, object]) -> List[FrontmatterError]:
                 errors.append(FrontmatterError("kind", res.message))
     # status - accept the canonical STATUSES OR a value that normalizes through
     # STATUS_NORMALIZATIONS (rstodo p3o9je: a legacy `intake` doc is accepted as `todo`, not rejected).
+    # Prompts carry NO hot status (todo/active); cold shelf statuses (reference/archive) are accepted.
     if "status" in data:
         val = data["status"]
-        val_ok = isinstance(val, str) and normalize_status(val).ok
-        if not val_ok:
-            errors.append(
-                FrontmatterError("status", f"status must be one of {sorted(STATUSES)}")
-            )
+        if data.get("kind") == "research-prompt":
+            if val in (None, ""):
+                pass
+            else:
+                norm = normalize_status(str(val))
+                if norm.ok and norm.value in HOT_STATUSES:
+                    errors.append(
+                        FrontmatterError(
+                            "status",
+                            "a research-prompt carries no hot status; its pipeline position is derived",
+                        )
+                    )
+                elif not norm.ok:
+                    errors.append(
+                        FrontmatterError(
+                            "status", f"status must be one of {sorted(STATUSES)}"
+                        )
+                    )
+        else:
+            val_ok = isinstance(val, str) and normalize_status(val).ok
+            if not val_ok:
+                errors.append(
+                    FrontmatterError(
+                        "status", f"status must be one of {sorted(STATUSES)}"
+                    )
+                )
+
     # outcome
     if "outcome" in data:
         val = data["outcome"]

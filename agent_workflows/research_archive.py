@@ -78,21 +78,47 @@ def _all_docs(
 
 
 def _rewrite_status_in_text(text: str, new_status: str) -> str:
-    """Return ``text`` with the frontmatter ``status:`` line set to ``new_status`` (first block)."""
+    """Return ``text`` with the frontmatter ``status:`` line set to ``new_status`` (first block).
+
+    If no ``status:`` line is present, insert ``status: <new_status>`` at the canonical position
+    (after ``kind:`` or before ``outcome:`` / closing ``---``).
+    """
 
     lines = text.splitlines(keepends=True)
     in_fm = False
+    fm_end_idx = None
+    kind_idx = None
+    outcome_idx = None
+    status_idx = None
+
     for i, line in enumerate(lines):
         stripped = line.strip()
         if i == 0 and stripped == "---":
             in_fm = True
             continue
         if in_fm and stripped == "---":
+            fm_end_idx = i
             break
-        if in_fm and stripped.startswith("status:"):
-            newline = "\n" if line.endswith("\n") else ""
-            lines[i] = f"status: {new_status}{newline}"
-            break
+        if in_fm:
+            if stripped.startswith("status:"):
+                status_idx = i
+            elif stripped.startswith("kind:"):
+                kind_idx = i
+            elif stripped.startswith("outcome:"):
+                outcome_idx = i
+
+    if status_idx is not None:
+        newline = "\n" if lines[status_idx].endswith("\n") else ""
+        lines[status_idx] = f"status: {new_status}{newline}"
+    elif fm_end_idx is not None:
+        if kind_idx is not None:
+            insert_at = kind_idx + 1
+        elif outcome_idx is not None:
+            insert_at = outcome_idx
+        else:
+            insert_at = fm_end_idx
+        lines.insert(insert_at, f"status: {new_status}\n")
+
     return "".join(lines)
 
 
@@ -111,6 +137,11 @@ def plan_transition(
     if match is None:
         return None, f"no research file has id6 '{id6}'"
     p, parsed, fm = match
+    if parsed.kind == "research-prompt" and new_status in R.HOT_STATUSES:
+        return (
+            None,
+            "a research-prompt carries no hot status; its pipeline position is derived",
+        )
     created = str(fm.get("created", parsed.date))
     new_path = _target_path(research_root, p.name, new_status, created)
     return Move(id6, p, new_path, new_status), None

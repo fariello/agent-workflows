@@ -315,6 +315,16 @@ _RESEARCH_MAP: Dict[str, str] = {
     "archive": PARKED,
 }
 
+# Pipeline position mapping for research prompts (IPD 5e3nj2).
+# Kept separate from _RESEARCH_MAP so MappingTotalityTests' assertion
+# set(A.CLASS_MAPS["research"].keys()) == set(research_contract.STATUSES) remains exact.
+_PROMPT_PIPELINE_MAP: Dict[str, str] = {
+    "unrun": READY,
+    "partial": ACTIVE,
+    "synthesized": DONE,
+}
+
+
 # setupmarker Order 01: the AW operational-action ledger (and its _ACTIONS_MAP) was DELETED; it was
 # redundant with the backlog tier and its scan stamped `.aw/state/` on read. The one reminder it held
 # (setup-repo) is now the derived `.aw/setup-repo-needed.md` marker, not an attention tree.

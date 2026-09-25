@@ -3054,6 +3054,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_research_find.add_argument("--topic", default=None, help="Filter by topic.")
     p_research_find.add_argument("--status", default=None, help="Filter by status.")
+    p_research_find.add_argument(
+        "--position",
+        default=None,
+        help="Filter by derived prompt pipeline position (unrun/partial/synthesized).",
+    )
 
     p_research_pending = research_sub.add_parser(
         "pending",

@@ -53,6 +53,7 @@ class DocEntry(NamedTuple):
     # vocab). Empty string when the doc carries no `priority:` key. Defaulted so positional
     # construction elsewhere stays valid; carried into INDEX.json via `_asdict()`.
     priority: str = ""
+    has_body: bool = False
 
 
 # The generic drift record is the shared core's (plans-adopter Order 01); re-export it.
@@ -129,6 +130,15 @@ def _scan_docs(
         consumed_list = (
             [str(c) for c in consumed_val] if isinstance(consumed_val, list) else []
         )
+        # Check body presence after the closing ---
+        has_body = False
+        lines = text.splitlines()
+        if lines and lines[0].strip() == "---":
+            for idx, line in enumerate(lines[1:], start=1):
+                if line.strip() == "---":
+                    body_text = "\n".join(lines[idx + 1 :]).strip()
+                    has_body = bool(body_text)
+                    break
         entries.append(
             DocEntry(
                 id6=parsed.id6,
@@ -140,11 +150,12 @@ def _scan_docs(
                 topic=topic_list,
                 model=str(fm.get("model", "") or ""),
                 kind=parsed.kind,
-                status=str(fm.get("status", "")),
-                outcome=str(fm.get("outcome", "")),
-                summary=str(fm.get("summary", "")),
+                status=str(fm.get("status", "") or ""),
+                outcome=str(fm.get("outcome", "") or ""),
+                summary=str(fm.get("summary", "") or ""),
                 consumed_by=consumed_list,
                 priority=str(fm.get("priority", "") or ""),
+                has_body=has_body,
             )
         )
     return entries, drift
@@ -176,6 +187,7 @@ def build_index_md(entries: List[DocEntry], limit: int = DEFAULT_INDEX_LIMIT) ->
     """
 
     last_touched = _set_last_touched(entries)
+    positions = derive_pipeline_positions(entries)
 
     # Archive is excluded from the hot glance; todo/active/reference are eligible.
     glance = [e for e in entries if e.status != "archive"]
@@ -192,26 +204,45 @@ def build_index_md(entries: List[DocEntry], limit: int = DEFAULT_INDEX_LIMIT) ->
     )
     top = glance_sorted[:limit]
 
-    # rstodo p3o9je: the hot not-yet-worked band was renamed `intake` -> `todo`. Normalize the RAW
-    # scanned status so a legacy (unmigrated) `intake` doc still lands in the band during the
-    # migration window (behavior-preserving).
-    todo = [e for e in entries if R.normalize_status(e.status).value == "todo"]
+    # Needs addressing: todo answer docs + unrun/partial prompts with NO shelf status.
+    # Cold-shelved prompts (reference/archive) are never in this band (shelf outranks position).
+    todo_docs = [
+        e
+        for e in entries
+        if e.kind != "research-prompt" and R.normalize_status(e.status).value == "todo"
+    ]
+    pipeline_prompts = [
+        e
+        for e in entries
+        if e.kind == "research-prompt"
+        and not e.status
+        and positions.get(e.set_id) in ("unrun", "partial")
+    ]
+    needs_addressing = todo_docs + pipeline_prompts
 
     lines = [_MD_HEADER, "", "# Research index", ""]
     lines.append(
         f"Showing the most-recent {min(limit, len(glance_sorted))} of {len(glance_sorted)} hot docs (archive excluded)."
     )
     lines.append("")
-    if todo:
+    if needs_addressing:
         lines.append("## Needs addressing (todo)")
         lines.append("")
-        for e in sorted(todo, key=lambda e: (e.set_id, e.order)):
-            lines.append(f"- `{e.id6}` {e.path} - {e.summary}")
+        for e in sorted(needs_addressing, key=lambda e: (e.set_id, e.order, e.id6)):
+            pos = positions.get(e.set_id)
+            pos_tag = (
+                f" [{pos}]"
+                if (e.kind == "research-prompt" and not e.status and pos)
+                else ""
+            )
+            lines.append(f"- `{e.id6}`{pos_tag} {e.path} - {e.summary}")
         lines.append("")
     lines.append("## Most recent")
     lines.append("")
     for e in top:
-        lines.append(f"- `{e.id6}` [{e.status}] {e.path} - {e.summary}")
+        tag = e.status if e.status else positions.get(e.set_id, "")
+        tag_str = f"[{tag}] " if tag else ""
+        lines.append(f"- `{e.id6}` {tag_str}{e.path} - {e.summary}")
     lines.append("")
     return "\n".join(lines)
 
@@ -228,8 +259,9 @@ def query(
     set_id: Optional[str] = None,
     topic: Optional[str] = None,
     status: Optional[str] = None,
+    position: Optional[str] = None,
 ) -> List[DocEntry]:
-    """Filter entries by any combination of id/set/topic/status (deterministic order)."""
+    """Filter entries by any combination of id/set/topic/status/position (deterministic order)."""
 
     out = list(entries)
     if id6:
@@ -245,68 +277,84 @@ def query(
         out = [
             e for e in out if (R.normalize_status(e.status).value or e.status) == want
         ]
+    if position:
+        positions = derive_pipeline_positions(entries)
+        # Shelf outranks position: only a statusless prompt matches position
+        out = [
+            e
+            for e in out
+            if e.kind == "research-prompt"
+            and not e.status
+            and positions.get(e.set_id) == position
+        ]
     return sorted(out, key=lambda e: (e.set_id, e.order, e.id6))
 
 
 # --------------------------------------------------------------------------------------
-# unrun / RUN derivation (IPD m383qb E-01): a purely structural signal over the manifest
+# pipeline position / unrun / RUN derivation (IPD 5e3nj2): body-aware structural signal
 # --------------------------------------------------------------------------------------
 
 
-def derive_unrun_prompts(entries: List[DocEntry]) -> List[DocEntry]:
-    """Return the UNRUN research prompts, derived purely from set structure (no corpus read).
+def derive_pipeline_positions(entries: List[DocEntry]) -> Dict[str, str]:
+    """Derive set-level pipeline positions: unrun / partial / synthesized.
 
-    A SET is UNRUN when its ``NN=00`` member is a ``research-prompt`` and the set has NO
-    ``NN>=01`` sibling member; the set is RUN otherwise (a report/reconciliation sibling exists).
-    Docs with no parseable set/order are treated as singletons (never unrun prompts unless they
-    are themselves a bare ``NN=00`` prompt). Deterministic order (set-id, then id6).
-
-    This is the single reusable derivation consumed by the drift check (E-02) and later children
-    (``aw research pending`` / attention surfacing, child 03). It reads ONLY the indexed manifest
-    entries (filename + frontmatter), never the document bodies.
+    A set has a position only if some member is `kind: research-prompt`.
+    LANDED = non-prompt members with has_body.
+    - 'synthesized' if any LANDED member's kind is in SYNTHESIS_KINDS ('reconciliation-report', 'findings');
+    - 'partial' if LANDED is non-empty otherwise;
+    - 'unrun' if LANDED is empty AND every prompt in the set has outcome == 'none-yet' AND
+      no cold shelf status ('reference'/'archive');
+    - otherwise absent (a provenance or cold-shelved prompt, not pipeline work).
     """
-
     by_set: Dict[str, List[DocEntry]] = {}
     for e in entries:
         by_set.setdefault(e.set_id, []).append(e)
 
-    unrun: List[DocEntry] = []
-    for _set_id, members in by_set.items():
-        prompt = next(
-            (m for m in members if m.order == "00" and m.kind == "research-prompt"),
-            None,
-        )
-        if prompt is None:
+    positions: Dict[str, str] = {}
+    for set_id, members in by_set.items():
+        prompts = [m for m in members if m.kind == "research-prompt"]
+        if not prompts:
             continue
-        has_sibling = any(m.order > "00" for m in members)
-        if not has_sibling:
-            unrun.append(prompt)
+        landed = [m for m in members if m.kind != "research-prompt" and m.has_body]
+        if any(m.kind in R.SYNTHESIS_KINDS for m in landed):
+            positions[set_id] = "synthesized"
+        elif landed:
+            positions[set_id] = "partial"
+        else:
+            all_none_yet = all(p.outcome == "none-yet" for p in prompts)
+            no_cold = all(
+                (R.normalize_status(p.status).value not in R.SHARDED_STATUSES)
+                if p.status
+                else True
+                for p in prompts
+            )
+            if all_none_yet and no_cold:
+                positions[set_id] = "unrun"
+    return positions
+
+
+def derive_unrun_prompts(entries: List[DocEntry]) -> List[DocEntry]:
+    """Return the UNRUN research prompts, derived from pipeline positions."""
+
+    positions = derive_pipeline_positions(entries)
+    unrun_sets = {s for s, pos in positions.items() if pos == "unrun"}
+    unrun = [
+        e for e in entries if e.set_id in unrun_sets and e.kind == "research-prompt"
+    ]
     return sorted(unrun, key=lambda e: (e.set_id, e.id6))
 
 
 def unrun_set_ids(entries: List[DocEntry]) -> set:
-    """The set-ids that are structurally UNRUN (a bare NN=00 prompt with no NN>=01 sibling)."""
+    """The set-ids that are structurally UNRUN (position == 'unrun')."""
 
     return {e.set_id for e in derive_unrun_prompts(entries)}
 
 
 def run_prompt_set_ids(entries: List[DocEntry]) -> set:
-    """The set-ids that are RUN PROMPT sets: a set with a ``NN=00 research-prompt`` AND at least
-    one ``NN>=01`` sibling. Sets with no prompt at all are NOT part of the prompt run/unrun
-    taxonomy (so an ordinary lone todo doc's set is neither run nor unrun here)."""
+    """The set-ids that are RUN PROMPT sets: partial or synthesized."""
 
-    by_set: Dict[str, List[DocEntry]] = {}
-    for e in entries:
-        by_set.setdefault(e.set_id, []).append(e)
-    out: set = set()
-    for set_id, members in by_set.items():
-        has_prompt = any(
-            m.order == "00" and m.kind == "research-prompt" for m in members
-        )
-        has_sibling = any(m.order > "00" for m in members)
-        if has_prompt and has_sibling:
-            out.add(set_id)
-    return out
+    positions = derive_pipeline_positions(entries)
+    return {s for s, pos in positions.items() if pos in ("partial", "synthesized")}
 
 
 # --------------------------------------------------------------------------------------
@@ -515,17 +563,16 @@ def check_drift(
     # Dangling citations via Order 04's imported detector primitive.
     for d in RF.find_dangling_citations(repo_root, research_root):
         drift.append(Drift(f"{d.file}:{d.line}", "dangling-citation", f"id6 {d.id6}"))
-    # Stale-state-to-promote (IPD m383qb E-02): a todo/active doc whose SET is RUN
-    # (structural, E-01) OR that is cited by an EXECUTED artifact is stale hot state and must be
-    # promoted. Keeps state honest without trusting the hand-typed status.
-    # rstodo p3o9je: normalize the raw status so a legacy (unmigrated) `intake` doc is still treated
-    # as a hot `todo` doc by the stale-state check during the migration window.
+    # Stale-state-to-promote (IPD m383qb E-02 / IPD 5e3nj2 E-04): a todo/active doc whose SET is SYNTHESIZED
+    # OR that is cited by an EXECUTED artifact is stale hot state and must be promoted.
+    # A landed todo report in a partial set is legitimately awaiting ingestion.
     hot = [e for e in entries if R.normalize_status(e.status).value in R.HOT_STATUSES]
     if hot:
-        run_sets = run_prompt_set_ids(entries)
+        positions = derive_pipeline_positions(entries)
+        synthesized_sets = {s for s, pos in positions.items() if pos == "synthesized"}
         cited_exec = cited_by_executed_ids(repo_root, research_root)
         for e in hot:
-            if e.set_id in run_sets:
+            if e.set_id in synthesized_sets:
                 drift.append(
                     Drift(
                         e.path,
@@ -541,6 +588,7 @@ def check_drift(
                         f"{e.status} doc cited by an executed artifact; promote it",
                     )
                 )
+
     # Provenance rules (IPD xjrdjp E-03): a consumed-by that resolves to no plan/spec/backlog
     # artifact is dangling; an adopted doc must name at least one consumer.
     needs_provenance = [e for e in entries if e.consumed_by or e.outcome == "adopted"]
@@ -690,13 +738,14 @@ def run_find(args: argparse.Namespace) -> int:
         set_id=getattr(args, "set", None),
         topic=getattr(args, "topic", None),
         status=getattr(args, "status", None),
+        position=getattr(args, "position", None),
     )
     if not results:
         from agent_workflows.term import Term
         from agent_workflows.result_types import NextAction
 
         filters_dict = {}
-        for k in ("id", "set", "topic", "status"):
+        for k in ("id", "set", "topic", "status", "position"):
             v = getattr(args, k, None)
             if v:
                 filters_dict[k] = v

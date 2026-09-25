@@ -6,7 +6,6 @@ order: 00
 topic: [skills, authoring, prompt-design]
 model:
 kind: research-prompt
-status: todo
 outcome: none-yet
 summary: How to author and generate SKILL.md routers that agents reliably select and execute, for a pointer-based toolkit with 45 workflows
 consumed-by: []

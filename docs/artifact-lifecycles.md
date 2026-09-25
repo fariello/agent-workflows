@@ -362,6 +362,10 @@ not yet a record until a human confirms it and `aw adopt` files it.
 
 ### Statuses
 
+Research documents carry two axes: per-document shelf status and set-level pipeline position. A research prompt carries no hot status; its pipeline position is derived.
+
+#### Shelf status
+
 The status lives in the front-matter `status:` field.
 
 | Status | Meaning | On disk | Attention | Legend stage |
@@ -370,6 +374,16 @@ The status lives in the front-matter `status:` field.
 | `active` | Informing work in progress | hot root | active | active `●` |
 | `reference` | Cold, but it mattered | `reference/YYYYMM/` | done | done `✓` |
 | `archive` | Cold, kept just in case (dead end or rejected) | `archive/YYYYMM/` | parked | parked `◇` |
+
+#### Pipeline position
+
+A derived set-level position based on member body presence:
+
+| Position | Meaning | Attention | Legend stage |
+|---|---|---|---|
+| `unrun` | Prompt exists, no landed response bodies | ready | ready `◕` |
+| `partial` | One or more response reports have landed | active | active `●` |
+| `synthesized` | Reconciliation report or findings landed | done | done `✓` |
 
 A separate `outcome:` field (`none-yet`, `adopted`, `informational`, `rejected`) records what the
 research was worth, and `consumed-by` records which plans or specs used it. Outcome is independent of
@@ -399,8 +413,7 @@ aw research pending                      # list research prompts with no report 
 aw research check-miscategorized         # archived docs that are still cited
 ```
 
-Use `aw research promote` for research status changes. `aw set` does not currently understand the
-research vocabulary.
+Use `aw research promote` for cold research moves into shards (`reference`/`archive`), or `aw set` for hot status updates on answer documents.
 
 ---
 

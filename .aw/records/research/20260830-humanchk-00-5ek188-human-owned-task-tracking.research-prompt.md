@@ -6,7 +6,6 @@ order: 00
 topic: [human-tasks, attention, records, reminders, cli]
 model:
 kind: research-prompt
-status: todo
 outcome: none-yet
 summary: Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.
 consumed-by: []

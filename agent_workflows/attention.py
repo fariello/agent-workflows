@@ -949,27 +949,29 @@ def sort_items_with_notices(
 
 
 def _reclassify_stale_research(repo_root: Path, items: List[Item]) -> List[Item]:
-    """Return ``items`` with STALE research ``todo`` rows moved from READY to PARKED.
+    """Return ``items`` with STALE research ``todo`` rows moved from READY to PARKED,
+    and statusless prompts classified by derived pipeline position (or DONE if absent).
 
-    A research ``todo`` doc is stale when its SET is a RUN prompt-set OR it is cited by an executed
-    artifact (child 01's derivations). Such a doc is finished-but-unpromoted, not actionable, so it is
-    reclassed to PARKED (hidden from the default board). A genuinely-unrun ``todo`` prompt keeps its
-    READY class. Only ``todo`` is considered; ``active`` (a live state -> ACTIVE) is left untouched.
-    Failure-isolated: any error in deriving the signal leaves the items unchanged (never breaks the
-    view). ``class_of`` is not involved and stays status-only/total. (rstodo p3o9je: native_status is
-    already normalized to canonical ``todo`` at the scanner, so a legacy ``intake`` doc is included.)
+    Shelf status outranks position: prompts with reference/archive keep their class.
     """
 
-    research_todo = [
-        it for it in items if it.tree == "research" and it.native_status == "todo"
-    ]
-    if not research_todo:
+    research_items = [it for it in items if it.tree == "research"]
+    if not research_items:
         return items
+    needs_reclass = any(
+        (it.native_status == "todo" and it.attention_class == A.READY)
+        or (not it.native_status)
+        for it in research_items
+    )
+    if not needs_reclass:
+        return items
+
     try:
         from agent_workflows import research_index as _ridx
 
         research_root = research_contract.resolve_research_root(repo_root)
         entries, _drift = _ridx._scan_docs(research_root)
+        positions = _ridx.derive_pipeline_positions(entries)
         run_sets = _ridx.run_prompt_set_ids(entries)
         cited_exec = _ridx.cited_by_executed_ids(repo_root, research_root)
         by_id = {e.id6: e for e in entries}
@@ -978,11 +980,29 @@ def _reclassify_stale_research(repo_root: Path, items: List[Item]) -> List[Item]
 
     out: List[Item] = []
     for it in items:
-        if (
-            it.tree == "research"
-            and it.native_status == "todo"
-            and it.attention_class == A.READY
-        ):
+        if it.tree != "research":
+            out.append(it)
+            continue
+
+        # 1. Statusless prompts: classified by pipeline position (shelf outranks position)
+        if not it.native_status:
+            entry = by_id.get(it.id)
+            if (
+                entry is not None
+                and entry.kind == "research-prompt"
+                and not entry.status
+            ):
+                pos = positions.get(entry.set_id)
+                if pos in A._PROMPT_PIPELINE_MAP:
+                    cls = A._PROMPT_PIPELINE_MAP[pos]
+                else:
+                    # Statusless prompt whose set has NO position (provenance/absent) -> DONE
+                    cls = A.DONE
+                out.append(it._replace(attention_class=cls))
+                continue
+
+        # 2. Todo answer docs: stale if set is RUN or cited by executed artifact -> PARKED
+        if it.native_status == "todo" and it.attention_class == A.READY:
             entry = by_id.get(it.id)
             stale = entry is not None and (
                 entry.set_id in run_sets or it.id in cited_exec
@@ -990,6 +1010,7 @@ def _reclassify_stale_research(repo_root: Path, items: List[Item]) -> List[Item]
             if stale:
                 out.append(it._replace(attention_class=A.PARKED))
                 continue
+
         out.append(it)
     return out
 
@@ -1031,6 +1052,10 @@ def item_for_path(path: Path, repo_root: Optional[Path] = None) -> Optional[Item
         return None
     rec, _ = _record_for(pol.name, rel, path, text)
     if rec is not None:
+        if rec.tree == "research":
+            reclassed = _reclassify_stale_research(repo_root, [rec])
+            if reclassed:
+                rec = reclassed[0]
         deps = _extract_item_dependencies(text)
         if deps is not None:
             rec = rec._replace(item_dependencies=deps)
@@ -1318,29 +1343,49 @@ def _research_record(
 ) -> Tuple[Optional[Item], List[core.Drift]]:
     drift: List[core.Drift] = []
     data = research_contract.parse_frontmatter(text)
-    if not data or "status" not in data:
+    if not data:
         drift.append(
             core.Drift(
                 rel, "attention.missing-status", "no research frontmatter status"
             )
         )
         return None, drift
-    # rstodo p3o9je: normalize the RAW frontmatter status to canonical (a legacy `intake` -> `todo`)
-    # BEFORE the STATUSES membership check, native_status storage, and class_of lookup, so an
-    # unmigrated `intake` doc classifies exactly as `todo` (READY, stale-reclass, color) through the
-    # migration window and never raises attention.unknown-status.
-    raw_status = str(data["status"])
-    norm = research_contract.normalize_status(raw_status)
-    if not norm.ok:
-        drift.append(
-            core.Drift(
-                rel,
-                "attention.unknown-status",
-                A.escape_detail(f"research status {raw_status!r}"),
+
+    is_prompt = data.get("kind") == "research-prompt"
+    raw_status = data.get("status")
+
+    if raw_status in (None, ""):
+        if is_prompt:
+            # Two-axis research: prompts carry no hot status. Native status is empty,
+            # and initial class is READY (reclassified by pipeline position in post-scan).
+            status = ""
+            cls = A.READY
+        else:
+            drift.append(
+                core.Drift(
+                    rel, "attention.missing-status", "no research frontmatter status"
+                )
             )
-        )
-        return None, drift
-    status = norm.value or raw_status
+            return None, drift
+    else:
+        # rstodo p3o9je: normalize the RAW frontmatter status to canonical (a legacy `intake` -> `todo`)
+        # BEFORE the STATUSES membership check, native_status storage, and class_of lookup, so an
+        # unmigrated `intake` doc classifies exactly as `todo` (READY, stale-reclass, color) through the
+        # migration window and never raises attention.unknown-status.
+        raw_status_str = str(raw_status)
+        norm = research_contract.normalize_status(raw_status_str)
+        if not norm.ok:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "attention.unknown-status",
+                    A.escape_detail(f"research status {raw_status_str!r}"),
+                )
+            )
+            return None, drift
+        status = norm.value or raw_status_str
+        cls = A.class_of("research", status)
+
     rid = str(data.get("id", "")) if data.get("id") else ""
     lha = A.last_history_at(_history_section_lines(text))
     # xprio 6vgd0k E-04: populate Item.priority from the doc's `priority:` frontmatter key so the
@@ -1362,7 +1407,7 @@ def _research_record(
         rel,
         "research",
         status,
-        A.class_of("research", status),
+        cls,
         None,
         lha,
         priority=pr,

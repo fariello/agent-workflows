@@ -179,6 +179,28 @@ class ComparisonTests(unittest.TestCase):
         self.assertIsNone(files)
         self.assertIn("unknown model", err)
 
+    def test_comparison_scaffold_prompt_has_no_status_and_reports_are_todo(self):
+        files, err = C.plan_new_comparison(
+            research_root=self.research,
+            set_id="probe-set",
+            slug="probe",
+            models=["gpt56", "sonnet5"],
+            date_str="20260726",
+        )
+        self.assertIsNone(err)
+        self.assertEqual(len(files), 4)
+        prompt_content = files[0].content
+        self.assertNotIn("status:", prompt_content)
+        parsed_prompt = _parse_frontmatter(prompt_content)
+        self.assertNotIn("status", parsed_prompt)
+        self.assertEqual(R.validate_frontmatter(parsed_prompt), [])
+
+        for f in files[1:]:
+            self.assertIn("status: todo", f.content)
+            parsed_doc = _parse_frontmatter(f.content)
+            self.assertEqual(parsed_doc.get("status"), "todo")
+            self.assertEqual(R.validate_frontmatter(parsed_doc), [])
+
 
 class IdCollisionTests(unittest.TestCase):
     def test_generate_avoids_existing(self):

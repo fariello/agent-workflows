@@ -6,7 +6,6 @@ order: 00
 topic: [agent execution isolation]
 model:
 kind: research-prompt
-status: todo
 outcome: none-yet
 summary: How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
 consumed-by: []
