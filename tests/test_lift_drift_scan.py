@@ -35,15 +35,13 @@ class LiftDriftScanGuardTests(unittest.TestCase):
             for caller, callee, missing, _ in raw_violations
         }
 
-        # Exact allowlist: only the deferred F-4 route_recovery_turn -> save_state violation (carrier zt2b16).
+        # Exact allowlist: empty set (recovone cdxcbh resolved route_recovery_turn -> save_state).
         # This is an EXACT set comparison, not a count or subset test, so any new arity defect fails the guard.
-        allowed = {
-            "route_recovery_turn -> save_state missing ['write_report']",
-        }
+        allowed: set[str] = set()
         self.assertEqual(
             found,
             allowed,
-            "Resolved-signature check must match the single deferred violation (zt2b16 owns route_recovery_turn -> save_state missing ['write_report'])",
+            "Resolved-signature check must match empty allowlist (no arity violations in runner_shared)",
         )
 
     def test_execute_item_core_spawn_path_stop_handlers_raise(self):
