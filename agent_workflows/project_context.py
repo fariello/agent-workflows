@@ -609,6 +609,14 @@ def resolve_project_context(
     repo_cfg_in_user: Dict[str, Any] = {}
     if isinstance(user_repos, dict) and not _is_repos_schema_mapping(user_repos):
         candidate = user_repos.get(repo_abs)
+        if candidate is None:
+            # `repo_abs` is canonical (symlinks resolved), but a user-written key may name
+            # the repo through a symlink (macOS /var -> /private/var) or a Windows 8.3
+            # short path; compare canonical forms so such a binding is not silently lost.
+            for key, value in user_repos.items():
+                if isinstance(key, str) and _canonical_path(key) == repo_abs:
+                    candidate = value
+                    break
         if isinstance(candidate, dict):
             repo_cfg_in_user = candidate
 

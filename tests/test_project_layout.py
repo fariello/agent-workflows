@@ -212,7 +212,9 @@ class PhysicalPolicyMatrixTests(unittest.TestCase):
     """Contract tests for physical root ownership and Git policy contract (IPD 20260810-awphysical-01)."""
 
     def setUp(self):
-        self.tmp_dir = tempfile.mkdtemp()
+        # Canonical tempdir: the resolver reports symlink-resolved roots (macOS /var ->
+        # /private/var, Windows 8.3 short names), so expected paths must be canonical too.
+        self.tmp_dir = os.path.realpath(tempfile.mkdtemp())
         self.target_repo = os.path.join(self.tmp_dir, "myrepo")
         os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
         # Initialize target_repo as a real git repository

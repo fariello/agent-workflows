@@ -84,7 +84,9 @@ class LaneImportRootGuardTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
-        self.fx = _SyntheticFixture(Path(self._temp.name))
+        # Resolve the tempdir: PROBE reports os.path.realpath(__file__), so the fixture roots
+        # must be canonical too (macOS /var -> /private/var, Windows 8.3 short names).
+        self.fx = _SyntheticFixture(Path(self._temp.name).resolve())
         self.addCleanup(self._temp.cleanup)
 
     def _probe(

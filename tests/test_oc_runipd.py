@@ -3598,7 +3598,13 @@ class WorktreeIsolationTests(unittest.TestCase):
             receipt = ipd_lifecycle.receipt_path_for(repo, "wir001")
             self.assertEqual(
                 receipt,
-                repo / ".aw" / "state" / "ipd-lifecycle" / "wir001.receipt.json",
+                # git reports the canonical (symlink-resolved) checkout, so compare against
+                # the resolved repo (macOS /var -> /private/var, Windows 8.3 short names).
+                repo.resolve()
+                / ".aw"
+                / "state"
+                / "ipd-lifecycle"
+                / "wir001.receipt.json",
             )
             # NOTE: the lane-vs-main resolution equality is deliberately NOT asserted here. By this
             # point the verified lane has been integrated and TORN DOWN, so its path no longer exists
@@ -4323,7 +4329,9 @@ class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):
 
     def test_prompt_prefers_the_lane_copy_of_the_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = Path(tmp) / "repo"
+            # resolve_plan_path returns canonical paths; resolve the tempdir so the prefix
+            # checks hold under a symlinked TMPDIR (macOS) or Windows 8.3 short names.
+            repo = Path(tmp).resolve() / "repo"
             lane = repo / ".aw" / "worktrees" / "aaaaaa"
             rel = ".aw/records/plans/pending/20260101-s-01-aaaaaa-x.ipd.md"
             for root in (repo, lane):

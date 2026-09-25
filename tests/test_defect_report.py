@@ -1,5 +1,7 @@
 """Defect report contracts, validator, prompt demand, and rescore logic."""
 
+from __future__ import annotations
+
 import contextlib
 import io
 import json
