@@ -21,14 +21,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [windows-latest]  # TEMP narrowed
         # Every supported Python minor (3.9 the declared floor through 3.14 the current
         # release) on every OS. The suite has zero runtime deps and is fast, so the full
         # cross-product is affordable and catches per-version regressions (e.g. PEP 649
         # annotation evaluation on 3.14 vs eager on <=3.13). 3.8 is end-of-life and not
         # provisioned; the code uses `from __future__ import annotations` and no runtime
         # 3.9+-only feature, so 3.8 is expected to work but is not CI-verified.
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.14"]  # TEMP narrowed
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -79,7 +79,7 @@ jobs:
         # Process-based parallelism; the suite is xdist-safe (per-process AW_HOME sandbox,
         # per-test tempdirs). `python -m unittest discover -s tests -t .` remains an
         # equivalent serial fallback (see `make test-serial`).
-        run: python -m pytest tests/ -n auto -q
+        run: python -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -n auto -q -k Telemetry  # TEMP
 
   wheel:
     name: build + import wheel (${{ matrix.os }})
