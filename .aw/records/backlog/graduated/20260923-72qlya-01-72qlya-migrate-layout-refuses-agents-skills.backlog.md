@@ -1,5 +1,6 @@
 - Id: 72qlya
-- Status: open
+- Status: graduated
+- Graduated-To: setprompt
 - Blocks-Release: next
 - Set: 72qlya
 - Priority: high
@@ -7,6 +8,8 @@
 - Summary: migrate-layout preflight REFUSES any repo carrying .agents/skills: classify_item returns block-unknown, so aw migrate-layout and an interactive install-time migration both fail closed on the 2.0.0 upgrade path
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into setprompt: vv6y7e fixes the classifier; je74a0 depends on it
+- 2026-09-25 note (aw backlog): Maintainer ruling 2026-09-25 (/askme on je74a0 OQ-04): scope widened to all three refusal triggers, .agents/skills AND the partial-aw .aw/.gitignore and .aw/setup-repo-needed.md; fixed by plan vv6y7e (setprompt Order 01).
 - 2026-09-23 created (aw backlog): migrate-layout preflight REFUSES any repo carrying .agents/skills: classify_item returns block-unknown, so aw migrate-layout and an interactive install-time migration both fail closed on the 2.0.0 upgrade path
 
 Found while executing plan z1yefm (migleftover Order 01).
