@@ -6,7 +6,7 @@
 - Scope: Make both fields REQUIRED at the ready-to-execute gate for new plans while leaving the terminal corpus exempt, fix the scaffold that never emitted them (the root cause of near-zero adoption), backfill the pending plans that can inherit from their source backlog item, and decide values for the remainder that have no source. Does NOT change the shared `low|medium|high` vocabulary, does NOT introduce a priority-based sort key, and does NOT touch backlog items, specs or research.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: feature
 - Priority: medium
 - Readiness: go-pending-approval
@@ -15,9 +15,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: d0cbt3
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): executed: all three children executed (8u6770, lc4unl, lkexaw); orchestration items verified [Scope reconciliation - in-scope-unmodified .aw/records/plans/pending: orchestrator; coordinates children, edits nothing itself]
 - 2026-09-24 migrated (orchtyped/68uhp0): checklist migrated to typed child-tracking rows per spec r07vma.
 - 2026-09-24 approved (aw set): backfill: Priority/Work-Kind per planprio-03 lc4unl maintainer decision on OQ-05 (planprio: medium/feature)
 - 2026-09-13 approved (aw set): status set to approved
