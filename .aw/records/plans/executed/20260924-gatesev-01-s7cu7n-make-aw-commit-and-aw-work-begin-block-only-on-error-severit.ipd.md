@@ -7,20 +7,20 @@
 - Scope: IN: change the gate predicate in `work_cmd` so only `error`-class findings (including the conservative `_DEFAULT_RULESPEC` `error` for an unregistered rule, and any unrecognized severity string, which fails closed) refuse; print `warning` findings as a named, non-blocking advisory on both verbs instead of dropping them; keep `info` silent as today; record in a `work_cmd` code comment that two of the reaching `warning` rules are deliberately STAGED toward `error` and will block here once promoted (E-07, from F-8); add a new test module covering warning-commits-with-advisory and error-still-refuses for both verbs, with a fixture that carries `- Priority:`/`- Work-Kind:` and an asserted finding-free baseline; one CHANGELOG line. OUT: `artifact_core.drift_exit_code` and the `aw check` exit-code contract (a different contract where `warning` deliberately fails CI); re-tiering any rule's severity; removing the plan-findings gate altogether (OQ-02); rewording `check_engine` comments that describe the exit-code contract.
 - Scope-Paths: agent_workflows/work_cmd.py, tests/test_work_gate_severity.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: gatesev
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s7cu7n
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 7a53rm
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: s7cu7n verified (set gatesev, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED; F-2's narrowing conclusion corrected (three warning rules reach the gate, not one; the two omitted landed after the authoring HEAD), E-03/E-04 fixture corrected, E-07/V-07 added for the lkexaw staged-severity interaction, OQ-03 added and resolved (D-2); readiness GO - PENDING HUMAN APPROVAL
 
