@@ -1,11 +1,13 @@
 - Id: 8hx3g3
-- Status: open
+- Status: graduated
+- Graduated-To: forkresid
 - Set: rununify
 - Priority: medium
 - Work-Kind: followup
 - Summary: Group E of the rununify lift is blocked on a DESIGN act, not a constant move: _lane_reclaim_prompt reads the same _LANE_PROMPT_DISABLED global that the permanently-unmovable disable_lane_prompt writes
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): folded into forkresid plan 184tn9 (_lane_reclaim_prompt; design settled as an injected flag)
 - 2026-09-16 created (aw backlog): Filed by rununify 03 (i3d6ml) execution 2026-09-17 as a defect-report finding.
 
 MEASURED AT i3d6ml's EXECUTION HEAD e93ba3de by the closure method that plan's E-01 prescribes.

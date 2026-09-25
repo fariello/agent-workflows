@@ -1,11 +1,14 @@
 - Id: 5jsjnr
-- Status: open
+- Status: graduated
+- Graduated-To: forkresid
+- Work-Kind: bug
+- Blocks-Release: next
 - Set: rqforks
 - Priority: medium
-- Work-Kind: chore
 - Summary: Nine of run_queue's eleven still-forked dependencies are claimed by no rununify child, so the Set cannot reach 100% de-duplication for it
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): folded into forkresid plan 184tn9: only retry_deferred_integrations remains forked, and its agy copy is a live bug (deferred retry that could not measure logs as terminal merge-refused)
 - 2026-09-17 created (aw backlog): Measured while executing rununify Order 08 (ty3cj6) E-01/E-04
 
 ## The gap

@@ -1,5 +1,6 @@
 - Id: pfh5qa
-- Status: open
+- Status: graduated
+- Graduated-To: intrmeta
 - Blocks-Release: next
 - Set: runspendrep
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: run summary table reports 0.00 spend and blank tokens for an interrupted item while aw runs reports 2.17 and 3.62M for the same item, so the two surfaces disagree and the table under-reports real spend
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): folded into intrmeta plan zrvtm2 (same root cause as hyit04)
 - 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-10 created (aw backlog): run summary table reports 0.00 spend and blank tokens for an interrupted item while aw runs reports 2.17 and 3.62M for the same item, so the two surfaces disagree and the table under-reports real spend
 

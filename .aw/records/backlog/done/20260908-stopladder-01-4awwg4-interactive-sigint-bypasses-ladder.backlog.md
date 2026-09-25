@@ -1,12 +1,12 @@
 - Id: 4awwg4
-- Status: open
-- Blocks-Release: next
+- Status: done
 - Set: stopladder
 - Priority: low
 - Work-Kind: bug
 - Summary: on a TTY the first Ctrl-C requests level 4 (now-force), not level 1: the interactive interrupt menu bypasses SIGINT_LADDER entirely, contradicting spec c4gd2h R12
 
 ## Workflow history
+- 2026-09-25 done (aw set): RETIRED at 8e74dcac (triage): moot: spec c4gd2h R12 amended 2026-09-09 (menu choice 2 = level 1); bc2ed703 interrupt_menu_is_safe falls back to SIGINT_LADDER
 - 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-08 created (aw backlog): Found while graduating backlog 1m3nul (plan wqq8ua), which deliberately does NOT fix it: resolving this means either removing shipped maintainer-authored behavior (646be41f) or amending an approved spec requirement, and neither is an agent's call. Filed high because it is a correctness and spec-conformance defect on the operator's primary escape path, not a documentation gap.
 

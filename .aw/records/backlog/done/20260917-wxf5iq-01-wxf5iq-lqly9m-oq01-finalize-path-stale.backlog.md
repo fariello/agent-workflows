@@ -1,11 +1,12 @@
 - Id: wxf5iq
-- Status: open
+- Status: done
 - Set: wxf5iq
 - Priority: low
 - Work-Kind: chore
 - Summary: IPD lqly9m's OQ-01 says finalize routes through commit_isolated, but 82922f5c moved it to coordinator_worktree; the stale claim should not mislead a later reader
 
 ## Workflow history
+- 2026-09-25 done (aw set): RETIRED at 8e74dcac (triage): moot: lqly9m is executed (not editable); the real path is documented in _finalize_transaction 'WHY NOT commit_isolated'
 - 2026-09-17 created (aw backlog): IPD lqly9m's OQ-01 says finalize routes through commit_isolated, but 82922f5c moved it to coordinator_worktree; the stale claim should not mislead a later reader
 
 DISCOVERED while executing IPD `lqly9m`. This is a DOCUMENTATION/PROVENANCE defect in an approved plan's

@@ -1,11 +1,13 @@
 - Id: yos8rq
-- Status: open
+- Status: graduated
+- Graduated-To: citesym
 - Set: yos8rq
 - Priority: medium
 - Work-Kind: chore
 - Summary: plan-review mandates path:line citations but never says to re-locate by symbol, so line drift reads as a false claim
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into citesym plan x7i14a (review-side half; authoring half shipped via mzc019)
 - 2026-09-16 created (aw backlog): plan-review mandates path:line citations but never says to re-locate by symbol, so line drift reads as a false claim
 
 ## What is missing

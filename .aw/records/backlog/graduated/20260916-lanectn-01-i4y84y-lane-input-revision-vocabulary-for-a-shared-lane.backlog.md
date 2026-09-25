@@ -1,11 +1,14 @@
 - Id: i4y84y
-- Status: open
+- Status: graduated
+- Graduated-To: lanevocab
+- Work-Kind: bug
+- Blocks-Release: next
 - Set: lanectn
 - Priority: low
-- Work-Kind: chore
 - Summary: Spec 7ckptx R5.1a's manifest-revision vocabulary assumes a single-owner lane, but the review sweep lane has many
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into lanevocab plan xzroy8; reclassified bug: a sweep review was handed another plan's file in 4 recorded reviews
 - 2026-09-16 created (aw backlog): Spec 7ckptx R5.1a's manifest-revision vocabulary assumes a single-owner lane, but the review sweep lane has many
 
 Found while executing plan ajxr5d (dirtygates Order 05), which isolated a review turn into ONE shared sweep lane serving every review of a run.

@@ -1,11 +1,12 @@
 - Id: h1q51j
-- Status: open
+- Status: done
 - Set: rununify
 - Priority: medium
 - Work-Kind: followup
 - Summary: Two runner symbols became newly double-defined after the rununify inventory was measured (collect_lane_earned_paths, integrate_review_lane_branch), so the Set's 66-symbol accounting no longer covers HEAD
 
 ## Workflow history
+- 2026-09-25 done (aw set): RETIRED at 8e74dcac (triage): moot: both named symbols are now thin wrappers (runner_fork_scan REAL FORKS 0); tools/runner_fork_scan.py is the drift guard
 - 2026-09-16 created (aw backlog): Filed by rununify 03 (i3d6ml) execution 2026-09-17 as a defect-report finding.
 
 MEASURED AT i3d6ml's EXECUTION HEAD e93ba3de, by the closure method that plan's E-01 prescribes, and reported because E-01's own acceptance criterion demands that any drift be stated BY NAME.

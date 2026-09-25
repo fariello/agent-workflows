@@ -1,11 +1,13 @@
 - Id: wtaxvk
-- Status: open
+- Status: graduated
+- Graduated-To: revcommit
 - Set: dirtygates
 - Priority: medium
 - Work-Kind: followup
 - Summary: A review that leaves its output uncommitted needs the driver to commit it, and that step is invisible in the plan record
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into revcommit plan 8apjpp (to-review)
 - 2026-09-16 created (aw backlog): A review that leaves its output uncommitted needs the driver to commit it, and that step is invisible in the plan record
 
 Found while executing plan ajxr5d (dirtygates Order 05).

@@ -1,5 +1,6 @@
 - Id: hyit04
-- Status: open
+- Status: graduated
+- Graduated-To: intrmeta
 - Blocks-Release: next
 - Set: runsessid
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: run state.json records session_id null for an interrupted item although its session log carries a real session id, so the Set is missing from run-summary session continuity and cannot be resumed under its session
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into intrmeta plan zrvtm2 (after 87jnym)
 - 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-10 created (aw backlog): run state.json records session_id null for an interrupted item although its session log carries a real session id, so the Set is missing from run-summary session continuity and cannot be resumed under its session
 

@@ -1,11 +1,12 @@
 - Id: iw3mvh
-- Status: open
+- Status: done
 - Set: iw3mvh
 - Priority: low
 - Work-Kind: chore
 - Summary: decide whether commit_isolated should merge instead of compare-and-swap the branch ref: a raced peer commit today leaves the work committed but NOT landed, though this has never fired in any recorded run
 
 ## Workflow history
+- 2026-09-25 done (aw set): RETIRED at 8e74dcac (triage): decided keep compare-and-swap: 0 raced refusals in 265 runs; refusal fails closed and retry works; finalize no longer calls commit_isolated
 - 2026-09-13 created (aw backlog): decide whether commit_isolated should merge instead of compare-and-swap the branch ref: a raced peer commit today leaves the work committed but NOT landed, though this has never fired in any recorded run
 
 ## What CAS means here, stated plainly because the name is jargon

@@ -1,11 +1,13 @@
 - Id: h2mpru
-- Status: open
+- Status: graduated
+- Graduated-To: isoperact
 - Set: h2mpru
 - Priority: low
 - Work-Kind: feature
 - Summary: worktree isolation is one all-or-nothing run flag; make it configurable per action type (execute / review / orchestrate) and consider sparse checkouts for very large repositories
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into isoperact plan bzlxn0 (execute and review; orchestrate is always isolated)
 - 2026-09-13 created (aw backlog): worktree isolation is one all-or-nothing run flag; make it configurable per action type (execute / review / orchestrate) and consider sparse checkouts for very large repositories
 
 ## What exists today

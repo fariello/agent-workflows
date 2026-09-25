@@ -1,11 +1,13 @@
 - Id: 0htqmm
-- Status: open
+- Status: graduated
+- Graduated-To: gatekinds
 - Set: 0htqmm
 - Priority: medium
 - Work-Kind: feature
 - Summary: Make the release-gating work-kind set configurable per repository, defaulting to bug alone, mirroring the shipped review_findings_gate key
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into gatekinds plan kxawm4 (to-review)
 - 2026-09-12 created (aw backlog): Make the release-gating work-kind set configurable per repository, defaulting to bug alone, mirroring the shipped review_findings_gate key
 
 ## Where this came from

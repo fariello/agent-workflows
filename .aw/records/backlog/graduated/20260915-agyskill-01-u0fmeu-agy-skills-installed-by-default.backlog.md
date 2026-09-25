@@ -1,5 +1,6 @@
 - Id: u0fmeu
-- Status: open
+- Status: graduated
+- Graduated-To: agyinstall
 - Blocks-Release: next
 - Set: agyskill
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: Installer must install Antigravity (agy) skills and unified /aw router
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into agyinstall plan peigax (to-review)
 - 2026-09-15 created (aw backlog): Installer must install Antigravity skills and unified /aw router
 
 ### Problem

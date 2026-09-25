@@ -1,11 +1,14 @@
 - Id: 67k1ol
-- Status: open
+- Status: graduated
+- Graduated-To: rollbackdead
+- Work-Kind: bug
+- Blocks-Release: next
 - Set: 67k1ol
 - Priority: low
-- Work-Kind: chore
 - Summary: _rollback_precommit step 3 issues an identical git restore --staged in both branches of an if/else on prior_index
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into rollbackdead plan zbh2yt; not just a dead branch: rollback resets a staged plan edit to HEAD
 - 2026-09-16 created (aw backlog): _rollback_precommit step 3 issues an identical git restore --staged in both branches of an if/else on prior_index
 
 Found 2026-09-16 while executing plan `4xt6u4` (reading `_rollback_precommit`, which that plan modifies). Step 3 of `agent_workflows/ipd_lifecycle.py::_rollback_precommit` reads:
