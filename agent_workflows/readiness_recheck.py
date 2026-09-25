@@ -12,8 +12,7 @@ stayed permanently unapprovable, and the only sanctioned remedy was a full re-re
 whose findings were already swept to LOW.
 
 WHY THIS VERB IS LEGITIMATE AT ALL, since `AGENTS.md` forbids an agent hand-writing a `- Readiness:`.
-The prohibition is NOT relaxed. Three properties make the difference, and each is pinned by a test in
-``tests/test_plan_readiness_recheck.py``:
+The prohibition is NOT relaxed. Three properties make the difference, and each is pinned by a test:
 
   1. It COMPUTES the value from the three conditions the plan-review contract enumerates, using the
      shipped predicates; it forks none of them.

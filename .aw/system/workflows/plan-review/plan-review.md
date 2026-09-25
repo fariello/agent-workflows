@@ -436,7 +436,11 @@ Append or update:
 - <date> /plan-review (<agent/model>): <verdict>; <finding IDs>
 ```
 
-Use the real agent/model name, or `unknown`.
+Use the real agent/model name, or `unknown`. The message MUST lead with exactly one
+verdict from the closed list; readiness words belong in `- Readiness:`, not in
+place of the verdict; a non-review act recorded while the plan is `reviewed`
+(descope, OQ answer, re-check) uses its own label (`re-scope`, `readiness re-check`)
+and never `reviewed` or `/plan-review`.
 
 Note the history section is NEWEST-FIRST: a new record goes directly under the
 `## Workflow history` heading, so the first record is the most recent.
