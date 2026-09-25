@@ -244,8 +244,26 @@ class SpecsRecursiveReadTests(unittest.TestCase):
             check_engine_set,
             f"Set equality failed: {spec_files_set ^ check_engine_set}",
         )
-        self.assertEqual(len(spec_files_set), 37)
-        self.assertEqual(default_check_engine_count, 20)
+        # NO LITERAL COUNTS. These were `37` and `20`, i.e. snapshots of the live corpus, so authoring
+        # or transitioning ANY spec failed the suite (measured 2026-09-25: a new to-review spec made it
+        # `38 != 37`). The contract is recursion, not a number: every tracked `*.spec.md` must be found,
+        # and the default (non-retired) walk must be a non-empty strict subset of the retired-inclusive one.
+        tracked = subprocess.run(
+            ["git", "ls-files", "-z", ".aw/records/specs"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split("\0")
+        tracked_specs = {
+            str((repo_root / p).resolve()) for p in tracked if p.endswith(".spec.md")
+        }
+        self.assertTrue(
+            tracked_specs <= spec_files_set,
+            f"tracked specs not found by the recursive walk: {tracked_specs - spec_files_set}",
+        )
+        self.assertGreater(default_check_engine_count, 0)
+        self.assertLess(default_check_engine_count, len(spec_files_set))
 
 
 if __name__ == "__main__":

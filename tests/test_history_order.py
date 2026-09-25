@@ -84,9 +84,15 @@ class DerivationIsUnchangedTests(unittest.TestCase):
         with open(baseline_file, "r", encoding="utf-8") as f:
             baseline = json.load(f)
 
+        # TERMINAL DIRECTORIES ONLY. This guards the derive_plan_status ALGORITHM, so it must compare
+        # against plans whose content is frozen. A `pending/` plan legitimately changes status
+        # (reviewed -> approved) with no code change at all, which made this test fail on every
+        # routine approval (measured 2026-09-25: five pending plans approved after the baseline was
+        # captured). Terminal plans are frozen by contract (no commits to an executed plan).
         plan_paths = [
             p.relative_to(root).as_posix()
-            for p in sorted(root.glob(".aw/records/plans/**/*.ipd.md"))
+            for bucket in ("executed", "superseded", "not-executed")
+            for p in sorted(root.glob(f".aw/records/plans/{bucket}/**/*.ipd.md"))
         ]
         intersection = sorted(set(plan_paths) & set(baseline.keys()))
 
