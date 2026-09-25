@@ -1,5 +1,5 @@
 - Id: dl86am
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: renameclust
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: aw rename and aw group silently no-op on a legacy dated-slug name: compute_target_name's _DATED_SLUG_FACET_RE branch discards to-id6/set/order and returns the input with err None, so a re-cluster reports success having changed nothing
 
 ## Workflow history
+- 2026-09-25 done (aw set): fixed in ed10d555: --to-id6 converts dated legacy names and never writes an Id into a document body; tests TestToId6DatedLegacyNames (fail when either fix is reverted); suite 1865 passed, 1 skipped
 - 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-08 created (aw backlog): aw rename and aw group silently no-op on a legacy dated-slug name: compute_target_name's _DATED_SLUG_FACET_RE branch discards to-id6/set/order and returns the input with err None, so a re-cluster reports success having changed nothing
 
