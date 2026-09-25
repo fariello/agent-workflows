@@ -2130,7 +2130,16 @@ def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
                 "substantially-complete",
                 "partial",
                 "blocked",
+                "dependency-blocked",
                 "failed-safely",
+                "fail-gate",
+                "fail-begin",
+                "fail-lane",
+                "fail-verify",
+                "fail-depend",
+                "fail-merge",
+                "not-run",
+                "failed",
                 "integration-blocked",
                 "merge-conflict",
                 "merge-needs-human",
@@ -2881,7 +2890,11 @@ def render_run_summary_table(
     elif any(
         it.get("status")
         in (
+            "failed",
             "failed-safely",
+            "fail-lane",
+            "fail-verify",
+            "fail-merge",
             "integration-blocked",
             "merge-conflict",
             "merge-needs-human",
@@ -2890,7 +2903,18 @@ def render_run_summary_table(
         for it in queue
     ):
         outcome_str = "FAILED"
-    elif any(it.get("status") in ("blocked", "dependency-blocked") for it in queue):
+    elif any(
+        it.get("status")
+        in (
+            "blocked",
+            "dependency-blocked",
+            "fail-gate",
+            "fail-begin",
+            "fail-depend",
+            "not-run",
+        )
+        for it in queue
+    ):
         outcome_str = "BLOCKED"
     elif (
         all(

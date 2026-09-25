@@ -109,7 +109,6 @@ TYPE_PRECEDENCE: tuple[str, ...] = (
 # mapped onto that directory. Everything else expects `pending/`.
 _TERMINAL_EXPECTED_DIR = {
     "executed": "executed",
-    "complete": "executed",
     "superseded": "superseded",
     "not-executed": "not-executed",
     "reusable": "reusable",
@@ -117,7 +116,7 @@ _TERMINAL_EXPECTED_DIR = {
 
 # The recorded statuses that mean THE RUN BELIEVED IT SUCCEEDED. A difference under one of these is
 # backwards-looking: the run says done, so the artifact had better be terminal.
-_RUN_SUCCESS_STATUSES = frozenset({"executed", "complete"})
+_RUN_SUCCESS_STATUSES = frozenset({"executed"})
 
 # The terminal dispositions that are a RETIREMENT rather than an execution. Reaching one of these is
 # forward progress, but of a kind that leaves NO finalize commit (see `CLASS_RETIRED`).
@@ -487,7 +486,9 @@ def expected_dir_for_status(status: str) -> str:
     while its recorded status is ``running``, so the expectation holds only because ``pending/`` is
     the catch-all.
     """
-    st = "complete" if status == "substantially-complete" else status
+    from agent_workflows.runner_shared import canonical_terminal_status
+
+    st = canonical_terminal_status(status)
     return _TERMINAL_EXPECTED_DIR.get(st, "pending")
 
 
@@ -921,13 +922,21 @@ def _status_disagrees(recorded: str, declared: str) -> bool:
     ``complete`` two lines below, so the first arm intercepts it and a status-list entry could not
     express the intent anyway (F-4).
     """
-    rec = "complete" if recorded == "substantially-complete" else recorded
-    dec = "complete" if declared == "substantially-complete" else declared
+    from agent_workflows.runner_shared import canonical_terminal_status
+
+    rec = canonical_terminal_status(recorded)
+    dec = canonical_terminal_status(declared)
     if rec in ("executed", "complete"):
         return dec not in ("executed", "complete")
     if rec == "reviewed":
         return dec not in ("reviewed", "approved")
-    if rec in ("queued", "running", "dependency-blocked", "blocked", "interrupted"):
+    if recorded in (
+        "queued",
+        "running",
+        "dependency-blocked",
+        "blocked",
+        "interrupted",
+    ):
         return dec not in (
             "approved",
             "to-review",
@@ -970,7 +979,9 @@ def audit_artifact(
     so, never a `CLASS_UNCHANGED` or `CLASS_RESOLVED` it did not earn.
     """
     stem = stem or id6
-    recorded = "complete" if status == "substantially-complete" else status
+    from agent_workflows.runner_shared import canonical_terminal_status
+
+    recorded = canonical_terminal_status(status)
     expected = expected_dir_for_status(status)
 
     actual_file: Optional[Path] = None

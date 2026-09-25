@@ -1840,10 +1840,7 @@ class ThisChildDecidesOnly(unittest.TestCase):
         # Constants and symbols
         from agent_workflows import oc_runipd
 
-        self.assertIn("substantially-complete", oc_runipd.EXECUTION_SUCCESS_STATES)
-        self.assertNotEqual(
-            rs.SET_RETIREMENT_DONE_STATUS, oc_runipd.EXECUTION_SUCCESS_STATES
-        )
+        self.assertEqual({"executed"}, oc_runipd.EXECUTION_SUCCESS_STATES)
         self.assertTrue(callable(oc_runipd._set_children_all_executed))
 
 

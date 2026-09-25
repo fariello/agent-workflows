@@ -791,7 +791,6 @@ from agent_workflows.runner_shared import (
 # module's `__all__` does not list the private readers, so the suppression is the mechanism that keeps
 # the re-export alive. `_read_status` is still called locally and so needs none.
 from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py requires it
-from agent_workflows.selectors import read_front_matter_status as _read_status
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
@@ -835,29 +834,10 @@ __all__ = [
 ]
 
 
-TERMINAL_STATES = {
-    "executed",
-    "reviewed",
-    "approved",
-    "substantially-complete",
-    "partial",
-    "blocked",
-    "dependency-blocked",
-    "failed-safely",
-    "not-attempted",
-    # driverfin-03 (7kbtkw): fail-closed integration outcomes. `integration-blocked` = the main tree
-    # had un-owned dirty paths overlapping the incoming change, so the integration gate was REFUSED
-    # (never run against a contaminated base). `merge-conflict` = the reused integration gate returned
-    # a non-passing result (conflict/stale-base/combined-red/scope) or a real merge left a conflict;
-    # main is left untouched and the verified lane branch/worktree is preserved for a human/serial
-    # resolution. Both leave the child NOT integrated and its set NOT finished (never faked executed).
-    "integration-blocked",
-    "merge-conflict",
-    # The post-rename spellings (`l2mzxn`). BOTH are listed: a pre-rename run directory still
-    # carries the old strings, and terminality must not depend on which vocabulary wrote the file.
-    "merge-needs-human",
-    "merge-refused",
-}
+TERMINAL_STATES = runner_shared.TERMINAL_STATES
+TERMINAL_STATES_CANONICAL = runner_shared.TERMINAL_STATES_CANONICAL
+TERMINAL_STATUS_ALIASES = runner_shared.TERMINAL_STATUS_ALIASES
+canonical_terminal_status = runner_shared.canonical_terminal_status
 # rununify 04 (`tx6q0h`): relocated to `runner_shared` (byte-identical in both hosts);
 # re-exported so this module's other call sites are untouched.
 SUCCESS_STATES = runner_shared.SUCCESS_STATES
@@ -3934,115 +3914,7 @@ def run_opencode(
     return returncode, extract_session_id(log_path), log_path, argv
 
 
-def reconcile_disposition(
-    repo: Path,
-    item: dict[str, Any],
-    run_dir: Path,
-    exit_code: int,
-    plan_repo: Path | None = None,
-) -> tuple[str, dict[str, Any] | None]:
-    """Score one finished turn. `plan_repo` (`ajxr5d` E-09) is the tree to READ THE PLAN FROM.
-
-    DEFAULTED TO `repo`, so every existing call site and every existing behavior is unchanged; passed
-    only by the main-turn call site, and only when the turn ran in a lane. See the review branch below
-    for why an isolated review MUST read the lane, and why there is no "read it after the merge instead"
-    alternative.
-    """
-    # runstop foi1b3 (E-03, spec R18/R21/R22): the DELIBERATE-STOP branch, which MUST precede every
-    # other branch below, including the exit-code fallback.
-    #
-    # MEASURED FAILURE THIS PREVENTS. A level-3 stop leaves NO outcome JSON (the runbook has the
-    # AGENT write `outcomes/<NN>-<id6>.json` at turn END, so a mid-turn stop never produces one), the
-    # plan is still in `pending/`, and the terminated child exits NONZERO. Without this branch every
-    # check below misses and the final `return ("partial" if exit_code == 0 else "failed-safely")`
-    # labels a DELIBERATE OPERATOR STOP as `failed-safely` - the crash-versus-intent conflation spec
-    # R21 forbids and a verdict R22 forbids the driver to assert.
-    #
-    # It is keyed on the `stopped` record the checkpoint path wrote, NOT on the exit code or on the
-    # mere presence of a stop-request file, so a run that requested a stop but whose turn genuinely
-    # FAILED before any checkpoint still reconciles normally (a control test pins this).
-    stopped = item.get("stopped")
-    if isinstance(stopped, dict) and stopped.get("stopped_deliberately"):
-        # `interrupted` is an EXISTING status in TERMINAL_STATES' sibling vocabulary and in
-        # `runner_shutdown.KNOWN_ITEM_STATUSES`, so the ledger stays coherent (spec R3) and the
-        # existing `requeue_interrupted` already retries it in recovery mode.
-        #
-        # runstop m0z0ti: this branch now covers BOTH turn-interrupting levels, and returns the SAME
-        # status for each ON PURPOSE. The difference between them is CERTAINTY, carried as the
-        # explicit `certainty` flag on the record above (`known` for level 3, `indeterminate` for
-        # level 4) - not as a different status. That is what keeps a level-4 item visible to the
-        # reconcile/requeue/report machinery while the R19 gate in `requeue_interrupted` still refuses
-        # to re-run it. Neither level ever returns a success state (spec R22).
-        return runner_stop.STOPPED_DISPOSITION, None
-    if item.get("action") == "review":
-        # dirtygates Order 05 (`ajxr5d`) E-09: READ THE PLAN FROM THE TREE THAT HOLDS THE REVISION.
-        #
-        # THE DEFECT, and it is a SCORING defect rather than a cosmetic one. This branch derives the
-        # disposition from the plan's `- Status:` field. Once a review runs in a lane, the revised plan is
-        # ON THE LANE and MAIN still reads `to-review` until the merge lands, so a `repo`-only read makes
-        # the status comparison ALWAYS miss: a review that legitimately set `approved` would be recorded
-        # merely `reviewed`, and the check would stop discriminating at all, so it could no longer help
-        # tell a real review from a turn that did nothing.
-        #
-        # THE LANE READ IS THE ONLY REACHABLE ANSWER, not a preference (plan finding F-15). The
-        # disposition is computed BEFORE the integration block in both hosts, and there is no call to
-        # this function anywhere after it, so "compute it after the merge and read main" describes a
-        # branch that does not exist. `plan_repo` therefore defaults to `repo`, which keeps the
-        # non-isolated read byte-identical, and the main-turn call site passes the lane when there is one.
-        #
-        # THE PATTERN IS REUSED, NOT INVENTED: the verifier path already resolves its plan as
-        # `plan_repo = Path(work_dir) if work_dir else repo` for exactly this reason.
-        source = plan_repo or repo
-        try:
-            current_plan = resolve_plan_path(
-                source, item["configured_file"], item["id6"]
-            )
-            text = current_plan.read_text(encoding="utf-8")
-            status = _read_status(text)
-        except Exception:
-            status = None
-        if exit_code == 0:
-            if status in ("reviewed", "approved"):
-                return status, None
-            return "reviewed", None
-        return "failed-safely", None
-
-    outcome_path = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
-    outcome: dict[str, Any] | None = None
-    if outcome_path.exists():
-        try:
-            outcome = load_json(outcome_path)
-        except DriverError:
-            outcome = None
-    try:
-        current_plan = resolve_plan_path(repo, item["configured_file"], item["id6"])
-        bucket = plan_bucket(current_plan)
-    except DriverError:
-        bucket = None
-    if bucket == "executed":
-        return "executed", outcome
-    if outcome:
-        disposition = outcome.get("disposition")
-        if disposition == "executed":
-            return "substantially-complete", outcome
-        if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}:
-            return disposition, outcome
-    # integpath-03 (`51vw4y`) E-01: PASS THE NON-TERMINAL DEFERRAL THROUGH, EXPLICITLY.
-    #
-    # THIS IS THE SILENT-DOWNGRADE TRAP, and it is the single highest-risk line of this plan rather
-    # than bookkeeping. `integration-deferred` is DELIBERATELY absent from `TERMINAL_STATES` (that
-    # absence is what makes a re-attempt possible), so the set-difference branch above SKIPS it and
-    # control reaches the fallback below, which would relabel a deferred item `partial`. `partial` IS
-    # terminal, so the deferral would be destroyed, the item never re-attempted, and today's permanent
-    # loss reproduced - while every ladder unit test still passed, because none of them route through
-    # here. The status must therefore be named explicitly, on BOTH hosts.
-    #
-    # It is checked AFTER the outcome block on purpose: an agent's self-reported outcome never gets to
-    # CLAIM a deferral (the driver decides that from the real integration attempt), so this reads the
-    # status the driver already wrote onto the item.
-    if item.get("status") == runner_shared.INTEGRATION_DEFERRED_STATUS:
-        return runner_shared.INTEGRATION_DEFERRED_STATUS, outcome
-    return ("partial" if exit_code == 0 else "failed-safely"), outcome
+reconcile_disposition = runner_shared.reconcile_disposition
 
 
 def execute_item(
@@ -4215,6 +4087,14 @@ def run_queue(
                 "failed-safely",
                 "blocked",
                 "dependency-blocked",
+                "fail-gate",
+                "fail-begin",
+                "fail-lane",
+                "fail-verify",
+                "fail-depend",
+                "fail-merge",
+                "not-run",
+                "failed",
                 # driverfin-03 (7kbtkw): a fail-closed integration outcome is retryable once the base
                 # is clean / the conflict is resolved on the preserved lane branch.
                 "integration-blocked",
@@ -4448,7 +4328,7 @@ def run_queue(
                         append_jsonl=append_jsonl,
                     )
                     continue
-                item["status"] = "dependency-blocked"
+                item["status"] = "fail-depend"
                 item["unsatisfied_dependencies"] = missing
                 # revgate Order 03 (7nkcgp) E-04: an ADDITIVE companion key. The flat
                 # `unsatisfied_dependencies` list[str] keeps its exact shape and meaning, so every

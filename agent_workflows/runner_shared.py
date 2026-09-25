@@ -6121,7 +6121,47 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
         "STOP also lands here in some shapes, so `turn_failure_is_retryable` additionally requires "
         "that no `stopped` record is present",
     ),
+    (
+        "failed",
+        True,
+        "spec 5.5 'host spawn failure' / 'host nonzero exit': generic undiagnosed turn failure, retryable",
+    ),
     # --- never retryable: spec 5.5's never-retry list, its state gates, and other owners ----------
+    (
+        "fail-gate",
+        False,
+        "lifecycle gate or clean-base gate refused; not a host failure to retry without human action",
+    ),
+    (
+        "fail-begin",
+        False,
+        "aw ipd begin refused execution authority; not a host failure to retry without human action",
+    ),
+    (
+        "fail-lane",
+        False,
+        "lane allocation failed (e.g. branch exists); not a host failure to retry without human action",
+    ),
+    (
+        "fail-verify",
+        False,
+        "verifier refused or turn fell short; not retryable as a host failure",
+    ),
+    (
+        "fail-depend",
+        False,
+        "unmet prerequisite; repetition cannot satisfy it",
+    ),
+    (
+        "fail-merge",
+        False,
+        "integration refused; owned by the integration deferral ladder or human",
+    ),
+    (
+        "not-run",
+        False,
+        "nothing ran, so there is no failure to correct",
+    ),
     (
         "partial",
         False,
@@ -6806,6 +6846,8 @@ ZERO_WORK_REFUSED_STATUSES: frozenset[str] = frozenset(
         "unknown_outcome",
         "dependency-blocked",
         "not-attempted",
+        "fail-depend",
+        "not-run",
         "queued",
         "running",
         "integration-deferred",
@@ -7498,7 +7540,7 @@ INTEGRATION_DEFERRED_STATUS = "merge-retry"
 #: The terminal status a deferred integration ends at when the ladder is exhausted: a HUMAN now owns
 #: it, via `aw <host> run integrate <id6>` or a `--retry-incomplete` resume. Today's outcome, reached
 #: LAST instead of FIRST.
-INTEGRATION_BLOCKED_STATUS = "merge-needs-human"
+INTEGRATION_BLOCKED_STATUS = "fail-merge"
 
 #: The refusal kind that is TRANSIENT and therefore deferrable (un-owned dirty overlap in main).
 #:
@@ -7531,7 +7573,7 @@ INTEGRATION_REFUSAL_TRANSIENT = "merge-retry"
 #: revalidation verdict is RELATIVE to the lane's own pre-work baseline, so a merged tree that fails only
 #: what was ALREADY failing PASSES and never reaches this kind. No third kind was added: see
 #: :func:`new_failures_since_baseline`, which refuses to judge whenever the comparison cannot be trusted.
-INTEGRATION_REFUSAL_CONFLICT = "merge-refused"
+INTEGRATION_REFUSAL_CONFLICT = "fail-merge"
 
 #: The refusal kind meaning THE GATE COULD NOT MEASURE, as distinct from measured and failing.
 #:
@@ -7569,7 +7611,7 @@ INTEGRATION_REFUSAL_UNMEASURED = "merge-unchecked"
 #: ONE-DIRECTIONAL BY DESIGN. Nothing WRITES a legacy spelling; :func:`canonical_integration_status`
 #: translates on READ. So the aliases cannot become a second live vocabulary that drifts from this one.
 #:
-#: `integration-blocked` DELIBERATELY MAPS TO `merge-needs-human` rather than to `merge-retry`, even
+#: `integration-blocked` DELIBERATELY MAPS TO `fail-merge` rather than to `merge-retry`, even
 #: though the pre-rename code used that one string for BOTH the terminal status and the transient kind.
 #: A stored `status` field is the only place a reader encounters it, and in that position it always
 #: meant the TERMINAL state (the ladder's exhausted end); the kind lived in `integration_ladder.kind`.
@@ -7578,6 +7620,8 @@ LEGACY_INTEGRATION_STATUS_ALIASES: dict[str, str] = {
     "integration-deferred": INTEGRATION_DEFERRED_STATUS,
     "integration-blocked": INTEGRATION_BLOCKED_STATUS,
     "merge-conflict": INTEGRATION_REFUSAL_CONFLICT,
+    "merge-needs-human": INTEGRATION_BLOCKED_STATUS,
+    "merge-refused": INTEGRATION_REFUSAL_CONFLICT,
     # Shipped 2026-09-21 and renamed the SAME DAY, before any release carried it. Aliased anyway: the
     # cost is one dict entry, and a run directory written in that window would otherwise be unreadable.
     "integration-unmeasured": INTEGRATION_REFUSAL_UNMEASURED,
@@ -8200,7 +8244,7 @@ def record_integration_refusal(
                 if decision.deferred
                 else (
                     "ipd-integration-blocked"
-                    if decision.status == INTEGRATION_BLOCKED_STATUS
+                    if policy == ON_INTEGRATION_BLOCKED_BLOCK
                     else "ipd-merge-conflict"
                 )
             ),
@@ -13744,13 +13788,35 @@ def format_slated_artifacts_table(
         cfg = q_item.get("configured_file") or ""
         q_st = q_item.get("status") or "queued"
 
-        if q_st in ("executed", "reviewed", "done", "completed"):
+        if q_st in (
+            "executed",
+            "reviewed",
+            "approved",
+            "substantially-complete",
+            "done",
+            "completed",
+        ):
             mapped_run_st = "done"
         elif q_st == "running":
             mapped_run_st = "running"
         elif q_st in ("failed", "failed-safely", "interrupted"):
             mapped_run_st = "failed"
-        elif q_st in ("blocked", "dependency-blocked", "integration-blocked"):
+        elif q_st in (
+            "blocked",
+            "dependency-blocked",
+            "integration-blocked",
+            "merge-conflict",
+            "merge-needs-human",
+            "merge-refused",
+            "fail-gate",
+            "fail-begin",
+            "fail-lane",
+            "fail-verify",
+            "fail-depend",
+            "fail-merge",
+            "not-run",
+            "partial",
+        ):
             mapped_run_st = "blocked"
         else:
             mapped_run_st = "queued"
@@ -16496,7 +16562,7 @@ def dispatch_orchestrator_item(
     actor: str,
     terminal_states: Container[str],
     success_states: Container[str],
-    terminal_status: str = "dependency-blocked",
+    terminal_status: str = "fail-depend",
 ) -> OrchestratorDispatch:
     """PERFORM the retire/reconsider/terminate outcome for one `orchestrate` item. BOTH HOSTS.
 
@@ -18030,6 +18096,11 @@ DEFECT_REASK_SKIPPED_STATUSES: frozenset[str] = frozenset(
         "blocked",
         "dependency-blocked",
         "not-attempted",
+        "fail-gate",
+        "fail-begin",
+        "fail-lane",
+        "fail-depend",
+        "not-run",
         "interrupted",
         "unknown_outcome",
         "queued",
@@ -18487,8 +18558,10 @@ _VERDICT_TABLE: dict[str, VerdictMapping] = {
     VERDICT_CORRECTION_REQUIRED: VerdictMapping(
         VERIFY_DISP_UNVERIFIED, True, "correction_required", True
     ),
-    VERDICT_BLOCKED: VerdictMapping(VERIFY_DISP_BLOCKED, True, "blocked", True),
-    VERDICT_NOT_CONFORMING: VerdictMapping(VERIFY_DISP_BLOCKED, True, "blocked", True),
+    VERDICT_BLOCKED: VerdictMapping(VERIFY_DISP_BLOCKED, True, "fail-verify", True),
+    VERDICT_NOT_CONFORMING: VerdictMapping(
+        VERIFY_DISP_BLOCKED, True, "fail-verify", True
+    ),
     # `VERDICT_CONFORMING` is ABSENT ON PURPOSE; see its definition above. It falls to the
     # fail-closed arm, which is what HEAD already did, so this table does not widen the pass set.
 }
@@ -22085,7 +22158,7 @@ SUCCESS_STATES = {"executed", "reviewed", "approved"}
 #: `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests` was the tripwire held against that,
 #: and it recorded in writing that "unifying the objects is `rununify`'s extraction and `cnwy8g`'s
 #: layering correction". This is that correction; both hosts now re-export this one object.
-EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
+EXECUTION_SUCCESS_STATES = {"executed"}
 
 #: The names `agy_runipd` still imports FROM `oc_runipd`, i.e. the residual one-way coupling backlog
 #: `cnwy8g` tracked and `1f7xno` reduced from 56 to these 4. The reverse direction is ZERO and must
@@ -24734,27 +24807,55 @@ def terminate_process(
 
 DEFAULT_STALL_TIMEOUT: float = 600.0
 
-TERMINAL_STATES = frozenset(
+# statusvocab (`cyamvi`) E-01: Canonical terminal status vocabulary (TWELVE tokens).
+# Every non-`executed` label names the refusing authority.
+# Promotes `interrupted` (E-04) into the terminal set.
+TERMINAL_STATES_CANONICAL: frozenset[str] = frozenset(
     {
-        "substantially-complete",
-        "not-attempted",
-        "dependency-blocked",
-        "integration-blocked",
         "executed",
-        "approved",
-        "partial",
-        "merge-conflict",
-        "blocked",
         "reviewed",
-        "failed-safely",
-        # `l2mzxn`'s renamed spellings of the two TERMINAL integration outcomes. The deferrable pair
-        # (`merge-retry`, `merge-unchecked`) is DELIBERATELY ABSENT, exactly as `integration-deferred`
-        # always was: that absence is what makes a re-attempt possible, keeps
-        # `cascade_dependency_blocked` from killing dependents, and keeps an orchestrator waiting.
-        "merge-needs-human",
-        "merge-refused",
+        "approved",
+        "interrupted",
+        "fail-gate",
+        "fail-begin",
+        "fail-lane",
+        "fail-verify",
+        "fail-depend",
+        "fail-merge",
+        "not-run",
+        "failed",
     }
 )
+
+# statusvocab (`cyamvi`) E-01: Legacy token to canonical token mapping.
+# NOTE ON ASYMMETRY (D-4 / E-03): A legacy READ of `blocked` maps single-valued to `fail-gate`
+# (the 179 majority out of 209 historical records, since a historical record carries no producer
+# field to re-derive from), while WRITERS pick per producer (`clean_base_refusal` -> `fail-gate`,
+# `begin_refusal` -> `fail-begin`, `worktree_error` -> `fail-lane`, verifier verdicts -> `fail-verify`).
+TERMINAL_STATUS_ALIASES: dict[str, str] = {
+    "substantially-complete": "fail-gate",
+    "partial": "fail-verify",
+    "failed-safely": "fail-gate",
+    "blocked": "fail-gate",
+    "dependency-blocked": "fail-depend",
+    "integration-blocked": "fail-merge",
+    "merge-conflict": "fail-merge",
+    "merge-needs-human": "fail-merge",
+    "merge-refused": "fail-merge",
+    "not-attempted": "not-run",
+}
+
+# statusvocab (`cyamvi`) E-01: Union of canonical and legacy tokens so nothing that reads it narrows.
+TERMINAL_STATES: frozenset[str] = frozenset(
+    TERMINAL_STATES_CANONICAL | set(TERMINAL_STATUS_ALIASES.keys())
+)
+
+
+def canonical_terminal_status(status: Any) -> str:
+    """Map a possibly-legacy terminal status token to its canonical replacement, or return as-is."""
+    if not isinstance(status, str):
+        return ""
+    return TERMINAL_STATUS_ALIASES.get(status, status)
 
 
 # ---- rununify: recovery routing ------------------------------------------------------------------
@@ -25083,9 +25184,12 @@ def _record_forced_stop(
 #: the four dispositions an agent's own outcome file can legitimately produce are ranked; every other
 #: status is unknown to this predicate and therefore refused (see :func:`rescore_is_an_improvement`).
 RESCORE_DISPOSITION_RANK: dict[str, int] = {
+    "failed": 0,
     "failed-safely": 0,
     "partial": 1,
+    "fail-verify": 1,
     "substantially-complete": 2,
+    "fail-gate": 2,
     "executed": 3,
 }
 
@@ -25207,9 +25311,14 @@ def outcome_precedence_disposition(
     if outcome:
         disposition = outcome.get("disposition")
         if disposition == "executed":
-            return "substantially-complete"
-        if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}:
-            return str(disposition)
+            return "fail-gate"
+        if disposition in TERMINAL_STATES - {
+            "dependency-blocked",
+            "not-attempted",
+            "fail-depend",
+            "not-run",
+        }:
+            return canonical_terminal_status(str(disposition))
     return None
 
 
@@ -25240,7 +25349,7 @@ def reconcile_disposition(
             if status in ("reviewed", "approved"):
                 return status, None
             return "reviewed", None
-        return "failed-safely", None
+        return "fail-gate", None
 
     # runrecon-02 (`fduoj4`) E-02: the outcome read and the bucket/outcome precedence are now the two
     # SHARED helpers above, so the CRASH path (`reconcile_interrupted`) honors the same rules from the
@@ -25261,7 +25370,7 @@ def reconcile_disposition(
         return established, outcome
     if item.get("status") == INTEGRATION_DEFERRED_STATUS:
         return INTEGRATION_DEFERRED_STATUS, outcome
-    return ("partial" if exit_code == 0 else "failed-safely"), outcome
+    return ("fail-verify" if exit_code == 0 else "fail-gate"), outcome
 
 
 #: The provenance marker written beside a disposition this driver RECOVERED from a step's own outcome
@@ -25847,8 +25956,8 @@ def execute_item_core(
             attempt["ended_at"] = utc_now()
             attempt["clean_base_refused"] = decision.reason
             attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
-            attempt["disposition"] = "blocked"
-            item["status"] = "blocked"
+            attempt["disposition"] = "fail-gate"
+            item["status"] = "fail-gate"
             item["clean_base_refusal"] = decision.reason
             save_state(run_dir, state)
             append_jsonl(
@@ -25907,8 +26016,8 @@ def execute_item_core(
             )
         except Exception as exc:
             attempt["ended_at"] = utc_now()
-            attempt["disposition"] = "blocked"
-            item["status"] = "blocked"
+            attempt["disposition"] = "fail-lane"
+            item["status"] = "fail-lane"
             item["worktree_error"] = str(exc)
             save_state(run_dir, state)
             append_jsonl(
@@ -25940,8 +26049,8 @@ def execute_item_core(
         if begin_rc != 0:
             attempt["ended_at"] = utc_now()
             attempt["begin_refused"] = begin_msg
-            attempt["disposition"] = "blocked"
-            item["status"] = "blocked"
+            attempt["disposition"] = "fail-begin"
+            item["status"] = "fail-begin"
             item["begin_refusal"] = begin_msg
             save_state(run_dir, state)
             append_jsonl(
@@ -26011,8 +26120,8 @@ def execute_item_core(
                 )
             except Exception as exc:
                 attempt["ended_at"] = utc_now()
-                attempt["disposition"] = "blocked"
-                item["status"] = "blocked"
+                attempt["disposition"] = "fail-lane"
+                item["status"] = "fail-lane"
                 item["worktree_error"] = str(exc)
                 save_state(run_dir, state)
                 append_jsonl(
@@ -26419,7 +26528,7 @@ def execute_item_core(
             validate = not (opts.get("no_verify") or opts.get("no_audit"))
         if (
             not is_review
-            and disposition in ("executed", "substantially-complete")
+            and disposition in ("executed", "fail-gate", "substantially-complete")
             and validate
         ):
             plan_repo = Path(work_dir) if work_dir else repo
@@ -26545,7 +26654,7 @@ def execute_item_core(
                         v_map = map_verdict(v_raw_verdict)
                         verify_disp = v_map.verify_disp
                         if v_map.downgrade:
-                            disposition = "partial"
+                            disposition = "fail-verify"
                         attempt["verify_verdict_raw"] = (
                             None if v_unreadable else str(v_raw_verdict)
                         )
@@ -26568,7 +26677,7 @@ def execute_item_core(
 
                         if verify_disp == VERIFY_DISP_VERIFIED and not v_has_evidence:
                             verify_disp = VERIFY_DISP_UNVERIFIED
-                            disposition = "partial"
+                            disposition = "fail-verify"
                             v_code, v_reason, v_remedy = verifier_evidence_refusal_text(
                                 v_data
                             )
@@ -26644,7 +26753,7 @@ def execute_item_core(
                         attempt["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
                         item["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
                         verify_disp = VERIFY_DISP_UNVERIFIED
-                        disposition = "partial"
+                        disposition = "fail-verify"
                         print(
                             pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
                             file=sys.stderr,
@@ -26946,7 +27055,7 @@ def execute_item_core(
         integration_gate_relevant = (
             self_finalize
             and not is_review
-            and disposition in ("executed", "substantially-complete")
+            and disposition in ("executed", "fail-gate", "substantially-complete")
         )
         if integration_gate_relevant and not validate:
             suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
@@ -27438,7 +27547,11 @@ def execute_item_core(
                     )
                 )
 
-        if not is_review and disposition in ("executed", "substantially-complete"):
+        if not is_review and disposition in (
+            "executed",
+            "fail-gate",
+            "substantially-complete",
+        ):
             if (
                 self_finalize
                 and work_dir
@@ -29243,7 +29356,7 @@ def cascade_dependency_blocked(
                     dead.append(f"{edge.canonical()} (target {st})")
             if not dead:
                 continue
-            item["status"] = "dependency-blocked"
+            item["status"] = "fail-depend"
             item["unsatisfied_dependencies"] = dead
             blocked.append(item)
             progressed = True
@@ -29904,17 +30017,7 @@ def update_execution_order(
 
     # If dispatched list wasn't tracked yet, reconstruct from queue terminal/attempted states:
     if not dispatched:
-        terminal_dispositions = {
-            "executed",
-            "reviewed",
-            "approved",
-            "substantially-complete",
-            "partial",
-            "blocked",
-            "failed-safely",
-            "integration-blocked",
-            "merge-conflict",
-        }
+        terminal_dispositions = set(TERMINAL_STATES)
         for id6 in prev_executed:
             for it in queue:
                 if str(it.get("id6")) == id6 and (

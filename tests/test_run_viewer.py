@@ -267,7 +267,7 @@ class RunViewerTests(TestCase):
             tokens={"total": 50000},
         )
         line = run_viewer.format_step_line(step, term)
-        self.assertIn("partial", line)
+        self.assertIn("fail-verify", line)
         self.assertIn("plan", line)
         self.assertIn("20260825-runnernorm-00-ryvoi5", line)
         self.assertIn("[attempts: 1]", line)
@@ -928,7 +928,7 @@ class RunViewerTests(TestCase):
                 id6="item01",
                 setid="test",
                 action="execute",
-                status="complete",
+                status="executed",
                 configured_file="",
                 stem="20260829-test-01-item01",
             )
@@ -982,7 +982,7 @@ class RunViewerTests(TestCase):
                 id6="item01",
                 setid="test",
                 action="execute",
-                status="complete",
+                status="executed",
                 configured_file="",
                 stem="20260829-test-01-item01",
                 is_live=True,
@@ -1092,7 +1092,7 @@ class RunViewerTests(TestCase):
                         "id6": "item01",
                         "setid": "test",
                         "action": "execute",
-                        "status": "complete",
+                        "status": "executed",
                         "configured_file": "",
                         "stem": "20260829-test-01-item01",
                     }
@@ -1146,7 +1146,7 @@ class RunViewerTests(TestCase):
                         "id6": "item01",
                         "setid": "test",
                         "action": "execute",
-                        "status": "complete",
+                        "status": "executed",
                         "configured_file": ".aw/records/plans/executed/20260829-test-01-item01.ipd.md",
                         "stem": "20260829-test-01-item01",
                     }
@@ -1681,13 +1681,13 @@ class SharedLifecycleRenderingTests(TestCase):
             ("verified", "\u2713", "1;38;5;46"),
             ("ran", "\u21a9\ufe0e", "1;38;5;220"),
             ("unknown_outcome", "\u2718", "1;38;5;196"),
-            ("partial", "\u21a9\ufe0e", "1;38;5;220"),
+            ("fail-verify", "\u2718", "1;38;5;196"),
             ("interrupted", "\u21a9\ufe0e", "1;38;5;220"),
-            ("blocked", "\u26a0\ufe0e", "1;38;5;208"),
+            ("fail-gate", "\u26a0\ufe0e", "1;38;5;208"),
             ("failed", "\u2718", "1;38;5;196"),
             ("queued", "\u25d5", "1;38;5;45"),
             ("needs_input", "\u2026", "1;38;5;214"),
-            ("not-attempted", "\u2205", "38;5;244"),
+            ("not-run", "\u2205", "38;5;244"),
         )
         term = self._term()
         for status, glyph, sgr in cases:
@@ -1718,19 +1718,19 @@ class SharedLifecycleRenderingTests(TestCase):
 
         # disposition sharing shared vocabulary
         disp_line = run_viewer.format_step_line(
-            self._step("partial", disposition="dependency-blocked"), term
+            self._step("fail-verify", disposition="fail-depend"), term
         )
-        self.assertIn("\033[1;38;5;208mdependency-blocked\033[0m", disp_line)
+        self.assertIn("\033[1;38;5;208mfail-depend\033[0m", disp_line)
 
         # color off has no ANSI
         term_no_color = self._term(color=False)
-        for st in ("executed", "ran", "blocked", "unknown_outcome"):
+        for st in ("executed", "ran", "fail-gate", "unknown_outcome"):
             line = run_viewer.format_step_line(self._step(st), term_no_color)
             self.assertNotIn("\033", line)
             self.assertIn(st, line)
 
         # variation selector survives rendering
-        for st, gr in (("blocked", "\u26a0\ufe0e"), ("ran", "\u21a9\ufe0e")):
+        for st, gr in (("fail-gate", "\u26a0\ufe0e"), ("ran", "\u21a9\ufe0e")):
             line = run_viewer.format_step_line(self._step(st), term)
             self.assertIn(gr, line)
             self.assertNotIn("\u26a0\ufe0f", line)
@@ -1886,11 +1886,11 @@ class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
             summary = run_viewer.load_run_summary(d, root)
             assert summary is not None
             step = summary.steps[0]
-            self.assertEqual(step.status, "substantially-complete?")
+            self.assertEqual(step.status, "fail-gate?")
             self.assertEqual(step.persisted_status, "running")
             self.assertTrue(step.is_projected)
             self.assertTrue(step.status.endswith(run_viewer.PROJECTION_SUFFIX))
-            self.assertEqual(summary.counts, {"substantially-complete?": 1})
+            self.assertEqual(summary.counts, {"fail-gate?": 1})
 
             # Read path writes nothing
             state_file = d / "state.json"
@@ -1906,11 +1906,11 @@ class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
             d = _abandoned_run_fixture(root, outcome=None)
             self.assertEqual(_only_step(d, root).status, run_viewer.ABANDONED)
 
-        # Self-claimed executed is downgraded to substantially-complete?
+        # Self-claimed executed is downgraded to fail-gate?
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             d = _abandoned_run_fixture(root, outcome={"disposition": "executed"})
-            self.assertEqual(_only_step(d, root).status, "substantially-complete?")
+            self.assertEqual(_only_step(d, root).status, "fail-gate?")
 
     def test_projected_status_action_gates(self):
         for action in ("review", "orchestrate"):
@@ -1929,14 +1929,14 @@ class RepairReportsRecoveredProvenanceTests(TestCase):
             d = _abandoned_run_fixture(root, outcome=_RECORDED)
             code, message = run_viewer.repair_run(d, root)
             self.assertEqual(code, 0)
-            self.assertIn("97df1z running -> substantially-complete", message)
+            self.assertIn("97df1z running -> fail-gate", message)
             self.assertIn(runner_shared.RECOVERED_FROM_OUTCOME, message)
             self.assertIn("209227d54f1fd7e34115ee9a198c74513a99567d", message)
             self.assertIn("unresolved here", message)
 
             persisted = json.loads((d / "state.json").read_text(encoding="utf-8"))
             item = persisted["queue"][0]
-            self.assertEqual(item["status"], "substantially-complete")
+            self.assertEqual(item["status"], "fail-gate")
             self.assertEqual(
                 item[runner_shared.RECOVERY_PROVENANCE_KEY],
                 runner_shared.RECOVERED_FROM_OUTCOME,

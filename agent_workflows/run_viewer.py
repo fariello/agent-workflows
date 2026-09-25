@@ -39,6 +39,7 @@ from agent_workflows.render_stream import (
 from agent_workflows.runner_shared import (
     ANALYTICS_DIRNAME,
     analytics_root,
+    canonical_terminal_status,
     extract_verifier_test_commands,
     path_is_within_analytics,
     state_root,
@@ -1524,9 +1525,7 @@ def format_step_line(
     stem_width: int = 0,
 ) -> str:
     """Format a single step summary line aligned with aw att / aw ipd lint style."""
-    status_word = step.status
-    if status_word == "substantially-complete":
-        status_word = "complete"
+    status_word = canonical_terminal_status(step.status)
 
     # THE RUNNER ITEM STATUS THROUGH THE SHARED RESOLVER (plan `9zvl2w` E-04, spec `uonrjg` Section
     # 7.2, R10.3). This is what makes `ran` render `recovering` (`↩︎`, amber) rather than a success
@@ -1997,7 +1996,7 @@ def render_steps_table(
     rows = []
     for step in steps:
         audit = audit_step_artifact(step, repo_root)
-        st_disp = "complete" if step.status == "substantially-complete" else step.status
+        st_disp = canonical_terminal_status(step.status)
         # THE AUDIT TABLE'S Status COLUMN, through the shared resolver (R10.3). Deliberately WITHOUT a
         # glyph: `render_box_table` measures every cell with `len(strip_ansi(cell))`, not by rendered
         # width, so a 2-code-point / 1-column grapheme (`⚠︎`, `↩︎`) would over-count its column by one
@@ -2239,7 +2238,7 @@ def format_run_human(
     # Line 3: Step count and status tally
     tally_parts = []
     for st, cnt in sorted(run.counts.items()):
-        st_display = "complete" if st == "substantially-complete" else st
+        st_display = canonical_terminal_status(st)
         tally_parts.append(f"{cnt} {st_display}")
     tally_str = ", ".join(tally_parts) if tally_parts else f"{len(run.steps)} steps"
     lines.append(f"  {len(run.steps)} steps: {tally_str}")
@@ -2764,7 +2763,7 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
             key=lambda x: (-x[1].get("total_cost", 0.0), -x[1]["count"]),
         ):
             c_cnt = data["steps_with_cost"]
-            st_disp = "complete" if st == "substantially-complete" else st
+            st_disp = canonical_terminal_status(st)
             # THE ANALYTICS Status COLUMN, through the shared resolver (R10.3). Its keys are runner
             # ITEM statuses (the same words `by_status` is aggregated from), so it uses the same family
             # as the item rows above and renders one vocabulary with them. Glyph omitted for the box

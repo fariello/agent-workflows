@@ -1894,10 +1894,21 @@ def parse_readiness_filters(raw_readiness: Sequence[str] | None) -> set[str]:
 _RUN_STATUS_ALIASES = {
     "executed": "done",
     "reviewed": "done",
+    "approved": "done",
     "substantially-complete": "done",
     "completed": "done",
+    "failed": "failed",
     "failed-safely": "failed",
     "interrupted": "failed",
+    "fail-gate": "blocked",
+    "fail-begin": "blocked",
+    "fail-lane": "blocked",
+    "fail-verify": "blocked",
+    "fail-depend": "blocked",
+    "fail-merge": "blocked",
+    "not-run": "blocked",
+    "partial": "blocked",
+    "blocked": "blocked",
     "dependency-blocked": "blocked",
     "integration-blocked": "blocked",
     "merge-conflict": "blocked",
@@ -2505,6 +2516,7 @@ def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
                 elif raw_st in (
                     "executed",
                     "reviewed",
+                    "approved",
                     "substantially-complete",
                     "done",
                     "completed",
@@ -2521,6 +2533,14 @@ def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
                     # The deferrable pair is absent for the reason given at `_RUN_STATUS_ALIASES`.
                     "merge-needs-human",
                     "merge-refused",
+                    "fail-gate",
+                    "fail-begin",
+                    "fail-lane",
+                    "fail-verify",
+                    "fail-depend",
+                    "fail-merge",
+                    "not-run",
+                    "partial",
                 ):
                     mapped = "blocked"
                 else:

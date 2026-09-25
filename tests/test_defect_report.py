@@ -755,12 +755,12 @@ class RescoreAfterAReaskTests(unittest.TestCase):
                 Path(temp), first_outcome=None, reask_outcome=self.REASK_COMPLETE
             )
             self.assertEqual(2, len(launches))
-            self.assertEqual("substantially-complete", item["status"])
+            self.assertEqual("fail-gate", item["status"])
             rescored = self._rescored(events)
             self.assertEqual(1, len(rescored))
             self.assertEqual(item["id6"], rescored[0]["id6"])
-            self.assertEqual("partial", rescored[0]["before"])
-            self.assertEqual("substantially-complete", rescored[0]["after"])
+            self.assertEqual("fail-verify", rescored[0]["before"])
+            self.assertEqual("fail-gate", rescored[0]["after"])
 
     def test_controls_refuse(self) -> None:
         from agent_workflows import lane_containment
@@ -793,7 +793,7 @@ class RescoreAfterAReaskTests(unittest.TestCase):
                 reask_outcome=self.REASK_COMPLETE,
                 wrap_collect=wrap_a,
             )
-            self.assertEqual("partial", item["status"])
+            self.assertEqual("fail-verify", item["status"])
             self.assertEqual([], self._rescored(events))
             self.assertEqual(2, len(launches))
 
@@ -815,7 +815,7 @@ class RescoreAfterAReaskTests(unittest.TestCase):
                 reask_outcome=self.REASK_COMPLETE,
                 wrap_collect=wrap_b,
             )
-            self.assertEqual("partial", item["status"])
+            self.assertEqual("fail-verify", item["status"])
             self.assertEqual([], self._rescored(events))
             self.assertEqual(2, len(launches))
 
@@ -831,7 +831,7 @@ class RescoreAfterAReaskTests(unittest.TestCase):
                 (receipt["status"], receipt["collected"], receipt["failed"]),
             )
             self.assertEqual(2, len(launches))
-            self.assertEqual("partial", item["status"])
+            self.assertEqual("fail-verify", item["status"])
             self.assertEqual([], self._rescored(events))
 
     def test_deferral_behavior(self) -> None:
@@ -841,7 +841,7 @@ class RescoreAfterAReaskTests(unittest.TestCase):
             calls.append(exit_code)
             if len(calls) == 1:
                 return R.INTEGRATION_DEFERRED_STATUS, None
-            return "substantially-complete", dict(self.GOOD)
+            return "fail-gate", dict(self.GOOD)
 
         with tempfile.TemporaryDirectory() as temp:
             _run_dir, _state, item, events, _gate, launches = self._drive(
@@ -862,7 +862,7 @@ class RescoreAfterAReaskTests(unittest.TestCase):
             calls_neg.append(exit_code)
             if len(calls_neg) == 1:
                 return R.INTEGRATION_DEFERRED_STATUS, None
-            return "substantially-complete", dict(self.GOOD)
+            return "fail-gate", dict(self.GOOD)
 
         def rank_only(before: str | None, after: str | None) -> bool:
             ranks = dict(R.RESCORE_DISPOSITION_RANK)
@@ -878,7 +878,7 @@ class RescoreAfterAReaskTests(unittest.TestCase):
                     reask_outcome=self.REASK_COMPLETE,
                     reconcile=scripted_neg,
                 )
-            self.assertEqual("substantially-complete", item["status"])
+            self.assertEqual("fail-gate", item["status"])
             self.assertEqual(1, len(self._rescored(events)))
 
     def test_carrier_agreement_and_events(self) -> None:
@@ -892,23 +892,23 @@ class RescoreAfterAReaskTests(unittest.TestCase):
                     run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
                 ).read_text(encoding="utf-8")
             )
-            self.assertEqual("substantially-complete", item["status"])
-            self.assertEqual("substantially-complete", attempt["disposition"])
+            self.assertEqual("fail-gate", item["status"])
+            self.assertEqual("fail-gate", attempt["disposition"])
             self.assertEqual(collected, item["last_outcome"])
 
             persisted = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
             entry = next(q for q in persisted["queue"] if q["id6"] == item["id6"])
-            self.assertEqual("substantially-complete", entry["status"])
+            self.assertEqual("fail-gate", entry["status"])
             self.assertEqual(collected, entry["last_outcome"])
             self.assertIs(state["queue"][0], item)
 
             rescored = self._rescored(events)
             self.assertEqual(1, len(rescored))
             self.assertEqual(item["id6"], rescored[0]["id6"])
-            self.assertEqual("partial", rescored[0]["before"])
-            self.assertEqual("substantially-complete", rescored[0]["after"])
+            self.assertEqual("fail-verify", rescored[0]["before"])
+            self.assertEqual("fail-gate", rescored[0]["after"])
 
-            self.assertEqual("substantially-complete", item["status"])
+            self.assertEqual("fail-gate", item["status"])
             self.assertFalse(gate_kwargs["validate"])
             self.assertIsNone(gate_kwargs["verify_disp"])
             self.assertTrue(gate_kwargs["suite_result"].passing)
@@ -919,7 +919,7 @@ class RescoreAfterAReaskTests(unittest.TestCase):
                 Path(temp), first_outcome=self.GOOD, reask_outcome=self.GOOD
             )
             self.assertEqual(1, len(launches))
-            self.assertEqual("substantially-complete", item["status"])
+            self.assertEqual("fail-gate", item["status"])
             self.assertEqual([], self._rescored(events))
 
         # Reask not improvement = no event
@@ -930,7 +930,7 @@ class RescoreAfterAReaskTests(unittest.TestCase):
                 reask_outcome=self.REASK_STILL_PARTIAL,
             )
             self.assertEqual(2, len(launches))
-            self.assertEqual("partial", item["status"])
+            self.assertEqual("fail-verify", item["status"])
             self.assertEqual([], self._rescored(events))
 
 

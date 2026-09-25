@@ -196,7 +196,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
             self.assertEqual(
                 calls, ["begin"], "agent turn must NOT run after begin refusal"
             )
-            self.assertEqual(item["status"], "blocked")
+            self.assertEqual(item["status"], "fail-begin")
             self.assertIn("begin_refusal", item)
 
     def test_finalize_fires_on_verified_and_marks_executed(self):
@@ -307,7 +307,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)
 
-            self.assertEqual(item["status"], "substantially-complete")
+            self.assertEqual(item["status"], "fail-gate")
             self.assertIn("finalize_refusal", item)
             self.assertTrue(plan.is_file(), "plan must not move on finalize refusal")
 
@@ -563,7 +563,7 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)
 
-            self.assertEqual(item["status"], "merge-refused")
+            self.assertEqual(item["status"], "fail-merge")
             self.assertIn("integration_deferral", item)
             self.assertFalse(
                 (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
@@ -923,7 +923,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)
 
-            self.assertEqual(item["status"], "merge-refused")
+            self.assertEqual(item["status"], "fail-merge")
             self.assertIn("integration_deferral", item)
             head_after = subprocess.run(
                 ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True

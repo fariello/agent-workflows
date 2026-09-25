@@ -77,7 +77,6 @@ from agent_workflows.run_selection_policy import (
 # so `ruff --fix` removed the import as unused and broke the re-export
 # `tests/test_runner_refork_guard.py` requires of BOTH runners.
 from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py requires it
-from agent_workflows.selectors import read_front_matter_status as _read_status
 
 from agent_workflows.render_stream import (
     Statusline,
@@ -754,29 +753,10 @@ DEFAULT_STALL_TIMEOUT: float = 600.0
 _SIGINT_GRACE_SECONDS = 5.0
 _SIGTERM_GRACE_SECONDS = 2.0
 
-TERMINAL_STATES = {
-    "executed",
-    "reviewed",
-    "approved",
-    "substantially-complete",
-    "partial",
-    "blocked",
-    "dependency-blocked",
-    "failed-safely",
-    "not-attempted",
-    # driverfin-03 (7kbtkw): fail-closed integration outcomes. `integration-blocked` = the main tree
-    # had un-owned dirty paths overlapping the incoming change, so the integration gate was REFUSED
-    # (never run against a contaminated base). `merge-conflict` = the reused integration gate returned
-    # a non-passing result (conflict/stale-base/combined-red/scope) or a real merge left a conflict;
-    # main is left untouched and the verified lane branch/worktree is preserved for a human/serial
-    # resolution. Both leave the child NOT integrated and its set NOT finished (never faked executed).
-    "integration-blocked",
-    "merge-conflict",
-    # The post-rename spellings (`l2mzxn`). BOTH are listed: a pre-rename run directory still
-    # carries the old strings, and terminality must not depend on which vocabulary wrote the file.
-    "merge-needs-human",
-    "merge-refused",
-}
+TERMINAL_STATES = runner_shared.TERMINAL_STATES
+TERMINAL_STATES_CANONICAL = runner_shared.TERMINAL_STATES_CANONICAL
+TERMINAL_STATUS_ALIASES = runner_shared.TERMINAL_STATUS_ALIASES
+canonical_terminal_status = runner_shared.canonical_terminal_status
 # rununify 04 (`tx6q0h`): relocated to `runner_shared` (byte-identical in both hosts);
 # re-exported so this module's other call sites are untouched.
 SUCCESS_STATES = runner_shared.SUCCESS_STATES
@@ -2890,92 +2870,7 @@ def run_agy_turn(
     return rc, captured_conv_id, log_path, argv
 
 
-def reconcile_disposition(
-    repo: Path,
-    item: dict[str, Any],
-    run_dir: Path,
-    exit_code: int,
-    plan_repo: Path | None = None,
-) -> tuple[str, dict[str, Any] | None]:
-    """Score one finished turn. `plan_repo` (`ajxr5d` E-09/E-06) is the tree to READ THE PLAN FROM.
-
-    DEFAULTED TO `repo`, so every existing call site and every existing behavior is unchanged. Mirrors
-    the oc twin; see the review branch below for why an isolated review MUST read the lane.
-    """
-    # runstop foi1b3 (E-03, spec R18/R21/R22): the DELIBERATE-STOP branch, ahead of every other
-    # branch including the exit-code fallback, for the same measured reason as in `oc_runipd`: a
-    # level-3 stop leaves NO outcome JSON (the agent writes it at turn END), the plan is still in
-    # `pending/`, and the terminated child exits NONZERO, so the final
-    # `("partial" if exit_code == 0 else "failed-safely")` would label a DELIBERATE OPERATOR STOP as
-    # `failed-safely` - the intent-versus-breakage conflation R21 forbids.
-    #
-    # Keyed on the `stopped` record the checkpoint path wrote, NOT on the exit code, so a genuine
-    # failure still reconciles normally even if a stop was requested.
-    #
-    # runstop m0z0ti: this branch now covers BOTH turn-interrupting levels and returns the SAME status
-    # for each on purpose. The difference is CERTAINTY (`known` vs `indeterminate`), carried as an
-    # explicit flag on the record, not as a different status - which is what keeps a level-4 item
-    # visible to the reconcile/requeue/report machinery while the R19 gate refuses to re-run it.
-    # Neither level ever returns a success state (spec R22).
-    stopped = item.get("stopped")
-    if isinstance(stopped, dict) and stopped.get("stopped_deliberately"):
-        return runner_stop.STOPPED_DISPOSITION, None
-    if item.get("action") == "review":
-        # dirtygates Order 05 (`ajxr5d`) E-09/E-06: READ THE TREE THAT HOLDS THE REVISION.
-        #
-        # This branch derives the disposition from the plan's `- Status:`. Once a review runs in a lane
-        # the revised plan is ON THE LANE and MAIN still reads `to-review` until the merge lands, so a
-        # `repo`-only read makes the comparison ALWAYS miss: a review that set `approved` would be
-        # recorded merely `reviewed`, and the check would stop discriminating at all. The lane read is the
-        # ONLY reachable answer (plan finding F-15): the disposition is computed BEFORE the integration
-        # block and this function is never called after it, so "read main post-merge" is not a real
-        # branch. Reuses the same `Path(work_dir) if work_dir else repo` pattern the verifier path below
-        # already uses for this exact reason.
-        source = plan_repo or repo
-        try:
-            current_plan = resolve_plan_path(
-                source, item.get("configured_file", ""), item["id6"]
-            )
-            text = current_plan.read_text(encoding="utf-8")
-            status = _read_status(text)
-        except Exception:
-            status = None
-        if exit_code == 0:
-            if status in ("reviewed", "approved"):
-                return status, None
-            return "reviewed", None
-        return "failed-safely", None
-
-    outcome_path = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
-    outcome: dict[str, Any] | None = None
-    if outcome_path.exists():
-        try:
-            outcome = load_json(outcome_path)
-        except DriverError:
-            outcome = None
-    try:
-        current_plan = resolve_plan_path(
-            repo, item.get("configured_file", ""), item["id6"]
-        )
-        bucket = plan_bucket(current_plan)
-    except DriverError:
-        bucket = None
-    if bucket == "executed":
-        return "executed", outcome
-    if outcome:
-        disposition = outcome.get("disposition")
-        if disposition == "executed":
-            return "substantially-complete", outcome
-        if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}:
-            return disposition, outcome
-    # integpath-03 (`51vw4y`) E-01: the EXACT counterpart of the `oc_runipd` site, and it must be here
-    # too or this host silently relabels a deferred item `partial` (which IS terminal), destroying the
-    # deferral behind a green suite. `integration-deferred` is deliberately NOT in `TERMINAL_STATES`,
-    # so the set-difference branch above skips it and control would otherwise reach the fallback below.
-    # See the oc site for the full reasoning; a rule present in one driver only is a DEFECT (CID-3).
-    if item.get("status") == runner_shared.INTEGRATION_DEFERRED_STATUS:
-        return runner_shared.INTEGRATION_DEFERRED_STATUS, outcome
-    return ("partial" if exit_code == 0 else "failed-safely"), outcome
+reconcile_disposition = runner_shared.reconcile_disposition
 
 
 def execute_item(
@@ -3143,6 +3038,14 @@ def run_queue(
                 "failed-safely",
                 "blocked",
                 "dependency-blocked",
+                "fail-gate",
+                "fail-begin",
+                "fail-lane",
+                "fail-verify",
+                "fail-depend",
+                "fail-merge",
+                "not-run",
+                "failed",
                 # driverfin-03 (7kbtkw): a fail-closed integration outcome is retryable once the base
                 # is clean / the conflict is resolved on the preserved lane branch.
                 "integration-blocked",
@@ -3347,7 +3250,7 @@ def run_queue(
                         append_jsonl=append_jsonl,
                     )
                     continue
-                item["status"] = "dependency-blocked"
+                item["status"] = "fail-depend"
                 item["unsatisfied_dependencies"] = missing
                 # revgate Order 03 (7nkcgp) E-04: ADDITIVE companion keys; the flat
                 # `unsatisfied_dependencies` list[str] keeps its exact shape for existing consumers.
