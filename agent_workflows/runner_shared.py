@@ -12450,6 +12450,35 @@ RUN_POLICY_FLAGS: tuple = (
             "parallel EXECUTION is never serialized either way. It waives no other gate"
         ),
     ),
+    # specpause-01 (`1g4i1t`) E-03, spec `25kzda` 2.5c: the spec-edit acknowledgement gate's UNATTENDED half.
+    #
+    # IT TAKES A JUSTIFICATION, WHICH IS WHY IT IS A `"str"` ROW, for the same reason
+    # `--allow-uncovered-orchestrator-work` and `--allow-concurrent-driver` do: the risk it accepts
+    # is that an unattended run rewrites a contract every other plan is reviewed against with nobody
+    # consenting, so the record must say WHY that was accepted and not merely that somebody passed it.
+    #
+    # `resume_rule=RESUME_REFUSE`, DELIBERATELY DIVERGING from both sibling `str` rows.
+    # Both `--allow-concurrent-driver` and `--allow-uncovered-orchestrator-work` use `none-default`,
+    # but this gate lives ONLY in `initialize_run_core`. `resume` does not call `initialize_run_core`
+    # (each host's `resume` branch loads state and applies policy flags directly, reaching no gate),
+    # so `--ack-spec-edits` accepted on resume would record consent that GATED NOTHING — the run it
+    # belongs to already passed or failed the gate at initialization. Refusing loudly on resume is
+    # therefore honest where accepting-and-freezing would be theatre.
+    RunPolicyFlag(
+        flag="--ack-spec-edits",
+        dest="ack_spec_edits",
+        kind="str",
+        implemented=True,
+        owner="runner_shared.enforce_spec_edit_ack_gate",
+        help=(
+            "Acknowledge that this run's queue declares edits to `.spec.md` contract file(s), and "
+            "RECORD THE SUPPLIED JUSTIFICATION for having done so. Takes a reason string; it cannot "
+            "be passed bare, because the risk accepted is that an unattended run modifies a contract "
+            "every other plan is reviewed against. Queues with no declared spec edits are unaffected. "
+            "It waives no other gate"
+        ),
+        resume_rule=RESUME_REFUSE,
+    ),
     RunPolicyFlag(
         flag="--on-integration-blocked",
         dest="on_integration_blocked",
@@ -15873,7 +15902,13 @@ def probe_argv(
             "--output-format",
             "stream-json",
             "--print-timeout",
-            str(int(PROBE_ASK_TIMEOUT_SECONDS)),
+            # agy parses this flag as a Go duration and REJECTS a bare integer ("missing unit in
+            # duration"), printing its usage and exiting. The last stderr line of that usage is
+            # `update  Update CLI`, which is what the probe recorded as its `could-not-ask` detail on
+            # every agy run, so the coverage gate warned past on EVERY agy run rather than on an outage.
+            # Measured 2026-09-25 against the installed agy. The execute turn already passes a unit
+            # (`DEFAULT_TIMEOUT = "240m"`), which is why only the probe was broken.
+            f"{int(PROBE_ASK_TIMEOUT_SECONDS)}s",
         ]
         if options.get("dangerously_skip_permissions", True):
             argv.append("--dangerously-skip-permissions")
@@ -16473,6 +16508,246 @@ def enforce_orchestrator_shape_gate(
 
     message = "\n".join(lines)
     raise DriverError(message)
+
+
+# ==================================================================================================
+# specpause-01 (`1g4i1t`): THE SPEC-EDIT ACKNOWLEDGEMENT GATE (spec `25kzda` 2.5c)
+# ==================================================================================================
+
+SPEC_EDIT_ACK_REFUSAL_CODE = "spec-edit-unacknowledged"
+
+
+class SpecEditAckDecision(NamedTuple):
+    """The gate's verdict on declared spec edits: proceed, impacts, refusal, acknowledgement, message."""
+
+    #: True when the run may proceed. False means a refusal was recorded and the caller must raise.
+    proceed: bool
+    #: The computed spec impacts across all queued items.
+    impacts: tuple[dict[str, Any], ...] = ()
+    #: The refusal recorded on the declaring items, or None.
+    refusal: Any = None
+    #: The recorded acknowledgement justification or interactive confirmation string.
+    acknowledgement: str = ""
+    #: The human message the caller prints and, on refusal, raises with.
+    message: str = ""
+
+
+def enforce_spec_edit_ack_gate(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    repo: Path,
+    interactive: bool,
+    write_report_fn: Any,
+    acknowledgement: str | None = None,
+    prompt: Any = None,
+) -> SpecEditAckDecision:
+    """Gate the run on declared spec edits: prompt y/N on TTY, refuse unattended without flag.
+
+    SITED AFTER THE RUN DIRECTORY EXISTS AND BEFORE ANY AGENT TURN OR SESSION.
+    Runs deterministically under --prepare-only as well (spends zero model calls),
+    closing the prepare-then-resume bypass.
+    """
+    queue: list[dict[str, Any]] = list(state.get("queue") or [])
+
+    def _emit(payload: dict[str, Any]) -> None:
+        append_jsonl(
+            Path(run_dir) / "events.jsonl",
+            {"at": utc_now(), "event": "spec-edit-ack-gate", **payload},
+        )
+
+    # Fail-closed accounting for unlocatable/unreadable plan files
+    unreadable_items: list[dict[str, Any]] = []
+    for item in queue:
+        p = queue_plan_path(repo, item)
+        if p is None:
+            unreadable_items.append(item)
+            continue
+        try:
+            p.read_text(encoding="utf-8")
+        except OSError:
+            unreadable_items.append(item)
+
+    if unreadable_items:
+        names = ", ".join(str(it.get("id6") or "unknown") for it in unreadable_items)
+        reason = (
+            f"plan file for queued item(s) {names} cannot be located or read "
+            "to verify declared spec edits"
+        )
+        remedy = (
+            f"Ensure plan file(s) for {names} exist and are readable before running, "
+            "or pass `--ack-spec-edits '<justification>'`."
+        )
+        refusal = None
+        for item in unreadable_items:
+            refusal = record_refusal(
+                item,
+                code=SPEC_EDIT_ACK_REFUSAL_CODE,
+                reason=reason,
+                remedy=remedy,
+            )
+        save_state(Path(run_dir), state, write_report=write_report_fn)
+        _emit(
+            {
+                "proceed": False,
+                "declared": [],
+                "reason": reason,
+                "remedy": remedy,
+            }
+        )
+        return SpecEditAckDecision(
+            proceed=False,
+            impacts=(),
+            refusal=refusal,
+            message=f"{reason}. {remedy}",
+        )
+
+    try:
+        resolved_queue = queue_with_plan_paths(repo, queue)
+        impacts = spec_impacts_for_queue(repo, resolved_queue)
+    except Exception as exc:
+        reason = f"exception computing spec impacts for queue: {exc}"
+        remedy = (
+            "Fix the error or pass --ack-spec-edits '<why>' to acknowledge spec edits."
+        )
+        refusal = None
+        for item in queue:
+            refusal = record_refusal(
+                item,
+                code=SPEC_EDIT_ACK_REFUSAL_CODE,
+                reason=reason,
+                remedy=remedy,
+            )
+        save_state(Path(run_dir), state, write_report=write_report_fn)
+        _emit(
+            {
+                "proceed": False,
+                "declared": [],
+                "reason": reason,
+                "remedy": remedy,
+            }
+        )
+        return SpecEditAckDecision(
+            proceed=False,
+            impacts=(),
+            refusal=refusal,
+            message=f"{reason}. {remedy}",
+        )
+
+    if not impacts:
+        _emit(
+            {
+                "proceed": True,
+                "declared": [],
+            }
+        )
+        return SpecEditAckDecision(
+            proceed=True,
+            impacts=(),
+            acknowledgement="",
+            message="",
+        )
+
+    declared_list = [
+        {"id6": imp.get("id6"), "specs": list(imp.get("specs", []))} for imp in impacts
+    ]
+    spec_list_str = ", ".join(
+        f"{imp.get('id6')}: {', '.join(imp.get('specs', []))}" for imp in impacts
+    )
+
+    justification = (acknowledgement or "").strip()
+    if justification:
+        state.setdefault("options", {})["ack_spec_edits"] = justification
+        save_state(Path(run_dir), state, write_report=write_report_fn)
+        _emit(
+            {
+                "proceed": True,
+                "override": "flag",
+                "justification": justification,
+                "declared": declared_list,
+            }
+        )
+        message = (
+            f"spec-edit acknowledgement override: {justification} "
+            f"(declared specs: {spec_list_str})"
+        )
+        print(message, file=sys.stderr)
+        return SpecEditAckDecision(
+            proceed=True,
+            impacts=tuple(impacts),
+            acknowledgement=justification,
+            message=message,
+        )
+
+    if interactive:
+        lines = ["Queued plan(s) declare edit(s) to spec file(s):"]
+        for imp in impacts:
+            for s in imp.get("specs", []):
+                lines.append(f"  {imp.get('id6')}: {s}")
+        lines.append("Proceed? [y/N]: ")
+        question = "\n".join(lines)
+
+        asker_fn = prompt if prompt is not None else prompt_for_gate_phrase
+        answer = asker_fn(question)
+        if answer is not None and str(answer).strip().lower() in ("y", "yes"):
+            ack_str = "interactive confirmation: y"
+            state.setdefault("options", {})["ack_spec_edits"] = ack_str
+            save_state(Path(run_dir), state, write_report=write_report_fn)
+            _emit(
+                {
+                    "proceed": True,
+                    "override": "interactive",
+                    "declared": declared_list,
+                    "acknowledgement": ack_str,
+                }
+            )
+            message = (
+                f"spec-edit acknowledgement confirmed interactively for {spec_list_str}"
+            )
+            print(message, file=sys.stderr)
+            return SpecEditAckDecision(
+                proceed=True,
+                impacts=tuple(impacts),
+                acknowledgement=ack_str,
+                message=message,
+            )
+
+    declaring_id6s = [str(imp.get("id6")) for imp in impacts]
+    names = ", ".join(declaring_id6s)
+    reason = (
+        f"queued plan(s) {names} declare edit(s) to spec file(s): {spec_list_str}. "
+        "A spec is a shared contract; unattended modification requires explicit acknowledgement"
+    )
+    remedy = (
+        "To proceed, re-run interactively on a TTY and answer 'y' at the prompt, "
+        "or pass `--ack-spec-edits '<justification>'`."
+    )
+    by_id = {str(item.get("id6")): item for item in queue}
+    refusal = None
+    for imp in impacts:
+        item = by_id.get(str(imp.get("id6")))
+        if item is not None:
+            refusal = record_refusal(
+                item,
+                code=SPEC_EDIT_ACK_REFUSAL_CODE,
+                reason=reason,
+                remedy=remedy,
+            )
+    save_state(Path(run_dir), state, write_report=write_report_fn)
+    _emit(
+        {
+            "proceed": False,
+            "declared": declared_list,
+            "reason": reason,
+            "remedy": remedy,
+        }
+    )
+    return SpecEditAckDecision(
+        proceed=False,
+        impacts=tuple(impacts),
+        refusal=refusal,
+        message=f"{reason}. {remedy}",
+    )
 
 
 # ==================================================================================================
@@ -22394,7 +22669,42 @@ def driver_begin(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    return result.returncode, (result.stderr or result.stdout or "").strip()
+    return result.returncode, nested_aw_message(result.stdout, result.stderr)
+
+
+def nested_aw_message(stdout: str | None, stderr: str | None) -> str:
+    """The diagnostic text of a nested `aw` lifecycle call: BOTH streams, stderr first.
+
+    This used to be `(stderr or stdout)`, which silently DISCARDS stdout whenever stderr is non-empty.
+    That is wrong for `aw`: its lifecycle verbs print their refusal (`error: AW-LIFECYCLE-ROLE-001 ...`)
+    on STDOUT, while stderr carries only advisory notices such as the checkout-mismatch line from
+    `checkout_pin`. Measured on run-20260925T174509Z-636951 (`u27oh3`): the recorded refusal reason was
+    the notice "aw: invoked in checkout ... re-running with ..." and the real refusal was lost, so the
+    run's remedy pointed at E/V bookkeeping that was already complete.
+
+    Both streams are kept because either may carry the reason. The `checkout_pin` advisory notice
+    (every line starting `aw: invoked in checkout `) is then dropped, and ONLY that notice: it is
+    never a refusal reason, and leaving it in would make the retry classifier's stale-receipt arm
+    (`finalize_refusal_is_retryable`, which treats every non-summary line as a finding) refuse a
+    retryable message merely because a notice was printed. If the notice is the ONLY text, it is
+    kept rather than returning an empty reason.
+    """
+
+    parts = [(s or "").strip() for s in (stderr, stdout)]
+    text = "\n".join(p for p in parts if p)
+    kept = [
+        line
+        for line in text.splitlines()
+        if not line.startswith(_CHECKOUT_PIN_NOTICE_PREFIX)
+    ]
+    reason = "\n".join(kept).strip()
+    return reason or text
+
+
+#: The fixed prefix of every advisory line `checkout_pin.check_and_reexec` prints. Pinned by
+#: `tests/test_runner_finalize_message.py` against `checkout_pin`'s own source, so a reworded notice
+#: fails a test instead of silently leaking back into refusal reasons.
+_CHECKOUT_PIN_NOTICE_PREFIX = "aw: invoked in checkout "
 
 
 # ---- THE HOST DESCRIPTOR (rununify Order 04, `tx6q0h`) -------------------------------------------
@@ -24330,6 +24640,26 @@ def initialize_run_core(
         )
     write_report_fn(run_dir, state)
 
+    # specpause-01 (`1g4i1t`) E-05: THE SPEC-EDIT ACKNOWLEDGEMENT GATE, sited HERE immediately
+    # after the initial run report is written and BEFORE the `--prepare-only` early return.
+    #
+    # THE PREPARE-ONLY SITING IS THE OPPOSITE OF THE MODEL GATE'S AND THAT IS DELIBERATE.
+    # The orchestrator coverage gate sits after the early return because it spends a model call
+    # against a flag contracted to launch nothing. This gate spends no model call and launches
+    # nothing. Siting it before the return closes the prepare-then-resume bypass: `resume` never
+    # calls `initialize_run_core`, so a gate sited after the return would leave a prepared queue
+    # ungated on resume.
+    spec_ack_decision = enforce_spec_edit_ack_gate(
+        run_dir,
+        state,
+        repo=repo,
+        interactive=is_interactive_run(args),
+        write_report_fn=write_report_fn,
+        acknowledgement=getattr(args, "ack_spec_edits", None),
+    )
+    if not spec_ack_decision.proceed:
+        raise DriverError(spec_ack_decision.message)
+
     # orchprobe-03 (`m7gvuz`) E-05: THE ORCHESTRATOR COVERAGE GATE, sited HERE and nowhere earlier.
     #
     # THIS IS A PRICED EXCEPTION TO A STATED INVARIANT, not an ordering oversight. Each host resolves
@@ -24834,7 +25164,7 @@ def driver_finalize(
         plan_path,
         id6,
         result.returncode,
-        (result.stderr or result.stdout or "").strip(),
+        nested_aw_message(result.stdout, result.stderr),
     )
 
 

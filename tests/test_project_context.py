@@ -23,8 +23,11 @@ from agent_workflows.project_schema import (
     RECORDS_BACKENDS,
     DeliveryMode,
     DurabilityState,
+    GitPolicy,
+    LogicalRoot,
     PrecedenceLevel,
     RecordsBackend,
+    RootClass,
     normalize_durability_state,
 )
 
@@ -41,9 +44,13 @@ class TestProjectSchema(unittest.TestCase):
         self.assertEqual(RecordsBackend.HOME.value, "home")
         self.assertEqual(RecordsBackend.COMPANION.value, "companion")
         self.assertEqual(RecordsBackend.REPOSITORY.value, "repository")
+        self.assertEqual(
+            RecordsBackend.REPOSITORY_UNTRACKED.value, "repository-untracked"
+        )
         self.assertIn("home", RECORDS_BACKENDS)
         self.assertIn("companion", RECORDS_BACKENDS)
         self.assertIn("repository", RECORDS_BACKENDS)
+        self.assertIn("repository-untracked", RECORDS_BACKENDS)
 
         self.assertIn("unversioned", DURABILITY_STATES)
         self.assertNotIn("durable-private", DURABILITY_STATES)
@@ -221,6 +228,50 @@ class TestProjectContextResolver(unittest.TestCase):
                 aw_home=self.aw_home,
                 delivery_mode="clean-delta",
                 records_backend="repository",
+            )
+
+    def test_repository_untracked_resolution(self):
+        """Test resolve_project_context with records_backend='repository-untracked'."""
+        ctx = resolve_project_context(
+            target_repo=self.target_repo,
+            aw_home=self.aw_home,
+            records_backend="repository-untracked",
+        )
+        self.assertEqual(ctx.records_backend, "repository-untracked")
+        self.assertEqual(
+            ctx.logical_roots[LogicalRoot.RECORDS.value],
+            os.path.join(self.target_repo, ".aw", "records"),
+        )
+        self.assertEqual(
+            ctx.physical_classes[RootClass.RECORDS.value],
+            os.path.join(self.target_repo, ".aw", "records"),
+        )
+        self.assertEqual(
+            ctx.git_policies[RootClass.RECORDS.value],
+            GitPolicy.IGNORED.value,
+        )
+        self.assertEqual(ctx.durability_state, DurabilityState.UNVERSIONED.value)
+        self.assertIsNone(ctx.permitted_commit_destinations["records"])
+
+    def test_repository_untracked_with_local_git(self):
+        """Test repository-untracked durability state with existing .git directory."""
+        records_dir = os.path.join(self.target_repo, ".aw", "records")
+        os.makedirs(os.path.join(records_dir, ".git"), exist_ok=True)
+        ctx = resolve_project_context(
+            target_repo=self.target_repo,
+            aw_home=self.aw_home,
+            records_backend="repository-untracked",
+        )
+        self.assertEqual(ctx.durability_state, DurabilityState.LOCAL_GIT.value)
+
+    def test_clean_delta_repository_untracked_containment_violation(self):
+        """Clean-delta mode MUST NOT use repository-untracked records backend."""
+        with self.assertRaises(PathSecurityError):
+            resolve_project_context(
+                target_repo=self.target_repo,
+                aw_home=self.aw_home,
+                delivery_mode="clean-delta",
+                records_backend="repository-untracked",
             )
 
     def test_conflicting_configuration_error(self):

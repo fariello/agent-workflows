@@ -191,9 +191,12 @@ def materialize_project_layout(
     config_p.mkdir(parents=True, exist_ok=True)
     state_p.mkdir(parents=True, exist_ok=True)
 
-    # Invariant: create records/ directory ONLY for repository backend or explicit external backend path.
+    # Invariant: create records/ directory ONLY for repository backend, repository-untracked backend, or explicit external backend path.
     # NEVER create target `.aw/records/` for external backends!
-    if policy.records_backend == RecordsBackend.REPOSITORY.value:
+    if policy.records_backend in (
+        RecordsBackend.REPOSITORY.value,
+        RecordsBackend.REPOSITORY_UNTRACKED.value,
+    ):
         records_p.mkdir(parents=True, exist_ok=True)
     elif policy.records_backend in (
         RecordsBackend.HOME.value,

@@ -289,6 +289,10 @@ The setter writes the status history for you. Add a review annotation ONLY throu
     aw specs note <id6> --message "/spec-review (<agent/model>): <verdict>; <finding IDs>"
 
 Note the history section is NEWEST-FIRST. Use the real agent/model name, or `unknown`.
+The message MUST lead with exactly one verdict from the closed list; readiness words
+belong in `- Readiness:`, not in place of the verdict; a non-review act recorded
+while the plan is `reviewed` (descope, OQ answer, re-check) uses its own label
+(`re-scope`, `readiness re-check`) and never `reviewed` or `/plan-review`.
 
 ### Hardened-result commit
 After revisions and decisions:

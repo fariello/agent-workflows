@@ -595,6 +595,10 @@ def run_commit(args: argparse.Namespace) -> int:
             for p in sorted(set(out_of_scope + req_out)):
                 print(f"  {p}")
             print("  declared Scope-Paths: " + ", ".join(scope_paths))
+            print(
+                "  remedy: commit the path in a separate 'aw commit --no-plan -m <msg> -- <paths>', "
+                "or declare it in the plan's - Scope-Paths: if the approved work genuinely requires it."
+            )
             return 1
     elif not scope_paths:
         print(

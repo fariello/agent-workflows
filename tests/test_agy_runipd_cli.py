@@ -1139,7 +1139,7 @@ class AgyFullAutoApprovalTests(unittest.TestCase):
             clear.write_text(
                 "# P\n\n- Id: agy010\n- Status: reviewed\n"
                 "- Readiness: go-pending-approval\n\n"
-                "## Workflow history\n- 2026-08-29 reviewed (aw set): reviewed\n",
+                "## Workflow history\n- 2026-08-29 /plan-review (agy): APPROVE; PR-001\n",
                 encoding="utf-8",
             )
             self.assertTrue(agy_runipd.is_plan_review_approved(clear))

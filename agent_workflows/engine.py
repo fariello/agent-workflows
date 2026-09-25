@@ -1777,6 +1777,7 @@ def merge_aw_block(
     default_header: str = "",
     manifest: Optional[manifest_mod.Manifest] = None,
     file_key: str = "",
+    warnings: Optional[list[str]] = None,
 ) -> tuple[str, str]:
     """Merge the sectioned managed block into `existing`, returning (new_text, action).
 
@@ -1788,10 +1789,14 @@ def merge_aw_block(
     - no block, existing content -> append, action `existing`.
     - empty file -> header + block, action `new`.
 
-    Per-section consent/drift via the IPD-01 manifest (M2), keyed by `file_key` + slug: a
-    section the user DECLINED (tombstone) is omitted; a section whose on-disk body differs from
-    OUR recorded hash is PRESERVED (user drift) rather than overwritten. With no manifest the
-    behavior is the plain refresh (back-compat).
+    Per-section consent/drift via the IPD-01 manifest (M2), keyed by `file_key` + slug:
+    - a section the user DECLINED (tombstone) is omitted.
+    - disk equals desired: adopt and re-record hash (self-heal stale manifest).
+    - disk equals recorded: normal refresh to desired and re-record hash.
+    - disk differs from both: preserve on-disk, leave record untouched, and warn by name.
+    - no record and disk differs from desired: preserve on-disk, write no record, and warn by name.
+    - absent section on disk: write desired and record hash.
+    With no manifest the behavior is the plain refresh (back-compat).
     """
 
     # Legacy conversion first: fold an old BEGIN..END block into the sectioned form.
@@ -1805,7 +1810,7 @@ def merge_aw_block(
         # Convert to the sectioned form. No prior sectioned on-disk sections exist, so consent
         # simply writes our sections (and records their hashes).
         final = _apply_section_consent(
-            sections, [], manifest=manifest, file_key=file_key
+            sections, [], manifest=manifest, file_key=file_key, warnings=warnings
         )
         block = render_aw_block(final, style=style)
         converted = re.sub(
@@ -1819,7 +1824,7 @@ def merge_aw_block(
     if legacy_begins or legacy_ends:
         # Malformed legacy markers: do not rewrite; append the sectioned block (record hashes).
         final = _apply_section_consent(
-            sections, [], manifest=manifest, file_key=file_key
+            sections, [], manifest=manifest, file_key=file_key, warnings=warnings
         )
         block = render_aw_block(final, style=style)
         return existing.rstrip("\n") + "\n\n" + block, "malformed"
@@ -1827,7 +1832,7 @@ def merge_aw_block(
     parsed = parse_aw_block(existing, style=style)
     if parsed.found and parsed.ambiguous:
         final = _apply_section_consent(
-            sections, [], manifest=manifest, file_key=file_key
+            sections, [], manifest=manifest, file_key=file_key, warnings=warnings
         )
         block = render_aw_block(final, style=style)
         return existing.rstrip("\n") + "\n\n" + block, "malformed"
@@ -1835,7 +1840,11 @@ def merge_aw_block(
     if parsed.found:
         # Per-section consent/drift against the manifest.
         final_sections = _apply_section_consent(
-            sections, parsed.sections, manifest=manifest, file_key=file_key
+            sections,
+            parsed.sections,
+            manifest=manifest,
+            file_key=file_key,
+            warnings=warnings,
         )
         rendered = render_aw_block(final_sections, style=style)
         before = parsed.before
@@ -1850,7 +1859,9 @@ def merge_aw_block(
         return new_text, "refreshed"
 
     # No block present: record hashes for what we are about to write.
-    final = _apply_section_consent(sections, [], manifest=manifest, file_key=file_key)
+    final = _apply_section_consent(
+        sections, [], manifest=manifest, file_key=file_key, warnings=warnings
+    )
     block = render_aw_block(final, style=style)
     if existing.strip():
         return existing.rstrip("\n") + "\n\n" + block, "existing"
@@ -1865,15 +1876,18 @@ def _apply_section_consent(
     *,
     manifest: Optional[manifest_mod.Manifest],
     file_key: str,
+    warnings: Optional[list[str]] = None,
 ) -> list[AwSection]:
     """Decide, per desired section, whether to write our version, preserve the user's, or omit.
 
     - declined tombstone (manifest) -> omit the section.
-    - on-disk body differs from OUR recorded hash for that slug -> user drift -> preserve the
-      on-disk section body.
-    - otherwise -> write our (desired) version.
-    Records the written section's hash back into the manifest (M12: hash what we WROTE).
-    With no manifest, always writes the desired version (back-compat).
+    - when manifest is present and section exists on disk:
+      (1) disk.body == sec.body (normalized via manifest.hash_content) -> adopt and re-record hash (self-heal).
+      (2) disk.body matches recorded hash -> normal refresh: write desired, record desired hash.
+      (3) recorded hash exists and matches neither -> preserve on-disk, leave record untouched, warn.
+      (4) no recorded hash (unowned edit) -> preserve on-disk, write no record, warn.
+    - section absent on disk (disk is None) -> write desired, record desired hash.
+    - manifest is None -> write desired (back-compat).
     """
 
     on_disk_by_slug = {s.slug: s for s in on_disk}
@@ -1883,14 +1897,39 @@ def _apply_section_consent(
         if manifest is not None and manifest.is_declined(key):
             continue  # user declined this directive
         disk = on_disk_by_slug.get(sec.slug)
-        if (
-            manifest is not None
-            and disk is not None
-            and manifest.recorded_hash(key) is not None
-            and not manifest.matches_recorded(key, disk.body)
-        ):
-            # User edited this section: preserve their body, do not clobber.
+        if manifest is not None and disk is not None:
+            # (1) disk == desired: adopt and re-record hash (self-heal stale manifest).
+            if manifest_mod.hash_content(disk.body) == manifest_mod.hash_content(
+                sec.body
+            ):
+                result.append(sec)
+                manifest.record(
+                    key, sec.body, kind="section", host="", logical_id=sec.slug
+                )
+                continue
+            # (2) disk == recorded: normal refresh, update to desired and re-record.
+            if manifest.matches_recorded(key, disk.body):
+                result.append(sec)
+                manifest.record(
+                    key, sec.body, kind="section", host="", logical_id=sec.slug
+                )
+                continue
+            # (3) recorded hash exists and matches neither: preserve user drift and warn.
+            if manifest.recorded_hash(key) is not None:
+                result.append(disk)
+                if warnings is not None:
+                    warnings.append(
+                        f"Warning: {key} has manual modifications; kept your version, the regenerated section was NOT applied. "
+                        f"To take the new version, delete that section (from its <!-- aw:{sec.slug} --> marker to the next marker) and re-run install."
+                    )
+                continue
+            # (4) no recorded hash: preserve user edit, write no record, and warn.
             result.append(disk)
+            if warnings is not None:
+                warnings.append(
+                    f"Warning: {key} has manual modifications; kept your version, the regenerated section was NOT applied. "
+                    f"To take the new version, delete that section (from its <!-- aw:{sec.slug} --> marker to the next marker) and re-run install."
+                )
             continue
         result.append(sec)
         if manifest is not None:
@@ -2621,13 +2660,19 @@ def update_agents_pointer(
         agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
     )
 
+    warnings: list[str] = []
     new_agents, action = merge_aw_block(
         existing_agents,
         sections,
         default_header="# AGENTS",
         manifest=plan.manifest,
         file_key=rel_agents,
+        warnings=warnings,
     )
+    for msg in warnings:
+        term = Term(color=False if plan.no_color else None)
+        print(term.colorize(msg, "yellow"))
+
     if action == "refreshed":
         verb = f"refreshed pointer in {rel_agents}"
     elif action == "converted":
@@ -2662,13 +2707,18 @@ def update_agents_pointer(
             continue
 
         existing_native = native_path.read_text(encoding="utf-8")
+        native_warnings: list[str] = []
         new_native, action = merge_aw_block(
             existing_native,
             sections,
             default_header="",
             manifest=plan.manifest,
             file_key=native_rel,
+            warnings=native_warnings,
         )
+        for msg in native_warnings:
+            term = Term(color=False if plan.no_color else None)
+            print(term.colorize(msg, "yellow"))
 
         if action == "refreshed":
             verb = f"refreshed pointer in {native_rel}"
@@ -3456,13 +3506,18 @@ def ensure_untracked_gitignore(plan: InstallPlan, use_git: bool) -> str:
         gitignore_path.read_text(encoding="utf-8") if gitignore_path.exists() else ""
     )
 
+    warnings: list[str] = []
     new_text, action = merge_aw_block(
         existing,
         untracked_safety_sections(),
         style=AW_STYLE_HASH,
         manifest=plan.manifest,
         file_key=".gitignore",
+        warnings=warnings,
     )
+    for msg in warnings:
+        term = Term(color=False if plan.no_color else None)
+        print(term.colorize(msg, "yellow"))
 
     if new_text == existing:
         return "untracked-safety block already current"
@@ -6241,6 +6296,21 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
         )
         wrote = True
     return wrote
+
+
+def ensure_untracked_records_ignore(repo_root: Path) -> bool:
+    """Ensure .aw/.gitignore contains the anchored /records/ ignore rule for repository-untracked backend."""
+    wrote_base = _ensure_aw_gitignore(repo_root)
+    gi = Path(repo_root) / ".aw" / ".gitignore"
+    text = gi.read_text(encoding="utf-8") if gi.is_file() else ""
+    if re.search(r"(?m)^/records/[ \t]*$", text):
+        return wrote_base
+
+    comment = "# repository-untracked backend: records are git-ignored and not durable across clones\n"
+    addition = f"{comment}/records/\n"
+    new_text = text.rstrip("\n") + "\n" + addition if text else addition
+    gi.write_text(new_text, encoding="utf-8")
+    return True
 
 
 def emit_layout_artifacts(repo_root: Path, *, dry_run: bool = False) -> list[str]:

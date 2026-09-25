@@ -1454,9 +1454,8 @@ class VerdictSourcingTests(unittest.TestCase):
         ),
         (
             "- 2026-09-06 reviewed (aw specs): status set to reviewed",
-            True,
-            "THE HAZARD ROW: the setter's own bare line qualifies too. It carries no verdict, so any "
-            "verdict reader must cope with a qualifying entry that states nothing",
+            False,
+            "a bare setter line is not a review, ycg597",
         ),
         (
             "- 2026-09-06 to-review (aw specs): status set to to-review",
@@ -1524,7 +1523,7 @@ class VerdictSourcingTests(unittest.TestCase):
         (
             "status set to reviewed",
             None,
-            "aw specs",
+            "",
             "THE LIMITATION, recorded rather than hidden: a reviewer who omits the verdict records "
             "NONE. `None` is the honest answer; inventing a positive here would be the false positive "
             "this class exists to prevent",

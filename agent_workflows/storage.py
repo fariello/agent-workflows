@@ -105,7 +105,8 @@ def validate_storage_boundaries(
     target_canon = _canonical_path(target_repo)
     records_canon = _canonical_path(records_path)
 
-    # Invariant: external backends (home/companion) MUST NOT resolve inside target repository
+    # Invariant: external backends (home/companion) MUST NOT resolve inside target repository.
+    # Note: repository-untracked is legitimately in-target (.aw/records/), so it is deliberately NOT added to this refusal tuple.
     if backend in (RecordsBackend.HOME.value, RecordsBackend.COMPANION.value):
         try:
             Path(records_canon).relative_to(Path(target_canon))
@@ -184,6 +185,7 @@ def get_storage_status(
 
     # Truthful durability state classification (spec Section 6.2), one DurabilityState per case:
     # - repository backend -> REPOSITORY_MANAGED
+    # - repository-untracked backend -> LOCAL_GIT (if .git exists) or UNVERSIONED with clone warning
     # - acknowledged remote + reachable -> ACKNOWLEDGED_DURABLE
     # - acknowledged remote + unreachable -> UNREACHABLE
     # - configured, unacknowledged remote -> UNACKNOWLEDGED_REMOTE
@@ -192,6 +194,16 @@ def get_storage_status(
     if backend == RecordsBackend.REPOSITORY.value:
         durability_state = DurabilityState.REPOSITORY_MANAGED.value
         rec = "Records are stored in target repository Git tree."
+    elif backend == RecordsBackend.REPOSITORY_UNTRACKED.value:
+        durability_state = (
+            DurabilityState.LOCAL_GIT.value
+            if has_git
+            else DurabilityState.UNVERSIONED.value
+        )
+        rec = (
+            "Records are git-ignored in .aw/records/ (repository-untracked) and are not durable across clones. "
+            "They are lost if this checkout is deleted."
+        )
     elif has_git and remote_url and remote_acknowledged and remote_reachable is True:
         durability_state = DurabilityState.ACKNOWLEDGED_DURABLE.value
         rec = "Records storage is backed by local Git and acknowledged remote policy."
