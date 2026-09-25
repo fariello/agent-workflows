@@ -6,7 +6,7 @@
 - Scope: IN: (a) `oc_runipd.run_opencode` passes the current attempt's `lane_input_revision` to both `localize_attachment` calls; (b) docstrings state that `revision=None` means "latest" and is only correct for a single-owner lane, across all FIVE `revision`-taking readers in `lane_containment` that share that default; (c) spec `7ckptx` R5.1a (iii) and acceptance A12b state that a revision is scoped to the (lane, turn) pair, that a shared lane holds one revision per turn, and that a consumer MUST address a turn's own revision rather than the latest, plus a note in A12b naming which of its parts currently has no shipped test; (d) a regression test with no-regression cases that can actually fail. OUT: renaming or re-keying `rev-<N>` directories; narrowing the four verifier signatures from a defaulting `None` (no product caller); restoring the deleted R5 acceptance test file; the agy host (it has no `--file` surface and names the lane plan path in the prompt, which `resolve_plan_path(lane_root, ...)` already resolves per turn); the execute lane (single owner, always rev-1).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/lane_containment.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, tests/test_lane_input_revision_scope.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -19,6 +19,7 @@
 - Id: xzroy8
 
 ## Workflow history
+- 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED, no deferrals, no open questions (OQ-01 resolved from the tree). Reproduced F-1 deterministically by driving the real `run_opencode`. Split E-01 (scratch reproduction now authoritative; the run-corpus probe demoted to corroboration because a bare glob returns 0 from a lane and the tree is gitignored), added the no-regression cases that can actually fail (the single-owner lane the plan proposed cannot discriminate), widened the docstring work to all five `revision`-taking readers, added an A12b note that R5 has NO shipped test since `19313eed` deleted its 21-test file, corrected the nonexistent `lane_containment.lane_input_paths` citation, and rewrote the gate with a scope fence, honesty rule, and two stop conditions. Renumbered E/V to E-01..E-10 / V-01..V-10.
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog i4y84y; re-measured the sweep lane's revision use across all 22 recorded runs with sweep reviews and found 4 review attempts whose `--file` attachment named a different plan's `rev-<N>` copy.
