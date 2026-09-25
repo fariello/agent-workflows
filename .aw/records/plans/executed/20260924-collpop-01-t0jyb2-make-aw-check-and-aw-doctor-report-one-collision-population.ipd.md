@@ -6,7 +6,7 @@
 - Scope: Make the two surfaces report the same collision set, with the population chosen per rule and stated. IN: (a) the identity-slot pass in `check_engine.check_collisions` consumes the terminal-inclusive corpus, exactly as its id6 sibling already does, so both identity rules ignore the caller's liveness filter; (b) `doctor.probe_artifacts` passes `include_retired=include_executed` to `check_collisions` instead of a hardcoded `True`, so the setid pass (the only rule still honoring the flag) sees the same corpus as `aw check` at the default and under `-a`/`--all`; (c) doctor stops demoting the two IDENTITY rules into `executed_warnings`, because a collision with a terminal id6 is real (IPD `sk7ggr` F-3) and must not be softer in one surface; (d) a parity test over a fixture tree containing retired plans. OUT: renaming the three live walkthroughs (backlog `mw0s1y`); any change to what counts as retired; the `untracked/` axis; the setid-collision policy for backlog-shares-plan setids (`sjsoqq`).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/doctor.py, tests/test_collision_population_parity.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,11 +15,11 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: t0jyb2
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: lmjc8h
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: t0jyb2 verified (set collpop, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-801..PR-806 all fixed. Reproduced every author claim independently (0-vs-3 slot findings on the three named walkthroughs; doctor's executed/ demotion verbatim on a fixture). HIGH PR-801: E-04 before E-03 is a silent mirror regression (doctor would drop to zero slot findings) - now an explicit precondition with ordering evidence in V-04. Added E-05 proving the 3 new errors cannot red CI. Corrected the docstring's stale +47/39-to-86 deterrent. 7 items, 7:7 bijection; OQ-01 resolved from evidence. Findings and 3 decisions in .aw/records/reviews/20260924-collpop-01-t0jyb2-...review.md
 
