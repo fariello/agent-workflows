@@ -22,10 +22,11 @@ from __future__ import annotations
 import io
 import json
 import os
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from agent_workflows.project_schema import (
     DELIVERY_MODES,
@@ -259,7 +260,16 @@ class ProjectPolicy:
             if not self.git_policies:
                 object.__setattr__(self, "git_policies", gps)
 
-    def validate(self) -> None:
+        if self.records_backend == RecordsBackend.REPOSITORY_UNTRACKED.value:
+            new_pls = dict(self.placements)
+            new_pls[RootClass.RECORDS.value] = Placement.TARGET_IGNORED.value
+            object.__setattr__(self, "placements", new_pls)
+
+            new_gps = dict(self.git_policies)
+            new_gps[RootClass.RECORDS.value] = GitPolicy.IGNORED.value
+            object.__setattr__(self, "git_policies", new_gps)
+
+    def validate(self, repo_path: Optional[Union[str, Path]] = None) -> None:
         """Validate policy rules before rendering or writes (spec Section 5 & 6)."""
         norm_preset = normalize_preset(self.preset)
         if norm_preset not in PRESETS and norm_preset != "custom":
@@ -275,15 +285,48 @@ class ProjectPolicy:
                 f"Invalid records_backend: '{self.records_backend}'. Must be one of {RECORDS_BACKENDS}."
             )
 
-        # Invariant: clean-delta delivery mode MUST NOT use repository records backend
+        # Invariant: clean-delta delivery mode MUST NOT use repository or repository-untracked records backend
         if (
             self.delivery_mode == DeliveryMode.CLEAN_DELTA.value
-            and self.records_backend == RecordsBackend.REPOSITORY.value
+            and self.records_backend
+            in (
+                RecordsBackend.REPOSITORY.value,
+                RecordsBackend.REPOSITORY_UNTRACKED.value,
+            )
         ):
             raise InvalidPolicyError(
                 f"Forbidden policy combination: '{DeliveryMode.CLEAN_DELTA.value}' delivery mode "
-                f"MUST NOT use '{RecordsBackend.REPOSITORY.value}' records backend."
+                f"MUST NOT use '{self.records_backend}' records backend."
             )
+
+        # Refusal: repository-untracked backend on a repo that already tracks records
+        if (
+            self.records_backend == RecordsBackend.REPOSITORY_UNTRACKED.value
+            and repo_path
+        ):
+            p_repo = Path(repo_path)
+            if (p_repo / ".git").exists() or (p_repo / ".git").is_file():
+                try:
+                    res = subprocess.run(
+                        ["git", "-C", str(p_repo), "ls-files", ".aw/records"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    tracked = [
+                        line.strip() for line in res.stdout.splitlines() if line.strip()
+                    ]
+                    if tracked:
+                        raise InvalidPolicyError(
+                            f"Cannot use '{RecordsBackend.REPOSITORY_UNTRACKED.value}' backend on repository '{p_repo}': "
+                            f"it already tracks records in Git ({tracked[0]}). "
+                            f"Git ignore rules do not untrack already-tracked files. "
+                            f"Use 'aw migrate' or untrack existing records before selecting this backend."
+                        )
+                except InvalidPolicyError:
+                    raise
+                except Exception:
+                    pass
 
         # Invariant: config_local and state_runtime MUST NOT be tracked in Git
         for cls in (RootClass.CONFIG_LOCAL.value, RootClass.STATE_RUNTIME.value):
@@ -432,7 +475,14 @@ def render_pre_write_plan(
     lines.append("")
     lines.append(term.colorize("Durability & Warnings:", "bold"))
     lines.append(f"  Durability:       {policy.durability_state}")
-    if policy.durability_state == DurabilityState.UNVERSIONED.value:
+    if policy.records_backend == RecordsBackend.REPOSITORY_UNTRACKED.value:
+        lines.append(
+            term.colorize(
+                "  [WARNING] Records are git-ignored in this working tree (repository-untracked); they are not durable across clones and are lost if this checkout is deleted.",
+                "yellow",
+            )
+        )
+    elif policy.durability_state == DurabilityState.UNVERSIONED.value:
         lines.append(
             term.colorize(
                 "  [WARNING] Storage is unversioned; changes are local and not backed up.",
@@ -522,7 +572,7 @@ def resolve_policy_noninteractive(
             companion_dir=companion,
             enabled_hosts=hosts,
         )
-        pol.validate()
+        pol.validate(repo_path=repo_path)
         return pol
 
     # First install noninteractive resolution
@@ -551,7 +601,9 @@ def resolve_policy_noninteractive(
         if not explicit_delivery:
             missing_fields.append("--delivery-mode (tracked | clean-delta)")
         if not explicit_backend:
-            missing_fields.append("--records-backend (home | companion | repository)")
+            missing_fields.append(
+                "--records-backend (home | companion | repository | repository-untracked)"
+            )
 
     if missing_fields:
         raise IncompletePolicyError(
@@ -579,7 +631,7 @@ def resolve_policy_noninteractive(
         placements=pls,
         git_policies=gps,
     )
-    pol.validate()
+    pol.validate(repo_path=repo_path)
     return pol
 
 
@@ -840,7 +892,7 @@ def collect_policy_interactive(
         create_companion=create_companion,
         init_companion_git=init_companion_git,
     )
-    policy.validate()
+    policy.validate(repo_path=repo_path)
 
     # Pre-Write Plan Preview (E-04)
     term.line()

@@ -826,7 +826,11 @@ def resolve_project_context(
     # Clean-delta security invariant check
     if (
         resolved_delivery_mode == DeliveryMode.CLEAN_DELTA.value
-        and resolved_records_backend == RecordsBackend.REPOSITORY.value
+        and resolved_records_backend
+        in (
+            RecordsBackend.REPOSITORY.value,
+            RecordsBackend.REPOSITORY_UNTRACKED.value,
+        )
     ):
         raise PathSecurityError(
             "Invalid configuration: clean-delta delivery mode MUST NOT use 'repository' records backend."
@@ -892,7 +896,10 @@ def resolve_project_context(
     state_runtime_path = _canonical_path(os.path.join(state_root, "runtime"))
 
     # records root
-    if resolved_records_backend == RecordsBackend.REPOSITORY.value:
+    if resolved_records_backend in (
+        RecordsBackend.REPOSITORY.value,
+        RecordsBackend.REPOSITORY_UNTRACKED.value,
+    ):
         records_root = _canonical_path(os.path.join(repo_abs, ".aw", "records"))
     elif resolved_records_backend == RecordsBackend.COMPANION.value:
         companion_dir = merged_local_binding.get("companion_dir") or f"{repo_abs}.aw"
@@ -969,7 +976,11 @@ def resolve_project_context(
         else (
             GitPolicy.COMPANION_GIT.value
             if resolved_records_backend == RecordsBackend.COMPANION.value
-            else GitPolicy.UNTRACKED.value
+            else (
+                GitPolicy.IGNORED.value
+                if resolved_records_backend == RecordsBackend.REPOSITORY_UNTRACKED.value
+                else GitPolicy.UNTRACKED.value
+            )
         ),
     }
 

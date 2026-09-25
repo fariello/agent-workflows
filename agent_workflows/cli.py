@@ -1011,7 +1011,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install.add_argument(
         "--records-backend",
         choices=[r.value for r in RecordsBackend],
-        help="Select records storage location: repository (default), companion, home.",
+        help="Select records storage location: repository (default), companion, home, repository-untracked.",
     )
     p_install.add_argument(
         "--companion-dir",
@@ -1084,7 +1084,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_setup.add_argument(
         "--records-backend",
         choices=[r.value for r in RecordsBackend],
-        help="Select records storage location: repository (default), companion, home.",
+        help="Select records storage location: repository (default), companion, home, repository-untracked.",
     )
     p_setup.add_argument(
         "--companion-dir",
@@ -6602,6 +6602,12 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 policy=policy,
                 dry_run=False,
             )
+            if policy.records_backend == RecordsBackend.REPOSITORY_UNTRACKED.value:
+                engine.ensure_untracked_records_ignore(repo_root)
+                term.status(
+                    "warn",
+                    "Records are git-ignored in this working tree (repository-untracked); they are not durable across clones and are lost if this checkout is deleted.",
+                )
 
         # Shared per-repo shell (install + summary + commit-offer, SystemExit-isolated).
         if _install_one(repo_root, source_root, args, term) == "failed":
@@ -8179,6 +8185,17 @@ def _run_include(args: argparse.Namespace, term: Term) -> int:
 
 
 def _run_setup(args: argparse.Namespace, term: Term) -> int:
+    if (
+        getattr(args, "records_backend", None)
+        == RecordsBackend.REPOSITORY_UNTRACKED.value
+    ):
+        term.status(
+            "fail",
+            "--records-backend repository-untracked is not supported via 'aw setup'. "
+            "Use 'aw install <target> --records-backend repository-untracked' to configure repository-untracked records.",
+        )
+        return 1
+
     cfg = config.load()
     interactive = args.roots is None and sys.stdin.isatty()
 

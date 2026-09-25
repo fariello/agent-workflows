@@ -81,7 +81,7 @@ Files at `AGENTS.md`, `.agents/skills/`, `.claude/`, `.opencode/`, or another ho
 The closed initial placement vocabulary is:
 
 - `target-tracked`: the class is under `<target>/.aw/` and intentionally tracked by the target Git repository.
-- `target-ignored`: the class is under `<target>/.aw/` and covered by a verified ignore rule. Only `config_local` and `state_runtime` may use it by preset.
+- `target-ignored`: the class is under `<target>/.aw/` and covered by a verified ignore rule. Only `config_local` and `state_runtime` may use it by preset; `records` may also use `target-ignored` when explicitly selected via `--records-backend repository-untracked` (never by preset). In that mode the path is in-tree (`<target>/.aw/records/`), ignored by an anchored `/records/` line in `.aw/.gitignore`, never staged, observed as `unversioned` or `local-git` (never `repository-managed`), refused with `clean-delta`, refused on a repository that already tracks records, and not durable across clones.
 - `home-untracked`: the class is under `<AW_HOME>/projects/<project-id>/.aw/` and is not tracked by the target.
 - `companion-tracked`: the class is under `<companion>/.aw/` and intentionally tracked by the companion Git repository.
 - `companion-untracked`: the class is under `<companion>/.aw/` but is excluded from that repository's index.
@@ -245,6 +245,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): Amend Section 5 for repository-untracked backend (IPD lr0lln)
 - 2026-08-10 /spec (Codex (GPT-5)): drafted the superseding physical-layout specification from the maintainer-approved direction and the 2026-08-10 cross-Set plan review.
 - 2026-08-10 to-review (aw specs): physical-layout superseding draft ready for independent review and human approval
 - 2026-08-10 note (aw specs): 2026-08-10 independent review (opencode Opus 4.8 /plan-review-long): spec verified coherent and implementable on all 8 prior-blocker axes (physical contract, config.json migration, git-policy invariants, source-checkout, migration loss-prevention, release boundary, to-review + human-approval gate). One PARTIAL: the Section 12 crosswalk maps old #6 (first-install EOF fail-closed) and #22/#23 (color/screen-reader accessibility) to AWP scenarios (AWP-041, AWP-001) whose expected sets do not encode those behaviors, so a scenario==evidence gate can pass while they ship untested; the retained/paired disposition is not machine-verifiable at the behavior level. Minor: durability enum drift (acknowledged-durable/unreachable vs shipped DurabilityState); define postcheck 'independence' and all-preset scenario counting. Handed to GPT-5.6 High for reconciliation with tools/awphysical/migration-scenarios.json + Order 12. Spec kept to-review; human approval remains the sole design gate.

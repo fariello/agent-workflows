@@ -437,9 +437,30 @@ DEFAULT_IGNORED_DIR_NAMES = frozenset(
 )
 
 
+@functools.lru_cache(maxsize=64)
+def _resolved_root_str(root: str) -> str:
+    """Memoized `Path(root).resolve()` as a string, keyed on the raw path.
+
+    Safe to cache: a repo root's canonical location does not change within a process, and the
+    key is the literal argument, so a different root gets a different entry. Only the RESOLUTION
+    is cached, never any decision derived from it.
+    """
+    return Path(root).resolve().as_posix()
+
+
+@functools.lru_cache(maxsize=64)
+def _is_repository_untracked_backend(repo_root_str: str) -> bool:
+    from agent_workflows.project_context import read_project_identity
+    from agent_workflows.project_schema import RecordsBackend
+
+    identity = read_project_identity(Path(repo_root_str))
+    return identity.get("records_backend") == RecordsBackend.REPOSITORY_UNTRACKED.value
+
+
 def get_ignored_dirs(repo_root: Path) -> set[str]:
     """Return repo-relative POSIX paths of gitignored DIRECTORIES + default ignore sets."""
     repo_root = Path(repo_root)
+    resolved_root_str = _resolved_root_str(str(repo_root))
     ignored: set[str] = set(DEFAULT_IGNORED_DIR_NAMES)
     try:
         res = subprocess.run(
@@ -463,20 +484,11 @@ def get_ignored_dirs(repo_root: Path) -> set[str]:
                 clean = item.strip().rstrip("/")
                 if clean:
                     ignored.add(clean)
+            if _is_repository_untracked_backend(resolved_root_str):
+                ignored.discard(".aw/records")
     except Exception:
         pass
     return ignored
-
-
-@functools.lru_cache(maxsize=64)
-def _resolved_root_str(root: str) -> str:
-    """Memoized `Path(root).resolve()` as a string, keyed on the raw path.
-
-    Safe to cache: a repo root's canonical location does not change within a process, and the
-    key is the literal argument, so a different root gets a different entry. Only the RESOLUTION
-    is cached, never any decision derived from it.
-    """
-    return Path(root).resolve().as_posix()
 
 
 def _resolved_root(root: Path) -> Path:

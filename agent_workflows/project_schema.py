@@ -36,6 +36,7 @@ class RecordsBackend(str, Enum):
     HOME = "home"
     COMPANION = "companion"
     REPOSITORY = "repository"
+    REPOSITORY_UNTRACKED = "repository-untracked"
 
 
 class DurabilityState(str, Enum):

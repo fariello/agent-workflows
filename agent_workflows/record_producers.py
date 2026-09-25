@@ -503,7 +503,9 @@ def get_git_owner(
 
     if backend == RecordsBackend.REPOSITORY.value:
         return "target"
-    elif "companion" in backend or backend == RecordsBackend.COMPANION_TRACKED.value:
+    elif backend == RecordsBackend.REPOSITORY_UNTRACKED.value:
+        return None
+    elif "companion" in backend:
         return "companion"
     elif ctx.project_role == "source-checkout":
         return "source"

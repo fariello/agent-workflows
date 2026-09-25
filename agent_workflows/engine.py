@@ -6298,6 +6298,21 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
     return wrote
 
 
+def ensure_untracked_records_ignore(repo_root: Path) -> bool:
+    """Ensure .aw/.gitignore contains the anchored /records/ ignore rule for repository-untracked backend."""
+    wrote_base = _ensure_aw_gitignore(repo_root)
+    gi = Path(repo_root) / ".aw" / ".gitignore"
+    text = gi.read_text(encoding="utf-8") if gi.is_file() else ""
+    if re.search(r"(?m)^/records/[ \t]*$", text):
+        return wrote_base
+
+    comment = "# repository-untracked backend: records are git-ignored and not durable across clones\n"
+    addition = f"{comment}/records/\n"
+    new_text = text.rstrip("\n") + "\n" + addition if text else addition
+    gi.write_text(new_text, encoding="utf-8")
+    return True
+
+
 def emit_layout_artifacts(repo_root: Path, *, dry_run: bool = False) -> list[str]:
     """wslayout Order 04 (hauwqh), spec kw5y2s Section 6.1: write `.aw/system/layout.json` and
     `.aw/system/layout.schema.json` into a target workspace. Returns the repo-relative paths written.
