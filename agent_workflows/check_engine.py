@@ -1524,6 +1524,30 @@ def check_setid_length(
     return drift
 
 
+def _fenced_line_numbers(text: str) -> set:
+    """1-based numbers of every line inside (or opening/closing) a fenced code block.
+
+    Uses ``ipd_lint._FENCE_RE`` so this and the IPD structural reader agree on what a fence is: a
+    fence closes only on the SAME marker (```` ``` ```` or ``~~~``) that opened it.
+    """
+    from agent_workflows import ipd_lint as _lint
+
+    out: set = set()
+    marker = ""
+    for i, raw in enumerate(text.splitlines(), start=1):
+        m = _lint._FENCE_RE.match(raw)
+        if m:
+            out.add(i)
+            if not marker:
+                marker = m.group(2)
+            elif m.group(2) == marker:
+                marker = ""
+            continue
+        if marker:
+            out.add(i)
+    return out
+
+
 def check_id_outside_metadata_region(
     repo_root: Path,
     include_untracked: bool = False,
@@ -1568,10 +1592,16 @@ def check_id_outside_metadata_region(
             except OSError:
                 continue
             region_len = len(_metadata_region(text))
+            fenced = _fenced_line_numbers(text)
             for m in _ID_LINE_RE.finditer(text):
                 if m.start() < region_len:
                     continue
                 line_no = text.count("\n", 0, m.start()) + 1
+                # A line inside a fenced code block is a QUOTATION by construction (the fence is the
+                # author saying "this is an example"), so it can never be a misplaced declaration.
+                # Skipping it leaves this rule reporting only the genuinely ambiguous case.
+                if line_no in fenced:
+                    continue
                 drift.append(
                     enrich_drift(
                         _core.Drift(

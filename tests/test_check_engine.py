@@ -667,6 +667,40 @@ class CollisionTests(unittest.TestCase):
         self.assertNotEqual(warn.invariant, ce.rule_spec(SETID_COLLISION).invariant)
 
 
+class Id6OutsideMetadataRegionTests(unittest.TestCase):
+    """`check.id6-outside-metadata-region` reports an `- Id:` below the metadata region, EXCEPT inside a
+    fenced code block, where it is a quotation by construction (the author fenced it as an example).
+
+    Both rows are needed: the fenced row alone would pass for a rule that never fires, and the
+    unfenced row alone would pass for the pre-fix rule that flagged quoted examples too.
+    """
+
+    NAME = ".aw/records/walkthroughs/20260101-probe-01-prb001-probe.walkthrough.md"
+
+    def _drift(self, body):
+        text = (
+            "# Walkthrough\n\n- Date: 2026-01-01\n- Id: prb001\n\n## Summary\n\n" + body
+        )
+        root = _tree([(self.NAME, text)])
+        return ce.check_id_outside_metadata_region(root)
+
+    def test_a_quoted_id_inside_a_fence_is_not_reported(self):
+        for fence in ("```", "~~~", "```markdown"):
+            body = f"Example of another record:\n\n{fence}\n- Id: other1\n{fence[:3]}\n"
+            self.assertEqual(_rules(self._drift(body)), [], fence)
+
+    def test_an_unfenced_misplaced_id_is_still_reported(self):
+        drift = self._drift("Prose.\n\n- Id: other1\n")
+        self.assertEqual(_rules(drift), ["check.id6-outside-metadata-region"])
+        self.assertIn("other1", drift[0].detail)
+
+    def test_an_id_after_a_closed_fence_is_reported(self):
+        body = "```\n- Id: quoted\n```\n\n- Id: other1\n"
+        drift = self._drift(body)
+        self.assertEqual(_rules(drift), ["check.id6-outside-metadata-region"])
+        self.assertIn("other1", drift[0].detail)
+
+
 class SetidLengthTests(unittest.TestCase):
     """setidlen x75obw E-04 (catalog I-17): `check_setid_length` over a small records tree.
 
