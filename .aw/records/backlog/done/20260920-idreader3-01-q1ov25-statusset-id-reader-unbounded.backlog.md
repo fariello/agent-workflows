@@ -1,0 +1,10 @@
+- Id: q1ov25
+- Status: done
+- Set: idreader3
+- Priority: medium
+- Work-Kind: bug
+- Summary: status_set._ID_RE is a THIRD unbounded identity reader outside 76w6mq's declared scope, so a quoted - Id: is still read as a declaration after that plan lands
+
+## Workflow history
+- 2026-09-25 done (aw set): OBSOLETE at 877545fc, closed during graduate-top10 triage: subsumed by axayfn item 3
+- 2026-09-20 created (aw backlog): Handoff finding from IPD sk7ggr E-07, recorded rather than fixed. status_set._ID_RE is '^-\\s*Id:\\s*([0-9a-z]{6})\\s*$' compiled with re.MULTILINE (flags 40), so it matches a '- Id:' line ANYWHERE in a document including inside a fenced code block; demonstrated directly against a fixture whose YAML front matter declares id: takpys while its body quotes '- Id: uyeko5' in a ```markdown block, where the reader returns uyeko5. It backs inventory_all_artifacts, i.e. the substrate sk7ggr's repository-wide mint set consumes. WHY IT IS A HANDOFF AND NOT sk7ggr's WORK: plan 76w6mq (from backlog cqytxf) owns bounding identity extraction to the metadata region, but its declared Scope-Paths are selectors.py and check_engine.py ONLY, so status_set.py is in NEITHER, and one unbounded reader therefore survives even after 76w6mq lands. cqytxf explicitly warns that multiple plans editing these readers recreates the drift that private _read_id copies once caused, so sk7ggr declined to become the third editor. DIRECTION OF THE ERROR, which is why deferring is safe: an unbounded reader OVER-collects, making the mint set a conservative SUPERSET, which is harmless for MINTING (refusing one quoted candidate costs one draw out of 36**6) and WRONG only for CHECKING. sk7ggr documents this at artifact_core.global_id6s and pins it with a test (tests/test_id6_global_mint.py::PurityAndSubsetContractTests) so a future reader cannot mistake the set for an exact census. RECOMMENDED: fold status_set._ID_RE into 76w6mq's region bound, or extend that plan's Scope-Paths to include it, so all three readers are bounded together.
