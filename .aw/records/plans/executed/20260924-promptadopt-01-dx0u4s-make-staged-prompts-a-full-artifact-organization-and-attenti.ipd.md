@@ -6,7 +6,7 @@
 - Scope: PROMPTS ONLY. IN: (a) attention adoption: flip the `prompts` TreePolicy to tracked, add a pure/total `_PROMPTS_MAP` over the prompt DISPOSITION enum, add the scan root, add a `_prompts_record` builder; (b) a generated, gitignored `INDEX.json`/`INDEX.md` manifest with `--check` via a new `prompts_index` module reusing `artifact_core`; (c) a prompts CONTENT validator so `aw check prompts` checks metadata, not just names; (d) reconcile the 2 live metadata/disposition mismatches; (e) amend the two specs whose text says prompts are deferred. OUT: comms and walkthroughs adoption, `mc5xts`'s persisted snapshot and plans `executing` state, prompt archive shards (see Deferred).
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/attention.py, agent_workflows/artifact_core.py, agent_workflows/artifact_types.py, agent_workflows/check_engine.py, agent_workflows/prompts_index.py, agent_workflows/engine.py, .aw/.gitignore, .aw/records/prompts/README.md, .aw/records/prompts/executed/20260808-1948-01-attention-registry-spec-external-review.prompt.md, .aw/records/prompts/executed/20260828-2156-01-research-worktree-isolation-state-model.prompt.md, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, .aw/records/specs/implemented/20260730-2152-01-agents-artifact-organization.spec.md, tests/test_prompts_attention.py, tests/test_prompts_index.py, tests/test_attention_contract.py, tests/test_check_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: dx0u4s
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: oxjt1d
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: dx0u4s verified (set promptadopt, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): Reviewed via /plan-review; 8 findings (PR-801..PR-808), all FIXED. REORDERED E-03..E-05: the authored order flipped the prompts TreePolicy to tracked BEFORE widening SCAN_ROOTS, which leaves the shipped TrackedTreeScanCoverageTests guard RED across three items (measured: no current scan root covers prompts); widening first is inert. Measured that only 1 of 17 prompts carries an id6, so an empty id is the norm the record builder and fixture must reflect. Measured that _prompt_requires_id6 is False for ALL 17 files, so two of E-07's three rules fire on zero live files and can only be evidenced on fixtures. Corrected the inverted 8/9 comment-coverage figure, replaced the nonexistent ScanRootClassificationInvariantTests citation, and measured the SCAN_ROOTS widening to add zero dangling citations. Rewrote the gate.
 
