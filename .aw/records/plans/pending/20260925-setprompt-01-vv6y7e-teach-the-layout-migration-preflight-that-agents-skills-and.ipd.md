@@ -6,7 +6,7 @@
 - Scope: IN: (a) an explicit `skills` branch in `classify_item`'s `agents` arm that PRESERVES the directory in place, with the prefix read from `engine.SKILLS_DIR` via the existing `layout_migration._skills_prefix` authority rather than re-spelled; (b) explicit `partial-aw` branches for `.gitignore` and `setup-repo-needed.md` that leave both where they already are (they are framework-owned files already at their final `.aw/` location); (c) behavioral tests over the four measured shapes plus a combined shape, driving the real inventory and a real dry-run `execute_migration`, and asserting skills content survives an APPLIED migration with `leftover_disposition="remove"`; (d) widening backlog `72qlya`'s text to name all three triggers, per the maintainer's 2026-09-25 ruling. OUT: the install-time default flip, the remembered-answer config, and the fail-soft guard (all plan `je74a0`, Order 2 of this Set, which depends on this plan); any other `block-unknown` path not measured here; changing the preflight's fail-closed rule itself.
 - Scope-Paths: agent_workflows/layout_inventory.py, tests/test_layout_inventory.py, .aw/records/backlog/graduated/20260923-72qlya-01-72qlya-migrate-layout-refuses-agents-skills.backlog.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: 72qlya
@@ -19,6 +19,7 @@
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-09-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; Readiness: GO - PENDING HUMAN APPROVAL
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, no open questions. Every claim re-measured at HEAD dd9e7e62: all three PreflightGateError refusals and the BASE control reproduce exactly, and the proposed dispositions were PROTOTYPED on a scratch copy of the package: the combined shape then dry-runs, APPLIES, and ROLLS BACK with all three paths byte-identical and .agents/mystery.txt still block-unknown. Revisions: Scope-Paths named the backlog item's stale open/ path (it is in graduated/); E-05's note and graduation are already recorded, so E-05 now confirms rather than re-writes and uses the real --message flag; the skills branch is stated to cover the directory entries the walker yields; the deleted walker test and the mocked-only coverage are named; a rollback case was added; the _legacy_class clause was resolved (informational only, not a gate).
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Authored on the maintainer's 2026-09-25 /askme rulings on plan je74a0 OQ-03 (fold the classifier fix into this Set, ordered first) and OQ-04 (cover the partial-aw files too). Graduated from backlog 72qlya. All three refusals re-measured at HEAD eec5dc49 on scratch repos.
