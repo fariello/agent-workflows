@@ -875,8 +875,13 @@ class SystemResourceProbeAdapter(ResourceProbeAdapter):
         try:
             values["cpu_architecture"] = _as_label(platform.machine())
             values["platform_system"] = _as_label(platform.system())
-            values["platform_release_major"] = _as_label(
-                platform.release().split(".")[0] if platform.release() else ""
+            # LEADING DIGITS ONLY, because the schema requires `^\d{1,6}$` and one non-conforming
+            # field makes `validate_event` refuse the WHOLE event. Measured on the Windows Server
+            # CI runner: `platform.release()` is `2025Server`, so every start/end event was
+            # refused and no telemetry stream was written at all. No digits -> omit the field.
+            _release_major = re.match(r"\d{1,6}", platform.release() or "")
+            values["platform_release_major"] = (
+                _as_label(_release_major.group(0)) if _release_major else None
             )
         except Exception:  # noqa: BLE001
             pass
