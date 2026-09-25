@@ -241,7 +241,11 @@ def test_deliver_agent_not_running():
         f"http://127.0.0.1:{unused_port}",
         mode="headless",
         session="test-session-123",
-        timeout=1.0,
+        # 5s, not 1s: on Windows a connect to a closed localhost port is not refused at once, the
+        # stack retries the SYN for ~2s before reporting ECONNREFUSED, so a 1s budget expires first
+        # and the (correct) classifier reports a timeout as `agent-not-responding`. On POSIX the
+        # refusal is immediate, so the larger budget costs nothing there.
+        timeout=5.0,
     )
     assert state == "agent-not-running"
 

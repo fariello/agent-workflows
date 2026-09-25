@@ -800,7 +800,11 @@ def _iter_type_files(
             d, repo_root, ignored_dirs, include_untracked=include_untracked
         ):
             continue
-        for p in d.rglob("*.md"):
+        # SORTED, because `rglob` order is filesystem-dependent (ext4 hash order, APFS, NTFS all
+        # differ) and first-seen-wins passes (id6/setid collision) then flag a DIFFERENT file of a
+        # colliding pair per machine. Measured on CI 2026-09-25: the same tree reported the
+        # collision on `-02-` locally and on `-03-` on the Linux runner.
+        for p in sorted(d.rglob("*.md")):
             if p.name in _SKIP_NAMES or _core.is_ignored_path(
                 p, repo_root, ignored_dirs, include_untracked=include_untracked
             ):
