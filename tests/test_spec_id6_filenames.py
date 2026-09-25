@@ -288,5 +288,96 @@ class TestToId6Rename(_RepoTestCase):
         self.assertTrue(src.exists())
 
 
+class TestToId6DatedLegacyNames(_RepoTestCase):
+    """dl86am + a88210: `--to-id6` on a DATED legacy name (no HHMM-NN segment), and the no-bullet case.
+
+    dl86am: these names used to come back unchanged with no error, so the verb reported a rename
+    whose source and destination were the same string. a88210: a file with no `- Status:`/`- Date:`
+    bullet had its `- Id:` inserted under the H1, i.e. into the document body.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.wt = self.tmp / ".aw" / "records" / "walkthroughs"
+        self.wt.mkdir(parents=True)
+
+    def _ids(self, text):
+        import re
+
+        return re.findall(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
+
+    def test_dated_walkthrough_with_bullets_gets_a_clustered_name_and_an_id_bullet(
+        self,
+    ):
+        src = self.wt / "20260821-probe-rescope-walkthrough.walkthrough.md"
+        src.write_text(
+            "# Probe\n\n- Date: 2026-08-21\n- Author: a\n\n## Why\n\nx\n",
+            encoding="utf-8",
+        )
+        self._commit()
+        rc, out = self._run(
+            ["rename", "walkthroughs", str(src), "--to-id6", "--apply", "--no-commit"]
+        )
+        self.assertEqual(rc, 0, out)
+        (new,) = list(self.wt.glob("*.md"))
+        (id6,) = self._ids(new.read_text(encoding="utf-8"))
+        self.assertEqual(
+            new.name,
+            f"20260821-{id6}-01-{id6}-probe-rescope-walkthrough.walkthrough.md",
+        )
+
+    def test_bulletless_file_is_renamed_but_gets_no_id_in_its_body(self):
+        body = "# Decision log\n\nAuthor: a\nDate: 2026-08-23\n\n## Decisions\n\nx\n"
+        src = self.wt / "20260823-probe-decisions.walkthrough.md"
+        src.write_text(body, encoding="utf-8")
+        self._commit()
+        rc, out = self._run(["rename", "walkthroughs", str(src), "--to-id6"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("FILENAME ONLY", out)
+        self.assertNotIn("would inject", out)
+        rc, out = self._run(
+            ["rename", "walkthroughs", str(src), "--to-id6", "--apply", "--no-commit"]
+        )
+        self.assertEqual(rc, 0, out)
+        (new,) = list(self.wt.glob("*.md"))
+        self.assertRegex(
+            new.name, r"^20260823-([0-9a-z]{6})-01-\1-probe-decisions\.walkthrough\.md$"
+        )
+        self.assertEqual(new.read_text(encoding="utf-8"), body)
+
+    def test_set_or_order_without_to_id6_is_refused_not_a_silent_success(self):
+        src = self.wt / "20260823-probe-decisions.walkthrough.md"
+        src.write_text("# x\n\n- Date: 2026-08-23\n", encoding="utf-8")
+        self._commit()
+        rc, out = self._run(
+            ["rename", "walkthroughs", str(src), "--set", "demo", "--order", "1"]
+        )
+        self.assertEqual(rc, 2, out)
+        self.assertIn("--to-id6", out)
+        self.assertTrue(src.exists())
+
+    def test_slug_only_rename_of_a_dated_name_is_unchanged(self):
+        from agent_workflows import artifact_rename as ar
+
+        self.assertEqual(
+            ar.compute_target_name(
+                "20260823-probe-decisions.walkthrough.md",
+                "walkthroughs",
+                new_slug="other",
+            ),
+            ("20260823-other.walkthrough.md", None),
+        )
+
+    def test_a_spec_still_gets_its_bullet(self):
+        from agent_workflows import artifact_rename as ar
+
+        p = self.specs / "x.spec.md"
+        p.write_text(
+            "# Spec\n\n- Date: 2026-07-01\n- Status: draft\n", encoding="utf-8"
+        )
+        ar._update_frontmatter_metadata(p, id6="abc123", artifact_type="specs")
+        self.assertIn("- Status: draft\n- Id: abc123\n", p.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

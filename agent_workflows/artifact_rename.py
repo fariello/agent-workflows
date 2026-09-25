@@ -158,6 +158,40 @@ def compute_target_name(
         # (its HHMM disambiguates it from the uniform form); here to_id6 is necessarily False.
         return f"{date_str}-{hhmm}-{order_num:02d}-{slug}{ext}", None
 
+    # dl86am D1/D2: the two DATED non-clustered shapes below cannot hold a set, an order or an id6, so a
+    # caller asking for any of those previously got the input name back with err None, i.e. a
+    # SUCCESS that changed nothing. With `--to-id6` the target IS constructible (the same clustered
+    # form the legacy-timestamp branch builds: the file's own id6 as setid, Order 01); with only
+    # `--set`/`--order` and no id6 it is NOT, so that now REFUSES and says why. A slug-only rename of
+    # these shapes is unchanged.
+    m_dated_any = _WALKTHROUGH_DATED_RE.match(src_name) or _DATED_SLUG_FACET_RE.match(
+        src_name
+    )
+    if m_dated_any and not _UNIFORM_RE.match(src_name):
+        if to_id6:
+            if not mint_id6:
+                return None, "internal: --to-id6 conversion requires a minted id6"
+            slug = _core.kebab(new_slug) if new_slug else m_dated_any.group("slug")
+            try:
+                return (
+                    _naming.build_clustered_name(
+                        date=m_dated_any.group("date"),
+                        set_id=_core.kebab(new_set) if new_set else mint_id6,
+                        order=new_order if new_order is not None else 1,
+                        id6=mint_id6,
+                        slug=slug,
+                        artifact_type=_naming.TYPE_FACET.get(artifact_type),
+                    ),
+                    None,
+                )
+            except ValueError as exc:
+                return None, str(exc)
+        if new_set is not None or new_order is not None:
+            return None, (
+                f"{src_name} has no id6, so it cannot take a Set or Order in its name; "
+                "pass --to-id6 to convert it to the clustered form"
+            )
+
     m_wt_d = _WALKTHROUGH_DATED_RE.match(src_name)
     if m_wt_d:
         date_str = m_wt_d.group("date")
@@ -273,16 +307,14 @@ def _update_frontmatter_metadata(
                 if _DATE_LINE_RE.match(line):
                     insert_at = i + 1
                     break
-        if insert_at is None:
-            for i, line in enumerate(lines):
-                if line.startswith("# "):
-                    insert_at = i + 1
-                    break
-        if insert_at is None:
-            insert_at = 0
-        lines.insert(insert_at, f"- Id: {id6}")
-        text = "\n".join(lines)
-        updated = True
+        # a88210: NO H1 FALLBACK. A file with neither a `- Status:` nor a `- Date:` bullet has no
+        # metadata bullet block, so inserting under the H1 put a metadata line into the document
+        # BODY. Such a file keeps its id6 in the FILENAME only (the outcome ubac5n chose for a
+        # comment-less prompt), and `_id6_write_message` says so.
+        if insert_at is not None:
+            lines.insert(insert_at, f"- Id: {id6}")
+            text = "\n".join(lines)
+            updated = True
 
     if updated:
         _core.atomic_write(file_path, text, prefix=".aw-meta-")
@@ -331,6 +363,20 @@ def _id6_write_message(
         return (
             f"{verb} 'Id: {id6}' into the aw-prompt metadata comment of {target_name}"
         )
+    if src is not None:
+        try:
+            _src_text = src.read_text(encoding="utf-8")
+        except OSError:
+            _src_text = ""
+        if not (_STATUS_LINE_RE.search(_src_text) or _DATE_LINE_RE.search(_src_text)):
+            # a88210: mirrors `_update_frontmatter_metadata`, which no longer writes a bullet into a
+            # file that has no bullet block. The message must not claim a write that will not happen.
+            verb = "would record" if preview else "recorded"
+            return (
+                f"{verb} id6 {id6} in the FILENAME ONLY of {target_name} (no '- Status:'/'- Date:' "
+                "metadata bullets to add '- Id:' beside; one is NOT added under the heading, because "
+                "that would put metadata into the document body)"
+            )
     verb = "would inject" if preview else "injected"
     return f"{verb} '- Id: {id6}' into {target_name}"
 
@@ -810,7 +856,10 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                 new_order=order_val,
             )
             if err:
-                new_name = src.name
+                # dl86am D2: a name the verb cannot re-cluster is REFUSED, not silently kept. The old
+                # `new_name = src.name` reported a successful group whose `--rename` half did nothing.
+                print(f"error: cannot --rename {src.name}: {err}")
+                return MutationResult(2)
             assert new_name is not None
             dst = src.parent / new_name
         else:
