@@ -4650,6 +4650,20 @@ class AwGitignoreLaneTests(unittest.TestCase):
             "`.gitkeep`, which broke `aw install` on a fresh repo. Its back-fill body is the "
             "post-runs-lane state, i.e. a repo installed just before the inbox existed",
         ),
+        (
+            "the lane worktrees root",
+            "/worktrees/",
+            False,
+            "records/*/untracked/\nsetup-repo-needed.md\n"
+            "records/history.jsonl\nrecords/runs/\n"
+            "/inbox/\nsystem/layout.json\nsystem/layout.schema.json\n"
+            "records/plans/INDEX.json\nrecords/plans/INDEX.md\n"
+            "records/research/INDEX.json\nrecords/research/INDEX.md\n"
+            "/state/\n/config/local.json\n/workflow-artifacts/\n",
+            "per-lane git worktrees and their owner records (worktree_lease.WORKTREES_SUBDIR "
+            "and OWNERS_SUBDIR). Anchored for the /inbox/ reason. anchored=False because "
+            "_ensure_aw_gitignore implements bare-form repair only for /inbox/ (OQ-02).",
+        ),
     )
 
     @staticmethod
@@ -4828,6 +4842,51 @@ class AwGitignoreLaneTests(unittest.TestCase):
             self.assertFalse(
                 ignored(lane),
                 "the TRACKED records/comms/shared/inbox/ lane must NOT be gitignored",
+            )
+
+    def test_git_ignores_every_per_machine_control_path(self):
+        """Every per-machine control state path must be ignored by .aw/.gitignore in a fresh repo.
+
+        Asserts real git check-ignore across all five per-machine control state paths:
+        .aw/state/, .aw/config/local.json, .aw/records/runs/, .aw/workflow-artifacts/,
+        and .aw/worktrees/ (including .owners/). Also asserts .aw/config/project.json is
+        tracked (not ignored).
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = init_repo(Path(d) / "repo")
+            INS._ensure_aw_gitignore(root)
+            control_files = [
+                root / ".aw" / "state" / "runtime.json",
+                root / ".aw" / "config" / "local.json",
+                root / ".aw" / "records" / "runs" / "run-1" / "state.json",
+                root / ".aw" / "workflow-artifacts" / "wf-1" / "scratch.txt",
+                root / ".aw" / "worktrees" / "lane1" / "file.txt",
+                root / ".aw" / "worktrees" / ".owners" / "lane1.json",
+            ]
+            tracked_file = root / ".aw" / "config" / "project.json"
+            for f in control_files + [tracked_file]:
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text("test", encoding="utf-8")
+
+            def is_ignored(path):
+                return (
+                    git(
+                        root, "check-ignore", "-q", str(path.relative_to(root))
+                    ).returncode
+                    == 0
+                )
+
+            missed = [
+                str(f.relative_to(root)) for f in control_files if not is_ignored(f)
+            ]
+            self.assertEqual(
+                missed,
+                [],
+                f"per-machine control paths were NOT gitignored by .aw/.gitignore: {missed}",
+            )
+            self.assertFalse(
+                is_ignored(tracked_file),
+                f"{tracked_file.relative_to(root)} must NOT be gitignored (portable configuration)",
             )
 
 

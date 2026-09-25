@@ -5094,6 +5094,11 @@ records/research/INDEX.md
 # patterns are `.aw/`-relative, so `/workflow-artifacts/` resolves to `.aw/workflow-artifacts/`
 # exactly and leaves e.g. `records/workflow-artifacts/` visible.
 /workflow-artifacts/
+# The per-lane git worktrees root and owner records (awworktrees, worktree_lease.WORKTREES_SUBDIR
+# and OWNERS_SUBDIR). NEVER committed: a lane is a real git worktree, so committing one stages an
+# embedded gitlink (mode 160000) pointing at an unpushed lane commit.
+# ANCHORED for the `/inbox/` reason (a bare `worktrees/` would match at any depth).
+/worktrees/
 """
 
 # setupmarker Order 01: the per-repo, per-machine, gitignored "run setup here" reminder that replaces
@@ -6230,6 +6235,13 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
     for _scratch_pattern in ("/workflow-artifacts/",):
         if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_scratch_pattern)), text):
             additions.append(_scratch_pattern)
+    # awworktrees (wmuu4k): back-fill the lane worktrees root `.aw/worktrees/` (worktree_lease.WORKTREES_SUBDIR
+    # and OWNERS_SUBDIR). ANCHORED (`/worktrees/`) for the `/inbox/` reason.
+    for _worktrees_pattern in ("/worktrees/",):
+        if not re.search(
+            r"(?m)^{0}[ \t]*$".format(re.escape(_worktrees_pattern)), text
+        ):
+            additions.append(_worktrees_pattern)
     if additions:
         gi.write_text(
             text.rstrip("\n") + "\n" + "\n".join(additions) + "\n", encoding="utf-8"

@@ -6,7 +6,7 @@
 - Scope: IN: (a) add the anchored `/worktrees/` pattern to `engine._AW_GITIGNORE_TEMPLATE` and to the `engine._ensure_aw_gitignore` back-fill; (b) add a `/worktrees/` row to `tests/test_installer.py` `AwGitignoreLaneTests.LANES`; (c) add an end-to-end guard test asserting real `git check-ignore` ignores every per-machine control path in a freshly installed repo; (d) record the keep-in-repo decision in spec `20260810-1447-01` Section 5 and resolve it as OQ-01. OUT: any XDG relocation, migration path, Windows fallback (moot under the decision); the root `.gitignore` of this repo (already correct); non-repository records backends.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py, .aw/.gitignore, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wmuu4k
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: e820ka
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: wmuu4k verified (set ctrlstate, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED. Reproduced the plan's central `git check-ignore` probe end to end in a fresh repo with a REAL `git worktree add`: every claim in its Findings table is TRUE, and one `/worktrees/` line is sufficient. PR-001 (E-01's `anchored=True` activates a repair branch hardcoded to `inbox`, so the new row would fail PERMANENTLY; measured `/worktrees/` -> `['worktrees/']`, and `/state/`/`/workflow-artifacts/` fail it too, which is why neither has a row), PR-002 (E-03's regen command is a measured no-op on an existing file and would then append a comment-less bare line, failing its own V-03 `SAME`), PR-003 (`git add -A` stages a lane as an embedded GITLINK at mode `160000`, a worse harm than recorded), PR-004 (gate carried almost no execution contract and did not preserve the test-first structure), PR-005 (uncarriered OQ, `check.ipd-uncarried-obligation` at `error`) all FIXED. Added F-4..F-7 and OQ-02 (carrying `- Finding: F-6`, the pre-existing `inbox`-only repair gap, recommended for a separate plan). Findings in `.aw/records/reviews/20260924-ctrlstate-01-wmuu4k-keep-per-machine-control-state-in-repo-and-gitignored-and-ig.review.md`. Readiness go-pending-approval.
@@ -36,38 +36,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: guard tests first (must fail before the fix)
 
-- [ ] E-01 Add a row to `tests/test_installer.py` `AwGitignoreLaneTests.LANES` for the lane worktrees root: pattern `/worktrees/`, a pre-lane back-fill body equal to the current template's pattern lines minus that line (i.e. ending with `/workflow-artifacts/`), and a `why` naming `worktree_lease.WORKTREES_SUBDIR` and `OWNERS_SUBDIR`.
+- [x] E-01 Add a row to `tests/test_installer.py` `AwGitignoreLaneTests.LANES` for the lane worktrees root: pattern `/worktrees/`, a pre-lane back-fill body equal to the current template's pattern lines minus that line (i.e. ending with `/workflow-artifacts/`), and a `why` naming `worktree_lease.WORKTREES_SUBDIR` and `OWNERS_SUBDIR`.
   - THE `anchored` COLUMN MUST BE `False`, AND THIS IS A MEASURED CORRECTION, not a style choice. `anchored=True` additionally runs branch (d) REPAIR, which asserts that a pre-existing BARE `worktrees/` line is REWRITTEN to `/worktrees/`. No such repair exists: `engine._ensure_aw_gitignore` has exactly ONE repair regex, `bare_inbox = re.compile(r"(?m)^inbox/[ \t]*$")`, hardcoded to `inbox`. Measured by driving the helper directly: a pre-existing bare `worktrees/` survives and the result is `['worktrees/']` where the branch wants `['/worktrees/']`, so `anchored=True` makes the row FAIL PERMANENTLY, not just before E-03. The SAME measurement shows `/state/` and `/workflow-artifacts/` would fail it too (both come back `['state/', '/state/']` and `['workflow-artifacts/', '/workflow-artifacts/']`), which is precisely why neither has a LANES row today: the existing table's only `anchored=True` row is `/inbox/`, the one lane the repair regex covers.
   - WRITE THE ANCHORED FORM IN THE PATTERN REGARDLESS. `anchored=False` does NOT mean "unanchored pattern"; the column selects the repair assertion, while the `pattern` string is what must appear. `/worktrees/` stays anchored in the template for the `/inbox/` reason.
   - IF A GENERAL REPAIR IS WANTED, that is a separate change to `_ensure_aw_gitignore` (generalize the regex over the anchored-pattern list) and it is NOT in this plan's scope; see OQ-02.
   - Depends on: none
   - Expected outcome: `test_every_lane_is_present_anchored_backfilled_and_idempotent` fails before E-03 because the template carries 0 pattern lines for this lane, AND passes after E-03 rather than failing on a repair branch that cannot be satisfied.
-  - Execution state: pending
-- [ ] E-02 Add an end-to-end test (new method in `AwGitignoreLaneTests`, e.g. `test_git_ignores_every_per_machine_control_path`) that runs `init_repo`, `INS._ensure_aw_gitignore(root)`, creates one file under each of `.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/<id>/`, `.aw/workflow-artifacts/<wf>/`, `.aw/worktrees/<lane>/`, `.aw/worktrees/.owners/<lane>.json`, and asserts `git check-ignore -q` returns 0 for each, listing all misses in one failure message. Also assert `.aw/config/project.json` is NOT ignored (portable, tracked), so the test cannot pass via an over-broad pattern.
+  - Execution state: performed
+- [x] E-02 Add an end-to-end test (new method in `AwGitignoreLaneTests`, e.g. `test_git_ignores_every_per_machine_control_path`) that runs `init_repo`, `INS._ensure_aw_gitignore(root)`, creates one file under each of `.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/<id>/`, `.aw/workflow-artifacts/<wf>/`, `.aw/worktrees/<lane>/`, `.aw/worktrees/.owners/<lane>.json`, and asserts `git check-ignore -q` returns 0 for each, listing all misses in one failure message. Also assert `.aw/config/project.json` is NOT ignored (portable, tracked), so the test cannot pass via an over-broad pattern.
   - USE A PLAIN DIRECTORY FOR THE LANE, NOT `git worktree add`, and record why: a real worktree creates an embedded GITLINK, and the review measured `git add -A` staging it at mode `160000` with git printing a `git rm --cached` submodule hint. `check-ignore` gives the same verdict for a plain directory, so the cheap form proves the same property without a second git repo inside the fixture. The gitlink behavior is evidence for WHY this matters (V-02), not something the unit test needs to reproduce.
   - Depends on: none
   - Expected outcome: fails before E-03 naming exactly the two `.aw/worktrees/` paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-03 In `agent_workflows/engine.py`, add an anchored `/worktrees/` line with a short comment (per-lane git worktrees and their owner records, `worktree_lease.WORKTREES_SUBDIR` and `OWNERS_SUBDIR`; anchored for the `/inbox/` reason) to `_AW_GITIGNORE_TEMPLATE`, and add `"/worktrees/"` to the line-anchored back-fill loop in `_ensure_aw_gitignore` (alongside the `"/workflow-artifacts/"` loop).
+- [x] E-03 In `agent_workflows/engine.py`, add an anchored `/worktrees/` line with a short comment (per-lane git worktrees and their owner records, `worktree_lease.WORKTREES_SUBDIR` and `OWNERS_SUBDIR`; anchored for the `/inbox/` reason) to `_AW_GITIGNORE_TEMPLATE`, and add `"/worktrees/"` to the line-anchored back-fill loop in `_ensure_aw_gitignore` (alongside the `"/workflow-artifacts/"` loop).
   - DO NOT REGENERATE THIS REPO'S `.aw/.gitignore` WITH `_ensure_aw_gitignore`; EDIT IT BY HAND to mirror the template. The regen command originally prescribed here CANNOT produce the intended file, measured directly: the file already EXISTS, so the helper takes the BACK-FILL branch (the template branch runs only when `not gi.is_file()`), and that branch appends a BARE pattern line with NO comment. So the regen yields a file that differs from the template by exactly the comment block, and V-03's `diff ... && echo SAME` would FAIL. Verified twice: running the helper against this repo's current `.aw/.gitignore` returned `wrote: False` and changed nothing (md5 identical), and simulating the post-fix state produced a one-line diff (the comment present in the template, absent from the back-filled file).
   - THE INVARIANT TO PRESERVE is that the tracked `.aw/.gitignore` is byte-identical to `_AW_GITIGNORE_TEMPLATE`, which it IS today (measured: `diff` of the rendered template against the tracked file is empty). Keep it so by copying the template text, e.g. `python3 -c "from pathlib import Path; from agent_workflows import engine as E; Path('.aw/.gitignore').write_text(E._AW_GITIGNORE_TEMPLATE, encoding='utf-8')"`, which writes the template verbatim and cannot drift from it.
   - Depends on: E-01, E-02
   - Expected outcome: both new tests pass; `.aw/.gitignore` gains the commented `/worktrees/` block and still matches the template byte for byte.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record the decision
 
-- [ ] E-04 Append to spec `20260810-1447-01` Section 5 ("Placement and Git policy") a short paragraph: per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/`, `.aw/workflow-artifacts/`, `.aw/worktrees/`) stays IN the target repository and is covered by the framework-owned `.aw/.gitignore`; its location is decided in one accessor (`ipd_lifecycle.checkout_control_root`, driver runs via `runner_shared.state_root`), so relocation out of the repo (retired `58ha43`) is not pursued; decided by plan `wmuu4k` from backlog `e820ka`; guarded by the E-02 test.
+- [x] E-04 Append to spec `20260810-1447-01` Section 5 ("Placement and Git policy") a short paragraph: per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/`, `.aw/workflow-artifacts/`, `.aw/worktrees/`) stays IN the target repository and is covered by the framework-owned `.aw/.gitignore`; its location is decided in one accessor (`ipd_lifecycle.checkout_control_root`, driver runs via `runner_shared.state_root`), so relocation out of the repo (retired `58ha43`) is not pursued; decided by plan `wmuu4k` from backlog `e820ka`; guarded by the E-02 test.
   - Depends on: E-03
   - Expected outcome: the spec names all five paths and the guard test.
-  - Execution state: pending
-- [ ] E-05 Run the bare suite `python3 -m pytest`.
+  - Execution state: performed
+- [x] E-05 Run the bare suite `python3 -m pytest`.
   - Depends on: E-03, E-04
   - Expected outcome: summary line with 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -150,28 +150,28 @@ Inventory of per-machine control state and its ignore coverage (measured at HEAD
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: BEFORE E-03, paste `python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_every_lane_is_present_anchored_backfilled_and_idempotent` showing `1 failed` with a message naming the lane worktrees row and "carries 0 pattern line(s)"; AFTER E-03 the same command shows `1 passed`.
   - ALSO paste the new row itself showing `anchored` is `False`, with the one-line reason. A row written `anchored=True` fails the repair branch PERMANENTLY (F-6), so an AFTER run that still fails on "was not repaired" means the column is wrong, not that E-03 is incomplete.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: BEFORE E-03: `python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_every_lane_is_present_anchored_backfilled_and_idempotent` failed with `1 failed, 92 deselected in 0.86s` (template carries 0 pattern line(s), back-fill produced []). AFTER E-03: `1 passed, 92 deselected in 0.16s`. LANES row: `("the lane worktrees root", "/worktrees/", False, ..., "per-lane git worktrees and their owner records (worktree_lease.WORKTREES_SUBDIR and OWNERS_SUBDIR). Anchored for the /inbox/ reason. anchored=False because _ensure_aw_gitignore implements bare-form repair only for /inbox/ (OQ-02).")`. `anchored` is `False` because `engine._ensure_aw_gitignore` implements bare-form repair only for `/inbox/` (OQ-02).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: BEFORE E-03, paste `python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_git_ignores_every_per_machine_control_path` showing `1 failed` whose message names `.aw/worktrees/` paths and no other; AFTER E-03 `1 passed`. The "and no other" half is load-bearing: it is what proves the other four lanes were already covered and that this test is not passing for an unrelated reason.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: BEFORE E-03: `python3 -m pytest -o addopts="" -q tests/test_installer.py -k test_git_ignores_every_per_machine_control_path` failed with `1 failed, 92 deselected in 0.27s` with `AssertionError: Lists differ: ['.aw/worktrees/lane1/file.txt', '.aw/worktrees/.owners/lane1.json'] != []` naming only the two `.aw/worktrees/` paths and no other. AFTER E-03: `1 passed, 92 deselected in 0.15s`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- .aw/.gitignore agent_workflows/engine.py` showing the added commented `/worktrees/` template block, the one added back-fill entry, and the matching added block in `.aw/.gitignore`; then paste `diff <(python3 -c "from agent_workflows import engine as E; print(E._AW_GITIGNORE_TEMPLATE, end='')") .aw/.gitignore && echo SAME` printing `SAME`.
   - IF `SAME` DOES NOT PRINT, the likely cause is the retired regen command (F-7): `_ensure_aw_gitignore` appends a bare line with no comment on an existing file. Write the template verbatim instead, as E-03 now directs; do NOT "fix" the mismatch by deleting the comment from the template.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `git diff -- .aw/.gitignore agent_workflows/engine.py` showed added commented `/worktrees/` block in template and `.aw/.gitignore`, plus back-fill loop entry in `_ensure_aw_gitignore`. `diff <(python3 -c "from agent_workflows import engine as E; print(E._AW_GITIGNORE_TEMPLATE, end='')") .aw/.gitignore && echo SAME` printed `SAME`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `grep -n "worktrees\|wmuu4k\|e820ka" .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` showing the new Section 5 paragraph naming all five paths, `checkout_control_root`, and the guard test.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `grep -n "worktrees\|wmuu4k\|e820ka" .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` -> `93:Per-machine control state (.aw/state/, .aw/config/local.json, .aw/records/runs/, .aw/workflow-artifacts/, .aw/worktrees/) stays IN the target repository and is covered by the framework-owned .aw/.gitignore. Its location is decided in one accessor (ipd_lifecycle.checkout_control_root, driver runs via runner_shared.state_root), so relocation out of the repo (retired 58ha43) is not pursued. Decided by plan wmuu4k from backlog e820ka; guarded by the AwGitignoreLaneTests.test_git_ignores_every_per_machine_control_path guard test.`
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the final summary line of bare `python3 -m pytest` showing `N passed` and 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: bare `python3 -m pytest` -> `1992 passed, 1 skipped, 3 warnings in 31.38s` (0 failed).
+  - Result: pass
 
 ## Approval and execution gate
 
