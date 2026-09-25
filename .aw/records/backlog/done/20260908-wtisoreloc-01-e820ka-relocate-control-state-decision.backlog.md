@@ -1,5 +1,5 @@
 - Id: e820ka
-- Status: graduated
+- Status: done
 - Graduated-To: ctrlstate
 - Set: wtisoreloc
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: decide whether to relocate per-machine control state out of the repository at all, now that the state-fork defect it was bundled with is closed: wtiso Phase 4 (58ha43) was retired unlanded and has no successor
 
 ## Workflow history
+- 2026-09-25 set (aw backlog): closed by aw oc run: IPD wmuu4k executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260924-ctrlstate-01-wmuu4k-keep-per-machine-control-state-in-repo-and-gitignored-and-ig.ipd.md); evidence .aw/records/plans/executed/20260924-ctrlstate-01-wmuu4k-keep-per-machine-control-state-in-repo-and-gitignored-and-ig.ipd.md
 - 2026-09-25 graduated (aw set): graduated into ctrlstate plan wmuu4k (to-review): keep in-repo, fix the .aw/worktrees/ ignore gap
 - 2026-09-08 created (aw backlog): Carries forward Debt 1 of backlog ol8iyx, which plan 2iye0e deliberately does NOT graduate: the pointer-correction half is a defined change and became 2iye0e, while the relocation itself is an open DECISION and would have made that plan either implement an undecided design or do nothing. Filed so aw attention keeps seeing the debt instead of it living only in plan prose.
 
