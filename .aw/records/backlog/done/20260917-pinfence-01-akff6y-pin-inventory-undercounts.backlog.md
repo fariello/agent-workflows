@@ -1,11 +1,12 @@
 - Id: akff6y
-- Status: open
+- Status: done
 - Set: pinfence
 - Priority: low
 - Work-Kind: followup
 - Summary: A plan's Scope-Paths pin inventory was short in 3 of 4 rununify split children, so a real split would be refused at finalize
 
 ## Workflow history
+- 2026-09-25 done (aw set): RETIRED (obsolete): every plan it cites executed; initialize_run was relocated by 7a28ed11; source-text pin tests were replaced (b1e304bc) and the suite cut (19313eed), leaving about 6 files with pin-shaped greps; the cited tests/test_lane_clean_base.py no longer exists. Maintainer standing rule: tests that pin code structure are removed, so a pin inventory tool has no remaining consumer.
 - 2026-09-17 created (aw backlog): A plan's Scope-Paths pin inventory was short in 3 of 4 rununify split children, so a real split would be refused at finalize
 
 ## What is wrong

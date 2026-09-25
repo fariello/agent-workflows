@@ -1,11 +1,12 @@
 - Id: ga2dz1
-- Status: open
+- Status: done
 - Set: irforks
 - Priority: medium
 - Work-Kind: chore
 - Summary: Two of initialize_run's seven forks are claimed by no rununify child, so the Set cannot reach 100% de-duplication for it
 
 ## Workflow history
+- 2026-09-25 done (aw set): RETIRED (already fixed): 7a28ed11 unified initialize_run into runner_shared.initialize_run_core; all seven forks are now single definitions or thin label wrappers (runner_fork_scan --closure --symbols initialize_run: BOTH-DELEGATE, 4 lines of host_options residue).
 - 2026-09-17 created (aw backlog): Two of initialize_run's seven forks are claimed by no rununify child, so the Set cannot reach 100% de-duplication for it
 
 ## What is wrong

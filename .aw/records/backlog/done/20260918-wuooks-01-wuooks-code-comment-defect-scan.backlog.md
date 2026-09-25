@@ -1,11 +1,12 @@
 - Id: wuooks
-- Status: open
+- Status: done
 - Set: wuooks
 - Priority: low
 - Work-Kind: chore
 - Summary: Source-code comments are never scanned for defects and the one TODO/FIXME scanner that exists is diff-scoped and unwired
 
 ## Workflow history
+- 2026-09-25 done (aw set): RETIRED (maintainer decision 2026-09-25): no code-comment defect gate. Defects are filed as backlog items, never left as TODO/FIXME comments; 35 matching comments at 8e74dcac are mostly false positives (prose about TODO.md, scaffold tokens). Note: verify_roles.procedure_residual_search has no production caller.
 - 2026-09-18 created (aw backlog): Source-code comments are never scanned for defects and the one TODO/FIXME scanner that exists is diff-scoped and unwired
 
 Named as explicitly OUT OF SCOPE by durablecapture 01 (`rnkqrc`) and filed here so the gap has a durable carrier rather than living only in that plan's prose.
