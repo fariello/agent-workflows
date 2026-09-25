@@ -55,7 +55,6 @@ CONTRACT_FIELDS = (
     # and `test_to_dict_snapshots_the_contract`, so a field absent from it carries NO
     # default-False or snapshot guarantee while the suite stays green.
     "supports_commit_gateway",
-    "supports_deny_push",
     "supports_fresh_verifier_session",
 )
 

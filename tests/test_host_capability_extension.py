@@ -21,6 +21,7 @@ test would not show a gate at all.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import io
 import json
 import unittest
@@ -31,12 +32,9 @@ from agent_workflows import host_sandbox_profile as hsp
 from agent_workflows.host_sandbox_profile import (
     ACTION_CAPABILITY_REQUIREMENTS,
     ACTION_CLASSES,
-    ACTION_CONTRACTLESS_PROMPT,
-    ACTION_MUTATE,
     ACTION_READ_ONLY,
-    ACTION_REVIEW,
+    ActionRequirement,
     CAP_COMMIT_GATEWAY,
-    CAP_DENY_PUSH,
     CAP_FRESH_VERIFIER_SESSION,
     OUTCOME_FAILED,
     REASON_HOST_CAPABILITY_UNAVAILABLE,
@@ -60,6 +58,29 @@ SPEC_MESSAGE = (
     "action <action>. No work started for this item. Choose a capable host or enable and "
     "re-probe that capability, then run: aw <host> run <selector>"
 )
+
+
+@contextmanager
+def synthetic_gated_action():
+    """Context manager temporarily registering a synthetic gated action for preflight tests.
+
+    After 01reg8, ACTION_READ_ONLY is the only production action class and requires nothing.
+    A synthetic action requiring (CAP_COMMIT_GATEWAY, CAP_FRESH_VERIFIER_SESSION) keeps the
+    preflight REFUSES/PROCEEDS tests non-vacuous and two-sided (01reg8 E-06).
+    """
+    req = ActionRequirement(
+        action="_gated_for_test",
+        required=(CAP_COMMIT_GATEWAY, CAP_FRESH_VERIFIER_SESSION),
+        unrepresented=("path_policy",),
+        spec_basis="Synthetic action for two-sided preflight test coverage (01reg8 E-06)",
+    )
+    saved = dict(ACTION_CAPABILITY_REQUIREMENTS)
+    ACTION_CAPABILITY_REQUIREMENTS["_gated_for_test"] = req
+    try:
+        yield req
+    finally:
+        ACTION_CAPABILITY_REQUIREMENTS.clear()
+        ACTION_CAPABILITY_REQUIREMENTS.update(saved)
 
 
 @contextmanager
@@ -113,11 +134,11 @@ def _fully_capable() -> HostSandboxCapabilities:
 
 
 class NewContractFieldTests(unittest.TestCase):
-    """E-01: the three fields exist and default CONSERVATIVE (not-supported)."""
+    """E-01: the two fields exist and default CONSERVATIVE (not-supported)."""
 
     def test_new_contract_fields_and_defaults(self):
         caps = HostSandboxCapabilities()
-        for name in (CAP_COMMIT_GATEWAY, CAP_DENY_PUSH, CAP_FRESH_VERIFIER_SESSION):
+        for name in (CAP_COMMIT_GATEWAY, CAP_FRESH_VERIFIER_SESSION):
             self.assertIs(getattr(caps, name), False)
 
         snap = caps.to_dict()
@@ -187,21 +208,20 @@ class RunnerSafetyProbeTests(unittest.TestCase):
         self.assertFalse(verdicts[CAP_FRESH_VERIFIER_SESSION])
         self.assertIn("probe raised RuntimeError", notes[CAP_FRESH_VERIFIER_SESSION])
 
-    def test_the_two_unenforced_capabilities_are_declared_and_not_probed(self):
+    def test_the_unenforced_capability_is_declared_and_not_probed(self):
         """OQ-03 option (a): declared False with a `probe_notes` entry saying so.
 
         A presence-based probe inferring support from `git_commit_helper.offer_commit` is
-        FORBIDDEN, so these MUST have no probe at all.
+        FORBIDDEN, so this MUST have no probe at all.
         """
         verdicts, notes = probe_runner_safety_capabilities()
-        for name in (CAP_COMMIT_GATEWAY, CAP_DENY_PUSH):
-            with self.subTest(capability=name):
-                self.assertIsNone(
-                    hsp._RUNNER_SAFETY_PROBES[name],
-                    "there is nothing to attempt, so there must be no probe",
-                )
-                self.assertFalse(verdicts[name])
-                self.assertIn("DECLARED, NOT PROBED", notes[name])
+        name = CAP_COMMIT_GATEWAY
+        self.assertIsNone(
+            hsp._RUNNER_SAFETY_PROBES[name],
+            "there is nothing to attempt, so there must be no probe",
+        )
+        self.assertFalse(verdicts[name])
+        self.assertIn("DECLARED, NOT PROBED", notes[name])
 
     #: (case, capability, the arrangement that makes containment UNOBSERVED, the verdict the prober
     #: MUST return, why this row exists)
@@ -223,18 +243,6 @@ class RunnerSafetyProbeTests(unittest.TestCase):
             "enforcement. Spec 25kzda 5.2 guarantee 2 is that the agent CANNOT commit except "
             "through the gateway; reporting supported here would publish that guarantee on every "
             "host in the world while nothing intercepts a single `git commit`",
-        ),
-        (
-            "deny-push, with the same helper installed and importable",
-            CAP_DENY_PUSH,
-            ("agent_workflows.git_commit_helper", "offer_commit"),
-            _unarranged,
-            False,
-            "the SECOND capability an inspection-based probe would infer from the SAME helper, which "
-            "is why it is a row rather than a duplicate: the driver not pushing is a driver "
-            "behavior, and guarantee 1 asks for a host-enforced DENIAL of push-capable routes. Two "
-            "capabilities sharing one inferred witness is exactly how one fail-open shortcut "
-            "silently satisfies two contract fields",
         ),
         (
             "fresh-verifier separation, with the contract present but REFUSING NOTHING",
@@ -303,9 +311,9 @@ class MockSeamTests(unittest.TestCase):
 
     def test_the_seam_is_restored_even_when_the_body_raises(self):
         with self.assertRaises(ValueError):
-            with forced_runner_safety_verdicts({CAP_DENY_PUSH: (True, "forced")}):
+            with forced_runner_safety_verdicts({CAP_COMMIT_GATEWAY: (True, "forced")}):
                 raise ValueError("boom")
-        self.assertFalse(probe_runner_safety_capabilities()[0][CAP_DENY_PUSH])
+        self.assertFalse(probe_runner_safety_capabilities()[0][CAP_COMMIT_GATEWAY])
 
     def test_the_production_path_is_unchanged_with_no_mock_supplied(self):
         self.assertIsNone(
@@ -323,19 +331,14 @@ class MockSeamTests(unittest.TestCase):
 
 
 class RequirementMapTests(unittest.TestCase):
-    """E-04: the policy is DATA, keyed by the spec's FOUR action classes."""
+    """E-04: the policy is DATA, keyed by the supported action class."""
 
     def test_requirement_map_structure_and_coverage(self):
         self.assertEqual(
             set(ACTION_CAPABILITY_REQUIREMENTS),
-            {
-                ACTION_READ_ONLY,
-                ACTION_REVIEW,
-                ACTION_MUTATE,
-                ACTION_CONTRACTLESS_PROMPT,
-            },
+            {ACTION_READ_ONLY},
         )
-        self.assertEqual(len(ACTION_CLASSES), 4)
+        self.assertEqual(len(ACTION_CLASSES), 1)
 
         caps = HostSandboxCapabilities()
         for action, req in ACTION_CAPABILITY_REQUIREMENTS.items():
@@ -347,9 +350,6 @@ class RequirementMapTests(unittest.TestCase):
             for name in req.required:
                 self.assertTrue(hasattr(caps, name))
 
-        review = ACTION_CAPABILITY_REQUIREMENTS[ACTION_REVIEW]
-        for name in ("isolated_worktree", "argv_capture", "hook_preserving_commit"):
-            self.assertIn(name, review.unrepresented)
         self.assertEqual(ACTION_CAPABILITY_REQUIREMENTS[ACTION_READ_ONLY].required, ())
 
 
@@ -357,13 +357,16 @@ class CheckerTests(unittest.TestCase):
     """E-04: the checker names EVERY missing capability, not just the first."""
 
     def test_it_names_multiple_missing_capabilities_in_one_verdict(self):
-        caps = HostSandboxCapabilities(platform="linux")  # all three unsupported
-        verdict = check_action_capabilities(ACTION_REVIEW, caps, host="opencode")
+        caps = HostSandboxCapabilities(platform="linux")  # both unsupported
+        with synthetic_gated_action():
+            verdict = check_action_capabilities(
+                "_gated_for_test", caps, host="opencode"
+            )
         self.assertFalse(verdict.satisfied)
         self.assertEqual(
             verdict.missing,
-            (CAP_COMMIT_GATEWAY, CAP_DENY_PUSH, CAP_FRESH_VERIFIER_SESSION),
-            "all three, in contract order, not just the first",
+            (CAP_COMMIT_GATEWAY, CAP_FRESH_VERIFIER_SESSION),
+            "both, in contract order, not just the first",
         )
 
     def test_a_fully_capable_host_passes_every_action(self):
@@ -373,10 +376,19 @@ class CheckerTests(unittest.TestCase):
                 self.assertTrue(
                     check_action_capabilities(action, caps, host="opencode").satisfied
                 )
+        with synthetic_gated_action():
+            self.assertTrue(
+                check_action_capabilities(
+                    "_gated_for_test", caps, host="opencode"
+                ).satisfied
+            )
 
     def test_the_verdict_carries_the_evidence_for_each_missing_capability(self):
         caps = detect_host_capabilities("opencode")
-        verdict = check_action_capabilities(ACTION_MUTATE, caps, host="opencode")
+        with synthetic_gated_action():
+            verdict = check_action_capabilities(
+                "_gated_for_test", caps, host="opencode"
+            )
         self.assertTrue(verdict.missing)
         for name in verdict.missing:
             self.assertIn("DECLARED, NOT PROBED", verdict.notes[name])
@@ -390,7 +402,10 @@ class CheckerTests(unittest.TestCase):
         """Pure over the descriptor it is given: a forced seam must not change its answer."""
         caps = HostSandboxCapabilities(platform="linux")
         with forced_runner_safety_verdicts({CAP_COMMIT_GATEWAY: (True, "forced")}):
-            verdict = check_action_capabilities(ACTION_REVIEW, caps, host="opencode")
+            with synthetic_gated_action():
+                verdict = check_action_capabilities(
+                    "_gated_for_test", caps, host="opencode"
+                )
         self.assertIn(CAP_COMMIT_GATEWAY, verdict.missing)
 
 
@@ -411,22 +426,24 @@ class FailClosedPreflightTests(unittest.TestCase):
         self.assertEqual(rendered, SPEC_MESSAGE)
 
     def test_the_message_carries_the_recovery_command(self):
-        msg = preflight_host_capabilities(
-            ACTION_REVIEW,
-            HostSandboxCapabilities(platform="linux"),
-            host="opencode",
-            item="mjx7ne",
-        ).message
+        with synthetic_gated_action():
+            msg = preflight_host_capabilities(
+                "_gated_for_test",
+                HostSandboxCapabilities(platform="linux"),
+                host="opencode",
+                item="mjx7ne",
+            ).message
         self.assertIn("then run: aw opencode run mjx7ne", msg)
-        self.assertIn("required by mjx7ne action review", msg)
+        self.assertIn("required by mjx7ne action _gated_for_test", msg)
         self.assertIn("No work started for this item.", msg)
 
     def test_it_REFUSES_when_a_required_capability_is_unsupported(self):
         caps = _fully_capable()
         caps.supports_commit_gateway = False
-        pre = preflight_host_capabilities(
-            ACTION_MUTATE, caps, host="opencode", item="mjx7ne"
-        )
+        with synthetic_gated_action():
+            pre = preflight_host_capabilities(
+                "_gated_for_test", caps, host="opencode", item="mjx7ne"
+            )
         self.assertFalse(pre.ok)
         self.assertEqual(pre.finding_code, RUN_HOST_CAPABILITY)
         self.assertEqual(pre.outcome, OUTCOME_FAILED)
@@ -435,32 +452,35 @@ class FailClosedPreflightTests(unittest.TestCase):
 
     def test_it_PROCEEDS_when_the_same_action_is_satisfied(self):
         """The other half of the gate: a one-sided demonstration proves nothing."""
-        pre = preflight_host_capabilities(
-            ACTION_MUTATE, _fully_capable(), host="opencode", item="mjx7ne"
-        )
+        with synthetic_gated_action():
+            pre = preflight_host_capabilities(
+                "_gated_for_test", _fully_capable(), host="opencode", item="mjx7ne"
+            )
         self.assertTrue(pre.ok)
         self.assertEqual(pre.message, "")
         self.assertEqual(pre.outcome, "")
         self.assertEqual(pre.reason_code, "")
 
     def test_the_refusal_starts_no_session_and_mutates_nothing(self):
-        pre = preflight_host_capabilities(
-            ACTION_REVIEW,
-            HostSandboxCapabilities(platform="linux"),
-            host="opencode",
-            item="mjx7ne",
-        )
+        with synthetic_gated_action():
+            pre = preflight_host_capabilities(
+                "_gated_for_test",
+                HostSandboxCapabilities(platform="linux"),
+                host="opencode",
+                item="mjx7ne",
+            )
         self.assertFalse(pre.session_started)
         self.assertFalse(pre.mutated)
 
     def test_the_refusal_is_ITEM_LOCAL_and_does_not_abort_the_run(self):
         """Spec 4.2: FAIL ITEM; cascade dependents; CONTINUE independent items."""
-        pre = preflight_host_capabilities(
-            ACTION_REVIEW,
-            HostSandboxCapabilities(platform="linux"),
-            host="opencode",
-            item="mjx7ne",
-        )
+        with synthetic_gated_action():
+            pre = preflight_host_capabilities(
+                "_gated_for_test",
+                HostSandboxCapabilities(platform="linux"),
+                host="opencode",
+                item="mjx7ne",
+            )
         self.assertTrue(pre.cascade_dependents)
         self.assertFalse(
             pre.aborts_run, "an item-local failure must not abort the queue"
@@ -469,9 +489,10 @@ class FailClosedPreflightTests(unittest.TestCase):
     def test_an_independent_item_still_passes_after_another_is_refused(self):
         """Concretely: the refusal of one (item, action) does not taint the next check."""
         incapable = HostSandboxCapabilities(platform="linux")
-        refused = preflight_host_capabilities(
-            ACTION_REVIEW, incapable, host="opencode", item="blocked1"
-        )
+        with synthetic_gated_action():
+            refused = preflight_host_capabilities(
+                "_gated_for_test", incapable, host="opencode", item="blocked1"
+            )
         independent = preflight_host_capabilities(
             ACTION_READ_ONLY, incapable, host="opencode", item="independent1"
         )
@@ -480,12 +501,13 @@ class FailClosedPreflightTests(unittest.TestCase):
 
     def test_the_preflight_does_not_raise_for_an_unmet_requirement(self):
         """A refusal is a recordable OUTCOME, not a crash: the driver must be able to log it."""
-        pre = preflight_host_capabilities(
-            ACTION_MUTATE,
-            HostSandboxCapabilities(platform="linux"),
-            host="opencode",
-            item="mjx7ne",
-        )
+        with synthetic_gated_action():
+            pre = preflight_host_capabilities(
+                "_gated_for_test",
+                HostSandboxCapabilities(platform="linux"),
+                host="opencode",
+                item="mjx7ne",
+            )
         self.assertIsInstance(pre.to_dict(), dict)
         self.assertFalse(pre.to_dict()["ok"])
 
@@ -495,14 +517,15 @@ class FailClosedPreflightTests(unittest.TestCase):
                 "execute", _fully_capable(), host="opencode", item="mjx7ne"
             )
 
-    def test_a_real_host_today_refuses_the_mutating_actions(self):
+    def test_a_real_host_today_refuses_the_gated_action(self):
         """The ACCEPTED CONSEQUENCE of OQ-03 option (a), asserted rather than assumed."""
         caps = detect_host_capabilities("opencode")
-        pre = preflight_host_capabilities(
-            ACTION_MUTATE, caps, host="opencode", item="mjx7ne"
-        )
-        self.assertFalse(pre.ok, "the two unenforced capabilities must fail CLOSED")
-        self.assertEqual(set(pre.verdict.missing), {CAP_COMMIT_GATEWAY, CAP_DENY_PUSH})
+        with synthetic_gated_action():
+            pre = preflight_host_capabilities(
+                "_gated_for_test", caps, host="opencode", item="mjx7ne"
+            )
+        self.assertFalse(pre.ok, "the unenforced capability must fail CLOSED")
+        self.assertEqual(set(pre.verdict.missing), {CAP_COMMIT_GATEWAY})
 
 
 class InspectionVerbTests(unittest.TestCase):
@@ -534,13 +557,12 @@ class InspectionVerbTests(unittest.TestCase):
         for host in host_cmd.DEFAULT_HOSTS:
             self.assertIn(f"host {host}", out)
 
-    def test_capabilities_shows_both_an_allowed_and_a_refused_action(self):
+    def test_capabilities_shows_the_allowed_action(self):
         buf = io.StringIO()
         with redirect_stdout(buf):
             host_cmd.run_capabilities(self._args(host="opencode"))
         out = buf.getvalue()
         self.assertIn("ALLOWED  read_only", out)
-        self.assertIn("REFUSED  mutate", out)
 
     def test_the_agent_stream_is_valid_jsonl_and_carries_the_finding_code(self):
         buf = io.StringIO()
@@ -561,10 +583,10 @@ class InspectionVerbTests(unittest.TestCase):
         payload = json.loads(buf.getvalue())
         data = payload["data"]
         self.assertEqual(data["finding_code"], RUN_HOST_CAPABILITY)
-        self.assertEqual(len(data["action_classes"]), 4)
+        self.assertEqual(len(data["action_classes"]), 1)
         host = data["hosts"][0]
         self.assertEqual(host["host"], "opencode")
-        self.assertEqual(len(host["actions"]), 4)
+        self.assertEqual(len(host["actions"]), 1)
 
     def test_the_capability_rows_are_derived_by_introspection(self):
         """A field added to the contract must not be able to vanish from the report."""
@@ -627,6 +649,34 @@ class CommandDeclarationTests(unittest.TestCase):
             leaf for leaf in find_undeclared_leaves(parser) if leaf.startswith("host")
         }
         self.assertEqual(undeclared, set())
+
+
+class DenyPushRemovedTests(unittest.TestCase):
+    """01reg8 E-02: verify supports_deny_push and the three unenforced action verdicts are gone."""
+
+    def test_supports_deny_push_and_unenforced_action_verdicts_removed(self):
+        self.assertNotIn(
+            "supports_deny_push",
+            {f.name for f in dataclasses.fields(HostSandboxCapabilities)},
+        )
+        self.assertFalse(hasattr(hsp, "CAP_DENY_PUSH"))
+        self.assertNotIn("CAP_DENY_PUSH", hsp.__all__)
+        self.assertEqual(hsp.ACTION_CLASSES, (hsp.ACTION_READ_ONLY,))
+        self.assertEqual(
+            set(hsp.ACTION_CAPABILITY_REQUIREMENTS), {hsp.ACTION_READ_ONLY}
+        )
+        caps = HostSandboxCapabilities(platform="linux")
+        for action in ("review", "mutate", "contractless_prompt"):
+            with self.assertRaises(UnknownActionError):
+                check_action_capabilities(action, caps)
+
+        args = argparse.Namespace(host="opencode", json=False, verbose=False)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            host_cmd.run_capabilities(args)
+        out = buf.getvalue()
+        self.assertNotIn("REFUSED  ", out)
+        self.assertNotIn("deny_push", out)
 
 
 if __name__ == "__main__":

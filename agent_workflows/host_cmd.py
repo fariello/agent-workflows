@@ -18,10 +18,10 @@ is read-only with respect to the REPOSITORY, not side-effect-free with respect t
 saying "read-only" without that distinction would overclaim.
 
 HONEST LIMIT ON WHAT `capabilities` PROVES. It reports what the CONTRACT says, and the contract
-records two capabilities that are DECLARED AND NEVER PROBED because the enforcement they name
-does not exist in this repository yet. Those read not-supported on every host, so every action
-requiring them is refused. That is fail-closed and correct, and this verb prints the recorded
-reason rather than presenting the refusal as a host defect.
+records one capability that is DECLARED AND NEVER PROBED because the enforcement it names
+does not exist in this repository yet. That reads not-supported on every host, and no action
+gates on it today. That is fail-closed and correct, and this verb prints the recorded
+reason rather than presenting the status as a host defect.
 """
 
 from __future__ import annotations

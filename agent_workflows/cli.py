@@ -261,15 +261,15 @@ _DESCRIPTIONS = {
     ),
     "host probe": (
         "Execute the host capability probes and report what they OBSERVED, including the "
-        "recorded reason for every not-supported verdict. Two runner-safety capabilities "
-        "(commit gateway, push denial) are declared but never probed because the enforcement "
-        "they name does not exist here yet, so they always read not-supported and any action "
-        "requiring them is refused; that is fail-closed, not a host defect. Exit 0 whenever "
+        "recorded reason for every not-supported verdict. One runner-safety capability "
+        "(commit gateway) is declared but never probed because the enforcement "
+        "it names does not exist here yet, so it always reads not-supported (and no action "
+        "gates on it today); that is fail-closed, not a host defect. Exit 0 whenever "
         "the probes could run (a not-supported verdict is an ANSWER), 2 cannot-run/usage."
     ),
     "host capabilities": (
         "Print the host capability contract and the per-action verdicts derived from it: for "
-        "each of the four action classes, whether this host satisfies its requirements, which "
+        "each represented action class, whether this host satisfies its requirements, which "
         "required capabilities are missing, and which spec-required capabilities the contract "
         "cannot yet represent. With no host argument, reports every runner host. Read-only. "
         "Exit 0 whenever it can run, 2 cannot-run/usage."
@@ -3228,9 +3228,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "  Read-only with respect to the repository: writes nothing, so there is no --apply.\n"
             "  'probe' does EXECUTE probes (the sandbox probe builds and removes a temporary\n"
             "  jail), so it is repository-read-only rather than side-effect-free.\n"
-            "  Two runner-safety capabilities (commit gateway, push denial) are declared but\n"
-            "  never probed, because the enforcement they name does not exist here yet. They\n"
-            "  always read not-supported, so actions requiring them are refused: fail-closed.\n"
+            "  One runner-safety capability (commit gateway) is declared but\n"
+            "  never probed, because the enforcement it names does not exist here yet. It\n"
+            "  always reads not-supported (and no action gates on it today): fail-closed.\n"
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 whenever the report could be produced (a not-supported verdict is\n"

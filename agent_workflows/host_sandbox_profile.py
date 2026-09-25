@@ -102,23 +102,23 @@ RUNNER-SAFETY CAPABILITIES AND THE ACTION PREFLIGHT (mjx7ne, spec 25kzda 5.2)
 
 The contract above answers what the host can do to CONFINE a worker. It said nothing about
 the runner-safety guarantees a lifecycle ACTION depends on, and nothing compared what an
-action NEEDS against what a host PROVED. Three fields and a preflight close that:
+action NEEDS against what a host PROVED. Two fields and a preflight close that:
 
   * `supports_fresh_verifier_session` - PROBED by attempt. The probe runs the real
     fresh-verifier contract twice and requires BOTH that distinct identities finalize AND
     that a reused identity is REFUSED, because a contract that never refuses enforces no
     separation while a caller believes verification was independent.
-  * `supports_commit_gateway`, `supports_deny_push` - DECLARED AND NEVER PROBED, with the
-    reason recorded in `probe_notes`. They name host ENFORCEMENT (spec 25kzda 5.2 guarantees
-    1 and 2) that does not exist in this repository, so there is nothing to attempt. They
-    default False and therefore FAIL CLOSED. Inferring support from the presence of the
-    driver-side `git_commit_helper.offer_commit` helper is FORBIDDEN: a helper the driver
-    chooses to call is not a boundary an agent cannot evade, and reporting it as one is the
-    same fail-OPEN inference the sandbox probes above exist to refuse.
+  * `supports_commit_gateway` - DECLARED AND NEVER PROBED, with the reason recorded in
+    `probe_notes`. It names host ENFORCEMENT (spec 25kzda 5.2 guarantee 2) that does not
+    exist in this repository, so there is nothing to attempt. It defaults False and
+    therefore FAILS CLOSED. Inferring support from the presence of the driver-side
+    `git_commit_helper.offer_commit` helper is FORBIDDEN: a helper the driver chooses to
+    call is not a boundary an agent cannot evade, and reporting it as one is the same
+    fail-OPEN inference the sandbox probes above exist to refuse.
 
-`check_action_capabilities` compares one of spec 25kzda 5.2's FOUR action classes against a
-descriptor, naming every missing capability plus the spec-required capabilities this contract
-cannot yet represent (recorded, not dropped: an unlisted requirement can never fail).
+`check_action_capabilities` compares an action class against a descriptor, naming every
+missing capability plus the spec-required capabilities this contract cannot yet
+represent (recorded, not dropped: an unlisted requirement can never fail).
 `preflight_host_capabilities` turns an unmet requirement into the spec's verbatim
 `RUN-HOST-CAPABILITY` refusal with `failed` / `host_capability_unavailable`, no session
 started, dependents cascaded, and the RUN NOT aborted.
@@ -152,16 +152,12 @@ __all__ = [
     "landlock_bootstrap_source",
     # mjx7ne: the runner-safety capabilities, their probes, and the action preflight.
     "CAP_COMMIT_GATEWAY",
-    "CAP_DENY_PUSH",
     "CAP_FRESH_VERIFIER_SESSION",
     "RUNNER_SAFETY_CAPABILITIES",
     "UNREPRESENTED_SPEC_CAPABILITIES",
     "probe_runner_safety_capabilities",
     "forced_runner_safety_verdicts",
     "ACTION_READ_ONLY",
-    "ACTION_REVIEW",
-    "ACTION_MUTATE",
-    "ACTION_CONTRACTLESS_PROMPT",
     "ACTION_CLASSES",
     "ActionRequirement",
     "ACTION_CAPABILITY_REQUIREMENTS",
@@ -219,12 +215,11 @@ class HostSandboxCapabilities:
 
     # mjx7ne E-01: the RUNNER-SAFETY guarantees a lifecycle action depends on (spec 25kzda
     # 5.2 "Per-host capability descriptor"). Same fail-closed rule as the sandbox fields
-    # above: False unless something actually observed the behavior. Two of the three name
-    # host ENFORCEMENT that does not exist in this repository yet, so they are DECLARED and
-    # NOT PROBED (permanently not-supported, which fails closed) and say so in
+    # above: False unless something actually observed the behavior. One of the two names
+    # host ENFORCEMENT that does not exist in this repository yet, so it is DECLARED and
+    # NOT PROBED (permanently not-supported, which fails closed) and says so in
     # `probe_notes`; see `_declared_unenforced` for why a presence-based probe is forbidden.
     supports_commit_gateway: bool = False
-    supports_deny_push: bool = False
     supports_fresh_verifier_session: bool = False
 
     platform: str = ""
@@ -505,16 +500,14 @@ def _probe_userns() -> Tuple[bool, str]:
 # mjx7ne E-02 / E-03: the RUNNER-SAFETY capability probes and their test seam
 # ---------------------------------------------------------------------------
 
-# The three runner-safety capability names, in contract order. Used by the requirement map
+# The two runner-safety capability names, in contract order. Used by the requirement map
 # and by `probe_runner_safety_capabilities`, so a field can never be gated by one and
 # forgotten by the other.
 CAP_COMMIT_GATEWAY = "supports_commit_gateway"
-CAP_DENY_PUSH = "supports_deny_push"
 CAP_FRESH_VERIFIER_SESSION = "supports_fresh_verifier_session"
 
 RUNNER_SAFETY_CAPABILITIES: Tuple[str, ...] = (
     CAP_COMMIT_GATEWAY,
-    CAP_DENY_PUSH,
     CAP_FRESH_VERIFIER_SESSION,
 )
 
@@ -547,18 +540,17 @@ UNREPRESENTED_SPEC_CAPABILITIES: Dict[str, str] = {
     ),
 }
 
-# WHY THESE TWO ARE DECLARED AND NOT PROBED (OQ-03, maintainer ruling 2026-09-01, option
-# (a) "keep all three capabilities, honestly labelled"). `commit_gateway` and `deny_push`
-# name HOST ENFORCEMENT: spec 25kzda 5.2 guarantees 1 and 2 require that the agent CANNOT
-# commit except through the engine's gateway and that push-capable routes are denied. No
-# such enforcement exists in this package (measured: `rg -n 'commit_gateway|deny_push'
-# agent_workflows/` returned ZERO hits before this module declared the names). What DOES
+# WHY THIS CAPABILITY IS DECLARED AND NOT PROBED (OQ-03, maintainer ruling 2026-09-01, option
+# (a) "keep the capability, honestly labelled"). `commit_gateway` names HOST ENFORCEMENT:
+# spec 25kzda 5.2 guarantee 2 requires that the agent CANNOT commit except through the engine's
+# gateway. No such enforcement exists in this package (measured: `rg -n 'commit_gateway'
+# agent_workflows/` returned ZERO hits before this module declared the name). What DOES
 # exist is `git_commit_helper.offer_commit` / `aw commit`, a DRIVER-side path-scoped commit
 # helper the driver CHOOSES to call - a helper, not a boundary an agent cannot evade. So
 # there is nothing for a probe to ATTEMPT, and inferring support from that helper's mere
 # presence would be inspection-not-attempt: the fail-OPEN pattern this module's sandbox
 # probes exist to avoid (see the module docstring's measured counterexample). Declared with
-# a False default plus this note, they fail CLOSED: an action that requires them is refused
+# a False default plus this note, it fails CLOSED: an action that requires it is refused
 # on every host until real enforcement lands.
 _DECLARED_UNENFORCED: Dict[str, str] = {
     CAP_COMMIT_GATEWAY: (
@@ -568,12 +560,6 @@ _DECLARED_UNENFORCED: Dict[str, str] = {
         "helper the driver chooses to call, NOT a boundary the agent cannot evade, so "
         "inferring support from its presence would report a guarantee the host does not "
         "provide (spec 25kzda 5.2 guarantee 2, classified Host-dependent)."
-    ),
-    CAP_DENY_PUSH: (
-        "DECLARED, NOT PROBED: no push-denial enforcement (tool/network/credential denial) "
-        "exists in this package to attempt, so this capability is permanently "
-        "not-supported (fail-closed). The driver not pushing is a driver behavior, not a "
-        "host-enforced denial (spec 25kzda 5.2 guarantee 1, classified Host-dependent)."
     ),
 }
 
@@ -658,7 +644,6 @@ def _probe_fresh_verifier_session() -> Tuple[bool, str]:
 # cannot be added to the dataclass and silently skipped by the prober.
 _RUNNER_SAFETY_PROBES: Dict[str, Optional[Callable[[], Tuple[bool, str]]]] = {
     CAP_COMMIT_GATEWAY: None,
-    CAP_DENY_PUSH: None,
     CAP_FRESH_VERIFIER_SESSION: _probe_fresh_verifier_session,
 }
 
@@ -698,7 +683,7 @@ class forced_runner_safety_verdicts:
 
 
 def probe_runner_safety_capabilities() -> Tuple[Dict[str, bool], Dict[str, str]]:
-    """Decide the three runner-safety capabilities, returning (verdicts, notes).
+    """Decide the two runner-safety capabilities, returning (verdicts, notes).
 
     Deliberately NOT cached. The sandbox ladder is memoized because it spawns jail
     subprocesses whose answer cannot change mid-process; these probes are in-process and
@@ -811,12 +796,12 @@ def detect_host_capabilities(
     outside the allowed root. See the module docstring for the measured counterexample that
     makes this mandatory.
 
-    The three RUNNER-SAFETY capabilities (mjx7ne E-02) follow the same rule, and are decided
+    The two RUNNER-SAFETY capabilities (mjx7ne E-02) follow the same rule, and are decided
     ONLY when the platform being asked about is the one this interpreter is running on: a
     capability cannot be probed for a platform we are not on, and asserting one anyway is
-    exactly the fail-OPEN move this module exists to refuse. Two of the three are declared
-    and never probed because the enforcement they name does not exist here (see
-    `_DECLARED_UNENFORCED`), so they read not-supported on every host.
+    exactly the fail-OPEN move this module exists to refuse. One of the two is declared and
+    never probed because the enforcement it names does not exist here (see
+    `_DECLARED_UNENFORCED`), so it reads not-supported on every host.
     """
     plat = (platform_name or sys.platform or "").lower()
     caps = HostSandboxCapabilities(platform=plat)
@@ -1281,21 +1266,15 @@ def run_discovery_then_execution(
 # mjx7ne E-04: the ACTION-to-capability requirement map, and its checker
 # ---------------------------------------------------------------------------
 
-# The FOUR action classes spec 25kzda 5.2 defines (its own table, "Each action packet
-# declares `required_host_capabilities`"). Deliberately the spec's four, not a convenient
-# two: an `execute`/`review` pair would have silently renamed the policy and made this
-# layer's vocabulary disagree with the packet field the spec specifies.
+# Only `read_only` is represented in this contract. Spec 25kzda 5.2's action table still
+# declares four rows (it describes what a host must prove), but the other three action
+# classes (`review`, `mutate`, `contractless_prompt`) were verdicts nothing consumed in
+# the runners and were removed on maintainer ruling 4h7tt0 OQ-02 (plan 01reg8). Spec
+# 25kzda 5.2's action table is deliberately NOT narrowed, so a future reader must not
+# "restore parity" by re-adding the three unused constants without a consumer.
 ACTION_READ_ONLY = "read_only"  # read-only classification / skip / check
-ACTION_REVIEW = "review"  # plan/spec review or IPD authoring
-ACTION_MUTATE = "mutate"  # IPD or contract prompt mutation
-ACTION_CONTRACTLESS_PROMPT = "contractless_prompt"  # prompt with no run contract
 
-ACTION_CLASSES: Tuple[str, ...] = (
-    ACTION_READ_ONLY,
-    ACTION_REVIEW,
-    ACTION_MUTATE,
-    ACTION_CONTRACTLESS_PROMPT,
-)
+ACTION_CLASSES: Tuple[str, ...] = (ACTION_READ_ONLY,)
 
 
 @dataclass(frozen=True)
@@ -1340,71 +1319,11 @@ ACTION_CAPABILITY_REQUIREMENTS: Dict[str, ActionRequirement] = {
             "action is never refused by this gate."
         ),
     ),
-    ACTION_REVIEW: ActionRequirement(
-        action=ACTION_REVIEW,
-        required=(
-            CAP_COMMIT_GATEWAY,
-            CAP_DENY_PUSH,
-            CAP_FRESH_VERIFIER_SESSION,
-        ),
-        unrepresented=(
-            "isolated_worktree",
-            "path_policy",
-            "argv_capture",
-            "timeout_cancel",
-            "hook_preserving_commit",
-        ),
-        spec_basis=(
-            "spec 25kzda 5.2: 'Isolated worktree, path policy, argv capture, no-push "
-            "enforcement, commit gateway, hook-preserving commit, timeout/cancel, fresh "
-            "verifier'. Three of those eight are representable here; the other five are "
-            "recorded as unrepresented rather than dropped."
-        ),
-    ),
-    ACTION_MUTATE: ActionRequirement(
-        action=ACTION_MUTATE,
-        required=(
-            CAP_COMMIT_GATEWAY,
-            CAP_DENY_PUSH,
-            CAP_FRESH_VERIFIER_SESSION,
-        ),
-        unrepresented=(
-            "isolated_worktree",
-            "path_policy",
-            "argv_capture",
-            "timeout_cancel",
-            "hook_preserving_commit",
-            "complete_diff_capture",
-        ),
-        spec_basis=(
-            "spec 25kzda 5.2: 'All review capabilities plus required command/check execution "
-            "and complete diff capture'. Same representable three as review, plus diff "
-            "capture recorded as unrepresented."
-        ),
-    ),
-    ACTION_CONTRACTLESS_PROMPT: ActionRequirement(
-        action=ACTION_CONTRACTLESS_PROMPT,
-        required=(
-            CAP_COMMIT_GATEWAY,
-            CAP_DENY_PUSH,
-        ),
-        unrepresented=(
-            "isolated_worktree",
-            "path_policy",
-            "complete_diff_capture",
-        ),
-        spec_basis=(
-            "spec 25kzda 5.2: 'Read-only confinement unless the descriptor proves the "
-            "complete mutation boundary; never an automatic commit'. The mutation boundary "
-            "cannot be proven without the commit gateway and push denial, so both are "
-            "required; a fresh verifier is not (there is no contract to verify against)."
-        ),
-    ),
 }
 
 
 class UnknownActionError(ValueError):
-    """An action class outside the spec's four was named.
+    """An unknown action class was named.
 
     Raised rather than defaulted, because guessing which requirement set an unknown action
     should get is how a mutating action silently receives the read-only policy.

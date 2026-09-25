@@ -1541,15 +1541,14 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
     # (commit `b23d447d`), executed by plan `4h7tt0`: spec `25kzda` 4.2 no longer carries the row, so
     # the vocabulary must not either. Its `pass_criterion` promised "Capability preflight proved push
     # denial" and it aborted the run on an attempted push, and NOTHING in this repository ever
-    # enforced either. What was withdrawn is the PROMISE, not a protection: `host_sandbox_profile`
-    # declares `supports_deny_push` False and never probes it, so the capability already FAILED CLOSED
-    # and a run needing it was REFUSED - which is why that capability is deliberately LEFT IN PLACE
-    # while this row goes. Building was declined on measured grounds rather than cost: a `pre-push`
+    # enforced either. What was withdrawn is the PROMISE, not a protection: the maintainer ruled on
+    # 4h7tt0 OQ-02 that `supports_deny_push` and the unconsumed action verdicts be removed (plan
+    # `01reg8`, backlog `aagh7v`). Building was declined on measured grounds rather than cost: a `pre-push`
     # hook falls to `--no-verify`, a driver-side helper such as `git_commit_helper.offer_commit` falls
     # to invoking `git` directly, and a config value falls to the agent rewriting it, so a genuine
     # boundary means OS-level enforcement (the `x03wgn` sandbox line of work). DO NOT REINTRODUCE THE
     # CODE BOUND TO A PRESENCE CHECK: inferring push prevention from a helper's, hook's, or flag's
-    # mere existence is forbidden (`host_sandbox_profile.py:88-95`) and converts today's safe
+    # mere existence is forbidden (`host_sandbox_profile` module docstring) and converts today's safe
     # fail-closed state into a fail-OPEN checker, which is strictly worse than having no code at all.
     RunFindingCode(
         code="RUN-CHECK-FRESHNESS",

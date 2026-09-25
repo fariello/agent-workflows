@@ -51,10 +51,10 @@ sections 2.7-2.11 by name. ALSO SHIPPED SINCE THE 2026-08-30 CORRECTION: `From-S
 (`ipd_schema.META_FROM_SPEC in META_RECOGNIZED` is True), landed with its dangling-link rule
 `check.from-spec-dangling` in `8c437188` (merged `b0eb74e6`, 2026-08-30); and the PER-HOST CAPABILITY
 DESCRIPTOR EXISTS and must be EXTENDED, NEVER CREATED - `host_sandbox_profile.HostSandboxCapabilities`
-carries 13 fields including the three runner-safety ones (`supports_commit_gateway`,
-`supports_deny_push`, `supports_fresh_verifier_session`) added by plan `mjx7ne` (`executed`), of which
-`supports_commit_gateway` and `supports_deny_push` are DECLARED AND NEVER PROBED by deliberate
-decision so they fail closed (`host_sandbox_profile.py:107-111`). Creating a parallel capability
+carries 12 fields including the two runner-safety ones (`supports_commit_gateway`,
+`supports_fresh_verifier_session`) after plan `01reg8` removed the unshipped `supports_deny_push` flag, of which
+`supports_commit_gateway` is DECLARED AND NEVER PROBED by deliberate
+decision so it fails closed (`host_sandbox_profile` module docstring). Creating a parallel capability
 module because this paragraph once called the descriptor net-new is the exact defect that destroyed
 `a54m79`. STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit
 trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them -
@@ -775,11 +775,10 @@ executed by plan `4h7tt0`), which is why the table now carries TWELVE codes and 
 "Capability preflight proved push denial; no push event or unexplained remote-state change exists" and
 promised to ABORT RUN on an attempted push. THE PROMISE IS WITHDRAWN, NOT THE PROTECTION, and the
 distinction decides whether this was an honesty fix or a weakening. Nothing in this repository ever
-enforced push denial: `host_sandbox_profile` declares `supports_deny_push` False and NEVER probes it,
-so the capability FAILED CLOSED and a run requiring it was REFUSED rather than proceeding unprotected.
-Removing the row therefore removes a guarantee the table could not deliver; it does not remove a check
-that was passing. Section 5.2's `supports_deny_push` capability is DELIBERATELY PRESERVED for that
-reason, so the fail-closed refusal outlives the reporting code.
+enforced push denial: plan `01reg8` (backlog `aagh7v`) removed the unshipped `supports_deny_push` flag
+and the three unconsumed action verdicts on the maintainer ruling of 4h7tt0 OQ-02 because nothing consumed
+the refusal. Removing the row therefore removes a guarantee the table could not deliver; it does not remove
+a check that was passing.
 
 WHY IT WAS RETIRED RATHER THAN BUILT OR NARROWED, recorded so a future reader can reopen the question
 with the analysis rather than redo it. Every cheap mechanism has a known EVASION: a `pre-push` hook
@@ -1104,7 +1103,7 @@ and a `V-*` evidence block are made safe by being attributed rather than by mach
 
 OpenCode and Antigravity are not assumed to have the same session, interception, sandbox, permission, or isolation behavior. For the exact host executable version and run mode, the engine requires a current capability descriptor backed by positive and fail-closed probe evidence. Its storage format is an implementation detail; its semantics are mandatory.
 
-THE PUSH-DENIAL ENTRY BELOW IS A REQUIREMENT ON A HOST, AND IT SURVIVED THE RETIREMENT OF SECTION 4.2's `RUN-NO-PUSH` CODE DELIBERATELY. The two are different artifacts and the distinction decides whether a reader is looking at a live rule or a withdrawn one: 4.2 was a REPORTING vocabulary that claimed preflight had PROVED push denial, and it was retired on 2026-09-08 because nothing proves it; this list asks whether a host CAN enforce it, and the honest answer for every host today is NO. That answer FAILS CLOSED - `supports_deny_push` is declared False and never probed, so an action requiring it is REFUSED - which is why the requirement is kept rather than deleted. Withdrawing it here would convert a refusal into no check at all. Removing the now-unenforced flag and the verdicts nothing consumes is tracked separately as backlog `aagh7v`, and is not licensed by 4.2's retirement.
+THE PUSH-DENIAL ENTRY BELOW IS A REQUIREMENT ON A HOST, AND IT SURVIVED THE RETIREMENT OF SECTION 4.2's `RUN-NO-PUSH` CODE DELIBERATELY. The two are different artifacts and the distinction decides whether a reader is looking at a live rule or a withdrawn one: 4.2 was a REPORTING vocabulary that claimed preflight had PROVED push denial, and it was retired on 2026-09-08 because nothing proves it; this list asks whether a host CAN enforce it, and the honest answer for every host today is NO. The requirement asks what a host can enforce, no host can, and the list records the gap so a future probed capability has somewhere to land; which is why the requirement is kept rather than deleted. Removing the now-unenforced `supports_deny_push` flag and the verdicts nothing consumes was executed by plan `01reg8` (backlog `aagh7v`).
 
 At minimum the descriptor answers, independently, whether the host can:
 
@@ -1446,7 +1445,7 @@ Assume the repository contains these items. All id6 values are unique and every 
 | `spec09` | spec | `approved` | Not applicable in v1 | `gamma/01` |
 | `prmpt0` | prompt | no Run contract | Not applicable | `gamma/02` |
 
-ASSUME FOR THIS EXAMPLE that the `oc` capability descriptor positively proves standard isolated-worktree, commit-gateway, hook, fresh-session, and no-push enforcement, and that it does not prove the specialized `controlled_network_allowlist` capability required by `host06`. THAT ASSUMPTION IS COUNTERFACTUAL TODAY AND IS STATED AS AN ASSUMPTION FOR THAT REASON (corrected 2026-09-22 by plan `4h7tt0`; previously this sentence read "The current `oc` capability descriptor positively proves ...", a present-tense claim about the shipped descriptor). MEASURED: `probe_runner_safety_capabilities()` returns `supports_deny_push` False and `supports_commit_gateway` False, both DECLARED AND NEVER PROBED, because neither enforcement exists in this package; only `supports_fresh_verifier_session` is True. So the real `oc` descriptor proves NEITHER no-push NOR commit-gateway enforcement, and a reader who took the old sentence at face value would have believed two protections were in force. The example still works: it needs SOME capability to be proven and one to be missing in order to show the capability-gating path, and nothing downstream of it depends on which. The COMMIT-GATEWAY half of the old claim was false independently of the no-push retirement.
+ASSUME FOR THIS EXAMPLE that the `oc` capability descriptor positively proves standard isolated-worktree, commit-gateway, hook, fresh-session, and no-push enforcement, and that it does not prove the specialized `controlled_network_allowlist` capability required by `host06`. THAT ASSUMPTION IS COUNTERFACTUAL TODAY AND IS STATED AS AN ASSUMPTION FOR THAT REASON (corrected 2026-09-22 by plan `4h7tt0`; previously this sentence read "The current `oc` capability descriptor positively proves ...", a present-tense claim about the shipped descriptor). MEASURED: `probe_runner_safety_capabilities()` returns `supports_commit_gateway` False, DECLARED AND NEVER PROBED, because no commit-gateway enforcement exists in this package; only `supports_fresh_verifier_session` is True (`supports_deny_push` was removed by plan `01reg8`). So the real `oc` descriptor proves NEITHER no-push NOR commit-gateway enforcement, and a reader who took the old sentence at face value would have believed two protections were in force. The example still works: it needs SOME capability to be proven and one to be missing in order to show the capability-gating path, and nothing downstream of it depends on which. The COMMIT-GATEWAY half of the old claim was false independently of the no-push retirement.
 
 ### 7.1 Command exactly as requested
 
@@ -1542,6 +1541,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): AMENDED 2026-09-24 (plan 01reg8, backlog aagh7v): removed unshipped supports_deny_push flag and three unconsumed action verdicts on maintainer ruling 4h7tt0 OQ-02
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (plan hzdq8y, backlog ceauac): Removed the never-built flag for following generated IPDs from Section 2.1 command grammar, Section 2.6 overrides, Section 3 dispatch tables, Section 5 consent table, DAG rule 10, and worked example spec09. Generated IPDs are always reported as generated next actions and never join the frozen run.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-24 note (aw specs): AMENDED 2026-09-24 (plan 7p3tt8, spec uonrjg Section 0.5): Section 5.6's superseded five-color list replaced with a pointer to spec uonrjg as the single authority for lifecycle color, semantic glyph, and ASCII fallback in human terminal output. The override covers display only (spec uonrjg Section 0.5 / D11); Section 5.6's outcome vocabulary, exit codes, and reporting columns are untouched.
