@@ -748,6 +748,16 @@ _FINALIZE_ACTORS: FrozenSet[str] = frozenset(
     ("aw ipd finalize", "aw finalize", "ipd finalize")
 )
 
+# The legal backward lifecycle transitions (spec 2vev8j Section 4.8).
+# Permits recovery of an approved or auto-approved plan back to reviewed (spec 25kzda Section 4.5).
+# All other backwards transitions fail closed.
+_LEGAL_BACKWARD_EDGES: FrozenSet[Tuple[str, str]] = frozenset(
+    (
+        ("approved", "reviewed"),
+        ("auto-approved", "reviewed"),
+    )
+)
+
 
 class TransitionCheck(NamedTuple):
     """Result of validating one lifecycle transition (E-01)."""
@@ -839,6 +849,8 @@ def validate_transition(
                 f"(expected {_PLAN_STATUS_ORDER[0]!r})",
             )
         return TransitionCheck(True, "")
+    if (from_status, to_status) in _LEGAL_BACKWARD_EDGES:
+        return TransitionCheck(True, "")
     if to_rank < from_rank:
         return TransitionCheck(
             False,
@@ -894,8 +906,125 @@ def _plan_status_events(text: str) -> List[Tuple[str, str, str]]:
         if token in _PLAN_STATUS_VOCAB:
             events.append((date, token, actor.strip()))
     # Inline history is stored newest-first; reverse to oldest-first for derivation.
+    # NOTE (IPD 63h054 / F-7): this reversal is preserved deliberately for `derive_plan_status`
+    # and must NOT be changed here. The reversal is wrong for transition ordering (writers and
+    # authors disagree on direction), but it is the shipped derivation behavior that cross-checks
+    # `- Status:`. `check_engine.check_lifecycle_transitions` uses `_plan_status_event_groups`
+    # instead, which detects direction per block and yields an explicit unordered state for ties.
+    # The two readers answer different questions.
     events.reverse()
     return events
+
+
+def _plan_status_event_groups(
+    text: str,
+) -> List[Tuple[str, List[Tuple[str, str]], bool]]:
+    """The plan's status-transition events grouped by date, OLDEST-first, from inline history.
+
+    Returns a list of date groups: (date, [(status, actor), ...], ordered: bool).
+
+    Splits ## Workflow history into contiguous blocks separated by BLANK lines (indented continuation
+    lines do NOT break a block). Per block, direction is classified from adjacent record dates across
+    ALL records in the block:
+      * only ascending steps -> oldest-first
+      * only descending steps -> newest-first
+      * both -> mixed
+      * none (single date / 1 record) -> unknown
+
+    All status events are grouped by date (ISO date strings sort chronologically). Within a single date,
+    events are ordered=True only when every event in that date group sits in ONE block of known direction
+    (oldest-first or newest-first) or the group has one distinct status. In a known oldest-first block,
+    members are ordered ascending by in-block ordinal; in a known newest-first block, descending (reversed
+    to oldest-first). If direction is unknown/mixed or events span multiple blocks, ordered=False and
+    members keep file order for display only.
+    """
+    from agent_workflows import record_history as _rh
+    from agent_workflows.attention_contract import HISTORY_RECORD_RE as _HIST_RE
+
+    in_hist = False
+    blocks: List[List[str]] = []
+    current_block: List[str] = []
+
+    for line in text.split("\n"):
+        if line.strip() == "## Workflow history":
+            in_hist = True
+            continue
+        if in_hist:
+            if line.startswith("## "):
+                break
+            if not line.strip():
+                if current_block:
+                    blocks.append(current_block)
+                    current_block = []
+                continue
+            if _HIST_RE.match(line):
+                current_block.append(line)
+            else:
+                # Indented continuation or non-record line inside history; continues current block.
+                pass
+
+    if current_block:
+        blocks.append(current_block)
+
+    status_events_by_date: Dict[str, List[Tuple[str, str, int, int, str]]] = {}
+
+    for block_idx, block in enumerate(blocks):
+        parsed_records = [_rh._parse_record_line(line) for line in block]
+        dates = [pr[0] for pr in parsed_records]
+
+        has_asc = False
+        has_desc = False
+        for i in range(len(dates) - 1):
+            if dates[i] < dates[i + 1]:
+                has_asc = True
+            elif dates[i] > dates[i + 1]:
+                has_desc = True
+
+        if has_asc and not has_desc:
+            direction = "oldest-first"
+        elif has_desc and not has_asc:
+            direction = "newest-first"
+        elif has_asc and has_desc:
+            direction = "mixed"
+        else:
+            direction = "unknown"
+
+        for in_block_ordinal, (date, workflow, actor, _msg) in enumerate(
+            parsed_records
+        ):
+            token = (workflow or "").strip()
+            if token in _PLAN_STATUS_VOCAB:
+                if date not in status_events_by_date:
+                    status_events_by_date[date] = []
+                status_events_by_date[date].append(
+                    (token, actor.strip(), block_idx, in_block_ordinal, direction)
+                )
+
+    result: List[Tuple[str, List[Tuple[str, str]], bool]] = []
+    for date in sorted(status_events_by_date.keys()):
+        evs = status_events_by_date[date]
+        distinct_statuses = {e[0] for e in evs}
+        block_indices = {e[2] for e in evs}
+        single_block = len(block_indices) == 1
+        block_dir = evs[0][4] if single_block else "mixed"
+
+        if len(distinct_statuses) == 1:
+            ordered = True
+            ordered_evs = [(e[0], e[1]) for e in evs]
+        elif single_block and block_dir in ("oldest-first", "newest-first"):
+            ordered = True
+            if block_dir == "oldest-first":
+                sorted_evs = sorted(evs, key=lambda e: e[3])
+            else:
+                sorted_evs = sorted(evs, key=lambda e: e[3], reverse=True)
+            ordered_evs = [(e[0], e[1]) for e in sorted_evs]
+        else:
+            ordered = False
+            ordered_evs = [(e[0], e[1]) for e in evs]
+
+        result.append((date, ordered_evs, ordered))
+
+    return result
 
 
 def derive_status_from_events(events: List[Tuple[str, str, str]]) -> Optional[str]:

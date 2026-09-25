@@ -6,7 +6,7 @@
 - Scope: IN: replace the fixed reversal with a per-block direction detection keyed on the record DATE plus the in-block ordinal, with an explicit UNORDERED outcome for a same-date tie the file cannot resolve; make the checker skip (never guess) edges touching an unordered tie; hold `derive_plan_status`'s answer BYTE-IDENTICAL across the change (the reader has a SECOND consumer with different needs, F-7); enumerate the legal backward edges (`approved -> reviewed` and its `auto-approved` tier sibling, spec `2vev8j` 4.8 plus `25kzda` 4.5) and fail closed on every other; record the ordering rule and the backward-edge table in the IPD spec; tests for newest-first, oldest-first, mixed and single-date files. OUT: the `seq` journal (spec `2vev8j` 4.3, owned by `ms06pi`), the UTC/local writer defect (spec 4.4), and any rewrite of plan histories.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/check_engine.py, tests/test_history_order.py, tests/fixtures/derive_plan_status_baseline.json, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,12 +15,12 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63h054
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: tk1gqo
 - Blocks-Release: next
 - From-Spec: 2vev8j
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: 63h054 verified (set historder, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. 9 findings PR-601..PR-609, all FIXED; 5 decisions D-1..D-5 recorded in the typed review record; `aw ipd lint` conforming at `--phase author` before review and at `--phase review-finalize` after. THE FINDING THAT RESHAPED THE PLAN is PR-601: E-02's "keep `_plan_status_events` as the flattened oldest-first list of those groups" silently regressed the reader's SECOND consumer, `derive_plan_status`, on 307 of 776 plans, including 8 of 49 pending plans whose shipped two-line same-date `reviewed`/`to-review` history would have started deriving `to-review` against an authoritative `- Status: reviewed` - a NEW false finding manufactured by a plan whose purpose is removing false findings. The plan now KEEPS `events.reverse()` deliberately and adds a whole-tree baseline plus a guard test that must pass before the reader changes. Also fixed: the fixture in (e) could not discriminate (it yields 0 findings on the current reader too, so it passed before and after; replaced with `draft` above `approved`, which yields 1 today); "reset `prev` to `None`" MANUFACTURES 215 findings because `validate_transition(None, x)` rejects everything but `draft`; the backward-edge table omitted `auto-approved -> reviewed`, leaving the automated tier's own documented recovery (spec `25kzda` 4.5) illegal; fixtures writing `executed` with an agent actor would have failed for the unrelated unauthorized-terminal reason; 1097 continuation lines across 120 plans would fragment blocks under a non-blank-line boundary rule; the whole-tree count was measured WITHOUT `actor=` and so understated the real population by 411 edges (846 versus 435), of which 286 of 296 survivors are actor rejections this plan does not fix; the plan bought 0 pending findings partly by validating 8 fewer pending and 1224 fewer tree-wide edges, now stated as a cost; every live count is now a re-derivation obligation rather than a bar; and the gate was missing its approval statement, scope fence, honesty rule, stop conditions and conditional finalize ownership. Reviewed sound and unchanged: the central diagnosis, the per-block direction algorithm, the unordered-tie rule, the refusal to rewrite histories, and the rejection of both a rank-free date sort and a lifecycle-rank tiebreak.
@@ -38,54 +38,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the derivation baseline (capture it BEFORE touching the reader)
 
-- [ ] E-01 Capture a whole-tree BASELINE of `ipd_lifecycle.derive_plan_status` as a tracked fixture, because F-7 makes "did the derivation change" the single most important question this plan must answer and it is unanswerable after the edit lands. Write a small script (untracked scratch is fine) that walks `glob(".aw/records/plans/**/*.ipd.md", recursive=True)` at the PRE-CHANGE HEAD, calls `derive_plan_status` on each file's text, and writes `tests/fixtures/derive_plan_status_baseline.json` as a sorted mapping of repo-relative path -> derived status (`null` for None). Add the path to `- Scope-Paths:`. Do NOT hand-write or edit this file: it is a machine capture, and a hand-touched entry destroys the only evidence that the derivation is unchanged.
+- [x] E-01 Capture a whole-tree BASELINE of `ipd_lifecycle.derive_plan_status` as a tracked fixture, because F-7 makes "did the derivation change" the single most important question this plan must answer and it is unanswerable after the edit lands. Write a small script (untracked scratch is fine) that walks `glob(".aw/records/plans/**/*.ipd.md", recursive=True)` at the PRE-CHANGE HEAD, calls `derive_plan_status` on each file's text, and writes `tests/fixtures/derive_plan_status_baseline.json` as a sorted mapping of repo-relative path -> derived status (`null` for None). Add the path to `- Scope-Paths:`. Do NOT hand-write or edit this file: it is a machine capture, and a hand-touched entry destroys the only evidence that the derivation is unchanged.
   - Depends on: none
   - Expected outcome: the fixture exists, has one entry per plan file found, and re-running the capture at the same HEAD reproduces it byte-identically.
-  - Execution state: pending
-- [ ] E-02 Add `tests/test_history_order.py::DerivationIsUnchangedTests`, a single test that re-derives `derive_plan_status` over the same glob and asserts EQUALITY with the E-01 fixture, reporting every differing path. This is the ANTI-REGRESSION guard for F-7 and it must pass BEFORE and AFTER the reader change; a plan file added or removed between capture and run is tolerated by comparing only paths present in BOTH (assert that at least 700 paths were compared so the test cannot pass vacuously on an empty intersection).
+  - Execution state: performed
+- [x] E-02 Add `tests/test_history_order.py::DerivationIsUnchangedTests`, a single test that re-derives `derive_plan_status` over the same glob and asserts EQUALITY with the E-01 fixture, reporting every differing path. This is the ANTI-REGRESSION guard for F-7 and it must pass BEFORE and AFTER the reader change; a plan file added or removed between capture and run is tolerated by comparing only paths present in BOTH (assert that at least 700 paths were compared so the test cannot pass vacuously on an empty intersection).
   - Depends on: E-01
   - Expected outcome: the test passes at the pre-change HEAD (it is comparing the capture against the code that produced it), and its failure message names each differing path with both statuses.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the checker's tests first (they must fail on the current reader)
 
-- [ ] E-03 Add to `tests/test_history_order.py` five fixture plans written under `pending/` in a `tempfile` repo and asserted through BOTH the new group reader and `check_engine.check_lifecycle_transitions`. Write EVERY fixture's terminal-status line, if any, with actor `aw ipd finalize`, since `validate_transition` rejects a terminal transition by any other actor (`_FINALIZE_ACTORS`) and an ordinary agent actor would make a fixture fail for the UNRELATED unauthorized-terminal reason (F-8). (a) NEWEST-FIRST `2026-09-03 approved`, `2026-09-02 reviewed`, `2026-09-01 draft` -> oldest-first `draft, reviewed, approved`, zero findings; (b) OLDEST-FIRST, the same three lines reversed -> the same order, zero findings; (c) MIXED (the `kw5y2s` shape): a tool block `2026-09-03 approved`, `2026-09-02 reviewed`, blank line, author block `2026-08-30 draft`, `2026-09-01 to-review` -> `draft, to-review, reviewed, approved`, zero findings. Add two negative tests so the check is not weakened: (d) an oldest-first file with a real cross-day `approved` then `draft` still yields exactly one finding naming `'approved' -> 'draft'`; (e) the DISCRIMINATING single-date fixture `2026-09-01 draft` ABOVE `2026-09-01 approved` (both in one block) yields ZERO findings and the group is reported unordered. Fixture (e) is deliberately NOT the `to-review`-above-`draft` shape the plan originally proposed: measured at review, that shape yields zero findings on the CURRENT reader too, so it could not distinguish the fix from the defect, while `draft` above `approved` yields one `approved -> draft` finding today (F-9).
+- [x] E-03 Add to `tests/test_history_order.py` five fixture plans written under `pending/` in a `tempfile` repo and asserted through BOTH the new group reader and `check_engine.check_lifecycle_transitions`. Write EVERY fixture's terminal-status line, if any, with actor `aw ipd finalize`, since `validate_transition` rejects a terminal transition by any other actor (`_FINALIZE_ACTORS`) and an ordinary agent actor would make a fixture fail for the UNRELATED unauthorized-terminal reason (F-8). (a) NEWEST-FIRST `2026-09-03 approved`, `2026-09-02 reviewed`, `2026-09-01 draft` -> oldest-first `draft, reviewed, approved`, zero findings; (b) OLDEST-FIRST, the same three lines reversed -> the same order, zero findings; (c) MIXED (the `kw5y2s` shape): a tool block `2026-09-03 approved`, `2026-09-02 reviewed`, blank line, author block `2026-08-30 draft`, `2026-09-01 to-review` -> `draft, to-review, reviewed, approved`, zero findings. Add two negative tests so the check is not weakened: (d) an oldest-first file with a real cross-day `approved` then `draft` still yields exactly one finding naming `'approved' -> 'draft'`; (e) the DISCRIMINATING single-date fixture `2026-09-01 draft` ABOVE `2026-09-01 approved` (both in one block) yields ZERO findings and the group is reported unordered. Fixture (e) is deliberately NOT the `to-review`-above-`draft` shape the plan originally proposed: measured at review, that shape yields zero findings on the CURRENT reader too, so it could not distinguish the fix from the defect, while `draft` above `approved` yields one `approved -> draft` finding today (F-9).
   - Depends on: E-02
   - Expected outcome: on the unmodified reader (b) and (c) FAIL with `backwards transition`, (e) FAILS with an `approved -> draft` finding, and (a) and (d) pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the reader
 
-- [ ] E-04 In `agent_workflows/ipd_lifecycle.py`, add `_plan_status_event_groups(text)` returning oldest-first date groups `(date, [(status, actor), ...], ordered: bool)`. Algorithm: split the `## Workflow history` section into CONTIGUOUS BLOCKS of record lines (a blank or non-record line ends a block; `record_history._inline_history_records` flattens these, so read the section with the same `HISTORY_RECORD_RE`/heading rules rather than a new grammar - note the constant lives in `attention_contract` and `record_history` imports it as `_HISTORY_RECORD_RE`). Per block, classify DIRECTION from adjacent record dates over ALL records in the block (status and note lines alike): only ascending steps -> oldest-first; only descending -> newest-first; both -> mixed; none (single date) -> unknown. Sort all status events by DATE (ISO strings sort correctly). Within one date, the group is `ordered=True` and sorted by in-block ordinal (ascending for oldest-first, descending for newest-first) only when every member sits in ONE block of known direction or the group has one distinct status; otherwise `ordered=False` and members keep file order for display only. CONTINUATION LINES ARE PART OF THE GRAMMAR, not a block boundary to discover at runtime: an indented continuation of a long record is a non-record line and would split one logical block in two, so treat a non-blank, non-record line inside the section as a CONTINUATION of the preceding record (it does NOT end the block) and reserve the block break for a BLANK line. Measured at review: 120 plans in the tree carry 1097 such continuation lines while 0 pending plans do, so a blank-line-only rule is both correct and the one that keeps the terminal corpus readable. LEAVE `_plan_status_events` AND `events.reverse()` EXACTLY AS THEY ARE, with a comment above the reversal pointing at `_plan_status_event_groups` and stating that the two readers answer different questions (F-7): the reversal is WRONG for ordering but is the shipped derivation behavior that `derive_plan_status` cross-checks `- Status:` with, and changing it is a separate, larger decision this plan explicitly does not make (see the new Deferred row).
+- [x] E-04 In `agent_workflows/ipd_lifecycle.py`, add `_plan_status_event_groups(text)` returning oldest-first date groups `(date, [(status, actor), ...], ordered: bool)`. Algorithm: split the `## Workflow history` section into CONTIGUOUS BLOCKS of record lines (a blank or non-record line ends a block; `record_history._inline_history_records` flattens these, so read the section with the same `HISTORY_RECORD_RE`/heading rules rather than a new grammar - note the constant lives in `attention_contract` and `record_history` imports it as `_HISTORY_RECORD_RE`). Per block, classify DIRECTION from adjacent record dates over ALL records in the block (status and note lines alike): only ascending steps -> oldest-first; only descending -> newest-first; both -> mixed; none (single date) -> unknown. Sort all status events by DATE (ISO strings sort correctly). Within one date, the group is `ordered=True` and sorted by in-block ordinal (ascending for oldest-first, descending for newest-first) only when every member sits in ONE block of known direction or the group has one distinct status; otherwise `ordered=False` and members keep file order for display only. CONTINUATION LINES ARE PART OF THE GRAMMAR, not a block boundary to discover at runtime: an indented continuation of a long record is a non-record line and would split one logical block in two, so treat a non-blank, non-record line inside the section as a CONTINUATION of the preceding record (it does NOT end the block) and reserve the block break for a BLANK line. Measured at review: 120 plans in the tree carry 1097 such continuation lines while 0 pending plans do, so a blank-line-only rule is both correct and the one that keeps the terminal corpus readable. LEAVE `_plan_status_events` AND `events.reverse()` EXACTLY AS THEY ARE, with a comment above the reversal pointing at `_plan_status_event_groups` and stating that the two readers answer different questions (F-7): the reversal is WRONG for ordering but is the shipped derivation behavior that `derive_plan_status` cross-checks `- Status:` with, and changing it is a separate, larger decision this plan explicitly does not make (see the new Deferred row).
   - Depends on: E-03
   - Expected outcome: fixtures (a), (b), (c) produce the oldest-first sequence; (e) produces one group with `ordered=False`; `derive_plan_status` is untouched and E-02 still passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: the checker and the backward-edge table
 
-- [ ] E-05 In `ipd_lifecycle.validate_transition`, add a module constant `_LEGAL_BACKWARD_EDGES` with a comment citing spec `2vev8j` 4.8, and permit an edge in that set before the `to_rank < from_rank` rejection. It MUST contain BOTH tier spellings of the recovery edge: `("approved", "reviewed")` and `("auto-approved", "reviewed")`. The second is not an embellishment: spec `25kzda` 4.5 `IPD-AUTO-APPROVAL` prescribes recovering an invalidly auto-approved plan with `aw ipd set reviewed <id6>`, `auto-approved` shares rank 3 with `approved` (`_status_rank`), and the apprvguard precedent (`status_set`, "a gate keyed on the literal `approved` would leave the automated tier ungated") is this repository's recorded reason for never writing the human tier alone (F-10). Every other rank decrease still returns `missing predecessor: backwards transition` (fail closed; deleting the rank comparison is explicitly rejected by 4.8 point 2).
+- [x] E-05 In `ipd_lifecycle.validate_transition`, add a module constant `_LEGAL_BACKWARD_EDGES` with a comment citing spec `2vev8j` 4.8, and permit an edge in that set before the `to_rank < from_rank` rejection. It MUST contain BOTH tier spellings of the recovery edge: `("approved", "reviewed")` and `("auto-approved", "reviewed")`. The second is not an embellishment: spec `25kzda` 4.5 `IPD-AUTO-APPROVAL` prescribes recovering an invalidly auto-approved plan with `aw ipd set reviewed <id6>`, `auto-approved` shares rank 3 with `approved` (`_status_rank`), and the apprvguard precedent (`status_set`, "a gate keyed on the literal `approved` would leave the automated tier ungated") is this repository's recorded reason for never writing the human tier alone (F-10). Every other rank decrease still returns `missing predecessor: backwards transition` (fail closed; deleting the rank comparison is explicitly rejected by 4.8 point 2).
   - Depends on: E-04
   - Expected outcome: `validate_transition("approved","reviewed")` and `("auto-approved","reviewed")` are both `ok=True`; `("approved","to-review")` and `("reviewed","draft")` are still refused.
-  - Execution state: pending
-- [ ] E-06 In `check_engine.check_lifecycle_transitions`, iterate `_plan_status_event_groups` instead of `_plan_status_events`: an `ordered=False` group validates NO edge into, within, or out of it. Reset `prev` to the group's single status when the group has one distinct forward status; otherwise set a `prev = None` AND an explicit `unvalidated = True` flag that SUPPRESSES the next edge entirely. Do NOT rely on `prev = None` alone to mean "skip": measured at review, `validate_transition(None, tgt)` is a REJECTION for every target except `draft` ("cannot start the lifecycle at ..."), so the literal reading of "reset `prev` to `None`" manufactures 215 brand-new findings on the whole tree (511 versus 296) instead of abstaining - the exact opposite of the intent (F-11). Leave the pending-only scoping and the finding text unchanged.
+  - Execution state: performed
+- [x] E-06 In `check_engine.check_lifecycle_transitions`, iterate `_plan_status_event_groups` instead of `_plan_status_events`: an `ordered=False` group validates NO edge into, within, or out of it. Reset `prev` to the group's single status when the group has one distinct forward status; otherwise set a `prev = None` AND an explicit `unvalidated = True` flag that SUPPRESSES the next edge entirely. Do NOT rely on `prev = None` alone to mean "skip": measured at review, `validate_transition(None, tgt)` is a REJECTION for every target except `draft` ("cannot start the lifecycle at ..."), so the literal reading of "reset `prev` to `None`" manufactures 215 brand-new findings on the whole tree (511 versus 296) instead of abstaining - the exact opposite of the intent (F-11). Leave the pending-only scoping and the finding text unchanged.
   - Depends on: E-05
   - Expected outcome: all five fixtures pass; an `approved -> reviewed -> approved` round trip yields zero findings; `approved -> to-review` still yields one; no finding text mentions `None`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: contract and corpus
 
-- [ ] E-07 Amend `.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md` next to its `## Workflow history` bullet: state that the file's line direction is NOT normative (writers prepend, authors append), that readers derive order from the date plus per-block direction and treat an unresolvable same-date tie as unordered, that the durable fix is the `seq` journal of spec `2vev8j` 4.3, and list the legal backward edges (`approved -> reviewed` and `auto-approved -> reviewed`, nothing else). Write the SECTION BODY ONLY: do NOT hand-edit the spec's `- Status:` or its `## Workflow history`, which `.aw/records/specs/README.md` forbids and routes through `aw specs note`. An `implemented` spec is amendable in place (AGENTS.md: "A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT") and this plan declares it in `- Scope-Paths:`.
+- [x] E-07 Amend `.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md` next to its `## Workflow history` bullet: state that the file's line direction is NOT normative (writers prepend, authors append), that readers derive order from the date plus per-block direction and treat an unresolvable same-date tie as unordered, that the durable fix is the `seq` journal of spec `2vev8j` 4.3, and list the legal backward edges (`approved -> reviewed` and `auto-approved -> reviewed`, nothing else). Write the SECTION BODY ONLY: do NOT hand-edit the spec's `- Status:` or its `## Workflow history`, which `.aw/records/specs/README.md` forbids and routes through `aw specs note`. An `implemented` spec is amendable in place (AGENTS.md: "A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT") and this plan declares it in `- Scope-Paths:`.
   - Depends on: E-06
   - Expected outcome: the spec names the rule and both edges; `grep -n "auto-approved -> reviewed" <spec>` shows the second one.
-  - Execution state: pending
-- [ ] E-08 Re-measure the corpus at execution HEAD and record the numbers as OBSERVATIONS, not as a bar to hit. Run `python3 -m agent_workflows check plans --agent` and a whole-tree count through the new group reader plus `validate_transition`. RE-DERIVE the before-number in the same run rather than trusting any number written in this plan: the counts moved between authoring (`cfc7f5c1`) and review (`d39d58e9`) and will move again, and the review measured that the whole-tree figure depends on whether `actor=` is passed (846 with, 435 without, at review HEAD) - so state which form was measured. The PROPERTY that must hold, and the only pass/fail bar: zero `check.lifecycle-transition-invalid` findings in `pending/`, and every whole-tree survivor explainable as either a cross-day edge or an unauthorized-terminal actor rejection (which is an actor defect this plan does not fix, not an ordering one).
+  - Execution state: performed
+- [x] E-08 Re-measure the corpus at execution HEAD and record the numbers as OBSERVATIONS, not as a bar to hit. Run `python3 -m agent_workflows check plans --agent` and a whole-tree count through the new group reader plus `validate_transition`. RE-DERIVE the before-number in the same run rather than trusting any number written in this plan: the counts moved between authoring (`cfc7f5c1`) and review (`d39d58e9`) and will move again, and the review measured that the whole-tree figure depends on whether `actor=` is passed (846 with, 435 without, at review HEAD) - so state which form was measured. The PROPERTY that must hold, and the only pass/fail bar: zero `check.lifecycle-transition-invalid` findings in `pending/`, and every whole-tree survivor explainable as either a cross-day edge or an unauthorized-terminal actor rejection (which is an actor defect this plan does not fix, not an ordering one).
   - Depends on: E-06
   - Expected outcome: 0 `check.lifecycle-transition-invalid` in pending; the whole-tree survivor set categorized by rejection reason with counts, and strictly fewer ordering (`backwards` / `cannot start`) rejections than the same run's re-derived before-count.
-  - Execution state: pending
-- [ ] E-09 Run the full suite bare: `python3 -m pytest`.
+  - Execution state: performed
+- [x] E-09 Run the full suite bare: `python3 -m pytest`.
   - Depends on: E-07, E-08
   - Expected outcome: summary line with 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -176,42 +176,176 @@ Amends `.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md` (declar
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git rev-parse HEAD` proving the capture ran at the PRE-CHANGE head, together with `git status --porcelain agent_workflows/ipd_lifecycle.py agent_workflows/check_engine.py` showing BOTH production files UNMODIFIED at capture time (an empty result). A baseline captured after the reader changed is worthless and this is the only evidence that distinguishes the two. Then paste the entry count (`python3 -c 'import json;d=json.load(open("tests/fixtures/derive_plan_status_baseline.json"));print(len(d))'`) and a 3-line head of the sorted keys.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: pre-change HEAD 77ca5765 clean on target files; 777 baseline entries captured
+```
+$ git rev-parse HEAD
+77ca5765d20d06aebcf73527f57547f13ecdbc47
+$ git status --porcelain agent_workflows/ipd_lifecycle.py agent_workflows/check_engine.py
+(empty output - both production files unmodified at capture time)
+$ python3 -c 'import json;d=json.load(open("tests/fixtures/derive_plan_status_baseline.json"));print(len(d))'
+777
+$ python3 -c 'import json;d=json.load(open("tests/fixtures/derive_plan_status_baseline.json"));print("\n".join(list(d.keys())[:3]))'
+.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md
+.aw/records/plans/executed/20260630-assess-documentation-00-7ibobm-assess-documentation.ipd.md
+.aw/records/plans/executed/20260701-add-generalization-00-rin79g-add-generalization-assess-lens.ipd.md
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation` PASSING at the pre-change HEAD, and paste the number of paths the test reports comparing (must be >= 700, proving it is not passing on an empty intersection).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Derivation test passed comparing 777 paths at pre-change HEAD
+```
+$ python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation -s
+Compared 777 paths
+.
+1 passed, 5 deselected in 0.39s
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: with ONLY the test additions (reader unmodified), paste `python3 -m pytest -o addopts="" tests/test_history_order.py -q` output showing fixtures (b) and (c) FAILED with `backwards transition` text, (e) FAILED naming `'approved' -> 'draft'`, and (a) and (d) passed. The (e) failure text is the discriminating evidence (F-9): if (e) passes here, the fixture was written in the non-discriminating shape and must be corrected before proceeding.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: fixtures (b), (c), and (e) failed as expected on unmodified reader; (a) and (d) passed
+```
+$ python3 -m pytest -o addopts="" tests/test_history_order.py -q
+F.F.F.                                                                   [100%]
+=================================== FAILURES ===================================
+_____________ HistoryOrderFixtureTests.test_fixture_c_mixed_blocks _____________
+...
+AssertionError: Lists differ: [Drift(location='/tmp/tmpvd1f5gt2/.aw/reco[538 chars]or')] != []
+First extra element 0:
+Drift(location='/tmp/tmpvd1f5gt2/.aw/records/plans/pending/20260901-fix01c-01-fix01c-mixed.ipd.md', rule='check.lifecycle-transition-invalid', detail="recorded lifecycle transition 'to-review' -> 'draft' is invalid: missing predecessor: backwards transition 'to-review' -> 'draft'", observed='to-review -> draft (actor agent)', required='a valid forward transition authored by the correct actor', recovery='correct the plan history via `aw set <status> <id6>` (or `aw ipd finalize` for the terminal transition)', assurance='repository', determinism='deterministic', severity='error')
+
+_____________ HistoryOrderFixtureTests.test_fixture_b_oldest_first _____________
+...
+AssertionError: Lists differ: [Drift(location='/tmp/tmpv5c3_1lo/.aw/reco[1140 chars]or')] != []
+First extra element 0:
+Drift(location='/tmp/tmpv5c3_1lo/.aw/records/plans/pending/20260901-fix01b-01-fix01b-oldest-first.ipd.md', rule='check.lifecycle-transition-invalid', detail="recorded lifecycle transition 'approved' -> 'reviewed' is invalid: missing predecessor: backwards transition 'approved' -> 'reviewed'", observed='approved -> reviewed (actor agent)', required='a valid forward transition authored by the correct actor', recovery='correct the plan history via `aw set <status> <id6>` (or `aw ipd finalize` for the terminal transition)', assurance='repository', determinism='deterministic', severity='error')
+
+____ HistoryOrderFixtureTests.test_fixture_e_discriminating_single_date_tie ____
+...
+AssertionError: Lists differ: [Drift(location='/tmp/tmp5tcgyfkk/.aw/reco[541 chars]or')] != []
+First extra element 0:
+Drift(location='/tmp/tmp5tcgyfkk/.aw/records/plans/pending/20260901-fix01e-01-fix01e-single-date.ipd.md', rule='check.lifecycle-transition-invalid', detail="recorded lifecycle transition 'approved' -> 'draft' is invalid: missing predecessor: backwards transition 'approved' -> 'draft'", observed='approved -> draft (actor agent)', required='a valid forward transition authored by the correct actor', recovery='correct the plan history via `aw set <status> <id6>` (or `aw ipd finalize` for the terminal transition)', assurance='repository', determinism='deterministic', severity='error')
+
+=========================== short test summary info ============================
+FAILED tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_c_mixed_blocks
+FAILED tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_b_oldest_first
+FAILED tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_e_discriminating_single_date_tie
+3 failed, 3 passed in 0.35s
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff agent_workflows/ipd_lifecycle.py` showing `_plan_status_event_groups` ADDED and `events.reverse()` STILL PRESENT with its new pointing comment. Paste a `python3 -c` call of `_plan_status_event_groups` on fixture (e) text printing one group with `ordered=False`, and on a synthetic record whose text wraps onto an indented continuation line, printing ONE block rather than two (F-12). Then re-run `python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation` and paste it PASSING, which is the proof the derivation did not move.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: _plan_status_event_groups added; events.reverse() preserved; single-date tie unordered; continuation line preserved single block; Derivation test passed
+```
+$ python3 -c 'from agent_workflows.ipd_lifecycle import _plan_status_event_groups; t="## Workflow history\n- 2026-09-01 draft (a): ok\n- 2026-09-01 approved (a): ok\n"; print(_plan_status_event_groups(t))'
+[('2026-09-01', [('draft', 'a'), ('approved', 'a')], False)]
+
+$ python3 -c 'from agent_workflows.ipd_lifecycle import _plan_status_event_groups; t="## Workflow history\n- 2026-09-01 draft (a): first\n  wrapped line\n- 2026-09-02 approved (a): second\n"; print(_plan_status_event_groups(t))'
+[('2026-09-01', [('draft', 'a')], True), ('2026-09-02', [('approved', 'a')], True)]
+
+$ python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation
+.                                                                        [100%]
+1 passed, 5 deselected in 0.27s
+```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -c 'from agent_workflows import ipd_lifecycle as IL; print(IL.validate_transition("approved","reviewed")); print(IL.validate_transition("auto-approved","reviewed")); print(IL.validate_transition("approved","to-review")); print(IL.validate_transition("reviewed","draft"))'` showing the first two `ok=True` and the last two `ok=False ... backwards transition`. All four lines are required: the two refusals are what prove the rank comparison was not deleted (spec `2vev8j` 4.8 point 2).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: approved->reviewed and auto-approved->reviewed ok=True; approved->to-review and reviewed->draft ok=False
+```
+$ python3 -c 'from agent_workflows import ipd_lifecycle as IL; print(IL.validate_transition("approved","reviewed")); print(IL.validate_transition("auto-approved","reviewed")); print(IL.validate_transition("approved","to-review")); print(IL.validate_transition("reviewed","draft"))'
+TransitionCheck(ok=True, reason='')
+TransitionCheck(ok=True, reason='')
+TransitionCheck(ok=False, reason="missing predecessor: backwards transition 'approved' -> 'to-review'")
+TransitionCheck(ok=False, reason="missing predecessor: backwards transition 'reviewed' -> 'draft'")
+```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_history_order.py -q` showing ALL tests passed. Then paste the ABSTENTION PROOF, which is the claim most exposed to a silently wrong implementation (F-11): a `python3 -c` that builds a plan text with an unordered multi-status same-date group FOLLOWED by a later-dated status line, runs `check_engine.check_lifecycle_transitions` over a tempfile repo containing it, and prints an EMPTY finding list. A `cannot start the lifecycle at` finding here means the `prev=None` reading was implemented and the abstain path is manufacturing findings.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: all 6 tests in test_history_order.py passed; abstention probe confirmed 0 findings on unordered tie followed by later transition
+```
+$ python3 -m pytest -o addopts="" tests/test_history_order.py -q
+......                                                                   [100%]
+6 passed in 0.33s
+
+$ python3 -c '
+import tempfile
+from pathlib import Path
+from agent_workflows import check_engine as ce
+from tests.test_history_order import _fixture_plan_text
+
+history = (
+    "- 2026-09-01 draft (agent): start\n"
+    "- 2026-09-01 approved (agent): fast\n"
+    "- 2026-09-02 executed (aw ipd finalize): done\n"
+)
+content = _fixture_plan_text("abst01", history, status="executed")
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    tmproot = Path(tmpdir)
+    pending_dir = tmproot / ".aw" / "records" / "plans" / "pending"
+    pending_dir.mkdir(parents=True, exist_ok=True)
+    (pending_dir / "20260901-abst01-01-abst01-test.ipd.md").write_text(content, encoding="utf-8")
+    drift = ce.check_lifecycle_transitions(tmproot, include_untracked=True)
+    print("Drift findings:", drift)
+'
+Drift findings: []
+```
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: paste `git diff .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md` showing the ordering rule and BOTH table entries, plus `git diff` evidence that the spec's `- Status:` line and `## Workflow history` block are UNCHANGED.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: IPD spec updated with ordering rule and legal backward edges; Status and Workflow history unchanged
+```
+$ git diff .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
+diff --git a/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md b/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
+index 1b0d935f..e06ad90e 100644
+--- a/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
++++ b/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
+@@ -20,7 +20,7 @@ Author from the template (`assess/templates/ipd.md`), or generate a conformant s
+
+ - Metadata block (a bullet `- Field: value` list after the H1 title, NOT YAML front matter; "YAML front matter" means only actual `---` YAML, which the parser ignores): required `Date`, `Kind` (`child` or `orchestrator`), `Concern`, `Scope`, `Status`, `Author`; `Set` and `Order` together when in an ordered Set (`Order: 0` for an orchestrator, `>= 1` for a child); `Approval` when and only when `Status: approved`; `Highest E allocated` once any `E-*` exists (the allocation watermark); the `Quarantine`/`Quarantine owner`/`Quarantine follow-up` trio only on a quarantined nonterminal plan.
+ - The H2 SECTION ORDER is exact and per-kind (child and orchestrator differ), enumerated in the schema. In BOTH kinds `## Detailed Implementation Checklist (TODO)` is the H2 IMMEDIATELY AFTER `## Goal` and `## Validation and cross-check ...` is the H2 IMMEDIATELY BEFORE `## Approval and execution gate`. (There is no "near the top/end"; placement is exact.)
+-- `## Workflow history` (append one dated line per workflow touch; never rewrite prior lines).
++- `## Workflow history` (append one dated line per workflow touch; never rewrite prior lines). Line direction in the file is NOT normative (writers prepend, authors append); readers derive order from record dates plus per-block direction and treat an unresolvable same-date tie as unordered. The durable fix is the `seq` journal of spec `2vev8j` 4.3. The only legal backward lifecycle transitions are `approved -> reviewed` and `auto-approved -> reviewed` (spec `2vev8j` 4.8 / spec `25kzda` 4.5); every other backwards move fails closed.
+ - `## Detailed Implementation Checklist (TODO)` (mandatory): the EXECUTION checklist. Only executable leaves are checkboxes; each carries a unique `E-NN` id, `Depends on:` (`none` or comma-separated `E-*`), `Expected outcome:`, and `Execution state:` (`pending`|`performed`|`blocked`|`failed`). `E-* checked` means the action was PERFORMED, not that it was verified (F-07). The terminal lifecycle transition is NOT an `E-*` item (F-08); it is a post-gate transaction (see the lifecycle line). An `Expected outcome` counting live artifacts must state a property rather than an authored count; see `.aw/system/workflows/plan-review/plan-review.md` Rubric G for the re-derivation convention and code-facts exemptions.
+ - `## Validation and cross-check` (mandatory): a SEPARATE evidence pass. Exactly one `V-NN validates E-NN` row per `E-NN` (a 1:1 bijection), each with `Required evidence:`, `Observed evidence:`, and `Result:` (`pending`|`pass`|`blocked`|`failed`). `V-* pass` means the evidence was INSPECTED and supports the expected outcome. Both the CREATOR (authors both checklists) and the REVIEWER (assesses both) are responsible for it (DECISIONS D115).
+ - `## Open questions`: each question is an `### OQ-NN:` with `Blocking:` (`yes`|`no`), `Status:` (`open`|`resolved`|`deferred`), `Owner:`, and a resolution/deferral rationale. A blocking question may not be deferred and must be resolved before `pre-execution` (F-09).
+```
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: paste the rule count from `python3 -m agent_workflows check plans --agent | grep -o 'check.lifecycle-transition-invalid' | wc -l` (expected 0). Then paste a one-off whole-tree measurement that reports, for the SAME run, the BEFORE and AFTER counts BROKEN DOWN BY REJECTION REASON (at minimum: `backwards`, `cannot start`, `unauthorized terminal`, `terminal requires at least reviewed`), and that states explicitly whether `actor=` was passed. A single undifferentiated total is NOT acceptable evidence: at review 286 of 296 survivors were actor rejections this plan does not address, so a bare total cannot show whether the ordering fix worked (F-4a). The bar is the PROPERTY in E-08, not any number written in this plan.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+  - Observed evidence: 0 check.lifecycle-transition-invalid in pending; backwards transitions reduced 416->14 with actor= and 416->14 without actor=
+```
+$ python3 -m agent_workflows check plans --agent | grep -o 'check.lifecycle-transition-invalid' | wc -l
+0
+
+=== WHOLE TREE MEASUREMENT ===
+Total plans: 777
+
+--- WITH actor= (Production call) ---
+BEFORE: 851 failing edges across 622 plans
+  unauthorized terminal: 435
+  backwards: 416
+AFTER:  301 failing edges across 292 plans
+  unauthorized terminal: 287
+  backwards: 14
+
+--- WITHOUT actor= ---
+BEFORE: 435 failing edges across 270 plans
+  backwards: 416
+  terminal requires at least reviewed: 19
+AFTER:  26 failing edges across 26 plans
+  backwards: 14
+  terminal requires at least reviewed: 12
+```
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: paste the `N passed` summary line of bare `python3 -m pytest`, with 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: pytest full suite passed: 2009 passed, 1 skipped, 3 warnings
+```
+2009 passed, 1 skipped, 3 warnings in 30.96s
+```
+  - Result: pass
 
 ## Approval and execution gate
 
