@@ -6,7 +6,7 @@
 - Scope: IN: an ask-then-remember prompt helper; two new config keys (`defaults.migrate_layout`, `defaults.leftovers`) visible in `aw config show` and clearable; the migration prompt defaults YES; `--yes` uses the saved answer, else the built-in default; the `--leftovers` disposition reads its saved default; a non-`bool` value must SURVIVE `config.normalize` (it does not today, F-9) and the install-time migration call sites must FAIL SOFT rather than traceback (F-8). OUT: any other prompt; the `.agents/skills` classifier fix itself, which is backlog `72qlya` and this plan's declared dependency.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/config.py, tests/test_installer.py, tests/test_config.py, tests/test_cli.py, CHANGELOG.md, README.md, docs/**
 - Item-Dependencies: executed:vv6y7e
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -15,10 +15,12 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: je74a0
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: kapm7y
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 readiness re-check (opencode/its_direct/pt3-claude-opus-5.5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> none (no verdict token read)). RE-CHECKED REVIEW: the review of 2026-09-25 (no finding ids stated in its record). Recomputed at HEAD `7835a4d5`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-25 same-status (aw set): OQ-03 resolved 2026-09-25: depend on the classifier-fix child vv6y7e instead of backlog 72qlya being done
 - 2026-09-25 reviewed (aw set): status set to reviewed
