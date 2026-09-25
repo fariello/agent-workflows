@@ -6,20 +6,20 @@
 - Scope: IN: replace the glob branch of `ipd_lifecycle._scope_match` with a small pure, segment-aware matcher (`**` = zero or more whole segments, `*`/`?`/`[...]` confined to one segment, the remainder after `**` must match); keep the `dir/`, `dir/**`, and literal/bare-directory branches byte-equivalent in behavior; add a focused unit-test module pinning the backlog's rows plus positive `dir/**` and zero-segment `**` cases and the `aw commit` incident row; add one sentence to spec `ipd-structure-and-linting` Section 4.5 stating the matching semantics; add a REMEDY HINT to the `aw commit` out-of-scope refusal (E-07), which this change makes routine rather than rare (F-5, F-9) and which today names no way forward. OUT: the separate `fnmatch` fences in `orchestrate_isolation` and `verify_roles` (different grammar, fail-closed direction, F-7), renaming the lowercase `index.md` allowance (OQ-02), and adding any new implicit allowance for backlog filing (OQ-01).
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/work_cmd.py, tests/test_scope_match.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: scopeglob
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mxja4g
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: cfab6d
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: mxja4g verified (set scopeglob, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us step=plan-review): plan-review complete: 5 findings (F-9..F-15) all FIXED, 5 recorded decisions, none irreversible; review-finalize lint clean
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed; APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, none deferred, none open. Every one of the author's eight findings was independently re-derived at HEAD f768cadd and HELD, including the zero-narrowing blast radius (re-derived over 444 plans and 2623 tracked paths) and the uniqueness of the `split("**")` fallback; E-02's proposed matcher was implemented at review and behaves exactly as specified on all 14 rows, with the pathological pattern returning False in about 0.0001s (F-15). The findings are about what the plan did NOT say: the `aw commit` refusal this change makes routine names no remedy, so E-07 and V-07 were added and `work_cmd.py` declared (PR-001, F-9); F-5's own behavior-change measurement was an undercount that also misframed the affected class as backlog-only when a spec path is included, which widened OQ-01 (PR-002, F-10); four live artifact counts were stated as acceptance bars rather than context (PR-003, F-11/F-12); the plan named five fences without saying which can actually regress, now enumerated after verifying three are inert or permissive (PR-004, F-13/F-14); and the gate missed this plan's self-application hazard, since E-02 changes the predicate that judges its own commit (PR-005). Lint: `--phase author` conforming before review, `--phase review-finalize` clean with zero findings after.
