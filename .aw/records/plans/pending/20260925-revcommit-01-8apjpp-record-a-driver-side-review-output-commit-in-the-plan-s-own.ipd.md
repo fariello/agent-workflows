@@ -6,7 +6,7 @@
 - Scope: IN: (a) the driver commit carries the canonical `AW-Run`/`AW-Item` trailers (`git_commit_helper.run_item_trailers` composed with `compose_message_with_trailers`) plus an `AW-Committed-By: driver` trailer, so the commit is self-describing in permanent history; (b) the driver prints one yellow stderr line naming the id6, the commit and the paths when it commits, and one when a hook refuses; (c) the end-of-run report on both hosts counts driver-committed reviews; (d) the commit ATTRIBUTES ONLY THIS TURN'S OWN PATHS, because the sweep lane is shared across every review of the run and a previously-refused turn's staged files otherwise ride the NEXT turn's commit under the next turn's id6 (F-5, measured); (e) the reported path set is the set actually committed rather than `git status --porcelain`'s directory collapse (F-6, measured); (f) a regression test. OUT: writing a line into the plan's `## Workflow history` (rejected, see Findings F-3); refusing a non-committing review as a failed turn (the maintainer decision in OQ-01, defaulted to keep the safety net).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_review_lane_output_commit.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -18,6 +18,7 @@
 - Id: 8apjpp
 
 ## Workflow history
+- 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-509, all FIXED, no deferrals. THE MATERIAL FINDING (PR-501, plan F-5): because the sweep lane is ONE tree shared by every review of a run and the function stages whatever `git status --porcelain` reports, a turn whose driver commit a hook REFUSED leaves its files STAGED, and the NEXT review's driver commit sweeps them in under the NEXT plan's id6 - so the very trailers this plan adds would make a FALSE ownership claim permanent, which is strictly worse than the untrailered commit it replaces. Measured live at review: turn 1 (`aaa111`, hook refusing) returned `None` leaving two files staged, then turn 2 (`bbb222`) committed FOUR files under subject `review(oc): record the review of bbb222`. Added E-03 to scope the staged set to the turn's own paths. Second measured defect (PR-502, F-6): `git status --porcelain` collapses an untracked DIRECTORY to one entry, so a first-use lane reports `.aw/` and the plan's own E-01 assertion on the returned paths, its operator line's path list, and its `<n> path(s)` count are all wrong; added E-04. Also corrected E-01's hook fixture (a hook in the worktree's own git dir is NEVER RUN - verified against git 2.43.0 - so the third case would have passed vacuously), pinned the one live `pal` binding E-03 may use, replaced the "latest attempt" predicate in the summary helper with an any-attempt scan plus the reason, and added the durable carrier that `aw check plans` reports as an `error` on this plan today.
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog wtaxvk; re-measured that the driver-side review commit has one call site, carries no trailers or history mark, and has fired zero times in 87 recorded sweep review attempts.
