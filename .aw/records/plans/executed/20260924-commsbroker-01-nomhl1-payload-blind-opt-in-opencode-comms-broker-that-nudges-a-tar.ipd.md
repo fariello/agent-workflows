@@ -6,7 +6,7 @@
 - Scope: IN: a new stdlib-only module `agent_workflows/comms_broker.py`, run explicitly as `python3 -m agent_workflows.comms_broker run --target-agent <proj.agent> --target-url <loopback url> --mode tui|headless [--session <id>] [--once] [--interval N]`, that (a) scans `untracked/inbox/` (and `shared/inbox/`) for messages whose `To:` equals the target, (b) reads ONLY the header block, (c) enforces `Not-Before`, (d) sends ONE fixed constant nudge via the OpenCode server HTTP API chosen by mode, and (e) writes broker-authored acks only. OUT: discovery/registry (child 02, `ex539u`), agent-side ack writing and status aggregation (child 03, `ozcfjr`), an `aw comms` CLI verb, installer changes, `Depends-On`, cross-box delivery, inotify.
 - Scope-Paths: agent_workflows/comms_broker.py, tests/test_comms_broker.py, .aw/records/specs/implemented/20260715-1722-01-agent-comms-convention.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nomhl1
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: nomhl1 verified (set commsbroker, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED. PR-001 (BLOCKER: measured `/tui/show-toast` and `/tui/append-prompt` returning `200 true` with NO TUI attached while `/tui/control/next` blocked, so the spike's status-code stop condition could not catch an accept-and-discard and the broker would write false `delivered` acks), PR-002 (untrusted `To:` identity into an ack filename), PR-003 (URL policy had no redirect story), PR-004 (comms-dir rule misdescribed as a fallback), PR-005 (crash on a fresh clone with no `untracked/` lane), PR-006 (`scheduled` ack rewritten every poll), PR-007 (uncarriered OQ, `check.ipd-uncarried-obligation` at `error`) all FIXED. Added E-09 (URL policy predicate) and V-09; watermark 08 -> 09. OQ-02 authored carrying `- Finding: F-1a`. Findings in `.aw/records/reviews/20260924-commsbroker-01-nomhl1-payload-blind-opt-in-opencode-comms-broker-that-nudges-a-tar.review.md`. Readiness go-pending-approval.
