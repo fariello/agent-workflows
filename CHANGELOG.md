@@ -69,6 +69,8 @@ behavior-preserving install refactor, and the bug-fix / install-path corrections
 (previously staged for a separate 1.2.1 patch, now folded into this single release). Final release
 scoping is confirmed at release-review.
 
+- Fixed: the `aw` CLI now detects when it is executed inside a checkout of `agent-workflows` whose package differs from the installed one (for example, in a lane worktree when the editable install points to a different tree). When a mismatch is detected, `aw` prints a one-line notice on stderr and re-runs using the invoked checkout's package, ensuring evidence commands run against the active tree's code. Set `AW_NO_REEXEC=1` in the environment to disable the re-run.
+
 - Added: `.agents/prompts/local/` gitignored quarantine lane (DECISIONS D94). Raw, sensitive, or
   work-in-progress prompts (e.g. `/handoff` session-handoff drafts) are written to `local/` where they
   cannot be accidentally committed; a human promotes a reviewed, scrubbed copy into a tracked lifecycle

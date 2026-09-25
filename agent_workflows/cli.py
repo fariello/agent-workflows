@@ -13787,6 +13787,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     early, because a verb that inspects the override needs it already set.
     """
 
+    # wj5b53: when invoked as a console script / __main__ (argv is None) in a checkout
+    # whose package differs from the installed one, re-exec with that checkout's package.
+    # In-process callers pass an explicit argv and must never be replaced by execve.
+    # Shell-completion requests (aw __complete) must stay completely silent and fast.
+    if argv is None and sys.argv[1:2] != ["__complete"]:
+        from . import checkout_pin
+
+        checkout_pin.check_and_reexec()
+
     _entry_color_override = _term_mod.get_color_override()
     try:
         return _dispatch(argv)

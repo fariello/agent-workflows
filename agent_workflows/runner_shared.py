@@ -24215,6 +24215,7 @@ _AW_PIN_STRIP = (
 
 _AW_PIN_BOOTSTRAP = (
     _AW_PIN_STRIP
+    + "os.environ['AW_PINNED_CHILD']='1'\n"
     + "import runpy\n"
     + 'runpy.run_module("agent_workflows",run_name="__main__",alter_sys=True)\n'
 )
