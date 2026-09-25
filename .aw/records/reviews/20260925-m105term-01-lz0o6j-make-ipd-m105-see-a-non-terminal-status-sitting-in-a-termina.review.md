@@ -1,0 +1,123 @@
+# Review: Make IPD-M105 see a non-terminal status sitting in a terminal plan directory
+
+- Subject-Id: lz0o6j
+- Subject-Type: ipd
+- Reviewed-At: 2026-09-25
+- Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
+- Verdict: APPROVE WITH REVISIONS APPLIED
+
+## Round 1
+
+All claims verified at HEAD `dab6ecd8`. The target plan was committed and unchanged, so the
+pre-review snapshot was correctly skipped per Step 1. Structural preflight
+`aw ipd lint --phase author --agent` reported `conforming` (exit 0) BEFORE review and again at
+`--phase review-finalize` after the revisions.
+
+THE BUG IS REAL AND THE PLAN DIAGNOSED IT CORRECTLY. I reproduced the whole Findings table rather
+than trusting it. `lint_text`'s guard is
+`if _is_terminal_dir(directory) and not legacy and checkpoint != "post-transition": return
+LintResult(S.DISPOSITION_LEGACY, [])`, and it sits ABOVE `check_metadata`, so the entire terminal
+tree is exempt before the path/status predicate ever runs. Driving one real executed plan with its
+`- Status:` forced to `to-review`: `directory="executed"` at `author` and at `pre-transition` both
+return `legacy/not evaluated` with ZERO diagnostics, while the same text at `directory="pending"`
+returns `error` with 8 diagnostics. The two sibling surfaces are silent for the reasons the plan
+gives: `attention`'s rule requires `status in plans_mod.TERMINAL` (so a pre-terminal status cannot
+reach it), and `artifact_audit.audit_tracked_artifact` returns None when
+`expected_dir_for_status(declared) == "pending"`. E-01's misrouting claim is exact: with
+`legacy=True` in `executed/`, the Status diagnostic comes out as
+`('IPD-M104', 'Status: pre-terminal Status must live under pending/')`, because `check_metadata`
+routes to `C_META_PATH` only when `me.field == "Status" and "directory" in me.message`, and that
+one message is the only `_check_path_status` arm whose text omits the word.
+
+THEN I MEASURED THE BLAST RADIUS, AND THE PLAN'S CENTRAL NUMBER IS WRONG. The plan states "0 of 723
+terminal-tree plans disagree with their directory", and OQ-01 rests its whole "no cutover needed,
+default is ERROR" resolution on that zero. Running `_check_path_status` over the raw
+`- Status:` value of every file in the three terminal trees returns 25 disagreements, not 0 (and the
+denominator is 727, not 723). I found the reason, and it is not a counting slip: the plan's F-table
+number was almost certainly obtained through a NORMALIZING reader, while E-02 prescribes reading
+`doc.meta_fields["Status"]`, which is RAW. All 25 are pre-cutover legacy plans dated 2026-06-30
+through 2026-07-11 whose status line is prose or upper-case (`- Status: EXECUTED`,
+`- Status: EXECUTED 2026-07-03 (approved by user; ...)`). `plans.read_status` runs
+`normalize_status` and turns every one of them into `executed`, which agrees with the directory;
+`ipd_schema` has no `normalize_status` at all, so the raw value `EXECUTED` is not in `S.TERMINAL`,
+falls into the pre-terminal arm, and yields an error.
+
+THAT SAME ASYMMETRY IS ALSO A DESIGN DEFECT IN THE PLAN, and it is the finding I would keep if I
+could keep only one. E-02 reads the RAW field and E-04 prescribes `plans.read_status` plus the same
+predicate. So the two surfaces this single plan adds would DISAGREE BY EXACTLY 25 PLANS: measured,
+the E-04 pairing flags 0 and the E-02 pairing flags 25. A plan whose stated goal is "the same error
+is reachable from `aw check`" would have shipped two readers that cannot report the same set. This is
+the identical class of defect that `check_ipd_lint_reach`'s own docstring was written to prevent
+(it records a measured zero-versus-one disagreement between `aw check` and `aw doctor` on
+`check.id6-collision` caused by an `include_retired` divergence), so the repository has already paid
+for this lesson once.
+
+AND E-04 IS A NO-OP AS WRITTEN. It says to change behavior "for plans NOT in `pending/`" inside
+`check_ipd_lint_reach`. That function's loop is
+`for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked)`, with NO
+`include_retired=True`, and `_iter_type_files` skips any path where `is_retired(p, record_type)` is
+true. `_RETIRED_PATH_SEGMENTS` contains `executed`, `superseded` and `not-executed`, so every
+terminal-tree plan is filtered out BEFORE the `if "pending" not in p.parts: continue` guard is
+reached. Measured: the loop yields 50 files, of which 0 are outside `pending/`. The `continue` guard
+is dead code today. E-04 therefore has to pass `include_retired=True` to reach anything at all, and
+that flag is precisely the one the docstring identifies as the cause of the previous cross-surface
+divergence, so the plan must say so and must keep the full lint pending-scoped while widening only
+the cheap predicate.
+
+THE SEVERITY QUESTION IS ALSO LIVE IN A WAY OQ-01 DOES NOT ACCOUNT FOR. The plan reuses
+`check.ipd-lint-diagnostic`, which is registered `info`, and `info` is the UNIQUE severity
+`artifact_core.drift_exit_code` exempts (measured: `error` -> 1, `warning` -> 1, `info` -> 0). So
+E-04's finding cannot red CI by itself, which is good and which the plan should state rather than
+leave to be discovered. But `aw ipd lint --all` is a DIFFERENT gate with a different rule: it
+computes `exit_code = 1 if any_error else 0` off the per-file DISPOSITION. Today it reports
+`conforming=50, legacy/not evaluated=727, error=0` and exits 0. After E-02, the 25 legacy plans
+become `error`, and that command starts exiting 1. OQ-01 answered "default is ERROR" on the premise
+that an error grandfathers nothing; with 25 affected the premise fails, and the plans cannot simply
+be fixed, because `AGENTS.md` forbids adding commits to executed plans and the
+`ipd-executed-transition-gate` pre-commit hook enforces it.
+
+SO THE FIX IS A CUTOVER, AND THE REPOSITORY ALREADY SHIPS THE PATTERN. `CITATION_ANCHOR_CUTOVER_DATE`
+is a compact `YYYYMMDD` constant read off the plan's own `- Date:`, with a documented convention for
+re-measuring it and a test asserting it stays strictly greater than the newest plan date. The 25
+affected plans all predate 2026-07-12, so any cutover at or after that date suppresses all of them
+while leaving the rule fully live for anything authored since. I resolved this against the plan's
+OQ-01 rather than asking, because the repository supplies both the mechanism and the precedent, and
+because the backlog item `dbslfm` explicitly anticipated it ("a date/format cutover, the mechanism
+`config.dependency_cutover_date` already provides, or a severity split") and asked only that the
+blast radius be counted first. It was counted wrong; counted right, it selects the cutover.
+
+ON RIGHT-SIZING: five items was about right and stays five, but E-02 and E-04 each gained a
+precondition they did not have, and E-01's test-expectation update is now stated as the pinned
+assertion it actually is. I did not split anything, because each item still has one concern and one
+test surface; the failures here were wrong CONTENT, not bundled content.
+
+Two things I checked and found correct, recorded so a later reader does not re-derive them. `_dir_of`
+does resolve a date shard to its anchor (it scans `path.resolve().parts` for the first disposition
+name), so E-02's shard claim holds and the `executed/202608/` test case is meaningful. And the
+`legacy=True` escape hatch keeps working after E-02, because that flag bypasses the short-circuit
+entirely and runs the full check set; E-02 only adds a pre-check on the path NOT taken. Backlog
+`dbslfm` is `Work-Kind: bug` and carries `- Blocks-Release: next`, which this plan correctly
+inherits, so the every-live-bug rule is satisfied.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-701 | BLOCKER | IN-SCOPE | A. Correctness / D. Anti-regression | Measured over all three terminal trees, raw `- Status:` value through `ipd_schema._check_path_status` on the `ipd_lint._dir_of` anchor: 25 disagreements across 727 files (not 0 of 723). All 25 dated 2026-06-30..2026-07-11 with prose/upper-case status lines (`- Status: EXECUTED`, `- Status: EXECUTED 2026-07-03 (approved by user; ...)`); `plans.read_status` normalizes each to `executed` while `ipd_schema` has no `normalize_status` | THE PLAN'S BLAST RADIUS IS WRONG AND IT IS THE PREMISE OQ-01's ENTIRE RESOLUTION RESTS ON. The plan asserts 0 disagreements and concludes "an error finding grandfathers nothing and needs no cutover. The default is ERROR." With 25 affected, an unconditional error DOES grandfather something, and those 25 cannot be fixed: `AGENTS.md` forbids adding commits to a plan in `executed/` and the `ipd-executed-transition-gate` pre-commit hook enforces it, so the only available remedies are a cutover or a severity split. The discrepancy is not arithmetic: the plan's number comes from a NORMALIZING reader while E-02 prescribes the RAW field, which is the same defect as PR-702. | C:Low; U:Low; S:Low; F:High if shipped as written (25 newly-erroring plans nobody may edit); Low for the FIX itself, which is one date constant with a shipped precedent | FIXED | E-02 now applies a `M105_TERMINAL_CUTOVER_DATE` gate read off the plan's own `- Date:`, modelled on `CITATION_ANCHOR_CUTOVER_DATE` (cited by symbol, with its re-measurement convention and its strictly-greater-than test). F-table rewritten with the real 25/727 numbers and the normalization explanation. OQ-01 reopened, re-resolved on the corrected measurement, and its old zero-based rationale replaced. V-02 now requires the pre-cutover suppression proven on a real named plan (`vfa1tl`) and the post-cutover error proven on a fixture. |
+| PR-702 | BLOCKER | IN-SCOPE | A. Correctness / C. Architecture (one mechanism, one answer) | Measured: the E-04 pairing (`plans.read_status` + `_check_path_status`) flags 0 terminal-tree plans; the E-02 pairing (`doc.meta_fields["Status"]` + the same predicate) flags 25. `plans.read_status` returns `normalize_status(...)`; `ipd_lint.parse(...).meta_fields["Status"]` on `vfa1tl` returns the raw `'EXECUTED'`; `ipd_schema` exposes no `normalize_status` | THE PLAN'S TWO HALVES WOULD SHIP TWO DIFFERENT ANSWERS TO ONE QUESTION, DIFFERING BY EXACTLY 25 PLANS. Its stated goal is that "the same error is reachable from `aw check`", yet E-02 reads the raw field and E-04 reads a normalized one, so `aw ipd lint` and `aw check` could never report the same set. This is the identical failure mode `check_ipd_lint_reach`'s own docstring exists to prevent, where an `include_retired` divergence produced a measured zero-versus-one disagreement between `aw check` and `aw doctor` on `check.id6-collision`. Shipping it would re-create by construction the defect that docstring was written to close. | C:Medium (it forces a decision about whether the lint path normalizes); U:Low; S:Low; F:High (two surfaces disagreeing about a conformance rule); Overall:Medium, below the Fix Bar | FIXED | Both items are now bound to ONE reader. E-02 and E-04 must both use `plans.read_status`, stated explicitly with the reason and the 0-vs-25 measurement, so normalization is applied identically on both paths; the cutover from PR-701 then handles the legacy corpus rather than the reader accidentally doing it. Added F-6 recording the measurement, and V-04 now requires the two surfaces be shown reporting the SAME file set on one fixture repo, which is the only evidence that proves the agreement rather than asserting it. |
+| PR-703 | HIGH | IN-SCOPE | A. Correctness | `check_ipd_lint_reach`'s loop is `for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked)` with no `include_retired`; `_iter_type_files` does `if not include_retired and is_retired(p, record_type): continue`; `_RETIRED_PATH_SEGMENTS` contains `executed`, `superseded`, `not-executed`. Measured: the loop yields 50 files, 0 of them outside `pending/` | E-04 IS A NO-OP AS WRITTEN. It prescribes behavior "for plans NOT in `pending/`", but the retired filter removes every terminal-tree plan BEFORE the existing `if "pending" not in p.parts: continue` guard is reached, so that guard is dead code and the branch E-04 adds can never execute. The item would be implemented, its test would need a fixture that accidentally worked, and the repository-wide sweep would report nothing. Reaching the tree requires `include_retired=True`, which is exactly the flag the same docstring names as the cause of the previous cross-surface divergence, so it cannot be passed silently. | C:Medium; U:Low; S:Low; F:High (an item that appears done and changes nothing); Overall:Medium, below the Fix Bar | FIXED | E-04 now states that the loop must pass `include_retired=True` to reach the terminal tree at all, cites the measured 50-and-0, keeps the FULL lint pending-scoped (so the docstring's cost argument is untouched), and requires the `include_retired` divergence hazard be addressed in a comment naming the `check.id6-collision` precedent. V-04 requires evidence that the sweep reports the fixture's terminal-tree plan, which a no-op cannot produce. |
+| PR-704 | HIGH | IN-SCOPE | C. Architecture and operability / D. Anti-regression | `ipd_lint` `--all` path: `counts[disp] = counts.get(disp, 0) + 1` then `any_error = bool(counts.get(S.DISPOSITION_ERROR, 0))`, `exit_code = 1 if any_error else 0`. Measured today: `aw ipd lint --all` prints `conforming=50, quarantined=0, legacy/not evaluated=727, error=0` and exits 0. `RULE_REGISTRY["check.ipd-lint-diagnostic"]` is `info`; `artifact_core.drift_exit_code`: `error` -> 1, `warning` -> 1, `info` -> 0 | THE PLAN NAMES NO EXIT-CODE CONSEQUENCE, AND THERE ARE TWO, POINTING OPPOSITE WAYS. `aw check`'s reuse of `check.ipd-lint-diagnostic` is SAFE because that rule is `info`, the one severity exempted from the exit code, and the plan should say so rather than leave a reader to assume a new CI gate. But `aw ipd lint --all` derives its exit code from the DISPOSITION, not from a rule severity, so E-02 flipping 25 plans from `legacy` to `error` makes that command start exiting 1 where it exits 0 today. Neither effect appears anywhere in the plan, and the second one is a behavior change to a shipped command's exit status. | C:Low; U:Medium (a command that starts failing); S:Low; F:Medium; Overall:Low (the cutover from PR-701 removes it entirely) | FIXED | Added F-7 recording both exit-code behaviors with the measured table and today's `--all` counts. E-02 now states that the cutover is what keeps `aw ipd lint --all` at exit 0, making the dependency explicit rather than incidental. E-04 states that `info` severity is why the `aw check` half cannot move an exit code and must NOT be promoted as part of this plan. New V-06 requires `aw ipd lint --all` be shown still exiting 0 on this repository after the change, which is the regression this finding exists to catch. |
+| PR-705 | MEDIUM | UNDER-SCOPE | D. Anti-regression / F. Honest documentation | `artifact_audit.audit_tracked_artifact`'s docstring: "THIS IS EXACTLY THE ``IPD-M105`` BLIND SPOT, which is what the doctor rule adds rather than duplicates", with a measured 2026-09-13 note; `doctor.artifact-status-location-drift` measured at 0 findings over the terminal tree today | THE PLAN NARROWS A SHIPPED MODULE'S DOCUMENTED RATIONALE WITHOUT SAYING SO. That docstring justifies the doctor rule's existence by asserting that lint is exempt over the whole terminal tree. E-02 makes lint cover the pre-terminal direction there, so the doctor rule's claim to be adding rather than duplicating becomes partially stale: it still uniquely owns terminal-versus-terminal, but the blanket sentence stops being true. The plan's Deferred section declines to CHANGE that module, which is right, but declining to change code is not the same as leaving a now-inaccurate rationale unflagged. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Deferred entry rewritten to state precisely which half of the doctor rule's rationale this plan narrows, that the rule's unique coverage (terminal-versus-terminal) is untouched, and that the stale sentence is a docstring-accuracy follow-up rather than a behavior change, with a `Carrier-Declined` explaining why no carrier is owed. Added F-8 with the quoted sentence so the next reader of that module finds the correction from this side. |
+| PR-706 | MEDIUM | UNDER-SCOPE | G. Plan executability (execution contract) | Plan gate as authored: three sentences (approval, `aw commit`, transition); compare pending plan `t0jyb2`'s gate | THE GATE WAS MISSING MOST OF ITS REQUIRED ELEMENTS. No statement of what a human is approving, which matters unusually much here because the honest description changed during review: this is no longer "make a rule fire where nothing is affected" but "make a rule fire, with a cutover suppressing 25 unfixable legacy plans". No scope fence within the six declared paths, no stop conditions, and a transition instruction with no runner/executor ownership split. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Rewrote the gate: a what-a-human-is-approving paragraph naming the corrected blast radius, the cutover and the two exit-code effects; a per-path scope fence stated as a DECLARATION with an explicit not-in-scope list mirroring Deferred; the hard-MUST honesty rule naming V-02 and V-04 as the items most exposed to faking and why; three genuine stop conditions (a re-measured count above 25, a new pre-cutover-dated plan, `include_retired` semantics having changed); and the transition with conditional runner/executor ownership and no hand-rolled `git mv`. |
+| PR-707 | LOW | IN-SCOPE | E. Testing | Original V-01 required `IPD-M105` for `to-review` in `reusable`; measured, `reusable` yields the pre-terminal message via the STANDING/pre-terminal arms and the plan's own E-01 target directory set is the three terminal dirs | THE V-01 PROBE EXERCISES A DIRECTORY THE PLAN DOES NOT CHANGE. `reusable` is not a terminal dir, so `lint_text` never short-circuits there and the E-01 routing fix is observable in it, which makes the probe VALID but unrepresentative: it proves the message-routing half while saying nothing about the terminal-tree half that is the bug. A reviewer reading only V-01 would think the fix was demonstrated end to end. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | V-01 keeps the `reusable` probe (it isolates E-01 cleanly) and now states explicitly that it proves ROUTING ONLY, with a pointer to V-02 for the terminal-tree behavior, so neither item can be read as covering the other. E-01 also now names the pinned test expectation in `tests/test_ipd_schema.py` as an assertion on the exact message string, since that is what makes the routing condition (`"directory" in me.message`) load-bearing. |
+| PR-708 | LOW | IN-SCOPE | F. Honest documentation | Plan header count "683 executed, 36 superseded, 4 not-executed" sums to 723; measured 687/36/4 = 727 files carrying a `- Status:` field | THE DENOMINATOR IS STALE, which matters only because the same sentence carries the zero that PR-701 refutes; a reader checking the count would find both numbers wrong and could not tell which error was which. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Findings section restated with 687/36/4 = 727 and the measurement command, and with the count marked as authoring CONTEXT to be re-derived at execution time rather than as an acceptance bar (the live-artifact re-derivation convention). |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | The blast radius is 25, not 0. Ship an unconditional error anyway, fix the 25 plans, add a date cutover, or split the severity? | Add a date cutover keyed on the plan's own `- Date:`, modelled on the shipped `CITATION_ANCHOR_CUTOVER_DATE`. | (a) Unconditional error - rejected: it makes `aw ipd lint --all` exit 1 on 25 plans nobody may edit. (b) Fix the 25 - rejected: `AGENTS.md` forbids adding commits to an executed plan and the `ipd-executed-transition-gate` hook enforces it, so the remedy is unavailable by policy, not merely costly. (c) Severity split (warning for the terminal tree) - rejected: `warning` still drives a nonzero findings exit (measured), so it would not actually spare the corpus, and a permanently-warning tree is the "advisories every reader learns to skip" outcome `_merge_setid_length_advisory` records the repository rejecting. | Measured 25 disagreements, all dated 2026-06-30..2026-07-11; `CITATION_ANCHOR_CUTOVER_DATE` with its documented re-measurement convention and its strictly-greater-than test; backlog `dbslfm` explicitly names a date cutover as an acceptable answer | yes |
+| D-2 | E-02 reads the raw `- Status:` and E-04 reads a normalized one, differing by 25. Normalize both, or keep both raw? | Normalize BOTH, via `plans.read_status`, and let the cutover handle the legacy corpus. | (a) Keep both raw - rejected: it makes the rule fire on 25 plans for a FORMATTING difference (`EXECUTED` versus `executed`) rather than for the disposition disagreement the rule is about, which misdescribes the defect to the operator. (b) Keep E-02 raw and E-04 normalized as authored - rejected outright: two surfaces reporting different sets for one rule is the exact defect `check_ipd_lint_reach`'s docstring exists to prevent. (c) Add a `normalize_status` to `ipd_schema` - rejected as a wider change to a pure schema module when the shipped normalizer already exists and is what the other half was going to call anyway. | Measured 0 (normalized) vs 25 (raw); `plans.read_status` calls `normalize_status`; `check_ipd_lint_reach` docstring's recorded `check.id6-collision` zero-versus-one divergence | yes |
+| D-3 | E-04 cannot reach the terminal tree without `include_retired=True`, the flag named as the previous divergence cause. Pass it, or find another route? | Pass `include_retired=True` for the cheap predicate only, keeping the full lint pending-scoped, and require a comment naming the hazard. | (a) Leave E-04 as authored - rejected: measured no-op (0 non-pending files reach the guard). (b) Sweep the terminal tree with the FULL `lint_file` - rejected: the docstring's cost argument stands (626+ reads and parses for a result that was guaranteed empty), and after this plan it would no longer be empty in a way that reintroduces the whole grandfathered corpus. (c) Add a separate top-level rule with its own traversal - rejected: a second traversal is a second chance to diverge, which is what D-2 and this decision are both guarding against. | `_iter_type_files`' `include_retired` filter and `_RETIRED_PATH_SEGMENTS`; measured 50 files / 0 non-pending; `check_ipd_lint_reach` docstring on the `include_retired` asymmetry with `doctor.py` | yes |
+| D-4 | Does this plan owe a change to `artifact_audit` or `attention`? | No code change, but the narrowed rationale must be stated. | (a) Widen `artifact_audit` to cover pre-terminal too - rejected: its docstring gives a liveness reason (a pre-terminal record may be mid-flight and liveness is not readable from tracked state) and the module is shared with `aw runs`, so the skip is load-bearing beyond this rule. (b) Say nothing - rejected: the docstring asserts lint is exempt over the whole terminal tree as its justification for existing, and this plan makes half of that false; leaving it unflagged means the next reader of that module trusts a stale premise. | `audit_tracked_artifact` docstring's "EXACTLY THE ``IPD-M105`` BLIND SPOT" sentence and its liveness paragraph; `attention`'s `status in plans_mod.TERMINAL` guard; both measured at 0 findings over the terminal tree | yes |
+| D-5 | What cutover date? | Leave the exact constant to the executor with a stated floor (after 2026-07-11, the newest affected plan) and the shipped convention to follow, rather than pinning a number at review. | (a) Pin a specific date here - rejected: `CITATION_ANCHOR_CUTOVER_DATE`'s own comment records being caught one day from firing on plans authored before it existed, and its test requires the constant be STRICTLY GREATER than the newest plan date, which is a property to re-derive at execution rather than a number to copy from a review. (b) Use the newest plan date repository-wide - rejected as over-suppression: it would exempt every plan authored to date, including the pending ones this rule should govern immediately. | `CITATION_ANCHOR_CUTOVER_DATE`'s re-measurement note and its strictly-greater-than test; measured newest affected plan date 2026-07-11 | yes |
