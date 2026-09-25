@@ -36,45 +36,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the divergence
 
-- [ ] E-01 Re-measure the baseline before touching code. On the live tree run `check_engine.check_collisions(root)` and `check_engine.check_collisions(root, include_retired=True)` and print the rule counter and the (location, rule) difference; then build the fixture tree from E-02 by hand in a scratch dir and print the collision findings from `check_engine.check_types(root, ["all"])` versus `doctor.probe_artifacts(root).all_drift` and `.executed_warnings`.
+- [x] E-01 Re-measure the baseline before touching code. On the live tree run `check_engine.check_collisions(root)` and `check_engine.check_collisions(root, include_retired=True)` and print the rule counter and the (location, rule) difference; then build the fixture tree from E-02 by hand in a scratch dir and print the collision findings from `check_engine.check_types(root, ["all"])` versus `doctor.probe_artifacts(root).all_drift` and `.executed_warnings`.
   - Depends on: none
   - Expected outcome: live tree shows 0 vs 3 (`check.id6-identity-slot` on `zpbx7o`, `y5od1h`, `4fodkt`); the fixture shows doctor reporting a slot finding check does not, and check reporting an executed/ `check.id6-collision` as error that doctor files under `executed_warnings`. If either no longer holds, stop and report: the defect has moved.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `tests/test_collision_population_parity.py`. One fixture tree (via `tempfile`, conformant plan bodies built the way `tests/test_check_engine._plan_text` builds them; import it from `tests.test_check_engine` rather than copying) holding: a live pending plan; an executed plan `aaa111`; a walkthrough whose identity slot reuses `aaa111` while declaring no `- Id:`; two executed plans that both declare `- Id: ccc333`; two executed plans sharing setid `other` with different descriptives. Assert, on repo-relative `(path, rule)` sets restricted to the three collision rules: (1) default `aw check` (`check_types(root, ["all"])`) equals default doctor (`probe_artifacts(root).all_drift`); (2) widened `aw check` (`include_retired=True`) equals widened doctor (`include_executed=True`); (3) the identity findings (the slot finding and the `ccc333` id6-collision) are present in BOTH default sets, and the retired setid conflict is absent from both default sets and present in both widened sets; (4) no identity finding appears in `executed_warnings`. Each assertion message names which surface diverged and the differing members.
+- [x] E-02 Add `tests/test_collision_population_parity.py`. One fixture tree (via `tempfile`, conformant plan bodies built the way `tests/test_check_engine._plan_text` builds them; import it from `tests.test_check_engine` rather than copying) holding: a live pending plan; an executed plan `aaa111`; a walkthrough whose identity slot reuses `aaa111` while declaring no `- Id:`; two executed plans that both declare `- Id: ccc333`; two executed plans sharing setid `other` with different descriptives. Assert, on repo-relative `(path, rule)` sets restricted to the three collision rules: (1) default `aw check` (`check_types(root, ["all"])`) equals default doctor (`probe_artifacts(root).all_drift`); (2) widened `aw check` (`include_retired=True`) equals widened doctor (`include_executed=True`); (3) the identity findings (the slot finding and the `ccc333` id6-collision) are present in BOTH default sets, and the retired setid conflict is absent from both default sets and present in both widened sets; (4) no identity finding appears in `executed_warnings`. Each assertion message names which surface diverged and the differing members.
   - Depends on: E-01
   - Expected outcome: the new file exists and FAILS at HEAD on assertions (1) and (4).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: settle each rule's population
 
-- [ ] E-03 In `check_engine.check_collisions`, feed `_check_identity_slots` the terminal-inclusive record list (every enumerated file), keeping `caller_visible` gating ONLY the setid pass. LAND THIS BEFORE E-04, and treat the order as a correctness precondition rather than mere sequencing: measured at review, if doctor's call were changed to `include_retired=include_executed` (E-04) while the slot pass still honored the flag, `check_collisions(root, include_retired=False)` returns `Counter()`, so doctor would report ZERO slot findings where it reports 3 today. That is a REGRESSION on the exact rule this plan exists to align, and it is silent. If you are executing items out of order, stop.
+- [x] E-03 In `check_engine.check_collisions`, feed `_check_identity_slots` the terminal-inclusive record list (every enumerated file), keeping `caller_visible` gating ONLY the setid pass. LAND THIS BEFORE E-04, and treat the order as a correctness precondition rather than mere sequencing: measured at review, if doctor's call were changed to `include_retired=include_executed` (E-04) while the slot pass still honored the flag, `check_collisions(root, include_retired=False)` returns `Counter()`, so doctor would report ZERO slot findings where it reports 3 today. That is a REGRESSION on the exact rule this plan exists to align, and it is silent. If you are executing items out of order, stop.
   Rewrite the docstring paragraph "THE WIDENING IS DELIBERATELY NARROW" so it states the new split (both identity rules terminal-inclusive; setid pass on the caller's corpus). Three things in that paragraph must change, not one. (a) REMOVE the claim that the `zpbx7o`/`y5od1h` slot findings are "FALSE POSITIVES ... the documented walkthrough convention": `.aw/records/walkthroughs/README.md` says a walkthrough "MUST NOT reuse the id6 of the plan it documents", and backlog `mw0s1y` (open, `Blocks-Release: next`) measures all three as real violations, so they are true positives. (b) The paragraph's "+47-finding regression" warning and its `check.setid-collision` 39 -> 86 measurement are BOTH STALE and must be corrected rather than carried forward: they described the PRE-D153 cross-type emission, since removed, and measured at review the setid pass returns ZERO even at the wide corpus (`include_retired=True` yields `Counter({'check.id6-identity-slot': 3})` and nothing else). Leaving a stale scare-number in a docstring that warns a future reader off the exact change this plan makes is how the next person re-opens a settled question. (c) Note that D140's own 2026-09-20 "Applied" note calls the walkthrough-slot shape a "legitimate ... convention" while the walkthroughs README forbids it; cite the README and `mw0s1y` as controlling and say plainly that the D140 note's parenthetical is the source of the false-positive claim being removed, so the contradiction is recorded once instead of rediscovered.
   - Depends on: E-02
   - Expected outcome: `check_collisions(root)` on the live tree returns the same 3 `check.id6-identity-slot` findings as `include_retired=True` (verified at review: feeding the slot pass the terminal-inclusive list yields exactly those 3 and nothing more); the setid pass is unchanged and still zero.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `doctor.probe_artifacts`, replace the hardcoded `include_retired=True` in the `check_engine.check_collisions(` call with `include_retired=include_executed`, and exempt `check.id6-collision` and `check.id6-identity-slot` from the `executed/` demotion in the collision loop (the per-type loop above it is untouched). Replace the comment block beginning "`include_retired=True` IS DELIBERATE AND ASYMMETRIC WITH `aw check`" with one stating the settled contract: identity rules are terminal-inclusive and never demoted on either surface; the setid rule follows `aw check`'s default and widens under `-a`/`--include-executed` exactly as `aw check --all` does; the parity test named by path pins it. State in that comment that E-03 is a PRECONDITION and why (without it this very change zeroes doctor's slot findings), so a future partial revert cannot silently reintroduce the divergence in the opposite direction.
+- [x] E-04 In `doctor.probe_artifacts`, replace the hardcoded `include_retired=True` in the `check_engine.check_collisions(` call with `include_retired=include_executed`, and exempt `check.id6-collision` and `check.id6-identity-slot` from the `executed/` demotion in the collision loop (the per-type loop above it is untouched). Replace the comment block beginning "`include_retired=True` IS DELIBERATE AND ASYMMETRIC WITH `aw check`" with one stating the settled contract: identity rules are terminal-inclusive and never demoted on either surface; the setid rule follows `aw check`'s default and widens under `-a`/`--include-executed` exactly as `aw check --all` does; the parity test named by path pins it. State in that comment that E-03 is a PRECONDITION and why (without it this very change zeroes doctor's slot findings), so a future partial revert cannot silently reintroduce the divergence in the opposite direction.
   - Depends on: E-03
   - Expected outcome: the parity test passes; doctor's per-type findings and their `executed/` demotion are unchanged (verified at review that `tests/test_doctor.test_executed_dir_warns_by_default` keys on `check.name-nonconformant`, a per-type rule this item does not touch, so it must keep passing unmodified).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-05 Prove the newly-reported errors cannot red `main`, and record the reasoning where a reader will find it. E-03 adds 3 `error`-severity findings to `aw check all`, and this plan deliberately does NOT fix the underlying data (that is `mw0s1y`), so the blast radius must be established rather than assumed. Measured at review and to be RE-DERIVED at execution time because the tree is live: the fail-closed CI steps in `.github/workflows/tests.yml` are `aw check plans` and `aw check releases` (plus advisory `aw check backlog` and `aw check release-gates`), and a per-TYPE run does not execute the collision scan at all - it emits only `check.collisions-not-checked`, whose `RuleSpec` severity is `info`. `.pre-commit-config.yaml` declares no `aw check all` hook. So the 3 new errors reach `aw check all` and `aw doctor` only. Paste the re-derived evidence; if a fail-closed CI step has since been widened to `check all` or `check walkthroughs`, STOP and report, because then this plan reds `main` until `mw0s1y` lands and the two must be sequenced.
+- [x] E-05 Prove the newly-reported errors cannot red `main`, and record the reasoning where a reader will find it. E-03 adds 3 `error`-severity findings to `aw check all`, and this plan deliberately does NOT fix the underlying data (that is `mw0s1y`), so the blast radius must be established rather than assumed. Measured at review and to be RE-DERIVED at execution time because the tree is live: the fail-closed CI steps in `.github/workflows/tests.yml` are `aw check plans` and `aw check releases` (plus advisory `aw check backlog` and `aw check release-gates`), and a per-TYPE run does not execute the collision scan at all - it emits only `check.collisions-not-checked`, whose `RuleSpec` severity is `info`. `.pre-commit-config.yaml` declares no `aw check all` hook. So the 3 new errors reach `aw check all` and `aw doctor` only. Paste the re-derived evidence; if a fail-closed CI step has since been widened to `check all` or `check walkthroughs`, STOP and report, because then this plan reds `main` until `mw0s1y` lands and the two must be sequenced.
   - Depends on: E-04
   - Expected outcome: the fail-closed CI steps are shown not to run the collision scan, and no local hook does either; the 3 new errors are confined to `aw check all` and `aw doctor`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Run the directly affected modules: `python3 -m pytest tests/test_collision_population_parity.py tests/test_check_engine.py tests/test_doctor.py tests/test_artifact_adopt.py`. Baseline measured at review: the three existing modules report `86 passed` together, so a drop is a real regression and not a pre-existing failure. Two rows to watch, both checked at review and expected to SURVIVE unchanged: `RetiredAndIgnoredScopeTests`'s "the full sweep, retired excluded" row asserts ZERO findings and its fixture trips no widened slot finding (verified by running the terminal-inclusive slot pass against that class's own tree); and `tests/test_doctor.test_executed_dir_warns_by_default` keys on a per-type rule. If either flips, that is new information about the change and not a fixture to adjust.
+- [x] E-06 Run the directly affected modules: `python3 -m pytest tests/test_collision_population_parity.py tests/test_check_engine.py tests/test_doctor.py tests/test_artifact_adopt.py`. Baseline measured at review: the three existing modules report `86 passed` together, so a drop is a real regression and not a pre-existing failure. Two rows to watch, both checked at review and expected to SURVIVE unchanged: `RetiredAndIgnoredScopeTests`'s "the full sweep, retired excluded" row asserts ZERO findings and its fixture trips no widened slot finding (verified by running the terminal-inclusive slot pass against that class's own tree); and `tests/test_doctor.test_executed_dir_warns_by_default` keys on a per-type rule. If either flips, that is new information about the change and not a fixture to adjust.
   - Depends on: E-05
   - Expected outcome: all pass, at or above the measured 86-passed baseline for the three pre-existing modules; if a `CollisionTests` or `RetiredAndIgnoredScopeTests` row changes, the fixture is fixed only if the new finding is a true identity violation, never by loosening the rule.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the bare suite `python3 -m pytest`.
+- [x] E-07 Run the bare suite `python3 -m pytest`.
   - Depends on: E-06
   - Expected outcome: summary line shows zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -87,7 +87,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Findings
 
 | Id | Severity | Location | Finding | Evidence |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- |
 | F-1 | HIGH | `check_engine.check_collisions` (`caller_visible`) | The identity-slot pass honors the caller's liveness filter while its id6 sibling does not, so `aw check all` reports 0 slot findings where doctor reports 3. Same defect as backlog `e2j5w4`. | Live probe: `False Counter()` vs `True Counter({'check.id6-identity-slot': 3})` |
 | F-2 | HIGH | `doctor.probe_artifacts` collision loop | Findings located under `executed/` are demoted to `executed_warnings`, so an executed-vs-executed id6 collision is an error in `aw check all` and a warning in doctor. | Fixture probe: check `{(...ccc333-one.ipd.md, 'check.id6-collision')}`; doctor `warn {(...ccc333-one.ipd.md, 'check.id6-collision')}` |
 | F-3 | INFO | backlog `lmjc8h` body | The 38/86 setid-collision split it quotes is obsolete; that rule is zero on both surfaces since `4f1ca199`. The disagreement it names is still real, but on other rules. | Live probe; `doctor.probe_artifacts` comment "both report ZERO on the real tree" |
@@ -145,40 +145,272 @@ N/A for specs: spec `2lcqno` Section 6 explicitly leaves the choice to the imple
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted probe output showing the live-tree rule counters for both `include_retired` values (expected `Counter()` vs `Counter({'check.id6-identity-slot': 3})`) and the fixture's check-vs-doctor-vs-executed_warnings sets.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Live tree probe and fixture probe output:
+```
+=== Live Tree Probes ===
+check_collisions(root): Counter()
+check_collisions(root, include_retired=True): Counter({'check.id6-identity-slot': 3})
+Difference (retired - default):
+  <repo-root>/.aw/records/walkthroughs/20260901-runstop-00-zpbx7o-graceful-quit-whole-set-verification.walkthrough.md: check.id6-identity-slot
+  <repo-root>/.aw/records/walkthroughs/20260906-lanectn-04-y5od1h-missing-input-report-and-refuse-walkthrough.md: check.id6-identity-slot
+  <repo-root>/.aw/records/walkthroughs/20260917-lanectn-07-4fodkt-whole-set-verification-of-spec-7ckptx.walkthrough.md: check.id6-identity-slot
 
-- [ ] V-02 validates E-02
+=== Fixture Probes (E-02 fixture) ===
+check_types(fix_root, ["all"]) collision rules:
+  /tmp/tmpkaikf6kl/.aw/records/plans/executed/20260101-demo-03-ccc333-plan-c2.ipd.md check.id6-collision id6 ccc333 also on /tmp/tmpkaikf6kl/.aw/records/plans/executed/20260101-demo-02-ccc333-plan-c1.ipd.md
+doctor.probe_artifacts(fix_root).all_drift collision rules:
+  .aw/records/walkthroughs/20260101-aaa111-01-aaa111-walk.walkthrough.md check.id6-identity-slot filename identity-slot id6 aaa111 is another file's identity (declared by /tmp/tmpkaikf6kl/.aw/records/plans/executed/20260101-demo-01-aaa111-plan-a.ipd.md); this file declares no Id
+doctor.probe_artifacts(fix_root).executed_warnings collision rules:
+  .aw/records/plans/executed/20260101-other-01-oth001-plan-o1.ipd.md check.setid-collision setid other conflicts with /tmp/tmpkaikf6kl/.aw/records/plans/executed/20260101-other-02-oth002-plan-o2.ipd.md (descriptive: 'second' vs 'first')
+  .aw/records/plans/executed/20260101-demo-03-ccc333-plan-c2.ipd.md check.id6-collision id6 ccc333 also on /tmp/tmpkaikf6kl/.aw/records/plans/executed/20260101-demo-02-ccc333-plan-c1.ipd.md
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `python3 -m pytest -o addopts="" tests/test_collision_population_parity.py` run BEFORE E-03/E-04, pasted, showing failures on the default-parity and no-demotion assertions, with the message naming the slot finding and the `ccc333` collision.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pytest output before fix showing failure on assertion (1):
+```
+$ python3 -m pytest -o addopts="" tests/test_collision_population_parity.py
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=4277521021
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 1 item
 
-- [ ] V-03 validates E-03
+tests/test_collision_population_parity.py F                              [100%]
+
+=================================== FAILURES ===================================
+_______ CollisionPopulationParityTests.test_collision_population_parity ________
+
+self = <tests.test_collision_population_parity.CollisionPopulationParityTests testMethod=test_collision_population_parity>
+
+    def test_collision_population_parity(self):
+        check_default = _extract_collisions(
+            ce.check_types(self.root, ["all"]), self.root
+        )
+        doc_default = _extract_collisions(
+            doctor.probe_artifacts(self.root).all_drift, self.root
+        )
+
+        # (1) default aw check equals default doctor
+        diff_doc_extra = doc_default - check_default
+        diff_check_extra = check_default - doc_default
+>       self.assertEqual(
+            check_default,
+            doc_default,
+            f"Default scope collision divergence: doctor has extra {diff_doc_extra}, check has extra {diff_check_extra}",
+        )
+E       AssertionError: Items in the first set but not the second:
+E       ('.aw/records/plans/executed/20260101-demo-03-ccc333-plan-c2.ipd.md', 'check.id6-collision')
+E       Items in the second set but not the first:
+E       ('.aw/records/walkthroughs/20260101-aaa111-01-aaa111-walk.walkthrough.md', 'check.id6-identity-slot') : Default scope collision divergence: doctor has extra {('.aw/records/walkthroughs/20260101-aaa111-01-aaa111-walk.walkthrough.md', 'check.id6-identity-slot')}, check has extra {('.aw/records/plans/executed/20260101-demo-03-ccc333-plan-c2.ipd.md', 'check.id6-collision')}
+
+tests/test_collision_population_parity.py:93: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_collision_population_parity.py::CollisionPopulationParityTests::test_collision_population_parity
+============================== 1 failed in 0.68s ===============================
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted live-tree probe showing `check_collisions(root)` and `check_collisions(root, include_retired=True)` now both return the 3 `check.id6-identity-slot` findings AND that neither returns any additional rule (the counter, not just the slot count, so a widened setid pass cannot hide inside a passing item). Paste `git diff -- agent_workflows/check_engine.py` showing the docstring no longer says "FALSE POSITIVES" AND no longer carries the stale "+47-finding regression" / "39 -> 86" figures (F-6), AND that it records the D140-versus-README contradiction with the README and `mw0s1y` as controlling (F-7). A diff that removes only the "FALSE POSITIVES" phrase does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Live tree probe and git diff output:
+```
+check_collisions(root): Counter({'check.id6-identity-slot': 3})
+check_collisions(root, include_retired=True): Counter({'check.id6-identity-slot': 3})
+Findings in default:
+  <repo-root>/.aw/records/walkthroughs/20260917-lanectn-07-4fodkt-whole-set-verification-of-spec-7ckptx.walkthrough.md: check.id6-identity-slot
+  <repo-root>/.aw/records/walkthroughs/20260901-runstop-00-zpbx7o-graceful-quit-whole-set-verification.walkthrough.md: check.id6-identity-slot
+  <repo-root>/.aw/records/walkthroughs/20260906-lanectn-04-y5od1h-missing-input-report-and-refuse-walkthrough.md: check.id6-identity-slot
+```
+Diff:
+```diff
+diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+index ea9688cd..f78a4b2f 100644
+--- a/agent_workflows/check_engine.py
++++ b/agent_workflows/check_engine.py
+@@ -1268,27 +1268,31 @@ def check_collisions(
+       file that actually owns that id6. Legacy ``YYYYMMDD-HHMM-NN-<slug>`` names (no id6 slot) are
+       exempt - only a filename whose slot parses as a real id6 via the naming authority is checked.
 
-- [ ] V-04 validates E-04
+-    THE id6 PASS IGNORES THE LIVENESS FILTER; ITS TWO NEIGHBOURS DO NOT (IPD ``sk7ggr`` E-05). Every
+-    other rule in this engine skips a RETIRED artifact by default, and for most rules that is right: a
+-    finished plan's own conformance is nobody's action item. IT IS WRONG FOR IDENTITY. An executed
+-    plan's id6 is permanently cited across the repository (``Item-Dependencies``, ``From-Backlog``,
+-    ``From-Spec``, review filenames, prose), so an id6 shared with a terminal artifact is a REAL
+-    collision and re-minting it is a real defect. Measured before this change: ``aw check all``
+-    reported 1 id6-collision and MISSED the one whose other side sits in ``executed/``, while
+-    ``aw doctor`` (which passes ``include_retired=True`` unconditionally) reported it. Two surfaces
+-    disagreeing about what identity IS is the defect; telling users to remember ``--all`` is not a fix.
+-
+-    THE WIDENING IS DELIBERATELY NARROW, and this is load-bearing rather than fastidiousness. ONE
+-    enumeration feeds THREE rules, so widening it wholesale moves all three: measured, that ships
+-    ``check.setid-collision`` 39 -> 86 (overwhelmingly the LEGITIMATE pattern of a backlog item sharing
+-    a setid with the plan it graduated into, a policy question owned by backlog ``sjsoqq``) plus two
+-    ``check.id6-identity-slot`` FALSE POSITIVES (walkthroughs ``zpbx7o`` and ``y5od1h``, whose filename
+-    slot carries their own plan's id6 while declaring no ``- Id:`` - the documented walkthrough
+-    convention, not a defect). So the file set is enumerated ONCE, terminal artifacts included, and
+-    each file is tagged live-or-retired: the id6 pass consumes EVERY file, while the setid pass and the
+-    identity-slot pass consume only the files the caller's ``include_retired`` would have shown them.
+-    Do NOT "simplify" this by hoisting ``include_retired=True`` into the enumeration; that is the
+-    +47-finding regression this structure exists to prevent.
++    BOTH IDENTITY PASSES IGNORE THE LIVENESS FILTER; THE SETID PASS DOES NOT (IPD ``sk7ggr`` E-05,
++    collpop ``t0jyb2``). Every other rule in this engine skips a RETIRED artifact by default, and for
++    most rules that is right: a finished plan's own conformance is nobody's action item. IT IS WRONG
++    FOR IDENTITY. An executed plan's id6 is permanently cited across the repository
++    (``Item-Dependencies``, ``From-Backlog``, ``From-Spec``, review filenames, prose), so an id6 shared
++    with a terminal artifact is a REAL collision and re-minting it is a real defect. The same applies
++    to the filename identity-slot rule: an identity slot reusing an executed plan's id6 collides with a
++    permanently cited handle and breaks single-handle lookup (e.g. ``aw find <id6>``). Both identity
++    rules therefore consume the terminal-inclusive corpus.
++
++    THE SETID PASS CONSUMES THE CALLER'S CORPUS (collpop ``t0jyb2``). The file set is enumerated ONCE,
++    terminal artifacts included, and each file is tagged live-or-retired. Both identity passes (frontmatter
++    ``- Id:`` and filename identity-slot) consume EVERY file, while the setid pass consumes only the
++    files the caller's ``include_retired`` would have shown them (omitting historical within-type
++    descriptive drift on retired records by default). Note on historical documentation: an earlier
++    version of this docstring labeled the slot findings on walkthroughs ``zpbx7o``, ``y5od1h``, and
++    ``4fodkt`` as 'FALSE POSITIVES' citing a parenthetical in DECISIONS.md D140's 2026-09-20 note that
++    called the walkthrough slot shape a 'legitimate convention'. However, ``.aw/records/walkthroughs/README.md``
++    explicitly mandates that a walkthrough 'MUST NOT reuse the id6 of the plan it documents', and
++    backlog ``mw0s1y`` (open, ``Blocks-Release: next``) tracks all three as true defects. The README and
++    ``mw0s1y`` are controlling, and the D140 parenthetical was the origin of the false-positive claim
++    removed by collpop ``t0jyb2``. Additionally, the earlier docstring warned against widening with a
++    stale '+47-finding regression' (39 -> 86 ``check.setid-collision`` split); that warning described
++    the pre-D153 cross-type emission since removed, and at current HEAD the setid pass returns zero
++    findings even across the widened corpus.
+     """
+     repo_root = Path(repo_root)
+     drift: List[_core.Drift] = []
+@@ -1305,9 +1309,8 @@ def check_collisions(
+     # so the identity-slot rule (below) can be evaluated with global knowledge of who OWNS each id6.
+     # A file "record": (path-str, declared_id-or-None, slot_id6-or-None).
+     #
+-    # IPD sk7ggr E-05: the enumeration is ALWAYS terminal-inclusive and each file is TAGGED instead,
+-    # so the three rules fed by this one loop can have different corpora (see the docstring). The id6
+-    # pass takes every file; the setid and identity-slot passes take only what the caller asked for.
++    # IPD sk7ggr E-05, collpop t0jyb2: the enumeration is ALWAYS terminal-inclusive. Both identity
++    # passes take every file; the setid pass takes only what the caller asked for.
+     records: List[tuple] = []
+     for record_type in SUPPORTED:
+         for p in _iter_type_files(
+@@ -1325,12 +1328,7 @@ def check_collisions(
+             # measured before the fix, between two research docs quoting one plan's metadata).
+             declared_id = _read_declared_id(text)
+             slot_id6 = _identity_slot_token(p.name)
+-            # Is this file one the CALLER's liveness setting would have shown? With
+-            # include_retired=True the answer is always yes and `is_retired` (which reads the file) is
+-            # never called, so the default sweep pays nothing extra for the tag.
+-            caller_visible = include_retired or not is_retired(p, record_type)
+-            if caller_visible:
+-                records.append((str(p), declared_id, slot_id6))
++            records.append((str(p), declared_id, slot_id6))
+
+             # The id6 pass: EVERY file, retired or not. A terminal id6 is permanently cited, so a
+             # collision with one is real (docstring, and IPD sk7ggr F-3).
+@@ -1346,8 +1344,9 @@ def check_collisions(
+                     )
+                 else:
+                     seen_ids[id6] = str(p)
+-            # The setid pass keeps the caller's corpus: widening it would ship the +47 legitimate
+-            # backlog-shares-its-plan's-setid batch that belongs to `sjsoqq`.
++            # The setid pass keeps the caller's corpus (collpop t0jyb2): widening it would surface
++            # within-type descriptive conflicts on retired records that are not active work.
++            caller_visible = include_retired or not is_retired(p, record_type)
+             if not caller_visible:
+                 continue
+             sid, desc = _parse_setid(text)
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `python3 -m pytest -o addopts="" tests/test_collision_population_parity.py` pasted and passing; `grep -n "include_retired" agent_workflows/doctor.py` showing no hardcoded `include_retired=True` on the `check_collisions` call. ALSO paste the ORDERING evidence for F-5: with E-04 applied, show `doctor.probe_artifacts(root).all_drift` still containing the 3 slot findings, which is the assertion that proves E-03 landed first and doctor did not silently drop to zero. Paste the new comment block's sentence naming E-03 as a precondition.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Parity test passing, grep confirmation, and live probe ordering evidence:
+```
+$ python3 -m pytest -o addopts="" tests/test_collision_population_parity.py
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=1111315626
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 1 item
 
-- [ ] V-05 validates E-05
+tests/test_collision_population_parity.py .                              [100%]
+
+============================== 1 passed in 1.29s ===============================
+```
+`grep -n "include_retired" agent_workflows/doctor.py`:
+```
+499:                    include_retired=True,
+514:                    include_retired=True,
+547:        # (2) The setid collision rule follows aw check's default (include_retired=False) and widens
+548:        # under -a / --include-executed (passing include_retired=include_executed), matching aw check --all.
+550:        # (t0jyb2 E-03) is a strict correctness precondition for passing include_retired=include_executed
+551:        # here. Without E-03, passing include_retired=False to check_collisions when include_executed is
+558:                include_retired=include_executed,
+```
+Ordering evidence:
+```
+Count of check.id6-identity-slot in doctor.probe_artifacts(root).all_drift: 3
+  <repo-root>/.aw/records/walkthroughs/20260917-lanectn-07-4fodkt-whole-set-verification-of-spec-7ckptx.walkthrough.md: check.id6-identity-slot
+  <repo-root>/.aw/records/walkthroughs/20260901-runstop-00-zpbx7o-graceful-quit-whole-set-verification.walkthrough.md: check.id6-identity-slot
+  <repo-root>/.aw/records/walkthroughs/20260906-lanectn-04-y5od1h-missing-input-report-and-refuse-walkthrough.md: check.id6-identity-slot
+```
+Comment sentence naming E-03 as precondition:
+`# (3) PRECONDITION: check_engine.check_collisions making the identity-slot pass terminal-inclusive (t0jyb2 E-03) is a strict correctness precondition for passing include_retired=include_executed here. Without E-03, passing include_retired=False to check_collisions when include_executed is False would silently zero out doctor's identity-slot findings (dropping 3 true positives on the live tree to 0). Pinned by tests/test_collision_population_parity.py.`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the RE-DERIVED CI evidence, not the plan's prose: the fail-closed step names from `.github/workflows/tests.yml`, a run of one of them (for example `python3 -m agent_workflows check plans --agent`) showing the collision rules absent and only `check.collisions-not-checked` present, that marker's `info` severity read out of `RULE_REGISTRY`, and a grep of `.pre-commit-config.yaml` showing no `aw check all` hook. State explicitly whether any fail-closed step now runs `check all` or `check walkthroughs`; if one does, this item's outcome is STOP-and-report, not a pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CI workflow inspection, per-type check run, RuleSpec severity, and pre-commit config grep:
+Fail-closed steps in `.github/workflows/tests.yml` (`attention-check` job):
+- `aw specs check (spec status/gate/history contract)`
+- `aw attention --check (cross-tree attention view; fail closed)`
+- `aw check plans (plan conformance; fail closed)`
+- `aw check releases (release-record conformance; fail closed)`
+(Note: `aw check backlog` and `aw check release-gates` are advisory via `|| true`)
 
-- [ ] V-06 validates E-06
+Run of `python3 -m agent_workflows check plans --agent`:
+Diagnostics include only per-plan rules and `check.collisions-not-checked`:
+`{"location":"<collisions>","rule":"check.collisions-not-checked"}`
+No `check.id6-collision`, `check.id6-identity-slot`, or `check.setid-collision` rule is emitted by per-type runs.
+
+Marker severity in `RULE_REGISTRY`:
+`RULE_REGISTRY["check.collisions-not-checked"] = RuleSpec(severity='info', assurance='guidance', determinism='deterministic', invariant='I-09')`
+
+Grep `.pre-commit-config.yaml`:
+```
+9:# SAFETY hooks (gitleaks, large-file check, local-leaks) still apply everywhere, including these
+33:      - id: check-yaml
+34:      - id: check-added-large-files
+58:        entry: python3 -m agent_workflows check-local-leaks
+71:      # proclint detector via `aw check`/`aw doctor`. No CI enforcement.
+92:      # deterministic backstop is `aw check`/`aw doctor`. No CI enforcement.
+```
+No `aw check all` or `aw check walkthroughs` hook exists in `.pre-commit-config.yaml`, and no fail-closed CI step runs `check all` or `check walkthroughs`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the pasted summary line of `python3 -m pytest tests/test_collision_population_parity.py tests/test_check_engine.py tests/test_doctor.py tests/test_artifact_adopt.py` with 0 failed, and the pass count stated against the 86-passed baseline review measured for the three pre-existing modules. If `RetiredAndIgnoredScopeTests`' zero-findings row or `tests/test_doctor.test_executed_dir_warns_by_default` changed, say so explicitly and justify it as a true identity violation rather than adjusting the fixture.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pytest run on affected modules showing 87 passed (86 baseline + 1 new test):
+```
+87 passed in 5.59s
+```
+Pass count is 87 passed (86 baseline for existing 3 modules + 1 new test in `test_collision_population_parity.py`), 0 failed. Neither `RetiredAndIgnoredScopeTests` nor `test_executed_dir_warns_by_default` required any change.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the pasted final summary line of the bare `python3 -m pytest`, showing 0 failed. Bare per AGENTS.md: no `-n0`, no extra `-q`, no `-p no:randomly`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest suite run showing 1973 passed:
+```
+1973 passed, 1 skipped, 3 warnings in 31.30s
+```
+  - Result: pass
 
 ## Approval and execution gate
 

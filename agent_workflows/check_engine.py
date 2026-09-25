@@ -1268,27 +1268,31 @@ def check_collisions(
       file that actually owns that id6. Legacy ``YYYYMMDD-HHMM-NN-<slug>`` names (no id6 slot) are
       exempt - only a filename whose slot parses as a real id6 via the naming authority is checked.
 
-    THE id6 PASS IGNORES THE LIVENESS FILTER; ITS TWO NEIGHBOURS DO NOT (IPD ``sk7ggr`` E-05). Every
-    other rule in this engine skips a RETIRED artifact by default, and for most rules that is right: a
-    finished plan's own conformance is nobody's action item. IT IS WRONG FOR IDENTITY. An executed
-    plan's id6 is permanently cited across the repository (``Item-Dependencies``, ``From-Backlog``,
-    ``From-Spec``, review filenames, prose), so an id6 shared with a terminal artifact is a REAL
-    collision and re-minting it is a real defect. Measured before this change: ``aw check all``
-    reported 1 id6-collision and MISSED the one whose other side sits in ``executed/``, while
-    ``aw doctor`` (which passes ``include_retired=True`` unconditionally) reported it. Two surfaces
-    disagreeing about what identity IS is the defect; telling users to remember ``--all`` is not a fix.
+    BOTH IDENTITY PASSES IGNORE THE LIVENESS FILTER; THE SETID PASS DOES NOT (IPD ``sk7ggr`` E-05,
+    collpop ``t0jyb2``). Every other rule in this engine skips a RETIRED artifact by default, and for
+    most rules that is right: a finished plan's own conformance is nobody's action item. IT IS WRONG
+    FOR IDENTITY. An executed plan's id6 is permanently cited across the repository
+    (``Item-Dependencies``, ``From-Backlog``, ``From-Spec``, review filenames, prose), so an id6 shared
+    with a terminal artifact is a REAL collision and re-minting it is a real defect. The same applies
+    to the filename identity-slot rule: an identity slot reusing an executed plan's id6 collides with a
+    permanently cited handle and breaks single-handle lookup (e.g. ``aw find <id6>``). Both identity
+    rules therefore consume the terminal-inclusive corpus.
 
-    THE WIDENING IS DELIBERATELY NARROW, and this is load-bearing rather than fastidiousness. ONE
-    enumeration feeds THREE rules, so widening it wholesale moves all three: measured, that ships
-    ``check.setid-collision`` 39 -> 86 (overwhelmingly the LEGITIMATE pattern of a backlog item sharing
-    a setid with the plan it graduated into, a policy question owned by backlog ``sjsoqq``) plus two
-    ``check.id6-identity-slot`` FALSE POSITIVES (walkthroughs ``zpbx7o`` and ``y5od1h``, whose filename
-    slot carries their own plan's id6 while declaring no ``- Id:`` - the documented walkthrough
-    convention, not a defect). So the file set is enumerated ONCE, terminal artifacts included, and
-    each file is tagged live-or-retired: the id6 pass consumes EVERY file, while the setid pass and the
-    identity-slot pass consume only the files the caller's ``include_retired`` would have shown them.
-    Do NOT "simplify" this by hoisting ``include_retired=True`` into the enumeration; that is the
-    +47-finding regression this structure exists to prevent.
+    THE SETID PASS CONSUMES THE CALLER'S CORPUS (collpop ``t0jyb2``). The file set is enumerated ONCE,
+    terminal artifacts included, and each file is tagged live-or-retired. Both identity passes (frontmatter
+    ``- Id:`` and filename identity-slot) consume EVERY file, while the setid pass consumes only the
+    files the caller's ``include_retired`` would have shown them (omitting historical within-type
+    descriptive drift on retired records by default). Note on historical documentation: an earlier
+    version of this docstring labeled the slot findings on walkthroughs ``zpbx7o``, ``y5od1h``, and
+    ``4fodkt`` as 'FALSE POSITIVES' citing a parenthetical in DECISIONS.md D140's 2026-09-20 note that
+    called the walkthrough slot shape a 'legitimate convention'. However, ``.aw/records/walkthroughs/README.md``
+    explicitly mandates that a walkthrough 'MUST NOT reuse the id6 of the plan it documents', and
+    backlog ``mw0s1y`` (open, ``Blocks-Release: next``) tracks all three as true defects. The README and
+    ``mw0s1y`` are controlling, and the D140 parenthetical was the origin of the false-positive claim
+    removed by collpop ``t0jyb2``. Additionally, the earlier docstring warned against widening with a
+    stale '+47-finding regression' (39 -> 86 ``check.setid-collision`` split); that warning described
+    the pre-D153 cross-type emission since removed, and at current HEAD the setid pass returns zero
+    findings even across the widened corpus.
     """
     repo_root = Path(repo_root)
     drift: List[_core.Drift] = []
@@ -1305,9 +1309,8 @@ def check_collisions(
     # so the identity-slot rule (below) can be evaluated with global knowledge of who OWNS each id6.
     # A file "record": (path-str, declared_id-or-None, slot_id6-or-None).
     #
-    # IPD sk7ggr E-05: the enumeration is ALWAYS terminal-inclusive and each file is TAGGED instead,
-    # so the three rules fed by this one loop can have different corpora (see the docstring). The id6
-    # pass takes every file; the setid and identity-slot passes take only what the caller asked for.
+    # IPD sk7ggr E-05, collpop t0jyb2: the enumeration is ALWAYS terminal-inclusive. Both identity
+    # passes take every file; the setid pass takes only what the caller asked for.
     records: List[tuple] = []
     for record_type in SUPPORTED:
         for p in _iter_type_files(
@@ -1325,12 +1328,7 @@ def check_collisions(
             # measured before the fix, between two research docs quoting one plan's metadata).
             declared_id = _read_declared_id(text)
             slot_id6 = _identity_slot_token(p.name)
-            # Is this file one the CALLER's liveness setting would have shown? With
-            # include_retired=True the answer is always yes and `is_retired` (which reads the file) is
-            # never called, so the default sweep pays nothing extra for the tag.
-            caller_visible = include_retired or not is_retired(p, record_type)
-            if caller_visible:
-                records.append((str(p), declared_id, slot_id6))
+            records.append((str(p), declared_id, slot_id6))
 
             # The id6 pass: EVERY file, retired or not. A terminal id6 is permanently cited, so a
             # collision with one is real (docstring, and IPD sk7ggr F-3).
@@ -1346,8 +1344,9 @@ def check_collisions(
                     )
                 else:
                     seen_ids[id6] = str(p)
-            # The setid pass keeps the caller's corpus: widening it would ship the +47 legitimate
-            # backlog-shares-its-plan's-setid batch that belongs to `sjsoqq`.
+            # The setid pass keeps the caller's corpus (collpop t0jyb2): widening it would surface
+            # within-type descriptive conflicts on retired records that are not active work.
+            caller_visible = include_retired or not is_retired(p, record_type)
             if not caller_visible:
                 continue
             sid, desc = _parse_setid(text)

@@ -539,31 +539,23 @@ def probe_artifacts(
         # detector (a fast no-op unless a plan `- Status:` change is staged). Both are cross-tree /
         # commit-wide rules keyed off git state rather than a single record file.
         #
-        # `include_retired=True` IS DELIBERATE AND ASYMMETRIC WITH `aw check`, which passes a flag
-        # defaulting to False (`check_engine.check_types`). Stating the asymmetry rather than
-        # silently aligning it is the fix setidfix 216rgg E-04 chose, on three grounds. (1) The two
-        # surfaces answer DIFFERENT questions by design: `aw check` gates ACTIVE work and must not
-        # fail a commit over a finished record, while `aw doctor` is the full-picture audit and
-        # already carries the machinery for historical findings, demoting anything under `executed/`
-        # into `res.executed_warnings` just below. That demotion is a SECOND, INDEPENDENT population
-        # axis, so reconciling this flag alone could not make the raw populations identical anyway.
-        # (2) Widening or narrowing either default is a product decision about whether a retired
-        # record is in scope for ANY rule, which reaches far past the collision scan (it would also
-        # move `check.id6-collision` and `check.id6-identity-slot`); spec `2lcqno` declares that
-        # choice a non-goal and requires only that the surfaces AGREE and that the choice be stated.
-        # (3) For `check.setid-collision` specifically the two surfaces now DO agree: after the
-        # cross-type emission was removed per D153 / `2lcqno` N1, both report ZERO on the real tree,
-        # because the six executed plans that carried a within-type descriptive conflict were renamed
-        # in `4f1ca199`. That branch is therefore LATENT BY DESIGN, pinned by a fixture in
-        # `tests/test_check_engine.py`, and a zero count here is the CORRECT result, not a lost rule.
-        # The residual raw-population divergence (which still affects the two id6 rules) is carried
-        # as backlog `lmjc8h`, whose own scope sentence offers exactly this "make the parameter
-        # explicit at both call sites so the divergence cannot be accidental" resolution.
+        # COLLISION POPULATION PARITY (collpop t0jyb2).
+        # Both surfaces (aw check and aw doctor) now agree on the collision population:
+        # (1) Identity rules (check.id6-collision and check.id6-identity-slot) are terminal-inclusive
+        # and are NEVER demoted into executed_warnings on either surface, because an identity collision
+        # with a terminal artifact is a real error that breaks cross-tree handles (e.g. aw find).
+        # (2) The setid collision rule follows aw check's default (include_retired=False) and widens
+        # under -a / --include-executed (passing include_retired=include_executed), matching aw check --all.
+        # (3) PRECONDITION: check_engine.check_collisions making the identity-slot pass terminal-inclusive
+        # (t0jyb2 E-03) is a strict correctness precondition for passing include_retired=include_executed
+        # here. Without E-03, passing include_retired=False to check_collisions when include_executed is
+        # False would silently zero out doctor's identity-slot findings (dropping 3 true positives on the
+        # live tree to 0). Pinned by tests/test_collision_population_parity.py.
         collisions = list(
             check_engine.check_collisions(
                 repo_root,
                 include_untracked=include_untracked,
-                include_retired=True,
+                include_retired=include_executed,
             )
         )
         try:
@@ -584,7 +576,12 @@ def probe_artifacts(
                     continue
 
                 drift_item = core.Drift(loc, d.rule, d.detail)
-                if not include_executed and "executed" in loc.split(os.sep):
+                # Identity collisions are never demoted into executed_warnings (collpop t0jyb2)
+                if (
+                    not include_executed
+                    and "executed" in loc.split(os.sep)
+                    and d.rule not in ("check.id6-collision", "check.id6-identity-slot")
+                ):
                     res.executed_warnings.append(drift_item)
                 else:
                     res.all_drift.append(drift_item)
