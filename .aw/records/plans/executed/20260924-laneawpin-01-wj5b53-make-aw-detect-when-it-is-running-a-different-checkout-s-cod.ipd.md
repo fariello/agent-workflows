@@ -6,20 +6,20 @@
 - Scope: IN: (a) a cheap, subprocess-free checkout-mismatch detector called at the top of `cli.main` when `argv is None` (real process entry only); (b) on mismatch, re-exec `sys.executable -m agent_workflows <argv>` with the invoked checkout's toplevel prepended to `PYTHONPATH`, with a one-line stderr notice naming both roots; (c) a loop guard, an `AW_NO_REEXEC=1` opt-out (warn, do not re-exec), a silent exemption for the runner's pinned nested calls by having `runner_shared._AW_PIN_BOOTSTRAP` mark its process, and a silent exemption for a SHELL COMPLETION request (see E-02); (d) subprocess tests on throwaway fake checkouts; (e) a CHANGELOG entry under the `## 1.3.0 (pending)` heading (there is NO `Unreleased` heading in this file; verified at review, `grep -c Unreleased CHANGELOG.md` -> `0`). OUT: changing `pinned_child_env`/`pinned_module_argv`/`assert_child_tool_identity` bodies (the af7i6p contract, and both are AST-fingerprinted in `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json`); changing the editable install or PATH; managed target repos (no `agent_workflows/` package at their toplevel), which must be byte-for-byte unaffected; documenting the two new env vars in `docs/` (this repo has no env-var reference page, verified at review, so a `docs/` edit would create a new surface rather than extend one).
 - Scope-Paths: agent_workflows/checkout_pin.py, agent_workflows/cli.py, agent_workflows/runner_shared.py, tests/test_cli_checkout_reexec.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: laneawpin
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wj5b53
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: lcmz33
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: wj5b53 verified (set laneawpin, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us step=plan-review): plan-review complete: 9 findings (F-7..F-15) all FIXED, 5 recorded decisions, none irreversible; review-finalize lint exit 0
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed; APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED, none deferred, none open. Nine reviewer findings added to the plan as F-7..F-15, all measured in this lane at HEAD e2fba20d. Three were repairs to mechanisms that would NOT have worked as authored: a shell-completion request reaches `main()` with `argv is None` on two surfaces and would have had its candidate stream corrupted (F-7); the `AW_PINNED_CHILD` marker would have been INHERITED by every descendant, spreading the exemption (F-8); and E-05/V-05 named a CHANGELOG heading that does not exist, making V-05 unsatisfiable (F-9). Also fixed: a missing flush before `execve` that would lose the notice on a piped stderr (F-10), a predicate that would have misclassified seven existing test fixtures (F-11), an unstated `-P` hazard (F-12), a duplicate-backlog close that fails closed with no route given (F-13), a stale scratch path in V-02, and a one-sentence gate with no execution contract. `aw ipd lint --phase author --agent` reported conforming BEFORE semantic review and `--phase review-finalize` after the revisions.
