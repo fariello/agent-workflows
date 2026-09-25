@@ -10,7 +10,7 @@ name: local-leaks
 
 on:
   push:
-    branches: [main, master, "fix/ci-green"]
+    branches: [main, master]
   pull_request:
 
 permissions:
