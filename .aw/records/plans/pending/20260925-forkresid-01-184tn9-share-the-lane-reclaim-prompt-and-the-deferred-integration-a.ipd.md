@@ -124,9 +124,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - The four recovery-routing/reconcile forks.
-  - Carrier: cdxcbh
+  - Carrier-Evidence: .aw/records/plans/executed/20260924-recovone-01-cdxcbh-give-classify-recovery-disposition-build-verify-and-continue.ipd.md
+  - Note: carrier cdxcbh executed and performed this work (verified 2026-09-25 against runner_shared at HEAD).
 - `runner_shared._record_forced_stop`'s broken `git_status(repo)` fallback.
-  - Carrier: afpmdu
+  - Carrier-Evidence: .aw/records/plans/executed/20260924-liftaudit-01-afpmdu-audit-every-symbol-lifted-by-70a2059f-and-li44r9-against-its.ipd.md
+  - Note: carrier afpmdu executed and performed this work (verified 2026-09-25 against runner_shared at HEAD).
 - `reattempt_deferred_integrations`'s `validation_runner_for` parameter is accepted and never read in its body; removing it widens this chore into a signature change.
   - Carrier-Declined: harmless while unused; both hosts pass it identically after E-04, so it cannot drift.
 - `disable_lane_prompt` remains an identical per-host pair.

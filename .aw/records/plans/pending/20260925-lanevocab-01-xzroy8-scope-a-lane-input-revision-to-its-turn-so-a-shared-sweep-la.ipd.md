@@ -127,7 +127,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Replacing the position-keyed revision integer with an explicit per-turn key (the backlog's second suggested shape). The (lane, turn) scoping plus a consumer that addresses its own revision removes the ambiguity without a layout change that every teardown and accounting path would have to follow.
   - Carrier-Declined: the wording plus consumer fix closes the defect; a re-key is churn with no measured need.
 - Restoring `tests/test_lane_input_manifest.py` (F-6), the 21-test R5 acceptance file deleted in `19313eed`. Its absence is a real coverage hole and it is deliberately NOT this plan's job: the deletion was an intentional suite-wide trim of 219,063 lines across 318 files, so reversing one file of it is a decision about that trim rather than about this defect, and bundling it would make a focused one-consumer fix into a test-policy argument.
-  - Carrier-Declined for THIS plan only. E-08 records the hole IN the spec so it is visible rather than silently implied, and a separate backlog item is the right carrier. Not filed here because this plan's own review must not create the work it then cites.
+  - Carrier: mvw06u
+  - Note: declined for THIS plan only. E-08 records the hole IN the spec so it is visible rather than silently implied, and a separate backlog item is the right carrier. Not filed here because this plan's own review must not create the work it then cites.
 - Narrowing the four other `revision: int | None = None` readers (F-5) from a defaulting `None` to a required argument. They have no product caller, so a signature change today would be churn with no observable effect, and E-06 documents the hazard where a future caller will read it.
   - Carrier-Declined: latent, not live; documentation is the proportionate response until a caller exists.
 
