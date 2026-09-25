@@ -3065,3 +3065,35 @@ class AttentionMatchingArtifactsCountTests(unittest.TestCase):
             _, out = self._run(root, show_all=True)
             self.assertIn("4 artifacts shown\n", out)
             self.assertNotIn("hidden", out)
+
+
+class PlansIdWindowTests(unittest.TestCase):
+    """`_plans_id` must not truncate an id whose `- Id:` line straddles the fast-path window.
+
+    Measured 2026-09-25: with a 2048-char window, plan `je74a0` (its `- Id:` line at offset 2039)
+    rendered on the attention board as `je7`, and executed plan `udgilu` (offset 2040) as `ud`.
+    """
+
+    def _text_with_id_at(self, offset: int, id6: str) -> str:
+        head = "# IPD: p\n\n"
+        pad = "- Concern: " + "x" * (offset - len(head) - len("- Concern: ") - 1) + "\n"
+        text = head + pad + f"- Id: {id6}\n\n## Workflow history\n"
+        self.assertEqual(text.index(f"- Id: {id6}"), offset)
+        return text
+
+    def test_id_straddling_2048_is_read_whole(self):
+        for offset in (2039, 2040, 2044, 2047):
+            with self.subTest(offset=offset):
+                self.assertEqual(
+                    att._plans_id(self._text_with_id_at(offset, "je74a0")), "je74a0"
+                )
+
+    def test_id_straddling_4096_is_read_whole(self):
+        # The window edge moved, it did not vanish: a line CUT by the 4096 slice must fall through to
+        # the full scan rather than return a fragment. 4086..4089 are the offsets that truncate
+        # (the line `- Id: je74a0` is 12 chars, so it straddles 4096 when it starts at 4085..4095).
+        for offset in range(4084, 4097):
+            with self.subTest(offset=offset):
+                self.assertEqual(
+                    att._plans_id(self._text_with_id_at(offset, "je74a0")), "je74a0"
+                )

@@ -436,7 +436,14 @@ def _extract_item_dependencies(text: str) -> Optional[Tuple[str, ...]]:
 
 
 def _plans_id(text: str) -> Optional[str]:
-    m = re.search(r"(?m)^-\s*Id:\s*(\S+)", text[:2048])
+    # The fast path searches a bounded prefix. At 2048 it TRUNCATED an id whose `- Id:` line
+    # straddled the boundary (measured 2026-09-25: `je74a0` at offset 2039 read as `je7`, `udgilu` at
+    # 2040 as `ud`). Widening the window alone only MOVES that boundary, so the match must also be
+    # followed by a NEWLINE inside the slice: `$` is not enough, because it also matches at the END OF
+    # THE STRING, which is exactly where a cut line ends. A line cut by the slice therefore no longer
+    # matches and falls through to the full scan below.
+    # Interim: front matter is moving to a database, which retires this scan.
+    m = re.search(r"(?m)^-\s*Id:[ \t]*(\S+)[ \t]*\n", text[:4096])
     if m:
         return m.group(1).strip()
     for line in text.splitlines():
