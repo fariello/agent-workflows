@@ -1,5 +1,5 @@
 - Id: ccu3k7
-- Status: graduated
+- Status: done
 - Graduated-To: liftaudit
 - Blocks-Release: next
 - Set: ccu3k7
@@ -8,6 +8,7 @@
 - Summary: Audit the 16 symbols lifted by 70a2059f for silent transcription drift: five defects shipped in execute_item_core's deliberate-stop handlers alone
 
 ## Workflow history
+- 2026-09-25 set (aw backlog): closed by aw oc run: IPD afpmdu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260924-liftaudit-01-afpmdu-audit-every-symbol-lifted-by-70a2059f-and-li44r9-against-its.ipd.md); evidence .aw/records/plans/executed/20260924-liftaudit-01-afpmdu-audit-every-symbol-lifted-by-70a2059f-and-li44r9-against-its.ipd.md
 - 2026-09-25 graduated (aw set): graduated into liftaudit plan afpmdu (to-review); audit found defect 5 (stop handlers return instead of raise) still live
 - 2026-09-23 created (aw backlog): Audit the 16 symbols lifted by 70a2059f for silent transcription drift: five defects shipped in execute_item_core's deliberate-stop handlers alone
 
