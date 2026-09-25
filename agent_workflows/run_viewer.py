@@ -41,6 +41,7 @@ from agent_workflows.runner_shared import (
     analytics_root,
     canonical_terminal_status,
     extract_verifier_test_commands,
+    landed_verdict,
     path_is_within_analytics,
     state_root,
 )
@@ -1968,11 +1969,12 @@ def render_steps_table(
     if not steps:
         return ""
     if short:
-        headers = ["Status", "Item", "Action", "Verified", "Issue"]
-        aligns = ["left", "left", "left", "left", "left"]
+        headers = ["Status", "Landed", "Item", "Action", "Verified", "Issue"]
+        aligns = ["left", "left", "left", "left", "left", "left"]
     else:
         headers = [
             "Status",
+            "Landed",
             "Item",
             "Action",
             "Attempts",
@@ -1983,6 +1985,7 @@ def render_steps_table(
             "Issue",
         ]
         aligns = [
+            "left",
             "left",
             "left",
             "left",
@@ -2005,6 +2008,27 @@ def render_steps_table(
         # authority, is present in the cell either way.
         st_resolved = _resolve_item_status(step.status, action=step.action)
         st_styled = term.style_lifecycle_text(st_disp, st_resolved)
+
+        # Landed column derived from the plan's terminal directory on disk (statusvocab 9x7otz)
+        l_verdict = landed_verdict(audit)
+        if l_verdict == "yes":
+            landed_disp = (
+                term.color256("yes", 46) if getattr(term, "color", False) else "yes"
+            )
+        elif l_verdict == "no":
+            landed_disp = (
+                term.color256("no", 196) if getattr(term, "color", False) else "no"
+            )
+        elif l_verdict == "n/a":
+            landed_disp = (
+                term.color256("n/a", 245) if getattr(term, "color", False) else "n/a"
+            )
+        else:
+            landed_disp = (
+                term.color256("unknown", 214)
+                if getattr(term, "color", False)
+                else "unknown"
+            )
 
         item_disp = step.stem or (
             f"{step.setid}-{step.id6}" if step.setid else step.id6
@@ -2067,11 +2091,14 @@ def render_steps_table(
             )
 
         if short:
-            rows.append([st_styled, item_disp, step.action, v_disp, issue_disp])
+            rows.append(
+                [st_styled, landed_disp, item_disp, step.action, v_disp, issue_disp]
+            )
         else:
             rows.append(
                 [
                     st_styled,
+                    landed_disp,
                     item_disp,
                     step.action,
                     att_disp,

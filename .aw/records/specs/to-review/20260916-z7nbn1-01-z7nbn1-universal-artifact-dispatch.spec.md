@@ -9,6 +9,7 @@
 - Scope: Every tool that looks at or acts on artifacts resolves them through one selector, decides what to do through one action table, and refuses clearly on anything it cannot classify; executing a spec or backlog item PRODUCES plans or backlog items rather than doing work itself.
 
 ## Workflow history
+- 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-18 to-review (aw set): Carry forward Blocks-Release: next from superseded plan mng63x per maintainer ruling
 
 - 2026-09-16 to-review (aw specs): MAINTAINER RULINGS RECORDED 2026-09-16, all three open questions resolved. OQ-01: NO FOLLOW for now; a production action REPORTS the artifacts it created and does not enqueue them, with --follow-generated becoming the opt-in same-run mechanism once implemented (the safe default, because the frozen queue is what resume reads). OQ-02: PARTIALLY IN SCOPE, the four SPEC-PLAN-* codes only, because they verify Section 3's production actions; also CORRECTED this spec's own 4.4, there are THIRTEEN such codes not eleven and they are declared in approved spec 25kzda 4.8, so they are agreed requirements never implemented rather than speculative work. OQ-03: SUPERSEDE mng63x, and its Blocks-Release: next carries forward to whatever plan graduates from this spec. Added acceptance criteria 5.5a (report-only proven by comparing the queue id set before and after) and 5.5b (gate carry tested in both directions).
@@ -107,7 +108,7 @@ is 1.7's second half, that the runner exits BEFORE running anything when any sel
 
 2.4 DEPENDENCY ORDERING AND REFUSAL EXIST and largely satisfy 1.4 and 1.5. The queue is sorted with
 dependency depth as the FIRST key (`queue_sort_key`, `dependency_depth`), edges are RE-CHECKED at
-dispatch rather than only at queue build, and an unmet edge marks that one item `dependency-blocked` and
+dispatch rather than only at queue build, and an unmet edge marks that one item `fail-depend` (legacy `dependency-blocked`) and
 continues rather than failing the whole run. The in-batch case of 1.4 is handled: a dependency inside
 the same queue contributes to the ordering.
 

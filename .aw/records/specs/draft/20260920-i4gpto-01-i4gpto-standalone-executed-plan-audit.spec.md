@@ -15,6 +15,7 @@
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-20 created (aw specs): An operator-invoked verb that buys one independent skeptical opinion on an already-executed plan, reusing the in-run verifier prompt and outcome schema, and never touching the finished plan document.
 - 2026-09-20 drafted (opencode its_direct/pt3-claude-opus-5-1m-us): Written as the recorded DECISION deliverable of plan `mp289j`, whose Spec/documentation sync section requires it under either outcome ("THE DECISION IS THE PRIMARY DELIVERABLE UNDER EITHER OUTCOME"), so the four questions backlog `7u9kbm` reserved are not re-derived by the next person who wants this. Records the maintainer's two resolutions of 2026-09-10 (OQ-01 build it, findings need a carrier; OQ-05 the audit may fix code but never the plan record) and the three design answers the plan directed its executor to choose (the verification base, the verdict destination, the tree). Every number here was re-measured at HEAD `4b8f22b5` rather than quoted.
 
@@ -31,7 +32,7 @@ could ask for it afterwards. Three consequences, each observed in this repositor
 1. A run executed with verification OFF cannot be given an independent opinion later. On the OpenCode
    host that is the SHIPPED DEFAULT (`runner_profiles.RUNNER_REGISTRY["oc"].validate_default` is
    `False`, resolving as `provenance='shipped-default'`), so most executed plans here never got one.
-2. An item that reached `substantially-complete` because finalize refused is exactly where a human
+2. An item that reached `fail-gate` (legacy `substantially-complete`) because finalize refused is exactly where a human
    wants a second opinion before deciding whether to trust the lane, and could not have one.
 3. Lanes integrated BY HAND during recovery were validated by the full suite but never by an
    independent verifier, with no way to add that signal after the fact.

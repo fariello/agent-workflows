@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): R21's deliberate stop outcome promoted to the canonical terminal status vocabulary (interrupted). Canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-08 note (aw specs): R12 AMENDED on the maintainer's decision (2026-09-09) to describe TWO Ctrl-C paths: R12.1 the interactive four-choice menu (a real terminal on BOTH streams and no AW_NONINTERACTIVE/CI), and R12.2 the SIGINT_LADDER for everything else. The pre-amendment text described only the ladder and was contradicted by shipped behavior on a terminal since 646be41f/42c975b2. RATIONALE, on the merits rather than deference to shipped code: the ladder satisfied R12's letter but defeated R16's purpose interactively, since its levels are undiscoverable, an operator cannot learn that 'finish this item and stop' is level 1, and monotonic escalation (R9) prevents changing their mind; the menu states the options, reaches level 1 explicitly, and adds a resume choice the ladder cannot express, which is what backlog 1m3nul filed as the defect. The amendment also FIXES A HAZARD rather than only documenting a choice: the path predicate must require the OUTPUT stream to be a terminal too, because requiring only the input stream lets a driver spawned with piped output print the menu where nobody reads it and then block forever inside a signal handler while holding the run lock, which is the same predicate error that wedged a finalize for 1h49m elsewhere in this repo. Implemented as runner_stop.interrupt_menu_is_safe with 14 regression tests, including a negative control proving the old predicate hijacks the test suite's own stdin.
 ## 0. Concepts (kept distinct)
 
@@ -119,7 +120,7 @@ The only difference between 3 and 4 is outcome CERTAINTY, not cleanliness.
 - R18. An interrupted item records: the level that interrupted it, the certainty (known vs `unknown_outcome`), the observed git state, and what a resume must do first.
 - R19. A later run MUST refuse to blindly resume an `unknown_outcome` item; it reconciles (per `ud28vy`) or requires explicit operator action.
 - R20. A level 1 or 2 stop produces NO `unknown_outcome` items, since nothing was interrupted mid-turn.
-- R21. The ledger distinguishes DELIBERATE stop from CRASH, so the history shows the operator's intent rather than implying a failure.
+- R21. The ledger distinguishes DELIBERATE stop (`interrupted`, promoted to canonical terminal status) from CRASH, so the history shows the operator's intent rather than implying a failure.
 
 ### 4.5 Honesty
 

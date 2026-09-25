@@ -11,6 +11,7 @@
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-18 note (aw specs): AMENDED 2026-09-18 by maintainer ruling: R5.5's refusal on unknown ignored files is removed. Gitignored files (bytecode caches, toolchain dependencies, test residues) are disposable upon lane destruction and do not block teardown. Teardown refuses only on dirty tracked files, unknown untracked files, or uncollected submissions. A15 updated accordingly.
 - 2026-09-16 note (aw specs): AMENDED 2026-09-16 by dirtygates Order 01 (d7qoxv) E-04: R5.4's dirty-tracked-base obligation is SPLIT BY PATH rather than removed. SHARED TREE (--no-isolate-worktree) KEEPS the refusal verbatim in force, because the turn executes in the polluted tree and cannot tell its own changes from the uncommitted work already there at commit or finalize time; that half is what approved release-blocking plan 3i0aaz E-03 builds on and it is deliberately preserved. ISOLATED turns now REPORT the dirty paths and PROCEED. WHY, measured 2026-09-13: a lane cut from HEAD lacking an uncommitted tracked change failed its validation EXACTLY as committing that same change with no lane involved failed, so the refusal never prevented the stale-base harm it named, it only deferred it to whenever the operator committed. What actually catches a stale base is the merge-and-revalidate gate, which re-runs validation against the combined result. MEASURED COST of keeping it: across three consecutive runs the gate blocked 27 of 42, 23 of 41 and 18 of 43 queue items, each refusal naming exactly ONE uncommitted markdown file no plan declared, cascading 36 further items into dependency-blocked (reviews were exempt, so this was the majority of each run and not a total failure). A14 rewritten to assert BOTH halves separately, and new A14b requires the RULE's classification (clean=False, paths named, identical on both paths) be pinned separately from the CALLER's disposition, so an implementation cannot achieve the isolated behavior by making the rule report clean. Untracked exclusion unchanged on both paths.
 
@@ -442,7 +443,7 @@ dirty file.
 THE MEASURED COST OF KEEPING IT, which is why this is an amendment rather than a note: across three
 consecutive runs on 2026-09-13 the gate blocked 27 of 42, 23 of 41, and 18 of 43 queue items, each refusal
 naming exactly ONE uncommitted markdown file that no plan declared, and cascading 36 further items into
-`dependency-blocked`. Reviews were exempt and some items still ran, so this was not a total failure of
+`fail-depend` (legacy `dependency-blocked`). Reviews were exempt and some items still ran, so this was not a total failure of
 each run, but the majority of every run was lost to a file no lane would have touched.
 
 Untracked files remain deliberately EXCLUDED on BOTH paths: a lane is created from a commit, so untracked
