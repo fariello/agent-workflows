@@ -32,22 +32,25 @@ This orchestrator carries orchestration only; every piece of work lives in a chi
 
 ### Task group 1: children
 
-- [ ] E-01 Confirm child 01 `nomhl1` (payload-blind broker) is executed.
+- [ ] E-01 CONFIRM nomhl1 REACHED executed
+  - Child 01, the payload-blind broker.
   - Depends on: none
   - Expected outcome: `nomhl1` is in `.aw/records/plans/executed/` with `- Status: executed`, or it stopped at its E-01 spike and the Set is re-planned.
   - Execution state: pending
-- [ ] E-02 Confirm child 02 `ex539u` (target registry) is executed.
+- [ ] E-02 CONFIRM ex539u REACHED executed
+  - Child 02, the target registry.
   - Depends on: E-01
   - Expected outcome: `ex539u` is in `.aw/records/plans/executed/` with `- Status: executed`.
   - Execution state: pending
-- [ ] E-03 Confirm child 03 `ozcfjr` (agent acks and status) is executed.
+- [ ] E-03 CONFIRM ozcfjr REACHED executed
+  - Child 03, agent acks and per-message status.
   - Depends on: E-01
   - Expected outcome: `ozcfjr` is in `.aw/records/plans/executed/` with `- Status: executed`.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | File (id6) | What it does | Depends on |
+| Order | Id | What it does | Depends on |
 |---|---|---|---|
 | 01 | `nomhl1` | `agent_workflows/comms_broker.py`: header-only scan, `Not-Before`, one constant nudge via `POST /tui/show-toast` + `/tui/append-prompt` (attended) or `/session/{sessionID}/prompt_async` (headless), loopback-only, broker acks only. E-01 is a spike with a stop condition. From-Backlog `ifeyjv`. | none |
 | 02 | `ex539u` | Filesystem registry `untracked/registry/<agent>.json`, verified by `GET /global/health` and `GET /path`; mDNS deferred. From-Backlog `lbhmi3`. | executed:nomhl1 |
