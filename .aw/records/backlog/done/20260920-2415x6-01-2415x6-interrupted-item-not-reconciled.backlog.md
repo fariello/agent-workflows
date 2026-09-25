@@ -1,5 +1,5 @@
 - Id: 2415x6
-- Status: graduated
+- Status: done
 - Graduated-To: intrecon
 - Blocks-Release: next
 - Set: 2415x6
@@ -8,6 +8,7 @@
 - Summary: interrupted items are left running: execute_item_core dedup stopped calling reconcile_item_on_interrupt
 
 ## Workflow history
+- 2026-09-25 set (aw backlog): closed by aw oc run: IPD 87jnym executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260924-intrecon-01-87jnym-rewire-reconcile-item-on-interrupt-into-execute-item-core-an.ipd.md); evidence .aw/records/plans/executed/20260924-intrecon-01-87jnym-rewire-reconcile-item-on-interrupt-into-execute-item-core-an.ipd.md
 - 2026-09-25 graduated (aw set): graduated into intrecon plan 87jnym (to-review); plan also fixes tsfk8a/e17a2e
 - 2026-09-20 created (aw backlog): interrupted items are left running: execute_item_core dedup stopped calling reconcile_item_on_interrupt
 
