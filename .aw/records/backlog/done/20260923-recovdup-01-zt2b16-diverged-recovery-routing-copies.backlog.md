@@ -1,13 +1,14 @@
 - Id: zt2b16
-- Status: graduated
+- Status: done
 - Graduated-To: recovone
-- Priority: high
 - Blocks-Release: next
 - Set: recovdup
+- Priority: high
 - Work-Kind: bug
 - Summary: runner_shared carries its own diverged copy of classify_recovery_disposition and build_verify_and_continue_notice, so recovery routing has two disagreeing implementations
 
 ## Workflow history
+- 2026-09-25 set (aw backlog): closed by aw oc run: IPD cdxcbh executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260924-recovone-01-cdxcbh-give-classify-recovery-disposition-build-verify-and-continue.ipd.md); evidence .aw/records/plans/executed/20260924-recovone-01-cdxcbh-give-classify-recovery-disposition-build-verify-and-continue.ipd.md
 - 2026-09-25 graduated (aw set): graduated into recovone plan cdxcbh (to-review); plan also covers 2t4v1j
 - 2026-09-23 set (aw backlog): status -> open
 - 2026-09-23 created (aw backlog): Found while executing runnerlayer 02 (1f7xno). runner_shared defines classify_recovery_disposition (:22052) and build_verify_and_continue_notice (:20437) while oc_runipd defines its own (:4893, :5025) and agy_runipd delegates to OC's by a lazy import. Measured: the docstring-stripped AST bodies DIFFER. The shared classify_recovery_disposition calls lane_branch_tip and matches snapshots by subj.startswith('wip(snapshot):') while oc's calls worktree_lease.commit_subject_is_interrupted_snapshot; it also reads st.path/st.base_commit where oc reads st.worktree_path/lane_base, and it drops oc's not-st.exists and not-st.head guards entirely. So which routing verdict a recovery turn gets depends on which copy the call site resolved. runner_shared.execute_item_core rebinds route_recovery_turn off driver_module (so a host override wins there), but nothing rebinds the two names above. This is the class (d) reconciliation 818uru deferred behind lanectn, and it is why 1f7xno deferred these three names rather than moving them.
