@@ -1527,6 +1527,12 @@ RUN_POLICY_KEY = "run"
 #: The member of the `run` object holding spec 5.5's repository-policy correction budget.
 RUN_RETRY_BUDGET_MEMBER = "retry_budget"
 
+#: The member of the `run` object holding the active runner conflict policy.
+RUN_ON_CONFLICT_MEMBER = "on_conflict"
+
+#: The canonical conflict resolution policies accepted in configuration.
+VALID_ON_CONFLICT_POLICIES: Tuple[str, ...] = ("drop", "refuse", "force", "prompt")
+
 
 def read_run_policy(
     repo_root: "os.PathLike[str] | str",
@@ -1601,6 +1607,97 @@ def policy_retry_budget(
         f"WARNING: {where} in {project_file} is {raw!r}, which is not an integer. "
         f"Ignoring it and using the default retry budget instead. "
         f"Fix the value in that file to make the repository policy take effect."
+    )
+    return None
+
+
+def policy_on_conflict(
+    repo_root: "os.PathLike[str] | str",
+    *,
+    warn: Any = None,
+) -> Optional[str]:
+    """The repository or user policy for handling active runner conflicts, or None if unset.
+
+    Precedence:
+    1. Project policy: ``.aw/config/project.json`` at ``run.on_conflict``
+    2. Project policy (flat): ``.aw/config/project.json`` at ``on_conflict``
+    3. User config: ``$XDG_CONFIG_HOME/agent-workflows/config.json`` at ``run.on_conflict``,
+       ``defaults.on_conflict``, or ``on_conflict``
+
+    Returns one of ('drop', 'refuse', 'force', 'prompt') or None. Normalizes 'ask' to 'prompt'.
+    Warns on malformed values and returns None so the default ('drop') applies.
+    """
+    import sys as _sys
+
+    def _emit(message: str) -> None:
+        if warn is None:
+            print(message, file=_sys.stderr)
+        else:
+            warn(message)
+
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    run_policy = read_run_policy(repo_root)
+    raw = None
+    where = None
+
+    if run_policy is not None and RUN_ON_CONFLICT_MEMBER in run_policy:
+        raw = run_policy.get(RUN_ON_CONFLICT_MEMBER)
+        where = f"{RUN_POLICY_KEY}.{RUN_ON_CONFLICT_MEMBER} in {project_file}"
+    else:
+        try:
+            data = json.loads(project_file.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and RUN_ON_CONFLICT_MEMBER in data:
+                raw = data.get(RUN_ON_CONFLICT_MEMBER)
+                where = f"{RUN_ON_CONFLICT_MEMBER} in {project_file}"
+        except (OSError, ValueError):
+            pass
+
+    if raw is None:
+        try:
+            upath = config_path()
+            if upath.is_file():
+                udata = json.loads(upath.read_text(encoding="utf-8"))
+                if isinstance(udata, dict):
+                    if (
+                        isinstance(udata.get("run"), dict)
+                        and RUN_ON_CONFLICT_MEMBER in udata["run"]
+                    ):
+                        raw = udata["run"].get(RUN_ON_CONFLICT_MEMBER)
+                        where = f"run.{RUN_ON_CONFLICT_MEMBER} in {upath}"
+                    elif (
+                        isinstance(udata.get("defaults"), dict)
+                        and RUN_ON_CONFLICT_MEMBER in udata["defaults"]
+                    ):
+                        raw = udata["defaults"].get(RUN_ON_CONFLICT_MEMBER)
+                        where = f"defaults.{RUN_ON_CONFLICT_MEMBER} in {upath}"
+                    elif RUN_ON_CONFLICT_MEMBER in udata:
+                        raw = udata.get(RUN_ON_CONFLICT_MEMBER)
+                        where = f"{RUN_ON_CONFLICT_MEMBER} in {upath}"
+        except (OSError, ValueError):
+            pass
+
+    if raw is None:
+        return None
+
+    if not isinstance(raw, str):
+        _emit(
+            f"WARNING: {where} is {raw!r}, which is not a string. "
+            f"Ignoring it and using the default conflict policy ('drop') instead. "
+            f"Fix the value in that file to make the policy take effect."
+        )
+        return None
+
+    val = raw.strip().lower()
+    if val == "ask":
+        val = "prompt"
+
+    if val in VALID_ON_CONFLICT_POLICIES:
+        return val
+
+    _emit(
+        f"WARNING: {where} is {raw!r}, which is not one of {VALID_ON_CONFLICT_POLICIES}. "
+        f"Ignoring it and using the default conflict policy ('drop') instead. "
+        f"Fix the value in that file to make the policy take effect."
     )
     return None
 

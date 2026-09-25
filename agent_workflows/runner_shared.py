@@ -11983,8 +11983,28 @@ RESUME_NONE_DEFAULT = "none-default"
 #: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
 #: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
 #: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
-#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
-#: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
+#: #: Active runner conflict resolution modes.
+ON_CONFLICT_DROP = "drop"
+ON_CONFLICT_REFUSE = "refuse"
+ON_CONFLICT_FORCE = "force"
+ON_CONFLICT_PROMPT = "prompt"
+ON_CONFLICT_ASK = "ask"
+
+ON_CONFLICT_CHOICES = (
+    ON_CONFLICT_DROP,
+    ON_CONFLICT_REFUSE,
+    ON_CONFLICT_FORCE,
+    ON_CONFLICT_PROMPT,
+    ON_CONFLICT_ASK,
+)
+CANONICAL_ON_CONFLICT_CHOICES = (
+    ON_CONFLICT_DROP,
+    ON_CONFLICT_REFUSE,
+    ON_CONFLICT_FORCE,
+    ON_CONFLICT_PROMPT,
+)
+DEFAULT_ON_CONFLICT = ON_CONFLICT_DROP
+
 RUN_POLICY_FLAGS: tuple = (
     # specsweep-01 (`ui8b9b`) E-01: `--type`, MOVED out of the contract test's
     # `DECLARED_BUT_NOT_OWNED_HERE` rather than added beside it. Spec 2.1 already DECLARED it, so no
@@ -12254,6 +12274,21 @@ RUN_POLICY_FLAGS: tuple = (
         ),
         choices=ON_INTEGRATION_BLOCKED_CHOICES,
     ),
+    RunPolicyFlag(
+        flag="--on-conflict",
+        dest="on_conflict",
+        kind="choice",
+        implemented=True,
+        owner="runner_shared.enforce_no_active_runner_conflict",
+        help=(
+            "What to do when artifacts in the selection are already being processed by another "
+            "active runner. 'drop' (the default) removes the active artifacts from the queue and "
+            "narrates what was dropped; 'refuse' refuses to run; 'force' dangerously forces "
+            "execution anyway; 'prompt' asks the user on a TTY (defaulting to 'drop' on empty "
+            "input or non-interactive runs)"
+        ),
+        choices=ON_CONFLICT_CHOICES,
+    ),
 )
 
 #: `{flag: RunPolicyFlag}`, for a caller that has a spelling and wants the row.
@@ -12343,6 +12378,47 @@ def register_run_policy_flags(
                 default=None,
                 help=row.help,
             )
+            if row.dest == "on_conflict":
+                parser.add_argument(
+                    "--conflict",
+                    dest="on_conflict",
+                    choices=list(row.choices),
+                    default=None,
+                    help="Alias for --on-conflict",
+                )
+                parser.add_argument(
+                    "--refuse-conflicts",
+                    "--refuse-running",
+                    dest="on_conflict",
+                    action="store_const",
+                    const=ON_CONFLICT_REFUSE,
+                    help="Refuse to run if queued or running items are included in the selection",
+                )
+                parser.add_argument(
+                    "--drop-conflicts",
+                    "--drop-running",
+                    dest="on_conflict",
+                    action="store_const",
+                    const=ON_CONFLICT_DROP,
+                    help="Drop queued or running items from the queue and narrate what was removed",
+                )
+                parser.add_argument(
+                    "--force-conflicts",
+                    "--dangerously-force-conflict",
+                    "--force-running",
+                    dest="on_conflict",
+                    action="store_const",
+                    const=ON_CONFLICT_FORCE,
+                    help="Dangerously force queueing and running conflicting items anyway",
+                )
+                parser.add_argument(
+                    "--prompt-conflicts",
+                    "--ask-conflicts",
+                    dest="on_conflict",
+                    action="store_const",
+                    const=ON_CONFLICT_PROMPT,
+                    help="Prompt the user on what to do when conflicting items are included (default 'drop')",
+                )
         elif row.kind == "multi-choice":
             # specsweep-01 (`ui8b9b`) E-01: REPEATABLE, because spec 2.1 spells it `[--type <...>]...`
             # and 2.3 makes repetition the UNION of the named types. `action="append"` with
@@ -12441,6 +12517,36 @@ def resolve_retry_budget(
                     warn(message)
 
     return run_recovery.DEFAULT_RETRY_LIMIT
+
+
+def resolve_on_conflict(
+    cli_value: Any,
+    *,
+    repo: Any = None,
+    warn: Any = None,
+) -> str:
+    """Resolve the effective conflict policy: CLI override -> repository/user policy -> default ('drop').
+
+    Choices: 'drop', 'refuse', 'force', 'prompt' (or 'ask').
+    """
+    if cli_value is not None:
+        value = str(cli_value).strip().lower()
+        if value == ON_CONFLICT_ASK:
+            value = ON_CONFLICT_PROMPT
+        if value not in CANONICAL_ON_CONFLICT_CHOICES:
+            raise RunFlagRefusal(
+                f"--on-conflict: {cli_value!r} is not one of {list(CANONICAL_ON_CONFLICT_CHOICES)}"
+            )
+        return value
+
+    if repo is not None:
+        from agent_workflows import config as _config
+
+        policy_value = _config.policy_on_conflict(repo, warn=warn)
+        if policy_value is not None:
+            return policy_value
+
+    return DEFAULT_ON_CONFLICT
 
 
 def refuse_unimplemented_run_flags(args: Any) -> None:
@@ -13310,6 +13416,8 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
             frozen[row.dest] = resolve_integration_retry_limit(_supplied(row.dest))
         elif row.dest == "on_integration_blocked":
             frozen[row.dest] = resolve_on_integration_blocked(_supplied(row.dest))
+        elif row.dest == "on_conflict":
+            frozen[row.dest] = resolve_on_conflict(_supplied(row.dest), repo=repo)
         elif row.kind == "multi-choice":
             # specsweep-01 (`ui8b9b`) E-03: frozen as the EFFECTIVE, RESOLVED type set, exactly as
             # `retry_budget` freezes its effective integer and for the same reason - a later reader
@@ -13706,13 +13814,25 @@ def enforce_no_active_runner_conflict(
     *,
     manifest: Optional[dict[str, Any]] = None,
     stream: Any = None,
-) -> None:
-    """Refuse to run if any of the included artifacts are actively being handled by another live run."""
+    on_conflict: Optional[str] = None,
+    interactive: Optional[bool] = None,
+    args: Any = None,
+) -> tuple[list[str], list[Path]]:
+    """Enforce active runner conflict policy (drop, refuse, force, or prompt).
+
+    - drop (default): automatically removes conflicting items from queue_ids and
+      selected_plan_paths, narrates what was removed, and returns the kept items.
+      If all items are conflicting, raises DriverError.
+    - refuse: raises DriverError naming the conflicting items with a rendered table.
+    - force: dangerously forces execution anyway, printing a warning and returning all items.
+    - prompt: if interactive, prompts the user with choices [D]rop (default) / [R]efuse / [F]orce.
+      If non-interactive, falls back to drop.
+    """
     from agent_workflows import attention, term as T
 
     run_map = attention.get_active_runs_map(repo)
     if not run_map:
-        return
+        return list(queue_ids), list(selected_plan_paths)
 
     conflicting_ids: list[str] = []
     conflicting_paths: list[Path] = []
@@ -13762,7 +13882,7 @@ def enforce_no_active_runner_conflict(
                     conflicting_paths.append(path)
 
     if not conflicting_ids:
-        return
+        return list(queue_ids), list(selected_plan_paths)
 
     items: list[attention.Item] = []
     for p in conflicting_paths:
@@ -13804,12 +13924,91 @@ def enforce_no_active_runner_conflict(
         run_map=run_map,
     )
 
+    policy = on_conflict
+    if policy is None:
+        if args is not None:
+            policy = resolve_on_conflict(getattr(args, "on_conflict", None), repo=repo)
+        else:
+            policy = resolve_on_conflict(None, repo=repo)
+
+    if policy == ON_CONFLICT_PROMPT:
+        is_interactive = interactive
+        if is_interactive is None:
+            is_interactive = is_interactive_run(args, stream=stream)
+
+        if is_interactive:
+            prompt_header = (
+                f"The following artifact(s) are currently handled by an active live run:\n\n"
+                f"{table.rstrip()}\n\n"
+                f"What would you like to do? [D]rop conflicting items (default) / [R]efuse / [F]orce: "
+            )
+            print(prompt_header, end="", file=out)
+            if hasattr(out, "flush"):
+                out.flush()
+            try:
+                raw_ans = sys.stdin.readline()
+                ans = raw_ans.strip().lower() if raw_ans else ""
+            except (OSError, EOFError):
+                ans = ""
+
+            if not ans or ans.startswith("d"):
+                policy = ON_CONFLICT_DROP
+            elif ans.startswith("r"):
+                policy = ON_CONFLICT_REFUSE
+            elif ans.startswith("f"):
+                policy = ON_CONFLICT_FORCE
+            else:
+                print(f"Unrecognized response {ans!r}; defaulting to 'drop'.", file=out)
+                policy = ON_CONFLICT_DROP
+        else:
+            print(
+                "Non-interactive run: defaulting to dropping conflicting items.",
+                file=out,
+            )
+            policy = ON_CONFLICT_DROP
+
+    if policy == ON_CONFLICT_REFUSE:
+        msg = (
+            f"Cannot run artifacts that are actively being processed by another runner.\n"
+            f"The following artifact(s) are currently handled by an active live run:\n\n"
+            f"{table.rstrip()}"
+        )
+        raise DriverError(msg)
+
+    if policy == ON_CONFLICT_FORCE:
+        msg = (
+            f"WARNING: Dangerously forcing execution of {len(conflicting_ids)} artifact(s) "
+            f"already running or queued by another runner:\n\n"
+            f"{table.rstrip()}"
+        )
+        print(msg, file=out)
+        return list(queue_ids), list(selected_plan_paths)
+
+    # ON_CONFLICT_DROP
+    conflicting_set = set(conflicting_ids)
+    conflicting_paths_set = set(conflicting_paths)
+    path_to_id = {p: i for i, p in id_to_path.items()}
+    kept_queue_ids = [id6 for id6 in queue_ids if id6 not in conflicting_set]
+    kept_plan_paths = [
+        p
+        for p in selected_plan_paths
+        if p not in conflicting_paths_set and path_to_id.get(p) not in conflicting_set
+    ]
+
     msg = (
-        f"Cannot run artifacts that are actively being processed by another runner.\n"
-        f"The following artifact(s) are currently handled by an active live run:\n\n"
+        f"Notice: Removed {len(conflicting_ids)} artifact(s) from the queue because they are "
+        f"already being processed by another runner:\n\n"
         f"{table.rstrip()}"
     )
-    raise DriverError(msg)
+    print(msg, file=out)
+
+    if not kept_queue_ids:
+        raise DriverError(
+            "No artifacts left to run: all selected artifacts are already being processed "
+            "by another runner."
+        )
+
+    return kept_queue_ids, kept_plan_paths
 
 
 def format_slated_artifacts_table(
@@ -23718,11 +23917,12 @@ def initialize_run_core(
     # earlier it would pre-empt the intent question with an implementation limit, and an operator who
     # genuinely mistyped a mixed selection would be told the wrong thing first.
     refuse_unrunnable_selected_types(run_types, selection)
-    enforce_no_active_runner_conflict(
+    queue_ids, selected_plan_paths = enforce_no_active_runner_conflict(
         repo,
         queue_ids,
         selected_plan_paths,
         manifest=manifest,
+        args=args,
     )
 
     initial_session = getattr(args, "session", None)
