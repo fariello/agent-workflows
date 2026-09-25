@@ -2333,35 +2333,53 @@ def check_lifecycle_transitions(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        events = _life._plan_status_events(text)
-        if len(events) < 2:
-            continue
-        prev = events[0][1]
-        for _date, status, actor in events[1:]:
-            if status == prev:
-                continue  # a same-status re-record (e.g. a duplicate `approved`) is not a transition
-            # Only validate a transition whose TARGET is on the forward sequence; an alternate/
-            # terminal disposition (superseded/not-executed/parked/reusable) is not a forward step.
-            if _life._status_rank(status) < 0:
-                prev = status
+        groups = _life._plan_status_event_groups(text)
+        prev: Optional[str] = None
+        unvalidated: bool = False
+        for _date, events, ordered in groups:
+            if not ordered:
+                forward_statuses = [s for s, _a in events if _life._status_rank(s) >= 0]
+                distinct = set(forward_statuses)
+                if len(distinct) == 1:
+                    prev = forward_statuses[0]
+                    unvalidated = False
+                else:
+                    prev = None
+                    unvalidated = True
                 continue
-            check = _life.validate_transition(prev, status, actor=actor)
-            if not check.ok:
-                drift.append(
-                    enrich_drift(
-                        _core.Drift(
-                            str(p),
-                            _LIFECYCLE_INVALID_RULE,
-                            f"recorded lifecycle transition {prev!r} -> {status!r} is invalid: "
-                            f"{check.reason}",
-                        ),
-                        observed=f"{prev} -> {status} (actor {actor})",
-                        required="a valid forward transition authored by the correct actor",
-                        recovery="correct the plan history via `aw set <status> <id6>` "
-                        "(or `aw ipd finalize` for the terminal transition)",
+
+            for status, actor in events:
+                if unvalidated:
+                    prev = status
+                    unvalidated = False
+                    continue
+                if prev is None:
+                    prev = status
+                    continue
+                if status == prev:
+                    continue  # a same-status re-record (e.g. a duplicate `approved`) is not a transition
+                # Only validate a transition whose TARGET is on the forward sequence; an alternate/
+                # terminal disposition (superseded/not-executed/parked/reusable) is not a forward step.
+                if _life._status_rank(status) < 0:
+                    prev = status
+                    continue
+                check = _life.validate_transition(prev, status, actor=actor)
+                if not check.ok:
+                    drift.append(
+                        enrich_drift(
+                            _core.Drift(
+                                str(p),
+                                _LIFECYCLE_INVALID_RULE,
+                                f"recorded lifecycle transition {prev!r} -> {status!r} is invalid: "
+                                f"{check.reason}",
+                            ),
+                            observed=f"{prev} -> {status} (actor {actor})",
+                            required="a valid forward transition authored by the correct actor",
+                            recovery="correct the plan history via `aw set <status> <id6>` "
+                            "(or `aw ipd finalize` for the terminal transition)",
+                        )
                     )
-                )
-            prev = status
+                prev = status
     return drift
 
 
