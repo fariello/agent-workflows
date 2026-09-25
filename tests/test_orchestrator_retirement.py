@@ -1924,6 +1924,9 @@ def _structurally_conforming_plan(
         set_name=set_id,
         order=order,
         plan_id=plan_id,
+        # planprio lkexaw: decided at first recording, as `aw ipd scaffold` now requires.
+        priority="medium",
+        work_kind="chore",
     )
     out: list[str] = []
     in_meta = True
@@ -3024,6 +3027,7 @@ class TheSharedGatesAreSharedAsCODE(RollupTransitionCase):
         from unittest import mock
 
         from agent_workflows import ipd_lifecycle as LC
+
         orch = self.make_set("nomove", [("aaa111", 1, "executed", "executed")])
         before = orch.read_text(encoding="utf-8")
         head = _git(self.root, "rev-parse", "HEAD").strip()

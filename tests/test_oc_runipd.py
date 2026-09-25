@@ -2099,6 +2099,8 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                     - Id: fa0001
                     - Set: demo
                     - Status: to-review
+                    - Work-Kind: chore
+                    - Priority: medium
                     # Full Auto Plan
 
                     ## Workflow history

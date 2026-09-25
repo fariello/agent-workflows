@@ -55,6 +55,8 @@ def _conforming_child() -> str:
 - Concern: sample.
 - Scope: sample.
 - Status: to-review
+- Work-Kind: chore
+- Priority: medium
 - Set: x
 - Order: 1
 - Highest E allocated: 01
@@ -2389,6 +2391,18 @@ class ScopePathsCheckpointTests(unittest.TestCase):
             "THE POSITIVE ROW: a comma-separated list of repo-relative paths satisfies the gate "
             "outright. Every blocking row is vacuous while this is broken, since a rule that refused "
             "every value satisfies them all and no plan could ever execute",
+        ),
+        (
+            "the SCAFFOLD PLACEHOLDER left in place, on an APPROVED plan at PRE-EXECUTION",
+            "TODO (comma-separated repo-relative paths or pathspecs)",
+            True,
+            "pre-execution",
+            "pending",
+            "blocking",
+            S.DISPOSITION_ERROR,
+            "planprio lkexaw E-12: the scaffold's placeholder is NOT a path. It used to parse as one "
+            "relative entry, so a plan approved with the placeholder still in place linted clean and "
+            "executed with no real fence for the scope gate to reconcile against",
         ),
         (
             "an ABSOLUTE path as the allowlist, on an APPROVED plan at PRE-EXECUTION",

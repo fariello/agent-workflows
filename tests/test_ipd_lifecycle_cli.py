@@ -1814,6 +1814,8 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
             path=str(target1),
             apply=True,
             overwrite=False,
+            priority="medium",
+            work_kind="chore",
         )
         buf1 = io.StringIO()
         with redirect_stdout(buf1):
@@ -1834,6 +1836,8 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
             path=str(target2),
             apply=True,
             overwrite=False,
+            priority="medium",
+            work_kind="chore",
         )
         buf2 = io.StringIO()
         with redirect_stdout(buf2):

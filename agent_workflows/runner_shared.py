@@ -17685,8 +17685,9 @@ WHAT COUNTS, beyond this plan's own unmet requirements (which stay in `incomplet
 bug in adjacent code, a gap between a spec and its implementation, and a design concern you had to
 work around. Keep each finding to `what` and `where`.
 
-FOR EACH FINDING, FILE A BACKLOG ITEM with `aw backlog new`, so the defect has a durable carrier a
-gate can see. Write a spec too where a spec is genuinely what the work needs, and reference it, but
+FOR EACH FINDING, FILE A BACKLOG ITEM with `aw backlog new --summary "<what>" --priority
+<high|medium|low> --work-kind <bug|feature|chore|security|followup> --apply`, so the defect has a
+durable carrier a gate can see. Both `--priority` and `--work-kind` are REQUIRED: choose them. Write a spec too where a spec is genuinely what the work needs, and reference it, but
 a spec is supporting material and is NEVER the carrier. If filing fails or is outside your scope,
 STILL REPORT THE FINDING: reporting outranks filing.
 """
@@ -22877,8 +22878,9 @@ _AUDIT_PROHIBITIONS = """6. **The Finished Plan Document Is Out Of Bounds (HARD 
      an in-place edit of this one.
 
 7. **Every Finding Needs A Durable Carrier**:
-   - For each defect, gap or concern you find, file a backlog item with `aw backlog new` so the
-     finding has a tracked carrier a release gate can see. Reporting it only in your verdict is NOT
+   - For each defect, gap or concern you find, file a backlog item with `aw backlog new --summary
+     "<what>" --priority <high|medium|low> --work-kind <bug|feature|chore|security|followup> --apply`
+     (both flags REQUIRED; choose them) so the finding has a tracked carrier a release gate can see. Reporting it only in your verdict is NOT
      sufficient, because this verdict is written to a gitignored run directory.
    - Reference the filed item ids in your verdict's `findings_filed` list. If filing genuinely fails,
      STILL report the finding: reporting outranks filing."""

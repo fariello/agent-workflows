@@ -197,8 +197,17 @@ def build_skeleton(
     set_name: Optional[str],
     order: Optional[int],
     plan_id: Optional[str] = None,
+    priority: Optional[str] = None,
+    work_kind: Optional[str] = None,
+    from_backlog: Optional[str] = None,
+    blocks_release: Optional[str] = None,
 ) -> str:
     """Return a conformant IPD skeleton for ``kind`` from the schema's H2 order.
+
+    ``priority``/``work_kind`` are the decided values (planprio lkexaw). When omitted the skeleton
+    carries the ``unresolved`` sentinel, which is what the byte-pinned templates contain and what the
+    ready-to-execute gate refuses; ``aw ipd scaffold`` itself never omits them (it refuses instead).
+    ``from_backlog``/``blocks_release`` are written only when given.
 
     ``plan_id`` is the stable ``- Id:`` handle (6-char base36); when omitted a fresh one is
     generated. Deterministic output for tests can pin ``plan_id``.
@@ -251,11 +260,18 @@ def build_skeleton(
     # from the intra-plan `Depends on:` E-item ordering.
     lines.append("- Item-Dependencies: unresolved")
     lines.append("- Status: draft")
-    # Priority and Work-Kind (planprio lkexaw E-01; spec 20260802 Section 4.4/9.2): emit the reserved
-    # `unresolved` sentinel so a freshly scaffolded plan is an honest not-ready draft. Positioned
-    # immediately after `- Status:` to match where shipped writers anchor.
-    lines.append("- Work-Kind: unresolved")
-    lines.append("- Priority: unresolved")
+    # Priority and Work-Kind (planprio lkexaw E-01/E-10; spec 20260802 Section 4.4/9.2). They are
+    # DECIDED AT FIRST RECORDING (maintainer ruling 2026-09-24): inherited from the backlog item when
+    # the plan graduates from one, otherwise supplied when the plan is first drafted. The `unresolved`
+    # sentinel survives only as the no-argument default (the byte-pinned templates, hand authoring),
+    # where the ready-to-execute gate refuses it. Positioned immediately after `- Status:` to match
+    # where shipped writers anchor.
+    lines.append(f"- Work-Kind: {work_kind or S.PLAN_WORK_KIND_UNRESOLVED}")
+    lines.append(f"- Priority: {priority or S.PLAN_PRIORITY_UNRESOLVED}")
+    if from_backlog:
+        lines.append(f"- From-Backlog: {from_backlog}")
+    if blocks_release:
+        lines.append(f"- Blocks-Release: {blocks_release}")
     lines.append(f"- Set: {set_name}")
     lines.append(f"- Order: {order}")
     lines.append("- Highest E allocated: 01")
@@ -410,6 +426,56 @@ def run_scaffold(args: argparse.Namespace) -> int:
             "actor/author; qualifiers are rendered key=value so history records stay parseable)"
         )
     author = _author_normalized
+    # planprio lkexaw E-10 (maintainer ruling 2026-09-24): Priority and Work-Kind are set WHERE THE
+    # WORK IS FIRST RECORDED. With `--from-backlog` that is the backlog item, so both are INHERITED
+    # from it (with its Blocks-Release, so the gate travels with the work). Without it, this scaffold
+    # IS the first recording, so both must be passed. An explicit flag overrides the item's value.
+    # Refusing here, rather than writing `unresolved`, is what keeps the approval-time refusal a
+    # backstop that should never fire.
+    priority = getattr(args, "priority", None)
+    work_kind = getattr(args, "work_kind", None)
+    from_backlog = getattr(args, "from_backlog", None)
+    blocks_release = None
+    if from_backlog:
+        from agent_workflows import backlog as _backlog
+        from agent_workflows import project_context as _ctx_fb
+
+        try:
+            _fb_root = _ctx_fb.find_project_root(Path.cwd()) or Path.cwd()
+        except Exception:
+            _fb_root = Path.cwd()
+        _item = _backlog.find_item(_fb_root, from_backlog)
+        if _item is None:
+            print(f"error: --from-backlog {from_backlog}: no backlog item has that id")
+            return 2
+        priority = priority or _item.priority
+        work_kind = work_kind or _item.kind
+        blocks_release = _item.blocks_release
+    missing = [
+        flag
+        for flag, value in (("--priority", priority), ("--work-kind", work_kind))
+        if not value
+    ]
+    if missing:
+        where = (
+            f"backlog item {from_backlog} does not carry it; pass it explicitly"
+            if from_backlog
+            else "pass it, or pass --from-backlog <id6> to inherit both from the backlog item"
+        )
+        print(f"error: {' and '.join(missing)} required ({where})")
+        return 2
+    from agent_workflows import backlog as _bk_vocab
+
+    if priority not in _bk_vocab.PRIORITIES:
+        print(
+            f"error: priority must be one of {sorted(_bk_vocab.PRIORITIES)}: {priority!r}"
+        )
+        return 2
+    if work_kind not in _bk_vocab.KINDS:
+        print(
+            f"error: work kind must be one of {sorted(_bk_vocab.KINDS)}: {work_kind!r}"
+        )
+        return 2
     when = date.today().strftime("%Y-%m-%d")
     # An explicit --path is validated against the clustering grammar unless --legacy-name is passed.
     # When --path is omitted, we DERIVE the canonical clustered `.ipd.md` name into `.aw/records/plans/pending/`.
@@ -469,6 +535,10 @@ def run_scaffold(args: argparse.Namespace) -> int:
         set_name=set_name,
         order=order,
         plan_id=plan_id,
+        priority=priority,
+        work_kind=work_kind,
+        from_backlog=from_backlog,
+        blocks_release=blocks_release,
     )
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (

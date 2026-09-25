@@ -33,6 +33,10 @@ def _ns(**kw) -> argparse.Namespace:
         apply=False,
         overwrite=False,
         legacy_name=True,
+        # planprio lkexaw: scaffold refuses without decided values (or --from-backlog).
+        priority="medium",
+        work_kind="chore",
+        from_backlog=None,
     )
     base.update(kw)
     return argparse.Namespace(**base)

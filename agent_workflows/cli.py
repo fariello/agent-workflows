@@ -1351,6 +1351,29 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_scaffold.add_argument(
         "--author", default=None, help="Author (or set AW_IPD_AUTHOR)."
     )
+    # planprio lkexaw E-10: Priority and Work-Kind are decided at first recording. Either pass both,
+    # or pass --from-backlog to inherit them (and Blocks-Release) from the item; scaffold refuses
+    # otherwise. No argparse choices on purpose: the refusal names the vocabulary and the inherited
+    # value is validated on the same path.
+    p_ipd_scaffold.add_argument(
+        "--priority",
+        default=None,
+        help="high | medium | low (required unless inherited via --from-backlog).",
+    )
+    p_ipd_scaffold.add_argument(
+        "--work-kind",
+        dest="work_kind",
+        default=None,
+        help="bug | feature | chore | security | followup (required unless inherited via "
+        "--from-backlog).",
+    )
+    p_ipd_scaffold.add_argument(
+        "--from-backlog",
+        dest="from_backlog",
+        default=None,
+        help="Backlog item id6 this plan graduates from: records From-Backlog and inherits the "
+        "item's Priority, Work-Kind and Blocks-Release.",
+    )
     p_ipd_scaffold.add_argument(
         "--apply", action="store_true", help="Write the file (default is preview only)."
     )
@@ -4811,7 +4834,7 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=(
             "EXAMPLES\n"
             "  aw backlog check             # validate backlog tree fail-closed\n"
-            '  aw backlog new --summary "Fix auth" --set auth-01 --apply\n'
+            '  aw backlog new --summary "Fix auth" --priority high --work-kind bug --apply\n'
             "  aw backlog set open <id6>    # transition backlog item status\n"
             '  aw backlog note <id6> --message "why"   # annotate, no status change\n'
             "\n"
@@ -4861,17 +4884,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help=" | ".join(sorted(_backlog_status_vocab.STATUSES)) + " (default: open).",
     )
     p_backlog_new.add_argument(
-        "--priority", default="medium", help="high | medium | low (default: medium)."
+        "--priority",
+        default=None,
+        help="high | medium | low (required: decide it when you file the item).",
     )
     # wkindname Order 01 (9trlc3) E-02 / OQ-01: `--work-kind` is the PREFERRED spelling, matching the
     # on-disk `- Work-Kind:` field; `--kind` is KEPT as an accepted alias so no existing caller breaks.
-    # Neither carries an argparse default: the "chore" fallback lives in `backlog.run_new`, because a
-    # default here would make `--kind` indistinguishable from "not passed" and mask `--work-kind`.
+    # Neither carries an argparse default, because a default here would make `--kind` indistinguishable
+    # from "not passed" and mask `--work-kind`. `backlog.run_new` REFUSES when neither is given
+    # (planprio lkexaw): the value is decided when the item is filed, never defaulted.
     p_backlog_new.add_argument(
         "--work-kind",
         dest="work_kind",
         default=None,
-        help="bug | feature | chore | security | followup (default: chore).",
+        help="bug | feature | chore | security | followup (required; --kind is an alias).",
     )
     p_backlog_new.add_argument(
         "--kind",

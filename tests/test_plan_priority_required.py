@@ -357,5 +357,318 @@ class SetterPositionStabilityTests(unittest.TestCase):
             self.assertEqual(lines[status_idx + 2], "- Priority: high")
 
 
+# ==================================================================================================
+# DECIDED AT FIRST RECORDING (maintainer ruling 2026-09-24). Priority and Work-Kind are set at the
+# backlog item when one exists, otherwise at the first drafting (`aw ipd scaffold`). The approval
+# refusal is a BACKSTOP that should never fire on a healthy path.
+# ==================================================================================================
+
+
+def _run_cli(argv, cwd):
+    """Run the in-process CLI from ``cwd`` and return (rc, stdout+stderr)."""
+    import contextlib
+    import io
+    import os
+
+    old = os.getcwd()
+    buf = io.StringIO()
+    os.chdir(cwd)
+    try:
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            try:
+                rc = cli.main(argv)
+            except SystemExit as exc:  # argparse refusals
+                rc = exc.code if isinstance(exc.code, int) else 2
+    finally:
+        os.chdir(old)
+    return rc, buf.getvalue()
+
+
+def _repo() -> Path:
+    root = Path(tempfile.mkdtemp())
+    (root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+    (root / ".aw" / "records" / "backlog" / "open").mkdir(parents=True)
+    return root
+
+
+class BacklogNewRequiresBothTests(unittest.TestCase):
+    """`aw backlog new` refuses without a chosen Priority and Work-Kind (no silent medium/chore)."""
+
+    def _new(self, root, *extra):
+        return _run_cli(
+            [
+                "backlog",
+                "new",
+                "--dir",
+                str(root),
+                "--summary",
+                "probe item",
+                "--apply",
+                *extra,
+            ],
+            root,
+        )
+
+    def test_each_missing_flag_is_refused_and_nothing_is_written(self) -> None:
+        root = _repo()
+        for extra, missing in (
+            ((), ("--priority", "--work-kind")),
+            (("--priority", "high"), ("--work-kind",)),
+            (("--work-kind", "bug"), ("--priority",)),
+        ):
+            rc, out = self._new(root, *extra)
+            self.assertEqual(rc, 2, out)
+            for flag in missing:
+                self.assertIn(flag, out)
+            self.assertEqual(
+                list((root / ".aw" / "records" / "backlog").rglob("*.backlog.md")),
+                [],
+                out,
+            )
+
+    def test_both_given_is_written_with_the_chosen_values(self) -> None:
+        root = _repo()
+        rc, out = self._new(root, "--priority", "low", "--work-kind", "feature")
+        self.assertEqual(rc, 0, out)
+        (item,) = list((root / ".aw" / "records" / "backlog").rglob("*.md"))
+        text = item.read_text(encoding="utf-8")
+        self.assertIn("- Priority: low", text)
+        self.assertIn("- Work-Kind: feature", text)
+
+    def test_the_kind_alias_still_counts(self) -> None:
+        root = _repo()
+        rc, out = self._new(root, "--priority", "low", "--kind", "chore")
+        self.assertEqual(rc, 0, out)
+
+
+class ScaffoldRequiresDecidedValuesTests(unittest.TestCase):
+    """`aw ipd scaffold` takes the values directly or inherits them via --from-backlog."""
+
+    BASE = [
+        "ipd",
+        "scaffold",
+        "--kind",
+        "child",
+        "--title",
+        "Probe",
+        "--set",
+        "probe",
+        "--order",
+        "1",
+        "--author",
+        "tester",
+        "--apply",
+    ]
+
+    def _pending(self, root):
+        return list((root / ".aw" / "records" / "plans" / "pending").glob("*.ipd.md"))
+
+    def test_scaffold_without_values_or_backlog_is_refused_and_writes_nothing(
+        self,
+    ) -> None:
+        root = _repo()
+        rc, out = _run_cli(self.BASE, root)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("--priority", out)
+        self.assertIn("--work-kind", out)
+        self.assertIn("--from-backlog", out)
+        self.assertEqual(self._pending(root), [])
+
+    def test_scaffold_with_explicit_values_writes_them_not_the_sentinel(self) -> None:
+        root = _repo()
+        rc, out = _run_cli(
+            self.BASE + ["--priority", "high", "--work-kind", "bug"], root
+        )
+        self.assertEqual(rc, 0, out)
+        (plan,) = self._pending(root)
+        text = plan.read_text(encoding="utf-8")
+        self.assertIn("- Priority: high", text)
+        self.assertIn("- Work-Kind: bug", text)
+        self.assertNotIn(": unresolved\n- Priority", text)
+        self.assertNotIn("- Priority: unresolved", text)
+
+    def test_scaffold_refuses_an_out_of_vocabulary_value(self) -> None:
+        root = _repo()
+        rc, out = _run_cli(
+            self.BASE + ["--priority", "urgent", "--work-kind", "bug"], root
+        )
+        self.assertEqual(rc, 2, out)
+        self.assertEqual(self._pending(root), [])
+
+    def _file_item(self, root, *flags) -> str:
+        rc, out = _run_cli(
+            [
+                "backlog",
+                "new",
+                "--dir",
+                str(root),
+                "--summary",
+                "source item",
+                "--apply",
+                *flags,
+            ],
+            root,
+        )
+        self.assertEqual(rc, 0, out)
+        (item,) = list((root / ".aw" / "records" / "backlog").rglob("*.md"))
+        import re
+
+        return re.search(
+            r"(?m)^- Id: (\w{6})$", item.read_text(encoding="utf-8")
+        ).group(1)
+
+    def test_from_backlog_inherits_priority_work_kind_and_records_the_link(
+        self,
+    ) -> None:
+        root = _repo()
+        item_id = self._file_item(root, "--priority", "low", "--work-kind", "feature")
+        rc, out = _run_cli(self.BASE + ["--from-backlog", item_id], root)
+        self.assertEqual(rc, 0, out)
+        (plan,) = self._pending(root)
+        text = plan.read_text(encoding="utf-8")
+        self.assertIn("- Priority: low", text)
+        self.assertIn("- Work-Kind: feature", text)
+        self.assertIn(f"- From-Backlog: {item_id}", text)
+
+    def test_an_explicit_flag_overrides_the_inherited_value(self) -> None:
+        root = _repo()
+        item_id = self._file_item(root, "--priority", "low", "--work-kind", "feature")
+        rc, out = _run_cli(
+            self.BASE + ["--from-backlog", item_id, "--priority", "high"], root
+        )
+        self.assertEqual(rc, 0, out)
+        text = self._pending(root)[0].read_text(encoding="utf-8")
+        self.assertIn("- Priority: high", text)
+        self.assertIn("- Work-Kind: feature", text)
+
+    def test_an_unknown_backlog_id_is_refused(self) -> None:
+        root = _repo()
+        rc, out = _run_cli(self.BASE + ["--from-backlog", "zzzzzz"], root)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("zzzzzz", out)
+        self.assertEqual(self._pending(root), [])
+
+    def test_from_backlog_inherits_the_release_gate(self) -> None:
+        """The gate travels with the work: an item's Blocks-Release lands on the plan."""
+        root = _repo()
+        rel = root / ".aw" / "records" / "releases"
+        rel.mkdir(parents=True)
+        (rel / "20260924-rel001-01-rel001-next.release.md").write_text(
+            "# Release next\n\n- Id: rel001\n- Status: planned\n- Version: next\n"
+            "- Summary: next release\n",
+            encoding="utf-8",
+        )
+        item_id = self._file_item(
+            root, "--priority", "high", "--work-kind", "bug", "--blocks-release", "next"
+        )
+        rc, out = _run_cli(self.BASE + ["--from-backlog", item_id], root)
+        self.assertEqual(rc, 0, out)
+        text = self._pending(root)[0].read_text(encoding="utf-8")
+        self.assertIn("- Blocks-Release: next", text)
+
+
+class ApprovalBackstopTests(unittest.TestCase):
+    """`aw ipd set approved` refuses a plan whose Priority / Work-Kind are undecided."""
+
+    def _plan(self, root, *, priority, work_kind) -> Path:
+        text = _build_test_plan(
+            status="reviewed", priority=priority, work_kind=work_kind
+        )
+        p = (
+            root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20260924-testset-01-tst001-test.ipd.md"
+        )
+        p.write_text(text, encoding="utf-8")
+        return p
+
+    def _approve(self, root, *extra):
+        return _run_cli(
+            [
+                "ipd",
+                "set",
+                "approved",
+                "tst001",
+                "--by-human",
+                "-m",
+                "go",
+                "--yes",
+                "--no-commit",
+                "--dir",
+                str(root),
+                *extra,
+            ],
+            root,
+        )
+
+    def test_unresolved_or_missing_values_refuse_approval_and_leave_the_file(
+        self,
+    ) -> None:
+        for priority, work_kind in (
+            ("unresolved", "bug"),
+            ("high", "unresolved"),
+            (None, None),
+        ):
+            root = _repo()
+            p = self._plan(root, priority=priority, work_kind=work_kind)
+            before = p.read_text(encoding="utf-8")
+            rc, out = self._approve(root)
+            self.assertNotEqual(rc, 0, out)
+            self.assertIn("refusing to set approved", out)
+            self.assertEqual(p.read_text(encoding="utf-8"), before)
+
+    def test_values_passed_in_the_same_call_satisfy_the_backstop(self) -> None:
+        root = _repo()
+        p = self._plan(root, priority="unresolved", work_kind="unresolved")
+        rc, out = self._approve(root, "--priority", "high", "--work-kind", "bug")
+        self.assertEqual(rc, 0, out)
+        text = p.read_text(encoding="utf-8")
+        self.assertIn("- Status: approved", text)
+        self.assertIn("- Priority: high", text)
+
+    def test_decided_values_approve(self) -> None:
+        root = _repo()
+        p = self._plan(root, priority="medium", work_kind="chore")
+        rc, out = self._approve(root)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("- Status: approved", p.read_text(encoding="utf-8"))
+
+    def test_grandfathered_passes_the_backstop_as_it_passes_the_gate(self) -> None:
+        root = _repo()
+        self._plan(root, priority="grandfathered", work_kind="grandfathered")
+        rc, out = self._approve(root)
+        self.assertEqual(rc, 0, out)
+
+
+class ScopePathsPlaceholderTests(unittest.TestCase):
+    """The scaffold's Scope-Paths placeholder is not a path and cannot pass the ready gate."""
+
+    def test_the_placeholder_is_a_grammar_error(self) -> None:
+        placeholder = auth.build_skeleton(
+            kind="child",
+            title="t",
+            author="a",
+            when="2026-09-24",
+            set_name="s",
+            order=1,
+            plan_id="tst001",
+        )
+        import re
+
+        value = re.search(r"(?m)^- Scope-Paths: (.*)$", placeholder).group(1)
+        _paths, grand, errors = schema.parse_scope_paths(value)
+        self.assertFalse(grand)
+        self.assertTrue(errors, value)
+
+    def test_a_real_path_list_still_parses(self) -> None:
+        _paths, _grand, errors = schema.parse_scope_paths(
+            "agent_workflows/foo.py, tests/x.py"
+        )
+        self.assertEqual(errors, [])
+
+
 if __name__ == "__main__":
     unittest.main()

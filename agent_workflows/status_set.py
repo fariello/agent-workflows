@@ -560,6 +560,38 @@ def _repo_root_of(artifact_path: Path) -> Path:
     return Path.cwd()
 
 
+def plan_priority_work_kind_problems(
+    text: str, *, priority: str | None = None, work_kind: str | None = None
+) -> list[str]:
+    """Why a plan's Priority / Work-Kind do not clear the ready-to-execute tier. Empty means clear.
+
+    planprio lkexaw E-11. ``priority``/``work_kind`` are values about to be written in the same call;
+    they take precedence over the file's. Judged by the SAME ``ipd_schema.parse_plan_priority`` /
+    ``parse_plan_work_kind`` the lint gate uses, so the setter and the gate cannot disagree about what
+    is decided. ``grandfathered`` passes here exactly as it passes (advisory-satisfied) at the gate.
+    """
+    # Read the metadata region the SAME forgiving way the setter reads `- Status:` (any `- Field:`
+    # bullet above the first `## ` heading), not through `ipd_lint.parse`, which requires the H1 first.
+    # A stricter reader here would report "missing" for a field the setter can plainly see.
+    head = re.split(r"(?m)^## ", text, maxsplit=1)[0]
+    fields: dict[str, str] = {}
+    for m in re.finditer(r"(?m)^- ([A-Za-z][A-Za-z-]*):[ \t]*(.*?)[ \t]*$", head):
+        fields.setdefault(m.group(1), m.group(2))
+    problems: list[str] = []
+    for name, override, parser in (
+        (_ipd_schema.META_PRIORITY, priority, _ipd_schema.parse_plan_priority),
+        (_ipd_schema.META_WORK_KIND, work_kind, _ipd_schema.parse_plan_work_kind),
+    ):
+        value = override if override is not None else fields.get(name)
+        if value is None:
+            problems.append(f"{name} is missing")
+            continue
+        _v, _grand, err = parser(value)
+        if err:
+            problems.append(err)
+    return problems
+
+
 def validate_transition_allowed(
     rec: ArtifactRecord,
     target_status: str,
@@ -668,6 +700,29 @@ def validate_transition_allowed(
                     rec.id6 or rec.path.name,
                 )
                 + "; ".join(refusals),
+            )
+
+    # planprio lkexaw E-11: THE PRIORITY / WORK-KIND BACKSTOP. Both are decided where the work is first
+    # recorded (the backlog item, or `aw ipd scaffold`, which refuses without them) and the lint gate
+    # blocks an undecided value from `review-finalize` on, so on a healthy path this NEVER FIRES
+    # (maintainer ruling 2026-09-24). It exists because approval is the state that licenses
+    # execution: without it a hand-written plan still carrying `unresolved` would be approved into a
+    # plan the pre-execution gate then refuses, silently, in an unattended run. A value passed in the
+    # SAME call (`--priority`/`--work-kind`) counts, since `apply_status_change` writes it.
+    if rec.record_type == "plans" and norm_status in _ipd_schema.READY_TO_EXECUTE:
+        _undecided = plan_priority_work_kind_problems(
+            rec.raw_text,
+            priority=getattr(args, "priority", None),
+            work_kind=getattr(args, "work_kind", None),
+        )
+        if _undecided:
+            return (
+                False,
+                f"refusing to set {norm_status} for plan {rec.id6 or rec.path.name}: "
+                + "; ".join(_undecided)
+                + ". These are decided when the work is first recorded (the backlog item, or "
+                "`aw ipd scaffold`); set them with `aw ipd set <status> <id6> --priority ... "
+                "--work-kind ...`",
             )
 
     if rec.record_type == "backlog" and norm_status == "blocked":

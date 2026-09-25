@@ -84,7 +84,10 @@ class PromptDemandTests(unittest.TestCase):
         self.assertIn("bug in adjacent code", flat)
         self.assertIn("gap between a spec and its implementation", flat)
         self.assertIn("design concern you had to work around", flat)
-        self.assertIn("FILE A BACKLOG ITEM with `aw backlog new`", flat)
+        self.assertIn("FILE A BACKLOG ITEM with `aw backlog new", flat)
+        # planprio lkexaw: `aw backlog new` refuses without both, so the instruction must name them.
+        self.assertIn("--priority <high|medium|low>", flat)
+        self.assertIn("--work-kind <bug|feature|chore|security|followup>", flat)
         self.assertIn("a spec is supporting material and is NEVER the carrier", flat)
         self.assertIn("reporting outranks filing", flat)
 

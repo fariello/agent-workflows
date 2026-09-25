@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import shutil
 import tempfile
 import unittest
@@ -57,6 +58,8 @@ class StatusSetTestBase(unittest.TestCase):
 - Date: 2026-08-22
 - Kind: child
 - Status: {status}
+- Work-Kind: chore
+- Priority: medium
 - Set: {set_id}
 - Order: 1
 - Id: {id6}
@@ -903,12 +906,24 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
                     "1",
                     "--author",
                     "tester",
+                    "--priority",
+                    "medium",
+                    "--work-kind",
+                    "chore",
                     "--path",
                     str(plan),
                     "--apply",
                 ]
             )
             self.assertEqual(rc_scaffold, 0)
+            # planprio lkexaw: the author declares what the plan may change, as a real author must;
+            # the scaffold's Scope-Paths placeholder is refused by the ready-to-execute gate. Priority
+            # and Work-Kind need no edit: they were decided at scaffold time and must survive.
+            _t = plan.read_text(encoding="utf-8")
+            _t = re.sub(
+                r"(?m)^- Scope-Paths:.*$", "- Scope-Paths: agent_workflows/probe.py", _t
+            )
+            plan.write_text(_t, encoding="utf-8")
             id6 = "apxlnt"
             cli.main(["set", "reviewed", id6, "--yes", "--dir", str(self.repo_root)])
             rc_appr = cli.main(
@@ -934,6 +949,9 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
             os.chdir(old_cwd)
         self.assertNotIn("IPD-M104", out)
         self.assertEqual(rc_lint, 0, out)
+        final = plan.read_text(encoding="utf-8")
+        self.assertIn("- Priority: medium", final)
+        self.assertIn("- Work-Kind: chore", final)
 
 
 class BlocksReleaseSetterTests(StatusSetTestBase):

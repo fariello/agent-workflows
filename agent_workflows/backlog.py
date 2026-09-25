@@ -521,6 +521,26 @@ def blocks_release_of_item(repo_root: Path, item_id6: Optional[str]) -> Optional
     return None
 
 
+def find_item(repo_root: Path, item_id6: Optional[str]) -> Optional[BacklogItem]:
+    """Return the parsed backlog item whose `- Id:` is `item_id6`, or None when there is none.
+
+    planprio lkexaw: `aw ipd scaffold --from-backlog` reads the item's Priority, Work-Kind and
+    Blocks-Release through this, so the backlog module stays the one reader of a backlog item's
+    metadata (the same reason `blocks_release_of_item` lives here)."""
+
+    if not item_id6:
+        return None
+    for f in _iter_items(Path(repo_root)):
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        item = parse_item(text)
+        if item.id == item_id6:
+            return item
+    return None
+
+
 def decide_gate_default(
     repo_root: Path,
     *,
@@ -662,13 +682,28 @@ def run_new(args) -> int:
     if _setid_warn:
         sys.stderr.write(f"note: {_setid_warn}\n")
     item.set = _setid_arg or item.id  # singleton set defaults to the id
-    item.priority = getattr(args, "priority", None) or "medium"
     # E-02 / OQ-01: `--work-kind` is the preferred CLI spelling and `--kind` is KEPT as an accepted
     # alias, so no existing script, habit, or agent instruction breaks. The preferred spelling wins
     # when both are supplied. Both parse into distinct dests so "was it passed?" stays answerable.
-    item.kind = (
-        getattr(args, "work_kind", None) or getattr(args, "kind", None) or "chore"
-    )
+    #
+    # planprio lkexaw (maintainer ruling 2026-09-24): Priority and Work-Kind are DECIDED WHERE THE
+    # WORK IS FIRST RECORDED, which for backlog-originated work is here. There is deliberately NO
+    # default any more: the old silent `medium`/`chore` fallback wrote a value nobody chose, and a
+    # plan graduating from the item then inherited that unchosen value as if it were a decision.
+    item.priority = getattr(args, "priority", None)
+    item.kind = getattr(args, "work_kind", None) or getattr(args, "kind", None)
+    _missing = [
+        flag
+        for flag, value in (("--priority", item.priority), ("--work-kind", item.kind))
+        if not value
+    ]
+    if _missing:
+        sys.stderr.write(
+            f"aw backlog new: {' and '.join(_missing)} required: decide the item's priority "
+            f"({' | '.join(sorted(PRIORITIES))}) and work kind ({' | '.join(sorted(KINDS))}) "
+            "when you file it; a plan graduated from this item inherits both\n"
+        )
+        return 2
     item.summary = (getattr(args, "summary", None) or "").strip()
     item.gate_kind = getattr(args, "gate_kind", None)
     item.gate_ref = getattr(args, "gate_ref", None)

@@ -604,6 +604,19 @@ def parse_scope_paths(value: str) -> Tuple[List[str], bool, List[str]]:
         return [], True, []
     if v == "":
         return [], False, ["Scope-Paths must not be empty"]
+    # planprio lkexaw E-12: the scaffold's placeholder (`TODO (comma-separated repo-relative paths or
+    # pathspecs)`) is NOT a path. Before this, it parsed as one relative entry and passed the
+    # ready-to-execute gate, so a plan approved with the placeholder still in place linted clean. The
+    # test is the leading `TODO` token, the marker every scaffold placeholder in this module uses.
+    if v == "TODO" or v.startswith("TODO ") or v.startswith("TODO("):
+        return (
+            [],
+            False,
+            [
+                "Scope-Paths is still the scaffold placeholder; declare the repo-relative paths this "
+                "plan may change"
+            ],
+        )
     entries = [tok.strip() for tok in v.split(",")]
     errors: List[str] = []
     # The sentinel may not be mixed with real entries.
