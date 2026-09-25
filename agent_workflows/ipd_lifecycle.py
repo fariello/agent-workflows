@@ -32,6 +32,7 @@ import json
 import os
 import re
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 from typing import (
     Any,
@@ -2104,15 +2105,50 @@ def _execution_cohesive_committed_paths(
     return CommittedAttribution(bool(cohesive), frozenset(cohesive))
 
 
-def _scope_match(path: str, pattern: str) -> bool:
-    """fnmatch a repo-relative path against a Scope-Paths entry (literal, dir-bounded, or glob).
+@lru_cache(maxsize=1024)
+def _glob_segments_match(
+    path_segments: tuple[str, ...], pattern_segments: tuple[str, ...]
+) -> bool:
+    """Pure segment-aware glob matcher with whole-segment '**' recursion and memoization.
 
-    A trailing-slash directory entry (`tests/`) or a bare directory (`agent_workflows`) matches any
-    path beneath it; an entry containing a glob is matched via fnmatch; a literal file matches
-    exactly. This mirrors the Scope-Paths grammar (Order oorry1).
+    A pattern segment exactly '**' matches zero or more whole path segments. Every other pattern
+    segment is matched against exactly one path segment with fnmatch.fnmatch (so '*', '?', '[...]'
+    cannot cross '/'). The match succeeds only when both sequences are fully consumed.
     """
     import fnmatch
 
+    if not pattern_segments:
+        return not path_segments
+
+    pat_head = pattern_segments[0]
+    pat_tail = pattern_segments[1:]
+
+    if pat_head == "**":
+        # '**' matches 0 or more whole path segments: try 0 first, then consume 1 if available.
+        if _glob_segments_match(path_segments, pat_tail):
+            return True
+        if path_segments:
+            return _glob_segments_match(path_segments[1:], pattern_segments)
+        return False
+
+    if not path_segments:
+        return False
+
+    if fnmatch.fnmatch(path_segments[0], pat_head):
+        return _glob_segments_match(path_segments[1:], pat_tail)
+
+    return False
+
+
+def _scope_match(path: str, pattern: str) -> bool:
+    """Match a repo-relative path against a Scope-Paths entry (literal, dir-bounded, or glob).
+
+    A trailing-slash directory entry (`tests/`) or a bare directory (`agent_workflows`) matches any
+    path beneath it; an entry containing a glob is matched per-segment where `**` matches zero or
+    more whole path segments, other glob tokens (`*`, `?`, `[...]`) match within a single segment,
+    and trailing segments after `**` must match; a literal file matches exactly. This mirrors the
+    Scope-Paths grammar (Order oorry1).
+    """
     p = path.strip().replace("\\", "/")
     pat = pattern.strip().replace("\\", "/")
     if not pat:
@@ -2124,15 +2160,8 @@ def _scope_match(path: str, pattern: str) -> bool:
         base = pat[:-3]
         return p == base or p.startswith(base + "/")
     if "*" in pat or "?" in pat or "[" in pat:
-        # A dir/* style also should match nested files, so try both fnmatch and prefix.
-        if fnmatch.fnmatch(p, pat):
-            return True
-        # `dir/*.py` should not match nested, but `dir/**/*.py` should; fnmatch handles `**` loosely,
-        # so also accept a leading-directory prefix match for `dir/**...`.
-        if "**" in pat:
-            prefix = pat.split("**", 1)[0].rstrip("/")
-            return bool(prefix) and (p == prefix or p.startswith(prefix + "/"))
-        return False
+        # Segment-aware matching: '**' matches zero or more whole segments; single '*' stays within one.
+        return _glob_segments_match(tuple(p.split("/")), tuple(pat.split("/")))
     # Literal path: exact match, or a directory prefix (a bare `agent_workflows` covers the tree).
     return p == pat or p.startswith(pat + "/")
 

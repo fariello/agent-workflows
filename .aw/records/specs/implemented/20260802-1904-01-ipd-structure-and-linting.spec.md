@@ -187,6 +187,7 @@ Value grammar. The `Scope-Paths` value is EITHER the reserved sentinel `grandfat
 - Bounded pathspecs are allowed: an entry whose leading segment is a concrete directory bounds the blast radius, so `tests/`, `agent_workflows/**`, `agent_workflows/*.py`, and `docs/**/*.md` are all legal.
 - The sentinel `grandfathered` is a WHOLE-VALUE marker; it MUST NOT be mixed with real path entries.
 - The scaffold placeholder is NOT a path (amended 2026-09-24, planprio `lkexaw`): a value whose first token is `TODO` (what `aw ipd scaffold` writes) is an error, so a plan approved with the placeholder still in place is refused rather than linting clean with one bogus relative entry.
+- Match semantics: a `**` segment matches zero or more whole path segments, any other glob character matches within a single segment only, and the portion after `**` must match.
 
 Implicit lifecycle-artifact allowances. A plan's own lifecycle artifacts are always in scope and need NOT be listed: the plan file itself under `.aw/records/plans/**` and the manifest/index refresh (`.aw/records/plans/INDEX.md`, `.aw/records/**/index.md`). A GENERATED file the plan produces is NOT implicitly exempt; it MUST be declared like any other path.
 
