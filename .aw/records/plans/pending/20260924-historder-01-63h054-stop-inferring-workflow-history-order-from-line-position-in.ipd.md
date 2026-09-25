@@ -178,7 +178,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-01 validates E-01
   - Required evidence: paste `git rev-parse HEAD` proving the capture ran at the PRE-CHANGE head, together with `git status --porcelain agent_workflows/ipd_lifecycle.py agent_workflows/check_engine.py` showing BOTH production files UNMODIFIED at capture time (an empty result). A baseline captured after the reader changed is worthless and this is the only evidence that distinguishes the two. Then paste the entry count (`python3 -c 'import json;d=json.load(open("tests/fixtures/derive_plan_status_baseline.json"));print(len(d))'`) and a 3-line head of the sorted keys.
-  - Observed evidence:
+  - Observed evidence: pre-change HEAD 77ca5765 clean on target files; 777 baseline entries captured
 ```
 $ git rev-parse HEAD
 77ca5765d20d06aebcf73527f57547f13ecdbc47
@@ -194,7 +194,7 @@ $ python3 -c 'import json;d=json.load(open("tests/fixtures/derive_plan_status_ba
   - Result: pass
 - [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation` PASSING at the pre-change HEAD, and paste the number of paths the test reports comparing (must be >= 700, proving it is not passing on an empty intersection).
-  - Observed evidence:
+  - Observed evidence: Derivation test passed comparing 777 paths at pre-change HEAD
 ```
 $ python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation -s
 Compared 777 paths
@@ -204,7 +204,7 @@ Compared 777 paths
   - Result: pass
 - [x] V-03 validates E-03
   - Required evidence: with ONLY the test additions (reader unmodified), paste `python3 -m pytest -o addopts="" tests/test_history_order.py -q` output showing fixtures (b) and (c) FAILED with `backwards transition` text, (e) FAILED naming `'approved' -> 'draft'`, and (a) and (d) passed. The (e) failure text is the discriminating evidence (F-9): if (e) passes here, the fixture was written in the non-discriminating shape and must be corrected before proceeding.
-  - Observed evidence:
+  - Observed evidence: fixtures (b), (c), and (e) failed as expected on unmodified reader; (a) and (d) passed
 ```
 $ python3 -m pytest -o addopts="" tests/test_history_order.py -q
 F.F.F.                                                                   [100%]
@@ -236,7 +236,7 @@ FAILED tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_e_dis
   - Result: pass
 - [x] V-04 validates E-04
   - Required evidence: paste `git diff agent_workflows/ipd_lifecycle.py` showing `_plan_status_event_groups` ADDED and `events.reverse()` STILL PRESENT with its new pointing comment. Paste a `python3 -c` call of `_plan_status_event_groups` on fixture (e) text printing one group with `ordered=False`, and on a synthetic record whose text wraps onto an indented continuation line, printing ONE block rather than two (F-12). Then re-run `python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation` and paste it PASSING, which is the proof the derivation did not move.
-  - Observed evidence:
+  - Observed evidence: _plan_status_event_groups added; events.reverse() preserved; single-date tie unordered; continuation line preserved single block; Derivation test passed
 ```
 $ python3 -c 'from agent_workflows.ipd_lifecycle import _plan_status_event_groups; t="## Workflow history\n- 2026-09-01 draft (a): ok\n- 2026-09-01 approved (a): ok\n"; print(_plan_status_event_groups(t))'
 [('2026-09-01', [('draft', 'a'), ('approved', 'a')], False)]
@@ -251,7 +251,7 @@ $ python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation
   - Result: pass
 - [x] V-05 validates E-05
   - Required evidence: paste `python3 -c 'from agent_workflows import ipd_lifecycle as IL; print(IL.validate_transition("approved","reviewed")); print(IL.validate_transition("auto-approved","reviewed")); print(IL.validate_transition("approved","to-review")); print(IL.validate_transition("reviewed","draft"))'` showing the first two `ok=True` and the last two `ok=False ... backwards transition`. All four lines are required: the two refusals are what prove the rank comparison was not deleted (spec `2vev8j` 4.8 point 2).
-  - Observed evidence:
+  - Observed evidence: approved->reviewed and auto-approved->reviewed ok=True; approved->to-review and reviewed->draft ok=False
 ```
 $ python3 -c 'from agent_workflows import ipd_lifecycle as IL; print(IL.validate_transition("approved","reviewed")); print(IL.validate_transition("auto-approved","reviewed")); print(IL.validate_transition("approved","to-review")); print(IL.validate_transition("reviewed","draft"))'
 TransitionCheck(ok=True, reason='')
@@ -262,7 +262,7 @@ TransitionCheck(ok=False, reason="missing predecessor: backwards transition 'rev
   - Result: pass
 - [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_history_order.py -q` showing ALL tests passed. Then paste the ABSTENTION PROOF, which is the claim most exposed to a silently wrong implementation (F-11): a `python3 -c` that builds a plan text with an unordered multi-status same-date group FOLLOWED by a later-dated status line, runs `check_engine.check_lifecycle_transitions` over a tempfile repo containing it, and prints an EMPTY finding list. A `cannot start the lifecycle at` finding here means the `prev=None` reading was implemented and the abstain path is manufacturing findings.
-  - Observed evidence:
+  - Observed evidence: all 6 tests in test_history_order.py passed; abstention probe confirmed 0 findings on unordered tie followed by later transition
 ```
 $ python3 -m pytest -o addopts="" tests/test_history_order.py -q
 ......                                                                   [100%]
@@ -294,7 +294,7 @@ Drift findings: []
   - Result: pass
 - [x] V-07 validates E-07
   - Required evidence: paste `git diff .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md` showing the ordering rule and BOTH table entries, plus `git diff` evidence that the spec's `- Status:` line and `## Workflow history` block are UNCHANGED.
-  - Observed evidence:
+  - Observed evidence: IPD spec updated with ordering rule and legal backward edges; Status and Workflow history unchanged
 ```
 $ git diff .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 diff --git a/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md b/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
@@ -314,7 +314,7 @@ index 1b0d935f..e06ad90e 100644
   - Result: pass
 - [x] V-08 validates E-08
   - Required evidence: paste the rule count from `python3 -m agent_workflows check plans --agent | grep -o 'check.lifecycle-transition-invalid' | wc -l` (expected 0). Then paste a one-off whole-tree measurement that reports, for the SAME run, the BEFORE and AFTER counts BROKEN DOWN BY REJECTION REASON (at minimum: `backwards`, `cannot start`, `unauthorized terminal`, `terminal requires at least reviewed`), and that states explicitly whether `actor=` was passed. A single undifferentiated total is NOT acceptable evidence: at review 286 of 296 survivors were actor rejections this plan does not address, so a bare total cannot show whether the ordering fix worked (F-4a). The bar is the PROPERTY in E-08, not any number written in this plan.
-  - Observed evidence:
+  - Observed evidence: 0 check.lifecycle-transition-invalid in pending; backwards transitions reduced 416->14 with actor= and 416->14 without actor=
 ```
 $ python3 -m agent_workflows check plans --agent | grep -o 'check.lifecycle-transition-invalid' | wc -l
 0
@@ -341,7 +341,7 @@ AFTER:  26 failing edges across 26 plans
   - Result: pass
 - [x] V-09 validates E-09
   - Required evidence: paste the `N passed` summary line of bare `python3 -m pytest`, with 0 failed.
-  - Observed evidence:
+  - Observed evidence: pytest full suite passed: 2009 passed, 1 skipped, 3 warnings
 ```
 2009 passed, 1 skipped, 3 warnings in 30.96s
 ```
