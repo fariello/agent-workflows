@@ -215,7 +215,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     0
     ```
 
-    THE SPEC LINE, WITH ONE CORRECTION TO THIS PLAN'S CITATION. Spec `25kzda` is `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`- Id: 25kzda`). This plan cites `:29` reading "the ledger is built but UNWIRED"; that exact string is NO LONGER PRESENT (`grep -n -i 'unwired\|built but'` returns nothing in that file), because the spec's preamble was rewritten on 2026-09-20 by plan `wenmg4`. The FACT the plan relies on is intact and now stated at `:59-62`, so this is citation rot rather than a premise failure and is not a STOP:
+    THE SPEC LINE, WITH ONE CORRECTION TO THIS PLAN'S CITATION. Spec `25kzda` is `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`- Id: 25kzda`). This plan cites `:29` reading "the ledger is built but UNWIRED"; that exact string is NO LONGER PRESENT (`grep -n -i 'unwired\|built but'` returns nothing in that file), because the spec's preamble was rewritten on 2026-09-20 by plan `wenmg4`. The FACT the plan relies on is intact and now stated at `:59-62`, so this is citation rot rather than a premise failure and is not a STOP:
 
     ```
     STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit

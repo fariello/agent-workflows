@@ -241,8 +241,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
       [plans]      wvlk84  .aw/records/plans/executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
       [research]   uyeko5  .aw/records/research/reference/202609/20260905-awmetastore-00-27rjro-...research-prompt.md
       [research]   uyeko5  .aw/records/research/reference/202609/20260905-awmetastore-01-takpys-...research-report.md
-      [specs]      5tapom  .aw/records/specs/20260824-2000-01-research-lifecycle-reliability.spec.md
-      [specs]      25kzda  .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+      [specs]      5tapom  .aw/records/specs/approved/20260824-2000-01-research-lifecycle-reliability.spec.md
+      [specs]      25kzda  .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
       [specs]      4w7d6s  .aw/records/specs/20260827-1514-01-setid-uniqueness-across-types-and-graduation-links.spec.md
     === Set case: 7 (+1 = the backtick record, listed by the plan as a member)
       [plans]    'plans-adopter'  20260808-0004-06-migrate-existing-plans.ipd.md
@@ -451,7 +451,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
     ```
     $ python3 -m agent_workflows rename specs 25kzda --to-id6
-    --- would rename .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md -> 20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md ---
+    --- would rename .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md -> 20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md ---
     --- reuses existing '- Id: 25kzda' (no re-mint) ---
 
     $ python3 -m agent_workflows rename plans lus9ou --to-id6

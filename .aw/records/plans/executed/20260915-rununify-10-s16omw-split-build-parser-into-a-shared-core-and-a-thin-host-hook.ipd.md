@@ -238,7 +238,7 @@ and add the spec path to `Scope-Paths`, per the repository's spec-amendment rule
 REVIEWED 2026-09-16 AND THIS IS THE MOST SPEC-COUPLED OF THE FIVE SPLIT CHILDREN, so the boilerplate needs
 sharpening. `build_parser` IS the surface spec `25kzda` 2.1 governs, and
 `tests/test_run_flag_surface.py:43-48` reads
-`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` as a FILE, extracting its
+`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` as a FILE, extracting its
 grammar block and failing in BOTH directions: a flag the spec declares but the code does not register fails,
 and a registered flag the spec does not declare fails, with an exclusion list where "silence is a failure".
 Consequences. FIRST, adding or renaming ANY option string here forces a spec amendment in the same change,

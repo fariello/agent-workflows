@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make both driver implementations emit equivalent per-invocation telemetry on every lifecycle path.
 - Scope: Integrate the shared collector into OpenCode and Agy runner attempts, verifiers, recovery/resume paths, and shutdown handling; amend the runner contract accordingly.
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shutdown.py, tests/test_oc_runipd.py, tests/test_oc_runipd_cli.py, tests/test_agy_runipd_cli.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shutdown.py, tests/test_oc_runipd.py, tests/test_oc_runipd_cli.py, tests/test_agy_runipd_cli.py, .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:lhccjf
 - Status: executed
 - Readiness: go-pending-approval
@@ -168,7 +168,7 @@ THE FOUR GUARD SUITES ARE THE ONES MOST LIKELY TO CATCH A MISTAKE HERE and must 
 
 ## Spec / documentation sync
 
-Amend `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`- Id: 25kzda`, `- Status: approved`; the filename predates the id6-in-filename convention, so the id is findable only by grepping `- Id:`). It is declared in `Scope-Paths`, so the pre-run spec-impact announcement will name it. Preserve its deterministic validation and merge requirements; telemetry is observational and best effort, never a gate.
+Amend `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`- Id: 25kzda`, `- Status: approved`; the filename predates the id6-in-filename convention, so the id is findable only by grepping `- Id:`). It is declared in `Scope-Paths`, so the pre-run spec-impact announcement will name it. Preserve its deterministic validation and merge requirements; telemetry is observational and best effort, never a gate.
 
 CORRECTED AT REVIEW: "IN THE SAME EXECUTION BEFORE IMPLEMENTATION" IS THE WRONG ORDER IF A FLAG IS INVOLVED (F-2). `tests/test_run_flag_surface.py` reads this spec as a FILE (`SPEC_PATH`, `:43-50`), extracts Section 2.1's grammar, and asserts BOTH directions: a flag the spec declares but the code neither registers nor explicitly excludes fails `:136`, and a flag the code registers but the spec omits fails `:150`. So a spec-first amendment that adds a run flag turns the suite red until the registration lands, and the two must be ONE atomic change. This is settled precedent, not speculation: the spec's own 2026-09-07 history records Section 2.1 being deliberately left unamended because "the two ladder flags plan `51vw4y` needs cannot be declared before they are registered, since `tests/test_run_flag_surface.py` binds spec and code bidirectionally".
 
@@ -468,7 +468,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `tests/test_run_flag_surface.py` PASSES: `89 passed in 5.02s`.
     THE PRE-RUN SPEC-IMPACT ANNOUNCEMENT NAMES THE FILE, via the shipped helpers:
     ```
-      declared_spec_paths()    -> ['.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md']
+      declared_spec_paths()    -> ['.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md']
       spec_impacts_for_queue() -> [{'id6': '5f2h8i', 'setid': 'runanalytics', 'specs': ['.aw/.../20260826-0718-01-...spec.md']}]
     ```
     NO OTHER SPEC FILE WAS EDITED: `git status --porcelain -- '*.spec.md'` lists exactly one file, and

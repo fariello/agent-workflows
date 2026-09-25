@@ -9,7 +9,7 @@
   A THIRD COST, PAID BY THE OPERATOR: deciding what was safe to merge required computing, by hand, the overlap between one run's lane contents and the other run's still-queued items (the `8u6770` lane rewrites front matter on ten plan files the other driver still had queued or running). Nothing in any command's output reveals that a second driver is even present, so that analysis cannot be done without reading both runs' `state.json` directly.
   THE PRIMITIVES TO FIX THIS ALREADY EXIST AND ARE ALREADY USED FOR THE ADJACENT QUESTION. Each run holds an exclusive, non-blocking `driver.lock` acquired through `platform_lock.acquire`, whose docstring records it is exclusive and NON-BLOCKING; `platform_lock.probe_free` answers "is this lock held right now?" three-valued (`True` free, `False` a live holder, `None` unanswerable) WITHOUT creating, truncating or modifying anything; and `attention.get_active_runs_map` already filters to runs "whose driver process currently holds driver.lock". So liveness detection is solved and shipped. What is missing is that the lock is scoped PER RUN DIRECTORY, so it makes a run singular while leaving the REPOSITORY unprotected: two runs are two different lock files and neither contends with the other.
 - Scope: Prevent two concurrently-integrating unattended drivers in one checkout, by detecting a live peer driver at startup and refusing (or serializing the integration step alone), and make the presence of a peer VISIBLE in operator-facing output. Consume the existing `platform_lock` primitives and the existing liveness probe; add no new lock implementation. EXCLUDES any change to the per-run `driver.lock` contract (spec `c4gd2h` R2's observable release), excludes the stale-base and dirty-tree guards inside `integrate_lane_branch` (which work and are not the gap), and excludes attended/interactive runs beyond reporting.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/engine.py, AGENTS.md, tests/test_concurrent_driver_guard.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/platform_lock.py, agent_workflows/command_surface.py, tests/test_platform_lock.py, tests/test_rununify_build_parser.py, tests/test_rununify_initialize_run.py, tests/test_runner_shared.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/engine.py, AGENTS.md, tests/test_concurrent_driver_guard.py, .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/platform_lock.py, agent_workflows/command_surface.py, tests/test_platform_lock.py, tests/test_rununify_build_parser.py, tests/test_rununify_initialize_run.py, tests/test_runner_shared.py
 - Item-Dependencies: none
 - Status: executed
 - Readiness: go-pending-approval
@@ -181,7 +181,7 @@ E-04's flag CANNOT be registered without amending spec `25kzda` section 2.1 in t
 against the spec FILE by parsing its grammar block. Proven at review by construction - injecting one
 undeclared flag turned `test_the_spec_and_the_owned_table_agree_in_both_directions` RED with "registered
 here but NOT in spec 2.1's grammar", while the file is otherwise `70 passed`. So
-`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` is DECLARED in
+`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` is DECLARED in
 `Scope-Paths`, which is also what makes both runners ANNOUNCE the declared spec edit before the run starts
 and reconcile it at finalize (AGENTS.md). The sanctioned alternative is to keep the flag off `run`'s public
 surface by listing it in that test's `DECLARED_BUT_NOT_OWNED_HERE` with a reason and an owner; either route
@@ -369,7 +369,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `serialized: False` and `consent: "disjoint Sets, measured"`.
     THE SPEC/FLAG-SURFACE CONTRACT IS SATISFIED BY THE SPEC AMENDMENT ROUTE (F-9), not by
     `DECLARED_BUT_NOT_OWNED_HERE`: the flag IS part of `run`'s public surface, so
-    `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` section 2.1 was
+    `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` section 2.1 was
     amended in this same change. The grammar block gained
     `[--allow-concurrent-driver <justification>]`, and 2.1's Rules gained a bullet stating what the lock
     does and does not serialize ("a repository holds at most one INTEGRATING driver, never at most one
@@ -562,7 +562,7 @@ expiry (E-03), plus the dead-holder and UNKNOWN cases pinned in E-06 so a crashe
 platform can never wedge the repository. A guard that hangs is worse than no guard, because no guard at least
 makes progress.
 
-THE SPEC EDIT IS PART OF THE WORK, NOT A FOLLOW-UP. `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`
+THE SPEC EDIT IS PART OF THE WORK, NOT A FOLLOW-UP. `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`
 is declared in `Scope-Paths` because E-04's flag cannot be registered without it (the closed-list contract
 test parses that file). Both runners announce a declared spec edit before the run starts and reconcile it at
 finalize, so an undeclared spec edit would be caught; an UNDECLARED-but-required one would simply fail the

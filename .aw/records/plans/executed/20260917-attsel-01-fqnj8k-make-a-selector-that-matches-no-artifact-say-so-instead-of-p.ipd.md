@@ -970,7 +970,7 @@ BEFORE (pristine HEAD):
         aw att zzzzzz      -> REFUSED (exit 2)   in_vocabulary=False
 
       `25kzda` Section 2.4a, QUOTED, is the precedent for the exemption:
-        (from .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md)
+        (from .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md)
         Section 2.3: Zero matches return exit 2. Unknown or unclassifiable files return exit 2. Type/status structural errors return exit 4 and start no sessions.
         Section 2.4a: An empty result is a success, not an error.** `reviews` matching nothing means the repository has nothing awaiting review, which is the healthy state and the common one. It reports that plainly and exits 0. This is the one deliberate exception to the Section 2.3 rule that zero matches exit 2, and it is justified because `reviews` is a standing question about repository state rather than an assertion that a named item exists. A misspelled id6 still exits 2; only the status selectors are exempt.
 

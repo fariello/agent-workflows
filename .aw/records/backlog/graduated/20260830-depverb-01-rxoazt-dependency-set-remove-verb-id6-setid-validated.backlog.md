@@ -17,7 +17,7 @@ check against those before starting, running, closing, finishing, etc."
 WHAT ALREADY EXISTS, so this is a GAP-CLOSING item and not a greenfield one. The `ipddeps` Set
 (`r7xku3`, `g69y23`, `ovbnyq`, `mp88bl`, all executed) already shipped most of the requested model,
 graduated from spec `25kzda`
-(`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, sections 2.7-2.11):
+(`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, sections 2.7-2.11):
 
 - The FIELD: `- Item-Dependencies:` on an IPD, typed and id6-grounded, grammar
   `none` | `unresolved` | comma/space-separated `executed:<id6>` | `exists:<type>:<id6>` |

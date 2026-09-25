@@ -79,7 +79,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Project conventions discovered (Step 0)
 
-- Verified 2026-09-19: `25kzda` Section 5.6 is at line 1085 of `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` and still lists the five superseded colors with no pointer to `uonrjg`.
+- Verified 2026-09-19: `25kzda` Section 5.6 is at line 1085 of `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` and still lists the five superseded colors with no pointer to `uonrjg`.
 - Verified 2026-09-19: `25kzda` is `- Status: approved` with `- Blocks-Release: next`, so amending it touches a live release-gating contract. That is exactly why `uonrjg` Section 0.5 requires the file be DECLARED in `Scope-Paths` (it is, above), so both runners announce the declared spec edit before the run and reconcile it at finalize.
 - Verified 2026-09-19: the accessibility lens was ALREADY corrected during the spec's review (`.aw/system/workflows/assess/lenses/accessibility.md` now states the 256/16/none ladder, that a user's explicit choice outranks detection, and that `NO_COLOR` still wins, plus a history note). It must NOT be re-corrected; OQ-01's amendment obligation is discharged.
 - Verified 2026-09-19: `docs/cli-human-guide.md:67-68` carries a 16-colors-only claim that the corrected lens and this spec both contradict. The spec does not name this file, so E-02 is work this plan ADDS on evidence rather than inherits.

@@ -193,7 +193,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Spec / documentation sync
 
-Spec `25kzda`'s amended Section 1.3 records that skipping the independent verifier turn is a RETAINED, host-configurable choice rather than a prohibited bypass, and states that "until per-role model routing exists ... a host-level control is the only available mechanism" (`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md:105`). This plan implements that mechanism FOR BOTH HOSTS, so no spec change is required and no spec edit is authorized here.
+Spec `25kzda`'s amended Section 1.3 records that skipping the independent verifier turn is a RETAINED, host-configurable choice rather than a prohibited bypass, and states that "until per-role model routing exists ... a host-level control is the only available mechanism" (`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md:105`). This plan implements that mechanism FOR BOTH HOSTS, so no spec change is required and no spec edit is authorized here.
 
 DO NOT EDIT SPEC `25kzda`'s §4.2 FINDING-CODE TABLE for any reason. `run_evidence.RUN_FINDING_CODES` transcribes those table cells VERBATIM and a test asserts byte equality, so editing a cell IS a code change; a note above the table already records this.
 

@@ -8,7 +8,7 @@
   THE SECOND CLAIM IN THIS PLAN'S ORIGINAL FILING IS FALSE AND IS RETRACTED HERE, because it drove an entire E-item and a `Scope-Paths` widening. The filing said sibling item `65cuw0` "hit the SAME combined-red refusal in the same run with `integration_gate_answer` equal to `null`, meaning it was never asked at all", and inferred that "the ask is not reliably reached". MEASURED at review from the same `state.json`: `65cuw0`'s suite check `passing` is `True` with `exit_code` 0 and an EMPTY failures list (`8118 passed, 3 skipped, 2 xfailed`), and its `integration_signal` is `driver-run-suite` (`INTEGRATION_EARNED_BY_SUITE`), NOT `suite-failed`. Its gate 1 therefore EARNED integration outright, and `gate_answer_is_warranted` returns `(False, 'integration was earned; there is nothing to answer')` for exactly those recorded values, verified by calling the real predicate at review. So `65cuw0` was never asked because there was NOTHING TO ASK: no failure existed at gate 1. A `null` answer record is the CORRECT record for it. The two items did not hit "the SAME refusal" at gate 1 at all; they converged only at GATE 2, which refused them both. There is no ask-reachability defect, and E-02/E-04's ask-reachability work is removed rather than carried on a false premise.
   THE REAL SHAPE `65cuw0` REVEALS IS WORSE FOR THIS PLAN, NOT BETTER, AND IT BOUNDS THE FIX. An item can reach gate 2 having never been asked, because it never failed at gate 1. Such an item has NO answer and NO attributed id set, so this plan's channel carries nothing for it and it still refuses. That is correct and it must stay correct, but it means this plan rescues strictly ONE of the two measured stranded lanes. The other is rescued only by sibling `tgyfs2`'s baseline subtraction, which is why that plan carries `Priority: high` and this one `medium`.
 - Scope: Give the recorded gate answer a channel to the post-merge revalidation gate, so failing ids the agent ATTRIBUTED AWAY with a usable `not-mine` answer do not drive a post-merge refusal. EXCLUDES the baseline-subtraction fix (sibling plan `tgyfs2`, backlog `fuk1mr`), which handles ids that were ALREADY red; this plan handles ids no baseline can catch (a failure that landed on main mid-turn, a flake, an order-dependence). EXCLUDES ask-reachability, whose premise was measured FALSE at review (see the Concern). Adds no new refusal kind, no new status, and no new answer token.
-- Scope-Paths: agent_workflows/runner_shared.py, tests/test_gate_answer_propagation.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+- Scope-Paths: agent_workflows/runner_shared.py, tests/test_gate_answer_propagation.py, .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:tgyfs2
 - Status: executed
 - Readiness: go-pending-approval
@@ -485,7 +485,7 @@ $ python3 -m pytest tests/test_integration_revalidation_baseline.py tests/test_s
   - Result: pass
 - [x] V-06 validates E-06
   - Required evidence: the spec diff pasted showing Section 5.1 naming BOTH gates and the three guards; quotation proving the exception's conjunctive conditions, its captured-evidence requirement, `fixed`'s observed-re-run rule and its honest-limit paragraph are unchanged; the `## Workflow history` note; and the repository's spec check reported clean.
-  - Observed evidence: VERIFIED. `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` Section 5.1 amended, declared in `Scope-Paths`, and `aw specs check` clean.
+  - Observed evidence: VERIFIED. `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` Section 5.1 amended, declared in `Scope-Paths`, and `aw specs check` clean.
 
 THE SENTENCE THAT CONTRADICTED THE RUNNER IS GONE, and it was AMENDED rather than annotated because it was wrong as a DESIGN and not only as a description. Diff of the changed sentence:
 
@@ -537,14 +537,14 @@ WHICH ANSWERS MAY RELEASE IS NOT WIDENED: the amendment says so in terms ("the c
 `## Workflow history` NOTE, appended through the tool (`aw specs note`) and not by hand:
 
 ```
-$ aw specs note .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED 2026-09-23 (plan n9na1c, backlog c74dm7): Section 5.1's attributed suite-attribution exception now governs BOTH gates ... WHAT IS UNCHANGED, deliberately and verbatim: the conjunctive conditions, the closed vocabulary, the two answers that may release, the rule that an answer asserting a REPAIR releases only on an OBSERVED PASSING RE-RUN and never on the claim, the captured-evidence requirement, and the HONEST LIMIT paragraph including the maintainer's 2026-09-08/2026-09-20 ruling that no gate may refuse on the strength of a pre-work baseline. Only WHERE an already-admissible answer applies changed. WHAT IS ADDED: three conditions required for admissibility at the second gate ..."
-aw specs note: appended a history record to .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+$ aw specs note .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md --message "AMENDED 2026-09-23 (plan n9na1c, backlog c74dm7): Section 5.1's attributed suite-attribution exception now governs BOTH gates ... WHAT IS UNCHANGED, deliberately and verbatim: the conjunctive conditions, the closed vocabulary, the two answers that may release, the rule that an answer asserting a REPAIR releases only on an OBSERVED PASSING RE-RUN and never on the claim, the captured-evidence requirement, and the HONEST LIMIT paragraph including the maintainer's 2026-09-08/2026-09-20 ruling that no gate may refuse on the strength of a pre-work baseline. Only WHERE an already-admissible answer applies changed. WHAT IS ADDED: three conditions required for admissibility at the second gate ..."
+aw specs note: appended a history record to .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 ```
 
 SPEC CHECK CLEAN after the amendment:
 
 ```
-$ aw specs check .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+$ aw specs check .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 aw specs check: all specs conform.
 ```
 
@@ -598,6 +598,6 @@ This plan is human-approved before execution and is executed under the repositor
 
 THE SPECIFIC HAZARD OF THIS PLAN is that it widens when an integration is ALLOWED, which is the fail-open direction, and review measured THREE distinct routes by which the authored design reached that direction: an empty merged failing list read as "nothing new" (the `32ij2j` inversion, F-7), a genuine regression truncated out of the merged list by the 40-line cap (F-8), and a `fixed` answer's pre-repair id set read as attributed (F-9). The seven anti-fail-open controls in E-05 are therefore not optional, and an executor who cannot make all seven fail against a forced release must report that rather than proceed. Sibling `tgyfs2` makes the SAME comparison fail toward over-refusal, which is recoverable; here the same mistakes merge unverified work into main, so where the two plans disagree about how careful to be, this one is the stricter.
 
-THE SPEC AMENDMENT IS PART OF THE WORK, NOT A FOLLOW-UP (E-06, F-10). `Scope-Paths` declares `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` so both runners announce the spec edit before the run starts and the finalize scope gate reconciles it. An executor who ships the code without the amendment leaves an `approved` spec asserting the opposite of what the runner does.
+THE SPEC AMENDMENT IS PART OF THE WORK, NOT A FOLLOW-UP (E-06, F-10). `Scope-Paths` declares `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` so both runners announce the spec edit before the run starts and the finalize scope gate reconciles it. An executor who ships the code without the amendment leaves an `approved` spec asserting the opposite of what the runner does.
 
 SEQUENCING IS DECLARED, NOT ASSUMED. `Item-Dependencies: executed:tgyfs2` was added at review because both plans modify the same `_runner` verdict in the same function; the runner sorts by dependency depth and re-checks the edge at dispatch, so this plan will not start before its sibling has landed. If that edge is ever removed, E-07's composition proof becomes unperformable and this plan must not execute.

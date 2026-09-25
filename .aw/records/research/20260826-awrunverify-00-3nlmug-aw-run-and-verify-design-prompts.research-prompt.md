@@ -14,7 +14,7 @@ consumed-by: [25kzda]
 
 # Provenance: the design prompts that produced spec 25kzda
 
-Captured for durability (previously loose in tmp/). These are the actual prompts handed to a frontier model, in sequence, whose output became `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (id 25kzda). Kept so the spec's design has traceable provenance: what was asked, in what order, and why. Three phases: (1) the initial checking-spec design prompt; (2) an addendum adding context mid-run; (3) a revision followup folding in four accepted pushbacks + the new dependency-enforcement mechanism. The model's design output itself is NOT reproduced here (it lives in the spec); this doc is the QUESTION provenance, not the answer.
+Captured for durability (previously loose in tmp/). These are the actual prompts handed to a frontier model, in sequence, whose output became `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (id 25kzda). Kept so the spec's design has traceable provenance: what was asked, in what order, and why. Three phases: (1) the initial checking-spec design prompt; (2) an addendum adding context mid-run; (3) a revision followup folding in four accepted pushbacks + the new dependency-enforcement mechanism. The model's design output itself is NOT reproduced here (it lives in the spec); this doc is the QUESTION provenance, not the answer.
 
 ---
 

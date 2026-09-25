@@ -145,7 +145,7 @@ Each child carries its own tests. This parent runs none: its three items read ch
 
 ## Spec / documentation sync
 
-Spec `25kzda` (`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, `- Status: approved`) governs this surface, and REVIEW FOUND IT MORE PRESCRIPTIVE THAN THIS PLAN ORIGINALLY STATED. The plan said §5.6 "already REQUIRES most of what this Set builds" and left the disposition's NAME to child 01 as an open choice. Both halves understate the spec.
+Spec `25kzda` (`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, `- Status: approved`) governs this surface, and REVIEW FOUND IT MORE PRESCRIPTIVE THAN THIS PLAN ORIGINALLY STATED. The plan said §5.6 "already REQUIRES most of what this Set builds" and left the disposition's NAME to child 01 as an open choice. Both halves understate the spec.
 
 WHAT §3.2 ACTUALLY REQUIRES, and it decides the whole Set. Its per-status action table has a row for exactly this case: for a `reviewed` IPD, the UNATTENDED action is "Stop `needs_input`. Exact recovery names the human approval command", and the FORBIDDEN unattended action is "Self-approval or treating model approval as human approval" (spec `:484`). So the shipped behavior is not merely under-reported: a `reviewed` item that is silently counted as a success and exits 0 VIOLATES an approved spec requirement, and it does so on the exact axis this Set fixes. That is a stronger warrant than "moves the code toward the spec", and it is the sentence a reviewer of child 01 should be checking against.
 

@@ -180,7 +180,7 @@ Run `aw sanitize --agent` before and after and paste both, since this plan write
 
 ## Spec / documentation sync
 
-Spec `25kzda` (`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, `- Status: approved`) §5.6 fixes the machine-output shape for a final item and does NOT include a model or a card field, and its `aw runs` leaf table is what the `runanalytics` orchestrator records Orders 08 and 09 as owing a DECLARED amendment for. THIS PLAN ADDS TO `state.json`'s `options`, which §5.6 does not enumerate, so no amendment is expected.
+Spec `25kzda` (`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, `- Status: approved`) §5.6 fixes the machine-output shape for a final item and does NOT include a model or a card field, and its `aw runs` leaf table is what the `runanalytics` orchestrator records Orders 08 and 09 as owing a DECLARED amendment for. THIS PLAN ADDS TO `state.json`'s `options`, which §5.6 does not enumerate, so no amendment is expected.
 
 READ AT REVIEW, SO THE EXECUTOR NEED NOT REDISCOVER IT: §5.6 says "Each final item has at least" before its JSON block, which is an explicitly OPEN lower bound, not a closed shape; and §7 is a worked EXAMPLE (a table of hypothetical items and a narrated invocation), not a schema. Neither governs `state.json`'s `options`. So NO amendment to `25kzda` is required and the spec file is correctly ABSENT from `- Scope-Paths:`. Re-read §5.6's preamble at execution time and paste it; if a later amendment has closed that shape, declare the spec path before executing, because the runners announce declared spec edits before a run starts and the finalize scope gate reconciles declared against actual.
 

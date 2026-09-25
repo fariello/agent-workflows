@@ -77,7 +77,7 @@ diff.
   `evgi9n` F-6 records "on a weaker model it is not, which is why the per-model default is wanted".
 - Spec `25kzda` Section 1.3 says what the plan claims, and independently supports the host-level
   reading: "until per-role model routing exists ... a host-level control is the only available
-  mechanism" (`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md:105`).
+  mechanism" (`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md:105`).
 - Every line citation in the plan resolved to the claimed construct at review time (spot-checked 11 of
   them), with one wording drift: agy's divergence comment begins at `:3474`, not `:3476`. Corrected.
 - OQ-01 and OQ-02 are both correctly resolved and correctly non-blocking. OQ-02's premise was
