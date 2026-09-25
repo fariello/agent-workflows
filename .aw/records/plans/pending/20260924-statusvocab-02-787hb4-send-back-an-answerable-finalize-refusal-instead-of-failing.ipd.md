@@ -36,12 +36,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: widen the retryable set by the answerability test
 
-- [ ] E-01 SEPARATE THE TWO SCOPE FINDINGS, because today they are one refusal branch and only one of them is answerable. `ipd_lifecycle`'s stale branch emits a REDUCTION finding ("Scope-Paths entry REMOVED since begin (a contract reduction, never accepted as a widening)") and a REWRITE finding ("gained X but a frozen REQUIREMENT also changed") from the same code path. Give the caller a distinct finding id for the REDUCTION case, following the precedent the module already set for `FINDING_RECEIPT_STALE`: NAME the shipped string rather than mint a new one, so no emitted byte changes. The precedent is verified and its reasoning is recorded at that constant, which is a SENTENCE rather than a token like its two `receipt-*` siblings precisely so the stale branch's emitted findings stay identical. NOTE THE REDUCTION SENTENCE IS COMPOSED, NOT CONSTANT: the branch builds it with a singular/plural stem (`"Scope-Paths entr" + ("ies" if len(removed) > 1 else "y")`) and appends the removed paths, so the id E-01 introduces must name the INVARIANT PREFIX both spellings share and must not assume one fixed string. Pin both the singular and plural spellings against it.
+- [x] E-01 SEPARATE THE TWO SCOPE FINDINGS, because today they are one refusal branch and only one of them is answerable. `ipd_lifecycle`'s stale branch emits a REDUCTION finding ("Scope-Paths entry REMOVED since begin (a contract reduction, never accepted as a widening)") and a REWRITE finding ("gained X but a frozen REQUIREMENT also changed") from the same code path. Give the caller a distinct finding id for the REDUCTION case, following the precedent the module already set for `FINDING_RECEIPT_STALE`: NAME the shipped string rather than mint a new one, so no emitted byte changes. The precedent is verified and its reasoning is recorded at that constant, which is a SENTENCE rather than a token like its two `receipt-*` siblings precisely so the stale branch's emitted findings stay identical. NOTE THE REDUCTION SENTENCE IS COMPOSED, NOT CONSTANT: the branch builds it with a singular/plural stem (`"Scope-Paths entr" + ("ies" if len(removed) > 1 else "y")`) and appends the removed paths, so the id E-01 introduces must name the INVARIANT PREFIX both spellings share and must not assume one fixed string. Pin both the singular and plural spellings against it.
   - Depends on: none
   - Expected outcome: a caller can branch on reduction-versus-rewrite without matching refusal prose; emitted findings byte-identical to HEAD, with both the singular and plural reduction spellings matching the new id.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ADMIT THE TWO ANSWERABLE CLASSES BY RESTRUCTURING THE PREDICATE INTO PER-CLASS ARMS, NOT BY EXTENDING ONE LIST. Record at the predicate WHY the admission test is "answerable in one bounded turn" rather than spec 5.5's "changed frozen requirements": the measured `xdvglg` case changed a frozen requirement AND was answerable, so the spec's category does not discriminate the cases the runner actually meets. The recovery prompt already interpolates `finalize_refused` through `prior_attempt_summary`, so the agent receives the gate's exact findings with no new format.
+- [x] E-02 ADMIT THE TWO ANSWERABLE CLASSES BY RESTRUCTURING THE PREDICATE INTO PER-CLASS ARMS, NOT BY EXTENDING ONE LIST. Record at the predicate WHY the admission test is "answerable in one bounded turn" rather than spec 5.5's "changed frozen requirements": the measured `xdvglg` case changed a frozen requirement AND was answerable, so the spec's category does not discriminate the cases the runner actually meets. The recovery prompt already interpolates `finalize_refused` through `prior_attempt_summary`, so the agent receives the gate's exact findings with no new format.
 
   THE AUTHORED APPROACH CANNOT WORK AND THE REASON IS STRUCTURAL (corrected at review, PR-001; measured, not reasoned). `finalize_refusal_is_retryable` is a TWO-PART conjunction over ONE class: it returns False unless `RETRYABLE_FINALIZE_SUMMARY` (`"pre-transition gate did NOT conform"`) appears in the message, and only then reads finding lines, which it locates by the `IPD-` prefix. Both halves exclude the two new classes before any allowlist is consulted:
     * the STALE refusal's summary is `"the begin receipt for <id> is STALE: the plan content changed since begin; re-run \`aw ipd begin\`."`, which does not contain the required summary, so the function short-circuits at the second `if`;
@@ -51,12 +51,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SO THE DELIVERABLE IS A PREDICATE THAT DISPATCHES ON SUMMARY FIRST, THEN APPLIES THAT CLASS'S OWN RULE. Keep the existing pre-transition arm EXACTLY as it is (same summary, same `IPD-`-prefixed allowlist, same every-finding-must-match conjunction, same fail-closed defaults), and add one arm per newly answerable class, each keyed on its own summary and its own finding ids from E-01. PRESERVE THE EVERY-FINDING CONJUNCTION WITHIN EACH ARM: the stale arm must admit a message whose findings are the stale id ALONE or the stale id PLUS the reduction id, and must REFUSE one that also carries the rewrite/widening finding, since that is the mixed-message case the existing `test_a_MIXED_message_is_NOT_retryable` exists to prevent and it is exactly how a never-retry class would ride along. Branch on the E-01 finding ids, never on refusal prose beyond the summary token each arm is keyed to.
   - Depends on: E-01
   - Expected outcome: a stale-receipt or scope-reduction refusal re-dispatches the same item in recovery mode while budget remains, and FAILS the item when budget is exhausted; a fence-widening mutation, a MISSING receipt, and a scope-reconciliation (out-of-scope mutation) refusal are all still terminal on the first refusal; the pre-transition arm's behavior is byte-for-byte unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PROVE THE SEND-BACK CANNOT LOOP OR LAUNDER A REFUSAL, which is the risk this plan introduces and must bound. The budget is already frozen and already counted (`send_back_retries_consumed`), so the loop terminates; what needs pinning is that an item exhausting its budget on a stale receipt ends TERMINAL and is never reported as success, and that a second identical refusal does not reset the counter. Assert against the recorded state, not against a flag.
+- [x] E-03 PROVE THE SEND-BACK CANNOT LOOP OR LAUNDER A REFUSAL, which is the risk this plan introduces and must bound. The budget is already frozen and already counted (`send_back_retries_consumed`), so the loop terminates; what needs pinning is that an item exhausting its budget on a stale receipt ends TERMINAL and is never reported as success, and that a second identical refusal does not reset the counter. Assert against the recorded state, not against a flag.
   - Depends on: E-02
   - Expected outcome: budget exhaustion yields a terminal item with the gate's findings preserved; no path reaches a success state through a send-back.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -83,8 +83,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Changing what `aw ipd finalize` checks, including the digest's frozen region: this plan changes the RESPONSE to a finding, not the finding. Order 01 leaves the gate alone for the same reason.
+  - Carrier-Declined: Out of scope design decision; changing finalize checks is intentionally excluded.
 - Widening the retry budget: the budget is frozen per run and its size is a separate policy question; this plan spends the existing budget on two more classes.
+  - Carrier-Declined: Policy decision; budget is frozen per run.
 - Making the fence-widening class retryable: deliberately terminal, per spec `25kzda` 5.5's never-retry list, and F-03 records that the reasoning still holds for that class.
+  - Carrier-Declined: Permanent policy invariant; fence widening is deliberately terminal per spec 25kzda 5.5.
 
 ## Scope check
 
@@ -106,21 +109,21 @@ NO SPEC IS AMENDED. Spec `25kzda` 5.5's never-retry list is NOT changed by this 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new finding id beside the shipped string it names, and paste the emitted findings for a reduction refusal BEFORE and AFTER, proving them byte-identical. Paste the `STALE_RECEIPT_REFUSAL` and `SCOPE_REFUSAL` module constants in `tests/test_finalize_sendback.py` UNCHANGED, since E-01 must not alter any emitted byte.
   - DO NOT ASSERT THAT `test_a_STALE_begin_receipt_is_NOT_retryable` STILL PASSES (corrected at review, PR-002). That test asserts `assertFalse(finalize_refusal_is_retryable(STALE_RECEIPT_REFUSAL))`, which is the exact behavior E-02 INVERTS, so it MUST be rewritten by E-02 and cannot be cited as an unchanged pin. What stays true, and is what this item pins instead, is that the FIXTURE STRING is unchanged: E-01 changes no emitted byte, so `STALE_RECEIPT_REFUSAL`'s text is identical and only the assertion's polarity moves, in E-02, with the answerability reason recorded at the test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `FINDING_SCOPE_REDUCED_INVARIANT = "REMOVED since begin (a contract reduction, never accepted as a widening)"` defined in `agent_workflows/ipd_lifecycle.py` and used in `finalize_precheck` string formatting: `f" {FINDING_SCOPE_REDUCED_INVARIANT}: " + ", ".join(cmp_result.removed)`. Emitted findings singular BEFORE and AFTER: `['plan content digest no longer matches the receipt', 'Scope-Paths entry REMOVED since begin (a contract reduction, never accepted as a widening): tests/test_rununify_initialize_run_characterization.py']`. Emitted findings plural BEFORE and AFTER: `['plan content digest no longer matches the receipt', 'Scope-Paths entries REMOVED since begin (a contract reduction, never accepted as a widening): tests/test_1.py, tests/test_2.py']` (byte-identical: True). `STALE_RECEIPT_REFUSAL` and `SCOPE_REFUSAL` in `tests/test_finalize_sendback.py` UNCHANGED. Test `tests/test_finalize_sendback.py::TheRetryTriggerIsAPositiveAllowlist::test_the_reduction_invariant_text_matches_ipd_lifecycle_findings` PASSED.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: drive FIVE refusals end to end and paste each outcome. SENDS BACK: a stale receipt, and a scope REDUCTION. STAYS TERMINAL ON THE FIRST REFUSAL: a fence WIDENING with a changed frozen requirement, a MISSING begin receipt (`MISSING_RECEIPT_REFUSAL`), and a scope-reconciliation refusal (`SCOPE_REFUSAL`, spec 5.5's first never-retry entry). The last two are required because PR-001's restructuring touches the predicate's dispatch and a per-class arm keyed on the wrong summary could admit them; their existing `assertFalse` tests must still pass UNMODIFIED, which is the pin V-01 cannot supply. ALSO paste a MIXED stale-plus-rewrite message proven NOT retryable, since the every-finding conjunction is what stops a never-retry class riding along. Paste the RENDERED recovery prompt for one send-back showing the gate's findings reached the agent, following the existing test's precedent of asserting on the prompt rather than on a flag.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Driven 5 refusals end-to-end via `handle_finalize_refusal`: 1) Stale receipt -> disposition=queued, status=queued, recovery_next=True, retries_consumed=1 (SENDS BACK). 2) Scope reduction -> disposition=queued, status=queued, recovery_next=True, retries_consumed=1 (SENDS BACK). 3) Fence widening with changed requirement -> disposition=substantially-complete, status=substantially-complete, recovery_next=None, retries_consumed=0 (TERMINAL). 4) Missing receipt -> disposition=substantially-complete, status=substantially-complete, recovery_next=None, retries_consumed=0 (TERMINAL). 5) Scope reconciliation (out-of-scope mutation) -> disposition=substantially-complete, status=substantially-complete, recovery_next=None, retries_consumed=0 (TERMINAL). Mixed stale-plus-rewrite message: `finalize_refusal_is_retryable(STALE_RECEIPT_REFUSAL + "\n  Scope-Paths gained agent_workflows/cli.py but a frozen REQUIREMENT also changed, so this is a contract rewrite rather than an additive widening")` -> False. Rendered recovery prompt carries refusal in `Prior attempt:`: `{"finalize_refused": "refused: the begin receipt for 787hb4 is STALE: the plan content changed since begin; re-run \`aw ipd begin\`.\n  plan content digest no longer matches the receipt\n  Scope-Paths entry REMOVED since begin (a contract reduction, never accepted as a widening): tests/test_rununify_initialize_run_characterization.py", "number": 1}`. Tests pass: `tests/test_finalize_sendback.py::TheRetryTriggerIsAPositiveAllowlist` (all 11 methods pass).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste an item exhausting its send-back budget on a stale receipt and ending TERMINAL with findings preserved, plus the recorded counter showing a second identical refusal did not reset it. Paste the assertion that no send-back path reaches a member of the success bar.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Budget exhaustion (budget=2) on stale receipt: 1st refusal -> status=queued, recovery_next=True, finalize_retry_attempts=1; 2nd refusal -> status=queued, recovery_next=True, finalize_retry_attempts=2 (counter not reset); 3rd refusal -> status=failed-safely, recovery_next=None, finalize_retry_attempts=2, output: `! IPD 787hb4 FAILED: correction budget exhausted (2 of 2 spent); the plan did NOT land`, disposition=failed-safely. In `TERMINAL_STATES`? True. In `SUCCESS_STATES` / `EXECUTION_SUCCESS_STATES`? False. `item['finalize_refusal']` preserved intact? True. Non-success terminal assertions verified: `self.assertIn("failed-safely", runner_shared.TERMINAL_STATES)`, `self.assertNotIn("failed-safely", runner_shared.SUCCESS_STATES)`, `self.assertNotIn("failed-safely", oc_driver.EXECUTION_SUCCESS_STATES)`. Tests pass: `test_exhaustion_on_stale_receipt_ends_terminal_with_findings_preserved`, `test_second_identical_refusal_does_not_reset_counter`, `test_an_exhausted_item_is_reported_FAILED_not_COMPLETED`, `test_total_dispatches_for_one_item_never_exceed_budget_plus_one`.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -992,6 +992,15 @@ FINDING_RECEIPT_ALREADY_FINALIZED = "receipt-consumed-already-finalized"
 #: replacing it, which is what gives a caller a third thing to branch on at zero behavioral cost.
 FINDING_RECEIPT_STALE = "plan content digest no longer matches the receipt"
 
+#: THE CONTRACT REDUCTION FINDING NAMES ITS INVARIANT TEXT AS ITS ID, following the precedent
+#: set by FINDING_RECEIPT_STALE above. Because the emitted string is composed with a singular/plural
+#: stem ("Scope-Paths entry..." vs "Scope-Paths entries..."), this constant names the invariant
+#: text shared by both spellings so no emitted byte changes while callers have a stable id to branch on.
+FINDING_SCOPE_REDUCED_INVARIANT = (
+    "REMOVED since begin (a contract reduction, never accepted as a widening)"
+)
+FINDING_SCOPE_REDUCED = FINDING_SCOPE_REDUCED_INVARIANT
+
 
 class AlreadyFinalizedVerdict(NamedTuple):
     """Did this plan's terminal transition ALREADY happen? Plus the evidence that says so.
@@ -2161,7 +2170,7 @@ def finalize_precheck(
                 stale_findings.append(
                     "Scope-Paths entr"
                     + ("ies" if len(cmp_result.removed) > 1 else "y")
-                    + " REMOVED since begin (a contract reduction, never accepted as a widening): "
+                    + f" {FINDING_SCOPE_REDUCED_INVARIANT}: "
                     + ", ".join(cmp_result.removed)
                 )
             if cmp_result.added and not cmp_result.non_scope_identical:
