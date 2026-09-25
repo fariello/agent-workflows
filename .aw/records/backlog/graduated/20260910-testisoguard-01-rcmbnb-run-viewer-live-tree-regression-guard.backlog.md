@@ -1,11 +1,13 @@
 - Id: rcmbnb
-- Status: open
+- Status: graduated
+- Graduated-To: viewerguard
 - Set: testisoguard
 - Priority: low
 - Work-Kind: chore
 - Summary: test_run_viewer.py has no guard against a new test re-reading the gitignored live .aw/records/runs/ tree
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into viewerguard plan swps4w (to-review)
 - 2026-09-10 created (aw backlog): test_run_viewer.py has no guard against a new test re-reading the gitignored live .aw/records/runs/ tree
 
 CARRIED FORWARD from plan `utwr6y` (`testiso` Order 01), retired `superseded` 2026-09-10. That plan's

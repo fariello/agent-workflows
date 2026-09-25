@@ -1,5 +1,6 @@
 - Id: gv36a7
-- Status: open
+- Status: graduated
+- Graduated-To: verdictread
 - Blocks-Release: next
 - Set: gv36a7
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: newest_verdict misreads a review record as NEGATIVE when its verdict token is outside VERDICTS and its prose narrates a no-go readiness
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): folded into verdictread plan xpta5g (one structural classifier fixes all three)
 - 2026-09-12 created (aw backlog): newest_verdict misreads a review record as NEGATIVE when its verdict token is outside VERDICTS and its prose narrates a no-go readiness
 
 ## How this was found

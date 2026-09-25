@@ -1,5 +1,6 @@
 - Id: nwrb0j
-- Status: open
+- Status: graduated
+- Graduated-To: verdictread
 - Blocks-Release: next
 - Set: nwrb0j
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: A non-review history record labelled with a review word is read as a review verdict, so a descope or re-check narrating no-go negates its own plan
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): folded into verdictread plan xpta5g (one structural classifier fixes all three)
 - 2026-09-12 created (aw backlog): A non-review history record labelled with a review word is read as a review verdict, so a descope or re-check narrating no-go negates its own plan
 
 ## How this was found

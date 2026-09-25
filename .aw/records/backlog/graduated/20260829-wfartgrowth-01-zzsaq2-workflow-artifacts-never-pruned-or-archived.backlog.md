@@ -1,11 +1,13 @@
 - Id: zzsaq2
-- Status: open
+- Status: graduated
+- Graduated-To: wfprune
 - Set: wfartgrowth
 - Priority: low
 - Work-Kind: chore
 - Summary: Nothing prunes or archives .aw/workflow-artifacts/, so per-run workflow dirs accumulate unbounded in a gitignored tree
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into wfprune plan muza7y (to-review)
 - 2026-08-29 created (aw backlog): Nothing prunes or archives .aw/workflow-artifacts/, so per-run workflow dirs accumulate unbounded in a gitignored tree
 
 Found incidentally while designing the revgate Set (2026-08-29); NOT caused by that work.

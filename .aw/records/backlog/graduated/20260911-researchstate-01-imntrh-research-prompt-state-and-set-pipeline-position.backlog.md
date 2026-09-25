@@ -1,5 +1,6 @@
 - Id: imntrh
-- Status: open
+- Status: graduated
+- Graduated-To: resstatus
 - Blocks-Release: next
 - Set: researchstate
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Research status enum fits only answer docs: split pipeline position (derived, set-level) from shelf disposition, and let the research set own the prompt
 
 ## Workflow history
+- 2026-09-25 graduated (aw set): graduated into resstatus plan 5e3nj2 (to-review)
 - 2026-09-12 open (aw set): status set to open
 - 2026-09-11 created (aw backlog): DECIDED (maintainer 2026-09-11): the research SET owns the prompt as order 00; the duplicate prompts/ staging copy is retired for the research kind. Prompt carries NO typed status; pipeline position is DERIVED from set shape (unrun/partial/synthesized). Measured: STATUSES (research_contract.py:187) is not keyed by kind and research_cmd.py:203,259,267 hard-codes status=todo for all 17 kinds including the order-00 prompt, so one token means 'not yet ingested' on a report and 'never dispatched' on a prompt, and NO state can say a prompt was run (3nlmug reads todo while carrying outcome: adopted, consumed-by: [25kzda]). The parent spec knew and routed around it (:79 'NO new state'), making runnedness structural in derive_unrun_prompts (research_index.py:256), which is why aw research pending is the real authority and not the todo column. Cost observed: aw att --type research showed 14 rows where only 4 (q65sz3, ti73qs, 5ek188, nilw5h) were genuinely open, 8 were stale-status finished artifacts, and 2 (sx0cqv, 8it88r) had answers already delivered. Prompts are also double-homed against their own README: 18 of 44 sets carry an order-00 prompt and 4 (hostprobe, awdeliv, chkplace, wtiso) exist in BOTH trees, with the wtiso staging copy in executed/ still reading Status: pending inline.
 
