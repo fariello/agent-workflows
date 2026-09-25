@@ -184,7 +184,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `--apply` returns rc=2 with "error: full-path citation ... cannot auto-rewrite ..." and does NOT
     rename (test_to_id6_fail_loud_on_unrewritable_path_citation PASS).
     Pilot (preview-only, NO in-run rename): `aw rename specs 25kzda --to-id6` (real repo, aw-run spec) ->
-    "--- would rename .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md ->
+    "--- would rename .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md ->
     20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md ---" and
     "--- reuses existing '- Id: 25kzda' (no re-mint) ---" plus the would-rewrite reference list
     (NOT applied). The 5tapom research-lifecycle spec behaves identically (reuses 5tapom).
