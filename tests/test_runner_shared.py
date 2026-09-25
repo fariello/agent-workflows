@@ -4340,5 +4340,32 @@ class GateAnswerVocabularyTests(unittest.TestCase):
         self.assertFalse(runner_shared.validate_gate_answer(Hostile()).usable)
 
 
+class FollowGeneratedRemovedTests(unittest.TestCase):
+    def test_follow_generated_flag_removed_from_shared_tables(self):
+        self.assertNotIn("--follow-generated", runner_shared.RUN_POLICY_FLAGS_BY_FLAG)
+        self.assertNotIn("follow_generated", runner_shared.RUN_POLICY_FLAGS_BY_DEST)
+
+    def test_host_parsers_reject_follow_generated_flag(self):
+        for name, mod in (("oc", oc_runipd), ("agy", agy_runipd)):
+            with self.subTest(host=name):
+                parser = mod.build_parser()
+                with contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as cm:
+                        parser.parse_args(["start", "abc123", "--follow-generated"])
+                self.assertEqual(cm.exception.code, 2)
+
+    def test_spec_25kzda_contains_no_follow_generated_token(self):
+        repo_root = pathlib.Path(__file__).resolve().parent.parent
+        approved_dir = repo_root / ".aw" / "records" / "specs" / "approved"
+        specs = list(approved_dir.glob("*-25kzda-*.spec.md"))
+        self.assertEqual(
+            len(specs),
+            1,
+            f"Expected exactly 1 spec matching *-25kzda-*.spec.md in {approved_dir}, found {specs}",
+        )
+        content = specs[0].read_text(encoding="utf-8")
+        self.assertNotIn("--follow-generated", content)
+
+
 if __name__ == "__main__":
     unittest.main()

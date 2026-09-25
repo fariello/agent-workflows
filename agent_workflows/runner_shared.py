@@ -12117,18 +12117,6 @@ RUN_POLICY_FLAGS: tuple = (
         ),
     ),
     RunPolicyFlag(
-        flag="--follow-generated",
-        dest="follow_generated",
-        kind="bool",
-        implemented=False,
-        owner="backlog x8diyb (rundepflags-01)",
-        help=(
-            "NOT YET IMPLEMENTED (refuses; backlog x8diyb owns the behavior). Would add newly "
-            "generated IPDs to THIS frozen run as child queue entries instead of reporting them as "
-            "generated next actions"
-        ),
-    ),
-    RunPolicyFlag(
         flag="--with-dependencies",
         dest="with_dependencies",
         kind="bool",
@@ -12555,10 +12543,9 @@ def refuse_unimplemented_run_flags(args: Any) -> None:
     Called from `initialize_run` before the run directory exists, so a refusal leaves nothing durable
     behind - the same "No work started" property the mixed-type refusal has, for the same reason.
 
-    This is the honest end state for `--follow-generated` and `--with-dependencies`, whose behavior
-    nobody has built. The alternative that must never be chosen is accepting them as silent no-ops:
-    an operator who passes `--with-dependencies` and gets no closure expansion has been told a
-    falsehood about what the run enforced.
+    This mechanism is retained for any future registered-but-unbuilt flag so that an unbuilt flag
+    fails loudly at initialization rather than parsing and silently doing nothing. No row in
+    `RUN_POLICY_FLAGS` currently uses `implemented=False`, so the loop runs over zero rows.
     """
 
     for row in RUN_POLICY_FLAGS:

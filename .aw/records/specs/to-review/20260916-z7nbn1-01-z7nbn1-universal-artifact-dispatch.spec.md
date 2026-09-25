@@ -135,9 +135,10 @@ becomes `graduated`, NOT `done`, per the existing rule that `graduated` means th
 while `done` means code was written and validated.
 
 3.4 WHAT THIS SPEC DOES NOT DECIDE: whether the artifacts a production action emits are enqueued into
-the SAME run, or reported as next actions for a later run. Both are defensible and the repository has an
-unimplemented flag reserving the question (`--follow-generated`, measured `implemented=False`, owner
-backlog `x8diyb`). See `OQ-01`.
+the SAME run, or reported as next actions for a later run. Both are defensible. The previously reserved
+`--follow-generated` flag mentioned in `OQ-01` below was removed by plan `hzdq8y` because no producer
+existed; a future plan building production actions may reintroduce an opt-in mechanism if the maintainer
+wants one. See `OQ-01`.
 
 ## 4. The one real gap
 
