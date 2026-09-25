@@ -359,7 +359,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```text
     $ git log --oneline -1 --name-only -- .aw/records/specs/*aw-run-deterministic*
     faa4c7ec spec(25kzda): sanction the review-action dependency relaxation in 2.9
-    .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+    .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
     ```
 
     and the two-row action-keyed table is present at spec `:373-378`:

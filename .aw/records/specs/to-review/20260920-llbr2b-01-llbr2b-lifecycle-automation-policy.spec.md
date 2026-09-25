@@ -17,7 +17,7 @@
   `.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md`, which own the PLAN lifecycle's own status
   vocabulary (`draft` -> `to-review` -> `reviewed` -> `approved`/`auto-approved` -> terminal). This
   spec adds no status and renames none.
-- Constrained-by: `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`
+- Constrained-by: `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`
   (`25kzda`, `approved`) Sections 2.5, 2.5a and 2.5b, which own the runner's selection gates
   (mixed-type, draft admission, orchestrator coverage). Those gates decide WHAT ENTERS A QUEUE; this
   spec decides WHETHER A TRANSITION MAY BE WRITTEN. Section 4.4 states why they are different

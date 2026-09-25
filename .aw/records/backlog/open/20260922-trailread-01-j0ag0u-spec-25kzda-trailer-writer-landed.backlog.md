@@ -10,7 +10,7 @@
 
 MEASURED 2026-09-22 at plan wao266's finalize.
 
-WHAT IS NOW STALE. Spec `25kzda` (`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`) says in its infrastructure paragraph, around `:59-62`: 'STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them - but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266` from backlog `a8eufb` owns the wiring)'.
+WHAT IS NOW STALE. Spec `25kzda` (`.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`) says in its infrastructure paragraph, around `:59-62`: 'STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them - but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266` from backlog `a8eufb` owns the wiring)'.
 
 WHAT CHANGED. `wao266` has now EXECUTED. `oc_runipd.commit_backlog_close` passes `run_item_trailers(run_id, plan_id6)` at the one `offer_commit` site both hosts reach, proven by a git-parser read-back test. So 'NOTHING PASSES THEM' is now false as written.
 

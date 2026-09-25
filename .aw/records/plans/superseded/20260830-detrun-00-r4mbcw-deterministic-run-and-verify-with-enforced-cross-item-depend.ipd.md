@@ -5,7 +5,7 @@ RETIRED 2026-08-30: the whole `detrun` Set is retired, its residue re-homed into
 - Date: 2026-08-30
 - Kind: orchestrator
 - Concern: Runner consolidation, multi-type selector resolution, mandatory cross-item `Item-Dependencies` graph enforcement, fail-closed per-host capability gating, worktree fault containment, and deterministic completion verification.
-- Scope: Orchestrates the 5 child implementation plans of Set `detrun` implementing approved spec `25kzda` (`20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`). Defines the child plan sequence, dependency graph, integration validation, and Set completion criteria.
+- Scope: Orchestrates the 5 child implementation plans of Set `detrun` implementing approved spec `25kzda` (`20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`). Defines the child plan sequence, dependency graph, integration validation, and Set completion criteria.
 - Scope-Paths: agent_workflows/**, tests/**, .aw/records/specs/**
 - Item-Dependencies: none
 - Status: superseded
@@ -24,7 +24,7 @@ RETIRED 2026-08-30: the whole `detrun` Set is retired, its residue re-homed into
 - 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
 - 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001..PR-006. The Set was authored at 00:08/00:14 against a spec paragraph that declared the whole design net-new; the maintainer corrected that paragraph at `a59f2c53` (00:35), 21 minutes later, and the corrected spec says a graduating Set "must CONSUME, not rebuild" the shipped machinery. Verified at HEAD `d4d265b6` that most of the Set re-implements working code: child 01's parser/evaluator/rules/lint/setter/hook/tests all ship (graduated from this same spec by the executed `ipddeps` Set); child 05's ledger, inspection CLI, completion checker, and resume all ship as `run_ledger_store.py`/`run_cli.py`/`run_evidence.py`/`run_recovery.py`; child 02's descriptor and probe harness largely duplicate `host_capability_registry.py`. Also found three collisions with APPROVED sibling Sets that the Set never reconciled: `lanetruth-03` (`8guhs0`) owns runner consumption of the dependency predicate that child 03 E-05/E-06 rebuilds, `wtiso-07` (`1o4eif`) owns the typed host capability contract that child 02 rebuilds, and `rununify` (`5e4sb6`) is de-duplicating the two runners that children 02-05 each add code to. Recorded the per-item evidence in each child, closed all six gates, added the missing execution contract to the parent gate, and opened two BLOCKING maintainer questions (OQ-02 contract ownership, OQ-03 sequencing against `rununify`). NO-GO. Retire rather than execute; the surviving residue is enumerated in the REPLAN NOTICE.
 - 2026-08-30 to-review (antigravity): deepened edge case integration, verification evidence matrices, and Set-level validation.
-- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md).
 - 2026-08-30 draft (antigravity): created.
 
 ## Goal
@@ -122,7 +122,7 @@ settle.
 
 ## Cross-IPD validation
 
-- Spec `25kzda` (`20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`) is linked and cited across all child plans.
+- Spec `25kzda` (`20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`) is linked and cited across all child plans.
 - Release blocker `- Blocks-Release: next` is preserved across all plans.
 - DAG dependency edges between child plans are satisfied sequentially.
 

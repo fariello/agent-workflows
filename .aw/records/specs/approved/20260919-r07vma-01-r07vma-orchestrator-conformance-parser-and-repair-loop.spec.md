@@ -10,7 +10,7 @@
   `approved`), which owns runner-owned retirement. This spec ADDS a deterministic authoring-conformance
   control beside that spec's R-12 semantic probe. It leaves R-1 through R-12 intact and does NOT retire
   the probe; see SR-001 and Section 3.
-- Constrained-by: `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`
+- Constrained-by: `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`
   (`25kzda`, `approved`) Section 2.5b, which owns the coverage gate's MECHANISM and states that the check
   is semantic, that a syntactic rule MUST NOT be added in its place, and why. This spec is written to be
   compatible with that prohibition rather than to amend it: it adds a conformance check with a different

@@ -110,7 +110,7 @@ in-queue : (False, "executed:cqx5v7: in-run target cqx5v7 is 'reviewed', needs o
 external : (True, '')
 ```
 
-That is what spec `20260826-0718-01` 2.9 line 399 explicitly prohibits: satisfaction must be decided
+That is what spec `20260826-25kzda-01` 2.9 line 399 explicitly prohibits: satisfaction must be decided
 "by the consuming action and by nothing else: not by queue membership ... An implementation that lets
 the same edge be satisfied or refused depending on queue membership is the evadability defect this
 section exists to prevent." `edge_satisfied`'s external branch is correct ("A TERMINAL DIRECTORY IS

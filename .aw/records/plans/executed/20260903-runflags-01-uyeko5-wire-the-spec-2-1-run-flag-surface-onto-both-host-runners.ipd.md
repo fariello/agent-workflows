@@ -184,7 +184,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```
     The test FILE itself at that HEAD: `14 failed, 1 passed in 0.27s`, failing on `RegistrationTests::test_every_flag_is_registered_on_both_hosts_start_parser`, `...resume_parser`, `SpecFlagListTests::test_every_flag_the_spec_declares_is_accounted_for`, `test_the_owned_set_is_the_eight_this_plan_claims`, and every `HelpHonestyTests` case (`AttributeError: module 'agent_workflows.runner_shared' has no attribute 'RUN_POLICY_FLAGS'`).
     AFTER: `python3 -m pytest tests/test_run_flag_surface.py` -> `70 passed in 2.56s`.
-    THE DATA TABLE IS THE SPEC, NOT A TRANSCRIPTION OF IT, which is what makes a future spec flag fail instead of drift. `SpecFlagListTests.spec_grammar_flags` READS `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, extracts the ```` ```text ```` grammar block of section 2.1, and scopes to the `aw <host> run <selector>` stanza:
+    THE DATA TABLE IS THE SPEC, NOT A TRANSCRIPTION OF IT, which is what makes a future spec flag fail instead of drift. `SpecFlagListTests.spec_grammar_flags` READS `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`, extracts the ```` ```text ```` grammar block of section 2.1, and scopes to the `aw <host> run <selector>` stanza:
     ```python
     block = section[1].split("```text", 1)[1].split("```", 1)[0]
     ... # stop at the next `aw ` line, so `aw <host> prompt`'s --text/--file are not demanded of `run`

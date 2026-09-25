@@ -271,7 +271,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [x] V-02 validates E-02
   - Required evidence: paste the re-measured status map (every spec with its status) and the totals, against the REVIEW baseline of **29 files / 13 live / 16 terminal** (the plan's authored 28/12 is stale). Paste the status-to-directory mapping including `deferred` and `parked`. Paste the classified inventory of EVERY literal spec citation with its COUNTS (review measured 18 declaring plans, 176 lines, 101 files, 41 distinct filenames), and state per class whether it will be rewritten, explicitly listing the synthetic test fixtures and the terminal-record receipts you will NOT touch and why. Paste `git status` proving no target file was concurrently modified.
   - Observed evidence: Re-measured census on disk: 37 total `*.spec.md` files (20 live: 13 approved, 2 deferred, 2 draft, 1 implementing, 2 to-review; 17 terminal: 15 implemented, 2 superseded).
-    - approved (13): 20260817-2147-02, 20260824-2000-01, 20260826-0718-01, 20260826-2144-01, 20260901-kw5y2s-01, 20260904-6m4kow-01, 20260906-77tr3o-01, 20260908-2vev8j-01, 20260910-2lcqno-01, 20260912-6kwd2e-01, 20260912-w15vzb-01, 20260913-uonrjg-01, 20260919-r07vma-01
+    - approved (13): 20260817-2147-02, 20260824-5tapom-01, 20260826-25kzda-01, 20260826-2144-01, 20260901-kw5y2s-01, 20260904-6m4kow-01, 20260906-77tr3o-01, 20260908-2vev8j-01, 20260910-2lcqno-01, 20260912-6kwd2e-01, 20260912-w15vzb-01, 20260913-uonrjg-01, 20260919-r07vma-01
     - deferred (2): 20260725-0957-01, 20260726-1239-01
     - draft (2): 20260828-pqsx96-01, 20260920-i4gpto-01
     - implemented (15): 20260706-0000-01, 20260715-1722-01, 20260726-1340-01, 20260730-2152-01, 20260802-1904-01, 20260808-0004-01, 20260808-1945-01, 20260810-1447-01, 20260813-1833-01, 20260815-0151-01, 20260817-2124-01, 20260817-2147-01, 20260818-1525-01, 20260818-1525-02, 20260818-1525-03
@@ -322,7 +322,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Listing `approved/`:
     ```
     20260817-2147-02-2147-02-records-naming-part2.spec.md
-    20260824-2000-01-research-lifecycle-reliability.spec.md
+    20260824-5tapom-01-5tapom-research-lifecycle-reliability.spec.md
     20260826-0718-01-0718-01-phase-enforcement.spec.md
     20260826-2144-01-run-mode-execution-contract-and-precedence.spec.md
     20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md

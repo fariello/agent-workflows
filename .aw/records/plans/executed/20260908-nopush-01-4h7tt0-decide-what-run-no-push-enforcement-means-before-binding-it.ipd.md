@@ -7,7 +7,7 @@
   THE BACKLOG ITEM ALSO SAYS SO, and its warning is inherited here verbatim in substance: `RUN-NO-PUSH` "is a security-boundary design of `1o4eif` magnitude and should not be picked up casually; treat it as needing a spec-level decision first, and do NOT let a future plan bind either code to a presence-based inference, which is the fail-open pattern already rejected once for the host capabilities."
   ITS SIBLING HALF IS ALREADY DEAD, which is why this plan covers one code and not two. The item was filed for `RUN-BASELINE-OWNERSHIP` and `RUN-NO-PUSH` together; the former is now BOUND, and the code says so: "`RUN-BASELINE-OWNERSHIP` is now BOUND, not UNBOUND-UNBUILT: the per-path lease overlap check F3 said nobody had built ships as `worktree_lease.LeaseTable.claim` (`m2wwns`), and `dirty_within` decides the pre-existing-dirty-path half" (`run_evidence.py:1221-1223`). Verified at HEAD: `LeaseTable.claim` exists (`worktree_lease.py:836`) and `run_evidence.dirty_within` exists (consumed at `ipd_lifecycle.py:892-895`). Do not build a second lease-overlap check.
 - Scope: Implement the SPEC-LEVEL DECISION `RUN-NO-PUSH` needed, which the maintainer has now MADE: outcome (c), RETIRE the code from 4.2 with the reason recorded (OQ-01, commit `b23d447d`). Three outcomes were legitimate when this was authored (build a real boundary; narrow the guarantee; retire the code); two are now closed, so this plan executes retirement rather than deciding. RETIREMENT IS NARROWER THAN IT SOUNDS AND WIDER THAN ONE ROW: it withdraws the 4.2 reporting CODE and the promise of proved push denial, it necessarily amends the enforced code-count invariant and its tests (F-8), and it must reconcile the five other spec sites that still promise no-push (F-10) - while deliberately PRESERVING spec 5.2's `supports_deny_push` capability, whose action-class requirements keep failing closed (F-9). This plan writes NO fail-open binding.
-- Scope-Paths: .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/run_evidence.py, agent_workflows/host_sandbox_profile.py, tests/test_run_evidence_completion.py, tests/test_run_no_push_boundary.py
+- Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/run_evidence.py, agent_workflows/host_sandbox_profile.py, tests/test_run_evidence_completion.py, tests/test_run_no_push_boundary.py
 - Item-Dependencies: none
 - Status: executed
 - Set: nopush
@@ -365,7 +365,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     NEITHER CAPABILITY FILE WAS EDITED, which `git diff --name-only` proves (`host_sandbox_profile.py` does not appear at all):
     ```
     $ git diff --name-only
-    .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+    .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
     agent_workflows/run_evidence.py
     tests/test_run_evidence_completion.py
     $ python3 -m pytest tests/test_host_capability_extension.py tests/test_host_sandbox_profile.py -o addopts=""

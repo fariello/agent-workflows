@@ -10,7 +10,7 @@
 
 MEASURED 2026-09-21.
 
-WHAT IS WRONG. Multiple artifacts cite spec `25kzda` at `:29` as reading 'the ledger is built but UNWIRED', including plan `i1hlgx` (its Concern, Step 0, F-2 and E-01) and backlog `zrzfkw`. That string is GONE: `grep -n -i 'unwired|built but'` over `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` returns nothing. The spec's preamble was rewritten on 2026-09-20 by plan `wenmg4`.
+WHAT IS WRONG. Multiple artifacts cite spec `25kzda` at `:29` as reading 'the ledger is built but UNWIRED', including plan `i1hlgx` (its Concern, Step 0, F-2 and E-01) and backlog `zrzfkw`. That string is GONE: `grep -n -i 'unwired|built but'` over `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` returns nothing. The spec's preamble was rewritten on 2026-09-20 by plan `wenmg4`.
 
 THE UNDERLYING FACT SURVIVES, which is why this is low and a chore rather than a bug: the same file now says at `:59-62` that the hash-chained run ledger's trailers are 'STILL NET-NEW and to be built ... NOTHING PASSES THEM: zero of 3764 commits across all refs carry an AW-Run trailer', naming plan `wao266` as the owner of the wiring. So no plan's premise was false; only the quoted string and the line number were.
 

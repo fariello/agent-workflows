@@ -182,7 +182,7 @@ The `validate` precedence chain is documented in `runner_profiles.py`'s own modu
 
 E-07 corrects the OTHER four prose statements, which are in-code comments rather than the docstring E-02 owns (F-12). Two of them live outside the resolver, which is why `run_dispatch.py` and `runner_profile_wizard.py` joined Scope-Paths at review; both edits are comment-only and V-07 requires the diff to prove it.
 
-No SPEC change is authorized here. Spec `25kzda` records that skipping the verifier turn is a retained, host-configurable choice rather than a prohibited bypass (`.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md:105`), verified verbatim at review including its conditional reasoning ("until per-role model routing exists ... a host-level control is the only available mechanism"); this plan makes the host-level control expressible per host, which that text already anticipates. If the executor finds documentation claiming a single global verification default, NOTE IT for child 02 rather than editing a spec here.
+No SPEC change is authorized here. Spec `25kzda` records that skipping the verifier turn is a retained, host-configurable choice rather than a prohibited bypass (`.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md:105`), verified verbatim at review including its conditional reasoning ("until per-role model routing exists ... a host-level control is the only available mechanism"); this plan makes the host-level control expressible per host, which that text already anticipates. If the executor finds documentation claiming a single global verification default, NOTE IT for child 02 rather than editing a spec here.
 
 ## Open questions
 

@@ -16,7 +16,7 @@ THE CONSEQUENCE IS ALREADY VISIBLE, which is what makes this worth filing rather
 
 A SECOND, RELATED GAP, recorded so it is not re-derived: 5.5's eleven `IPD-EXEC-*` finding codes grep to ZERO files, which the spec itself concedes, so a consumer cannot key on the codes either.
 
-WHERE. `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` section 5.5; consumers `runner_shared.finalize_retry_decision` and `runner_shared.turn_retry_decision`/`TURN_RETRY_CLASSIFICATION`.
+WHERE. `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` section 5.5; consumers `runner_shared.finalize_retry_decision` and `runner_shared.turn_retry_decision`/`TURN_RETRY_CLASSIFICATION`.
 
 POSSIBLE FIXES, not prescribed: (a) AMEND the spec with an explicit class-to-disposition table, which is the durable fix and makes both consumers checkable against one contract (note this edits an `approved` spec, so it needs the declare-and-justify route); (b) declare ONE in-code mapping that both consumers read, and cite it from the spec; (c) accept the divergence and document at each site which reading it took, which is what the two sites do today and is the weakest option.
 

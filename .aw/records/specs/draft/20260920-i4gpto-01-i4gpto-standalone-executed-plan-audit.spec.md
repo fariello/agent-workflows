@@ -6,7 +6,7 @@
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: 7u9kbm
 - Scope: An operator-invoked verb that buys one independent skeptical opinion on an already-executed plan, reusing the in-run verifier prompt and outcome schema, and never touching the finished plan document.
-- Constrained-by: `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`
+- Constrained-by: `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`
   (`25kzda`, `approved`), whose Section 1.3 "Audit only" row routes audit to `aw runs verify-ledger` or
   `aw <host> run resume`. This spec does NOT amend that row and does not contradict it: that row is
   about auditing a RUN LEDGER, and this verb audits a PLAN'S CLAIMS. Section 6 states the boundary.

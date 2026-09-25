@@ -16,6 +16,6 @@ THE GAP. Every reason is directional (it forbids using the baseline to make an o
 
 WHY THIS IS A DOCUMENTATION DEFECT AND NOT A DESIGN ONE. The ruling is right and the guards are right; the four reasons and their tests are exactly correct for the thing they forbid. What is missing is one sentence naming the direction, so the next reader neither re-derives the scope nor - the worse outcome - abandons a legitimate change believing it is forbidden. `tgyfs2` added that distinction beside its own new section, but the authoritative place for it is the banner itself and, if the maintainer agrees, the spec paragraph.
 
-WHERE: agent_workflows/runner_shared.py, the 'THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)' banner; and .aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md section 5.1 'THE HONEST LIMIT'.
+WHERE: agent_workflows/runner_shared.py, the 'THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)' banner; and .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md section 5.1 'THE HONEST LIMIT'.
 
 NOTE the banner's wording is pinned by `tests/test_suite_baseline.py::test_THE_RULING_IS_RECORDED_AT_THE_CODE_with_its_reasoning`, which asserts five exact phrases; an edit must keep those and ADD to them.

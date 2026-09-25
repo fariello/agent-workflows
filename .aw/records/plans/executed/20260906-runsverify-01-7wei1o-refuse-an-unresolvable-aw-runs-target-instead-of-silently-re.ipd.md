@@ -142,7 +142,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Spec / documentation sync
 
-Spec `25kzda`'s header already records (amended 2026-09-05) that `aw runs verify <run-id>` names no leaf and that the spelling exits 0 having verified nothing, citing backlog `6kq1lj`. The exact sentences are at `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md:47` and `:49`. When this plan lands, that note should be updated to say the spelling now REFUSES. Do that in the same pass, since leaving it would make the spec understate the fix.
+Spec `25kzda`'s header already records (amended 2026-09-05) that `aw runs verify <run-id>` names no leaf and that the spelling exits 0 having verified nothing, citing backlog `6kq1lj`. The exact sentences are at `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md:47` and `:49`. When this plan lands, that note should be updated to say the spelling now REFUSES. Do that in the same pass, since leaving it would make the spec understate the fix.
 
 FENCE CONSEQUENCE, stated so the executor does not have to guess: that spec file is NOT in `Scope-Paths`, deliberately, because it is an approved spec and editing one is a `aw specs`-mediated act, not a code edit. Make the note edit and JUSTIFY it as an out-of-scope path at finalize (`--scope-reason`), which is the mechanism `aw ipd finalize` already provides; do not silently widen the fence, and do not skip the note.
 

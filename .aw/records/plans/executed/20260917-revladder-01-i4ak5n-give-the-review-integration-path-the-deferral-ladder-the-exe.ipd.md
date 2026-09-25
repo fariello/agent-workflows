@@ -229,7 +229,7 @@ loses its lane to the first one's success. Item 2 alone therefore MUST NOT ship 
 
 ## Spec / documentation sync
 
-SPEC `20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`25kzda`, `Status: approved`) governs
+SPEC `20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` (`25kzda`, `Status: approved`) governs
 the run's deferral behavior and is deliberately NOT declared in `- Scope-Paths:`: wiring an existing caller
 into an existing ladder IMPLEMENTS the spec rather than amending it.
 

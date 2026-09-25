@@ -429,7 +429,7 @@ nine-parameter shell over still-forked callees and pays the entire pin-rebasing 
 Checked as the plan's spec-sync section requires, and the check was made rather than assumed. E-03's
 repair changes what an operator SEES after a signal on agy, so the two specs the plan names were read:
 
-* `25kzda` (`20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`) governs run/verify
+* `25kzda` (`20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`) governs run/verify
   determinism and V-evidence. It says nothing about the shutdown report's contents.
 * `c4gd2h` (`20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md`) governs graceful quit.
   Its acceptance criteria constrain the SIGINT ladder, the interrupt menu's path predicate, exit codes,

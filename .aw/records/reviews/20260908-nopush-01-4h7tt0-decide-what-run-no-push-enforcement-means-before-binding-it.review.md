@@ -26,7 +26,7 @@ SCOPE: only this child was a candidate; the Set has exactly one member. Read as 
 `agent_workflows/run_evidence.py`, `agent_workflows/host_sandbox_profile.py`,
 `tests/test_run_evidence_completion.py`, `tests/test_host_capability_extension.py`,
 `tests/test_host_sandbox_profile.py`, `tests/test_run_viewer.py`, spec
-`20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`25kzda`), executed plan `mjx7ne`,
+`20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` (`25kzda`), executed plan `mjx7ne`,
 backlog item `d07nz2`, and commit `b23d447d`.
 
 ### Findings

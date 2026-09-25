@@ -168,7 +168,7 @@ MEASURED WITH THE MAINTAINER, and it reframes this plan rather than merely addin
 5. NON-CONFORMING NAMES MUST BE RAISED, NOT SILENTLY TOLERATED (new requirement). The long-term goal
    is to be able to TRUST filenames, which is only reachable if the 8 exceptions are visible and
    shrinking. Verified the gap: both `20260808-0004-00-plans-adopter-orchestrator.ipd.md` and
-   `20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` return `is_conformant=True` from the
+   `20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` return `is_conformant=True` from the
    shipped normalizer, so `check_engine`'s naming rule skips them at `check_engine.py:462` and nothing
    surfaces them. So this is not a check that exists and is being ignored; there is no signal at all.
    REQUIRED: a report (advisory, not an error) naming every record whose `Id`/`Set` is absent from its

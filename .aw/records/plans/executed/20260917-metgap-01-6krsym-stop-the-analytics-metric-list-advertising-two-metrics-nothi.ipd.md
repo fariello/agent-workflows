@@ -190,7 +190,7 @@ CHECK, so neither is an open task (PR-003). The metric list is a query-grammar a
 spec-defined contract, and `- Scope-Paths:` declares no `.spec.md`.
 
 1. NO SPEC ENUMERATES THESE METRICS. `grep -rln "duration_seconds\|event_count" .aw/records/specs/` returns
-   NOTHING, including `20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`25kzda`) which the
+   NOTHING, including `20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` (`25kzda`) which the
    section named. So removing a metric is not a spec amendment. THE CONTINGENCY STANDS: if E-02 or E-03 turns
    up a contract elsewhere that does enumerate them, declare that file in `Scope-Paths` BEFORE editing it, per
    the spec-amendment rule, and record the reason here.

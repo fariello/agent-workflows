@@ -25,7 +25,7 @@ RETIRED 2026-08-30: superseded by `.aw/records/plans/pending/20260830-runtrail-0
 - 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
 - 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001/PR-003. E-01 duplicates the APPROVED 7-plan `wtiso` Set and the shipped `orchestrate_isolation.py` (1152 lines) that this plan's own conventions section names as the canonical lease manager. E-05 collides with APPROVED `rununify` (`5e4sb6`). Depends on child 03, itself REPLAN. Genuine residue: the `AW-Run:`/`AW-Item:` trailers (zero hits today) plus CommitGateway, and the 7-step containment transaction / 6-class abort classifier, as an EXTENSION of `orchestrate_isolation.py`. Gate closed. NO-GO.
 - 2026-08-30 to-review (antigravity): deepened 7-step containment transaction, quarantine bundle hashing, abort escalation rules, and commit gateway trailers.
-- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md).
 - 2026-08-30 draft (antigravity): created.
 
 ## Goal
@@ -302,7 +302,7 @@ CORRECTED /plan-review 2026-08-30 pass 2 (PR-108). Both items were unachievable 
 
 ## Spec / documentation sync
 
-- Implements spec `25kzda` (`20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`) Sections 4.1, 4.2, 5.1, and 5.7.
+- Implements spec `25kzda` (`20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`) Sections 4.1, 4.2, 5.1, and 5.7.
 - Documents commit trailers and fault containment in `.aw/records/plans/README.md`.
 
 ## Open questions

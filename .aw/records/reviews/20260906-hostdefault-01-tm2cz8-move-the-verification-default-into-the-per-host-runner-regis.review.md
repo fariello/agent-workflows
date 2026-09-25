@@ -104,7 +104,7 @@ surfaced in the review report rather than left to be found in the diff.
   values are measured rather than chosen.
 - Spec `25kzda` says what the plan claims, quoted verbatim including the conditional reasoning that
   supports the host-level reading ("until per-role model routing exists ... a host-level control is the
-  only available mechanism", `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md:105`),
+  only available mechanism", `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md:105`),
   so the plan is right that no spec change is authorized.
 - Superseded plan `mn3gwr` is genuinely in `plans/superseded/` and child 02 `ybkmzp` genuinely declares
   `Item-Dependencies: executed:tm2cz8` with the same `From-Backlog: h7qsje` and `Blocks-Release: next`,

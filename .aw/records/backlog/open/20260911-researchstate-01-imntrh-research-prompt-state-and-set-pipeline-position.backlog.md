@@ -30,7 +30,7 @@ dispositions, so a prompt whose reports landed still reads `todo` forever. Live 
 reads `status: todo` while carrying `outcome: adopted` and `consumed-by: [25kzda]`; it is prompt
 provenance for a spec already written, and the vocabulary cannot say so.
 
-THE SPEC KNEW AND ROUTED AROUND IT. `20260824-2000-01-research-lifecycle-reliability.spec.md:79`
+THE SPEC KNEW AND ROUTED AROUND IT. `20260824-5tapom-01-5tapom-research-lifecycle-reliability.spec.md:79`
 states "`status` stays the four-state vocabulary; NO new state", and §3.1 instead makes runnedness
 STRUCTURAL via `derive_unrun_prompts` (`research_index.py:256`): a set is UNRUN when its `NN=00`
 member is a `research-prompt` and no `NN>=01` sibling exists. That is why `aw research pending`

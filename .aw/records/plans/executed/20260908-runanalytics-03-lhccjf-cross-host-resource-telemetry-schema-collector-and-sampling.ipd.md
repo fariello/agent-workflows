@@ -174,7 +174,7 @@ DO NOT COMMIT A CANARY AS A LITERAL. E-08 seeds forbidden-shaped values into fix
 
 ## Spec / documentation sync
 
-Order 04 must amend the controlling runner contract if it defines the run artifact inventory. That spec is `25kzda`, which resolves to `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`- Id: 25kzda`, `- Status: approved`); the filename predates the id6-in-filename convention, so the id is findable only by grepping `- Id:`. Order 04 (`5f2h8i`) ALREADY declares that path in its `Scope-Paths`, so the amendment is owned and announced there, not here.
+Order 04 must amend the controlling runner contract if it defines the run artifact inventory. That spec is `25kzda`, which resolves to `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` (`- Id: 25kzda`, `- Status: approved`); the filename predates the id6-in-filename convention, so the id is findable only by grepping `- Id:`. Order 04 (`5f2h8i`) ALREADY declares that path in its `Scope-Paths`, so the amendment is owned and announced there, not here.
 
 THIS CHILD DECLARES NO SPEC FILE AND MUST EDIT NONE. Two approved or implementing specs bear on it and both are IMMUTABLE from here: `25kzda` (approved, Order 04's to amend) and `c4gd2h` (`- Status: implementing`, whose R5/A9 make the cleanup routine singular). If execution concludes that either genuinely must change, that is a STOP-and-raise, not a unilateral edit: editing an approved spec would invalidate its human attestation.
 

@@ -14,7 +14,7 @@ consumed-by: [25kzda]
 
 # Build-order map: `aw <host> run` spec (25kzda) vs. the existing codebase
 
-Companion to spec `.aw/records/specs/approved/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`
+Companion to spec `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`
 (id `25kzda`). Verdicts are evidence-backed from a code sweep on 2026-08-26. Purpose: sequence the
 IPD Set(s) that implement the spec, reusing what exists instead of rebuilding it.
 

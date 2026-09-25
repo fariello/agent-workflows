@@ -26,7 +26,7 @@ RETIRED 2026-08-30: superseded by `.aw/records/plans/pending/20260830-runmixed-0
 - 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
 - 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001/PR-003. Least-duplicated child but still not executable: E-05/E-06 duplicate APPROVED `lanetruth-03` (`8guhs0`), which explicitly owns runner consumption of the shared dependency predicate and the 25kzda 2.9/5.4 runtime satisfaction semantics; a DAG release surface also ships (`run_engine.get_runnable_steps`, run_engine.py:273). E-07 collides with APPROVED `rununify` (`5e4sb6`). The three proposed `run_*` modules were authored without inventorying the ELEVEN shipped `run_*` modules. Salvageable residue: E-01..E-04 (multi-type selector, mixed-type gate, dispatch table). Gate closed. NO-GO.
 - 2026-08-30 to-review (antigravity): deepened selector precedence, mixed-type confirmation, dispatch handlers, tiebreaking rules, and DAG cascade algorithms.
-- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md).
 - 2026-08-30 draft (antigravity): created.
 
 ## Goal
@@ -253,7 +253,7 @@ CORRECTED /plan-review 2026-08-30 pass 2 (PR-306). Both items were unachievable 
 
 ## Spec / documentation sync
 
-- Implements spec `25kzda` (`20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`) Sections 2.1-2.6, 3.1-3.6, and 5.4.
+- Implements spec `25kzda` (`20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`) Sections 2.1-2.6, 3.1-3.6, and 5.4.
 - Updates CLI help text for `aw oc run` and `aw agy run`.
 
 ## Open questions

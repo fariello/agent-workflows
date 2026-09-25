@@ -11586,7 +11586,7 @@ def manifest_entry_is_selectable(entry: Mapping[str, Any] | None) -> bool:
         2026-09-17 dead-prerequisite failure. That failure is FIXED, by the maintainer's 2026-09-19
         "one authority: the disk" ruling: `edge_satisfied` no longer consults queue membership (`by_id`
         is documented UNREAD; a code-only scan finds 0 read sites in BOTH hosts), and spec
-        `20260826-0718-01` 2.9 independently forbids membership deciding that edge. Measured on both
+        `20260826-25kzda-01` 2.9 independently forbids membership deciding that edge. Measured on both
         hosts with the prerequisite ABSENT from the queue: the edge resolves `True` from disk,
         `cascade_dependency_blocked` returns `[]`, and the dependent stays `queued`. So the honest
         reason `executed` stays selectable is that it is not retired and a shipped test pins its queue
@@ -16275,7 +16275,7 @@ def initial_queue_status(status: str | None) -> str:
     orchestrators at queue build, before any agent turn, for zero tokens; three `20260913` runs lost
     10, 12 and 16 items the same way.
 
-    IT ALSO VIOLATED A WRITTEN PROHIBITION. Spec `20260826-0718-01` 2.9 requires an `executed:` edge to
+    IT ALSO VIOLATED A WRITTEN PROHIBITION. Spec `20260826-25kzda-01` 2.9 requires an `executed:` edge to
     be decided "by the consuming action and by nothing else: not by queue membership ... An
     implementation that lets the same edge be satisfied or refused depending on queue membership is the
     evadability defect this section exists to prevent." `edge_satisfied`'s EXTERNAL branch reads the
