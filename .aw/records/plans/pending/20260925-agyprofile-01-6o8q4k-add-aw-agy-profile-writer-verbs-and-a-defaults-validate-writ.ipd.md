@@ -6,11 +6,12 @@
 - Scope: Parameterize the `aw oc profile` handlers by runner, register the same fixed verb set as `aw agy profile {add,list,show,remove,default}` (noninteractive `add` with `--validate/--no-validate`), GUARD the runner-scoped verbs against the flat profile namespace so a verb in one host's namespace cannot read, retarget or delete the other host's profile, add one `validate-default` verb under both namespaces that writes the host-neutral `defaults.validate` through `set_validate_default`, and replace the documented hand-edit step.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/runner_profile_wizard.py, tests/test_agy_profile_cli.py, tests/test_oc_profile_cli_regression.py, docs/runner-profiles.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
 - Id: 6o8q4k
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: fxiqse
 - Set: agyprofile
 - Order: 1
@@ -18,6 +19,7 @@
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-907 all FIXED, OQ-01 deliberately left OPEN and non-blocking as a public CLI contract choice for the maintainer. F-1, F-2, F-4 and F-5 reproduced exactly, and the store mechanism was driven end to end (an agy profile made default resolves `validate=False` with provenance `default-profile`). One BLOCKER found by driving the proposed CLI against the store: profile names are ONE FLAT NAMESPACE, so `agy profile show/remove/default <oc-name>` would respectively display a foreign profile, DELETE it, and silently rewrite the OPENCODE default, because `cfg.get` and `set_default_profile` take no runner. Also found: E-01's byte-identical claim had NO test able to falsify it (zero tests drive any oc profile verb); E-02 silently changed a `--json` contract; and the linter's own `IPD-Z602` advisory on E-05 was correct. Record: `.aw/records/reviews/20260925-agyprofile-01-6o8q4k-add-aw-agy-profile-writer-verbs-and-a-defaults-validate-writ.review.md`.

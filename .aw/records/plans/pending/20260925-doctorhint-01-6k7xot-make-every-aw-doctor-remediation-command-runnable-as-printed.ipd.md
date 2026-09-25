@@ -6,7 +6,7 @@
 - Scope: `agent_workflows/doctor.py` `build_remediation` branches that return a non-None `command`, their paired `summary_fix` strings, plus the `resolve_next_actions` consumer; regression tests in `tests/test_doctor.py`. No change to `aw rename`, `aw group`, `aw set`, or any checker.
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6k7xot
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review: 12 findings (1 BLOCKER, 4 HIGH, 4 MEDIUM, 3 LOW), all FIXED in place; 5 decisions recorded; added E-04/E-05 for two unaddressed branches and corrected four prescribed command shapes that were measured wrong
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED; readiness go-pending-approval; record `.aw/records/reviews/20260925-doctorhint-01-6k7xot-make-every-aw-doctor-remediation-command-runnable-as-printed.review.md`
 

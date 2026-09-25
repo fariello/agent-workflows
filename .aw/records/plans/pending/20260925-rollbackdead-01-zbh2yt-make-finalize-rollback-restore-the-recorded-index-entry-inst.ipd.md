@@ -6,7 +6,7 @@
 - Scope: IN: step 3 of `ipd_lifecycle._rollback_precommit` (restore each owned path's index entry to exactly what `_git_index_entries` recorded, no-op when already equal, and WRITE NOTHING when no entry was recorded) and one regression test. OUT: steps 1, 2 and 4 of the rollback; the journal schema; `_git_index_entries` itself; the post-commit paths.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: zbh2yt
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED, no open blocking question. All four probe findings reproduced exactly at review (F-1 identical arms, F-2 the staged blob reset to HEAD's with status flipping `M ` to ` M`, F-3 the rc-1 pathspec error, F-4 `update-index --index-info` restoring byte-for-byte). The REMEDY needed correcting: the proposed `--force-remove` arm stages a DELETION (`D  <path>`) on the strength of an ABSENT journal key, inverting the refuse-rather-than-overwrite discipline steps 1 and 2 establish, and OQ-01's empty-dict guard would not fire on a partially-recorded journal. That arm is removed; review measured that removing it costs no coverage. F-6's mechanism was also wrong: the fixture is not tracked at HEAD (it never commits), it is staged with no HEAD, which is what implies a per-path rather than empty-dict guard. Record: `.aw/records/reviews/20260925-rollbackdead-01-zbh2yt-make-finalize-rollback-restore-the-recorded-index-entry-inst.review.md`.
