@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): AMENDED 2026-09-25 (mergeskip 8k0z40): added already-landed to Section 7.2 blocked row as a normative stage classification (needs human act: aw ipd finalize). Note this row is normative-but-unenforced (tests/test_lifecycle_style.py enforces Section 5 only).
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the integration status vocabulary was renamed one-for-one and Sections 4.4a/7.2 now carry the canonical spelling: integration-deferred -> merge-retry, integration-blocked -> merge-needs-human, merge-conflict -> merge-refused, and the same-day unreleased integration-unmeasured -> merge-unchecked. NO STAGE CHANGED, so this is a naming amendment and not a presentation ruling: merge-retry and merge-unchecked stay recovering, merge-needs-human and merge-refused stay blocked. A rename table plus the rationale and the two rejected candidates (merge-error, merge-waiting) are recorded in Section 7.2 so a future reader sees why the churn was worth it rather than re-litigating it. The trigger was measured, not aesthetic: diagnosing run run-20260921T105933Z-1994623 cost a full investigation largely because merge-conflict was the operator-facing label on a refusal that involved no conflict (that kind is also returned for a stale base, a scope violation and a red combined suite), and the maintainer judged integration-deferred/integration-blocked unintuitive because neither says what the operator must DO. Both spellings remain readable forever via runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES, since a run directory is a durable record; nothing writes a legacy spelling. Verified: tests/test_lifecycle_style.py 's spec-coverage assertion (which reads THIS FILE and fails when a code mapping is absent here) passes, 235 passed across the lifecycle/flag-surface/retirement suites.
 ## 0. Decision summary
@@ -322,7 +323,7 @@ only when the subtype is genuinely unavailable.
 | `reviewed` | authority-queued |
 | `approved` | ready |
 | `executed`, `verified`, `complete` | done |
-| `fail-gate`, `fail-begin`, `fail-lane`, `fail-depend`, `fail-merge`, `blocked`, `dependency-blocked`, `merge-needs-human`, `merge-refused` | blocked |
+| `fail-gate`, `fail-begin`, `fail-lane`, `fail-depend`, `fail-merge`, `blocked`, `dependency-blocked`, `merge-needs-human`, `merge-refused`, `already-landed` | blocked |
 | `fail-verify`, `failed`, `failed-safely` | failed |
 | `not-run`, `not-attempted`, `cancelled` | abandoned |
 | `needs_input`, `awaiting-human` | waiting-input |

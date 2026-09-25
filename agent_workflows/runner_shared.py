@@ -2086,6 +2086,166 @@ def lane_worktree_display(repo: Path, worktree: Any) -> Optional[str]:
     return text if text not in ("", ".") else None
 
 
+# ---- already-landed dispatch gate (mergeskip `8k0z40`) --------------------------------------------
+
+ALREADY_LANDED_STATUS: str = "already-landed"
+
+ALREADY_LANDED_RECOVERY_HINT: str = (
+    "its lane work is already on HEAD but the plan was never finalized (a hand merge does not run "
+    "`aw ipd finalize`). Run `aw ipd lint --phase pre-transition <id6>` and then `aw ipd finalize "
+    "<id6> --actor <you> --message <why> --apply`; if the landed lane is stale and the plan "
+    "genuinely needs new work, delete the merged lane branch (`git branch -d <branch>`, which git "
+    "only permits for a merged branch) and re-run."
+)
+
+
+def already_landed_lanes(repo: Path, id6: str) -> list[dict[str, Any]]:
+    """Enumerate existing lane refs for an id6 and classify each with `classify_lane_integration`.
+
+    Read-only, never raises for an expected condition.
+
+    Enumerating refs that exist is NOT the "reconstruct `aw/lane/<id6>` from the id6" that
+    `worktree_lease.lane_branch_name`'s docstring forbids: that prohibition protects a WRITE
+    (integrating a guessed lane); this is a read whose only consequence is whether a turn is spent.
+    """
+    from agent_workflows import worktree_lease
+
+    repo_path = Path(repo)
+    id6_str = str(id6).strip()
+    if not id6_str:
+        return []
+
+    cmd = [
+        "git",
+        "for-each-ref",
+        "--format=%(refname:short)",
+        f"refs/heads/aw/lane/{id6_str}",
+        f"refs/heads/aw/lane/{id6_str}_attempt*",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return []
+    except Exception:
+        return []
+
+    records: list[dict[str, Any]] = []
+    for line in proc.stdout.splitlines():
+        branch = line.strip()
+        if not branch:
+            continue
+        lane_id = worktree_lease.lane_id_from_branch(branch) or id6_str
+        try:
+            rec = classify_lane_integration(
+                repo_path, {"id6": id6_str, "lane_id": lane_id, "branch": branch}
+            )
+            records.append(rec)
+        except Exception:
+            records.append(
+                {
+                    "id6": id6_str,
+                    "lane_id": lane_id,
+                    "branch": branch,
+                    "lane_state": LANE_UNKNOWN,
+                    "landed": None,
+                    "commits_ahead": 0,
+                    "dirty": False,
+                }
+            )
+    return records
+
+
+def lane_work_already_landed(records: Sequence[Mapping[str, Any]]) -> bool:
+    """Return True if records show committed lane work has landed on HEAD with no unlanded/live/unknown lanes.
+
+    True ONLY when:
+    (i) at least one record has lane_state == LANE_LANDED AND commits_ahead > 0 AND dirty is False
+    (ii) NO record is LANE_STRANDED, LANE_UNKNOWN or LANE_LIVE.
+
+    Rule (i)'s `commits_ahead > 0` is the load-bearing false-positive guard (F-3: a zero-commit dirty lane
+    classifies LANDED because its tip IS its base and is trivially an ancestor of HEAD); it mirrors
+    `reintegrate_lane`'s own `if lane.commits_ahead <= 0` refusal ("HOLDS-WORK alone does NOT prove committed work").
+    Rule (ii) fails closed: any lane still holding unlanded or unanswerable work means today's dispatch behavior is kept.
+    """
+    if not records:
+        return False
+
+    has_landed_clean_commits = False
+    for r in records:
+        state = r.get("lane_state")
+        if state in (LANE_STRANDED, LANE_UNKNOWN, LANE_LIVE):
+            return False
+        try:
+            ahead = int(r.get("commits_ahead") or 0)
+        except (TypeError, ValueError):
+            ahead = 0
+        if state == LANE_LANDED and ahead > 0 and r.get("dirty") is False:
+            has_landed_clean_commits = True
+
+    return has_landed_clean_commits
+
+
+def skip_dispatch_if_already_landed(
+    repo: Path,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    *,
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> bool:
+    """Check whether an execute item's lane work has already landed on HEAD, and if so park it already-landed.
+
+    One shared definition for both runner hosts (oc_runipd and agy_runipd); host bindings are injected.
+    Returns True if the item was parked as already-landed (caller should save_state and continue loop),
+    False if normal dispatch should proceed.
+    """
+    if item.get("action") != "execute":
+        return False
+    if item.get("initial_status") == "reusable":
+        return False
+    id6 = str(item.get("id6") or "").strip()
+    if not id6:
+        return False
+
+    lanes = already_landed_lanes(repo, id6)
+    if not lane_work_already_landed(lanes):
+        return False
+
+    lane_summaries = [
+        {
+            "branch": r.get("branch"),
+            "head": r.get("head"),
+            "landed_by": r.get("landed_by"),
+        }
+        for r in lanes
+    ]
+
+    item["status"] = ALREADY_LANDED_STATUS
+    item["already_landed_lanes"] = lane_summaries
+    item["already_landed_recovery"] = ALREADY_LANDED_RECOVERY_HINT
+
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": ALREADY_LANDED_STATUS,
+            "id6": id6,
+            "status": ALREADY_LANDED_STATUS,
+            "already_landed_lanes": lane_summaries,
+            "already_landed_recovery": ALREADY_LANDED_RECOVERY_HINT,
+        },
+    )
+    print(f"[{id6}] already-landed: {ALREADY_LANDED_RECOVERY_HINT}", file=sys.stderr)
+    return True
+
+
 # ---- the REVIEW SWEEP LANE ------------------------------------------------------------------------
 # dirtygates Order 05 (`ajxr5d`) E-02/E-04/E-11, OQ-02 + OQ-04 (both resolved by the maintainer).
 #
@@ -25068,6 +25228,7 @@ TERMINAL_STATES_CANONICAL: frozenset[str] = frozenset(
         "fail-merge",
         "not-run",
         "failed",
+        "already-landed",  # mergeskip (8k0z40): lane work already landed on HEAD
     }
 )
 

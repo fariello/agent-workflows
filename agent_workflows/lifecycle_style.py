@@ -475,6 +475,7 @@ _RUNNER_ITEM_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("fail-verify", FAILED),
     ("fail-depend", BLOCKED),
     ("fail-merge", BLOCKED),
+    ("already-landed", BLOCKED),  # mergeskip (8k0z40): lane work already landed on HEAD
     ("not-run", ABANDONED),
     ("failed", FAILED),
     ("failed-safely", FAILED),

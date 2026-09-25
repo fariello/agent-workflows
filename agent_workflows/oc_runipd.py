@@ -4379,6 +4379,16 @@ def run_queue(
             )
             save_state(run_dir, state)
             continue
+        if runner_shared.skip_dispatch_if_already_landed(
+            Path(state["repo"]),
+            run_dir,
+            state,
+            runnable,
+            save_state=save_state,
+            append_jsonl=append_jsonl,
+        ):
+            save_state(run_dir, state)
+            continue
         # runstop 1qxuke: the set now in flight. Recorded BEFORE the turn so that a stop requested
         # DURING this turn is observed at the next checkpoint with this set already captured.
         current_setid = runnable.get("setid")

@@ -87,6 +87,7 @@ KNOWN_ITEM_STATUSES = frozenset(
         "fail-merge",
         "not-run",
         "failed",
+        "already-landed",  # mergeskip (8k0z40): lane work already landed on HEAD
         # in-flight / recoverable
         "queued",
         "running",
