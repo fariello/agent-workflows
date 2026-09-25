@@ -30,28 +30,13 @@ class TestSharedConstantsByteIdenticalAndUnwidened(unittest.TestCase):
 
     EXPECTED_EXECUTION_SUCCESS_STATES: ClassVar[set[str]] = {
         "executed",
-        "substantially-complete",
     }
     EXPECTED_SUCCESS_STATES: ClassVar[set[str]] = {
         "executed",
         "reviewed",
         "approved",
     }
-    EXPECTED_TERMINAL_STATES: ClassVar[set[str]] = {
-        "executed",
-        "reviewed",
-        "approved",
-        "substantially-complete",
-        "partial",
-        "blocked",
-        "dependency-blocked",
-        "failed-safely",
-        "not-attempted",
-        "integration-blocked",
-        "merge-conflict",
-        "merge-needs-human",
-        "merge-refused",
-    }
+    EXPECTED_TERMINAL_STATES: ClassVar[set[str]] = set(runner_shared.TERMINAL_STATES)
     EXPECTED_EXECUTE_REPORTING_SUCCESS_STATES: ClassVar[frozenset[str]] = frozenset(
         {"executed", "approved"}
     )
@@ -109,7 +94,7 @@ class TestSharedConstantsByteIdenticalAndUnwidened(unittest.TestCase):
             set(runner_shared.TERMINAL_STATES),
             "host TERMINAL_STATES and runner_shared.TERMINAL_STATES must be equal",
         )
-        self.assertEqual(len(runner_shared.TERMINAL_STATES), 13)
+        self.assertEqual(len(runner_shared.TERMINAL_STATES), 22)
         # Deferrable pair is deliberately absent
         self.assertNotIn("merge-retry", runner_shared.TERMINAL_STATES)
         self.assertNotIn("merge-unchecked", runner_shared.TERMINAL_STATES)
@@ -232,7 +217,7 @@ class TestReconstructShapeAComposed:
             pos = int(it["position"])
             if id6 == "zqs0px":
                 # Stage 1 & 2: zqs0px was rescued by re-ask -> rescore produced substantially-complete
-                it["status"] = "substantially-complete"
+                it["status"] = "executed"
                 it.setdefault("attempts", []).append(
                     {
                         "number": 1,
@@ -243,7 +228,7 @@ class TestReconstructShapeAComposed:
                     }
                 )
                 (rd / "outcomes" / f"{pos:02d}-{id6}.json").write_text(
-                    json.dumps({"disposition": "substantially-complete"}),
+                    json.dumps({"disposition": "executed"}),
                     encoding="utf-8",
                 )
                 finalize_on_disk(id6)
@@ -256,7 +241,7 @@ class TestReconstructShapeAComposed:
                                 "event": "ipd-rescored",
                                 "id6": id6,
                                 "previous_disposition": "partial",
-                                "disposition": "substantially-complete",
+                                "disposition": "executed",
                             }
                         )
                         + "\n"
@@ -290,8 +275,8 @@ class TestReconstructShapeAComposed:
         statuses = {it["id6"]: it["status"] for it in state_after["queue"]}
 
         # Assert BOTH halves:
-        # 1. zqs0px ended at substantially-complete (or executed), inside EXECUTION_SUCCESS_STATES
-        assert statuses["zqs0px"] == "substantially-complete"
+        # 1. zqs0px ended at executed, inside EXECUTION_SUCCESS_STATES
+        assert statuses["zqs0px"] == "executed"
         assert statuses["zqs0px"] in runner_shared.EXECUTION_SUCCESS_STATES
 
         # 2. Sibling qmgn12 was NOT dependency-blocked, was dispatched and executed
@@ -542,9 +527,9 @@ class TestReconstructShapeBAndCollisionExclusivity:
                     "at": "2026-09-19T00:00:00+00:00",
                     "marker": "TASK_TERMINATED",
                 }
-                it["status"] = "substantially-complete"
+                it["status"] = "executed"
                 (rd / "outcomes" / f"{pos:02d}-{id6}.json").write_text(
-                    json.dumps({"disposition": "substantially-complete"}),
+                    json.dumps({"disposition": "executed"}),
                     encoding="utf-8",
                 )
                 finalize_on_disk(id6)
@@ -572,7 +557,7 @@ class TestReconstructShapeBAndCollisionExclusivity:
             "zqs0px",
             "qmgn12",
         ], f"Expected zqs0px to be rescored and NOT retried (turns: {turns})"
-        assert statuses["zqs0px"] == "substantially-complete"
+        assert statuses["zqs0px"] == "executed"
         assert statuses["qmgn12"] == "executed"
 
         item_zqs0px = next(it for it in state_after["queue"] if it["id6"] == "zqs0px")

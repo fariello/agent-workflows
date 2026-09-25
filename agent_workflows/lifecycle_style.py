@@ -469,6 +469,13 @@ _RUNNER_ITEM_PAIRS: Tuple[Tuple[str, str], ...] = (
     # read from a durable run directory and a pre-rename run must keep its glyph and color.
     ("merge-needs-human", BLOCKED),
     ("merge-refused", BLOCKED),
+    ("fail-gate", BLOCKED),
+    ("fail-begin", BLOCKED),
+    ("fail-lane", BLOCKED),
+    ("fail-verify", FAILED),
+    ("fail-depend", BLOCKED),
+    ("fail-merge", BLOCKED),
+    ("not-run", ABANDONED),
     ("failed", FAILED),
     ("failed-safely", FAILED),
     ("not-attempted", ABANDONED),

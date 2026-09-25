@@ -390,7 +390,7 @@ class CrossHostSuccessBarEqualityTests(unittest.TestCase):
         )
         self.assertEqual(
             runner_shared.EXECUTION_SUCCESS_STATES,
-            {"executed", "substantially-complete"},
+            {"executed"},
         )
         for name in (
             "success_states_for_action",
@@ -818,7 +818,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 )
 
                 self.assertFalse(integrated, reason)
-                self.assertEqual(kind, "merge-refused")
+                self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
                 # Main is CLEAN: HEAD unmoved, no partial merge, no markers in the file.
                 self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
                 self.assertEqual(self._git(repo, "status", "--short"), "")
@@ -1061,7 +1061,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     kind,
-                    "merge-refused",
+                    runner_shared.INTEGRATION_REFUSAL_CONFLICT,
                     "a real conflict must stay the TERMINAL kind in any locale",
                 )
 
@@ -1126,7 +1126,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     # them asserting exactly what they asserted before (the revalidation gate still runs).
                     action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
                 )
-            self.assertEqual(kind, "merge-refused")
+            self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
             self.assertIn(["merge", "--abort"], calls)
             # The `mergemsg` contract: the conflicted path is named, from the conflict's STDOUT.
             self.assertIn("clash.txt", reason)
@@ -1147,17 +1147,23 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         another attempt or is lost for the run.
         """
         self.assertTrue(runner_shared.classify_integration_refusal("merge-retry"))
-        self.assertFalse(runner_shared.classify_integration_refusal("merge-refused"))
+        self.assertFalse(
+            runner_shared.classify_integration_refusal(
+                runner_shared.INTEGRATION_REFUSAL_CONFLICT
+            )
+        )
         first = runner_shared.decide_integration_deferral(
             integ_kind="merge-retry", attempts_used=1, limit=10
         )
         self.assertTrue(first.deferred)
         self.assertEqual(first.status, "merge-retry")
         conflict = runner_shared.decide_integration_deferral(
-            integ_kind="merge-refused", attempts_used=1, limit=10
+            integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT,
+            attempts_used=1,
+            limit=10,
         )
         self.assertFalse(conflict.deferred)
-        self.assertEqual(conflict.status, "merge-refused")
+        self.assertEqual(conflict.status, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
 
     def test_an_UNMEASURED_gate_refusal_is_DEFERRABLE_and_not_a_merge_conflict(self):
         """`l2mzxn`: "the gate could not measure" is not "the suite failed", and must not be terminal.
@@ -1196,7 +1202,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
             integ_kind="merge-unchecked", attempts_used=11, limit=10
         )
         self.assertFalse(exhausted.deferred)
-        self.assertEqual(exhausted.status, "merge-needs-human")
+        self.assertEqual(exhausted.status, runner_shared.INTEGRATION_BLOCKED_STATUS)
         self.assertIn("could not MEASURE", exhausted.reason)
 
     def test_the_refusal_site_RECLASSIFIES_only_an_unmeasured_revalidation(self):
@@ -1209,7 +1215,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         `l2mzxn` defect. All four cases are therefore pinned together.
         """
 
-        def _refuse(item, kind="merge-refused"):
+        def _refuse(item, kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT):
             with tempfile.TemporaryDirectory() as d:
                 state = {"options": {}, "queue": [item]}
                 decision = runner_shared.record_integration_refusal(
@@ -1253,7 +1259,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         )
         self.assertEqual(
             kind,
-            "merge-refused",
+            runner_shared.INTEGRATION_REFUSAL_CONFLICT,
             "a suite that RAN and failed is a verdict about the work; deferring it would spin the "
             "ladder against a failure repetition cannot fix",
         )
@@ -1262,7 +1268,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         # 3. NO RECORD AT ALL -> fail closed. A caller that recorded nothing has made no claim, and a
         #    real merge conflict never reaches the revalidation runner, so this is the conflict path.
         decision, kind = _refuse({"id6": "ccc"})
-        self.assertEqual(kind, "merge-refused")
+        self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
         self.assertFalse(decision.deferred)
 
         # 4. A PASSING record is never reinterpreted (the refusal came from elsewhere in the gate).
@@ -1272,7 +1278,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 "post_merge_revalidation": {"passed": True, "measured": True},
             }
         )
-        self.assertEqual(kind, "merge-refused")
+        self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
         self.assertFalse(decision.deferred)
 
     def test_the_terminal_verdict_NAMES_the_condition_instead_of_listing_four(self):
@@ -2058,7 +2064,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT, attempts_used=1
         )
         self.assertFalse(decision.deferred)
-        self.assertEqual(decision.status, "merge-refused")
+        self.assertEqual(decision.status, "fail-merge")
         self.assertIn("terminal on its first attempt", decision.reason)
         self.assertFalse(
             runner_shared.classify_integration_refusal(
@@ -2091,8 +2097,8 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
 
     def test_the_status_vocabulary_and_legacy_aliases(self):
         self.assertEqual(runner_shared.INTEGRATION_DEFERRED_STATUS, "merge-retry")
-        self.assertEqual(runner_shared.INTEGRATION_BLOCKED_STATUS, "merge-needs-human")
-        self.assertEqual(runner_shared.INTEGRATION_REFUSAL_CONFLICT, "merge-refused")
+        self.assertEqual(runner_shared.INTEGRATION_BLOCKED_STATUS, "fail-merge")
+        self.assertEqual(runner_shared.INTEGRATION_REFUSAL_CONFLICT, "fail-merge")
         self.assertEqual(
             runner_shared.INTEGRATION_REFUSAL_UNMEASURED, "merge-unchecked"
         )
@@ -2102,8 +2108,10 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         )
         expected_aliases = {
             "integration-deferred": "merge-retry",
-            "integration-blocked": "merge-needs-human",
-            "merge-conflict": "merge-refused",
+            "integration-blocked": "fail-merge",
+            "merge-conflict": "fail-merge",
+            "merge-needs-human": "fail-merge",
+            "merge-refused": "fail-merge",
             "integration-unmeasured": "merge-unchecked",
         }
         self.assertEqual(
@@ -2377,7 +2385,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         # Terminal non-success prerequisite still cascades
         state["queue"][0]["status"] = "merge-needs-human"
         self.assertTrue(oc_runipd.cascade_dependency_blocked(state))
-        self.assertEqual(state["queue"][1]["status"], "dependency-blocked")
+        self.assertEqual(state["queue"][1]["status"], "fail-depend")
 
         # Reconcile disposition passes deferral through
         for module in (oc_runipd, agy_runipd):
@@ -3815,6 +3823,7 @@ class ReintegrationVerbTests(unittest.TestCase):
         self.assertEqual(
             set(runner_shared.REINTEGRATABLE_STATUSES),
             {
+                "fail-merge",
                 "merge-needs-human",
                 "merge-refused",
                 "integration-blocked",

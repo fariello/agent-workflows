@@ -1626,7 +1626,7 @@ def derive_item_disposition(
             ),
         )
 
-    if status in ("reviewed", "not-attempted") and not get("attempts"):
+    if status in ("reviewed", "not-attempted", "not-run") and not get("attempts"):
         return ItemDisposition(
             SKIP_NOT_RUNNABLE,
             "{0} ({1})".format(SKIP_NOT_RUNNABLE, skip_reason_text(SKIP_NOT_RUNNABLE)),

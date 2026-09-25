@@ -79,6 +79,14 @@ KNOWN_ITEM_STATUSES = frozenset(
         # post-rename spellings (`l2mzxn`); both accepted so a pre-rename run still reads as known
         "merge-needs-human",
         "merge-refused",
+        "fail-gate",
+        "fail-begin",
+        "fail-lane",
+        "fail-verify",
+        "fail-depend",
+        "fail-merge",
+        "not-run",
+        "failed",
         # in-flight / recoverable
         "queued",
         "running",

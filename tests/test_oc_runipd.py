@@ -103,7 +103,7 @@ class DriverTests(unittest.TestCase):
                 "action": "execute",
             }
             disposition, _ = driver.reconcile_disposition(repo, item, run_dir, 0)
-            self.assertEqual(disposition, "substantially-complete")
+            self.assertEqual(disposition, "fail-gate")
 
     def test_selector_deduplication_supports_interleaved_set_resume(self):
         manifest_path = (
@@ -1118,7 +1118,7 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                     module.reconcile_interrupted(run_dir, state)
 
                 item = state["queue"][0]
-                self.assertEqual(item["status"], "substantially-complete")
+                self.assertEqual(item["status"], "fail-gate")
                 self.assertEqual(
                     item[runner_shared.RECOVERY_PROVENANCE_KEY],
                     runner_shared.RECOVERED_FROM_OUTCOME,
@@ -1136,9 +1136,7 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                 )
 
                 persisted = json.loads((run_dir / "state.json").read_text())
-                self.assertEqual(
-                    persisted["queue"][0]["status"], "substantially-complete"
-                )
+                self.assertEqual(persisted["queue"][0]["status"], "fail-gate")
 
                 events = [
                     json.loads(line)
@@ -1152,7 +1150,7 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                     if e.get("event") == "interrupted-recovered-from-outcome"
                 ]
                 self.assertEqual(len(recovered), 1, events)
-                self.assertEqual(recovered[0]["disposition"], "substantially-complete")
+                self.assertEqual(recovered[0]["disposition"], "fail-gate")
                 self.assertEqual(recovered[0]["id6"], "97df1z")
                 self.assertEqual(
                     [e for e in events if e.get("event") == "interrupted-detected"], []
@@ -1252,7 +1250,7 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                     module.reconcile_interrupted(run_dir, state)
                 self.assertEqual(
                     state["queue"][0]["status"],
-                    "substantially-complete",
+                    "fail-gate",
                     "a self-claimed `executed` must be DOWNGRADED; the plan's directory is the "
                     "only thing that may establish `executed`",
                 )
@@ -1374,7 +1372,7 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                     "a step proven to have finished must not be re-run; that would redo "
                     "committed work",
                 )
-                self.assertEqual(state["queue"][0]["status"], "substantially-complete")
+                self.assertEqual(state["queue"][0]["status"], "fail-gate")
                 self.assertNotIn("recovery_next", state["queue"][0])
 
                 # THE CONTROL: no outcome file, so no recovery, so the retry behaviour is UNCHANGED.
@@ -1473,24 +1471,23 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
                         review_success_states=module.SUCCESS_STATES,
                         parse_token=module.parse_dependency_token,
                     ).verdict
-                    # The cascade must NOT declare the dependent doomed in either case.
+                    # With interrupted promoted to TERMINAL_STATES (E-04) and EXECUTION_SUCCESS_STATES narrowed (E-05),
+                    # the cascade marks the dependent fail-depend for both cases.
+                    expected_cascaded = ["depend"]
                     self.assertEqual(
                         [
                             i["id6"]
                             for i in module.cascade_dependency_blocked(state, run_dir)
                         ],
-                        [],
-                        f"{label}: a recovered step is a terminal SUCCESS, so it is not a dead "
-                        "prerequisite and its dependent must not be cascaded to "
-                        "`dependency-blocked` as unsatisfiable",
+                        expected_cascaded,
                     )
 
                 from agent_workflows import runner_shared
 
                 self.assertEqual(
                     verdicts["plain"],
-                    runner_shared.DRAIN_BLOCK_TRANSIENT,
-                    "an `interrupted` prerequisite is non-terminal, so waiting may still pay off",
+                    runner_shared.DRAIN_BLOCK_PERMANENT,
+                    "an `interrupted` prerequisite is terminal (E-04), so a dependent must stop waiting",
                 )
                 self.assertEqual(
                     verdicts["recovered"],
@@ -3134,9 +3131,9 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             ):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
-            # begin was attempted; run_opencode was NEVER launched; item recorded blocked.
+            # begin was attempted; run_opencode was NEVER launched; item recorded fail-begin.
             self.assertEqual(calls, [("begin", "wir001")])
-            self.assertEqual(item["status"], "blocked")
+            self.assertEqual(item["status"], "fail-begin")
             self.assertIn("begin_refusal", item)
 
     def test_begin_precedes_run_opencode_on_success(self):
@@ -3290,7 +3287,7 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             self.assertEqual(
                 fin, [], "finalize must NOT fire without verification==verified"
             )
-            self.assertEqual(item["status"], "substantially-complete")
+            self.assertEqual(item["status"], "fail-gate")
             self.assertTrue(plan.is_file(), "plan must remain in pending/ (not forced)")
 
     def test_finalize_refusal_does_not_stamp_executed(self):
@@ -3344,7 +3341,7 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
             # A finalize REFUSAL must leave the child NOT executed with a recorded reason.
-            self.assertEqual(item["status"], "substantially-complete")
+            self.assertEqual(item["status"], "fail-gate")
             self.assertIn("finalize_refusal", item)
             self.assertTrue(
                 plan.is_file(), "plan must not be moved on finalize refusal"
@@ -3706,8 +3703,8 @@ class WorktreeIsolationTests(unittest.TestCase):
             ):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
-            # NOT faked executed; recorded as merge-conflict (driverfin-03 E-02) with a reason.
-            self.assertEqual(item["status"], "merge-refused")
+            # NOT faked executed; recorded as fail-merge (driverfin-03 E-02) with a reason.
+            self.assertEqual(item["status"], "fail-merge")
             self.assertIn("integration_deferral", item)
             # Plan did NOT move to main's executed/ (integration did not happen on main).
             self.assertFalse(
@@ -4123,8 +4120,8 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             ):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
-            # merge-conflict recorded, NOT executed.
-            self.assertEqual(item["status"], "merge-refused")
+            # fail-merge recorded, NOT executed.
+            self.assertEqual(item["status"], "fail-merge")
             self.assertIn("integration_deferral", item)
             # MAIN is pristine: HEAD unchanged, working tree clean (no markers/partial merge).
             main_head_after = subprocess.run(
@@ -6416,7 +6413,7 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                 finalize_calls, [], "finalize must NOT be called on CORRECTION_REQUIRED"
             )
             self.assertEqual(
-                item["status"], "partial", "item disposition must be partial"
+                item["status"], "fail-verify", "item disposition must be fail-verify"
             )
             # runverdict (`1bfppy`) E-05: the refusal must be DURABLE and ACTIONABLE, not merely
             # correct. Read through `r2i1b1`'s ONE reader, so this asserts the real surface the run
@@ -6516,7 +6513,7 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                 [],
                 "finalize must NOT be called on an unreadable verdict",
             )
-            self.assertEqual(item["status"], "partial")
+            self.assertEqual(item["status"], "fail-verify")
             self.assertEqual(item["verification_status"], "unverified")
             refusal = driver.refusal_of_item(item)
             self.assertIsNotNone(refusal)
@@ -6956,7 +6953,7 @@ class VerdictTruthTableTests(unittest.TestCase):
             run_state.STATE_CORRECTION_REQUIRED,
         )
         self.assertEqual(rs.map_verdict("VERIFIED").state, run_state.STATE_VERIFIED)
-        self.assertEqual(rs.map_verdict("BLOCKED").state, run_state.STATE_BLOCKED)
+        self.assertEqual(rs.map_verdict("BLOCKED").state, "fail-verify")
         self.assertEqual(
             rs.map_verdict("garbage").state, run_state.STATE_CORRECTION_REQUIRED
         )
