@@ -5713,6 +5713,11 @@ RETRYABLE_FINALIZE_FINDING_TEXTS: tuple[str, ...] = (
 #: refusal `finalize_precheck` can return under the same exit code.
 RETRYABLE_FINALIZE_SUMMARY: str = "pre-transition gate did NOT conform"
 
+#: The refusal SUMMARY that identifies a stale begin receipt refusal. Required in addition to the
+#: pre-transition summary, because it identifies the second retryable class: a stale begin receipt
+#: whose content digest changed since begin (and/or carries an answerable Scope-Paths reduction).
+RETRYABLE_STALE_RECEIPT_SUMMARY: str = "is STALE: the plan content changed since begin"
+
 #: The stable refusal CODE recorded on a refused item, so the summary, `aw runs`, and any later reader
 #: key on one machine-readable token. Consumed through r2i1b1's `Refusal` record, NOT a second field.
 FINALIZE_REFUSAL_CODE: str = "finalize-refused"
@@ -5737,15 +5742,29 @@ FINALIZE_RETRY_EXHAUSTED_STATUS: str = "failed-safely"
 def finalize_refusal_is_retryable(fin_msg: str) -> bool:
     """Is this finalize refusal in the RETRYABLE class a correction turn can safely fix?
 
-    A POSITIVE ALLOWLIST, requiring BOTH halves:
+    A POSITIVE ALLOWLIST partitioned into per-class arms. The admission test is "is this finding
+    answerable in one bounded turn" rather than spec 5.5's broad "changed frozen requirements"
+    category: the measured `xdvglg` case changed a frozen requirement AND was answerable, so the
+    spec's category does not discriminate the cases the runner actually meets. A stale receipt
+    and a scope reduction are answerable (re-run `aw ipd begin` / justify or revert the reduction)
+    and thus retryable, while an out-of-scope mutation or a missing receipt is not and stays terminal.
 
-      1. the refusal summary is the pre-transition gate's, and
-      2. EVERY finding line in the message is one of :data:`RETRYABLE_FINALIZE_FINDING_TEXTS`.
+    Arm 1 (pre-transition gate):
+      1. the refusal summary is :data:`RETRYABLE_FINALIZE_SUMMARY`, and
+      2. EVERY finding line in the message (located by the `IPD-` prefix) is one of
+         :data:`RETRYABLE_FINALIZE_FINDING_TEXTS`.
+
+    Arm 2 (stale begin receipt / scope reduction):
+      1. the refusal summary contains :data:`RETRYABLE_STALE_RECEIPT_SUMMARY`, and
+      2. EVERY finding line in the message is one of the answerable stale findings (the stale receipt
+         finding :data:`ipd_lifecycle.FINDING_RECEIPT_STALE` and/or the contract reduction finding
+         :data:`ipd_lifecycle.FINDING_SCOPE_REDUCED_INVARIANT`).
 
     Anything else returns False and the caller keeps today's behavior (preserve and report). That
-    "every finding" requirement is the load-bearing half: a message mixing an incomplete `V-*` with
-    an out-of-scope path must NOT be retried, because spec 5.5 puts out-of-scope mutation first on its
-    never-retry list, and a rule matching ANY retryable finding would retry it.
+    "every finding" requirement is load-bearing in both arms: a message mixing an incomplete `V-*`
+    with an out-of-scope path, or a stale receipt with a frozen requirement rewrite/widening, must NOT
+    be retried, because spec 5.5 puts out-of-scope mutation first on its never-retry list, and a rule
+    matching ANY retryable finding would retry it.
 
     FAIL-CLOSED IN BOTH DIRECTIONS. An empty or unparseable message is not retryable (no evidence of
     a safe class), and a message whose findings cannot be located is not retryable either.
@@ -5754,22 +5773,47 @@ def finalize_refusal_is_retryable(fin_msg: str) -> bool:
     text = (fin_msg or "").strip()
     if not text:
         return False
-    if RETRYABLE_FINALIZE_SUMMARY not in text:
-        return False
 
-    # The finding lines `aw ipd finalize` prints are `  <RULE> <detail>`, one per diagnostic. Locate
-    # them by the rule prefix rather than by indentation, which a wrapper could reflow.
-    finding_lines = [
-        line.strip() for line in text.splitlines() if line.strip().startswith("IPD-")
-    ]
-    if not finding_lines:
-        # The summary alone, with no enumerated findings, tells us only that the gate refused and NOT
-        # which class it refused on. Refuse to guess.
-        return False
-    for line in finding_lines:
-        if not any(token in line for token in RETRYABLE_FINALIZE_FINDING_TEXTS):
+    # Arm 1: Pre-transition gate refusal
+    if RETRYABLE_FINALIZE_SUMMARY in text:
+        # The finding lines `aw ipd finalize` prints are `  <RULE> <detail>`, one per diagnostic. Locate
+        # them by the rule prefix rather than by indentation, which a wrapper could reflow.
+        finding_lines = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip().startswith("IPD-")
+        ]
+        if not finding_lines:
+            # The summary alone, with no enumerated findings, tells us only that the gate refused and NOT
+            # which class it refused on. Refuse to guess.
             return False
-    return True
+        for line in finding_lines:
+            if not any(token in line for token in RETRYABLE_FINALIZE_FINDING_TEXTS):
+                return False
+        return True
+
+    # Arm 2: Stale begin receipt refusal (answerable: digest mismatch and/or scope reduction)
+    if RETRYABLE_STALE_RECEIPT_SUMMARY in text:
+        from agent_workflows import ipd_lifecycle
+
+        finding_lines = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and RETRYABLE_STALE_RECEIPT_SUMMARY not in line
+        ]
+        if not finding_lines:
+            # Summary alone with no enumerated findings: refuse to guess.
+            return False
+        allowed_stale_findings = (
+            ipd_lifecycle.FINDING_RECEIPT_STALE,
+            ipd_lifecycle.FINDING_SCOPE_REDUCED_INVARIANT,
+        )
+        for line in finding_lines:
+            if not any(token in line for token in allowed_stale_findings):
+                return False
+        return True
+
+    return False
 
 
 def finalize_retry_attempts(item: Mapping[str, Any]) -> int:
