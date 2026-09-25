@@ -290,6 +290,7 @@ class RunViewerTests(TestCase):
 
         formatted_short = run_viewer.format_run_human(summary, term, short=True)
         self.assertIn("│ Status", formatted_short)
+        self.assertIn("Landed", formatted_short)
         self.assertIn("Item", formatted_short)
         self.assertIn("Action", formatted_short)
         self.assertIn("Verified", formatted_short)

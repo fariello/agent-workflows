@@ -9,6 +9,7 @@
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the blocked-cluster illustration now names merge-needs-human instead of integration-blocked. Prose-only, one-for-one with the renamed vocabulary; no rule, class mapping or surfacing behavior changed.
 ## 0. Concepts (kept distinct)
 
@@ -118,7 +119,7 @@ and correctly does not apply. The gate's own call site records this honest limit
 - Spec `7ckptx` (approved) R3.2 forbids prompting on missing input, because an unattended turn has no
   answerer (`lane_containment.py:1853-1856`). THIS SPEC HONORS IT: the worker never prompts. R7 keeps the
   unattended path fail-closed.
-- `dependency-blocked` is the precedent for park-and-continue (`oc_runipd.py:324`, propagation `:4227`).
+- `fail-depend` (legacy `dependency-blocked`) is the precedent for park-and-continue (`oc_runipd.py:324`, propagation `:4227`).
 - `lane_preserved_for_missing_input` (`oc_runipd.py:6795-6815`) already preserves and pauses a lane "so its
   evidence is not destroyed", and `:4414-4440` already resolves `preserved_lane_id`/`preserved_base`/
   `preserved_branch` as the MOST authoritative source when a later turn resumes that work.
@@ -259,7 +260,7 @@ an attention surface and a resume path is the bulk of this spec. A reader must n
 - **R3.5** Parking MUST propagate to dependents, because a dependent of an unanswered artifact cannot be
   reviewed or executed honestly. Reuse the reverse-edge fixed-point propagation of `:4227-4281`.
 - **R3.6 (FAIL-OPEN HAZARD, stated because the analogous code does the opposite).** When no queued item is
-  satisfiable, the existing selection loop marks EVERY remaining item `dependency-blocked` and BREAKS out
+  satisfiable, the existing selection loop marks EVERY remaining item `fail-depend` (legacy `dependency-blocked`) and BREAKS out
   of the run (`oc_runipd.py:352`). A drain caused by parked questions MUST NOT be treated as run failure
   and MUST NOT mark unrelated items blocked. Getting this wrong reproduces exactly the head-of-line stall
   this spec exists to prevent.
@@ -347,7 +348,7 @@ display implies. A question that exists and is invisible is the same as a questi
   unrecognized (so `awaiting-human` would render as `awaitin` today). REQUIREMENT: add `awaiting-human` to
   that mapping explicitly with a distinct label, do NOT let it reach the truncation fallback, and do NOT
   fold it into the `blocked` group, which is where an implementer pattern-matching on the existing
-  `blocked`/`dependency-blocked`/`merge-needs-human` cluster would naturally put it. The `ready` half of
+  `fail-gate`/`fail-depend`/`fail-merge` (legacy `blocked`/`dependency-blocked`/`merge-needs-human`) cluster would naturally put it. The `ready` half of
   OQ-01's ruling is satisfied by the artifact status being untouched, which is worth stating so nobody
   "fixes" it by editing the artifact.
 
@@ -448,7 +449,7 @@ CLASSIFICATION (R2.5) is broken, not evidence that the human owes 74 decisions.
 - **A7** (R3.5) A dependent of a parked item is itself parked, to a fixed point, with a reason naming the
   upstream question.
 - **A8** (R3.6) A queue drained entirely by parked questions exits non-failure, and no unrelated item is
-  marked `dependency-blocked`. This is the regression test for the fail-open hazard.
+  marked `fail-depend` (legacy `dependency-blocked`). This is the regression test for the fail-open hazard.
 - **A9** (R4.1, R4.2) 74 artifacts raising the same fingerprint produce ONE prompt, and one answer resolves
   all 74.
 - **A10** (R4.3) Ordering is by unblock count descending, asserted on a fixture with known counts.

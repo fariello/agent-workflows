@@ -24902,6 +24902,85 @@ def canonical_terminal_status(status: Any) -> str:
     return TERMINAL_STATUS_ALIASES.get(status, status)
 
 
+# statusvocab (`9x7otz`) E-01: Shared directory-to-verdict predicate for run summary Landed column.
+LANDED_YES = "yes"
+LANDED_NO = "no"
+LANDED_NA = "n/a"
+LANDED_UNKNOWN = "unknown"
+
+_TERMINAL_NON_EXECUTED_DIRS: frozenset[str] = frozenset(
+    {"superseded", "not-executed", "reusable"}
+)
+
+
+def landed_verdict(actual: Any) -> str:
+    """Map an artifact's disposition directory, path, or audit record to a landed verdict.
+
+    Returns one of four values:
+      - 'yes': artifact is in 'executed' (including monthly shards like 'executed/YYYYMM/')
+      - 'no': artifact is in 'pending'
+      - 'n/a': artifact is in a terminal/standing non-executed directory ('superseded', 'not-executed', 'reusable')
+      - 'unknown': artifact is missing, unresolvable, or in an unrecognized directory
+
+    This predicate derives landedness strictly from the disk disposition directory and NEVER
+    reads recorded status, self-reported attempt dispositions, or outcome files.
+    """
+    if actual is None:
+        return LANDED_UNKNOWN
+
+    if getattr(actual, "missing_entirely", False):
+        return LANDED_UNKNOWN
+
+    actual_path = getattr(actual, "actual_path", None)
+    if actual_path is not None:
+        p = Path(actual_path)
+        parent = p.parent.name
+        if re.fullmatch(r"\d{6}", parent):
+            dir_name = p.parent.parent.name
+        else:
+            dir_name = parent
+    elif getattr(actual, "actual_dir", None):
+        dir_name = actual.actual_dir
+    elif isinstance(actual, Path):
+        if actual.suffix or actual.is_file():
+            parent = actual.parent.name
+            if re.fullmatch(r"\d{6}", parent):
+                dir_name = actual.parent.parent.name
+            else:
+                dir_name = parent
+        elif re.fullmatch(r"\d{6}", actual.name):
+            dir_name = actual.parent.name
+        else:
+            dir_name = actual.name
+    elif isinstance(actual, str):
+        if not actual:
+            return LANDED_UNKNOWN
+        if "/" in actual or "\\" in actual:
+            p = Path(actual)
+            if p.suffix:
+                parent = p.parent.name
+                if re.fullmatch(r"\d{6}", parent):
+                    dir_name = p.parent.parent.name
+                else:
+                    dir_name = parent
+            elif re.fullmatch(r"\d{6}", p.name):
+                dir_name = p.parent.name
+            else:
+                dir_name = p.name
+        else:
+            dir_name = actual
+    else:
+        return LANDED_UNKNOWN
+
+    if dir_name == "executed":
+        return LANDED_YES
+    elif dir_name == "pending":
+        return LANDED_NO
+    elif dir_name in _TERMINAL_NON_EXECUTED_DIRS:
+        return LANDED_NA
+    return LANDED_UNKNOWN
+
+
 # ---- rununify: recovery routing ------------------------------------------------------------------
 
 DISPOSITION_FRESH_EXECUTION = "fresh-execution"

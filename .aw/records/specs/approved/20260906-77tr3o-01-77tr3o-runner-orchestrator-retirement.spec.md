@@ -14,6 +14,7 @@
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-24 note (aw specs): AMENDED 2026-09-24 (IPD kjqqzf): R-12(3)'s stale "zero occurrences of 'orchestrator'" sentence is corrected to reflect the behavioral Kind-parity property (the pre-transition checkpoint produces identical findings for an orchestrator and a child), matching the replacement of the source-text pin with a behavioral test in tests/test_orchestrator_retirement.py::TheRejectedShapeWasNotTaken after IPD-S407 landed in ipd_lint.py.
 - 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the non-success terminal status list now names merge-needs-human and merge-refused rather than integration-blocked and merge-conflict. A pure one-for-one renaming of the same two statuses; the retirement rule itself is unchanged, and both pre-rename spellings remain recognized at read time via runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES so an already-recorded run still classifies identically. Verified: tests/test_orchestrator_retirement.py passes.
 ## 1. Why this exists
@@ -164,8 +165,8 @@ so the asymmetry is known in passing but unfixed.
   outstanding child still retires the orchestrator. The queue remains the source of what to DISPATCH; it
   is not the source of Set membership.
 - R-2 RETIREMENT IS GATED ON EVERY CHILD BEING `executed`. No other state qualifies. In particular
-  `substantially-complete` does NOT (it means finalize refused, see `i452hf`), nor do `blocked`,
-  `dependency-blocked`, `merge-needs-human`, `merge-refused`, `reviewed`, or `approved`.
+  `substantially-complete` does NOT (it means finalize refused, see `i452hf`), nor do `fail-gate` (legacy `blocked`, `failed-safely`),
+  `fail-depend` (legacy `dependency-blocked`), `fail-merge` (legacy `merge-needs-human`, `merge-refused`), `fail-verify` (legacy `partial`), `reviewed`, or `approved`.
 - R-3 A SET WHOSE CHILD SET IS NOT FULLY AUTHORED MUST NOT BE RETIRED. Per 2.5. The refusal MUST name
   the reason so it is distinguishable from an unfinished-children refusal.
 - R-4 THE TRANSITION MUST BE HONEST ABOUT WHAT IT IS. The terminal history entry MUST record that the

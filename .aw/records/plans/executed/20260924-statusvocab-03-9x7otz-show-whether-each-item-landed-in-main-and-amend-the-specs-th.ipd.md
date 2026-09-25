@@ -6,7 +6,7 @@
 - Scope: Add a `Landed` column to the run summary derived from the plan's terminal DIRECTORY, and amend the eight specs that name a legacy status token so the contract matches the vocabulary Order 01 ships. IN: the run summary table and its renderer, the directory-derived predicate that feeds the column, and the eight spec files in their real status subdirectories. OUT: deriving the column from any recorded status or self-report (the whole point is that it is independent of both), changing the status vocabulary itself (Order 01 owns it), and changing what any gate refuses.
 - Scope-Paths: agent_workflows/run_viewer.py, agent_workflows/runner_shared.py, tests/test_run_summary_table.py, tests/test_run_viewer.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, .aw/records/specs/approved/20260912-6kwd2e-01-6kwd2e-midrun-question-surfacing.spec.md, .aw/records/specs/to-review/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md, .aw/records/specs/draft/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md, .aw/records/specs/implementing/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md
 - Item-Dependencies: executed:cyamvi
-- Status: approved
+- Status: executed
 - Set: statusvocab
 - Order: 3
 - Highest E allocated: 03
@@ -16,9 +16,9 @@
 - Readiness: go-pending-approval
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 9x7otz
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: 9x7otz verified (set statusvocab, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-24 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, none deferred, none open; OQ-01 RESOLVED from repository evidence so no open questions remain; readiness `go-pending-approval`. Record: `.aw/records/reviews/20260924-statusvocab-03-9x7otz-show-whether-each-item-landed-in-main-and-amend-the-specs-th.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW; the two serious findings came from COUNTING the specs it claims to enumerate and READING the renderer it proposes to change. WHAT HOLDS: all eight declared spec paths EXIST at their declared subdirectories (notable, since sibling `cyamvi`'s round 1 found all seven of its spec paths stale, and this plan already absorbed that correction); the directory-is-the-authority premise is correctly cited; and F-01's directional framing is right. PR-001 (HIGH): "THE EIGHT SPECS THAT NAME A LEGACY STATUS TOKEN" is a false completeness claim repeated in four places - measured tree-wide, 23 `.spec.md` files carry a legacy token. The eight are a defensible SCOPE JUDGEMENT and a false CENSUS, and the plan recorded no exclusion rule, so an executor re-deriving it would find 23 and could not tell which 15 were excluded or why. E-03 now carries the rule (ordinary-English usage, or `superseded/`) with the excluded files named, forbids widening, and requires the census re-derived with any undeclared status-literal file REPORTED rather than edited. PR-002 (HIGH): E-01 would have added a SECOND resolver for a fact the table already computes per row, and the second one is wrong - `ArtifactAudit.actual_dir` climbs a monthly shard via `_disposition_dir`, while `plan_bucket` returns the raw parent segment, so an archived `executed/YYYYMM/` plan would read `202608` and the column would report a LANDED plan as not landed, which is the exact false-negative class F-01 exists to prevent. PR-003: `render_steps_table` has TWO column variants (5-header `short`, 9-header default), each with its own `headers`/`aligns`/`rows.append` triple, and the plan named one. PR-004: V-02 required `aw runs` output from `.aw/records/runs/`, which is gitignored and absent from a lane, with no fallback. PR-005: the gate was one sentence; for the Set's only spec-amending child the missing do-not-edit-an-undeclared-spec rule was the costliest omission. Four decisions recorded (D-1 OQ-01 resolved to a four-value mapping on `TERMINAL_DIRECTORY_SEGMENTS` and `classify_difference` evidence, D-2 keep 8 rather than widen to 23, D-3 no ninth spec needed since `0718` and `uonrjg` are already declared, D-4 the gitignored run directory is absent and its claims were corroborated by proxy). NOTE FOR APPROVAL: the consequential half is EIGHT SPEC AMENDMENTS, five to `approved` specs.
 - 2026-09-24 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-001..PR-005 all FIXED, none deferred, none open; OQ-01 resolved from evidence (D-1), so no open questions remain. PR-001: 'the eight specs that name a legacy status token' is a false completeness claim - 23 spec files carry one; the eight are the right scope judgement, so E-03 now records the exclusion rule and requires the census re-derived with any undeclared status-literal file reported rather than edited. PR-002: E-01 would add a second resolver for a fact the table already computes, and plan_bucket returns the raw parent segment where ArtifactAudit.actual_dir climbs a monthly shard, so an archived executed/YYYYMM/ plan would have read as not landed. PR-003: render_steps_table has two column variants each with its own headers/aligns/row triple. PR-004: V-02 required evidence from a gitignored directory absent in a lane, with no fallback. PR-005: the gate was one sentence and, for the Set's only spec-amending child, lacked the do-not-edit-an-undeclared-spec rule. Record: .aw/records/reviews/20260924-statusvocab-03-9x7otz-show-whether-each-item-landed-in-main-and-amend-the-specs-th.review.md. Readiness go-pending-approval.
@@ -36,30 +36,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the operator-facing fact
 
-- [ ] E-01 DERIVE `Landed` FROM THE PLAN'S TERMINAL DIRECTORY AND FROM NOTHING ELSE, REUSING THE DIRECTORY FACT THE TABLE ALREADY COMPUTES. DO NOT derive it from the recorded status, from the attempt's disposition, or from any field an agent writes: independence from self-report is the property, not an implementation detail, and F-01 measures three items where status and landedness disagree.
+- [x] E-01 DERIVE `Landed` FROM THE PLAN'S TERMINAL DIRECTORY AND FROM NOTHING ELSE, REUSING THE DIRECTORY FACT THE TABLE ALREADY COMPUTES. DO NOT derive it from the recorded status, from the attempt's disposition, or from any field an agent writes: independence from self-report is the property, not an implementation detail, and F-01 measures three items where status and landedness disagree.
 
   REUSE, DO NOT ADD A SECOND RESOLVER (corrected at review, PR-002). `render_steps_table` already calls `audit_step_artifact` ONCE PER ROW, and the `ArtifactAudit` it returns already carries `actual_dir`, computed by `artifact_audit._disposition_dir`, which is the plan's disposition directory and ALREADY CLIMBS A MONTHLY SHARD (`executed/202608/` resolves to `executed`, by an explicit `re.fullmatch(r"\d{6}", parent)` branch). A fresh `plan_bucket` call in the renderer would be a SECOND path to one fact, would re-resolve the plan path per row, and - the actual defect - `plan_bucket` returns the raw parent segment, so an ARCHIVED plan would read its shard (`202608`) instead of `executed` and the column would say a landed plan did not land. So derive the column from the audit already in hand. Keep the predicate itself SHARED and thin (a pure directory-name-to-verdict mapping, so both hosts and any later surface reach one object) and feed it `audit.actual_dir`; the plan's `- Scope-Paths:` already declares `runner_shared.py` for that predicate. `edge_satisfied`'s `executed:` branch remains the precedent for WHY the directory is the authority, and is not the code to copy.
   - Depends on: none
   - Expected outcome: one shared directory-to-verdict predicate, fed from the per-row `ArtifactAudit` the table already builds; no second plan-path resolution added to the renderer; an archived `executed/YYYYMM/` plan reads as landed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 RENDER THE COLUMN IN THE RUN SUMMARY TABLE, beside `Status` rather than replacing it, because the two are independent facts and the DISAGREEMENT between them is diagnostic. Keep the existing columns unchanged. A replayed historical run must render without error, which means the column must tolerate a plan that has since moved, been superseded, or been deleted, and must say so rather than guessing.
+- [x] E-02 RENDER THE COLUMN IN THE RUN SUMMARY TABLE, beside `Status` rather than replacing it, because the two are independent facts and the DISAGREEMENT between them is diagnostic. Keep the existing columns unchanged. A replayed historical run must render without error, which means the column must tolerate a plan that has since moved, been superseded, or been deleted, and must say so rather than guessing.
 
   `render_steps_table` HAS TWO COLUMN VARIANTS AND BOTH MUST BE UPDATED (added at review, PR-003): the `short` branch renders 5 headers (`Status`, `Item`, `Action`, `Verified`, `Issue`) and the default branch renders 9 (adding `Attempts`, `Elapsed`, `Cost`, `Total Tok`). Each has its OWN `headers` list, its OWN parallel `aligns` list, and its OWN `rows.append([...])`, so a column added to one variant and not the other silently vanishes from half the surfaces, and a `headers`/`aligns`/row-cell length mismatch skews the box art rather than raising. Update all three lists in BOTH branches.
 
   DO NOT ADD A GLYPH TO THIS CELL. `render_box_table` measures width with `len(strip_ansi(cell))` rather than by rendered width, which the module records as the reason the `Status` column carries no glyph: a 2-code-point, 1-column grapheme over-counts its column and skews the border. Use plain words plus color, which is also what keeps the column readable under `NO_COLOR` and in a pipe.
   - Depends on: E-01
   - Expected outcome: `aw runs` shows `Landed` per item in BOTH the short and the full variant, with `headers`/`aligns`/row-cells the same length in each; a historical run renders; a missing plan reads as unknown rather than as `no`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the contract
 
-- [ ] E-03 AMEND THE EIGHT DECLARED SPECS THAT DESCRIBE A LEGACY TOKEN AS A VALUE A RUNNER WRITES, stating in each that legacy tokens remain READABLE FOREVER and are no longer WRITTEN. The read-versus-write sentence is required, not decorative: without it a later reader concludes the old spelling is invalid input and "fixes" the back-compatibility path Order 01 built for gitignored historical run directories. THE EIGHT ARE DECLARED AT THEIR REAL PATHS ACROSS FOUR STATUS SUBDIRECTORIES (`approved/` x5, `to-review/`, `draft/`, `implementing/`), each verified to exist at review; two are NOT `approved` (`z7nbn1` is `to-review`, `i4gpto` is `draft`) and amending a non-approved spec is legitimate but must be stated so a reviewer is not surprised.
+- [x] E-03 AMEND THE EIGHT DECLARED SPECS THAT DESCRIBE A LEGACY TOKEN AS A VALUE A RUNNER WRITES, stating in each that legacy tokens remain READABLE FOREVER and are no longer WRITTEN. The read-versus-write sentence is required, not decorative: without it a later reader concludes the old spelling is invalid input and "fixes" the back-compatibility path Order 01 built for gitignored historical run directories. THE EIGHT ARE DECLARED AT THEIR REAL PATHS ACROSS FOUR STATUS SUBDIRECTORIES (`approved/` x5, `to-review/`, `draft/`, `implementing/`), each verified to exist at review; two are NOT `approved` (`z7nbn1` is `to-review`, `i4gpto` is `draft`) and amending a non-approved spec is legitimate but must be stated so a reviewer is not surprised.
 
   THE SCOPE IS A JUDGEMENT, NOT A CENSUS, AND THE DIFFERENCE IS LOAD-BEARING (corrected at review, PR-001). Measured across the whole specs tree at review, TWENTY-THREE `.spec.md` files contain at least one legacy token, not eight. The declared eight are the ones this plan judges to describe the RUNNER'S WRITTEN VOCABULARY; the other fifteen are deliberately EXCLUDED, and the exclusion rule is: a file is out of scope when its occurrences are (a) the ordinary English word `blocked`/`partial` rather than a status literal, which is the bulk of them (`attention-visible-backlog-tier` 29, `attention-registry-and-cross-tree-status` 10, `release-record-and-blocker-gate` 9, `ipd-structure-and-linting` 9+3, `llbr2b` 2, `ipd-spec` 2, `agents-artifact-organization` 2, `uniform-artifact-naming-grammar` 1, `2vev8j` 1, `r07vma` 2, `pip-distribution` 1, `physical-aw-hierarchy` 1, `command-surface-redesign` 1), or (b) in a `superseded/` spec that must not be rewritten (`aw-project-layout-storage-wizard-and-state`, `setid-uniqueness-across-types-and-graduation-links`). DO NOT SILENTLY WIDEN TO 23: a spec using `blocked` as English is not stale, and editing it would churn an approved contract for nothing. DO RE-DERIVE the census at execution and REPORT any file that carries a status LITERAL and is not declared, because that is a genuine miss this plan would otherwise ship; if one is found, report it rather than editing an undeclared path, since the finalize scope gate reconciles declared against actual.
   - Depends on: none
   - Expected outcome: none of the eight DECLARED specs names a legacy token as a value a runner writes; each carries the read-versus-write distinction; `aw specs check` conforming; the re-derived census reported with any undeclared status-literal file named rather than edited.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -85,8 +85,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Deriving `Landed` from a recorded status or an agent's outcome file: independence from self-report is the property this plan exists to add.
+  - Carrier-Declined: Deliberately out of scope; independence from self-report is the core design goal of this plan.
 - Changing the status vocabulary: Order 01 (`cyamvi`) owns it, and this plan depends on it being executed first.
+  - Carrier-Evidence: .aw/records/plans/executed/20260924-statusvocab-01-cyamvi-rename-the-terminal-status-vocabulary-so-a-label-names-its-r.ipd.md
 - Adding a landed column to `aw attention` or any other surface: this plan changes the RUN SUMMARY, and a second surface is a separate decision with its own consumers.
+  - Carrier-Declined: Separate design decision with its own surface consumers; not requested or needed for run summary table.
 
 ## Scope check
 
@@ -108,21 +111,105 @@ EIGHT SPECS ARE AMENDED AND ALL EIGHT ARE DECLARED, at their real paths across f
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the predicate's answer for the three F-01 counter-examples (`yeh7gc`, `m7gvuz`, `xdvglg`) showing `Landed` = yes DESPITE a non-`executed` recorded status, and for one genuinely stranded item showing no. Paste proof the predicate reads no status field and no outcome file, by inspection of its inputs. ALSO paste all four values of the OQ-01 mapping driven from real records: `yes` for an `executed/` plan, `n/a` for `nmlx47` in `superseded/`, `no` for a plan still in `pending/`, and `unknown` for an unresolvable id6. AND paste an ARCHIVED `executed/YYYYMM/` case reading `yes` rather than its shard name, since that is the specific defect PR-002 identified; if no archived plan exists in the tree at execution, construct a synthetic path and say so.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified four-way mapping and directional independence across F-01 counterexamples, stranded/archived items, and AST/inspector checks:
+    Predicate signature and docstring:
+    ```python
+    def landed_verdict(actual: Any) -> str:
+        """Map an artifact's disposition directory, path, or audit record to a landed verdict.
 
-- [ ] V-02 validates E-02
+        Returns one of four values:
+          - 'yes': artifact is in 'executed' (including monthly shards like 'executed/YYYYMM/')
+          - 'no': artifact is in 'pending'
+          - 'n/a': artifact is in a terminal/standing non-executed directory ('superseded', 'not-executed', 'reusable')
+          - 'unknown': artifact is missing, unresolvable, or in an unrecognized directory
+
+        This predicate derives landedness strictly from the disk disposition directory and NEVER
+        reads recorded status, self-reported attempt dispositions, or outcome files.
+        """
+    ```
+    F-01 counterexamples and stranded plan verification:
+    ```text
+    yeh7gc (status=dependency-blocked, dir=executed): Landed = yes
+    m7gvuz (status=failed-safely, dir=executed): Landed = yes
+    xdvglg (status=substantially-complete, dir=executed): Landed = yes
+    strnd1 (status=executed, dir=pending): Landed = no
+    ```
+    OQ-01 Four-way mapping on real and synthetic records:
+    ```text
+    executed (cyamvi @ executed): Landed = yes
+    superseded (20260917-hostdedup-02-nmlx47-unify-the-twelve-small-divergent-symbols-behind-hostlabels.ipd.md @ superseded): Landed = n/a
+    pending (9x7otz @ pending): Landed = no
+    unresolvable missing id6: Landed = unknown
+    archived synthetic path (.aw/records/plans/executed/202608/20260815-test-01-arch01-slug.ipd.md): Landed = yes
+    ```
+    Inspection confirms `landed_verdict` reads ONLY the disk disposition directory (`actual_path`, `actual_dir`, or `Path`/string segment) and never inspects `run_status`, `disposition`, `file_status`, or outcome files.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `aw runs` for `run-20260924T050407Z-3108751` showing the `Landed` column. THE BAR IS DIRECTIONAL: `Landed` must agree with the DIRECTORY for every item, and must NOT be required to agree with the STATUS column; paste the three rows where they legitimately disagree as expected output rather than as failures. Paste a replayed run whose plan has since moved, showing unknown rather than a guess. PASTE BOTH TABLE VARIANTS (the `short` 5-column form and the default 9-column form), since PR-003 found each has its own `headers`/`aligns`/row-cell triple and a column added to one alone vanishes from the other. Paste one run rendered with color DISABLED (`NO_COLOR=1` or piped) proving the verdict is readable as a WORD and not by color alone, per the repository's own redundant-cue rule.
   - NOTE ON THE CITED RUN: `.aw/records/runs/` is gitignored, so this directory may be absent at execution in a fresh clone or a lane. If it is, say so and substitute a synthetic run directory carrying the same three status-versus-landed disagreements rather than skipping the evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified short and default table renderings on synthetic runs with directional disagreements and NO_COLOR plain text vs ANSI colors:
+    `.aw/records/runs/run-20260924T050407Z-3108751` is absent in this isolated lane worktree (gitignored directory). Rendered on a synthetic run directory reproducing the exact three F-01 status-versus-landed disagreements (`yeh7gc`, `m7gvuz`, `xdvglg`) alongside a stranded pending item, a superseded item, and a missing item:
 
-- [ ] V-03 validates E-03
+    Default 10-column variant (`NO_COLOR` / plain text):
+    ```text
+    ╭─────────────┬─────────┬────────────────────────┬─────────┬──────────┬─────────┬───────┬───────────┬──────────┬───────╮
+    │ Status      │ Landed  │ Item                   │ Action  │ Attempts │ Elapsed │  Cost │ Total Tok │ Verified │ Issue │
+    ├─────────────┼─────────┼────────────────────────┼─────────┼──────────┼─────────┼───────┼───────────┼──────────┼───────┤
+    │ fail-depend │ yes     │ 20260920-set-01-yeh7gc │ execute │        1 │   01:23 │ $1.50 │     5.00K │ yes      │ YES   │
+    │ fail-gate   │ yes     │ 20260920-set-02-m7gvuz │ execute │        1 │   02:10 │ $2.00 │     8.00K │ yes      │ YES   │
+    │ fail-gate   │ yes     │ 20260920-set-03-xdvglg │ execute │        1 │   00:45 │ $0.75 │     3.00K │ yes      │ YES   │
+    │ executed    │ no      │ 20260920-set-04-strnd1 │ execute │        2 │   03:00 │ $3.50 │    12.00K │ no       │ YES   │
+    │ superseded  │ n/a     │ 20260920-set-05-nmlx47 │ execute │        - │       - │     - │         - │ -        │ no    │
+    │ fail-gate   │ unknown │ 20260920-set-06-miss01 │ execute │        1 │       - │     - │         - │ -        │ YES   │
+    ╰─────────────┴─────────┴────────────────────────┴─────────┴──────────┴─────────┴───────┴───────────┴──────────┴───────╯
+    ```
+
+    Short 6-column variant (`NO_COLOR` / plain text):
+    ```text
+    ╭─────────────┬─────────┬────────────────────────┬─────────┬──────────┬───────╮
+    │ Status      │ Landed  │ Item                   │ Action  │ Verified │ Issue │
+    ├─────────────┼─────────┼────────────────────────┼─────────┼──────────┼───────┤
+    │ fail-depend │ yes     │ 20260920-set-01-yeh7gc │ execute │ yes      │ YES   │
+    │ fail-gate   │ yes     │ 20260920-set-02-m7gvuz │ execute │ yes      │ YES   │
+    │ fail-gate   │ yes     │ 20260920-set-03-xdvglg │ execute │ yes      │ YES   │
+    │ executed    │ no      │ 20260920-set-04-strnd1 │ execute │ no       │ YES   │
+    │ superseded  │ n/a     │ 20260920-set-05-nmlx47 │ execute │ -        │ no    │
+    │ fail-gate   │ unknown │ 20260920-set-06-miss01 │ execute │ -        │ YES   │
+    ╰─────────────┴─────────┴────────────────────────┴─────────┴──────────┴───────╯
+    ```
+
+    Color-enabled ANSI rendering:
+    - `"yes"` rendered with `\033[38;5;46myes\033[0m` (green)
+    - `"no"` rendered with `\033[38;5;196mno\033[0m` (red)
+    - `"n/a"` rendered with `\033[38;5;245mn/a\033[0m` (dimmed)
+    - `"unknown"` rendered with `\033[38;5;214munknown\033[0m` (yellow)
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the amended section from each of the eight specs, and `aw specs check` conforming. Paste the read-versus-write sentence verbatim from at least three, including one of the two non-`approved` specs, and state that amending a `to-review`/`draft` spec was deliberate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified specs check passing and read-versus-write compatibility note across all 8 declared specs in 4 status subdirectories:
+    `aw specs check` output:
+    ```text
+    aw specs check: all specs conform.
+    ```
+    Amending non-approved specs `z7nbn1` (`to-review`) and `i4gpto` (`draft`) was DELIBERATE to ensure contract consistency across all status subdirectories where runner status vocabulary was described.
+
+    Read-versus-write sentence verbatim from 4 specs:
+    1. From `25kzda` (`approved`):
+       "Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner."
+    2. From `77tr3o` (`approved`):
+       "Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner."
+    3. From `z7nbn1` (`to-review`, deliberate non-approved amendment):
+       "Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner."
+    4. From `i4gpto` (`draft`, deliberate non-approved amendment):
+       "Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner."
+
+    Re-derived census of the entire `.aw/records/specs/` tree:
+    Every `.spec.md` file mentioning a status literal is within the 8 declared specs. Zero undeclared `.spec.md` files carry status literals or were modified.
+  - Result: pass
 
 ## Approval and execution gate
 
