@@ -1,5 +1,5 @@
 - Id: 7a53rm
-- Status: graduated
+- Status: done
 - Graduated-To: gatesev
 - Blocks-Release: next
 - Set: 7a53rm
@@ -8,6 +8,7 @@
 - Summary: aw commit and aw work begin refuse on ANY non-info plan finding, so any advisory warning rule silently acquires commit-blocking authority
 
 ## Workflow history
+- 2026-09-25 set (aw backlog): closed by aw oc run: IPD s7cu7n executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260924-gatesev-01-s7cu7n-make-aw-commit-and-aw-work-begin-block-only-on-error-severit.ipd.md); evidence .aw/records/plans/executed/20260924-gatesev-01-s7cu7n-make-aw-commit-and-aw-work-begin-block-only-on-error-severit.ipd.md
 - 2026-09-25 graduated (aw set): graduated into gatesev plan s7cu7n (to-review)
 - 2026-09-20 created (aw backlog): Measured while introducing check.ipd-lint (lintreach k9awrq): at warning severity the advisory rule refused aw commit.
 
