@@ -9874,8 +9874,17 @@ def reconcile_item_on_interrupt(
     if lane is not None:
         holds_work = bool(lane["holds_work"])
     else:
-        status_out = _run_git(repo, ["status", "--porcelain"])
-        holds_work = bool(status_out.strip())
+        rc, status_out, _err = _run_git(repo, ["status", "--porcelain"])
+        rc_h, head_now, _err_h = _run_git(repo, ["rev-parse", "HEAD"])
+        starting_head = attempt.get("starting_head")
+        if rc != 0 or rc_h != 0:
+            holds_work = True
+        elif status_out.strip():
+            holds_work = True
+        elif starting_head and head_now.strip() != starting_head:
+            holds_work = True
+        else:
+            holds_work = False
 
     if not holds_work:
         # NO files were changed: clean up completely so it can be resumed or re-run fresh
@@ -9905,7 +9914,10 @@ def reconcile_item_on_interrupt(
 
         # Remove the unfinished attempt
         attempts = item.get("attempts", [])
-        if attempts and attempts[-1].get("attempt") == attempt_no:
+        if attempts and (
+            attempts[-1].get("number") == attempt_no
+            or attempts[-1].get("attempt") == attempt_no
+        ):
             attempts.pop()
 
         save_state_fn(run_dir, state)
@@ -26684,6 +26696,21 @@ def execute_item_core(
                 file=sys.stderr,
             )
             return
+        except KeyboardInterrupt as exc:
+            reconcile_item_on_interrupt(
+                repo,
+                run_dir,
+                state,
+                item,
+                attempt,
+                attempt_no,
+                work_dir,
+                str(exc),
+                save_state_fn=save_state,
+                seq=seq,
+                total=total,
+            )
+            raise
         except StallTimeout:
             from agent_workflows import lane_containment, worktree_lease
 
