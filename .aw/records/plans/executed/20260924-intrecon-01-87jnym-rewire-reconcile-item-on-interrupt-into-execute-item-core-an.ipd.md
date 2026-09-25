@@ -10,20 +10,20 @@
 - Scope: IN: (a) re-add ONE `except KeyboardInterrupt as exc:` handler in `runner_shared.execute_item_core`, on the executor-spawn `try` beside the existing `StopNowForce`/`StopAtCheckpoint`/`StallTimeout` handlers, calling `reconcile_item_on_interrupt(...)` then re-raising, so both hosts get it once; (b) unpack the `_run_git` tuple in the no-worktree arm and fail SAFE (treat as holding work) when `git status` cannot be observed; (b2) in that same arm, count a COMMIT as work by comparing HEAD to `attempt["starting_head"]`, so the corrected predicate does not silently clean up a committed non-isolated turn (E-07, added at review); (c) make the no-changes arm's attempt pop match the attempt record's real `"number"` key; (d) behavioral tests driving the real `execute_item` of both hosts and unit tests of the no-worktree arm against real git repos. OUT: the verifier-turn spawn (no `KeyboardInterrupt` handler there before `70a2059f` either); the deliberate-stop handlers' `return`-vs-`raise` and status-routing behavior (fixed by executed plan `13xo5k`, audited under backlog `ccu3k7`); `run_queue`'s own `except KeyboardInterrupt` lane reclaim; any change to `runner_stop`'s interrupt menu or ladder.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_interrupt_reconcile.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: intrecon
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 87jnym
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 2415x6
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: 87jnym verified (set intrecon, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED; OQ-02 resolved (D-1), OQ-03 added and resolved (D-2); E-07/V-07 added via aw ipd sync for the committed-work defect E-01 alone would have shipped; readiness GO - PENDING HUMAN APPROVAL
 
@@ -39,48 +39,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the function correct before anything calls it
 
-- [ ] E-01 FIX THE NO-WORKTREE ARM'S `_run_git` MISUSE in `runner_shared.reconcile_item_on_interrupt` (backlogs `tsfk8a`, `e17a2e`). Replace `status_out = _run_git(repo, ["status", "--porcelain"])` / `holds_work = bool(status_out.strip())` with an unpack matching every neighbour in the module (e.g. `rc, status_out, _err = _run_git(repo, ["status", "--porcelain"])`). When `rc != 0` (git status unobservable), set `holds_work = True`: the preserve branch only marks the item `interrupted` and snapshots nothing when `lane is None`, whereas the no-changes branch unlinks the begin receipt and resets the item to `queued`, so an unobservable tree must take the non-destructive branch. Keep `_run_git` rather than `git_status`: `runner_shared.git_status` requires an injected `run_checked` the function does not receive, and threading one through would widen the signature for no behavioral gain.
+- [x] E-01 FIX THE NO-WORKTREE ARM'S `_run_git` MISUSE in `runner_shared.reconcile_item_on_interrupt` (backlogs `tsfk8a`, `e17a2e`). Replace `status_out = _run_git(repo, ["status", "--porcelain"])` / `holds_work = bool(status_out.strip())` with an unpack matching every neighbour in the module (e.g. `rc, status_out, _err = _run_git(repo, ["status", "--porcelain"])`). When `rc != 0` (git status unobservable), set `holds_work = True`: the preserve branch only marks the item `interrupted` and snapshots nothing when `lane is None`, whereas the no-changes branch unlinks the begin receipt and resets the item to `queued`, so an unobservable tree must take the non-destructive branch. Keep `_run_git` rather than `git_status`: `runner_shared.git_status` requires an injected `run_checked` the function does not receive, and threading one through would widen the signature for no behavioral gain.
   - Depends on: none
   - Expected outcome: with `work_dir=None`, a dirty repo yields `holds_work` True (item `interrupted`, `ipd-interrupted` subevent `work-preserved`), a clean repo with no new commit yields `holds_work` False (item `queued`, `ipd-cleaned-up-no-changes`), a non-repo directory yields the preserve branch; no `AttributeError`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 COUNT A COMMIT AS WORK IN THE NO-WORKTREE ARM, not only a dirty tree (review finding PR-001, and it is the DEFECT E-01 ALONE WOULD SHIP). `git status --porcelain` is EMPTY after a commit, so the unpacked predicate of E-01 scores a non-isolated turn that did real work AND COMMITTED IT as holding NOTHING. MEASURED at review in a throwaway repo: after `git commit` of one new file, `_run_git(repo, ["status", "--porcelain"])` returns `(0, '', '')`, so E-01's `holds_work` is `False` while HEAD has moved off `attempt["starting_head"]`. The consequence is DESTRUCTIVE, not cosmetic, and it is worse than the `AttributeError` E-01 removes: the no-changes arm UNLINKS the begin receipt (`ipd_lifecycle.receipt_path_for`), resets the item to `queued`, POPS the attempt, and prints "had no files changed; cleaned up so it can run fresh", so a resume re-dispatches a FRESH turn over an already-committed change with no receipt recording the base it was cut from, and the agent's own commit becomes unattributable to any attempt. This matters precisely BECAUSE the repository's execution contract (`AGENTS.md`) obliges an executing agent to COMMIT its work through `aw commit`, so a committed-then-interrupted non-isolated turn is the EXPECTED shape, not an edge case. FIX: in the `lane is None` arm only, treat a moved HEAD as work too, e.g. read `rc_h, head_now, _ = _run_git(repo, ["rev-parse", "HEAD"])` and set `holds_work = True` when `rc != 0` or `rc_h != 0` or `status_out.strip()` or (`attempt.get("starting_head")` and `head_now.strip() != attempt["starting_head"]`). An ABSENT or unreadable `starting_head` must NOT weaken the answer: fall back to the dirty-tree reading and add no claim, which is the fail-safe direction. Do NOT reach for `worktree_lease.LaneState.holds_work` here (there is no lane) and do NOT call `turn_attempted_nothing` (it needs `outcome_written`/`lane` this function does not receive); its docstring is nonetheless the citation for WHY a commit must count, and for why `starting_head == ending_head` is load-bearing on a SHARED-TREE turn specifically.
+- [x] E-07 COUNT A COMMIT AS WORK IN THE NO-WORKTREE ARM, not only a dirty tree (review finding PR-001, and it is the DEFECT E-01 ALONE WOULD SHIP). `git status --porcelain` is EMPTY after a commit, so the unpacked predicate of E-01 scores a non-isolated turn that did real work AND COMMITTED IT as holding NOTHING. MEASURED at review in a throwaway repo: after `git commit` of one new file, `_run_git(repo, ["status", "--porcelain"])` returns `(0, '', '')`, so E-01's `holds_work` is `False` while HEAD has moved off `attempt["starting_head"]`. The consequence is DESTRUCTIVE, not cosmetic, and it is worse than the `AttributeError` E-01 removes: the no-changes arm UNLINKS the begin receipt (`ipd_lifecycle.receipt_path_for`), resets the item to `queued`, POPS the attempt, and prints "had no files changed; cleaned up so it can run fresh", so a resume re-dispatches a FRESH turn over an already-committed change with no receipt recording the base it was cut from, and the agent's own commit becomes unattributable to any attempt. This matters precisely BECAUSE the repository's execution contract (`AGENTS.md`) obliges an executing agent to COMMIT its work through `aw commit`, so a committed-then-interrupted non-isolated turn is the EXPECTED shape, not an edge case. FIX: in the `lane is None` arm only, treat a moved HEAD as work too, e.g. read `rc_h, head_now, _ = _run_git(repo, ["rev-parse", "HEAD"])` and set `holds_work = True` when `rc != 0` or `rc_h != 0` or `status_out.strip()` or (`attempt.get("starting_head")` and `head_now.strip() != attempt["starting_head"]`). An ABSENT or unreadable `starting_head` must NOT weaken the answer: fall back to the dirty-tree reading and add no claim, which is the fail-safe direction. Do NOT reach for `worktree_lease.LaneState.holds_work` here (there is no lane) and do NOT call `turn_attempted_nothing` (it needs `outcome_written`/`lane` this function does not receive); its docstring is nonetheless the citation for WHY a commit must count, and for why `starting_head == ending_head` is load-bearing on a SHARED-TREE turn specifically.
   - Depends on: E-01
   - Expected outcome: with `work_dir=None` and a repo whose HEAD has moved off `attempt["starting_head"]` but whose tree is clean, the PRESERVE branch is taken (item `interrupted`, `ipd-interrupted`), the begin receipt SURVIVES, and the attempt is NOT popped; a clean repo at the unchanged `starting_head` still takes the no-changes arm; an attempt carrying no `starting_head` behaves exactly as E-01 alone would.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 FIX THE NO-CHANGES ARM'S ATTEMPT POP KEY in `runner_shared.reconcile_item_on_interrupt`. The guard `attempts[-1].get("attempt") == attempt_no` must match the record `execute_item_core` actually writes (`attempt: dict[str, Any] = {"number": attempt_no, ...}`). Match on `"number"`, and keep accepting `"attempt"` as a fallback so an externally built record with the old key still pops. Do not change any other behavior of the arm.
+- [x] E-02 FIX THE NO-CHANGES ARM'S ATTEMPT POP KEY in `runner_shared.reconcile_item_on_interrupt`. The guard `attempts[-1].get("attempt") == attempt_no` must match the record `execute_item_core` actually writes (`attempt: dict[str, Any] = {"number": attempt_no, ...}`). Match on `"number"`, and keep accepting `"attempt"` as a fallback so an externally built record with the old key still pops. Do not change any other behavior of the arm.
   - Depends on: E-01
   - Expected outcome: after a clean-repo cleanup the unfinished attempt is removed from `item["attempts"]`, so the next dispatch computes the same `attempt_no` a never-run item would.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: rewire the call
 
-- [ ] E-03 RE-ADD THE `except KeyboardInterrupt as exc:` HANDLER in `runner_shared.execute_item_core`, on the INNER `try:` whose body is `exit_code, session_id, log_path, argv = spawn_executor(...)` (the one whose siblings are `except runner_stop.StopNowForce as stop:`, `except runner_stop.StopAtCheckpoint as stop:` and `except StallTimeout:`). Place it after the `StopAtCheckpoint` handler to mirror the pre-dedup order in `70a2059f^:agent_workflows/oc_runipd.py` (`StopNowForce`, `StopAtCheckpoint`, `KeyboardInterrupt`, `StallTimeout`). Body, matching the pre-dedup call exactly and then re-raising:
+- [x] E-03 RE-ADD THE `except KeyboardInterrupt as exc:` HANDLER in `runner_shared.execute_item_core`, on the INNER `try:` whose body is `exit_code, session_id, log_path, argv = spawn_executor(...)` (the one whose siblings are `except runner_stop.StopNowForce as stop:`, `except runner_stop.StopAtCheckpoint as stop:` and `except StallTimeout:`). Place it after the `StopAtCheckpoint` handler to mirror the pre-dedup order in `70a2059f^:agent_workflows/oc_runipd.py` (`StopNowForce`, `StopAtCheckpoint`, `KeyboardInterrupt`, `StallTimeout`). Body, matching the pre-dedup call exactly and then re-raising:
   `reconcile_item_on_interrupt(repo, run_dir, state, item, attempt, attempt_no, work_dir, str(exc), save_state_fn=save_state, seq=seq, total=total)` followed by a bare `raise`.
   Every argument is already a local in scope at that point: `repo = Path(state["repo"])`, `attempt_no = len(item.get("attempts", [])) + 1`, the `attempt` dict, `seq = execution_index(item, state)`, `total = dispatchable_work_total(state["queue"])`, `work_dir: str | None` (None unless a worktree was allocated), and `save_state` (the driver-bound one resolved via `getattr(driver_module, "save_state", ...)`, which is what makes `write_report` host-correct). `str(exc)` carries the interrupt-menu choice, because `runner_stop` raises `KeyboardInterrupt("just-terminate-no-cleanup")` or `KeyboardInterrupt("clean-up-and-terminate")`; the ladder's terminal rung (`install_stop_triggers._terminal`, "stop level 4 (now-force) requested by ...") and a bare Ctrl-C match neither and take the default clean-up branch, as before the dedup.
   THE RE-RAISE IS LOAD-BEARING: `run_queue`'s `except KeyboardInterrupt:` (lane reclaim via `reclaim_lanes_on_interrupt`, which RE-LOADS state from disk, hence the function's own `save_state_fn` call) and `main`'s summary/exit-130 path both depend on the interrupt propagating. Do not `return`.
   NO DOUBLE-RECORD WITH THE DELIBERATE-STOP HANDLERS, and this is by construction, not by a flag: `runner_stop.StopNowForce`, `runner_stop.StopAtCheckpoint` and `StallTimeout` all derive from `Exception` (measured MROs), and `KeyboardInterrupt` derives from `BaseException` only, so exactly one sibling clause runs per raise; an exception raised INSIDE a sibling's body escapes the whole `try` rather than being caught by the new clause. Do NOT add a `KeyboardInterrupt` handler to the verifier `spawn_verifier(...)` `try` (Deferred). Do NOT touch the three sibling handlers.
   - Depends on: E-01, E-07, E-02
   - Expected outcome: a `KeyboardInterrupt` raised from the executor spawn on either host leaves the item `interrupted` (or `queued` via cleanup when nothing changed) with the matching event, and still propagates out of `execute_item`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: behavioral tests, no source-text pins
 
-- [ ] E-04 ADD UNIT TESTS FOR THE NO-WORKTREE ARM in new `tests/test_interrupt_reconcile.py`, calling `runner_shared.reconcile_item_on_interrupt` directly with `work_dir=None` against REAL temporary git repos (no mocking of `_run_git` or `describe_lane`). Cases: (1) dirty repo (an untracked file), `msg="clean-up-and-terminate"`: item `interrupted`, `recovery_next` True, `attempt["interrupt_reason"] == "clean-up-and-terminate"`, `item["stopped"]["certainty"] == runner_stop.CERTAINTY_KNOWN`, one `ipd-interrupted` event with `subevent == "work-preserved"` in `run_dir / "events.jsonl"`; (2) clean repo: item `queued`, the unfinished attempt (built with the REAL `"number"` key) removed, one `ipd-cleaned-up-no-changes` event; (3) `msg="just-terminate-no-cleanup"`: item `interrupted`, event subevent `no-cleanup`; (4) `repo` pointing at a non-git directory: preserve branch taken (item `interrupted`), no exception; (5) E-07's COMMITTED-WORK case: a repo whose tree is CLEAN but whose HEAD has moved off `attempt["starting_head"]` (commit one new file after building the attempt), asserting the PRESERVE branch (item `interrupted`, one `ipd-interrupted` event), that a begin receipt written at `ipd_lifecycle.receipt_path_for(repo, item["id6"])` SURVIVES, and that `item["attempts"]` still holds the attempt; (6) E-07's fail-safe case: the same clean-but-moved-HEAD repo with `starting_head` ABSENT from the attempt, asserting the no-changes arm is still taken (so the absent field adds no claim). Keep `run_dir` OUTSIDE the repo (or gitignored) so the run's own files do not make the tree dirty. Record `save_state_fn` calls with a list-appending stub and assert at least one call per case. Case (2) must ALSO assert the begin receipt was unlinked, so the two arms are discriminated by their destructive effect and not only by `item["status"]`.
+- [x] E-04 ADD UNIT TESTS FOR THE NO-WORKTREE ARM in new `tests/test_interrupt_reconcile.py`, calling `runner_shared.reconcile_item_on_interrupt` directly with `work_dir=None` against REAL temporary git repos (no mocking of `_run_git` or `describe_lane`). Cases: (1) dirty repo (an untracked file), `msg="clean-up-and-terminate"`: item `interrupted`, `recovery_next` True, `attempt["interrupt_reason"] == "clean-up-and-terminate"`, `item["stopped"]["certainty"] == runner_stop.CERTAINTY_KNOWN`, one `ipd-interrupted` event with `subevent == "work-preserved"` in `run_dir / "events.jsonl"`; (2) clean repo: item `queued`, the unfinished attempt (built with the REAL `"number"` key) removed, one `ipd-cleaned-up-no-changes` event; (3) `msg="just-terminate-no-cleanup"`: item `interrupted`, event subevent `no-cleanup`; (4) `repo` pointing at a non-git directory: preserve branch taken (item `interrupted`), no exception; (5) E-07's COMMITTED-WORK case: a repo whose tree is CLEAN but whose HEAD has moved off `attempt["starting_head"]` (commit one new file after building the attempt), asserting the PRESERVE branch (item `interrupted`, one `ipd-interrupted` event), that a begin receipt written at `ipd_lifecycle.receipt_path_for(repo, item["id6"])` SURVIVES, and that `item["attempts"]` still holds the attempt; (6) E-07's fail-safe case: the same clean-but-moved-HEAD repo with `starting_head` ABSENT from the attempt, asserting the no-changes arm is still taken (so the absent field adds no claim). Keep `run_dir` OUTSIDE the repo (or gitignored) so the run's own files do not make the tree dirty. Record `save_state_fn` calls with a list-appending stub and assert at least one call per case. Case (2) must ALSO assert the begin receipt was unlinked, so the two arms are discriminated by their destructive effect and not only by `item["status"]`.
   - Depends on: E-01, E-07, E-02
   - Expected outcome: 6 passing tests; cases (1) and (4) FAIL with `AttributeError` against E-01 reverted; case (2) FAILS on the attempts assertion against E-02 reverted; case (5) FAILS (item `queued`, receipt gone) against E-07 reverted while case (2) still passes, which is what proves the two fixes are independently covered.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ADD BEHAVIORAL TESTS DRIVING EACH HOST'S REAL `execute_item` in `tests/test_interrupt_reconcile.py`, parametrized over `oc_runipd` and `agy_runipd`. Reuse the established fixtures rather than inventing a harness: `tests.test_oc_runipd._init_repo_with_conforming_plan` plus the `SelfFinalizeWiringTests._state_and_item`/`_mk_run_dir` shape (oc) and `tests.test_agy_runipd_cli.AgySelfFinalizeTests` equivalents (agy), both of which run with `isolate_worktree: False`. Patch `driver_begin` to `(0, "ok")` and patch the host spawn (`oc_runipd.run_opencode` / `agy_runipd.run_agy_turn`) with a fake that writes an untracked file into the repo and raises `KeyboardInterrupt("clean-up-and-terminate")`. Assert: `KeyboardInterrupt` propagates out of `execute_item` (`pytest.raises`); `item["status"] == "interrupted"`; the persisted `state.json` agrees; `events.jsonl` contains exactly one `ipd-interrupted` event for the item's id6; and `render_stream._interrupt_reason_of(item) == "clean-up-and-terminate"` (the viewer consumer the backlog names). Add one `just-terminate-no-cleanup` case (spawn raises that message, no file written) asserting `interrupted` plus subevent `no-cleanup`. The fixture's `.gitignore` already covers `.aw/records/runs/`, which keeps `run_dir` from dirtying the tree; confirm rather than assume. No assertion may read source text.
+- [x] E-05 ADD BEHAVIORAL TESTS DRIVING EACH HOST'S REAL `execute_item` in `tests/test_interrupt_reconcile.py`, parametrized over `oc_runipd` and `agy_runipd`. Reuse the established fixtures rather than inventing a harness: `tests.test_oc_runipd._init_repo_with_conforming_plan` plus the `SelfFinalizeWiringTests._state_and_item`/`_mk_run_dir` shape (oc) and `tests.test_agy_runipd_cli.AgySelfFinalizeTests` equivalents (agy), both of which run with `isolate_worktree: False`. Patch `driver_begin` to `(0, "ok")` and patch the host spawn (`oc_runipd.run_opencode` / `agy_runipd.run_agy_turn`) with a fake that writes an untracked file into the repo and raises `KeyboardInterrupt("clean-up-and-terminate")`. Assert: `KeyboardInterrupt` propagates out of `execute_item` (`pytest.raises`); `item["status"] == "interrupted"`; the persisted `state.json` agrees; `events.jsonl` contains exactly one `ipd-interrupted` event for the item's id6; and `render_stream._interrupt_reason_of(item) == "clean-up-and-terminate"` (the viewer consumer the backlog names). Add one `just-terminate-no-cleanup` case (spawn raises that message, no file written) asserting `interrupted` plus subevent `no-cleanup`. The fixture's `.gitignore` already covers `.aw/records/runs/`, which keeps `run_dir` from dirtying the tree; confirm rather than assume. No assertion may read source text.
   - Depends on: E-03, E-04
   - Expected outcome: 4 passing tests (2 hosts x 2 messages); every one FAILS against E-03 reverted (status `running`, no `ipd-interrupted`), which is the measured HEAD behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE BARE SUITE `python3 -m pytest` (no extra flags) and confirm no regression, in particular in `tests/test_oc_runipd.py` / `tests/test_agy_runipd_cli.py`, whose fixtures the new tests reuse, and in `tests/test_runner_shared.py`. NOTE, measured at review: `tests/test_runner_stop_level3.py` and `tests/test_runner_stop_level4.py` DO NOT EXIST (deleted by the same trim `19313eed` that removed this defect's own coverage; `grep -ln 'StopNowForce\|StopAtCheckpoint' tests/*.py` matches NO file), so do not treat their absence as a failed run or go looking for them.
+- [x] E-06 RUN THE BARE SUITE `python3 -m pytest` (no extra flags) and confirm no regression, in particular in `tests/test_oc_runipd.py` / `tests/test_agy_runipd_cli.py`, whose fixtures the new tests reuse, and in `tests/test_runner_shared.py`. NOTE, measured at review: `tests/test_runner_stop_level3.py` and `tests/test_runner_stop_level4.py` DO NOT EXIST (deleted by the same trim `19313eed` that removed this defect's own coverage; `grep -ln 'StopNowForce\|StopAtCheckpoint' tests/*.py` matches NO file), so do not treat their absence as a failed run or go looking for them.
   - Depends on: E-05
   - Expected outcome: the bare suite summary line shows 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -178,40 +178,185 @@ All measured at HEAD `877545fc` (`git rev-parse --short HEAD`) in the authoring 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the diff of the no-worktree arm showing the tuple unpacked and `rc != 0` -> `holds_work = True`; pasted `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -q -k "dirty or not_a_repo"` (or the actual test names) passing; and the same tests pasted FAILING with `AttributeError: 'tuple' object has no attribute 'strip'` with the E-01 hunk temporarily reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/runner_shared.py` shows:
+    ```diff
+    -        status_out = _run_git(repo, ["status", "--porcelain"])
+    -        holds_work = bool(status_out.strip())
+    +        rc, status_out, _err = _run_git(repo, ["status", "--porcelain"])
+    +        rc_h, head_now, _err_h = _run_git(repo, ["rev-parse", "HEAD"])
+    +        starting_head = attempt.get("starting_head")
+    +        if rc != 0 or rc_h != 0:
+    +            holds_work = True
+    +        elif status_out.strip():
+    +            holds_work = True
+    +        elif starting_head and head_now.strip() != starting_head:
+    +            holds_work = True
+    +        else:
+    +            holds_work = False
+    ```
+    Passing test output (`python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -q -k "dirty or not_a_repo"`):
+    ```
+    ..                                                                       [100%]
+    2 passed, 8 deselected in 0.55s
+    ```
+    Failing mutation output with E-01 temporarily reverted:
+    ```
+    >           holds_work = bool(status_out.strip())
+    E           AttributeError: 'tuple' object has no attribute 'strip'
+    FAILED tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_dirty_repo_preserves_work
+    FAILED tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_not_a_repo_preserves_work
+    2 failed, 8 deselected in 1.61s
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the diff of the pop condition; the clean-repo unit test pasted passing with an attempt built as `{"number": 1, ...}`; and the same test pasted FAILING on its `attempts` assertion with the E-02 hunk temporarily reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/runner_shared.py` shows:
+    ```diff
+         attempts = item.get("attempts", [])
+    -    if attempts and attempts[-1].get("attempt") == attempt_no:
+    +    if attempts and (
+    +        attempts[-1].get("number") == attempt_no
+    +        or attempts[-1].get("attempt") == attempt_no
+    +    ):
+             attempts.pop()
+    ```
+    Passing test output (`python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -q -k "test_no_worktree_clean_repo_cleans_up"`):
+    ```
+    .                                                                        [100%]
+    1 passed, 9 deselected in 0.58s
+    ```
+    Failing mutation output with E-02 temporarily reverted:
+    ```
+    >           self.assertEqual(item["attempts"], [])
+    E           AssertionError: Lists differ: [{'number': 1, 'starting_head': 'e14cf083a1c6865875c733b9935b3aadd2484234'}] != []
+    FAILED tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_clean_repo_cleans_up
+    1 failed, 9 deselected in 0.55s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the diff showing exactly one new `except KeyboardInterrupt as exc:` clause on the executor-spawn `try` in `runner_shared.execute_item_core`, after `except runner_stop.StopAtCheckpoint as stop:`, whose body is the `reconcile_item_on_interrupt(repo, run_dir, state, item, attempt, attempt_no, work_dir, str(exc), save_state_fn=save_state, seq=seq, total=total)` call followed by bare `raise`; `git diff` showing the three sibling handlers unchanged; and `grep -n "reconcile_item_on_interrupt(" agent_workflows/runner_shared.py` output showing the `def` plus exactly one call.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/runner_shared.py` shows:
+    ```diff
+    +        except KeyboardInterrupt as exc:
+    +            reconcile_item_on_interrupt(
+    +                repo,
+    +                run_dir,
+    +                state,
+    +                item,
+    +                attempt,
+    +                attempt_no,
+    +                work_dir,
+    +                str(exc),
+    +                save_state_fn=save_state,
+    +                seq=seq,
+    +                total=total,
+    +            )
+    +            raise
+    ```
+    Sibling handlers `StopNowForce`, `StopAtCheckpoint`, and `StallTimeout` remain unchanged.
+    Grep output (`grep -n "reconcile_item_on_interrupt(" agent_workflows/runner_shared.py`):
+    ```
+    9814:def reconcile_item_on_interrupt(
+    26700:            reconcile_item_on_interrupt(
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -q` output listing the four no-worktree unit tests passing, and a pasted excerpt of the test source showing real `git init` repos and no patching of `_run_git`/`describe_lane`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -q -k "InterruptReconcileNoWorktreeUnitTests"` output:
+    ```
+    ......                                                                   [100%]
+    6 passed, 4 deselected in 0.82s
+    ```
+    Test source excerpt (`tests/test_interrupt_reconcile.py`):
+    ```python
+    def _init_clean_repo(repo: Path) -> Path:
+        repo.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.invalid"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+        (repo / ".gitignore").write_text(
+            ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+        )
+        (repo / "README.md").write_text("# Demo\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+        return repo
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: pasted `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -v` showing the four host-parametrized `execute_item` tests (oc and agy x `clean-up-and-terminate` and `just-terminate-no-cleanup`) passing; then the E-03 clause temporarily removed and the same run pasted with all four FAILING (status `running` / no `ipd-interrupted`), then restored. Confirm by quoting the test source that no assertion reads module source text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -v -k "HostBehavioralInterruptTests"` output:
+    ```
+    tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_agy_execute_item_keyboard_interrupt_just_terminate_no_cleanup PASSED [ 25%]
+    tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_agy_execute_item_keyboard_interrupt_clean_up_and_terminate PASSED [ 50%]
+    tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_oc_execute_item_keyboard_interrupt_just_terminate_no_cleanup PASSED [ 75%]
+    tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_oc_execute_item_keyboard_interrupt_clean_up_and_terminate PASSED [100%]
+    4 passed, 6 deselected in 1.15s
+    ```
+    Failing mutation output with E-03 clause temporarily removed:
+    ```
+    FAILED tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_oc_execute_item_keyboard_interrupt_clean_up_and_terminate
+    FAILED tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_oc_execute_item_keyboard_interrupt_just_terminate_no_cleanup
+    FAILED tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_agy_execute_item_keyboard_interrupt_clean_up_and_terminate
+    FAILED tests/test_interrupt_reconcile.py::HostBehavioralInterruptTests::test_agy_execute_item_keyboard_interrupt_just_terminate_no_cleanup
+    AssertionError: 'running' != 'interrupted'
+    4 failed, 6 deselected in 1.19s
+    ```
+    No assertions read source text; all check real runtime objects, persisted `state.json`, `events.jsonl` entries, and `render_stream._interrupt_reason_of`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the pasted summary line of a bare `python3 -m pytest` run (no extra flags), showing 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare suite summary line:
+    ```
+    2019 passed, 1 skipped, 3 warnings in 27.68s
+    ```
+    And targeted related suite (`python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_runner_shared.py tests/test_interrupt_reconcile.py`):
+    ```
+    319 passed in 13.94s
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the diff of the `lane is None` arm showing a moved HEAD counted as work; pasted `python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -v` output showing E-04's committed-work case PASSING (item `interrupted`, the begin receipt still a file, `item["attempts"]` still holding the attempt) and the unchanged-HEAD clean case still reaching `ipd-cleaned-up-no-changes`; the same committed-work case pasted FAILING with ONLY the E-07 hunk reverted (item `queued`, receipt gone), which is what proves the test discriminates E-07 from E-01; and the missing-`starting_head` case pasted passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/runner_shared.py` shows:
+    ```diff
+    +        rc, status_out, _err = _run_git(repo, ["status", "--porcelain"])
+    +        rc_h, head_now, _err_h = _run_git(repo, ["rev-parse", "HEAD"])
+    +        starting_head = attempt.get("starting_head")
+    +        if rc != 0 or rc_h != 0:
+    +            holds_work = True
+    +        elif status_out.strip():
+    +            holds_work = True
+    +        elif starting_head and head_now.strip() != starting_head:
+    +            holds_work = True
+    +        else:
+    +            holds_work = False
+    ```
+    Passing test output (`python3 -m pytest tests/test_interrupt_reconcile.py -o addopts="" -v -k "committed_work or clean_repo or without_starting_head"`):
+    ```
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_committed_work_preserves_work PASSED [ 33%]
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_moved_head_without_starting_head_cleans_up PASSED [ 66%]
+    tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_clean_repo_cleans_up PASSED [100%]
+    3 passed, 7 deselected in 0.71s
+    ```
+    Failing mutation output with ONLY E-07 reverted:
+    ```
+    FAILED tests/test_interrupt_reconcile.py::InterruptReconcileNoWorktreeUnitTests::test_no_worktree_committed_work_preserves_work
+    AssertionError: 'queued' != 'interrupted'
+    1 failed, 2 passed, 7 deselected in 0.71s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
