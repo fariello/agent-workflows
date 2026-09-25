@@ -743,6 +743,19 @@ from agent_workflows.runner_shared import (
     spec_edit_record as spec_edit_record,
     spec_edit_summary as spec_edit_summary,
 )
+
+# recovone Order 01 (`cdxcbh`): single-source recovery disposition classification,
+# verify-and-continue notice builder, tolerant reconcile disposition, and lane commit subjects.
+from agent_workflows.runner_shared import (
+    classify_recovery_disposition as classify_recovery_disposition,
+    build_verify_and_continue_notice as build_verify_and_continue_notice,
+    reconcile_disposition as reconcile_disposition,
+    RecoveryDisposition as RecoveryDisposition,
+    DISPOSITION_FRESH_EXECUTION as DISPOSITION_FRESH_EXECUTION,
+    DISPOSITION_UNDETERMINED as DISPOSITION_UNDETERMINED,
+    DISPOSITION_VERIFY_AND_CONTINUE as DISPOSITION_VERIFY_AND_CONTINUE,
+    _lane_commit_subjects as _lane_commit_subjects,
+)
 from agent_workflows.oc_runipd import (
     record_item_spec_edits as record_item_spec_edits,
 )
@@ -2163,50 +2176,20 @@ def build_isolation_notice(lane_root: Path | None) -> str:
     return runner_shared.build_isolation_notice(lane_root)
 
 
-# resumedupe (`txc9l1`) E-04: recovery ROUTING has ONE definition, in `oc_runipd`, and these delegate
-# to it. Following the shipped `build_isolation_notice` pattern above rather than copying: the twin of
-# `build_recovery_lane_notice` was for a while a VERBATIM copy here, which is exactly how a one-runner
-# fix leaves the other driver duplicating work. `runner_shared` would be the tidier home, but it holds
-# a strict AST fingerprint pin proving a PURE MOVE of the symbols it received, so adding new logic
-# there is out of this plan's scope; delegation gets the same no-drift guarantee today.
-
-
-def classify_recovery_disposition(
-    repo: Path, item: dict[str, Any], state: dict[str, Any]
-) -> Any:
-    """Delegate to the ONE definition in `oc_runipd` (see its docstring)."""
-    from agent_workflows.oc_runipd import classify_recovery_disposition as _shared
-
-    return _shared(repo, item, state)
-
-
-# `resolve_prior_lane` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
-
-
-def build_verify_and_continue_notice(repo: Path, decision: Any) -> str:
-    """Delegate to the ONE definition in `oc_runipd` (see its docstring)."""
-    from agent_workflows.oc_runipd import build_verify_and_continue_notice as _shared
-
-    return _shared(repo, decision)
-
-
+# recovone (`cdxcbh`) E-06: recovery routing is defined in `runner_shared`.
+# `classify_recovery_disposition` and `build_verify_and_continue_notice` are re-exported
+# directly from `runner_shared` above. `route_recovery_turn` wraps the shared implementation
+# with this host's `save_state` injected.
 def route_recovery_turn(
     run_dir: Path,
     state: dict[str, Any],
     item: dict[str, Any],
     recovery: bool,
-) -> Any:
-    """Delegate to the ONE definition in `oc_runipd` (see its docstring).
-
-    STILL `oc_runipd`, DELIBERATELY (runnerlayer Order 02 `1f7xno`). That plan re-homed this whole
-    surface EXCEPT the three recovery-routing names, and this one was tried and reverted: the shared
-    copy is AST-identical but resolves a `classify_recovery_disposition` sibling that reads fields
-    `worktree_lease.LaneState` does not have, so it raises `AttributeError` on any lane that exists.
-    See the paragraph above oc's definition. Filed as `zt2b16`.
-    """
-    from agent_workflows.oc_runipd import route_recovery_turn as _shared
-
-    return _shared(run_dir, state, item, recovery)
+) -> RecoveryDisposition | None:
+    """Route a recovery turn using the shared implementation, injecting agy's `save_state`."""
+    return runner_shared.route_recovery_turn(
+        run_dir, state, item, recovery, save_state=save_state
+    )
 
 
 # rununify 04 (`tx6q0h`): one-line wrappers over the shared prompt builders. THE INSTRUCTION TEXT
@@ -2868,9 +2851,6 @@ def run_agy_turn(
 
     captured_conv_id = extract_session_id(log_path) or session_id
     return rc, captured_conv_id, log_path, argv
-
-
-reconcile_disposition = runner_shared.reconcile_disposition
 
 
 def execute_item(
