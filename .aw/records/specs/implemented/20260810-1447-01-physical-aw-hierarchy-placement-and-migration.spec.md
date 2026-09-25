@@ -90,6 +90,8 @@ The closed initial placement vocabulary is:
 
 Every resolved class records one physical path, one owner, one Git owner or `none`, one tracking policy, one portability classification, and one provenance source. `config_local` and `state_runtime` MUST be untracked in every preset and custom layout. A custom policy MUST NOT put records or mutable state inside system, put one class inside another, alias target and companion, cross a symlink outside an approved root, or claim clean-target while creating any AW-owned target baseline delta.
 
+Per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/`, `.aw/workflow-artifacts/`, `.aw/worktrees/`) stays IN the target repository and is covered by the framework-owned `.aw/.gitignore`. Its location is decided in one accessor (`ipd_lifecycle.checkout_control_root`, driver runs via `runner_shared.state_root`), so relocation out of the repo (retired `58ha43`) is not pursued. Decided by plan `wmuu4k` from backlog `e820ka`; guarded by the `AwGitignoreLaneTests.test_git_ignores_every_per_machine_control_path` guard test.
+
 ## 6. Presets
 
 | Preset | System | Project config | Local config | Durable state | Runtime state | Records | Intended use |

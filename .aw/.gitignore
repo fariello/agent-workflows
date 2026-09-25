@@ -71,3 +71,8 @@ records/research/INDEX.md
 # patterns are `.aw/`-relative, so `/workflow-artifacts/` resolves to `.aw/workflow-artifacts/`
 # exactly and leaves e.g. `records/workflow-artifacts/` visible.
 /workflow-artifacts/
+# The per-lane git worktrees root and owner records (awworktrees, worktree_lease.WORKTREES_SUBDIR
+# and OWNERS_SUBDIR). NEVER committed: a lane is a real git worktree, so committing one stages an
+# embedded gitlink (mode 160000) pointing at an unpushed lane commit.
+# ANCHORED for the `/inbox/` reason (a bare `worktrees/` would match at any depth).
+/worktrees/
