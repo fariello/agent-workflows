@@ -402,6 +402,9 @@ def _read_existing_id6(
     return m.group(1) if m else None
 
 
+_PINNED_PERMALINK_RE = re.compile(r"/(?:blob|tree|raw)/[0-9a-f]{7,40}/")
+
+
 def find_unrewritable_path_citations(
     repo_root: Path, old_name: str, src_dir: Path
 ) -> List[Tuple[str, str]]:
@@ -428,6 +431,10 @@ def find_unrewritable_path_citations(
             continue
         for m in path_re.finditer(text):
             cited = m.group(0)
+            # A permalink pinned to a commit (`.../blob/<sha>/...`) names the file AS IT WAS at that
+            # commit and stays correct forever, so it is neither stale nor something to rewrite.
+            if _PINNED_PERMALINK_RE.search(cited):
+                continue
             cited_dir = cited[: -(len(old_name) + 1)]  # strip `/<old_name>`
             # Normalize a leading `./` and compare the directory tail against the real dir.
             norm = cited_dir.lstrip("./")

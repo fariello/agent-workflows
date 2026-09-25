@@ -379,5 +379,61 @@ class TestToId6DatedLegacyNames(_RepoTestCase):
         self.assertIn("- Status: draft\n- Id: abc123\n", p.read_text(encoding="utf-8"))
 
 
+class TestPinnedPermalinksAreNeverRewritten(unittest.TestCase):
+    """A permalink pinned to a commit names the file AS IT WAS at that commit, so a rename must neither
+    rewrite it (that would point the old commit at a name it never had) nor refuse over it as a stale
+    path. Covers the shared reference rewriter and the --to-id6 stale-path guard."""
+
+    OLD = "20260101-1200-01-probe.spec.md"
+    NEW = "20260101-abc123-01-abc123-probe.spec.md"
+    LINK = (
+        "https://github.com/o/r/blob/4763eb8de8784aff4547015efe68546c11ab0f92/"
+        ".aw/records/specs/20260101-1200-01-probe.spec.md#L1"
+    )
+
+    def _repo(self, body):
+        root = Path(tempfile.mkdtemp(prefix="aw_test_permalink_"))
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        (root / ".aw" / "records" / "specs" / "approved").mkdir(parents=True)
+        cite = (
+            root
+            / ".aw"
+            / "records"
+            / "research"
+            / "20260101-r-01-rrr111-cite.findings.md"
+        )
+        cite.parent.mkdir(parents=True)
+        cite.write_text(body, encoding="utf-8")
+        return root, cite
+
+    def test_rewriter_leaves_a_pinned_link_and_its_label_but_rewrites_plain_citations(
+        self,
+    ):
+        from agent_workflows import artifact_refs as refs
+
+        body = (
+            f"pinned: [`20260101-1200-01` line 1]({self.LINK})\n"
+            f"bare pinned: {self.LINK}\n"
+            f"live: .aw/records/specs/approved/{self.OLD}\n"
+        )
+        root, cite = self._repo(body)
+        refs.apply_reference_rewrites(
+            refs.plan_reference_rewrites(root, {self.OLD: self.NEW})
+        )
+        out = cite.read_text(encoding="utf-8")
+        self.assertEqual(out.count(self.LINK), 2, out)
+        self.assertIn("[`20260101-1200-01` line 1]", out)
+        self.assertIn(f"live: .aw/records/specs/approved/{self.NEW}", out)
+
+    def test_a_pinned_link_is_not_reported_as_an_unrewritable_stale_path(self):
+        from agent_workflows import artifact_rename as ar
+
+        root, _cite = self._repo(f"see {self.LINK}\n")
+        found = ar.find_unrewritable_path_citations(
+            root, self.OLD, root / ".aw" / "records" / "specs" / "approved"
+        )
+        self.assertEqual(found, [])
+
+
 if __name__ == "__main__":
     unittest.main()

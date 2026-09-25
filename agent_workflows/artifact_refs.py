@@ -91,6 +91,36 @@ def _boundaried(stem: str) -> "re.Pattern[str]":
     return re.compile(r"(?<![0-9A-Za-z-])" + re.escape(stem) + r"(?![0-9A-Za-z-])")
 
 
+# A URL pinned to a commit (`.../blob/<sha>/<path>`, also `tree`/`raw`) names a file AS IT WAS at that
+# commit, so it stays correct after any later rename and must never be rewritten: a rewrite would point
+# the pinned commit at a name that did not exist in it. A Markdown link to one is masked WHOLE, label
+# included, since the label describes the same pinned file. The masked span is excluded from both the
+# planning count and the substitution, so a permalink is invisible to every rename.
+_PINNED_PERMALINK_RE = re.compile(
+    # A whole Markdown link whose target is pinned (its label describes the pinned file too), else
+    # a bare pinned URL token.
+    r"\[[^\]\n]*\]\([^)\s]*/(?:blob|tree|raw)/[0-9a-f]{7,40}/[^)\s]*\)"
+    r"|\S*/(?:blob|tree|raw)/[0-9a-f]{7,40}/\S*"
+)
+
+
+def _mask_permalinks(text: str):
+    """Return (masked_text, restore) where every pinned permalink is replaced by an inert token."""
+
+    saved: List[str] = []
+
+    def _hide(m: "re.Match[str]") -> str:
+        saved.append(m.group(0))
+        return f"\x00AWPERMALINK{len(saved) - 1}\x00"
+
+    masked = _PINNED_PERMALINK_RE.sub(_hide, text)
+
+    def _restore(s: str) -> str:
+        return re.sub(r"\x00AWPERMALINK(\d+)\x00", lambda m: saved[int(m.group(1))], s)
+
+    return masked, _restore
+
+
 def plan_reference_rewrites(
     repo_root: Path, name_map: Dict[str, str], scan_roots=_core.SCAN_ROOTS
 ) -> List[RefEdit]:
@@ -132,6 +162,7 @@ def plan_reference_rewrites(
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        text, _restore = _mask_permalinks(text)
         # (a) full filename.
         for old_name, new_name in name_map.items():
             if old_name != new_name and old_name in text:
@@ -159,12 +190,13 @@ def apply_reference_rewrites(edits: List[RefEdit], *, prefix: str = ".aw-ref-") 
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
+        text, _restore = _mask_permalinks(text)
         for e in sorted(file_edits, key=lambda x: 0 if x.kind == FULL_NAME else 1):
             if e.kind == FULL_NAME:
                 text = text.replace(e.old, e.new)
             else:
                 text = _boundaried(e.old).sub(e.new, text)
-        _core.atomic_write(f, text, prefix=prefix)
+        _core.atomic_write(f, _restore(text), prefix=prefix)
 
 
 # ----------------------------------------------------------------------------------------------
