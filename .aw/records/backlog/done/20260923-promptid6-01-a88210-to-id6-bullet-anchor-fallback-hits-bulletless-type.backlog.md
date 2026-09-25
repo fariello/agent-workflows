@@ -1,5 +1,5 @@
 - Id: a88210
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: promptid6
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: aw rename <type> --to-id6 injects a '- Id:' bullet under the H1 of any artifact with no Status/Date bullet, which for walkthroughs and roadmaps puts metadata in the body
 
 ## Workflow history
+- 2026-09-25 done (aw set): fixed in ed10d555: --to-id6 converts dated legacy names and never writes an Id into a document body; tests TestToId6DatedLegacyNames (fail when either fix is reverted); suite 1865 passed, 1 skipped
 - 2026-09-23 created (aw backlog): aw rename <type> --to-id6 injects a '- Id:' bullet under the H1 of any artifact with no Status/Date bullet, which for walkthroughs and roadmaps puts metadata in the body
 
 FOUND WHILE EXECUTING IPD ubac5n (promptid6), which repaired exactly this defect for PROMPTS only.
