@@ -120,7 +120,7 @@ class CollisionPopulationParityTests(unittest.TestCase):
             "check.id6-collision",
         )
         setid_coll_finding = (
-            ".aw/records/plans/executed/20260101-other-01-oth001-plan-o1.ipd.md",
+            ".aw/records/plans/executed/20260101-other-02-oth002-plan-o2.ipd.md",
             "check.setid-collision",
         )
 
