@@ -13,6 +13,7 @@ bars) so the documented prose can never claim more than the recorded evidence. S
 ## Documents
 
 - [Architecture](architecture.md): the layers, the data flow, and the module map.
+- [Artifact lifecycles](artifact-lifecycles.md): how each record type is created and moves through its statuses, with flowcharts.
 - [Authoring workflows](authoring.md): how to write a workflow and its validation predicates.
 - [Skill selection](skill-selection.md): how a host discovers and dispatches a workflow.
 - [Orchestration and isolation](orchestration.md): roles, isolation modes, and concurrency.
