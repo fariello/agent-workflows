@@ -6,7 +6,7 @@
 - Scope: Make the two surfaces report the same collision set, with the population chosen per rule and stated. IN: (a) the identity-slot pass in `check_engine.check_collisions` consumes the terminal-inclusive corpus, exactly as its id6 sibling already does, so both identity rules ignore the caller's liveness filter; (b) `doctor.probe_artifacts` passes `include_retired=include_executed` to `check_collisions` instead of a hardcoded `True`, so the setid pass (the only rule still honoring the flag) sees the same corpus as `aw check` at the default and under `-a`/`--all`; (c) doctor stops demoting the two IDENTITY rules into `executed_warnings`, because a collision with a terminal id6 is real (IPD `sk7ggr` F-3) and must not be softer in one surface; (d) a parity test over a fixture tree containing retired plans. OUT: renaming the three live walkthroughs (backlog `mw0s1y`); any change to what counts as retired; the `untracked/` axis; the setid-collision policy for backlog-shares-plan setids (`sjsoqq`).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/doctor.py, tests/test_collision_population_parity.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,10 +15,12 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: t0jyb2
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: lmjc8h
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-801..PR-806 all fixed. Reproduced every author claim independently (0-vs-3 slot findings on the three named walkthroughs; doctor's executed/ demotion verbatim on a fixture). HIGH PR-801: E-04 before E-03 is a silent mirror regression (doctor would drop to zero slot findings) - now an explicit precondition with ordering evidence in V-04. Added E-05 proving the 3 new errors cannot red CI. Corrected the docstring's stale +47/39-to-86 deterrent. 7 items, 7:7 bijection; OQ-01 resolved from evidence. Findings and 3 decisions in .aw/records/reviews/20260924-collpop-01-t0jyb2-...review.md
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801..PR-806, all FIXED. INDEPENDENTLY REPRODUCED EVERY CLAIM: `check_collisions(root)` returns `Counter()` and `include_retired=True` returns `Counter({'check.id6-identity-slot': 3})` on exactly the three named walkthroughs; the fixture probe reproduced doctor's `executed/` demotion verbatim (check reports the `ccc333` `check.id6-collision` in `all_drift`, doctor files the identical `(path, rule)` under `executed_warnings` and reports `all_drift` empty); and simulating E-03 produced exactly 3 findings and no more. Added E-03's ordering hazard as an explicit item precondition (measured: E-04 landing BEFORE E-03 would take doctor from 3 slot findings to ZERO, a regression the dependency chain prevents but the plan never named); added E-05 to prove the 3 new errors cannot red CI (measured: the fail-closed CI steps are `aw check plans`/`aw check releases`, whose per-type runs emit only the `info`-severity `check.collisions-not-checked` marker, so the new `error`s reach only `aw check all`/`aw doctor`); recorded that the docstring's "+47-finding regression" warning is itself STALE (it described the pre-D153 cross-type emission, and the setid pass measures zero even at the wide corpus today); and noted D140's own 2026-09-20 note calls the walkthrough slot shape a "legitimate convention", contradicting the README, which is the real reason F-4's docstring text exists. Resolved OQ-01 from evidence with a carrier, clearing an error-severity `check.ipd-uncarried-obligation`.

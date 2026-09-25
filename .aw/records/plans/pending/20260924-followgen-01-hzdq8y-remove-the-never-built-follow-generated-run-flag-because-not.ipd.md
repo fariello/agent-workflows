@@ -6,7 +6,7 @@
 - Scope: REMOVE `--follow-generated` from the shared flag table (both hosts register from it), update the docstrings that name it, add a regression test proving both host parsers reject it, amend spec `25kzda` so every mention states the report-only behavior plainly and records why same-run following is not offered, correct the stale `x8diyb` owner sentence in spec `z7nbn1` 3.4, and add a CHANGELOG line. EXCLUDES building any production action (`--action plan` stays refused; spec `z7nbn1` owns it), any generated-artifact reporting (no producer exists), and any change to `refuse_unimplemented_run_flags` as a mechanism (it stays, with no current row).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/to-review/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -15,9 +15,11 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hzdq8y
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: ceauac
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED. Independently reproduced the case for removal: `ACTION_IMPLEMENTED` is `frozenset({'review'})` so `--action plan` is refused, `files_changed`/`recommended_next_action` are never parsed back (zero hits), and `--follow-generated` is the ONLY `implemented=False` row of 15. PR-001 (the declared `25kzda` path `20260826-0718-01-...` DOES NOT EXIST, so `_scope_match` is False and the finalize gate fails in both directions while E-01(c) and V-04 would have passed VACUOUSLY over a missing file), PR-002 (two uncarried obligations; `- Carrier: z7nbn1` is REFUSED because `_CARRIER_TARGET_TYPES` excludes specs by maintainer decision), PR-003 (two stale inherited facts: the contract test `tests/test_run_flag_surface.py` was deleted in `19313eed`, and `--with-dependencies` is already implemented so the docstring E-02 rewrites is doubly wrong), PR-004 (leaving `z7nbn1` OQ-01 naming a removed flag with nothing reconciling it), PR-005 (thin gate; E-03 used an absolute `/tmp` path and probed only the harmless polarity) all FIXED. Added Findings 7 to 9 and corrected `- Scope-Paths:` to the real id6 path. Findings in `.aw/records/reviews/20260924-followgen-01-hzdq8y-remove-the-never-built-follow-generated-run-flag-because-not.review.md`. Readiness go-pending-approval.
 - 2026-09-25 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED (a dead spec path defeated the scope gate and two of the plan's own verifications)

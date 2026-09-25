@@ -6,19 +6,21 @@
 - Scope: IN: rewrite the per-section decision in `engine._apply_section_consent` into four explicit cases (disk equals desired: adopt and re-record; disk equals recorded: normal refresh; disk differs from both: preserve and warn by name; no record and disk differs from desired: preserve and warn), surface the warnings through `merge_aw_block` to its callers (`engine.update_agents_pointer`, `engine.ensure_untracked_gitignore`) using the same wording shape the shim path already prints; unit tests for all four cases plus the declined and absent-section cases; amend the user-facing managed-sections doc and record the decision; one-time reconciliation of THIS repo's `AGENTS.md` / manifest through the installer's own pointer code path. OUT: shim/file drift (`_shim_is_user_modified`, already correct), an interactive "take the new version" prompt for sections, any hand edit of `AGENTS.md` or `managed-sections.json`.
 - Scope-Paths: agent_workflows/engine.py, tests/test_section_consent.py, .aw/system/README.md, DECISIONS.md, CHANGELOG.md, .aw/system/managed-sections.json, AGENTS.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: sectfreeze
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: b4bvas
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: krwl3t
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us step=plan-review): plan-review complete: 5 findings (F-8..F-12) all FIXED, 5 recorded decisions, none irreversible; review-finalize lint exit 0
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed; APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, none deferred, none open. All seven author findings were independently re-derived at HEAD f768cadd and HELD: both defects reproduce by driving `_apply_section_consent` directly (case 1 leaves the stale hash unrefreshed, case 4 clobbers a user body), and this repo's pointer really is frozen at recorded 7446019f against an on-disk body equal to the generated b8a499df. The findings are two instructions that could not have worked: E-03's print site is UNREACHABLE in `ensure_untracked_gitignore`, which has no print at all and returns early on both paths a preserved section takes (PR-001); and E-05's reconciliation is a NO-OP until E-02 lands, measured by running its exact command unpatched (zero manifest keys changed) and patched (exactly the claimed 7446019f -> b8a499df), with the visible status line identical in both so the failure mode is otherwise indistinguishable (PR-002). Also fixed: four live artifact values stated as acceptance bars (PR-003), a one-paragraph gate missing this plan's ordering hazard and three unsafe stop conditions the plan body already identified (PR-004), and an unaddressed IPD-Z602 size advisory now investigated by decomposition and declined with reasoning (PR-005). OQ-01's preserve-over-adopt resolution was examined and upheld, with the alternative surfaced in the gate for the approver. Lint: `--phase author` exit 0 before review, `--phase review-finalize` exit 0 after.
 - 2026-09-24 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog krwl3t; re-measured at HEAD 877545fc that the pointer hash is still frozen (recorded 7446019f vs on-disk = generated b8a499df), that a simulated generator change does not land, that a stale record is never refreshed even when disk equals desired, and that a no-record user edit is clobbered.

@@ -6,11 +6,12 @@
 - Scope: IN: a new dependency-free leaf module `agent_workflows/lifecycle_dirs.py` holding the one table; every literal copy of a lifecycle-subdir set re-derived from it (`layout.build_default_layout`, `backlog.STATUS_DIRS`, `plans.DISPOSITION_DIRS`, `engine.PLAN_LIFECYCLE_SUBDIRS`/`PROMPT_LIFECYCLE_SUBDIRS`, `ipd_lint._dir_of`, `attention_contract.SPEC_STATUSES` and its two re-listings in `status_set.TYPE_STATUSES`/`ipd_schema._ITEM_DEP_STATE_STATUSES`, and the fallback/valid-subdir literals inside `record_placement`); the verbs that still hardcode a status-to-subdir path join (`backlog` new AND `backlog set`, `ipd_authoring` scaffold) take the subdir from `record_placement.target_subdir`; a consumer-agreement test plus an AST drift guard. OUT: changing any status vocabulary or any file location; the plans many-to-one status mapping itself (already owned by `record_placement.target_subdir`); promoting location-equals-status to a fail-closed `aw check` rule; `ipd_authoring`'s hardcoded `.aw/records/plans` type-dir PREFIX (only its `"pending"` subdir is in scope, because the resulting path feeds `_existing_plan_ids`' walk); and `record_placement`'s two literal TYPE-name lists, which name record types rather than subdirs.
 - Scope-Paths: agent_workflows/lifecycle_dirs.py, agent_workflows/layout.py, agent_workflows/backlog.py, agent_workflows/plans.py, agent_workflows/engine.py, agent_workflows/ipd_lint.py, agent_workflows/record_placement.py, agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_authoring.py, tests/test_lifecycle_dirs.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - Id: d1lo52
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: x9qv9q
 - Set: placelib
 - Order: 1
@@ -18,6 +19,7 @@
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): Reviewed via /plan-review; 8 findings (PR-701..PR-708), all FIXED. Corrected E-01 to source the spec row's order from layout rather than from attention_contract.SPEC_STATUSES, which is a frozenset whose iteration order varies per process and whose order approved spec kw5y2s pins as a JSON array. Split the bundled test item because its two classes have OPPOSITE pre-migration expectations (agreement must pass, drift guard must fail). Corrected the Findings claim that the guard sees record_placement's literals (measured: zero hits; they are type names). Found a thirteenth hardcoded status join in backlog's set path. Pinned the previously untested has_lifecycle_subdirs alias behavior. Corrected V-04/V-05 to compare tuples positionally and sets with sorted(). Rewrote the gate.
 
 - 2026-09-24 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog x9qv9q; re-measured that r9uvwc's `record_placement` already replaced the status_set if/elif chain and the `specs new` flat-root write, and that an AST scan of `agent_workflows/*.py` still finds 12 independent literal copies of a lifecycle-subdir set across 9 modules.

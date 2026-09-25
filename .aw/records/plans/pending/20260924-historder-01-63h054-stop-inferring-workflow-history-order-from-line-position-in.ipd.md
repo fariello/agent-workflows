@@ -6,7 +6,7 @@
 - Scope: IN: replace the fixed reversal with a per-block direction detection keyed on the record DATE plus the in-block ordinal, with an explicit UNORDERED outcome for a same-date tie the file cannot resolve; make the checker skip (never guess) edges touching an unordered tie; hold `derive_plan_status`'s answer BYTE-IDENTICAL across the change (the reader has a SECOND consumer with different needs, F-7); enumerate the legal backward edges (`approved -> reviewed` and its `auto-approved` tier sibling, spec `2vev8j` 4.8 plus `25kzda` 4.5) and fail closed on every other; record the ordering rule and the backward-edge table in the IPD spec; tests for newest-first, oldest-first, mixed and single-date files. OUT: the `seq` journal (spec `2vev8j` 4.3, owned by `ms06pi`), the UTC/local writer defect (spec 4.4), and any rewrite of plan histories.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/check_engine.py, tests/test_history_order.py, tests/fixtures/derive_plan_status_baseline.json, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,11 +15,13 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63h054
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: tk1gqo
 - Blocks-Release: next
 - From-Spec: 2vev8j
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. 9 findings PR-601..PR-609, all FIXED; 5 decisions D-1..D-5 recorded in the typed review record; `aw ipd lint` conforming at `--phase author` before review and at `--phase review-finalize` after. THE FINDING THAT RESHAPED THE PLAN is PR-601: E-02's "keep `_plan_status_events` as the flattened oldest-first list of those groups" silently regressed the reader's SECOND consumer, `derive_plan_status`, on 307 of 776 plans, including 8 of 49 pending plans whose shipped two-line same-date `reviewed`/`to-review` history would have started deriving `to-review` against an authoritative `- Status: reviewed` - a NEW false finding manufactured by a plan whose purpose is removing false findings. The plan now KEEPS `events.reverse()` deliberately and adds a whole-tree baseline plus a guard test that must pass before the reader changes. Also fixed: the fixture in (e) could not discriminate (it yields 0 findings on the current reader too, so it passed before and after; replaced with `draft` above `approved`, which yields 1 today); "reset `prev` to `None`" MANUFACTURES 215 findings because `validate_transition(None, x)` rejects everything but `draft`; the backward-edge table omitted `auto-approved -> reviewed`, leaving the automated tier's own documented recovery (spec `25kzda` 4.5) illegal; fixtures writing `executed` with an agent actor would have failed for the unrelated unauthorized-terminal reason; 1097 continuation lines across 120 plans would fragment blocks under a non-blank-line boundary rule; the whole-tree count was measured WITHOUT `actor=` and so understated the real population by 411 edges (846 versus 435), of which 286 of 296 survivors are actor rejections this plan does not fix; the plan bought 0 pending findings partly by validating 8 fewer pending and 1224 fewer tree-wide edges, now stated as a cost; every live count is now a re-derivation obligation rather than a bar; and the gate was missing its approval statement, scope fence, honesty rule, stop conditions and conditional finalize ownership. Reviewed sound and unchanged: the central diagnosis, the per-block direction algorithm, the unordered-tie rule, the refusal to rewrite histories, and the rejection of both a rank-free date sort and a lifecycle-rank tiebreak.
 - 2026-09-24 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog tk1gqo; re-measured 0 pending findings (corpus artifact) versus a still-live inverting reader, 435 whole-tree edges today, and 22 flagged plans (0 pending) under the proposed direction-detecting reader.

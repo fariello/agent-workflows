@@ -17,19 +17,21 @@
 - Scope: Fix `ccu3k7`'s still-live defect 5 in `runner_shared.execute_item_core`'s two SPAWN-PATH deliberate-stop handlers so they match the pre-lift host bodies (status via `reconcile_disposition`, then `raise`), remove the dead-and-broken `git_status(repo)` fallback in `runner_shared._record_forced_stop`, and add BEHAVIORAL tests that drive the real `run_queue` on BOTH hosts and would have caught defect 5. Also commit the drift scan as a reproducible tool. OUT: the four symbols other plans own (`classify_recovery_disposition`, `build_verify_and_continue_notice`, `reconcile_disposition` -> `recovone`/`zt2b16`; `reconcile_item_on_interrupt` -> `intrecon`/`2415x6`); the `record_item_spec_edits` key/shape divergence (`tm5vnx`); `route_recovery_turn`'s shared copy (not reached; `zt2b16` records why it cannot be consolidated yet); any change to `runner_stop`'s exception classes or to the verify/reconcile handler pair, which already matches the original.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_liftaudit_stop_halts_run.py, tools/lift_drift_scan.py, tests/test_lift_drift_scan.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: liftaudit
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: afpmdu
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: ccu3k7
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review; APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED, none deferred, none open. Re-measured F-1 and F-2 independently at HEAD 8e74dcac by driving both hosts' real run_queue and by calling _record_forced_stop's fallback: both reproduce exactly as authored. PR-001 (BLOCKER) found E-05's guard would have been RED on arrival because it asserted arity violations: 0 while the same plan's F-4 defers a violation of that exact class; E-05 now asserts an exact one-entry allowlist. PR-002 found the level-4 status additionally makes the ledger incoherent under spec R3 (unknown_outcome is not a KNOWN_ITEM_STATUS) and implements the option runner_stop documents as rejected; E-04 gained assertion (d). PR-003 found both hosts' _record_forced_stop are unreachable second copies rather than callers, so E-03's caller check would have misread them.
 

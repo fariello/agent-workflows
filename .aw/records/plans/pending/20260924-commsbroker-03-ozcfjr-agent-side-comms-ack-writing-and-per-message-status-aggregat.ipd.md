@@ -6,7 +6,7 @@
 - Scope: IN: a new stdlib-only module `agent_workflows/comms_acks.py`, agent-agnostic (usable by any agent, not only OpenCode), run as `python3 -m agent_workflows.comms_acks ack <msg-id> <state> --by <proj.agent>` and `python3 -m agent_workflows.comms_acks status [<msg-id>] [--format json]`; a one-paragraph addition to the installed comms README telling a target agent how to acknowledge; correcting the spec's stale ack path. OUT: any broker change, an `aw comms` CLI verb, surfacing comms in `aw attention`, and treating any ack as proof (the spec forbids it).
 - Scope-Paths: agent_workflows/comms_acks.py, tests/test_comms_acks.py, agent_workflows/engine.py, .aw/records/comms/README.md, .aw/records/specs/implemented/20260715-1722-01-agent-comms-convention.spec.md
 - Item-Dependencies: executed:nomhl1
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ozcfjr
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED (PR-002 BLOCKER: mixed-offset ack at raises TypeError); review record written
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED. PR-001 (uncarriered OQ, `check.ipd-uncarried-obligation` at `error`), PR-002 (BLOCKER: measured that `comms.validate_ack` accepts BOTH an offset-aware and an offset-naive `at`, so "newest by `at`" raises `TypeError` on a legitimately mixed acks dir and the status view crashes), PR-003 (an ack filename is not re-splittable - `ack_filename("m.a","b",s)` and `ack_filename("m","a.b",s)` collide - and `is_filename_safe` permits glob metachars, so acks must be selected by the `re` field), PR-004 (claimed to detect a forged broker-written `read`, impossible with one shared `acks/` lane and a self-asserted `by`), PR-005 (`read`-or-later not derivable: `AGENT_ACK_STATES` index puts `not-done` below `executed` and no ordering constant exists), PR-006 (a SECOND stale `local/inbox/` in the spec that `grep local/acks` misses, plus a forbidden hand-edit of spec history), PR-007 (crash on a fresh clone with no `untracked/` lane), PR-008 (gate carried almost no execution contract) all FIXED. Findings in `.aw/records/reviews/20260924-commsbroker-03-ozcfjr-agent-side-comms-ack-writing-and-per-message-status-aggregat.review.md`. Readiness go-pending-approval.

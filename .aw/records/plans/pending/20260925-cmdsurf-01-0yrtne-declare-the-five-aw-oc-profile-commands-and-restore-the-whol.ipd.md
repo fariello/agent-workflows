@@ -6,7 +6,7 @@
 - Scope: IN: five declarations in `agent_workflows/command_surface.py`; one fast (not `slow`) behavior test asserting `command_surface.find_undeclared_leaves(cli._build_parser())` is empty; repair the CI step whose three named files are all absent, because leaving it green is what let this regression ship (review finding PR-705); repoint the stale comments and the stale `CONTRIBUTING.md` sentence that still name the deleted `test_cli_conformance_matrix.py`. OUT: changing `oc profile` behavior; restoring any deleted test other than the one whole-CLI declaration test; restoring `test_cli_quality_gates.py` / `test_cli_output_docs_rollout.py` (their goldens are a separate body of work, carried below).
 - Scope-Paths: agent_workflows/command_surface.py, agent_workflows/cli.py, tests/test_command_surface_declarations.py, .github/workflows/tests.yml, CONTRIBUTING.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,10 +15,12 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 0yrtne
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 4fe3al
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 8 findings PR-701..PR-708 all FIXED, 4 decisions D-1..D-4 recorded; review record written; added E-04/E-05 (repair the CI step, repoint the stale citations) and V-04..V-06; corrected the sibling plan's exit-0 claim to the measured exit 5; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog 4fe3al. Verified at HEAD that the five leaves are still undeclared (`find_undeclared_leaves(_build_parser())` returns exactly them) and that the guard test was deleted in 19313eed. Maintainer ruled 2026-09-25 to restore the whole-CLI declaration test (it checks behavior, not source).
 

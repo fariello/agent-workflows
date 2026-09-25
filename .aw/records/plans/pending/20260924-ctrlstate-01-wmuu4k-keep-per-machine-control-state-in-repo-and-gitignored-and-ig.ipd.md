@@ -6,7 +6,7 @@
 - Scope: IN: (a) add the anchored `/worktrees/` pattern to `engine._AW_GITIGNORE_TEMPLATE` and to the `engine._ensure_aw_gitignore` back-fill; (b) add a `/worktrees/` row to `tests/test_installer.py` `AwGitignoreLaneTests.LANES`; (c) add an end-to-end guard test asserting real `git check-ignore` ignores every per-machine control path in a freshly installed repo; (d) record the keep-in-repo decision in spec `20260810-1447-01` Section 5 and resolve it as OQ-01. OUT: any XDG relocation, migration path, Windows fallback (moot under the decision); the root `.gitignore` of this repo (already correct); non-repository records backends.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py, .aw/.gitignore, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -15,9 +15,11 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wmuu4k
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: e820ka
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED. Reproduced the plan's central `git check-ignore` probe end to end in a fresh repo with a REAL `git worktree add`: every claim in its Findings table is TRUE, and one `/worktrees/` line is sufficient. PR-001 (E-01's `anchored=True` activates a repair branch hardcoded to `inbox`, so the new row would fail PERMANENTLY; measured `/worktrees/` -> `['worktrees/']`, and `/state/`/`/workflow-artifacts/` fail it too, which is why neither has a row), PR-002 (E-03's regen command is a measured no-op on an existing file and would then append a comment-less bare line, failing its own V-03 `SAME`), PR-003 (`git add -A` stages a lane as an embedded GITLINK at mode `160000`, a worse harm than recorded), PR-004 (gate carried almost no execution contract and did not preserve the test-first structure), PR-005 (uncarriered OQ, `check.ipd-uncarried-obligation` at `error`) all FIXED. Added F-4..F-7 and OQ-02 (carrying `- Finding: F-6`, the pre-existing `inbox`-only repair gap, recommended for a separate plan). Findings in `.aw/records/reviews/20260924-ctrlstate-01-wmuu4k-keep-per-machine-control-state-in-repo-and-gitignored-and-ig.review.md`. Readiness go-pending-approval.
 - 2026-09-25 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED (two were unrunnable instructions found by executing the code)

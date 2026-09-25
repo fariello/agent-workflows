@@ -10,19 +10,21 @@
 - Scope: IN: (a) re-add ONE `except KeyboardInterrupt as exc:` handler in `runner_shared.execute_item_core`, on the executor-spawn `try` beside the existing `StopNowForce`/`StopAtCheckpoint`/`StallTimeout` handlers, calling `reconcile_item_on_interrupt(...)` then re-raising, so both hosts get it once; (b) unpack the `_run_git` tuple in the no-worktree arm and fail SAFE (treat as holding work) when `git status` cannot be observed; (b2) in that same arm, count a COMMIT as work by comparing HEAD to `attempt["starting_head"]`, so the corrected predicate does not silently clean up a committed non-isolated turn (E-07, added at review); (c) make the no-changes arm's attempt pop match the attempt record's real `"number"` key; (d) behavioral tests driving the real `execute_item` of both hosts and unit tests of the no-worktree arm against real git repos. OUT: the verifier-turn spawn (no `KeyboardInterrupt` handler there before `70a2059f` either); the deliberate-stop handlers' `return`-vs-`raise` and status-routing behavior (fixed by executed plan `13xo5k`, audited under backlog `ccu3k7`); `run_queue`'s own `except KeyboardInterrupt` lane reclaim; any change to `runner_stop`'s interrupt menu or ladder.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_interrupt_reconcile.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: intrecon
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 87jnym
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 2415x6
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED; OQ-02 resolved (D-1), OQ-03 added and resolved (D-2); E-07/V-07 added via aw ipd sync for the committed-work defect E-01 alone would have shipped; readiness GO - PENDING HUMAN APPROVAL
 
 - 2026-09-24 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog 2415x6 (also covering tsfk8a/e17a2e); re-measured at HEAD 877545fc that reconcile_item_on_interrupt has zero callers, that a KeyboardInterrupt through both hosts' execute_item leaves the item `running` with no ipd-interrupted event, that the no-worktree arm raises AttributeError, and that the covering test files were deleted by 19313eed.

@@ -6,19 +6,21 @@
 - Scope: IN: (a) one shared read-only predicate in `runner_shared` that enumerates an id6's EXISTING lane refs (`aw/lane/<id6>` and `aw/lane/<id6>_attempt*`) and reports whether a lane holding COMMITS, clean and not live, has landed on HEAD per the EXISTING `classify_lane_integration`; (b) one shared dispatch-time gate that, for an `execute` item that is not `reusable`, writes a new named non-dispatched status `already-landed` with a remedy line and an event instead of calling `execute_item`; (c) wiring that gate into BOTH hosts' `run_queue`, re-checked at dispatch exactly where the orchestrator branch already sits; (d) registering the status in every vocabulary that must admit it (both hosts' and `runner_shared`'s `TERMINAL_STATES`, `runner_shutdown.KNOWN_ITEM_STATUSES`, `lifecycle_style._RUNNER_ITEM_PAIRS`, and spec `uonrjg` Section 7.2, which a test reads); (e) tests proving the spawn seam is not called for a merged lane and IS called for an unmerged lane, a zero-commit dirty lane, and a reusable plan. OUT: auto-finalizing (an attested lifecycle act the runner must not perform on a human's behalf); an `aw check` advisory for approved-but-landed plans (Deferred, Carrier `zmo0ao`); the already-`executed` admission case (`lb5dzj`); changing `reintegrate_lane` or the integrate verb.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shutdown.py, agent_workflows/lifecycle_style.py, .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md, tests/test_already_landed_dispatch.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: mergeskip
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8k0z40
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: zmo0ao
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review; APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED, none deferred, none open. Independently reproduced F-1 (no landing predicate has any *runipd caller), F-3's full five-lane table, and F-4's REINTEGRATE_PLAN_NOT_FINALIZED refusal. PR-001 (BLOCKER) found E-04's stated reason for amending approved spec uonrjg is FALSE: tests/test_lifecycle_style.py parses only Section 5, proven by two reverted mutations (code-half-only -> 12 passed; 7.2 blocked row gutted -> 12 passed), and the same false claim sits in the spec's own 2026-09-21 history line; the amendment is kept and moved to a new E-09 on the honest contract reason. PR-002 found E-01/E-07 would cut probe lanes from `main`, which makes _lane_base_sha re-resolve a moving base so the merged lane reads EMPTY and F-3 appears not to reproduce. PR-003 found the cited no-runner-import enforcer NoRunnerImportTests does not exist (deleted by 19313eed), so V-03's `-k` selector would have matched zero tests and passed vacuously. Highest E allocated 08 -> 09 for the split-out spec amendment.
 

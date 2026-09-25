@@ -6,7 +6,7 @@
 - Scope: IN: delete the `supports_deny_push` field, `CAP_DENY_PUSH`, its `RUNNER_SAFETY_CAPABILITIES`, `_DECLARED_UNENFORCED` and `_RUNNER_SAFETY_PROBES` entries and `__all__` export; delete the `ACTION_REVIEW`/`ACTION_MUTATE`/`ACTION_CONTRACTLESS_PROMPT` constants and their `ACTION_CAPABILITY_REQUIREMENTS` entries so `ACTION_CLASSES` is `(ACTION_READ_ONLY,)`; correct every docstring, help string and comment that describes the removed flag or the "four action classes"; re-point the tests, PRESERVING the two-sided preflight coverage via a synthetic test-local action; amend spec `25kzda` where it describes the flag as preserved. OUT: `supports_commit_gateway` (kept; see OQ-01), the preflight machinery itself (`check_action_capabilities`, `preflight_host_capabilities`, `UnknownActionError`, `RUN_HOST_CAPABILITY`, all kept and still tested), spec 5.2's host-requirement prose ("deny push-capable network routes") and its packet example's `"deny_push"` string, both of which state a requirement on a HOST rather than naming the Python field, and `run_evidence.RUN_FINDING_CODES`' `RUN-HOST-CAPABILITY` row, whose `BOUND` binding is unchanged because its three named predicates all survive.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, agent_workflows/host_cmd.py, agent_workflows/cli.py, agent_workflows/run_evidence.py, tests/test_host_capability_extension.py, tests/test_host_sandbox_profile.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -15,9 +15,11 @@
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 01reg8
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: aagh7v
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): Reviewed via /plan-review; 8 findings (PR-601..PR-608), all FIXED. Corrected the Scope-Paths spec path (named a nonexistent file), added the missing dataclasses import to E-02, added the synthetic-gated-action seam that keeps the preflight REFUSES/PROCEEDS pair non-vacuous after the only remaining action class requires nothing, corrected three 'every action requiring them is refused' claims that the removal falsifies, split E-06 into three items over AST-measured method lists, declined three adjacent scope temptations with carriers, and rewrote the gate with an approval statement, scope fence, honesty rule and conditional transition. Raised OQ-03 (spec table keeps four rows while the code drops to one).
 
 - 2026-09-24 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog aagh7v; re-measured every `supports_deny_push`/`CAP_DENY_PUSH` reference at HEAD `cfc7f5c1`, confirmed `check_action_capabilities` has no consumer beyond `host_cmd`, and captured the current `aw host capabilities opencode` output (3 pairs refused).

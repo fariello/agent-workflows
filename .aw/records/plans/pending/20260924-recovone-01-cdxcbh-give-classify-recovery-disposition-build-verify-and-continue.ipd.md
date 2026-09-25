@@ -6,19 +6,21 @@
 - Scope: IN: (a) `runner_shared.classify_recovery_disposition` takes oc's body (real `LaneState` field names, the `exists`/`head`/`base_sha` guards, `worktree_lease.commit_subject_is_interrupted_snapshot`); oc's and agy's definitions are deleted and replaced by re-exports, together with oc's AST-identical duplicates `RecoveryDisposition`, `DISPOSITION_*`, `RECOVERY_DISPOSITIONS` and `_lane_commit_subjects`; (b) `build_verify_and_continue_notice` single-sourced the same way; (c) `runner_shared.route_recovery_turn` gains a keyword-only `save_state` injection (the `reconcile_interrupted` precedent) and both hosts become one-line wrappers, so `AGY_IMPORTS_FROM_OC_RUNIPD` loses its three recovery names; (d) `reconcile_disposition` single-sourced on the shared tolerant body, oc's and agy's definitions deleted and re-exported; (e) one new behavioral test module. OUT: any change to the routing POLICY (verify-and-continue vs fresh vs undetermined), to prompt text, or to `reconcile_disposition`'s precedence rungs; `record_item_spec_edits` (the fourth `AGY_IMPORTS_FROM_OC_RUNIPD` name, a different concern); `_record_forced_stop`/`_lane_reclaim_prompt`/`disable_lane_prompt` (other residue named by the scanner); closing the backlog items (a post-execution records act).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_recovone_single_definition.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: recovone
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cdxcbh
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: zt2b16
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review; APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, none deferred, none open. Every authored finding re-measured independently at HEAD fcc30bdb and ALL reproduce exactly, including both pytest baselines (274 passed, 23 passed) and the scanner census (61 co-defined, the same 6 NEITHER-DELEGATES names). PR-001 (HIGH) found a FOURTH divergence in neither backlog item: the shared classifier hardcodes dirty=False in all 5 branches and never reads st.dirty, while build_verify_and_continue_notice branches on decision.dirty, so a field-names-only fix would ship a classifier reporting every recovered lane clean; E-02 now compares dirty/commits_ahead with a fifth lane shape. PR-002 found E-05 cited a <= 4 CEILING test as its success criterion, which passes at 1 and at 4 and so cannot prove the lift. PR-003 verified the fingerprint pin agy's comment invokes covers none of the six moved symbols, so the prose must be corrected rather than updated.
 

@@ -6,7 +6,7 @@
 - Scope: IN: one autouse fixture plus a process audit hook, both inside `tests/test_run_viewer.py`, that fail any test in the module which lists or opens a path under the checkout's live run roots; permanent self-tests proving BOTH that the hook records and that the fixture actually FAILS (the latter via a subprocess, because an in-process test cannot assert its own fixture failed); a one-shot falsification probe against the real live tree (not committed). OUT: a suite-wide guard in the root `conftest.py` (Deferred); any change to `agent_workflows/run_viewer.py`.
 - Scope-Paths: tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: swps4w
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-601..PR-606 all fixed; added E-03 (subprocess self-test proving the fixture actually fails, measured falsifiable) and E-05 (xdist plus random-order stability); recorded the guard's honest reach (inert with no live tree); 6 items, 6:6 E/V bijection; findings and 4 decisions in .aw/records/reviews/20260924-viewerguard-01-swps4w-...review.md
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-606, all FIXED. Reproduced every author claim (`HITS 0`, `26 passed` under a synthesized live tree; `is_dir`/`exists`/`stat` emit no audit event while `iterdir` emits `os.scandir`; `os.fsdecode(int)` raises so the `try/except` is load-bearing). The dominant finding: the E-02 self-tests CLEAR `_HITS` before returning, so they never exercise the fixture's `pytest.fail` - measured by gutting `pytest.fail` and watching both self-tests stay GREEN, leaving the guard's only real proof in the uncommitted E-03 probe. Added E-03 (a subprocess self-test that asserts a nonzero exit and the guard message, verified falsifiable). Also recorded the guard's HONEST REACH as a measured limit rather than an aside: with the live tree ABSENT a genuine `discover_run_dirs(_REPO)` call passes silently, so the guard is inert in CI and in a lane worktree and works only on a box that has run the driver - which is the author's box, and is exactly where the plan's Goal aims it.

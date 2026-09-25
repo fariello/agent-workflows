@@ -6,7 +6,7 @@
 - Scope: IN: (a) `ipd_authoring.build_skeleton` emits a carrier-ready example question that does not itself fail the gate, without becoming a universal bypass; (b) `evaluate_carrier_obligation` refuses `Carrier-Evidence` under the walkthroughs tree, both path generations; (c) document the carrier vocabulary and the walkthrough rule, which no README, spec or AGENTS.md currently mentions at all; (d) give every currently-flagged live row a real carrier, re-derived at execution time. OUT: the uncarried rows in executed and superseded plans, which the rule by design never reads; changing `resolve_evidence_artifact` or backlog close evidence (OQ-02); adding an `aw ipd carrier` verb.
 - Scope-Paths: agent_workflows/ipd_authoring.py, agent_workflows/check_engine.py, .aw/system/workflows/assess/templates/ipd.md, .aw/system/workflows/assess/templates/orchestrator-ipd.md, .aw/records/plans/README.md, .aw/records/walkthroughs/README.md, tests/test_ipd_authoring.py, tests/test_check_engine.py, .aw/records/plans/pending/**
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -15,10 +15,12 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vtkfq8
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: dtrect
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 10 findings PR-701..PR-710 all FIXED, 7 decisions D-1..D-7 recorded; review record written; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog dtrect, absorbing 3yr30q (walkthrough carrier rule, maintainer ruling 2026-09-25) and the live remainder of retired rtyapw (0 grandfathered rows remain; 37 new rows fail CI). Reproduced at HEAD: a fresh `aw ipd scaffold` plan yields `check.ipd-uncarried-obligation` error on OQ-01; `resolve_evidence_artifact` accepts a walkthrough path.
 

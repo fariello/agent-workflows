@@ -6,11 +6,12 @@
 - Scope: Add one records backend value `repository-untracked`, resolve it to `<target>/.aw/records` with an ignored Git policy and honest `unversioned` durability, repair the pre-existing `record_producers.get_git_owner` crash the new value would hit, write an anchored `/records/` line into the framework-owned `.aw/.gitignore` at install, keep the record scanners able to see a git-ignored records root, refuse the backend on a repo that already TRACKS records, warn that such records are not durable across clones, and amend the canonical storage spec.
 - Scope-Paths: agent_workflows/project_schema.py, agent_workflows/project_context.py, agent_workflows/storage.py, agent_workflows/install_wizard.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/artifact_core.py, agent_workflows/record_producers.py, agent_workflows/project_layout.py, tests/test_project_context.py, tests/test_records_untracked_backend.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
 - Id: lr0lln
+- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: hsixiz
 - Set: untrackrec
 - Order: 1
@@ -18,6 +19,7 @@
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 
 ## Workflow history
+- 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-501..PR-510 all fixed; 13 items, 13:13 E/V bijection; OQ-01/OQ-02 resolved from evidence; findings and decisions in .aw/records/reviews/20260924-untrackrec-01-lr0lln-...review.md
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-510, all FIXED. Added E-02 (repair the pre-existing `get_git_owner` `AttributeError` the new value hits), E-03 (the storage-boundary and layout-materialization dispatch sites), E-06 (refuse the backend on a repo that already TRACKS records, which gitignore cannot untrack), and the `aw setup` half of E-11; scoped E-08's `get_ignored_dirs` discard to the repo's RECORDED backend so a user's own `.aw/records/` ignore is not overridden; required E-04's placement override to survive an explicit preset fill; line-anchored E-07's presence test; split for right-sizing into 13 items with a 13:13 E/V bijection; corrected `Highest E allocated` (IPD-I304); rewrote the gate with the full execution contract; resolved OQ-01 and OQ-02 from in-tree evidence and carried both, clearing an error-severity `check.ipd-uncarried-obligation`. Findings and five recorded decisions in `.aw/records/reviews/20260924-untrackrec-01-lr0lln-...review.md`.
