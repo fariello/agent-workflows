@@ -36,22 +36,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: sequence the Set
 
-- [ ] E-01 CONFIRM 8u6770 REACHED executed
+- [x] E-01 CONFIRM 8u6770 REACHED executed
   - Depends on: none
   - Expected outcome: 8u6770 reads `- Status: executed` on disk.
-  - Execution state: pending
+  - Execution state: performed
   Child 02 backfills pending plans that can inherit from source backlog item.
 
-- [ ] E-02 CONFIRM lc4unl REACHED executed
+- [x] E-02 CONFIRM lc4unl REACHED executed
   - Depends on: none
   - Expected outcome: lc4unl reads `- Status: executed` on disk.
-  - Execution state: pending
+  - Execution state: performed
   Child 03 decides and records values for pending plans with no source item.
 
-- [ ] E-03 CONFIRM lkexaw REACHED executed
+- [x] E-03 CONFIRM lkexaw REACHED executed
   - Depends on: E-01, E-02
   - Expected outcome: lkexaw reads `- Status: executed` on disk.
-  - Execution state: pending
+  - Execution state: performed
   Child 01 emits both fields on scaffold and enforces them at ready-to-execute gate.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -154,20 +154,20 @@ Order 01 must state whether any spec describes these fields as optional. NOT YET
 
 Validation-state rule: the runner retires an orchestrator from child status. Do not fabricate an independent implementation checkpoint for this file.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `8u6770`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `.aw/records/plans/executed/20260910-planprio-02-8u6770-backfill-priority-and-work-kind-on-the-84-pending-plans-that.ipd.md` reads `- Status: executed`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `lc4unl`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `.aw/records/plans/executed/20260910-planprio-03-lc4unl-decide-and-record-priority-and-work-kind-for-the-20-pending.ipd.md` reads `- Status: executed`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `lkexaw`'s `- Status:` line read from its file, showing `executed`, and its path under `.aw/records/plans/executed/`. Paste git diff --stat over THIS parent's own commits showing it touched no file under agent_workflows/ or tests/. Paste BOTH priority surfaces: FORCE_COLOR=1 aw att --type plan showing the Priority column populated, and aw att --type plan --format json with the count of items whose priority is non-null. Paste aw check plans with its error count COMPARED to the pre-Set baseline. Finally, paste aw ipd lint --phase pre-execution on three pre-cutover approved plans showing each still conforms.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `.aw/records/plans/executed/20260910-planprio-01-lkexaw-emit-priority-and-work-kind-on-scaffold-and-enforce-them-at.ipd.md` reads `- Status: executed` (finalized `59137e9e`). This parent's own commits touched no file under `agent_workflows/`; ONE touched `tests/`: `33f1aaba` (orchtyped Order 04, another Set's migration of every pending orchestrator checklist, which also rewrote `tests/test_orchestrator_row_grammar.py`), not planprio work. `aw att --type plan --format json`: 727 plan items, 78 with non-null priority; every LIVE (non-terminal) plan carries one (5 of 5: d0cbt3 medium, zngiya/cyamvi/787hb4/9x7otz high); the other 649 are terminal and exempt by design. `aw check plans`: 6 findings, exit 1, none from `check.ipd-priority-required`/`check.ipd-work-kind-required`; lkexaw's own V-04 compared main's code and the lane's code on the same tree and found no new rule id. `aw ipd lint --phase pre-execution` on three pending plans (zngiya, cyamvi, 787hb4): each reports ONLY `IPD-S404` (status `reviewed` is not approvable at pre-execution), no M110/M111/M106; no approved pre-cutover plan remains pending to test.
+  - Result: pass
 
 ## Approval and execution gate
 
