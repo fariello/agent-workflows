@@ -88,7 +88,17 @@ class DerivationIsUnchangedTests(unittest.TestCase):
             p.relative_to(root).as_posix()
             for p in sorted(root.glob(".aw/records/plans/**/*.ipd.md"))
         ]
-        intersection = sorted(set(plan_paths) & set(baseline.keys()))
+        # TERMINAL PLANS ONLY (backlog `shw0eh`). A pending plan's derived status is SUPPOSED to change
+        # as it moves draft -> reviewed -> approved, so comparing it to a frozen capture fails on every
+        # legitimate transition (measured 2026-09-25: four pending plans approved after the capture
+        # reddened this guard on main). A terminal plan's history is frozen, so a mismatch there can
+        # only mean the DERIVATION changed, which is the regression this guard exists to catch.
+        _TERMINAL_DIRS = ("/executed/", "/superseded/", "/not-executed/")
+        intersection = sorted(
+            p
+            for p in set(plan_paths) & set(baseline.keys())
+            if any(d in p for d in _TERMINAL_DIRS)
+        )
 
         print(f"Compared {len(intersection)} paths")
         self.assertGreaterEqual(
