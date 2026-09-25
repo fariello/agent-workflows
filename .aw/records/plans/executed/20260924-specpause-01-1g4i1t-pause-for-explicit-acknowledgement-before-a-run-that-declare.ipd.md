@@ -6,7 +6,7 @@
 - Scope: Add a shared, host-neutral spec-edit acknowledgement gate: prompt y/N on a TTY listing the declared specs; unattended runs proceed only with `--ack-spec-edits <justification>` and otherwise refuse before any agent turn, recording the refusal durably with the same carrier the orchestrator coverage gate uses. Amend spec `25kzda` 2.1 and add 2.5c.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_spec_edit_ack_gate.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -15,10 +15,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1g4i1t
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 10qxm7
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: 1g4i1t verified (set specpause, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): Reviewed via /plan-review; 7 findings (PR-901..PR-907), all FIXED. Corrected a - Scope-Paths: spec path that resolved to no file (would have announced a phantom spec edit while E-01 amended the real spec undeclared). Closed a FAIL-OPEN the plan's exception-handling sentence did not cover: neither spec_impacts_for_queue (except OSError: continue) nor queue_with_plan_paths (documented drop) raises on an unreadable declaring plan, so the gate would have proceeded silently on an empty impact list; E-04 now refuses on that accounting and new case (h) pins it. Recorded why RESUME_REFUSE diverges from both str precedents (which use none-default) and corrected the Deferred text that inverted its meaning. Justified the --prepare-only placement inverting the model gate's (it closes the prepare-then-resume bypass, since resume never calls initialize_run_core). Warned that case (g)'s source-counting assertion traps E-05's own comment. Rewrote the gate; gave OQ-02 a declined carrier.
 
