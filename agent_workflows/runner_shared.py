@@ -15868,7 +15868,13 @@ def probe_argv(
             "--output-format",
             "stream-json",
             "--print-timeout",
-            str(int(PROBE_ASK_TIMEOUT_SECONDS)),
+            # agy parses this flag as a Go duration and REJECTS a bare integer ("missing unit in
+            # duration"), printing its usage and exiting. The last stderr line of that usage is
+            # `update  Update CLI`, which is what the probe recorded as its `could-not-ask` detail on
+            # every agy run, so the coverage gate warned past on EVERY agy run rather than on an outage.
+            # Measured 2026-09-25 against the installed agy. The execute turn already passes a unit
+            # (`DEFAULT_TIMEOUT = "240m"`), which is why only the probe was broken.
+            f"{int(PROBE_ASK_TIMEOUT_SECONDS)}s",
         ]
         if options.get("dangerously_skip_permissions", True):
             argv.append("--dangerously-skip-permissions")
@@ -22628,7 +22634,42 @@ def driver_begin(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    return result.returncode, (result.stderr or result.stdout or "").strip()
+    return result.returncode, nested_aw_message(result.stdout, result.stderr)
+
+
+def nested_aw_message(stdout: str | None, stderr: str | None) -> str:
+    """The diagnostic text of a nested `aw` lifecycle call: BOTH streams, stderr first.
+
+    This used to be `(stderr or stdout)`, which silently DISCARDS stdout whenever stderr is non-empty.
+    That is wrong for `aw`: its lifecycle verbs print their refusal (`error: AW-LIFECYCLE-ROLE-001 ...`)
+    on STDOUT, while stderr carries only advisory notices such as the checkout-mismatch line from
+    `checkout_pin`. Measured on run-20260925T174509Z-636951 (`u27oh3`): the recorded refusal reason was
+    the notice "aw: invoked in checkout ... re-running with ..." and the real refusal was lost, so the
+    run's remedy pointed at E/V bookkeeping that was already complete.
+
+    Both streams are kept because either may carry the reason. The `checkout_pin` advisory notice
+    (every line starting `aw: invoked in checkout `) is then dropped, and ONLY that notice: it is
+    never a refusal reason, and leaving it in would make the retry classifier's stale-receipt arm
+    (`finalize_refusal_is_retryable`, which treats every non-summary line as a finding) refuse a
+    retryable message merely because a notice was printed. If the notice is the ONLY text, it is
+    kept rather than returning an empty reason.
+    """
+
+    parts = [(s or "").strip() for s in (stderr, stdout)]
+    text = "\n".join(p for p in parts if p)
+    kept = [
+        line
+        for line in text.splitlines()
+        if not line.startswith(_CHECKOUT_PIN_NOTICE_PREFIX)
+    ]
+    reason = "\n".join(kept).strip()
+    return reason or text
+
+
+#: The fixed prefix of every advisory line `checkout_pin.check_and_reexec` prints. Pinned by
+#: `tests/test_runner_finalize_message.py` against `checkout_pin`'s own source, so a reworded notice
+#: fails a test instead of silently leaking back into refusal reasons.
+_CHECKOUT_PIN_NOTICE_PREFIX = "aw: invoked in checkout "
 
 
 # ---- THE HOST DESCRIPTOR (rununify Order 04, `tx6q0h`) -------------------------------------------
@@ -25077,7 +25118,7 @@ def driver_finalize(
         plan_path,
         id6,
         result.returncode,
-        (result.stderr or result.stdout or "").strip(),
+        nested_aw_message(result.stdout, result.stderr),
     )
 
 

@@ -45,6 +45,35 @@ def find_toolkit_checkout(cwd: str | Path | None = None) -> Path | None:
     return None
 
 
+def _launched_by_pin_bootstrap() -> bool:
+    """Was this process started by the runner's pinned bootstrap, judged from its OWN argv and env?
+
+    A SECOND, CHILD-SIDE recognition of a driver-pinned call, needed because the `AW_PINNED_CHILD`
+    marker lives in the DRIVER's in-memory `_AW_PIN_BOOTSTRAP` string. A driver process that STARTED
+    BEFORE the marker existed keeps launching the old bootstrap for its whole lifetime, while every
+    child it spawns imports THIS module fresh from disk. Measured on run-20260925T174509Z-636951: the
+    driver started at 17:45Z, `wj5b53` landed at 19:21Z, and from then on every pinned finalize
+    re-executed into the LANE's package, silently inverting the driver-authoritative contract
+    (spec `7ckptx` A8) until `u27oh3`'s lane code refused its own finalize.
+
+    The signature is the bootstrap's own shape, which no console-script `aw` has: the interpreter was
+    run with `-c`, the code string runs `agent_workflows` via `runpy.run_module`, and the env carries
+    `AW_PIN_KEEP_ROOT` (set only by `runner_shared.pinned_child_env`). All three are required, so an
+    agent turn (which also inherits `AW_PIN_KEEP_ROOT` but runs a console script) is NOT exempted,
+    preserving the reason plan `wj5b53` F-4 rejected `AW_PIN_KEEP_ROOT` alone. `sys.orig_argv` is
+    Python 3.10+; on older interpreters this returns False and only the marker applies.
+    """
+
+    if not os.environ.get("AW_PIN_KEEP_ROOT"):
+        return False
+    orig = list(getattr(sys, "orig_argv", None) or [])
+    if "-c" not in orig:
+        return False
+    idx = orig.index("-c")
+    code = orig[idx + 1] if idx + 1 < len(orig) else ""
+    return 'runpy.run_module("agent_workflows"' in code
+
+
 def check_and_reexec() -> None:
     """Check if cwd is inside a different toolkit checkout than the imported one; re-exec on mismatch.
 
@@ -57,6 +86,9 @@ def check_and_reexec() -> None:
     """
     try:
         if os.environ.pop("AW_PINNED_CHILD", None) is not None:
+            return
+
+        if _launched_by_pin_bootstrap():
             return
 
         if "COMP_LINE" in os.environ or "_ARGCOMPLETE" in os.environ:

@@ -169,6 +169,42 @@ def test_07_pinned_child_runs_real_cli_silent(tmp_path: Path) -> None:
     assert proc.stderr == ""
 
 
+def _pre_marker_bootstrap() -> str:
+    """The `_AW_PIN_BOOTSTRAP` a driver started BEFORE `wj5b53` landed still runs: no marker line."""
+    return runner_shared._AW_PIN_BOOTSTRAP.replace(
+        "os.environ['AW_PINNED_CHILD']='1'\n", ""
+    )
+
+
+def test_07b_pre_marker_driver_bootstrap_runs_real_cli_silent(tmp_path: Path) -> None:
+    # Regression for run-20260925T174509Z-636951 (u27oh3): a long-lived driver keeps its in-memory
+    # bootstrap, so its pinned children carry NO AW_PINNED_CHILD. They must still be recognized and
+    # NOT re-exec into the lane's package, or the lane's code performs the driver's finalize.
+    fake = _make_fake_checkout(tmp_path)
+    bootstrap = _pre_marker_bootstrap()
+    assert "AW_PINNED_CHILD" not in bootstrap
+    cmd = [sys.executable]
+    if sys.version_info >= (3, 11):
+        cmd.append("-P")
+    cmd.extend(["-c", bootstrap, "--version"])
+    env = runner_shared.pinned_child_env(_clean_env())
+    proc = subprocess.run(cmd, cwd=str(fake), env=env, capture_output=True, text=True)
+    assert proc.returncode == 0
+    assert "agent-workflows" in proc.stdout
+    assert "FAKE-RAN" not in proc.stdout
+    assert proc.stderr == ""
+
+
+def test_07c_keep_root_env_alone_does_not_exempt(tmp_path: Path) -> None:
+    # The agent turn inherits AW_PIN_KEEP_ROOT too (wj5b53 F-4), so that env var by itself must NOT
+    # suppress the re-exec: only the bootstrap's own launch shape does.
+    fake = _make_fake_checkout(tmp_path)
+    proc = _run_launcher(fake, extra_env={"AW_PIN_KEEP_ROOT": REPO_ROOT})
+    assert proc.returncode == 0
+    assert "FAKE-RAN" in proc.stdout
+    assert "aw: invoked in checkout" in proc.stderr
+
+
 def test_08_in_process_main_returns_normally(tmp_path: Path) -> None:
     fake = _make_fake_checkout(tmp_path)
     old_cwd = os.getcwd()
