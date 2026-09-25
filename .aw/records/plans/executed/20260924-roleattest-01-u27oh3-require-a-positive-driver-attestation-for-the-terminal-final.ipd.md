@@ -6,20 +6,20 @@
 - Scope: INVERT the default for the terminal transition. Inside a LANE WORKTREE (repo root under the checkout's `.aw/worktrees/`, or HEAD on an `aw/lane/*` branch) `finalize` and `retire_orchestrator` refuse UNLESS a per-run DRIVER ATTESTATION is presented and verifies; outside a lane (a human in the main checkout) behavior is unchanged. The driver mints a random token per run into its run dir (outside every lane), and passes it ONLY on its own finalize subprocess (`runner_shared.driver_finalize`) and its own in-process `retire_orchestrator` call, never into an agent child env. The existing env-marker gate stays as a first, cheap selector. The refusal text gains a sentence saying stripping the marker does not confer driver authority and corrupts the driver's transaction. OUT: `aw ipd begin` in a lane (OQ-02), an audit signal for forged finalize commits, and any OS-sandbox or separate-principal enforcement.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_driver_attestation_gate.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: roleattest
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: u27oh3
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: c4yixg
 - Blocks-Release: next
 - Priority: high
 - Work-Kind: security
 
 ## Workflow history
+- 2026-09-25 executed (opencode manual-landing run=run-20260925T174509Z-636951): Manual finalize: lane work verified by the run (verification_status verified); the run's finalize was refused only because the pre-wj5b53 driver's pinned finalize re-executed into this lane's new attestation gate (fixed in 146c8e2b). Lane merged with main; full suite 2173 passed.
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us step=plan-review): plan-review complete: 8 findings (1 BLOCKER) all FIXED, 5 recorded decisions, none irreversible; review-finalize lint clean
 - 2026-09-24 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed; APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED, none deferred, none open. All seven author findings were independently re-derived at HEAD f768cadd and HELD: the terminal transition really is gated on nothing but the absence of a strippable variable, no driver token exists anywhere, and F-4's key insight (the driver's own finalize runs INSIDE the lane) is correct and is what makes the design non-trivial. The findings are implementation defects that would have INVERTED the outcome, since a verifier looking in the wrong place fails closed on the legitimate holder: PR-001 (BLOCKER) found E-02's runs-root expression doubles the `.aw` segment and can never exist, so every verification would refuse the DRIVER and strand every lane; PR-002 found that even corrected, a hand-composed path breaks the `home`/`companion` records backends and that `state_root(<lane>)` differs from `state_root(<main>)`, so the verifier must collapse to the main checkout; PR-003 found E-01's STOP condition would have halted the plan on a false alarm, because the coordinator scratch worktree DOES land under `.aw/worktrees/` when finalize runs from a lane (safe, but for a different reason than assumed). Also fixed: E-04 asked the executor to confirm something false about `run_finalize` passing env through (PR-004), E-05(d)/V-05 implied a refusal that cannot happen at the main-checkout retirement site (PR-005), the plan cited a test file that does not exist twice (PR-006), the CHANGELOG heading does not exist and a HONEST LIMIT clause names two now-`done` backlog items as live motivation (PR-007), and the gate was one paragraph for a security change with no stop conditions and no warning about the new strand-every-lane failure mode (PR-008). Lint: `--phase author` conforming before review, `--phase review-finalize` clean with zero findings after.
