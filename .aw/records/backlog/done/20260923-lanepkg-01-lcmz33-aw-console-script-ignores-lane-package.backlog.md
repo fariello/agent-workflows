@@ -1,5 +1,5 @@
 - Id: lcmz33
-- Status: graduated
+- Status: done
 - Graduated-To: laneawpin
 - Blocks-Release: next
 - Set: lanepkg
@@ -8,6 +8,7 @@
 - Summary: aw console script resolves the editable-install root, so a lane worktree silently validates the wrong code
 
 ## Workflow history
+- 2026-09-25 set (aw backlog): closed by aw oc run: IPD wj5b53 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260924-laneawpin-01-wj5b53-make-aw-detect-when-it-is-running-a-different-checkout-s-cod.ipd.md); evidence .aw/records/plans/executed/20260924-laneawpin-01-wj5b53-make-aw-detect-when-it-is-running-a-different-checkout-s-cod.ipd.md
 - 2026-09-25 graduated (aw set): graduated into laneawpin plan wj5b53 (to-review); plan also covers jeh310
 - 2026-09-23 note (aw backlog): Related to cpun92, which covers the TEST-side half (subprocess CLI tests in a lane importing the main checkout). This item is the INTERACTIVE half: the aw console script itself, which cpun92 mentions as a measured aside without filing. Filed separately because the fixes differ: cpun92 pins PYTHONPATH in the test fixture, while this needs the runner or the CLI itself to notice the mismatch.
 - 2026-09-23 created (aw backlog): aw console script resolves the editable-install root, so a lane worktree silently validates the wrong code
