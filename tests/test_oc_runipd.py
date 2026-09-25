@@ -2011,7 +2011,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                     - Readiness: go-pending-approval
 
                     ## Workflow history
-                    - 2026-08-24 reviewed (aw set): status set to reviewed
+                    - 2026-08-24 /plan-review (opencode): APPROVE; PR-001
                     """
                 ),
                 encoding="utf-8",

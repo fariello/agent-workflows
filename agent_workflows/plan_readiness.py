@@ -165,8 +165,8 @@ _NEGATIVE_READINESS_SCAN_RE = _vocabulary_scan_re(
 #: "clearing this plan's only blocking question and with it its `no-go`", which is a statement that the
 #: no-go is GONE. `_NEGATIVE_READINESS_SCAN_RE` is a plain substring scan, so it matched the token
 #: inside that clause and `newest_verdict` returned NEGATIVE for three plans that had just been
-#: cleared. That reddened `tests/test_plan_readiness.py::ApprovalGateRealCorpusTests
-#: ::test_no_pending_plan_is_refused_on_a_verdict_today`, which reads the LIVE pending tree; the red
+#: cleared. That reddened `tests/test_review_record_classifier.py::TestLivePendingCorpus
+#: ::test_no_pending_plan_has_verdict_class_refusal`, which reads the LIVE pending tree; the red
 #: test failed the driver-run suite in every lane of run `run-20260919T194413Z-2056285`; a failed suite
 #: made `integration_is_earned` return `suite-failed`; and that gates self-finalize, so nothing
 #: integrated, three lanes were preserved unmerged, and eight further items cascaded to
@@ -446,30 +446,36 @@ def is_plan_review_approved(plan_path: Path) -> bool:
 # previously-parsing records have any capture changed, and 336 newly parse. Note the actor guard at
 # `status_set` now also refuses NEW records of that shape (fn2l1u E-07), so the hole is closed from
 # both ends; this half is what makes the records ALREADY on disk readable, which a setter guard cannot
-# do. Widen IN PLACE: `tests/test_plan_readiness.py` asserts there is only ONE encoding of this
+# do. Widen IN PLACE: `tests/test_review_record_classifier.py` asserts there is only ONE encoding of this
 # vocabulary, so do not add a third parser.
 _HISTORY_RECORD_PARTS_RE = re.compile(
     r"^-\s*(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<mid>.*?)\s*\((?P<actor>.*?)\):\s*(?P<msg>.*)$"
 )
 
-# The tokens that mark a record as a REVIEW record. Derived from a census of every history record in
-# this repository: the review-bearing middles are `reviewed`, `/plan-review` (with many suffixes such
-# as ` pass 2`, ` focused`, ` RE-REVIEW`), `re-reviewed /plan-review`, `re-review`, and
-# `/plan-review-long`. A prefix test on `/plan-review` covers the whole family without enumerating
-# suffixes that reviewers keep inventing.
+# The tokens and patterns that mark a record as a REVIEW record (verdictread xpta5g).
 _REVIEW_WORDS = frozenset(("reviewed", "re-reviewed", "review", "re-review"))
-_REVIEW_PREFIX = "/plan-review"
+_WORKFLOW_LABEL_RE = re.compile(r"/(?:aw\s+)?(?:plan|spec)-review", re.IGNORECASE)
+_WORKFLOW_NAME_CLAUSE_RE = re.compile(
+    r"(?:/aw\s+|/)?(?:plan|spec)-review", re.IGNORECASE
+)
+_LEADING_VERDICT_RE = re.compile(r"^(?:APPROVE|REJECT|REVIEWED\s*-)", re.IGNORECASE)
 
 
 def is_review_history_entry(entry: str) -> bool:
     """Whether a history RECORD is itself a review record, as opposed to one merely mentioning review.
 
-    THIS DISCRIMINATOR IS THE CENTRAL CORRECTNESS REQUIREMENT of the approval gate, and skipping it
-    is the obvious wrong implementation. A naive "the newest entry contains REJECT" test would refuse
-    exactly the plans that CORRECTLY REPLACED the rejected ones: measured, every pending plan matching
-    ``grep 'REJECT - NEEDS REPLAN'`` is a successor whose newest record is a ``to-review`` entry
-    NARRATING its retired predecessor's rejection (d7bnhc F-5). A verdict may only be read from a
-    record that is a review record's own stated verdict.
+    THIS DISCRIMINATOR IS THE CENTRAL CORRECTNESS REQUIREMENT of the approval gate, and classifying
+    by structure rather than review words in prose fixes three defect classes (ycg597, nwrb0j, gv36a7).
+    A parsed record is a review record iff:
+      A. Its middle contains a workflow label `/plan-review` or `/spec-review` (optionally `/aw plan-review`,
+         with any suffix such as ` pass 2` or `-long`); or
+      B. Its middle's FIRST token is in `_REVIEW_WORDS` AND its message either begins with a verdict token
+         (`APPROVE`, `REJECT`, `REVIEWED -`) or names the review workflow (`plan-review`/`spec-review`)
+         before its first `:` or `;`.
+
+    Measured over 776 plans: withdraws review attestation from 6 terminal plans (including one
+    genuine self-review `hblwtx` lacking a verdict-leading message), with 0 changes to live pending
+    refusals, 0 auto-approval flips, and correcting 2 recheck citations.
 
     Pure. False for an unparseable record, which is the safe answer: an unreadable record states no
     verdict, so no refusal is derived from it.
@@ -477,10 +483,21 @@ def is_review_history_entry(entry: str) -> bool:
     m = _HISTORY_RECORD_PARTS_RE.match((entry or "").strip())
     if not m:
         return False
-    for token in m.group("mid").replace(",", " ").split():
-        lowered = token.lower()
-        if lowered in _REVIEW_WORDS or lowered.startswith(_REVIEW_PREFIX):
+    mid = m.group("mid").strip()
+    # Rule A: Middle contains a workflow label (/plan-review, /spec-review, /aw plan-review, etc.)
+    if _WORKFLOW_LABEL_RE.search(mid):
+        return True
+
+    # Rule B: First token of middle in _REVIEW_WORDS and message leads with verdict or review workflow
+    tokens = mid.replace(",", " ").split()
+    if tokens and tokens[0].lower() in _REVIEW_WORDS:
+        msg = m.group("msg").strip()
+        if _LEADING_VERDICT_RE.search(msg):
             return True
+        first_clause = re.split(r"[:;]", msg, maxsplit=1)[0]
+        if _WORKFLOW_NAME_CLAUSE_RE.search(first_clause):
+            return True
+
     return False
 
 
@@ -503,15 +520,15 @@ def history_has_review_record(text: str) -> bool:
     a forgery does not need the stricter rule either, because a forged plan has NO review record
     anywhere.
 
-    IT REUSES :func:`is_review_history_entry` RATHER THAN A MENTION-MATCHER, which is the whole point
-    of the fix. ``ipd_lint._REVIEW_EVIDENCE_RE`` scans the WHOLE history text for `/plan-review`,
-    `APPROVE`, `NO-GO` or `REJECT`, so it matches a bare MENTION in a non-review record: a `to-review`
-    line saying "I mention plan-review in passing", a `draft` line containing the word `APPROVE`, and a
-    successor narrating its predecessor's `REJECT` all satisfy it, and each is exactly the forged field
-    this gate must refuse. The discriminator instead requires a review token in the record's OWN
-    status/workflow middle, so it refuses all three. That is also why `plan_readiness` does NOT import
-    `ipd_lint` for this (`ipd_lint` reaches `attention`, `check_engine`, `renderers` and the CLI stack
-    through function-scoped imports, and both host drivers import this module).
+    IT REUSES :func:`is_review_history_entry` (now classified by structural rule, verdictread xpta5g)
+    RATHER THAN A MENTION-MATCHER, which is the whole point of the fix. ``ipd_lint._REVIEW_EVIDENCE_RE``
+    scans the WHOLE history text for `/plan-review`, `APPROVE`, `NO-GO` or `REJECT`, so it matches a
+    bare MENTION in a non-review record: a `to-review` line saying "I mention plan-review in passing", a
+    `draft` line containing the word `APPROVE`, and a successor narrating its predecessor's `REJECT` all
+    satisfy it, and each is exactly the forged field this gate must refuse. The structural discriminator
+    instead requires a review token in the record's OWN status/workflow middle and a leading verdict or
+    workflow name, so it refuses all three. Measured over 776 plans: withdraws attestation from 6
+    terminal plans with 0 auto-approval flips.
 
     Pure. False for text with no history section, which is the fail-closed answer.
     """
@@ -529,19 +546,15 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
 
     Returns ``(polarity, raw_entry)`` where polarity is one of :data:`POSITIVE` / :data:`NEUTRAL` /
     :data:`NEGATIVE`, or ``None`` when no verdict could be read at all (no history, no review record,
-    or a review record stating no verdict token). ``raw_entry`` is ``""`` when nothing was read, so a
-    caller can quote the evidence in its refusal message.
+    or a review record stating no verdict token in :data:`VERDICTS`). ``raw_entry`` is ``""`` when
+    nothing was read, so a caller can quote the evidence in its refusal message.
 
-    TWO RULES, both measured rather than guessed (d7bnhc D2):
+    TWO RULES, both measured rather than guessed (d7bnhc D2, verdictread xpta5g):
 
     1. Only REVIEW records are consulted (:func:`is_review_history_entry`), and only the NEWEST one.
        The newest record of ANY kind is the wrong input; see that function for the measured reason.
-    2. Within that record, the FIRST verdict token wins (:func:`classify_verdict`), and a negative
-       READINESS token decides only when the record states no verdict token at all. This is
-       deliberately looser than :func:`history_verdict_approves`'s any-mention rule, because a false
-       refusal here cannot be overridden by any flag: measured, 6 review records state a positive
-       verdict and also contain ``NO-GO`` while narrating a readiness change, and refusing those
-       would lock out legitimate approvals.
+    2. Within that record, the FIRST verdict token wins (:func:`classify_verdict`). An unrecognized
+       verdict token yields ``(None, candidate)`` rather than guessing a negative polarity.
 
     THIS IS THE PROSE PATH ONLY. It deliberately does NOT read the structured ``- Readiness:`` field,
     so that the field-versus-prose decision order lives in exactly one place. :func:`approval_refusals`
@@ -570,13 +583,6 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
         _, polarity = classify_verdict(message)
         if polarity is not None:
             return polarity, candidate
-        # No verdict token at all. A negative READINESS token is then the only signal present, and it
-        # is unambiguous precisely BECAUSE no verdict competes with it for the reader's attention.
-        # BUT ONLY WHEN IT IS ASSERTED: a record stating that a no-go was CLEARED contains the token
-        # while saying the opposite, which is what `negative_readiness_asserted` separates. Measured
-        # 2026-09-19: the plain scan returned NEGATIVE for three just-cleared plans and cost a run.
-        if negative_readiness_asserted(message):
-            return NEGATIVE, candidate
         return None, candidate
     return None, ""
 
@@ -744,7 +750,7 @@ def _one_line(text: str, limit: int = 220) -> str:
 #: The ONLY readiness value this re-check will read as its input, and the ONLY one it will write as
 #: its output. Named constants rather than inline literals because E-02's pinning test asserts the
 #: write target by NAME: a future edit that widens the target has to change a constant every test in
-#: `tests/test_plan_readiness_recheck.py` reads, instead of a bare string buried in a function.
+#: the test suite reads, instead of a bare string buried in a function.
 RECHECK_SOURCE_READINESS = "no-go"
 RECHECK_TARGET_READINESS = "go-pending-approval"
 
