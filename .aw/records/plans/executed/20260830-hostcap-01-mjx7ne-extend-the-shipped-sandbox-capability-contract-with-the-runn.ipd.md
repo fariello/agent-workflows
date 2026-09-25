@@ -13,7 +13,6 @@
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: mjx7ne
 - Blocks-Release: next
-- From-Backlog: none
 
 ## Workflow history
 - 2026-09-04 executed (aw oc run): aw oc run self-finalize: mjx7ne verified (set hostcap, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/host_cmd.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]

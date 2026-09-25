@@ -120,7 +120,7 @@ All re-measured at HEAD `877545fc` (`git rev-parse --short HEAD`) with probes un
 - Changing routing policy, prompt text, or `reconcile_disposition` precedence. This plan picks between existing bodies; it does not redesign them.
   - Carrier-Declined: Not an obligation; any such change needs its own plan and review.
 - Closing backlog `zt2b16` and `2t4v1j` after execution. `zt2b16` is linked by `- From-Backlog:` and this plan inherits its gate; `2t4v1j` is not linked, so its close needs `--evidence` citing this plan once executed.
-  - Carrier-Evidence: .aw/records/backlog/open/20260922-2t4v1j-01-2t4v1j-reconcile-disposition-configured-file-keyerror.backlog.md
+  - Carrier-Evidence: .aw/records/backlog/graduated/20260922-2t4v1j-01-2t4v1j-reconcile-disposition-configured-file-keyerror.backlog.md
 
 ## Scope check
 

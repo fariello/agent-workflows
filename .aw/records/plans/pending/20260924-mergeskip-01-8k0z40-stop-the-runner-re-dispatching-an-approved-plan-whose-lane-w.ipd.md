@@ -115,7 +115,7 @@ Measured at HEAD `877545fc` (`git rev-parse --short HEAD`).
 - AUTO-FINALIZING a detected already-landed plan. `aw ipd finalize` is an attested lifecycle act that needs a begin receipt and an actor; a runner doing it for a hand merge would forge that attestation.
   - Carrier-Declined: deliberate design constraint (attested lifecycle act), not an outstanding obligation.
 - THE ALREADY-`executed` ADMISSION CASE (`aw oc run <id6>` naming an executed plan, `determine_action` mapping `executed` -> `execute`). Adjacent input, separately filed.
-  - Carrier: lb5dzj
+  - Carrier-Evidence: .aw/records/backlog/done/20260913-lb5dzj-01-lb5dzj-reexecute-executed-plan-no-guard.backlog.md
 - A REOPENED PLAN WITH A STALE MERGED LANE (a plan finalized, reopened with `--allow-terminal-reopen`, re-approved for new work while its old merged lane branch still exists) would be parked `already-landed`. Not auto-detected; the remedy hint names the fix (`git branch -d <branch>` then re-run), and the outcome is non-destructive (no turn spent, nothing deleted).
   - Carrier-Declined: accepted limit with an in-hint remedy; reopening executed plans is discouraged in favor of a corrective IPD, so the case is rare by policy.
 
