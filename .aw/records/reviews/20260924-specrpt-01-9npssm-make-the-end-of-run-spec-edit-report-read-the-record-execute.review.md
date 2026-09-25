@@ -158,3 +158,11 @@ that verdict rather than requiring a fresh review.
 Worth the maintainer's attention beyond the question: this plan is `Blocks-Release: next` and the defect
 it fixes is total rather than cosmetic (an undeclared spec change currently prints nothing on either
 host), so the ordering decision is on the critical path to the release rather than a nicety.
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-001 | blocker | IN-SCOPE | A (correctness) / C (architecture) | plan `E-04`; pending plan `cdxcbh` (Set `recovone`) `E-05` expected outcome; `runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD`; both plans' `- Item-Dependencies: none` | TWO RELEASE-GATING PENDING PLANS EDIT THE SAME CONSTANT AND ONE ORDER FALSIFIES THE OTHER'S RECORDED EXPECTED OUTCOME, WITH NOTHING ORDERING THEM. `cdxcbh` E-05 removes the three recovery names and states as its expected outcome `AGY_IMPORTS_FROM_OC_RUNIPD == frozenset({"record_item_spec_edits"})`; this plan's E-04 removes exactly that name. Measured: the constant holds all four today; simulating both orders, only `cdxcbh`-first leaves both assertions true, while this-plan-first empties the set and makes `cdxcbh`'s equality FALSE. Both declare `- Item-Dependencies: none`, so the runner's dependency-depth sort imposes no order and either sequence can occur unattended. This is NOT the file-overlap non-hazard (isolated lanes and merge-and-revalidate handle that): it is a CONTENT contradiction between two recorded expected outcomes, so the cost is an executor spending a turn to discover a failed validation on work that is actually correct. No code consumes the constant, so an empty set is harmless; only a plan's expectation breaks. | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | fixed | STALE ESCALATION CLOSED 2026-09-25 by opencode/its_direct/pt3-claude-opus-5.5-1m-us. The question this finding was escalated as (OQ-03) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-001` back-reference, not on a judgement about what the question was about. Previous decision: open. |

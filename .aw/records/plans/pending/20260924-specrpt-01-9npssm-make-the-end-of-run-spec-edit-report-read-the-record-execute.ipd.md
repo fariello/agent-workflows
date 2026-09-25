@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_shared.py
 - Item-Dependencies: executed:cdxcbh
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Set: specrpt
 - Order: 1
 - Highest E allocated: 08
@@ -19,6 +19,7 @@
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-25 readiness re-check (opencode/its_direct/pt3-claude-opus-5.5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-25, findings PR-001..F-7. Recomputed at HEAD `7835a4d5`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-25 same-status (aw set): OQ-03 resolved by maintainer 2026-09-25: run cdxcbh first
 
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review; REVIEWED - OPEN QUESTIONS; PR-001..PR-005; PR-001 is a BLOCKER left OPEN and escalated as OQ-03 (Blocking: yes, Finding: F-8), so Readiness is no-go pending one human ordering decision. Every authored finding reproduces at HEAD 0a06a2d6, including the exact report strings: a finalized item reports NOT FINALIZED, and an undeclared-spec-only run prints literally nothing while the same queue with a reader-shaped record prints UNDECLARED SPEC CHANGE(S). PR-001 found that this plan's E-04 and pending plan cdxcbh's E-05 both edit AGY_IMPORTS_FROM_OC_RUNIPD, with neither ordered, and that this-plan-first makes cdxcbh's recorded expected outcome FALSE. PR-002 found F-5's on-disk counts unverifiable where the plan executes (.aw/records/runs/ is gitignored and absent in a lane). PR-003 corrected F-7's grep count while confirming its conclusion.

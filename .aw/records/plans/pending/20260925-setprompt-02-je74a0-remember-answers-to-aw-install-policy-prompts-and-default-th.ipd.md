@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/config.py, tests/test_installer.py, tests/test_config.py, tests/test_cli.py, CHANGELOG.md, README.md, docs/**
 - Item-Dependencies: executed:vv6y7e
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
 - Set: setprompt
@@ -19,6 +19,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-25 readiness re-check (opencode/its_direct/pt3-claude-opus-5.5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> none (no verdict token read)). RE-CHECKED REVIEW: the review of 2026-09-25 (no finding ids stated in its record). Recomputed at HEAD `7835a4d5`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-25 same-status (aw set): OQ-03 resolved 2026-09-25: depend on the classifier-fix child vv6y7e instead of backlog 72qlya being done
 - 2026-09-25 reviewed (aw set): status set to reviewed
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; readiness no-go (two BLOCKING questions unresolved, OQ-03 and OQ-04); PR-B01..PR-B07. The plan's own F-1/F-2/F-3 all reproduced. PR-B01 is the finding that changes the plan's shape: flipping the migration default to YES routes unattended installs into a SHIPPED crash (backlog `72qlya`), measured end to end with a patched yes-default, so the plan now declares `- Item-Dependencies: state:backlog:done:72qlya` and carries a blocking open question (OQ-03). Also found: the raised `PreflightGateError` is uncaught and kills a whole `install all` fleet run (PR-B02); `config.normalize` silently DROPS a non-bool `defaults.*`, so `defaults.leftovers` cannot round-trip as written (PR-B03, driven); three existing tests pin the old default and were unlisted (PR-B04); `config set <key> -` cannot clear a bool key (PR-B05); README's compatibility-window prose was undeclared (PR-B06); the gate carried no fence, honesty rule, or approval statement (PR-B07).
