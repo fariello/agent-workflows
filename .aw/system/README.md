@@ -42,10 +42,15 @@ The manifest also tracks the individually marked SECTIONS of the managed block i
 shared instruction files (AGENTS.md, and CLAUDE.md/GEMINI.md when present). That block uses
 an outer `<!-- aw:block -->` .. `<!-- /aw:block -->` wrapper containing `<!-- aw:<slug> -->`
 sections. For each section the manifest records its slug and the hash of what the installer
-last wrote, keyed as `<file>#aw:<slug>`. This is what lets the installer update one section,
-leave a section you edited alone, and (in future) let you decline a specific directive while
-keeping the rest. Any hand-authored block you keep in the same file that is NOT an
-`aw:block` (for example a differently named `NAME:BEGIN/END` block) is never touched.
+last wrote, keyed as `<file>#aw:<slug>`.
+
+When you run install or update, each section is handled by four clear rules:
+- if the on-disk section matches the new template, it is adopted silently and its hash is re-recorded;
+- if the on-disk section matches what the installer last wrote, it is updated to the new template;
+- if the on-disk section matches neither, your edited version is kept and the installer warns you by name;
+- if no record exists and the on-disk section differs from the template, your version is kept and warned.
+
+To replace a preserved section with the regenerated version, delete that section (from its `<!-- aw:<slug> -->` marker to the next marker) and re-run install. This also lets you decline a specific directive while keeping the rest. Any hand-authored block you keep in the same file that is NOT an `aw:block` (for example a differently named `NAME:BEGIN/END` block) is never touched.
 
 ## Should I commit it?
 
