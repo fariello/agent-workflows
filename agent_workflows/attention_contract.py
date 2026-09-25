@@ -42,6 +42,8 @@ from __future__ import annotations
 import re
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
+from agent_workflows import lifecycle_dirs as _LD
+
 # --------------------------------------------------------------------------------------
 # The five-value attention-class enum (spec Section 6)
 # --------------------------------------------------------------------------------------
@@ -267,20 +269,8 @@ def is_nonartifact_name(name: str) -> bool:
 # --------------------------------------------------------------------------------------
 
 # Specs (spec Section 7). The canonical spec status enum, pinned here so the coverage test diffs one
-# symbol per tree.
-SPEC_STATUSES: FrozenSet[str] = frozenset(
-    (
-        "draft",
-        "to-review",
-        "reviewed",
-        "approved",
-        "implementing",
-        "implemented",
-        "deferred",
-        "parked",
-        "superseded",
-    )
-)
+# symbol per tree. Derived from lifecycle_dirs.LIFECYCLE_SUBDIRS["specs"].
+SPEC_STATUSES: FrozenSet[str] = frozenset(_LD.LIFECYCLE_SUBDIRS["specs"])
 
 # Per-tree mapping fragments. Keyed by the canonical native enum for each tree:
 #   plans   -> plans.RECOGNIZED

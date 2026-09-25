@@ -85,6 +85,7 @@ from typing import Callable, NamedTuple, Optional
 from . import versioning as _VERSIONING
 from . import manifest as manifest_mod
 from . import reporting_contract
+from . import lifecycle_dirs as _LD
 from ._compat import packaged_source_root
 from .term import Term
 import json
@@ -4963,13 +4964,7 @@ def uninstall_repo(
 # --------------------------------------------------------------------------------------
 
 PLANS_DIR = ".agents/plans"
-PLAN_LIFECYCLE_SUBDIRS = (
-    "pending",
-    "executed",
-    "superseded",
-    "not-executed",
-    "reusable",
-)
+PLAN_LIFECYCLE_SUBDIRS = _LD.LIFECYCLE_SUBDIRS["plans"]
 DOCS_DIR = ".agents/docs"
 DOCS_SUBDIRS = (
     "research",
@@ -4990,13 +4985,7 @@ RESEARCH_SHARD_SUBDIRS = (
 # plan lifecycle buckets so the `aw plans` board and the name-normalizer treat it on par with
 # `.agents/plans/`. Prompts staging is TRACKED (like plans), NOT gitignored like comms `untracked/`.
 PROMPTS_DIR = ".agents/prompts"
-PROMPT_LIFECYCLE_SUBDIRS = (
-    "pending",
-    "executed",
-    "superseded",
-    "not-executed",
-    "reusable",
-)
+PROMPT_LIFECYCLE_SUBDIRS = _LD.LIFECYCLE_SUBDIRS["prompts"]
 # Quarantine lane for raw/sensitive/WIP prompts (D94, mirrors the comms untracked/ lane).
 # `untracked/` is gitignored via the framework-owned `.aw/.gitignore` on the canonical layout, and via
 # a NESTED `.agents/prompts/.gitignore` on the legacy one (a created deliverable, NOT a change to the

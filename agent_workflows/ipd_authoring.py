@@ -25,6 +25,7 @@ from typing import List, Optional
 from agent_workflows import artifact_core as _core
 from agent_workflows import ipd_lint as LINT
 from agent_workflows import ipd_schema as S
+from agent_workflows import record_placement as _rp
 
 # The schema-owned unassigned-leaf placeholder: an execution-section top-level task item whose
 # first text token is exactly this marker is an unassigned leaf that `sync` will number.
@@ -511,7 +512,13 @@ def run_scaffold(args: argparse.Namespace) -> int:
             repo_root = None
         if repo_root is None:
             repo_root = Path.cwd()
-        pending = repo_root / ".aw" / "records" / "plans" / "pending"
+        pending = (
+            repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / _rp.target_subdir("plans", "to-review")
+        )
         # IPD sk7ggr E-01: repository-wide mint. NOTE the previous per-tree set was `pending` ONLY, so
         # it did not even cover `executed/`; a fresh plan id6 could equal an executed plan's, which is
         # the exact shape of the measured `uyeko5` case.

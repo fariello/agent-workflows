@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional, Tuple
+
+from agent_workflows import lifecycle_dirs as _LD
 
 # Readiness vocabulary (D52; `auto-approved` added by D65). Lowercase-kebab; front-matter is the
 # single source of truth. `auto-approved` is a sibling of `approved` at the ready-to-execute tier:
@@ -28,13 +30,8 @@ STANDING = ("reusable",)
 RECOGNIZED = frozenset(PRE_TERMINAL + TERMINAL + STANDING)
 
 # Disposition directories under .agents/plans (and the `done` alias for executed).
-DISPOSITION_DIRS = (
-    "pending",
-    "executed",
-    "superseded",
-    "not-executed",
-    "reusable",
-    "done",
+DISPOSITION_DIRS: Tuple[str, ...] = _LD.LIFECYCLE_SUBDIRS["plans"] + (
+    _LD.PLANS_DONE_ALIAS,
 )
 DIR_TERMINAL = {
     "executed": "executed",

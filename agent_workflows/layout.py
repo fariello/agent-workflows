@@ -38,6 +38,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
+from agent_workflows import lifecycle_dirs as _LD
+
 # The layout document schema version. Bump only with a documented migration; the emitted schema
 # pins it as an enum so a stale reader fails loudly instead of misparsing.
 SCHEMA_VERSION = 1
@@ -155,13 +157,7 @@ def _default_record_classes() -> Tuple[RecordClassDefinition, ...]:
             subpath="plans",
             pattern="*.ipd.md",
             description="Implementation Plan Documents (IPDs)",
-            lifecycle_subdirs=(
-                "pending",
-                "executed",
-                "superseded",
-                "not-executed",
-                "reusable",
-            ),
+            lifecycle_subdirs=_LD.subdirs_for("plans"),
             aliases=("plan",),
         ),
         RecordClassDefinition(
@@ -169,17 +165,7 @@ def _default_record_classes() -> Tuple[RecordClassDefinition, ...]:
             subpath="specs",
             pattern="*.spec.md",
             description="Architectural specifications and proposals",
-            lifecycle_subdirs=(
-                "draft",
-                "to-review",
-                "reviewed",
-                "approved",
-                "implementing",
-                "implemented",
-                "deferred",
-                "parked",
-                "superseded",
-            ),
+            lifecycle_subdirs=_LD.subdirs_for("specs"),
             aliases=("spec",),
         ),
         RecordClassDefinition(
@@ -187,13 +173,7 @@ def _default_record_classes() -> Tuple[RecordClassDefinition, ...]:
             subpath="prompts",
             pattern="*.md",
             description="Handoff prompts and session prompts",
-            lifecycle_subdirs=(
-                "pending",
-                "executed",
-                "superseded",
-                "not-executed",
-                "reusable",
-            ),
+            lifecycle_subdirs=_LD.subdirs_for("prompts"),
             aliases=("prompt",),
         ),
         RecordClassDefinition(
@@ -211,7 +191,7 @@ def _default_record_classes() -> Tuple[RecordClassDefinition, ...]:
             subpath="backlog",
             pattern="*.backlog.md",
             description="Committed backlog items",
-            lifecycle_subdirs=("open", "graduated", "blocked", "parked", "done"),
+            lifecycle_subdirs=_LD.subdirs_for("backlog"),
             aliases=("backlog",),
         ),
         RecordClassDefinition(

@@ -29,6 +29,7 @@ from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import backlog as _backlog_mod
 from agent_workflows import ipd_schema as _ipd_schema
+from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import lifecycle_style as _LS
 from agent_workflows import plans as _plans_mod
 from agent_workflows import selectors as _sel
@@ -63,17 +64,8 @@ TYPE_STATUSES: dict[str, set[str]] = {
         "done",
         "pending",
     },
-    "specs": {
-        "draft",
-        "to-review",
-        "reviewed",
-        "approved",
-        "implementing",
-        "implemented",
-        "deferred",
-        "parked",
-        "superseded",
-    },
+    # Set placelib (d1lo52) E-05: DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["specs"]`, never re-listed.
+    "specs": set(_LD.LIFECYCLE_SUBDIRS["specs"]),
     # bklgrad Order 01 (v58bvy) E-01: DERIVED from `backlog.STATUSES`, never re-listed. This copy is
     # what refused `aw backlog set graduated` after the vocabulary grew, so it is now identical by
     # construction (GUIDING_PRINCIPLES P8) and a future status cannot desync the setter.

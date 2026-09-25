@@ -24,6 +24,7 @@ from typing import Optional, Set
 
 from agent_workflows import attention_contract as _AC
 from agent_workflows import backlog as _BL
+from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import plans as _plans
 
 
@@ -36,7 +37,7 @@ def has_lifecycle_subdirs(record_type: str) -> bool:
         rc = model.get_record_class(record_type)
         return bool(rc.lifecycle_subdirs)
     except (KeyError, ValueError):
-        return record_type in ("plans", "prompts", "backlog", "specs")
+        return bool(_LD.subdirs_for(record_type))
 
 
 def target_subdir(record_type: str, status: str) -> Optional[str]:
@@ -182,9 +183,7 @@ def resolve_transition_path(
         return current_path
 
     if record_type in ("backlog", "specs"):
-        valid_subdirs: Set[str] = (
-            set(_BL.STATUS_DIRS) if record_type == "backlog" else set(_AC.SPEC_STATUSES)
-        )
+        valid_subdirs: Set[str] = set(_LD.subdirs_for(record_type))
 
         base_dir = type_dir
         try:

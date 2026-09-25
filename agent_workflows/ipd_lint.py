@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import ipd_schema as S
+from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import lifecycle_style as _LS
 from agent_workflows import term as _T
 from agent_workflows.term import Term
@@ -469,7 +470,7 @@ def _dir_of(path: Optional[Path]) -> Optional[str]:
     if path is None:
         return None
     parts = path.resolve().parts
-    for anchor in ("pending", "executed", "superseded", "not-executed", "reusable"):
+    for anchor in _LD.LIFECYCLE_SUBDIRS["plans"]:
         if anchor in parts:
             return anchor
     return None

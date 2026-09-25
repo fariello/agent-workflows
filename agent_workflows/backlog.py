@@ -65,6 +65,8 @@ from typing import Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
+from agent_workflows import lifecycle_dirs as _LD
+from agent_workflows import record_placement as _rp
 
 BACKLOG_ROOTS = (".agents/backlog", ".aw/records/backlog")
 # bklgrad Order 01 (v58bvy) E-01: `graduated` sits between `open` and `done` and means the item's
@@ -75,7 +77,7 @@ BACKLOG_ROOTS = (".agents/backlog", ".aw/records/backlog")
 # release-gate satisfier: `aw attention` maps it to `active` (not `done`), so a graduated blocker stays
 # in the outstanding release-blocker set, and closing to `done` still requires the HANDOFF / SATISFIED
 # / DE-GATED legitimacy fixes in `check_engine.evaluate_blocking_close`.
-STATUS_DIRS = ("open", "graduated", "blocked", "parked", "done")
+STATUS_DIRS = _LD.LIFECYCLE_SUBDIRS["backlog"]
 STATUSES = frozenset(STATUS_DIRS)
 PRIORITIES = frozenset(("high", "medium", "low"))
 KINDS = frozenset(("bug", "feature", "chore", "security", "followup"))
@@ -754,7 +756,11 @@ def run_new(args) -> int:
         core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50] or "item"
     )
     filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
-    dest = _resolve_backlog_root(repo_root) / status / filename
+    dest = (
+        _resolve_backlog_root(repo_root)
+        / _rp.target_subdir("backlog", status)
+        / filename
+    )
     body = getattr(args, "body", None) or ""
     rendered = _render_item(item, body, message=message)
     if br is not None:
@@ -1181,7 +1187,9 @@ def run_set(args) -> int:
     if verdict.severity == "warn":
         sys.stderr.write(f"aw backlog set: warning: {verdict.reason}.\n")
 
-    dest_dir = _resolve_backlog_root(repo_root) / new_status
+    dest_dir = _resolve_backlog_root(repo_root) / _rp.target_subdir(
+        "backlog", new_status
+    )
     dest = dest_dir / src.name
     if not getattr(args, "apply", True):  # set applies by default
         sys.stdout.write(f"--- would move {src} -> {dest} (status {new_status}) ---\n")

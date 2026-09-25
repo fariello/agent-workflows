@@ -21,6 +21,7 @@ from typing import Dict, FrozenSet, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import backlog as _backlog
+from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import plans as _plans
 
 # --------------------------------------------------------------------------------------
@@ -715,19 +716,8 @@ _ITEM_DEP_STATE_STATUSES: Dict[str, FrozenSet[str]] = {
     "ipd": frozenset(
         ("draft", "to-review", "reviewed", "approved", "auto-approved", "reusable")
     ),
-    "spec": frozenset(
-        (
-            "draft",
-            "to-review",
-            "reviewed",
-            "approved",
-            "implementing",
-            "implemented",
-            "deferred",
-            "parked",
-            "superseded",
-        )
-    ),
+    # Set placelib (d1lo52) E-05: DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["specs"]`, never re-listed.
+    "spec": frozenset(_LD.LIFECYCLE_SUBDIRS["specs"]),
     # bklgrad Order 01 (v58bvy) E-08: DERIVED from `backlog.STATUSES`, never re-listed. A second
     # hardcoded copy here is what made `state:backlog:graduated:<id6>` unparseable when `graduated`
     # was added to the backlog vocabulary, so the two sets are now provably identical by construction
