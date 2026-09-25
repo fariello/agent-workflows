@@ -93,6 +93,7 @@ TYPE_BACKENDS: Dict[str, Dict[str, str]] = {
     },
     "prompts": {
         "new": "prompts.run_new",
+        "index": "prompts_index.run_index",
         "rename": "artifact_rename.run_rename_prompts",
         "group": "artifact_rename.run_group_prompts",
     },

@@ -143,7 +143,7 @@ class TreePolicy(NamedTuple):
     reason: str  # rationale, esp. for excluded trees
 
 
-# v1 scope (OQ3): specs + plans + research tracked; prompts/comms deferred to Phase 3; walkthroughs +
+# v1 scope (OQ3): specs + plans + research + prompts tracked; comms deferred to Phase 3; walkthroughs +
 # roadmaps excluded (no real lifecycle semantics yet, OQ8). READMEs and index files are not artifacts.
 TREE_POLICY: Tuple[TreePolicy, ...] = (
     TreePolicy(
@@ -191,9 +191,9 @@ TREE_POLICY: Tuple[TreePolicy, ...] = (
     TreePolicy(
         "prompts",
         ".agents/prompts",
-        False,
-        "",
-        "deferred to Phase 3 (OQ3); own lifecycle not yet contracted here",
+        True,
+        "aw prompts",
+        "staged prompts; lifecycle tracked by disposition directory (aw prompts)",
     ),
     TreePolicy(
         "comms",
@@ -345,6 +345,16 @@ _RELEASES_MAP: Dict[str, str] = {
     "shipped": DONE,
 }
 
+# Prompts (staging tree; plan `dx0u4s`): pending -> ready, executed -> done,
+# superseded -> parked, not-executed -> parked, reusable -> parked (OQ-01).
+_PROMPTS_MAP: Dict[str, str] = {
+    "pending": READY,
+    "executed": DONE,
+    "superseded": PARKED,
+    "not-executed": PARKED,
+    "reusable": PARKED,
+}
+
 # lanestrand-01 (`pr5b0t`) E-03: LANES, the one attention-visible thing that is NOT A FILE.
 #
 # THE TREE IS SYNTHETIC AND HAS NO `TreePolicy` ENTRY, DELIBERATELY. Every other fragment here keys a
@@ -402,6 +412,7 @@ CLASS_MAPS: Dict[str, Dict[str, str]] = {
     "research": _RESEARCH_MAP,
     "backlog": _BACKLOG_MAP,
     "releases": _RELEASES_MAP,
+    "prompts": _PROMPTS_MAP,
     "lanes": _LANES_MAP,
 }
 

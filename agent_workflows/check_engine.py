@@ -39,7 +39,7 @@ SUPPORTED: Dict[str, tuple] = {
     "specs": ("names", "content"),
     "backlog": ("names", "content"),
     "research": ("names", "content", "refs"),
-    "prompts": ("names",),
+    "prompts": ("names", "content"),
     "walkthroughs": ("names",),
     "roadmaps": ("names",),
     "releases": ("names", "content"),
@@ -612,6 +612,16 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.id6-outside-metadata-region": RuleSpec(
         "info", ASSURANCE_GUIDANCE, DET_DETERMINISTIC, "I-09"
     ),
+    # Prompts content rules (plan dx0u4s; catalog I-09 / I-03).
+    "check.prompt-metadata-missing": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    "check.prompt-id-mismatch": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    "check.prompt-status-mismatch": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -1143,7 +1153,120 @@ def check_content(
                 )
             except OSError:
                 continue
-    # prompts / walkthroughs / roadmaps: no content validator today -> []
+    elif record_type == "prompts":
+        for p in _iter_type_files(
+            repo_root,
+            "prompts",
+            include_untracked=include_untracked,
+            include_retired=True,
+        ):
+            try:
+                drift.extend(validate_prompt_content(p, repo_root=repo_root))
+            except OSError:
+                continue
+    # walkthroughs / roadmaps: no content validator today -> []
+    return drift
+
+
+def validate_prompt_content(
+    path: Path, repo_root: Optional[Path] = None
+) -> List[_core.Drift]:
+    """Validate a prompt's metadata comment, id6-in-name agreement, and status-vs-bucket agreement (plan dx0u4s)."""
+    drift: List[_core.Drift] = []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return drift
+
+    if repo_root is not None:
+        try:
+            rel = path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except Exception:
+            rel = path.name
+    else:
+        rel = path.name
+
+    first_line = text.split("\n", 1)[0] if text else ""
+    has_comment = bool(first_line.startswith("<!--") and "aw-prompt:" in first_line)
+    requires_id6 = _prompt_requires_id6(path.name, repo_root)
+
+    if requires_id6 and not has_comment:
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    rel,
+                    "check.prompt-metadata-missing",
+                    "prompt filename date requires a leading <!-- aw-prompt: ... --> metadata comment",
+                )
+            )
+        )
+
+    if has_comment:
+        from agent_workflows.prompts_index import _parse_metadata_comment
+
+        meta = _parse_metadata_comment(text)
+        comment_id = meta.get("Id")
+        comment_status = meta.get("Status")
+
+        m = _naming.parse_clustered(path.name)
+        if m and not _re.fullmatch(r"\d{4}", m.group("set")):
+            fn_id6 = m.group("id6")
+            if comment_id and comment_id != fn_id6:
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            rel,
+                            "check.prompt-id-mismatch",
+                            f"comment Id {comment_id!r} != filename id6 {fn_id6!r}",
+                        )
+                    )
+                )
+
+        from agent_workflows.attention import _prompt_disposition_from_rel
+
+        disp = _prompt_disposition_from_rel(rel)
+        if not disp:
+            try:
+                disp = path.parent.name
+            except Exception:
+                disp = ""
+
+        terminal_dispositions = {"executed", "superseded", "not-executed", "reusable"}
+        if comment_status and disp:
+            norm_status = comment_status.strip().lower()
+            if disp in terminal_dispositions:
+                if norm_status == "pending":
+                    drift.append(
+                        enrich_drift(
+                            _core.Drift(
+                                rel,
+                                "check.prompt-status-mismatch",
+                                f"comment Status 'pending' inside terminal bucket {disp!r}",
+                            )
+                        )
+                    )
+                elif norm_status in terminal_dispositions and norm_status != disp:
+                    drift.append(
+                        enrich_drift(
+                            _core.Drift(
+                                rel,
+                                "check.prompt-status-mismatch",
+                                f"comment Status {comment_status!r} != bucket {disp!r}",
+                            )
+                        )
+                    )
+            elif disp == "pending":
+                if norm_status in terminal_dispositions:
+                    drift.append(
+                        enrich_drift(
+                            _core.Drift(
+                                rel,
+                                "check.prompt-status-mismatch",
+                                f"comment Status {comment_status!r} inside pending bucket",
+                            )
+                        )
+                    )
+
     return drift
 
 

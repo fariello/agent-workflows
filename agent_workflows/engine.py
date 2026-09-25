@@ -5058,6 +5058,8 @@ records/plans/INDEX.json
 records/plans/INDEX.md
 records/research/INDEX.json
 records/research/INDEX.md
+records/prompts/INDEX.json
+records/prompts/INDEX.md
 # The per-machine state tree and the machine-local config binding. NEVER committed, and this is a
 # LEAK-CONTAINMENT rule rather than a tidiness one: `state/durable/install.json` records the
 # resolved policy INCLUDING absolute paths (`aw_home`), and `state/*/history/installs.jsonl` appends
@@ -6195,6 +6197,8 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
         "records/plans/INDEX.md",
         "records/research/INDEX.json",
         "records/research/INDEX.md",
+        "records/prompts/INDEX.json",
+        "records/prompts/INDEX.md",
     ):
         if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_index_pattern)), text):
             additions.append(_index_pattern)

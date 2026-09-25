@@ -82,3 +82,11 @@ adopter repo may still show for the same lane. Run `aw normalize-lanes` to renam
 To make an `untracked/` prompt durable: REVIEW and scrub it (remove secrets, personal/sensitive content;
 consider `aw check-local-leaks`), then `git mv .aw/records/prompts/untracked/<file> .aw/records/prompts/pending/<file>`.
 Promotion is a deliberate human act, never automatic.
+
+## Index and attention
+
+The prompts staging tree participates in manifest generation, drift checking, and cross-tree attention:
+
+- **`aw index prompts [--check]`**: regenerates the gitignored `INDEX.json` manifest and browse-by-Set `INDEX.md` view (or verifies freshness via `--check`).
+- **`aw check prompts`**: validates filename grammar and metadata comment integrity (`check.prompt-metadata-missing`, `check.prompt-id-mismatch`, `check.prompt-status-mismatch`).
+- **`aw attention`**: staged prompts are a tracked attention tree with the pure disposition mapping `pending -> ready`, `executed -> done`, and `superseded` / `not-executed` / `reusable -> parked`.

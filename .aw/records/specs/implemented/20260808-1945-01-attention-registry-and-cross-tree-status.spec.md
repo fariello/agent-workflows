@@ -286,7 +286,7 @@ This spec fixes WHAT and WHY (observable behavior, contracts, compatibility, req
 
 - OQ1 The FULL per-tree mapping tables for plans, research, prompts, comms (specs table is in Section 7). Phase 0 deliverable; each must be exhaustive over the tree's native enum.
 - OQ2 The exact `## Workflow history` record grammar and whether `last_history_at` is a date or an RFC-3339 UTC timestamp (the JSON contract prefers a precise timestamp; the plans convention uses a date). Reconcile in Phase 0.
-- OQ3 RESOLVED (2026-08-08, human, via /plan-review): v1 tree scope = specs + plans + research IN; prompts + comms IN only if their full contracts + mappings are finalized in Phase 0, else deferred to Phase 3.
+- OQ3 RESOLVED (2026-08-08, human, via /plan-review): v1 tree scope = specs + plans + research IN; prompts + comms IN only if their full contracts + mappings are finalized in Phase 0, else deferred to Phase 3. AMENDED (2026-09-25, plan dx0u4s): prompts is now a tracked tree with the disposition mapping {pending: ready, executed: done, superseded: parked, not-executed: parked, reusable: parked}; comms remains deferred to Phase 3.
 - OQ4 The precise JSON schema (id scheme + uniqueness, path normalization, ordering, null behavior, error object) and the canonical serialization profile (Section 8.5) - Phase 0 deliverable.
 - OQ5 Whether plans should gain a native `executing` state (enabling `active` for in-execution plans) in v1 or later. If later, plans have no `active` items in the view initially. (Owner decision; see Section 11 dependency.)
 - OQ6 The `Gate-Ref` validators per kind (esp. `todo`/`decision` stable-id formats and `external` acceptance rule).

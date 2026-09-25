@@ -28,6 +28,7 @@ from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import lifecycle_style as LS
 from agent_workflows import plans as plans_mod
+from agent_workflows import prompts as prompts_mod
 from agent_workflows import research_contract
 from agent_workflows import specs as specs_mod
 from agent_workflows import term as T
@@ -1006,6 +1007,8 @@ def _record_for(
         return _backlog_record(rel, path, text)
     if tree == "releases":
         return _release_record(rel, path, text)
+    if tree == "prompts":
+        return _prompts_record(rel, path, text)
     return None, []
 
 
@@ -1051,6 +1054,69 @@ def format_plan_detail_line(
         detail_txt = term.color256(d_text, 250)
         return f"      {tag_txt} {detail_txt}"
     return f"      {tag}: {d_text}"
+
+
+_PROMPTS_DIR_PREFIXES = (".aw/records/prompts/", ".agents/prompts/")
+
+
+def _prompt_disposition_from_rel(rel: str) -> str:
+    """The prompt's lifecycle DISPOSITION (``pending``/``executed``/...) from its repo-relative path.
+
+    Recognizes both modern `.aw/records/prompts/<disp>/...` and legacy `.agents/prompts/<disp>/...`.
+    Returns `""` when the path names no disposition directory.
+    Takes the first component under the prompts dir (sharding-safe).
+    """
+    norm = rel.replace("\\", "/")
+    for prefix in _PROMPTS_DIR_PREFIXES:
+        if norm.startswith(prefix):
+            tail = norm[len(prefix) :]
+            return tail.split("/", 1)[0] if "/" in tail else ""
+    return ""
+
+
+def _prompts_record(
+    rel: str, path: Path, text: str
+) -> Tuple[Optional[Item], List[core.Drift]]:
+    """Attention record for a staged prompt (plan dx0u4s). The native status is the disposition
+    directory. The id comes from prompts.read_metadata_id6 (empty string when absent)."""
+    drift: List[core.Drift] = []
+    disp = _prompt_disposition_from_rel(rel)
+    if not disp:
+        drift.append(
+            core.Drift(
+                rel, "attention.missing-status", "prompt has no bucket directory"
+            )
+        )
+        return None, drift
+    status = "executed" if disp == "done" else disp
+    try:
+        cls = A.class_of("prompts", status)
+    except A.UnknownNativeStatus:
+        drift.append(
+            core.Drift(
+                rel,
+                "attention.unknown-status",
+                A.escape_detail(f"prompt disposition {disp!r}"),
+            )
+        )
+        return None, drift
+    id6 = prompts_mod.read_metadata_id6(text) or ""
+    lha = A.last_history_at(_history_section_lines(text))
+    d_kind, d_text = _extract_detail(text)
+    oqs, rqs = count_question_stats(text)
+    return Item(
+        id6,
+        rel,
+        "prompts",
+        status,
+        cls,
+        None,
+        lha,
+        detail_kind=d_kind,
+        detail_text=d_text,
+        oqs=oqs,
+        rqs=rqs,
+    ), drift
 
 
 def _release_record(

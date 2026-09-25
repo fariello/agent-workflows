@@ -939,12 +939,11 @@ class EntryPointTests(unittest.TestCase):
             "so which one fires is the whole content of the claim",
         ),
         (
-            "content over prompts, a type with NO content validator",
+            "content over prompts, when no prompt files are present",
             ("check_content", "prompts"),
             (),
-            "A DECLARED-BUT-UNVALIDATED TYPE MUST RETURN `[]`, NOT RAISE. `SUPPORTED['prompts']` is "
-            "`('names',)` only, so this row pins that the composition is data-driven rather than a "
-            "hardcoded chain that assumes every type has a content validator",
+            "Empty return when no prompt files are present in the fixture tree. Prompts content "
+            "validator checks prompts when present; returns `[]` when the tree holds none",
         ),
         (
             "refs over plans, a declared seam",

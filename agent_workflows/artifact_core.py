@@ -410,6 +410,10 @@ SCAN_ROOTS = (
     # for pre-migration repositories, and on its own it fixes NOTHING here.
     ".agents/releases",
     ".aw/records/releases",
+    # Prompts (staging tree; plan `dx0u4s`). Tracked in attention_contract.TREE_POLICY with both
+    # path generations for modern .aw/records/prompts and legacy .agents/prompts.
+    ".agents/prompts",
+    ".aw/records/prompts",
 )
 
 _TEXT_SUFFIXES = (".md", ".txt")

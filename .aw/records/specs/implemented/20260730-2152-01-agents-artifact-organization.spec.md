@@ -218,7 +218,7 @@ Cite research by its `<id6>` (optionally `RSCH-<id6>`), resolved via the manifes
 The model above (stable id + filename-encoded set/order + tool-generated tiered manifest + count-window hot glance + weekly cold shards + deliberate archival verbs + progressive-disclosure tool adoption) is written to apply to any growing `.agents/` artifact tree. Implementation order:
 1. `research/` (this Set): smallest, self-contained, safe to dogfood. DONE (D123).
 2. `plans/executed/` (highest-value next adopter): the measured 179-file, ~85/month pain. DONE (D124, spec `20260808-0004-01`), reusing the shared `artifact_core`.
-3. `prompts/`: DONE (`promptid6` `ubac5n`, 2026-09-23; see the 5.4 amendment of that date for the grammar, the cutover, and the `jxqdcw` OQ-02 reversal it records). `comms/`, `walkthroughs/`: subsequent adopters, each its own migration; not speculative structure (P6).
+3. `prompts/`: DONE (`promptid6` `ubac5n`, 2026-09-23; manifest index, content check, and attention tracking landed via plan `dx0u4s`, 2026-09-25). `comms/`, `walkthroughs/`: subsequent adopters, each its own migration; not speculative structure (P6).
 
 ## 8. Prior decisions this spec revises (not canon)
 - The `YYYYMMDD-HHMM-NN` grouping theory (D48/D50/D55 family): FAILED at grouping (set members span timestamps and do not cluster). Superseded by filename-encoded `set-id` + `NN` + a stable `<id6>`, with human recency from a leading `YYYYMMDD`.
