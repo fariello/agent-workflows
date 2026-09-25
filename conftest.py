@@ -21,10 +21,15 @@ parsing happens). It is a no-op on the common path where xdist is already instal
 
 from __future__ import annotations
 
+import atexit as _atexit
 import importlib.util
 import os
+import shutil as _shutil
 import subprocess
 import sys
+import tempfile as _tempfile
+
+import pytest
 
 # --------------------------------------------------------------------------------------
 # The test session is a COORDINATOR, never a managed worker lane (backlog `1uq1cu`).
@@ -102,6 +107,44 @@ if _REPO_ROOT not in _current_pp.split(os.pathsep):
     os.environ["PYTHONPATH"] = f"{_REPO_ROOT}{os.pathsep}{_current_pp}".rstrip(
         os.pathsep
     )
+
+
+# --------------------------------------------------------------------------------------
+# Home isolation: no test may read or write the developer's real AW_HOME or user config.
+# --------------------------------------------------------------------------------------
+#
+# WHAT WENT WRONG, measured 2026-09-24. `tests/__init__.py` pointed AW_HOME and
+# XDG_CONFIG_HOME at a throwaway directory, but (1) only when the caller had NOT already
+# exported them, so a shell with XDG_CONFIG_HOME set got no sandbox at all; and (2) about
+# twenty tests clean up with `os.environ.pop(...)` instead of restoring the previous value,
+# which DELETES the sandbox for every later test in the same xdist worker. Test order is
+# randomized, so any unisolated test scheduled after one of those pops wrote to the real
+# home. Caught with an audit hook on a bare `python3 -m pytest`:
+# `DeclarativeAllowedValuesTests` rewrote `~/.config/agent-workflows/config.json`, leaving
+# `"aw_home": "~/allowed"`, and the run-analytics tests left hundreds of cache directories
+# under `~/.aw/projects/` and `~/allowed/projects/`.
+#
+# THE FIX HAS TWO PARTS. The sandbox is established here UNCONDITIONALLY, before any test
+# module is imported, so an exported value cannot opt a run out of it. Then an autouse
+# fixture restores both variables after EVERY test, so a test that pops or rewrites them
+# damages only itself. A test that wants a different home still sets one for its own
+# duration, exactly as before.
+_HOME_KEYS = ("AW_HOME", "XDG_CONFIG_HOME")
+_AW_TEST_SANDBOX = _tempfile.mkdtemp(prefix="aw-test-home-")
+_atexit.register(_shutil.rmtree, _AW_TEST_SANDBOX, True)
+_SANDBOX_ENV = {
+    "AW_HOME": _AW_TEST_SANDBOX,
+    "XDG_CONFIG_HOME": os.path.join(_AW_TEST_SANDBOX, "xdg-config"),
+}
+os.environ.update(_SANDBOX_ENV)
+
+
+@pytest.fixture(autouse=True)
+def _restore_home_sandbox():
+    """Re-point AW_HOME/XDG_CONFIG_HOME at the session sandbox around every test."""
+    os.environ.update(_SANDBOX_ENV)
+    yield
+    os.environ.update(_SANDBOX_ENV)
 
 
 def _ensure_xdist_then_reexec() -> None:

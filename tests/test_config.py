@@ -809,7 +809,18 @@ class ColorDepthKeyTests(unittest.TestCase):
 
 
 class DeclarativeAllowedValuesTests(unittest.TestCase):
+    # This test calls set_config_value, which SAVES config.json. Without its own sandbox it
+    # wrote the developer's real ~/.config/agent-workflows/config.json and left
+    # "aw_home": "~/allowed" there (measured 2026-09-24).
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        patcher = mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": self._tmp.name})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_declarative_allowed_values(self):
+        self.assertTrue(str(CFG.config_path()).startswith(self._tmp.name))
         for key, spec in CFG.CONFIG_SCHEMA.items():
             if key == "color_depth":
                 continue

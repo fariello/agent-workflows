@@ -20,6 +20,9 @@ import shutil
 import sys
 import tempfile
 
+# Under pytest the root `conftest.py` has already installed an UNCONDITIONAL sandbox and
+# restores it after every test, so this branch is a no-op there. It remains the backstop for
+# `python3 -m unittest discover`, which never loads conftest.
 if not os.environ.get("AW_HOME"):
     _AW_TEST_HOME = tempfile.mkdtemp(prefix="aw-test-home-")
     os.environ["AW_HOME"] = _AW_TEST_HOME
