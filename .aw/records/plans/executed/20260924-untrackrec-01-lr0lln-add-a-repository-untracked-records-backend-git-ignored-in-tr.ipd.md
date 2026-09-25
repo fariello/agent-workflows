@@ -6,12 +6,11 @@
 - Scope: Add one records backend value `repository-untracked`, resolve it to `<target>/.aw/records` with an ignored Git policy and honest `unversioned` durability, repair the pre-existing `record_producers.get_git_owner` crash the new value would hit, write an anchored `/records/` line into the framework-owned `.aw/.gitignore` at install, keep the record scanners able to see a git-ignored records root, refuse the backend on a repo that already TRACKS records, warn that such records are not durable across clones, and amend the canonical storage spec.
 - Scope-Paths: agent_workflows/project_schema.py, agent_workflows/project_context.py, agent_workflows/storage.py, agent_workflows/install_wizard.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/artifact_core.py, agent_workflows/record_producers.py, agent_workflows/project_layout.py, tests/test_project_context.py, tests/test_records_untracked_backend.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md, .aw/records/backlog/open/20260925-74lqbe-01-74lqbe-update-hardcoded-spec-count-assertions-in-test-spe.backlog.md, .aw/records/backlog/open/20260925-kcahc0-01-kcahc0-update-derive-plan-status-baseline-json-fixture-or.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
 - Id: lr0lln
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: hsixiz
 - Set: untrackrec
 - Order: 1
@@ -19,6 +18,7 @@
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 
 ## Workflow history
+- 2026-09-25 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: lr0lln verified (set untrackrec, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/open/20260925-74lqbe-01-74lqbe-update-hardcoded-spec-count-assertions-in-test-spe.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope .aw/records/backlog/open/20260925-kcahc0-01-kcahc0-update-derive-plan-status-baseline-json-fixture-or.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-501..PR-510 all fixed; 13 items, 13:13 E/V bijection; OQ-01/OQ-02 resolved from evidence; findings and decisions in .aw/records/reviews/20260924-untrackrec-01-lr0lln-...review.md
 
