@@ -6,7 +6,7 @@
 - Scope: `agent_workflows/ipd_lint.py` (`lint_text` terminal short-circuit), `agent_workflows/ipd_schema.py` (`_check_path_status` pre-terminal message routing to `IPD-M105`), and `agent_workflows/check_engine.py` (`check_ipd_lint_reach`, which only sweeps `pending/`), plus their tests. The rest of the terminal-tree grandfathering stays unchanged.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, agent_workflows/check_engine.py, tests/test_ipd_lint.py, tests/test_ipd_schema.py, tests/test_check_engine.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: dbslfm
@@ -19,6 +19,7 @@
 - Id: lz0o6j
 
 ## Workflow history
+- 2026-09-25 reviewed (aw set): status set to reviewed
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701..PR-708 all FIXED, no open blocking question. The diagnosis was confirmed exactly, but three prescriptions were driven at review and found wrong. The blast radius is 25 of 727, NOT 0 of 723, and OQ-01's whole "no cutover needed" resolution rested on that zero (all 25 are pre-cutover legacy plans with prose/upper-case status lines that a NORMALIZING reader hides). E-02 and E-04 read status through DIFFERENT readers and would have shipped two surfaces disagreeing by exactly those 25 plans. E-04 was a measured NO-OP, because `_iter_type_files`' retired filter removes every terminal-tree plan before the guard it extends. Also found: `aw ipd lint --all` derives its exit code from the disposition and would start exiting 1. Record: `.aw/records/reviews/20260925-m105term-01-lz0o6j-make-ipd-m105-see-a-non-terminal-status-sitting-in-a-termina.review.md`.
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog dbslfm; re-measured that lint, attention and doctor are all silent on a to-review plan in executed/, and that 0 of 723 terminal-tree plans currently disagree with their directory.
