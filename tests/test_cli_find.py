@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import shutil
 import tempfile
 import unittest
@@ -88,6 +89,21 @@ class CliFindResearchStatusTests(unittest.TestCase):
         self.assertIn("rpt001", output)
         self.assertNotIn("prm001", output)
         self.assertNotIn(".research-prompt.md", output)
+
+    def test_find_research_through_a_symlinked_repo_root(self):
+        """The repo reached through a symlink (macOS `/var` -> `/private/var`) must find the same docs."""
+        link = Path(self.temp_dir + "-link")
+        try:
+            os.symlink(self.temp_dir, link, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"cannot create a symlink here: {exc}")
+        self.addCleanup(lambda: os.path.lexists(link) and os.unlink(link))
+        rel = Path(self.repo_root).relative_to(self.temp_dir)
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(["find", "research", "todo", "-p", "--dir", str(link / rel)])
+        self.assertEqual(rc, 0)
+        self.assertIn("rpt001", buf.getvalue())
 
 
 if __name__ == "__main__":

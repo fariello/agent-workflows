@@ -451,7 +451,7 @@ def copy_clone(source: Path, dest: Path) -> None:
         dst = dest / rel
         if src.is_dir():
             if dst.exists():
-                shutil.rmtree(dst)
+                _rmtree_sandbox(dst)
             shutil.copytree(src, dst, symlinks=True, ignore_dangling_symlinks=True)
         else:
             shutil.copy2(src, dst)
@@ -982,10 +982,34 @@ def clean(paths: Sequence[Path], force: bool = False) -> List[Dict[str, Any]]:
                 }
             )
             continue
-        shutil.rmtree(p)
+        _rmtree_sandbox(p)
         results.append({"path": str(p), "action": "removed"})
     del force  # accepted for CLI symmetry; the marker gate is never bypassable
     return results
+
+
+def _rmtree_sandbox(path: Path) -> None:
+    """``shutil.rmtree`` that also removes READ-ONLY files, which a sandbox always contains.
+
+    A sandbox is a ``git clone``, and git writes its object files read-only. POSIX lets the owner
+    unlink a read-only file in a writable directory, but WINDOWS refuses (``WinError 5``, measured on
+    the Windows CI runner), so ``aw upgrade-test clean`` failed on every real sandbox there. On a
+    refusal, clear the read-only attribute and retry that one path; any other error propagates.
+    """
+
+    import stat
+
+    def _clear_and_retry(func, target, _exc) -> None:
+        try:
+            os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
+        except OSError:
+            pass
+        func(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_clear_and_retry)
+    else:  # pragma: no cover - onerror is deprecated from 3.12
+        shutil.rmtree(path, onerror=_clear_and_retry)
 
 
 # ---------------------------------------------------------------------------

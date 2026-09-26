@@ -2063,7 +2063,9 @@ class LiveRunsGuardSelfTests(TestCase):
             try:
                 list(Path(td, "runs").iterdir())
                 self.assertEqual(len(_HITS), 1)
-                self.assertEqual(_HITS[0][0], "os.scandir")
+                # `Path.iterdir` lists via `os.listdir` before Python 3.13 and `os.scandir` from 3.13;
+                # the guard wraps both, so either proves the read was caught.
+                self.assertIn(_HITS[0][0], ("os.scandir", "os.listdir"))
                 self.assertEqual(_HITS[0][1], guarded_path)
             finally:
                 if guarded_path in _LIVE_RUN_ROOTS:
