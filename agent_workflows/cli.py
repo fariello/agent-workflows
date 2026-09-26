@@ -11072,6 +11072,13 @@ def _find_type_records(
     `_FindMatch` per (token, matched row), carrying the match kind. It ADDS information and removes
     no result - ``lines``/``paths`` are byte-identical to the pre-paw8so behavior.
     """
+    # ONE spelling of the root for every comparison below. `research_index._roots` and
+    # `resolve_record_path` return RESOLVED roots, while `repo_root` arrives as the caller typed it;
+    # through a symlink (macOS `/var` -> `/private/var`, a symlinked checkout) the selector hits then
+    # failed `relative_to(research_root)` and every matched doc was silently dropped, so
+    # `aw find research todo` printed nothing (measured on the macOS CI runner and reproduced
+    # locally with a symlinked TMPDIR).
+    repo_root = Path(repo_root).resolve()
     from agent_workflows import selectors as sel_mod
 
     highlight_tokens = list(selectors_list)

@@ -3196,7 +3196,11 @@ def commit_review_lane_output(
             paths.append(entry.strip().strip('"'))
     paths = sorted({p for p in paths if p})
     if own_paths is not None:
-        allowed = set(own_paths)
+        # Compare in git's spelling: porcelain always reports `/`, while a caller building its
+        # paths with `os.path`/`Path.relative_to` on Windows passes `\`. Without this the
+        # intersection was EMPTY there and the review's own output silently went uncommitted
+        # (measured on the Windows CI runner).
+        allowed = {str(p).replace("\\", "/") for p in own_paths}
         paths = sorted({p for p in paths if p in allowed})
     if not paths:
         return None, ()

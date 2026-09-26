@@ -8,7 +8,7 @@ name: tests
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "fix/win-gaps"]
   pull_request:
 
 permissions:
@@ -74,7 +74,7 @@ jobs:
         # Process-based parallelism; the suite is xdist-safe (per-process AW_HOME sandbox,
         # per-test tempdirs). `python -m unittest discover -s tests -t .` remains an
         # equivalent serial fallback (see `make test-serial`).
-        run: python -m pytest tests/ -n auto -rs
+        run: python -m pytest tests/ -n auto -rfEs
 
   wheel:
     name: build + import wheel (${{ matrix.os }})

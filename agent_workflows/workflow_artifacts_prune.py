@@ -165,7 +165,10 @@ def _resolve_ipd_link(run_dir: Path, artifacts_root: Path) -> tuple[bool, bool]:
         repo_root = artifacts_root.parent
 
     # Search for path ending in .ipd.md
-    matches = re.findall(r"[\w\-./\\]+\.ipd\.md", content)
+    # An optional DRIVE prefix (`C:`) is part of the path: without it a Windows absolute path
+    # `C:/<dir>/x.ipd.md` was captured without its drive (from the first `/`), which is not absolute on Windows, so a
+    # resolvable link never resolved and the run was wrongly KEPT (measured on the Windows CI runner).
+    matches = re.findall(r"(?:[A-Za-z]:)?[\w\-./\\]+\.ipd\.md", content)
     for m in matches:
         target = Path(m)
         if target.is_absolute() and target.is_file():

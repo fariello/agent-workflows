@@ -194,7 +194,11 @@ def _audit_count_opens(target_prefix: str):
     opens: Dict[str, int] = {}
 
     def hook(event: str, args: tuple) -> None:
-        if event == "open":
+        # Count each READ once. The "open" audit event carries the path in args[0] and the mode in
+        # args[1]; `io.open` raises it with a str mode ("r"), and before Python 3.10 `pathlib`'s
+        # opener then called `os.open`, which raises "open" AGAIN with an int flags value. Counting
+        # both reported 4 opens for 2 reads on 3.9 (measured on CI). Only the str-mode event is a read.
+        if event == "open" and len(args) > 1 and isinstance(args[1], str):
             p = str(args[0])
             if target_prefix in p and p.endswith(".md"):
                 opens[p] = opens.get(p, 0) + 1
@@ -389,13 +393,33 @@ def test_e_unparseable_research_doc_produces_no_rows(tmp_repo: Path) -> None:
 def test_f_unreadable_matched_plan_raises_permission_error(
     tmp_repo: Path,
 ) -> None:
-    if os.getuid() == 0:
-        pytest.skip("Running as root; chmod 0 does not deny read")
-
     plans_dir = tmp_repo / ".aw" / "records" / "plans"
     p6 = plans_dir / "pending" / "20260920-unread-01-pln006-plan-six.ipd.md"
 
-    p6.chmod(0o000)
+    if os.name == "nt":
+        # Windows ignores chmod(0) for reads, so deny read the Windows way: a protected DACL
+        # granting nothing (the same mechanism `private_file` uses to restrict secrets).
+        import subprocess
+
+        # Replace the whole DACL with one DENY-read for the current user (`*S-1-...` is icacls' SID
+        # syntax). A deny ACE wins over any allow the admin token might otherwise match.
+        from agent_workflows import private_file
+
+        sid = private_file._current_user_sid()
+        subprocess.run(
+            ["icacls", str(p6), "/inheritance:r"], check=True, capture_output=True
+        )
+        subprocess.run(
+            ["icacls", str(p6), "/deny", f"*{sid}:(R)"], check=True, capture_output=True
+        )
+        restore = lambda: subprocess.run(  # noqa: E731
+            ["icacls", str(p6), "/reset"], capture_output=True
+        )
+    else:
+        if os.getuid() == 0:
+            pytest.skip("Running as root; chmod 0 does not deny read")
+        p6.chmod(0o000)
+        restore = lambda: p6.chmod(0o644)  # noqa: E731
     try:
         args = argparse.Namespace(
             dir=str(tmp_repo),
@@ -409,4 +433,4 @@ def test_f_unreadable_matched_plan_raises_permission_error(
         with pytest.raises(PermissionError):
             cli._find_type_records(tmp_repo, "plans", ["unread"], args, term)
     finally:
-        p6.chmod(0o644)
+        restore()

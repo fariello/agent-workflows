@@ -236,9 +236,23 @@ def test_cross_turn_attribution_scoping(tmp_path: pathlib.Path) -> None:
     )
     print("git show --name-only --format= HEAD:\n" + show_proc.stdout)
     expected_paths = tuple(
-        sorted([str(plan_b.relative_to(wt)), str(rev_b.relative_to(wt))])
+        sorted([plan_b.relative_to(wt).as_posix(), rev_b.relative_to(wt).as_posix()])
     )
     assert committed_paths == expected_paths
+
+
+def test_own_paths_with_backslashes_still_commit(tmp_path: pathlib.Path) -> None:
+    """A caller's own_paths spelled with `\\` (Windows `Path.relative_to`) must match git's `/`."""
+    repo = _make_repo(tmp_path)
+    wt, handle = _make_worktree(repo, "sweep")
+    plan = wt / ".aw" / "records" / "plans" / "pending" / "p-ccc333.ipd.md"
+    plan.write_text("plan ccc", encoding="utf-8")
+    rel = plan.relative_to(wt).as_posix()
+    sha, paths = runner_shared.commit_review_lane_output(
+        repo, handle, "ccc333", host_label="oc", own_paths=[rel.replace("/", "\\")]
+    )
+    assert sha is not None, "own_paths spelled with backslashes matched nothing"
+    assert paths == (rel,)
 
 
 def test_collapsed_directory_untracked_paths(tmp_path: pathlib.Path) -> None:
