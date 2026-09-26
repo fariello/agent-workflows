@@ -16,6 +16,7 @@
 | PR-002 | low | UNDER-SCOPE | Lifecycle / Execution | `c8wjpi` E-03; `agent_workflows/ipd_lifecycle.py:is_managed_lane` | In `.aw/worktrees/feat-partition`, `AW-LIFECYCLE-ROLE-001` gates hand-invoked begin/finalize unless driven by a runner, and `aw ipd finalize` requires a matching `aw ipd begin` receipt. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | E-03 updated to note runner-ownership constraints under `AW-LIFECYCLE-ROLE-001` and receipt precedence. |
 | PR-003 | low | UNDER-SCOPE | Verification / Structure | `c8wjpi` V-02 required evidence | V-02 checked `grep -c '```'` showing "at least six fenced blocks", but each block contains opening and closing fences (2 lines), so 6 blocks produce at least 12 lines. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | V-02 updated to specify at least 12 fence lines for 6 fenced blocks. |
 | PR-004 | low | UNDER-SCOPE | Metadata / Lifecycle | `plan-review.md` Step 4; `c8wjpi` front matter | Plan retained `to-review` status and lacked the required machine-readable `- Readiness:` field. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Added `- Readiness: go-pending-approval` and set `- Status: reviewed`. |
+| PR-005 | low | IN-SCOPE | Schema / Obligations | `c8wjpi:77`; `check_engine.py:_deferred_section_obligations` | `- none` under `## Deferred / out of scope` was parsed as an uncarried obligation row by `check.ipd-uncarried-obligation`. | C:Low;U:Low;S:Low;F:Low;Overall:Low | fixed | Replaced bullet with prose statement to satisfy check_engine. |
 
 ### Decisions
 
