@@ -1,12 +1,12 @@
 - Id: kkzgrk
-- Status: graduated
-- Graduated-To: promptlint
+- Status: done
 - Set: promptid6
 - Priority: medium
 - Work-Kind: feature
 - Summary: aw prompts check (the purity lint approved spec 20260808-1958-01-prompt-purity-lint specifies) is not implemented, so nothing mechanically guards prompt purity
 
 ## Workflow history
+- 2026-09-26 done (aw set): DECLINED by maintainer 2026-09-26 (retired, not implemented): no prompt-purity gate. A phrase-list check misses new wordings and falsely flags innocent text; a model check is not worth its cost at a few prompts a month. The written instructions (AGENTS.md, /research-prompt, aw prompts new) already prevent it: 0 violations in the 7 prompts written since 2026-08-20. Plan mi4s9f retired not-executed.
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set promptlint (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): aw prompts check (the purity lint approved spec 20260808-1958-01-prompt-purity-lint specifies) is not implemented, so nothing mechanically guards prompt purity
 

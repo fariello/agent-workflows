@@ -1,3 +1,5 @@
+RETIRED 2026-09-26: maintainer decided against any prompt-purity gate (phrase lists miss new wordings and flag innocent text; existing instructions already prevent the problem, 0 violations in the 7 prompts written since 2026-08-20); no replacement.
+
 # IPD: Implement aw prompts check, the prompt-purity lint of approved spec 20260808-1958-01
 
 - Date: 2026-09-26
@@ -6,7 +8,7 @@
 - Scope: IN: `agent_workflows/prompts_lint.py` with R1/R2/R3, the `aw prompts check` verb and its command-surface declaration, the same rules inside `aw check prompts`, outcome tests for spec A1-A6, docs sync (managed AGENTS.md block via `engine.py`, prompts README, shipped template, research-prompt workflow), the spec's stale-path amendment and its move to `implementing`. OUT: `.aw/records/prompt-library/` (spec OQ4), a scaffold/--fix verb (OQ5), a separate pre-commit hook, setting the spec `implemented`.
 - Scope-Paths: agent_workflows/prompts_lint.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/command_surface.py, agent_workflows/prompts.py, agent_workflows/engine.py, AGENTS.md, tests/test_prompts_check.py, .aw/records/prompts/README.md, .aw/system/workflows/templates/prompts-README.md, .aw/system/workflows/research-prompt/research-prompt.md, .aw/records/specs/approved/20260808-1958-01-prompt-purity-lint.spec.md, .aw/records/specs/implementing/20260808-1958-01-prompt-purity-lint.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: not-executed
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: kkzgrk
@@ -17,6 +19,7 @@
 - Id: mi4s9f
 
 ## Workflow history
+- 2026-09-26 not-executed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Retired 2026-09-26 by maintainer decision: no prompt-purity gate. A phrase-list lint misses new wordings and falsely flags innocent text; the existing instructions (AGENTS.md, /research-prompt, aw prompts new) already prevent the problem, with zero violations in the 7 prompts written since 2026-08-20.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog kkzgrk: implement aw prompts check (spec 20260808-1958-01 R1-R3) with OQ1/OQ2 left open at the spec's defaults.
 
 - 2026-09-26 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
