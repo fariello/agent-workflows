@@ -74,7 +74,7 @@ jobs:
         # Process-based parallelism; the suite is xdist-safe (per-process AW_HOME sandbox,
         # per-test tempdirs). `python -m unittest discover -s tests -t .` remains an
         # equivalent serial fallback (see `make test-serial`).
-        run: python -m pytest tests/ -n auto -q
+        run: python -m pytest tests/ -n auto -rs
 
   wheel:
     name: build + import wheel (${{ matrix.os }})
