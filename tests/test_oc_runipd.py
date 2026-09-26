@@ -1789,7 +1789,7 @@ class StallWatchdogTests(unittest.TestCase):
                     prompt = args[args.index('--') + 1] if '--' in args else ""
                     outcome = pathlib.Path(re.search(r'Required JSON outcome: (.+)', prompt).group(1).strip())
                     plan = pathlib.Path(re.search(r'Plan file at launch: (.+)', prompt).group(1).strip())
-                    executed = pathlib.Path(str(plan).replace('/pending/', '/executed/'))
+                    executed = plan.parent.parent / 'executed' / plan.name
                     executed.parent.mkdir(parents=True, exist_ok=True)
                     plan.rename(executed)
 
@@ -1822,7 +1822,11 @@ class StallWatchdogTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                result.returncode,
+                0,
+                result.stderr + "\n--- stdout ---\n" + result.stdout,
+            )
 
             run_id = next(
                 line.split(": ", 1)[1]
