@@ -1,11 +1,13 @@
 - Id: f2u4l0
-- Status: open
+- Status: graduated
+- Graduated-To: wkthid6
 - Set: promptid6
 - Priority: low
 - Work-Kind: chore
 - Summary: Roadmaps, releases and walkthroughs still carry no id6, so the uniform artifact grammar has three remaining holdouts
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set wkthid6 (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): Roadmaps, releases and walkthroughs still carry no id6, so the uniform artifact grammar has three remaining holdouts
 
 DEFERRED BY IPD ubac5n (promptid6). AGENTS.md states ONE uniform artifact-naming grammar, YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md. Four types had not adopted it; ubac5n moved PROMPTS (following ha55fi, which moved specs), leaving three.
