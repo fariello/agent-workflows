@@ -6,7 +6,7 @@
 - Scope: IN: restore the deleted test file IN FULL (37 tests, all passing at review; maintainer ruling 2026-09-25); decide the shipped sandbox-root default against the two constraints review measured; then move the logic into the package behind a thin re-exporting `tools/` shim, register `aw upgrade-test` preserving the `--json` mechanism its restored `CliTests` pins, and declare its seven leaves. OUT: new rehearsal features; the synthetic-baseline rehearsal the source item defers; repairing the vacuous output-conformance CI step or restoring the two deleted declaration tests (plan `0yrtne` owns the whole-CLI test).
 - Scope-Paths: tools/aw_upgrade_test.py, agent_workflows/upgrade_rehearsal.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_aw_upgrade_test.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 8ud1is
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: u27q6g
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8ud1is verified (set upgrehearse, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 10 findings PR-601..PR-610 all FIXED, 6 decisions D-1..D-6 recorded; review record written; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog u27q6g. Verified at HEAD: the tool exists (1370 lines) and `aw upgrade-test` does not; the deleted test file's 13 safety-invariant tests still pass against today's tool (run in place from tests/). Maintainer ruled 2026-09-25 to restore those tests.
