@@ -1,5 +1,6 @@
 - Id: sm0vgn
-- Status: open
+- Status: graduated
+- Graduated-To: staledocs
 - Blocks-Release: next
 - Set: cutoverdoc
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: docs/cli-migration.md and docs/cli-agent-protocol.md still promise a non-TTY hard cutover to JSONL that was RETRACTED on 2026-09-10 and never happened
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set staledocs (commit 2c7068ca).
 - 2026-09-24 created (aw backlog): docs/cli-migration.md and docs/cli-agent-protocol.md still promise a non-TTY hard cutover to JSONL that was RETRACTED on 2026-09-10 and never happened
 
 Carrier re-pointed from plan 7p3tt8's deferred row 5, whose declared carrier yaxr4i is EXECUTED, so nothing was going to revisit it. check.ipd-uncarried-obligation caught that at 7p3tt8's finalize.
