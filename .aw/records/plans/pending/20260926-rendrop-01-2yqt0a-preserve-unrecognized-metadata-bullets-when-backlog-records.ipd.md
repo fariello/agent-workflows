@@ -134,8 +134,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - The positional spelling leaving a legacy `- Kind:` line un-canonicalized.
   - Carrier-Declined: pre-existing, both spellings still produce a readable item (`parse_item` dual-reads), and changing the positional writer is outside this defect.
 - A `validate_item` rule for a DUPLICATE metadata bullet, or for a `Gate-Summary` on a non-blocked item.
+  - Carrier: 9rl7cm
   - Deferred (review PR-002/PR-003): measured at review that `validate_item` returns `[]` for BOTH states (F-7, F-8), so neither is caught anywhere today. This plan makes its own renderer never produce them (E-01 rules 1 and 2), which is the part it owns. Adding validator rules would flag whatever pre-existing items carry those shapes and belongs in its own item; the live tree carries none today (measured: `aw check backlog --agent` conforms, and the field census over 620 items shows only `Gate-Kind`/`Gate-Ref` twice and no `Gate-Summary` at all). FILE A BACKLOG ITEM for the two validator rules when this plan executes; not gating.
 - Making `check.blocking-item-closed-without-gate` see a close that was never git-staged.
+  - Carrier: nyzuyx
   - Deferred (review PR-004): the rule is commit-staged-scoped BY DESIGN and its own comment states the grandfathering rationale, so widening it is a policy change with a corpus-wide blast radius, not a fix inside this defect. E-08 closes the hole this plan would otherwise open by gating at the writer instead, which is where `backlog.run_set` already gates.
 
 ## Scope check
