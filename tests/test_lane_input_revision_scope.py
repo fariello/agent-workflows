@@ -104,7 +104,7 @@ class LaneInputRevisionScopeTests(unittest.TestCase):
             attachments = lane_containment.attachment_values(argv)
             self.assertEqual(len(attachments), 1)
             attached_plan = attachments[0]
-            self.assertIn("/rev-3/", attached_plan)
+            self.assertEqual(Path(attached_plan).parent.name, "rev-3")
             self.assertEqual(
                 Path(attached_plan).read_text(encoding="utf-8").strip(),
                 "# PLAN A",
@@ -143,7 +143,7 @@ class LaneInputRevisionScopeTests(unittest.TestCase):
                 attachments = lane_containment.attachment_values(argv)
                 self.assertEqual(len(attachments), 1)
                 attached_plan = attachments[0]
-                self.assertIn("/rev-2/", attached_plan)
+                self.assertEqual(Path(attached_plan).parent.name, "rev-2")
                 self.assertEqual(
                     Path(attached_plan).read_text(encoding="utf-8").strip(),
                     "# PLAN B",
@@ -200,8 +200,8 @@ class LaneInputRevisionScopeTests(unittest.TestCase):
             )
             attachments = lane_containment.attachment_values(argv)
             self.assertEqual(len(attachments), 2)
-            self.assertIn("/rev-1/", attachments[0])
-            self.assertIn("/rev-1/", attachments[1])
+            self.assertEqual(Path(attachments[0]).parent.name, "rev-1")
+            self.assertEqual(Path(attachments[1]).parent.name, "rev-1")
             self.assertEqual(
                 Path(attachments[0]).read_text(encoding="utf-8").strip(),
                 "# RUNBOOK",
