@@ -6,7 +6,8 @@
 - Scope: IN: (a) make `test_cli_partition_agent_mode` assert `agent_schema.validate_agent_record(record) == []`; (b) replace `xu3yxw`'s six paraphrased `Observed evidence` blocks with pasted runner output re-derived at execution time; (c) finalize `xu3yxw` and `jfza7e` through the lifecycle. OUT: any change to `partition.py` behavior.
 - Scope-Paths: tests/test_partition.py, .aw/records/plans/pending/20260926-partition-01-xu3yxw-add-aw-partition-command-to-cluster-dependent-plans-into-bal.ipd.md, .aw/records/plans/pending/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-09-26 reviewed (antigravity): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed. Readiness GO - PENDING HUMAN APPROVAL.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Emitted by /verify-execution of xu3yxw + jfza7e; verdict INCOMPLETE (code complete and green, lifecycle not performed). Run record .aw/workflow-artifacts/verify-execution/20260926-183632/.
 - 2026-09-26 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -38,12 +40,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: honest evidence and the lifecycle
 
-- [ ] E-02 Re-derive and PASTE `xu3yxw`'s evidence. For each of its V-01..V-06, run the command its `Required evidence` names against the CURRENT code (which includes `jfza7e`'s corrections) and replace the paraphrased `Observed evidence` with the literal command and output in a fenced block, noting on V-01, V-02 and V-06 that the passing output reflects the `jfza7e` corrections (commit `564fc488`) where the original implementation was deficient. Do not tick or untick anything else.
+- [ ] E-02 Re-derive and PASTE `xu3yxw`'s evidence. For each of its V-01..V-06, run the command its `Required evidence` names against the CURRENT code (which includes `jfza7e`'s corrections) and replace the paraphrased `Observed evidence` with the literal command and output in a fenced block, sanitizing any machine-local home paths (e.g. `rootdir: <worktree-root>`) so the `local-leaks` hook does not reject the commit. Note on V-01, V-02 and V-06 that the passing output reflects the `jfza7e` corrections (commit `564fc488`) where the original implementation was deficient (including V-01's grep now matching line 59 due to `_parse_item_dependency_edge` usage). Do not tick or untick anything else.
   - Depends on: E-01
-  - Expected outcome: every `xu3yxw` `Observed evidence` block contains a pasted command and its output.
+  - Expected outcome: every `xu3yxw` `Observed evidence` block contains a pasted command and its output without machine-local path leaks.
   - Execution state: pending
 
-- [ ] E-03 Finalize both plans through the lifecycle, `xu3yxw` first, then `jfza7e`, each passing `aw ipd lint --phase pre-transition` before its transition. Because the code for both already sits on `feat/aw-partition`, begin and finalize are bookkeeping transactions over already-committed work; if the runner's scope reconciliation sees the earlier execution commits as out-of-window, justify with `--scope-reason` naming `309bc790` / `564fc488` rather than re-implementing.
+- [ ] E-03 Finalize both plans through the lifecycle, `xu3yxw` first, then `jfza7e`, each passing `aw ipd lint --phase pre-transition` before its transition. Because the code for both already sits on `feat/aw-partition`, begin and finalize are bookkeeping transactions over already-committed work; if the runner's scope reconciliation sees the earlier execution commits as out-of-window, justify with `--scope-reason` naming `309bc790` / `564fc488` rather than re-implementing. In `.aw/worktrees/feat-partition`, note that `AW-LIFECYCLE-ROLE-001` gates hand begin/finalize unless driven by a runner (`aw oc run` / `aw agy run`) or run with driver attestation, and `aw ipd begin` must precede `aw ipd finalize` to issue the matching receipt.
   - Depends on: E-02
   - Expected outcome: both plans are in `.aw/records/plans/executed/` with `- Status: executed` and a finalize history line.
   - Execution state: pending
@@ -72,7 +74,7 @@ Measured 2026-09-26 in the `feat/aw-partition` worktree at `564fc488`.
 
 ## Deferred / out of scope (with reason)
 
-- none
+No items deferred; all identified work is addressed in the implementation checklist.
 
 ## Scope check
 
@@ -103,7 +105,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `grep -c '```' <xu3yxw plan>` showing at least six fenced blocks, and one of the rewritten blocks verbatim.
+  - Required evidence: paste `grep -c '```' <xu3yxw plan>` showing at least 12 fence lines (six fenced blocks), and one of the rewritten blocks verbatim.
   - Observed evidence:
   - Result: pending
 
