@@ -6,7 +6,7 @@
 - Scope: IN: register `--from-backlog` on `specs set`; write it and inherit `Blocks-Release` the way `aw ipd set --from-backlog` does on the `--status` spelling (the bare spelling already does both, proven at review); tests for both spellings including the three precedence rules; correct the one AGENTS.md sentence that names only a plan route. OUT: `aw specs new`; `command_surface.py` (review measured the declaration is leaf-scoped, not flag-scoped, so nothing is owed there); any id6-validation refusal (shipped policy is write-never-refuse).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/specs.py, tests/test_specs_from_backlog.py, AGENTS.md, .aw/records/specs/README.md, .aw/records/backlog/README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: uruqaz
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: mod4ml
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uruqaz verified (set specfb, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/backlog/README.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified .aw/records/specs/README.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 8 findings PR-501..PR-508 all FIXED, 5 decisions D-1..D-5 recorded; review record written; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog mod4ml. Verified at HEAD: `specs set --help` has no `--from-backlog`; the `--status` path in `specs.run_set` writes Priority, Work-Kind and Graduated-To but not From-Backlog.
