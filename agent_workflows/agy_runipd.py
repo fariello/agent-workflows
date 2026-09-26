@@ -750,6 +750,7 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     classify_recovery_disposition as classify_recovery_disposition,
     build_verify_and_continue_notice as build_verify_and_continue_notice,
+    discover_plans as discover_plans,
     reconcile_disposition as reconcile_disposition,
     RecoveryDisposition as RecoveryDisposition,
     DISPOSITION_FRESH_EXECUTION as DISPOSITION_FRESH_EXECUTION,
@@ -1836,17 +1837,8 @@ def enforce_dependency_preflight(
 # (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
-# rununify 02 (`818uru`) E-08: one-line wrapper over the shared `discover_plans`, binding THIS
-# driver's `parse_plan_file`. That injection carries TWO dependencies at once, which is why it is the
-# subtlest one in the plan: `parse_plan_file` is class (c) DIVERGED, AND it is what CONSTRUCTS this
-# module's `PlanRecord` - and the two drivers' `PlanRecord` are DIFFERENT NamedTuples (oc's carries a
-# `kind` field agy's lacks). A shared `discover_plans` that built one type would hand the other
-# driver a record shape its code never expects: build oc's and agy gets a stray field; build agy's
-# and oc LOSES `kind`, which `action_for` reads to detect an orchestrator. Both failures are silent
-# and type-shaped rather than a crash. Injecting the PARSER keeps each driver's own record type.
-def discover_plans(repo: Path) -> dict[str, PlanRecord]:
-    """Scan the repository for all IPD files, returning id6 -> PlanRecord."""
-    return runner_shared.discover_plans(repo, parse_plan_file=parse_plan_file)
+# plan `0i4fkt`: re-export discover_plans from runner_shared; unified parser and record type.
+# (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
 # rununify 02 (`818uru`) E-08: one-line wrapper over the shared `validate_manifest`, binding

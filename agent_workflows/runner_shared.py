@@ -48,28 +48,12 @@ DESIGNATED peer it may import, NOT something it absorbs: `status_set.py` and `ip
 
 # ---- INJECTED DEPENDENCIES (the complete list) --------------------------------------------------
 
-TEN symbols call something they cannot reach from here. Each takes it as a keyword-only parameter;
+NINE symbols call something they cannot reach from here. Each takes it as a keyword-only parameter;
 each runner wraps it at the original name and signature, so NO call site in either runner was
 rewritten. The parenthetical says why the dependency could not simply move too:
 
   * `run_checked(..., env_builder=)`         <- `pinned_child_env`   (opencode-only, host-specific)
   * `save_state(..., write_report=)`         <- `write_report`       (DIVERGED)
-  * `discover_plans(..., parse_plan_file=)`  <- `parse_plan_file`    (SUPERSEDED, and the parameter is
-                                                 now VESTIGIAL: rununify 06 (`sy7uwh`) unified BOTH
-                                                 the record type and this parser into this module, so
-                                                 each runner's wrapper injects the SHARED
-                                                 `parse_plan_file` and the two hosts get the same
-                                                 `PlanRecord`. The parameter is retained ON PURPOSE:
-                                                 it is fingerprint-pinned in
-                                                 `runner_shared_premove_fingerprints.json` and
-                                                 removing it would rewrite call sites the maintainer's
-                                                 wrapper ruling exists to leave alone. Collapsing it
-                                                 belongs to a later plan; the ORIGINAL reason it
-                                                 existed - "the two runners' `PlanRecord` are
-                                                 different NamedTuples, oc's carrying a `kind` field
-                                                 agy's lacks" - is GONE, and that sentence is
-                                                 preserved here only so a reader is not misled by the
-                                                 surviving mechanism)
   * `validate_manifest(..., parse_dependency_token=)`               (opencode-only)
   * `print_status(..., driver_label=)`       <- the host's own name  (the sole host-naming-only symbol
                                                  of the 34: the two bodies differed ONLY by the
@@ -10592,8 +10576,6 @@ def build_dynamic_manifest(
 
 def discover_plans(
     repo: Path,
-    *,
-    parse_plan_file: Callable[[Path, Path], Any],
 ) -> dict[str, Any]:
     """Scan the repository for all IPD files, returning id6 -> PlanRecord."""
     plans: dict[str, Any] = {}
@@ -24425,7 +24407,7 @@ def initialize_run_core(
         manifest = load_json(manifest_path)
         validate_manifest(manifest, parse_dependency_token=parse_dependency_token_fn)
     else:
-        discovered = discover_plans(repo, parse_plan_file=parse_plan_file)
+        discovered = discover_plans(repo)
         manifest = build_dynamic_manifest(repo, discovered)
         manifest_path = None
 

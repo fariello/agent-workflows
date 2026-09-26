@@ -165,16 +165,12 @@ jobs:
         shell: bash
         run: python -m agent_workflows check releases --agent
 
-      # backlog is currently ADVISORY (report-only), NOT fail-closed: the tree carries pre-existing
-      # backlog name/summary debt (outside this plan's Scope-Paths) that a fail-closed gate would red
-      # `main` on. It joins the fail-closed set above once that baseline is cleaned by a separate
-      # migration (DECISION 18-r2ks4k-D1). It still runs the SAME shipped engine so the finding set is
-      # visible in CI; `|| true` keeps it non-blocking for now.
-      - name: aw check backlog (backlog conformance; ADVISORY until baseline cleaned)
+      # smallfix-01 (`0i4fkt`), backlog `e85snf`: backlog conformance is now fail-closed.
+      # The backlog name/summary debt that previously kept this advisory (DECISION 18-r2ks4k-D1)
+      # is cleared; the baseline measures clean (exit 0) with info-level findings only.
+      - name: aw check backlog (backlog conformance; fail closed)
         shell: bash
-        run: |
-          python -m agent_workflows check backlog --agent || \
-            echo "::warning::aw check backlog reported findings (advisory; see agentadhere r2ks4k DECISION 18-r2ks4k-D1 - flip to fail-closed after the backlog baseline is cleaned)"
+        run: python -m agent_workflows check backlog --agent
 
       # release-gates is currently ADVISORY (report-only), NOT fail-closed: the tree carries two
       # pre-existing findings (check.live-bug-ungated on 7l1ggb and check.from-backlog-dangling on

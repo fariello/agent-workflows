@@ -173,3 +173,14 @@ This spec's IPD should run AFTER the in-flight awretrofit release-fix Orders tha
 to avoid edit conflicts on the resolvers, migration, and shipped docs. The maintainer chose "fix A now,
 defer B and C" for immediate action; this spec captures ALL THREE so the design is not lost, and the
 IPD can be scoped to A-first with B/C as follow-on task groups if desired.
+
+## 9. Implementation technique: relocating tracked content into an ignored tree
+
+When relocating tracked content into a directory governed by a `.gitignore` rule (such as moving run scratch or workflow artifacts from `.aw/records/` into an ignored run tree):
+
+1. **Commit the rename first (`git mv`):**
+   Execute `git mv <src> <dst>` and commit it. This records the rename in the git commit graph so `git log --follow -- <dst>` can traverse the pre-migration history. A staged-only move followed immediately by untracking leaves the rename unrecorded in any commit, permanently breaking history traversal.
+2. **Commit the untrack second (`git rm --cached`):**
+   Execute `git rm --cached <dst>` and commit that removal from the index. Once committed, the path leaves the git index and the `.gitignore` rule takes effect. Untracking costs no history: git history traversal via `git log --follow` still reaches the pre-migration commits.
+3. **The path-scoped commit worktree corollary:**
+   A path-scoped `git commit -- <paths>` re-reads those paths directly from the working tree. While the file remains physically present on disk, git sees no working-tree change and refuses ("nothing added to commit"), failing to record the index-only removal and leaving the destination tracked. To record the untrack in a path-scoped commit without sweeping in unrelated staged work from a shared checkout, each destination file must be temporarily moved aside (e.g. to a sibling temp path), committed with `git commit -- <paths>`, and restored immediately in a `finally` block (as implemented by `engine._commit_relocation`).
