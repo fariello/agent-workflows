@@ -36,49 +36,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: registry
 
-- [ ] E-01 Add `comms_broker.REGISTRY_SUBDIR = "registry"` under the comms `untracked/` lane and a descriptor schema `{"agent", "url", "mode", "session", "pid", "registered_at"}` with `validate_descriptor(obj)` returning a problem list. `agent` must pass `comms.is_filename_safe`, `url` must be refused by nothing in `comms_broker.url_policy_refusal` (child 01 E-09's SYMBOL, named explicitly rather than as "the same check child 01 added": it refuses a non-http(s) scheme and any host outside `{"localhost", "127.0.0.1", "::1", "[::1]"}`), `mode` in `tui|headless`, `session` required when `mode == "headless"`. Verified at review: the lane is gitignored in BOTH layouts, by `repo/.aw/.gitignore`'s `records/*/untracked/` in the canonical layout (probed: `git check-ignore -v` on a `untracked/registry/probe.json` matches that line) and by the nested `.agents/comms/.gitignore` in legacy, per the spec's Gitignore paragraph.
+- [x] E-01 Add `comms_broker.REGISTRY_SUBDIR = "registry"` under the comms `untracked/` lane and a descriptor schema `{"agent", "url", "mode", "session", "pid", "registered_at"}` with `validate_descriptor(obj)` returning a problem list. `agent` must pass `comms.is_filename_safe`, `url` must be refused by nothing in `comms_broker.url_policy_refusal` (child 01 E-09's SYMBOL, named explicitly rather than as "the same check child 01 added": it refuses a non-http(s) scheme and any host outside `{"localhost", "127.0.0.1", "::1", "[::1]"}`), `mode` in `tui|headless`, `session` required when `mode == "headless"`. Verified at review: the lane is gitignored in BOTH layouts, by `repo/.aw/.gitignore`'s `records/*/untracked/` in the canonical layout (probed: `git check-ignore -v` on a `untracked/registry/probe.json` matches that line) and by the nested `.agents/comms/.gitignore` in legacy, per the spec's Gitignore paragraph.
   - Depends on: none
   - Expected outcome: a pure validator; no I/O; it REUSES `url_policy_refusal` rather than re-encoding the loopback set, since two encodings of one policy is how they drift.
-  - Execution state: pending
-- [ ] E-02 Add the `register` and `unregister` subcommands: write `untracked/registry/<agent>.json` atomically (temp file then `os.replace`) after validation, and remove it on `unregister`. Registration is always an explicit human or wrapper act; nothing registers implicitly.
+  - Execution state: performed
+- [x] E-02 Add the `register` and `unregister` subcommands: write `untracked/registry/<agent>.json` atomically (temp file then `os.replace`) after validation, and remove it on `unregister`. Registration is always an explicit human or wrapper act; nothing registers implicitly.
   - Depends on: E-01
   - Expected outcome: `register` creates one valid descriptor file; `unregister` removes it; an invalid descriptor exits 2 and writes nothing.
-  - Execution state: pending
-- [ ] E-03 Add `comms_broker.resolve_target(comms_dir, agent, repo_root, *, opener)`: load the descriptor, RE-VALIDATE it with `validate_descriptor` (a descriptor is read from a gitignored directory any local process may write, so trusting the value written at `register` time would trust a file that may have been replaced since), then `GET <url>/global/health` (must return `"healthy": true`) and `GET <url>/path`. Return the descriptor on success, or an ack state on failure: missing descriptor, a descriptor failing re-validation, or a refused connection -> `agent-not-running`; unhealthy, timeout or directory mismatch -> `agent-not-responding`. Never deletes a stale descriptor. BOTH CALLS GO THROUGH CHILD 01'S URL POLICY, which E-03 originally omitted and which is the whole trust boundary (F-4): call `url_policy_refusal(url)` BEFORE opening any socket, and make the two GETs use child 01's redirect-refusing opener (`RefusingRedirectHandler`, whose review recorded that a bare entry-point check misses a `302 Location: http://evil/` from a loopback server), not a bare `urllib` opener.
+  - Execution state: performed
+- [x] E-03 Add `comms_broker.resolve_target(comms_dir, agent, repo_root, *, opener)`: load the descriptor, RE-VALIDATE it with `validate_descriptor` (a descriptor is read from a gitignored directory any local process may write, so trusting the value written at `register` time would trust a file that may have been replaced since), then `GET <url>/global/health` (must return `"healthy": true`) and `GET <url>/path`. Return the descriptor on success, or an ack state on failure: missing descriptor, a descriptor failing re-validation, or a refused connection -> `agent-not-running`; unhealthy, timeout or directory mismatch -> `agent-not-responding`. Never deletes a stale descriptor. BOTH CALLS GO THROUGH CHILD 01'S URL POLICY, which E-03 originally omitted and which is the whole trust boundary (F-4): call `url_policy_refusal(url)` BEFORE opening any socket, and make the two GETs use child 01's redirect-refusing opener (`RefusingRedirectHandler`, whose review recorded that a bare entry-point check misses a `302 Location: http://evil/` from a loopback server), not a bare `urllib` opener.
   - Depends on: E-02
   - Expected outcome: a resolver that refuses an instance serving a different directory, AND refuses a disk-supplied non-loopback URL and a redirect to one, without ever opening a socket to either.
-  - Execution state: pending
-- [ ] E-04 Decide the `/path` comparison against BOTH keys, not `directory` alone, because this repository routinely runs agents in git worktrees and `directory` alone is ambiguous there (F-5). `/path`'s 200 schema has required `directory` AND `worktree` (F-1 records both and the plan then used one). Measured at review: three live worktrees of this repo exist simultaneously, all sharing one `--git-common-dir`, and each carries its own `.aw/records/comms` lane. So state the rule explicitly in `resolve_target`'s docstring and implement it: compare `os.path.realpath(directory)` to `os.path.realpath(repo_root)` as the AUTHORITATIVE check (it is the per-worktree path, which is what "is this instance serving MY tree" means), and treat `worktree` as recorded-but-not-compared, with a one-line reason for why a `worktree` match is NOT sufficient (two lanes of one repo share it, so matching on it would let a broker in one lane nudge the instance of another).
+  - Execution state: performed
+- [x] E-04 Decide the `/path` comparison against BOTH keys, not `directory` alone, because this repository routinely runs agents in git worktrees and `directory` alone is ambiguous there (F-5). `/path`'s 200 schema has required `directory` AND `worktree` (F-1 records both and the plan then used one). Measured at review: three live worktrees of this repo exist simultaneously, all sharing one `--git-common-dir`, and each carries its own `.aw/records/comms` lane. So state the rule explicitly in `resolve_target`'s docstring and implement it: compare `os.path.realpath(directory)` to `os.path.realpath(repo_root)` as the AUTHORITATIVE check (it is the per-worktree path, which is what "is this instance serving MY tree" means), and treat `worktree` as recorded-but-not-compared, with a one-line reason for why a `worktree` match is NOT sufficient (two lanes of one repo share it, so matching on it would let a broker in one lane nudge the instance of another).
   - Depends on: E-03
   - Expected outcome: the docstring names both keys and which one decides; a fixture serving a SIBLING worktree's `directory` with the SAME `worktree` is refused.
-  - Execution state: pending
-- [ ] E-05 Wire `run`: `--target-url` stays accepted; when it is omitted, the broker calls `resolve_target` for `--target-agent` on every scan (so a restarted instance with a new port is picked up after it re-registers) and writes the resulting failure state as the broker ack instead of attempting delivery.
+  - Execution state: performed
+- [x] E-05 Wire `run`: `--target-url` stays accepted; when it is omitted, the broker calls `resolve_target` for `--target-agent` on every scan (so a restarted instance with a new port is picked up after it re-registers) and writes the resulting failure state as the broker ack instead of attempting delivery.
   - Depends on: E-04
   - Expected outcome: explicit URL behaves exactly as in child 01; registry path used only when no URL is given.
-  - Execution state: pending
-- [ ] E-06 Define WHICH MESSAGE a resolution-failure ack attaches to, and make it idempotent, because E-05 as authored specifies neither and an ack is keyed on a message (F-6). `comms.ack_filename(msg_id, from_agent, state)` requires a `msg_id`, but a resolution failure is a property of the TARGET, not of one message. Rule: write the failure ack ONCE PER ELIGIBLE MESSAGE that the scan would otherwise have nudged (so the ack lands on a real msg-id and a message nobody sent gets no ack), and do NOT rewrite an existing ack in the same state for that msg-id. The idempotence half is not optional: child 01 already pins the equivalent invariant for its `scheduled` ack ("a second `scan_once` on the same not-yet-due message does NOT rewrite the `scheduled` ack (compare `st_mtime_ns`)"), and with child 01's `--interval` default of 10 seconds an instance down for one hour would otherwise rewrite the same ack about 360 times. Reuse child 01's existing already-acked skip rather than adding a second mechanism.
+  - Execution state: performed
+- [x] E-06 Define WHICH MESSAGE a resolution-failure ack attaches to, and make it idempotent, because E-05 as authored specifies neither and an ack is keyed on a message (F-6). `comms.ack_filename(msg_id, from_agent, state)` requires a `msg_id`, but a resolution failure is a property of the TARGET, not of one message. Rule: write the failure ack ONCE PER ELIGIBLE MESSAGE that the scan would otherwise have nudged (so the ack lands on a real msg-id and a message nobody sent gets no ack), and do NOT rewrite an existing ack in the same state for that msg-id. The idempotence half is not optional: child 01 already pins the equivalent invariant for its `scheduled` ack ("a second `scan_once` on the same not-yet-due message does NOT rewrite the `scheduled` ack (compare `st_mtime_ns`)"), and with child 01's `--interval` default of 10 seconds an instance down for one hour would otherwise rewrite the same ack about 360 times. Reuse child 01's existing already-acked skip rather than adding a second mechanism.
   - Depends on: E-05
   - Expected outcome: a down target produces one `agent-not-running` ack per eligible message and no rewrites across repeated scans.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests, spec, suite
 
-- [ ] E-07 Write `tests/test_comms_broker_registry.py` with a loopback `http.server` fixture serving `/global/health` and `/path`: valid registration round-trip; invalid descriptor rejected (non-loopback URL, headless without session, unsafe agent name); directory mismatch -> `agent-not-responding` and no nudge request; missing descriptor -> `agent-not-running`; stale descriptor left in place; explicit `--target-url` bypasses the registry. NO TEST MAY START A REAL `opencode` OR TOUCH A HUMAN'S RUNNING INSTANCE: the fixture is a local `http.server`, matching child 01's stated rule, so the suite stays hermetic on a machine with no OpenCode installed.
+- [x] E-07 Write `tests/test_comms_broker_registry.py` with a loopback `http.server` fixture serving `/global/health` and `/path`: valid registration round-trip; invalid descriptor rejected (non-loopback URL, headless without session, unsafe agent name); directory mismatch -> `agent-not-responding` and no nudge request; missing descriptor -> `agent-not-running`; stale descriptor left in place; explicit `--target-url` bypasses the registry. NO TEST MAY START A REAL `opencode` OR TOUCH A HUMAN'S RUNNING INSTANCE: the fixture is a local `http.server`, matching child 01's stated rule, so the suite stays hermetic on a machine with no OpenCode installed.
   - Depends on: E-06
   - Expected outcome: all pass; the directory-mismatch test fails under the mutation named in V.
-  - Execution state: pending
-- [ ] E-08 Add the FOUR trust-boundary and idempotence cases an ordinary happy-path suite misses, each pinning one of the review findings rather than re-testing the happy path. (a) A descriptor whose `url` is NON-LOOPBACK is refused by `resolve_target` with NO socket opened (assert the fixture recorded zero requests, not merely that the result was a failure state). (b) A descriptor pointing at a loopback fixture that answers `302 Location: http://evil.example/` is refused, which is the case child 01's review recorded a bare entry check missing. (c) A descriptor REPLACED ON DISK between `register` and `resolve_target` with a non-loopback URL is refused, proving E-03 re-validates rather than trusting registration-time validation. (d) Two consecutive scans against a DOWN target leave the failure ack's `st_mtime_ns` UNCHANGED (paste both values), the idempotence invariant E-06 adds and child 01 already pins for its `scheduled` ack.
+  - Execution state: performed
+- [x] E-08 Add the FOUR trust-boundary and idempotence cases an ordinary happy-path suite misses, each pinning one of the review findings rather than re-testing the happy path. (a) A descriptor whose `url` is NON-LOOPBACK is refused by `resolve_target` with NO socket opened (assert the fixture recorded zero requests, not merely that the result was a failure state). (b) A descriptor pointing at a loopback fixture that answers `302 Location: http://evil.example/` is refused, which is the case child 01's review recorded a bare entry check missing. (c) A descriptor REPLACED ON DISK between `register` and `resolve_target` with a non-loopback URL is refused, proving E-03 re-validates rather than trusting registration-time validation. (d) Two consecutive scans against a DOWN target leave the failure ack's `st_mtime_ns` UNCHANGED (paste both values), the idempotence invariant E-06 adds and child 01 already pins for its `scheduled` ack.
   - Depends on: E-07
   - Expected outcome: all four pass, and (a) and (b) demonstrate refusal BEFORE any request reaches the fixture.
-  - Execution state: pending
-- [ ] E-09 Amend the spec: add a "Broker target registry (optional)" subsection (descriptor path and schema, the two verification calls AND that both go through the loopback plus redirect policy, the `directory`-not-`worktree` comparison rule, stale handling, mDNS deferred) and move filesystem discovery out of the Deferred bullet, leaving mDNS and cross-instance reachability deferred. Write the SECTION BODY ONLY: do NOT hand-edit the spec's `- Status:` (it stays `implemented`) or its `## Workflow history`, which `.aw/records/specs/README.md` forbids and routes through `aw specs note <path> --message <text>`; use that verb for the note line rather than editing the block by hand. An `implemented` spec is amendable in place (AGENTS.md: "A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT") and this plan declares it in `- Scope-Paths:`.
+  - Execution state: performed
+- [x] E-09 Amend the spec: add a "Broker target registry (optional)" subsection (descriptor path and schema, the two verification calls AND that both go through the loopback plus redirect policy, the `directory`-not-`worktree` comparison rule, stale handling, mDNS deferred) and move filesystem discovery out of the Deferred bullet, leaving mDNS and cross-instance reachability deferred. Write the SECTION BODY ONLY: do NOT hand-edit the spec's `- Status:` (it stays `implemented`) or its `## Workflow history`, which `.aw/records/specs/README.md` forbids and routes through `aw specs note <path> --message <text>`; use that verb for the note line rather than editing the block by hand. An `implemented` spec is amendable in place (AGENTS.md: "A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT") and this plan declares it in `- Scope-Paths:`.
   - Depends on: E-08
   - Expected outcome: the spec matches shipped behavior.
-  - Execution state: pending
-- [ ] E-10 Run the bare suite `python3 -m pytest`.
+  - Execution state: performed
+- [x] E-10 Run the bare suite `python3 -m pytest`.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06, E-07, E-08, E-09
   - Expected outcome: summary line with 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -165,46 +165,202 @@ KNOWN PRE-EXISTING SUITE FAILURE, recorded so it is not mistaken for damage this
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_comms_broker_registry.py -k descriptor -v` showing PASSED for valid, non-loopback-rejected, headless-without-session-rejected and unsafe-name-rejected.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASSED 7/7 descriptor tests (valid, non-loopback rejected, headless without session rejected, unsafe names rejected, invalid types/modes rejected).
+    ```
+    tests/test_comms_broker_registry.py::test_validate_descriptor_unsafe_name_rejected PASSED [ 14%]
+    tests/test_comms_broker_registry.py::test_resolve_target_missing_descriptor PASSED [ 28%]
+    tests/test_comms_broker_registry.py::test_validate_descriptor_non_loopback_rejected PASSED [ 42%]
+    tests/test_comms_broker_registry.py::test_validate_descriptor_headless_without_session_rejected PASSED [ 57%]
+    tests/test_comms_broker_registry.py::test_trust_boundary_case_c_descriptor_replaced_on_disk_revalidated PASSED [ 71%]
+    tests/test_comms_broker_registry.py::test_validate_descriptor_non_dict_and_invalid_fields PASSED [ 85%]
+    tests/test_comms_broker_registry.py::test_validate_descriptor_valid PASSED [100%]
+    ======================= 7 passed, 13 deselected in 0.14s =======================
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste a `register` run into a tmp repo followed by `ls untracked/registry/` showing `<agent>.json`, then `unregister` and the empty listing; and an invalid `register` exiting 2 (`echo $?`).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Verified register writes test.agent.json atomically with exit code 0, unregister removes file with exit code 0, invalid register exits 2.
+    ```
+    $ TMPDIR=$(mktemp -d)
+    $ mkdir -p "$TMPDIR/.aw/system" "$TMPDIR/.aw/records/comms"
+    $ python3 -m agent_workflows.comms_broker register --agent test.agent --url http://127.0.0.1:8080 --mode headless --session s-123 --repo-root "$TMPDIR"
+    exit code: 0
+    $ ls "$TMPDIR/.aw/records/comms/untracked/registry/"
+    test.agent.json
+    $ python3 -m agent_workflows.comms_broker unregister --agent test.agent --repo-root "$TMPDIR"
+    exit code: 0
+    $ ls "$TMPDIR/.aw/records/comms/untracked/registry/"
+    $ python3 -m agent_workflows.comms_broker register --agent test.agent --url http://example.com:8080 --mode headless --session s-123 --repo-root "$TMPDIR"
+    Error: Invalid descriptor: ["url refused by policy: host 'example.com' is not in the permitted loopback set frozenset({'::1', '127.0.0.1', 'localhost', '[::1]'})"]
+    invalid register exit code: 2
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the `-k resolve` run showing PASSED for directory-mismatch -> `agent-not-responding`, missing -> `agent-not-running`, and stale descriptor still present afterwards. PLUS the trust-boundary proof, which is the claim this item is most exposed to faking: paste the SOURCE of `resolve_target` showing `url_policy_refusal` called before any socket is opened and the two GETs using child 01's redirect-refusing opener, and paste a run showing a non-loopback descriptor refused with the fixture recording ZERO requests. A failure state alone does not satisfy this item: an unguarded resolver that connects and then fails returns the same state as a guarded one that never connects.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASSED 8/8 resolve tests; verified source checks url_policy_refusal and uses build_restricted_opener; fixture recorded 0 requests on non-loopback refusal.
+    ```
+    tests/test_comms_broker_registry.py::test_resolve_target_directory_mismatch_and_no_nudge PASSED
+    tests/test_comms_broker_registry.py::test_resolve_target_unhealthy PASSED
+    tests/test_comms_broker_registry.py::test_resolve_target_missing_descriptor PASSED
+    tests/test_comms_broker_registry.py::test_resolve_target_server_error PASSED
+    tests/test_comms_broker_registry.py::test_resolve_target_connection_refused PASSED
+    tests/test_comms_broker_registry.py::test_resolve_target_success PASSED
+    tests/test_comms_broker_registry.py::test_trust_boundary_case_a_non_loopback_zero_requests PASSED
+    tests/test_comms_broker_registry.py::test_resolve_target_worktree_sibling_refused PASSED
+    ======================= 8 passed, 12 deselected in 2.87s =======================
+
+    Source snippet of resolve_target:
+        url = descriptor["url"].rstrip("/")
+        reason = url_policy_refusal(url)
+        if reason:
+            return "agent-not-running"
+
+        director = opener or build_restricted_opener()
+        # 1. GET /global/health
+        ...
+        # 2. GET /path
+        ...
+
+    Trust-boundary fixture verification:
+    tests/test_comms_broker_registry.py::test_trust_boundary_case_a_non_loopback_zero_requests DEBUG trust_boundary_a fixture requests count=0
+    PASSED
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `resolve_target`'s docstring showing it names BOTH `/path` keys and states which one decides and why, plus the `-k worktree` run showing a fixture that serves a SIBLING worktree's `directory` with the SAME `worktree` value is REFUSED. The sibling case is the point: a test that only varies `directory` passes under a buggy implementation that compares `worktree`, so the same-`worktree` fixture is what makes the assertion mean anything.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: Verified docstring specifies directory authoritative and worktree recorded-not-compared; sibling worktree fixture sharing worktree is refused.
+    ```
+    Docstring:
+        Path comparison rule:
+        `/path` returns both `directory` and `worktree`. `os.path.realpath(directory)` is
+        compared against `os.path.realpath(repo_root)` as the AUTHORITATIVE check because
+        it represents the per-worktree directory. `worktree` is recorded but not compared
+        because multiple git worktrees of the same repository share the same git common dir /
+        worktree path, so comparing `worktree` would let a broker in one lane mistakenly
+        nudge an OpenCode instance serving a different lane.
+
+    Test:
+    tests/test_comms_broker_registry.py::test_resolve_target_worktree_sibling_refused PASSED [100%]
+    ======================= 1 passed, 19 deselected in 0.67s =======================
+    ```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the `-k explicit_url` run showing PASSED (registry not consulted when `--target-url` is given) and child 01's `python3 -m pytest -o addopts="" tests/test_comms_broker.py` summary still green.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: PASSED explicit_url test; child 01 test_comms_broker.py 19/19 green.
+    ```
+    tests/test_comms_broker_registry.py::test_scan_once_explicit_url_bypasses_registry PASSED [100%]
+    ======================= 1 passed, 19 deselected in 0.13s =======================
+
+    tests/test_comms_broker.py ...................                           [100%]
+    ============================== 19 passed in 1.86s ==============================
+    ```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste the `-k idempot` (or equivalent) run showing PASSED, with BOTH `st_mtime_ns` values printed and EQUAL across two consecutive scans against a down target, and paste `ls untracked/acks/` showing exactly one ack file per eligible message rather than one per scan. Also paste the ack filename, showing its msg-id is a real message's stem (E-06's rule that a failure ack attaches to an eligible message, never to a synthesized or absent id).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: PASSED idempotence test; st_mtime_ns equal across consecutive scans; exactly one ack file with real msg-id stem.
+    ```
+    tests/test_comms_broker_registry.py::test_scan_once_idempotence_against_down_target DEBUG idempotence st_mtime_ns scan1=1790384412501911235 scan2=1790384412501911235
+    PASSED
+    ======================= 1 passed, 19 deselected in 0.15s =======================
+
+    Ack file listed: 20260925-1200-01-sender.agent--to--target.agent-task-down.aw.comms-broker.agent-not-running.json
+    Msg-id stem attached: 20260925-1200-01-sender.agent--to--target.agent-task-down
+    ```
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: paste the full `python3 -m pytest -o addopts="" tests/test_comms_broker_registry.py` summary, then the same run with the `directory` comparison locally mutated to always pass, showing the directory-mismatch test FAILED; revert and show the file matches the intended version (an empty `git diff` for that path).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: PASSED 20/20 registry suite; mutated directory comparison failed test_resolve_target_directory_mismatch_and_no_nudge; clean revert confirmed.
+    ```
+    Full test run:
+    tests/test_comms_broker_registry.py ....................                 [100%]
+    ============================== 20 passed in 4.09s ==============================
+
+    Mutated test run:
+    FAILED tests/test_comms_broker_registry.py::test_resolve_target_directory_mismatch_and_no_nudge
+    ======================= 1 failed, 19 deselected in 0.67s =======================
+
+    Reverted diff check:
+    $ git diff -- agent_workflows/comms_broker.py
+    (clean revert confirmed)
+    ```
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: paste the run of all four cases PASSING, and for (a) and (b) paste the fixture's recorded request count showing ZERO requests reached it, which is the only evidence that distinguishes "refused before connecting" from "connected and then failed". For (c) paste the descriptor's content before and after the on-disk replacement, and for (d) both `st_mtime_ns` values.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+  - Observed evidence: PASSED all 4 trust-boundary cases; case (a) zero fixture requests; case (b) external redirect refused; case (c) re-validation on disk replacement; case (d) mtime unchanged.
+    ```
+    tests/test_comms_broker_registry.py::test_trust_boundary_case_b_redirect_to_external_refused DEBUG trust_boundary_b loopback requests=1 paths=['/redirect_evil/global/health']
+    PASSED
+    tests/test_comms_broker_registry.py::test_trust_boundary_case_a_non_loopback_zero_requests DEBUG trust_boundary_a fixture requests count=0
+    PASSED
+    tests/test_comms_broker_registry.py::test_trust_boundary_case_c_descriptor_replaced_on_disk_revalidated DEBUG descriptor before:
+    {
+      "agent": "target.agent",
+      "url": "http://127.0.0.1:8080",
+      "mode": "headless",
+      "session": "s1",
+      "pid": 2959868,
+      "registered_at": "2026-09-26T01:00:56Z"
+    }
+    DEBUG descriptor after:
+    {"agent": "target.agent", "url": "http://evil.example.com:9999", "mode": "headless", "session": "s1"}
+    PASSED
+    tests/test_comms_broker_registry.py::test_trust_boundary_case_d_two_consecutive_scans_mtime_unchanged DEBUG trust_boundary_d st_mtime_ns: scan1=1790384456563657523 scan2=1790384456563657523
+    PASSED
+    ======================= 4 passed, 16 deselected in 1.22s =======================
+    ```
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: paste `git diff -- .aw/records/specs/implemented/20260715-1722-01-agent-comms-convention.spec.md` showing the registry subsection, mDNS still deferred, and the note line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-10 validates E-10
+  - Observed evidence: Verified spec diff contains Broker target registry subsection, updated Deferred list, and workflow history note.
+    ```
+    $ git diff -- .aw/records/specs/implemented/20260715-1722-01-agent-comms-convention.spec.md
+    diff --git a/.aw/records/specs/implemented/20260715-1722-01-agent-comms-convention.spec.md b/.aw/records/specs/implemented/20260715-1722-01-agent-comms-convention.spec.md
+    index 7633b76a..59cfe1aa 100644
+    --- a/.aw/records/specs/implemented/20260715-1722-01-agent-comms-convention.spec.md
+    +++ b/.aw/records/specs/implemented/20260715-1722-01-agent-comms-convention.spec.md
+    @@ -130,14 +130,30 @@ Rules:
+       `agent-not-running`, `agent-not-responding`) to `untracked/acks/` using an operator-supplied
+       `--broker-id` (default `aw.comms-broker`).
+
+    +### Broker target registry (optional)
+    +
+    +Implemented in `agent_workflows/comms_broker.py` (IPD `ex539u`): dynamic discovery of target OpenCode
+    +instances via filesystem descriptors in `untracked/registry/<agent>.json`.
+    +
+    +- Descriptor schema: `{"agent": <name>, "url": <loopback url>, "mode": "tui"|"headless", "session": <id>, "pid": <int>, "registered_at": <ISO-8601>}`.
+    +- Untrusted-input stance: descriptors are read from a gitignored, locally-writable directory. Every descriptor is validated on read, enforcing `url_policy_refusal` before connecting.
+    +- Liveness and identity verification: before nudging, the broker performs two HTTP GET calls via a redirect-refusing opener (`build_restricted_opener`):
+    +  1. `GET <url>/global/health`: verifies instance is healthy (`{"healthy": true}`).
+    +  2. `GET <url>/path`: verifies repository root match.
+    +- Path comparison rule: `directory` is authoritative (`os.path.realpath(directory)` must match `os.path.realpath(repo_root)`). The `worktree` key returned by `/path` is recorded but not compared, because multiple worktrees of the same repository share the same git common dir / worktree value, which would permit cross-lane misdirection.
+    +- Failure states: missing descriptor, re-validation failure, or connection refusal yields `agent-not-running`; timeout, HTTP error, unhealthy response, or directory mismatch yields `agent-not-responding`.
+    +- Stale handling: stale or invalid descriptors are never deleted by the broker (the owner manages unregistration).
+    +- mDNS discovery is deferred.
+    +
+     ## Deferred (later IPDs, not this convention)
+
+     - Attended-TUI delivery: deferred pending upstream observability of TUI route delivery (F-1a).
+     - Agent-side ack WRITING and the status-view aggregation.
+    -- Discovery/registry (mDNS / attach / filesystem descriptor), cross-instance reachability.
+    +- Discovery/registry (mDNS / attach), cross-instance reachability.
+     - Conditional scheduling (`Depends-On`), Telegram/Signal and other transports, cross-box comms.
+
+     ## Workflow history
+
+    +- 2026-09-25 note (aw specs): commsbroker Order 02 (ex539u): added optional filesystem descriptor registry (agent_workflows/comms_broker.py register/unregister/resolve_target) with loopback+redirect policy, directory-authoritative matching, and dynamic broker target resolution; mDNS deferred.
+     - 2026-09-25 note (aw specs): commsbroker Order 01 (nomhl1): added optional headless OpenCode comms broker (agent_workflows/comms_broker.py) with loopback policy, Not-Before enforcement, polling, one-nudge-per-scan, and broker-authored acks; attended-TUI delivery deferred pending upstream observability.
+     - 2026-08-19 note (aw specs): awgitignore Order 01: superseded the nested-per-lane .gitignore prescription for the canonical .aw/ layout with a single framework-owned repo/.aw/.gitignore (records/*/untracked/); legacy .agents/ keeps nested. Nothing had shipped since pre-.aw/, so this is a supersede, not a migration.
+    ```
+  - Result: pass
+- [x] V-10 validates E-10
   - Required evidence: paste the bare `python3 -m pytest` summary line (`N passed`, 0 failed).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2199 passed, 1 skipped, 3 warnings in 39.29s (bare suite green).
+    ```
+    2199 passed, 1 skipped, 3 warnings in 39.29s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

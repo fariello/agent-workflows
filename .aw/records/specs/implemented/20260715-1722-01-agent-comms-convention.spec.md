@@ -130,14 +130,30 @@ Rules:
   `agent-not-running`, `agent-not-responding`) to `untracked/acks/` using an operator-supplied
   `--broker-id` (default `aw.comms-broker`).
 
+### Broker target registry (optional)
+
+Implemented in `agent_workflows/comms_broker.py` (IPD `ex539u`): dynamic discovery of target OpenCode
+instances via filesystem descriptors in `untracked/registry/<agent>.json`.
+
+- Descriptor schema: `{"agent": <name>, "url": <loopback url>, "mode": "tui"|"headless", "session": <id>, "pid": <int>, "registered_at": <ISO-8601>}`.
+- Untrusted-input stance: descriptors are read from a gitignored, locally-writable directory. Every descriptor is validated on read, enforcing `url_policy_refusal` before connecting.
+- Liveness and identity verification: before nudging, the broker performs two HTTP GET calls via a redirect-refusing opener (`build_restricted_opener`):
+  1. `GET <url>/global/health`: verifies instance is healthy (`{"healthy": true}`).
+  2. `GET <url>/path`: verifies repository root match.
+- Path comparison rule: `directory` is authoritative (`os.path.realpath(directory)` must match `os.path.realpath(repo_root)`). The `worktree` key returned by `/path` is recorded but not compared, because multiple worktrees of the same repository share the same git common dir / worktree value, which would permit cross-lane misdirection.
+- Failure states: missing descriptor, re-validation failure, or connection refusal yields `agent-not-running`; timeout, HTTP error, unhealthy response, or directory mismatch yields `agent-not-responding`.
+- Stale handling: stale or invalid descriptors are never deleted by the broker (the owner manages unregistration).
+- mDNS discovery is deferred.
+
 ## Deferred (later IPDs, not this convention)
 
 - Attended-TUI delivery: deferred pending upstream observability of TUI route delivery (F-1a).
 - Agent-side ack WRITING and the status-view aggregation.
-- Discovery/registry (mDNS / attach / filesystem descriptor), cross-instance reachability.
+- Discovery/registry (mDNS / attach), cross-instance reachability.
 - Conditional scheduling (`Depends-On`), Telegram/Signal and other transports, cross-box comms.
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): commsbroker Order 02 (ex539u): added optional filesystem descriptor registry (agent_workflows/comms_broker.py register/unregister/resolve_target) with loopback+redirect policy, directory-authoritative matching, and dynamic broker target resolution; mDNS deferred.
 - 2026-09-25 note (aw specs): commsbroker Order 01 (nomhl1): added optional headless OpenCode comms broker (agent_workflows/comms_broker.py) with loopback policy, Not-Before enforcement, polling, one-nudge-per-scan, and broker-authored acks; attended-TUI delivery deferred pending upstream observability.
 - 2026-08-19 note (aw specs): awgitignore Order 01: superseded the nested-per-lane .gitignore prescription for the canonical .aw/ layout with a single framework-owned repo/.aw/.gitignore (records/*/untracked/); legacy .agents/ keeps nested. Nothing had shipped since pre-.aw/, so this is a supersede, not a migration.
