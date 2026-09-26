@@ -105,6 +105,38 @@ class AgySelfFinalizeTests(unittest.TestCase):
         self.assertNotIn("(", agy_runipd.driver_actor({"options": {"model": "x"}}))
         self.assertEqual(agy_runipd.driver_actor({"options": {}}), "aw agy run")
 
+    def test_driver_actor_normalizes_a_display_name_model(self):
+        # Measured 2026-09-26: the frozen model was the Antigravity DISPLAY name, and the actor it
+        # produced was refused by finalize after every execute turn in the run had done its work.
+        from agent_workflows import attention_contract as ac
+
+        actor = agy_runipd.driver_actor(
+            {"options": {"model": "Gemini 3.8 Flash (High)"}}
+        )
+        self.assertEqual(actor, "aw agy run model=Gemini-3.8-Flash-High")
+        self.assertIsNone(ac.actor_refusal(actor))
+        # Punctuation-only and blank values carry no information and are dropped, not rendered.
+        for blank in ("()", "   ", ""):
+            with self.subTest(blank=blank):
+                self.assertEqual(
+                    agy_runipd.driver_actor({"options": {"model": blank}}), "aw agy run"
+                )
+
+    def test_begin_refuses_a_parenthesized_actor_before_any_turn(self):
+        # The upfront half of the fix: `begin` enforces the SAME shape finalize does, so a bad actor
+        # from any caller costs nothing instead of costing a full agent turn.
+        from agent_workflows import ipd_lifecycle
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "agy002")
+            rc, msg = agy_runipd.driver_begin(
+                repo, "agy002", "aw agy run model=Gemini 3.8 Flash (High)"
+            )
+            self.assertNotEqual(rc, 0, msg)
+            self.assertIn("parenthesis", msg)
+            self.assertFalse(ipd_lifecycle.receipt_path_for(repo, "agy002").is_file())
+
     def test_begin_writes_receipt_then_finalize_moves_to_executed(self):
         from agent_workflows import ipd_lifecycle
 

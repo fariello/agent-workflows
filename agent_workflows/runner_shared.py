@@ -23258,17 +23258,42 @@ def driver_actor(state: dict[str, Any], *, labels: HostLabels) -> str:
     not run: measured across every state shape that host produces, this returns exactly what its own
     copy returned before the lift, modulo `labels.command`. That measurement, not an assumption, is
     why the capability difference did not need a descriptor field.
+
+    EVERY VALUE IS NORMALIZED BY `_actor_token`, because a value is not ours to trust. Measured
+    2026-09-26: `aw agy run` froze the Antigravity DISPLAY name `Gemini 3.8 Flash (High)` as the
+    model (commit `1864f5b9` began reading it from the host's settings), this function rendered
+    `model=Gemini 3.8 Flash (High)`, and `actor_refusal` refused every finalize in the run AFTER each
+    agent turn had done its work. Normalizing here, at the one place the actor is built, closes that
+    for every host and every future value source instead of for one model name.
     """
     options = state.get("options", {}) or {}
-    model = options.get("model")
-    parts = [f"model={model}"] if model else []
-    variant = options.get("variant")
+    parts = []
+    model = _actor_token(options.get("model"))
+    if model:
+        parts.append(f"model={model}")
+    variant = _actor_token(options.get("variant"))
     if variant:
         parts.append(f"variant={variant}")
-    applied_profile = (options.get("launch_profile") or {}).get("applied")
+    applied_profile = _actor_token((options.get("launch_profile") or {}).get("applied"))
     if applied_profile:
         parts.append(f"profile={applied_profile}")
     return f"{labels.command} " + " ".join(parts) if parts else labels.command
+
+
+def _actor_token(value: Any) -> str:
+    """Render one actor qualifier value as a single history-safe token.
+
+    The actor sits inside `- <date> <status> (<actor>): <msg>`, and each qualifier is one
+    space-separated `key=value` token, so a value must carry no parenthesis (refused by
+    `attention_contract.actor_refusal`), no whitespace (it would split the token), and no `:` (it
+    would end the actor early for a human reading the line). Parentheses are DROPPED rather than
+    replaced, so `Gemini 3.8 Flash (High)` becomes `Gemini-3.8-Flash-High` and stays recognizable;
+    whitespace and `:` become `-`; runs of `-` collapse. An empty result means "no value".
+    """
+    if value is None:
+        return ""
+    text = str(value).replace("(", " ").replace(")", " ").replace(":", " ")
+    return "-".join(text.split())
 
 
 #: Queue statuses that PROVE the runner dispatched (or began dispatching) a turn for an item, so a run

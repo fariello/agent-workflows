@@ -1645,7 +1645,8 @@ def begin(
     """Run the fail-closed pre-execution gate and, on success, write the atomic begin receipt.
 
     Ordered fail-closed checks (each leaves NO valid receipt on failure):
-      1. ``--actor`` is present and non-empty;
+      1. ``--actor`` is present, non-empty, and passes ``attention_contract.actor_refusal`` (the
+         same shape finalize enforces, so a turn is never spent on an unfinalizable actor);
       2. the plan file exists and parses to a valid ``- Id:`` id6;
       3. the ``pre-execution`` lint disposition is ``conforming`` (else exit 1; an unrunnable lint or
          internal error is exit 2);
@@ -1693,6 +1694,18 @@ def begin(
             "without an attributed actor).",
         )
     actor = actor.strip()
+    # 1b. The SAME actor shape finalize enforces, checked HERE, before any execution authority is
+    # granted. Measured 2026-09-26: begin accepted `aw agy run model=Gemini 3.8 Flash (High)` and
+    # finalize refused it, so every execute item in the run spent a full agent turn on work that
+    # could not be finalized. Refusing at begin moves that failure to before the turn, where it is
+    # free. It is the one shared validator, so begin and finalize cannot disagree.
+    from agent_workflows import attention_contract as _ac
+
+    _actor_problem = _ac.actor_refusal(actor)
+    if _actor_problem is not None:
+        return BeginResult(
+            EXIT_CANNOT_RUN, None, None, f"aw ipd begin: {_actor_problem}"
+        )
 
     # 2. plan file must exist and carry a valid id6.
     if not plan_path.is_file():

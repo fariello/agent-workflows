@@ -3054,6 +3054,26 @@ class SelfFinalizeHelperTests(unittest.TestCase):
         self.assertNotIn("(", driver.driver_actor({"options": {"model": "x"}}))
         self.assertEqual(driver.driver_actor({"options": {}}), "aw oc run")
 
+    def test_driver_actor_normalizes_every_qualifier(self):
+        # One builder serves both hosts, so the oc side pins the same normalization for model,
+        # variant AND profile: a value with a parenthesis, whitespace, or ':' becomes one token.
+        from agent_workflows import attention_contract as ac
+
+        actor = driver.driver_actor(
+            {
+                "options": {
+                    "model": "its_direct/pt3-claude-opus-5.5-1m-us",
+                    "variant": "high (max)",
+                    "launch_profile": {"applied": "my: gem"},
+                }
+            }
+        )
+        self.assertEqual(
+            actor,
+            "aw oc run model=its_direct/pt3-claude-opus-5.5-1m-us variant=high-max profile=my-gem",
+        )
+        self.assertIsNone(ac.actor_refusal(actor))
+
     def test_begin_writes_receipt_then_finalize_moves_to_executed(self):
         # V-01/V-02 end-to-end: real `aw ipd begin` writes the gitignored receipt, and after the
         # (simulated) verified turn `aw ipd finalize` moves the plan to executed/ via the driver
