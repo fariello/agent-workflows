@@ -6,12 +6,11 @@
 - Scope: Parameterize the `aw oc profile` handlers by runner, register the same fixed verb set as `aw agy profile {add,list,show,remove,default}` (noninteractive `add` with `--validate/--no-validate`), GUARD the runner-scoped verbs against the flat profile namespace so a verb in one host's namespace cannot read, retarget or delete the other host's profile, add one `validate-default` verb under both namespaces that writes the host-neutral `defaults.validate` through `set_validate_default`, and replace the documented hand-edit step.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/runner_profile_wizard.py, tests/test_agy_profile_cli.py, tests/test_oc_profile_cli_regression.py, docs/runner-profiles.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
 - Id: 6o8q4k
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: fxiqse
 - Set: agyprofile
 - Order: 1
@@ -19,6 +18,7 @@
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6o8q4k verified (set agyprofile, attempt 1). [Scope reconciliation - widened-scope agent_workflows/command_surface.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
