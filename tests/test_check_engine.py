@@ -1393,5 +1393,63 @@ class CheckIpdLintReachTerminalTreeTests(unittest.TestCase):
             self.assertEqual(check_error_files, {str(post_offender)})
 
 
+class CarrierObligationWalkthroughRefusalTests(unittest.TestCase):
+    """Walkthrough paths are refused as Carrier-Evidence in evaluate_carrier_obligation (plan vtkfq8 E-03/E-04)."""
+
+    def test_walkthrough_live_path_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            wt_dir = root / ".aw" / "records" / "walkthroughs"
+            wt_dir.mkdir(parents=True)
+            wt_file = wt_dir / "20260901-sample-01-abc123-walkthrough.walkthrough.md"
+            wt_file.write_text("# Walkthrough\n", encoding="utf-8")
+
+            rel_path = ".aw/records/walkthroughs/20260901-sample-01-abc123-walkthrough.walkthrough.md"
+            ob = ce.CarrierObligation(
+                "question", "OQ-01", 10, {"Carrier-Evidence": rel_path}
+            )
+            verdict = ce.evaluate_carrier_obligation(root, ob)
+
+            self.assertFalse(verdict.legitimate)
+            self.assertEqual(verdict.severity, "error")
+            self.assertIn("cites a walkthrough", verdict.reason)
+            self.assertIn("tracked=False", verdict.reason)
+            self.assertNotIn("untracked", verdict.reason)
+
+    def test_walkthrough_legacy_path_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            rel_path = ".agents/docs/walkthroughs/20260901-sample-01-abc123-walkthrough.walkthrough.md"
+            ob = ce.CarrierObligation(
+                "question", "OQ-01", 10, {"Carrier-Evidence": rel_path}
+            )
+            verdict = ce.evaluate_carrier_obligation(root, ob)
+
+            self.assertFalse(verdict.legitimate)
+            self.assertEqual(verdict.severity, "error")
+            self.assertIn("cites a walkthrough", verdict.reason)
+            self.assertIn("tracked=False", verdict.reason)
+
+    def test_non_walkthrough_in_tree_artifact_satisfied(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            plans_dir = root / ".aw" / "records" / "plans" / "executed"
+            plans_dir.mkdir(parents=True)
+            plan_file = plans_dir / "20260901-sample-01-abc123-test.ipd.md"
+            plan_file.write_text("# IPD\n", encoding="utf-8")
+
+            rel_path = (
+                ".aw/records/plans/executed/20260901-sample-01-abc123-test.ipd.md"
+            )
+            ob = ce.CarrierObligation(
+                "question", "OQ-01", 10, {"Carrier-Evidence": rel_path}
+            )
+            verdict = ce.evaluate_carrier_obligation(root, ob)
+
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.severity, "ok")
+            self.assertIn("satisfied by resolvable evidence", verdict.reason)
+
+
 if __name__ == "__main__":
     unittest.main()

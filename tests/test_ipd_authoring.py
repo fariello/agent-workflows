@@ -519,5 +519,51 @@ class AtomicWriteDelegatesToCoreTests(unittest.TestCase):
         self.assertEqual([ln for ln in synced.split("\n") if ln != ln.rstrip()], [])
 
 
+class ScaffoldDurableCarrierGateTests(unittest.TestCase):
+    """Scaffolded plans pass the durable-carrier gate without being stubs (plan vtkfq8 E-02)."""
+
+    def test_scaffold_passes_carrier_gate_and_remains_stub_and_flags_on_real_question(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as td:
+            repo_root = Path(td)
+            pending_dir = repo_root / ".aw" / "records" / "plans" / "pending"
+            pending_dir.mkdir(parents=True)
+
+            text = A.build_skeleton(
+                title="Carrier Gate Probe",
+                plan_id="abc123",
+                kind="child",
+                author="tester",
+                when="2026-09-26",
+                set_name="carriergate",
+                order=1,
+            )
+            plan_file = (
+                pending_dir / "20260926-carriergate-01-abc123-carrier-gate-probe.ipd.md"
+            )
+            plan_file.write_text(text, encoding="utf-8")
+
+            from agent_workflows import check_engine as ce
+
+            # Assertion 1: check_durable_carrier returns no findings for plan AS SCAFFOLDED
+            findings = ce.check_durable_carrier(repo_root)
+            self.assertEqual(findings, [])
+
+            # Assertion 2: untouched scaffold still reports unfinished via authoring_placeholders_resolved
+            self.assertFalse(A.authoring_placeholders_resolved(text))
+
+            # Assertion 3: editing example question heading to a real heading with - Status: open
+            # and no carrier MUST still produce the check.ipd-uncarried-obligation finding
+            edited_text = text.replace(
+                "### OQ-01: TODO a question", "### OQ-01: Real question to be answered?"
+            )
+            plan_file.write_text(edited_text, encoding="utf-8")
+            findings_edited = ce.check_durable_carrier(repo_root)
+            self.assertEqual(len(findings_edited), 1)
+            self.assertEqual(findings_edited[0].rule, "check.ipd-uncarried-obligation")
+            self.assertIn("OQ-01", findings_edited[0].detail)
+
+
 if __name__ == "__main__":
     unittest.main()

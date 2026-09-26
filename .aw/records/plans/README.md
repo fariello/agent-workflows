@@ -63,6 +63,19 @@ To transition a plan's status and move it between disposition directories, use `
 - `aw ipd set <status> <id6|setid|fname>...` (e.g. `aw ipd set approved pl0001`, `aw ipd set to-review my-set`)
 - `aw set approved <id6|setid|fname>...` (untyped, transitions plans, specs, prompts, backlog, or entire sets)
 
+## Durable carrier vocabulary for obligations
+
+Every outstanding obligation in an IPD (an item in `## Deferred / out of scope (with reason)` or an open or deferred question under `## Open questions`) must name a durable carrier before the plan reaches terminal execution. Once a plan reaches `executed`, it classes `done` in `aw attention`, so uncarried items would vanish from operational attention with no record.
+
+The carrier gate recognizes three escapes:
+
+1. **Handoff**: `- Carrier: <id6>`
+   Names an open backlog item (file one with `aw backlog new`) or a pending plan. The referenced id6 must resolve to a live, non-terminal record; a dangling id6 or a terminal record (executed plan, completed backlog) is refused because nothing revisits it.
+2. **Satisfied by evidence**: `- Carrier-Evidence: <in-tree artifact path>`
+   Cites an in-tree artifact demonstrating the obligation is already addressed (for example, a prior executed plan). The path must resolve to a valid in-tree artifact. Walkthrough paths are explicitly refused because walkthroughs carry no lifecycle status (`tracked=False`) and are never scanned by `aw attention`.
+3. **Explicitly declined**: `- Carrier-Declined: <reason>`
+   Declines the obligation explicitly with a non-empty rationale explaining why it requires no carrier. The merit of the reason is judged by the reviewer during plan review.
+
 ## Identity, sets, and the clustering filename grammar
 
 Every plan carries a stable `- Id:` (a 6-char base36 citation handle that never changes across

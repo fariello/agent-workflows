@@ -1,5 +1,5 @@
 - Id: dtrect
-- Status: graduated
+- Status: done
 - Graduated-To: carrierauth
 - Set: dtrect
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Deferred-section carrier subfields have no authoring or scaffold support, so an author must hand-write the typed field aw ipd scaffold does not emit
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD vtkfq8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-carrierauth-01-vtkfq8-scaffold-plans-that-pass-the-durable-carrier-gate-refuse-wal.ipd.md); evidence .aw/records/plans/executed/20260925-carrierauth-01-vtkfq8-scaffold-plans-that-pass-the-durable-carrier-gate-refuse-wal.ipd.md
 - 2026-09-25 graduated (aw set): graduated into carrierauth (plan vtkfq8); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): Deferred-section carrier subfields have no authoring or scaffold support, so an author must hand-write the typed field aw ipd scaffold does not emit
 

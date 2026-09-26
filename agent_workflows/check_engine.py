@@ -5863,14 +5863,28 @@ def _deferred_section_obligations(plan_text: str) -> List[CarrierObligation]:
     return out
 
 
-def _question_obligations(open_questions) -> List[CarrierObligation]:
+def _question_obligations(
+    open_questions, *, plan_text: Optional[str] = None
+) -> List[CarrierObligation]:
     """Every open question that still owes something (`Status:` open or deferred).
 
     A `resolved` question is EXCLUDED: it has been answered, and demanding a carrier for an answered
     question would fire on 464 executed-tree and 154 pending-tree questions that owe nothing (measured
     2026-09-18). This mirrors `_UNFIXED_DECISIONS`' reasoning: only an unfixed thing needs a home.
+
+    A question whose heading is still the scaffold's untouched placeholder (`### OQ-01: TODO a question`),
+    matched through `ipd_authoring._AUTHORING_PLACEHOLDERS`, is skipped so a fresh scaffold does not fail
+    the gate on its own example question (plan vtkfq8 E-01, OQ-03).
     """
     out: List[CarrierObligation] = []
+    lines: Optional[List[str]] = None
+    if plan_text:
+        lines = plan_text.splitlines()
+
+    from agent_workflows import ipd_authoring as _authoring
+
+    authoring_placeholders = getattr(_authoring, "_AUTHORING_PLACEHOLDERS", ())
+
     for oq in open_questions or []:
         status = (oq.get("Status") or "").strip().lower()
         if status not in _CARRIER_LIVE_OQ_STATUSES:
@@ -5879,6 +5893,14 @@ def _question_obligations(open_questions) -> List[CarrierObligation]:
             line = int(oq.get("line", "0") or 0)
         except (TypeError, ValueError):
             line = 0
+
+        heading = (oq.get("heading") or "").strip()
+        if not heading and lines and 0 < line <= len(lines):
+            heading = lines[line - 1].strip()
+
+        if heading and heading in authoring_placeholders:
+            continue
+
         out.append(
             CarrierObligation("question", oq.get("id", "OQ") or "OQ", line, dict(oq))
         )
@@ -5974,6 +5996,27 @@ def evaluate_carrier_obligation(
 
     evidence = (fields.get(_S.CARRIER_EVIDENCE_FIELD) or "").strip()
     if evidence:
+        # Check whether evidence points to a walkthrough (both path generations via attention._classify_tree).
+        # Walkthroughs are git-tracked, but carry tracked=False in TREE_POLICY, meaning they carry NO
+        # LIFECYCLE STATUS and are filename-only checked; an obligation parked there is never revisited
+        # in aw attention (plan vtkfq8 E-03, backlog 3yr30q).
+        from agent_workflows import attention as _attention
+
+        ev_norm = evidence.replace("\\", "/")
+        if ev_norm.startswith("./"):
+            ev_norm = ev_norm[2:]
+        policy = _attention._classify_tree(ev_norm)
+        if policy is not None and policy.name == "walkthroughs":
+            return CloseVerdict(
+                False,
+                "error",
+                "{0}: `Carrier-Evidence: {1}` cites a walkthrough; walkthroughs carry no "
+                "lifecycle status (`tracked=False`), so an obligation parked there is never revisited".format(
+                    obligation.locator, evidence
+                ),
+                fixes,
+                None,
+            )
         try:
             resolved = resolve_evidence_artifact(repo_root, evidence)
         except Exception:
@@ -6076,7 +6119,7 @@ def evaluate_durable_carrier(
         except Exception:
             open_questions = []
     obligations = _deferred_section_obligations(plan_text) + _question_obligations(
-        open_questions
+        open_questions, plan_text=plan_text
     )
     if not obligations:
         return drift
