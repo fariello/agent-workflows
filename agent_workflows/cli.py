@@ -4552,6 +4552,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "profile the default is a separate question that defaults to No."
         ),
     )
+    p_oc_profile.set_defaults(profile_runner="oc")
     oc_profile_sub = p_oc_profile.add_subparsers(dest="oc_profile_command")
 
     p_ocp_add = oc_profile_sub.add_parser(
@@ -4565,6 +4566,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Without a TTY, an incomplete invocation refuses rather than guessing."
         ),
     )
+    p_ocp_add.set_defaults(profile_runner="oc")
     p_ocp_add.add_argument(
         "name",
         nargs="?",
@@ -4609,7 +4611,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Also make this profile the default OpenCode profile (never implied).",
     )
 
-    oc_profile_sub.add_parser(
+    p_ocp_list = oc_profile_sub.add_parser(
         "list",
         aliases=["ls"],
         parents=[common],
@@ -4619,6 +4621,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "--agent, structured JSON with --json. An empty list is a clean result, not an error."
         ),
     )
+    p_ocp_list.set_defaults(profile_runner="oc")
 
     p_ocp_show = oc_profile_sub.add_parser(
         "show",
@@ -4629,6 +4632,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "which is the same expansion the runner performs."
         ),
     )
+    p_ocp_show.set_defaults(profile_runner="oc")
     p_ocp_show.add_argument("name", help="Profile name.")
 
     p_ocp_remove = oc_profile_sub.add_parser(
@@ -4642,6 +4646,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Dropping the reference silently would quietly fall back to the host default model."
         ),
     )
+    p_ocp_remove.set_defaults(profile_runner="oc")
     p_ocp_remove.add_argument("name", help="Profile name.")
     p_ocp_remove.add_argument(
         "--clear-default",
@@ -4667,11 +4672,28 @@ def _build_parser() -> argparse.ArgumentParser:
             "when an invocation names no profile and passes no explicit --model."
         ),
     )
+    p_ocp_default.set_defaults(profile_runner="oc")
     p_ocp_default.add_argument(
         "name", nargs="?", help="Profile name (omit with --clear)."
     )
     p_ocp_default.add_argument(
         "--clear", action="store_true", help="Clear the default OpenCode profile."
+    )
+
+    p_ocp_vd = oc_profile_sub.add_parser(
+        "validate-default",
+        parents=[common],
+        help="Set or unset the host-neutral defaults.validate verification posture (on/off/unset).",
+        description=(
+            "Set or unset the host-neutral defaults.validate setting. Applies to every host and to "
+            "any profile that does not set its own validate posture."
+        ),
+    )
+    p_ocp_vd.set_defaults(profile_runner="oc")
+    p_ocp_vd.add_argument(
+        "state",
+        choices=["on", "off", "unset"],
+        help="Verification posture: 'on', 'off', or 'unset' (reverts to shipped host default).",
     )
 
     p_agy = sub.add_parser(
@@ -4810,6 +4832,152 @@ def _build_parser() -> argparse.ArgumentParser:
         "exec_args",
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the agy exec runner.",
+    )
+
+    # agyprofile 6o8q4k E-03: `aw agy profile` and fixed subverbs for Antigravity
+    p_agy_profile = agy_sub.add_parser(
+        "profile",
+        aliases=["profiles"],
+        parents=[common],
+        help="Manage named Antigravity launch profiles (add/list/show/remove/default/validate-default).",
+        description=(
+            "Create and manage named Antigravity launch profiles. Antigravity profiles configure "
+            "verification and validation defaults. Profiles are stored in your user-local "
+            "runner-profiles.json. Profile names share a single namespace across runners."
+        ),
+    )
+    p_agy_profile.set_defaults(profile_runner="agy")
+    agy_profile_sub = p_agy_profile.add_subparsers(dest="agy_profile_command")
+
+    p_agyp_add = agy_profile_sub.add_parser(
+        "add",
+        parents=[common],
+        help="Create an Antigravity profile (noninteractive only: NAME --model <provider/model> --yes).",
+        description=(
+            "Create a named Antigravity profile. Noninteractive only: supply NAME, --model and --yes. "
+            "Optionally configure --validate or --no-validate. An existing name is never silently "
+            "overwritten; pass --replace to overwrite it. Note that Antigravity profiles do not "
+            "support variant or agent."
+        ),
+    )
+    p_agyp_add.set_defaults(profile_runner="agy")
+    p_agyp_add.add_argument(
+        "name",
+        nargs="?",
+        help="Profile name (lowercase letters/digits/hyphens, e.g. quiet).",
+    )
+    p_agyp_add.add_argument(
+        "--model",
+        help="Exact provider/model identifier (required).",
+    )
+    p_agyp_add.add_argument(
+        "--validate",
+        dest="validate",
+        action="store_true",
+        default=None,
+        help="Enable verification default for this profile.",
+    )
+    p_agyp_add.add_argument(
+        "--no-validate",
+        dest="validate",
+        action="store_false",
+        help="Disable verification default for this profile.",
+    )
+    p_agyp_add.add_argument(
+        "--replace",
+        action="store_true",
+        help="Overwrite an existing profile of this name (required; there is no silent overwrite).",
+    )
+    p_agyp_add.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm noninteractive creation (required).",
+    )
+    p_agyp_add.add_argument(
+        "--set-default",
+        action="store_true",
+        help="Also make this profile the default Antigravity profile (never implied).",
+    )
+
+    p_agyp_list = agy_profile_sub.add_parser(
+        "list",
+        aliases=["ls"],
+        parents=[common],
+        help="List Antigravity profiles with model, validation posture, and default status.",
+        description=(
+            "List your Antigravity profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or "
+            "with --agent, structured JSON with --json. An empty list is a clean result, not an error."
+        ),
+    )
+    p_agyp_list.set_defaults(profile_runner="agy")
+
+    p_agyp_show = agy_profile_sub.add_parser(
+        "show",
+        parents=[common],
+        help="Show one Antigravity profile and its stored fields.",
+        description="Show one Antigravity profile: its stored fields and effective configuration.",
+    )
+    p_agyp_show.set_defaults(profile_runner="agy")
+    p_agyp_show.add_argument("name", help="Profile name.")
+
+    p_agyp_remove = agy_profile_sub.add_parser(
+        "remove",
+        aliases=["rm"],
+        parents=[common],
+        help="Remove an Antigravity profile; removing the default requires an explicit decision.",
+        description=(
+            "Remove an Antigravity profile. If it is the default for Antigravity, you must decide "
+            "explicitly: --clear-default drops the default, or --replacement NAME points it elsewhere."
+        ),
+    )
+    p_agyp_remove.set_defaults(profile_runner="agy")
+    p_agyp_remove.add_argument("name", help="Profile name.")
+    p_agyp_remove.add_argument(
+        "--clear-default",
+        action="store_true",
+        help="Also clear the runner default when this profile is it.",
+    )
+    p_agyp_remove.add_argument(
+        "--replacement",
+        help="Point the runner default at this profile instead of clearing it.",
+    )
+    p_agyp_remove.add_argument(
+        "--yes",
+        action="store_true",
+        help="Required without a TTY to confirm the removal.",
+    )
+
+    p_agyp_default = agy_profile_sub.add_parser(
+        "default",
+        parents=[common],
+        help="Set or clear the default Antigravity profile (used when you name none).",
+        description=(
+            "Set the default Antigravity profile, or clear it with --clear. The default applies only "
+            "when an invocation names no profile."
+        ),
+    )
+    p_agyp_default.set_defaults(profile_runner="agy")
+    p_agyp_default.add_argument(
+        "name", nargs="?", help="Profile name (omit with --clear)."
+    )
+    p_agyp_default.add_argument(
+        "--clear", action="store_true", help="Clear the default Antigravity profile."
+    )
+
+    p_agyp_vd = agy_profile_sub.add_parser(
+        "validate-default",
+        parents=[common],
+        help="Set or unset the host-neutral defaults.validate verification posture (on/off/unset).",
+        description=(
+            "Set or unset the host-neutral defaults.validate setting. Applies to every host and to "
+            "any profile that does not set its own validate posture."
+        ),
+    )
+    p_agyp_vd.set_defaults(profile_runner="agy")
+    p_agyp_vd.add_argument(
+        "state",
+        choices=["on", "off", "unset"],
+        help="Verification posture: 'on', 'off', or 'unset' (reverts to shipped host default).",
     )
 
     # runnernorm Order 02 (puot79): top-level `aw pwatch` graduates tools/pwatch.py.
@@ -12175,17 +12343,24 @@ def _oc_profile_out(args, result, data: Optional[Dict[str, Any]] = None) -> int:
     return -1  # sentinel: the caller renders the human view itself
 
 
+_RUNNER_DISPLAY = {
+    "oc": "OpenCode",
+    "agy": "Antigravity",
+}
+
+
 def _oc_profile_result(
     verb: str,
     status: str,
     exit_code: int,
     summary: str,
     data: Optional[Dict[str, Any]] = None,
+    runner: str = "oc",
 ):
     from agent_workflows.result_types import CommandResult
 
     return CommandResult(
-        command=f"oc profile {verb}",
+        command=f"{runner} profile {verb}",
         status=status,
         exit_code=exit_code,
         summary=summary,
@@ -12198,7 +12373,8 @@ def _oc_profile_result(
 def _oc_profile_error(args, verb: str, message: str) -> int:
     """Report an actionable failure: exit 2, and never a traceback (E-03)."""
 
-    result = _oc_profile_result(verb, "cannot-run", 2, message)
+    runner = getattr(args, "profile_runner", "oc")
+    result = _oc_profile_result(verb, "cannot-run", 2, message, runner=runner)
     rc = _oc_profile_out(args, result)
     if rc != -1:
         return rc
@@ -12206,8 +12382,26 @@ def _oc_profile_error(args, verb: str, message: str) -> int:
     return 2
 
 
+def _guard_profile_runner(args, verb: str, name: str, profile: Any) -> Optional[int]:
+    """Guard runner-scoped verbs against cross-host operations in the flat profile namespace.
+
+    If `profile.runner != args.profile_runner`, refuse exit 2 naming the profile, the owning runner,
+    and the correct command to use, writing nothing (E-04).
+    """
+
+    runner = getattr(args, "profile_runner", "oc")
+    if profile.runner != runner:
+        return _oc_profile_error(
+            args,
+            verb,
+            f"profile {name!r} belongs to runner {profile.runner!r}, not {runner!r}; "
+            f"use 'aw {profile.runner} profile {verb} {name}' instead.",
+        )
+    return None
+
+
 def _run_oc_profile(args, verb: str) -> int:
-    """Dispatch one `aw oc profile <verb>`, converting every typed store error into exit 2."""
+    """Dispatch one profile verb, converting every typed store error into exit 2."""
 
     from agent_workflows import runner_profiles as rp
 
@@ -12219,6 +12413,7 @@ def _run_oc_profile(args, verb: str) -> int:
         "remove": _oc_profile_remove,
         "rm": _oc_profile_remove,
         "default": _oc_profile_default,
+        "validate-default": _profile_validate_default,
     }
     handler = handlers.get(verb)
     if handler is None:  # pragma: no cover - argparse already restricts the choices
@@ -12235,7 +12430,7 @@ def _run_oc_profile(args, verb: str) -> int:
 
 
 def _oc_profile_add(args) -> int:
-    """`aw oc profile add [NAME]`: the wizard on a TTY, or a COMPLETE noninteractive definition.
+    """`aw {oc|agy} profile add [NAME]`: wizard on TTY (oc only), or complete noninteractive definition.
 
     THE TWO FORMS ARE DELIBERATELY DISJOINT. Interactive means a TTY and no `--model`; the wizard
     prompts for whatever is missing, including the name. Noninteractive requires `--model` AND
@@ -12246,10 +12441,14 @@ def _oc_profile_add(args) -> int:
 
     from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
 
+    runner = getattr(args, "profile_runner", "oc")
+    host_display = _RUNNER_DISPLAY.get(runner, runner)
+
     name = getattr(args, "name", None)
     model = getattr(args, "model", None)
     variant = getattr(args, "variant", None)
     oc_agent = getattr(args, "oc_agent", None)
+    validate = getattr(args, "validate", None)
     replace = bool(getattr(args, "replace", False))
     assume_yes = bool(getattr(args, "yes", False))
     set_default = bool(getattr(args, "set_default", False))
@@ -12257,6 +12456,13 @@ def _oc_profile_add(args) -> int:
 
     if model is None:
         # ---- interactive form ---------------------------------------------------------------
+        if runner != "oc":
+            return _oc_profile_error(
+                args,
+                "add",
+                f"aw {runner} profile add is noninteractive only: "
+                "supply NAME --model <provider/model> --yes. Nothing was written.",
+            )
         if not interactive:
             return _oc_profile_error(
                 args,
@@ -12292,10 +12498,11 @@ def _oc_profile_add(args) -> int:
     profile = rp.parse_profile(
         name,
         {
-            "runner": wiz.RUNNER,
+            "runner": runner,
             "model": model,
             **({"variant": variant} if variant else {}),
             **({"agent": oc_agent} if oc_agent else {}),
+            **({"validate": validate} if validate is not None else {}),
         },
     )
     # `add_profile` is the no-clobber authority: it raises ProfileExistsError without --replace, so
@@ -12309,33 +12516,45 @@ def _oc_profile_add(args) -> int:
     data = {
         "profile": dict(wiz.profile_dict(name, profile)),
         "store": _oc_profile_store_display(path),
-        "default_profile": new_cfg.default_profile_for(wiz.RUNNER),
+        "default_profile": new_cfg.default_profile_for(runner),
         "replaced": bool(cfg.profiles.get(name)),
     }
     summary = f"saved profile {name!r} ({profile.model})"
     if set_default:
-        summary += "; now the default OpenCode profile"
-    result = _oc_profile_result("add", "ok", 0, summary, data)
+        summary += f"; now the default {host_display} profile"
+    result = _oc_profile_result("add", "ok", 0, summary, data, runner=runner)
     rc = _oc_profile_out(args, result)
     if rc != -1:
         return rc
     for line in wiz.preview_lines(name, profile):
         print(line)
     print("")
-    print(f"Saved. Use it with: aw oc run as {name}")
-    if set_default:
-        print(f"{name!r} is now the default OpenCode profile.")
+    if runner == "oc":
+        print(f"Saved. Use it with: aw oc run as {name}")
+        if set_default:
+            print(f"{name!r} is now the default OpenCode profile.")
+    else:
+        print(f"Saved profile {name!r}.")
+        if set_default:
+            print(f"{name!r} is now the default {host_display} profile.")
+        else:
+            print(
+                f"Warning: profile is inert until made default with: aw {runner} profile default {name}"
+            )
     return 0
 
 
 def _oc_profile_list(args) -> int:
-    """`aw oc profile list`: every profile, plus which one is the default. Empty is CLEAN."""
+    """`aw {oc|agy} profile list`: every profile for runner, plus which one is default. Empty is CLEAN."""
 
     from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
 
+    runner = getattr(args, "profile_runner", "oc")
+    host_display = _RUNNER_DISPLAY.get(runner, runner)
+
     cfg = rp.load()
-    names = sorted(cfg.profiles)
-    default_name = cfg.default_profile_for(wiz.RUNNER)
+    names = sorted(n for n, p in cfg.profiles.items() if p.runner == runner)
+    default_name = cfg.default_profile_for(runner)
     entries = [dict(wiz.profile_dict(n, cfg.profiles[n])) for n in names]
     for entry in entries:
         entry["is_default"] = entry["name"] == default_name
@@ -12349,7 +12568,7 @@ def _oc_profile_list(args) -> int:
         "store": _oc_profile_store_display(cfg.source),
     }
     result = _oc_profile_result(
-        "list", "clean", 0, f"{len(entries)} runner profile(s)", data
+        "list", "clean", 0, f"{len(entries)} runner profile(s)", data, runner=runner
     )
     rc = _oc_profile_out(args, result)
     if rc != -1:
@@ -12362,8 +12581,12 @@ def _oc_profile_list(args) -> int:
         term.empty_result(
             summary="no runner profiles configured",
             next_action=NextAction(
-                command="aw oc profile add gem",
-                description="create one with the model selector",
+                command=f"aw {runner} profile add gem"
+                if runner == "oc"
+                else "aw agy profile add quiet",
+                description="create one with the model selector"
+                if runner == "oc"
+                else "create one with --model/--yes",
             ),
         )
         return 0
@@ -12381,24 +12604,35 @@ def _oc_profile_list(args) -> int:
         term.format_table(["NAME", "RUNNER", "MODEL", "VARIANT", "AGENT"], rows) + "\n"
     )
     if default_name:
-        sys.stdout.write(f"\n* default OpenCode profile: {default_name}\n")
+        sys.stdout.write(f"\n* default {host_display} profile: {default_name}\n")
     return 0
 
 
 def _oc_profile_show(args) -> int:
-    """`aw oc profile show NAME`: one profile and the EXACT OpenCode launch it expands to."""
+    """`aw {oc|agy} profile show NAME`: one profile and the launch configuration it expands to."""
 
     from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
+
+    runner = getattr(args, "profile_runner", "oc")
+    host_display = _RUNNER_DISPLAY.get(runner, runner)
 
     cfg = rp.load()
     name = args.name
     profile = cfg.get(
         name
     )  # raises ProfileNotFoundError -> exit 2 with the known-name list
+    err = _guard_profile_runner(args, "show", name, profile)
+    if err is not None:
+        return err
     entry = dict(wiz.profile_dict(name, profile))
-    entry["is_default"] = cfg.default_profile_for(wiz.RUNNER) == name
+    entry["is_default"] = cfg.default_profile_for(runner) == name
     result = _oc_profile_result(
-        "show", "clean", 0, f"{name} -> {profile.model}", {"profile": entry}
+        "show",
+        "clean",
+        0,
+        f"{name} -> {profile.model}",
+        {"profile": entry},
+        runner=runner,
     )
     rc = _oc_profile_out(args, result)
     if rc != -1:
@@ -12407,12 +12641,12 @@ def _oc_profile_show(args) -> int:
         print(line)
     if entry["is_default"]:
         print("")
-        print(f"{name!r} is the default OpenCode profile.")
+        print(f"{name!r} is the default {host_display} profile.")
     return 0
 
 
 def _oc_profile_remove(args) -> int:
-    """`aw oc profile remove NAME`: removing a REFERENCED default requires an explicit decision.
+    """`aw {oc|agy} profile remove NAME`: removing a REFERENCED default requires an explicit decision.
 
     `runner_profiles.remove_profile` owns that rule and raises when the caller has not decided, so
     this verb only surfaces the choice; it never picks one. Silently dropping the reference would
@@ -12420,6 +12654,9 @@ def _oc_profile_remove(args) -> int:
     """
 
     from agent_workflows import runner_profiles as rp
+
+    runner = getattr(args, "profile_runner", "oc")
+    host_display = _RUNNER_DISPLAY.get(runner, runner)
 
     name = args.name
     clear_default = bool(getattr(args, "clear_default", False))
@@ -12436,7 +12673,12 @@ def _oc_profile_remove(args) -> int:
         )
 
     cfg = rp.load()
-    cfg.get(name)  # existence check first, so the confirmation names a real profile
+    profile = cfg.get(
+        name
+    )  # existence check first, so the confirmation names a real profile
+    err = _guard_profile_runner(args, "remove", name, profile)
+    if err is not None:
+        return err
     if not assume_yes:
         term = Term(color=False if getattr(args, "no_color", False) else None)
         if not _confirm(term, f"Remove profile {name!r}?", False):
@@ -12450,24 +12692,29 @@ def _oc_profile_remove(args) -> int:
     data = {
         "removed": name,
         "store": _oc_profile_store_display(path),
-        "default_profile": new_cfg.default_profile_for("oc"),
+        "default_profile": new_cfg.default_profile_for(runner),
         "remaining": sorted(new_cfg.profiles),
     }
-    result = _oc_profile_result("remove", "ok", 0, f"removed profile {name!r}", data)
+    result = _oc_profile_result(
+        "remove", "ok", 0, f"removed profile {name!r}", data, runner=runner
+    )
     rc = _oc_profile_out(args, result)
     if rc != -1:
         return rc
     print(f"Removed profile {name!r}.")
-    remaining = new_cfg.default_profile_for("oc")
+    remaining = new_cfg.default_profile_for(runner)
     if remaining:
-        print(f"Default OpenCode profile: {remaining}")
+        print(f"Default {host_display} profile: {remaining}")
     return 0
 
 
 def _oc_profile_default(args) -> int:
-    """`aw oc profile default [NAME|--clear]`: set or clear the default OpenCode profile."""
+    """`aw {oc|agy} profile default [NAME|--clear]`: set or clear the default runner profile."""
 
     from agent_workflows import runner_profiles as rp
+
+    runner = getattr(args, "profile_runner", "oc")
+    host_display = _RUNNER_DISPLAY.get(runner, runner)
 
     name = getattr(args, "name", None)
     clear = bool(getattr(args, "clear", False))
@@ -12482,23 +12729,91 @@ def _oc_profile_default(args) -> int:
 
     cfg = rp.load()
     if clear:
-        new_cfg = rp.clear_default_profile(cfg, "oc")
-        summary = "cleared the default OpenCode profile"
+        new_cfg = rp.clear_default_profile(cfg, runner)
+        summary = f"cleared the default {host_display} profile"
     else:
+        profile = cfg.get(str(name))
+        err = _guard_profile_runner(args, "default", str(name), profile)
+        if err is not None:
+            return err
         new_cfg = rp.set_default_profile(
             cfg, str(name)
         )  # raises when NAME does not exist
-        summary = f"default OpenCode profile is now {name!r}"
+        summary = f"default {host_display} profile is now {name!r}"
     path = rp.save(new_cfg)
     data = {
-        "default_profile": new_cfg.default_profile_for("oc"),
+        "default_profile": new_cfg.default_profile_for(runner),
         "store": _oc_profile_store_display(path),
     }
-    result = _oc_profile_result("default", "ok", 0, summary, data)
+    result = _oc_profile_result("default", "ok", 0, summary, data, runner=runner)
     rc = _oc_profile_out(args, result)
     if rc != -1:
         return rc
     print(summary + ".")
+    return 0
+
+
+def _profile_validate_default(args) -> int:
+    """`aw {oc|agy} profile validate-default {on|off|unset}`: host-neutral verification default."""
+
+    from agent_workflows import runner_profiles as rp
+
+    runner = getattr(args, "profile_runner", "oc")
+    action = getattr(args, "state", None)
+    if action not in ("on", "off", "unset"):
+        return _oc_profile_error(
+            args,
+            "validate-default",
+            f"invalid choice: {action!r} (choose from 'on', 'off', 'unset')",
+        )
+
+    val_map = {"on": True, "off": False, "unset": None}
+    val = val_map[action]
+
+    cfg = rp.load()
+    new_cfg = rp.set_validate_default(cfg, val)
+    path = rp.save(new_cfg)
+
+    res_oc = rp.resolve(new_cfg, runner="oc")
+    res_agy = rp.resolve(new_cfg, runner="agy")
+
+    data = {
+        "validate_default": new_cfg.validate,
+        "resolved": {
+            "oc": res_oc.validate,
+            "agy": res_agy.validate,
+        },
+        "store": _oc_profile_store_display(path),
+    }
+
+    if action == "unset":
+        summary = "unset defaults.validate (host-neutral verification default)"
+    else:
+        summary = (
+            f"set defaults.validate to {action} (host-neutral verification default)"
+        )
+
+    result = _oc_profile_result(
+        "validate-default", "ok", 0, summary, data, runner=runner
+    )
+    rc = _oc_profile_out(args, result)
+    if rc != -1:
+        return rc
+
+    print(
+        "defaults.validate is host-neutral (applies to every host and to any profile without an explicit validate setting)."
+    )
+    if action == "unset":
+        print("defaults.validate is now unset.")
+    else:
+        print(f"defaults.validate is now {action}.")
+    print("Resolved verification postures:")
+    print(
+        f"  OpenCode:    {'on' if res_oc.validate else 'off'} ({res_oc.provenance['validate']})"
+    )
+    print(
+        f"  Antigravity: {'on' if res_agy.validate else 'off'} ({res_agy.provenance['validate']})"
+    )
     return 0
 
 
@@ -13457,6 +13772,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import agy_run
 
             return agy_run.main(list(getattr(args, "exec_args", []) or []))
+        # agyprofile 6o8q4k E-03: Antigravity profile verbs
+        if agy_cmd in ("profile", "profiles"):
+            profile_cmd = getattr(args, "agy_profile_command", None)
+            if profile_cmd is None:
+                return _show_family_help(
+                    parser,
+                    "agy",
+                    "aw agy profile list | aw agy profile add quiet --model google/gemini-3-pro --yes",
+                    term,
+                    context,
+                )
+            return _run_oc_profile(args, profile_cmd)
         return _show_family_help(
             parser, "agy", "aw agy runipd status <run-id>", term, context
         )

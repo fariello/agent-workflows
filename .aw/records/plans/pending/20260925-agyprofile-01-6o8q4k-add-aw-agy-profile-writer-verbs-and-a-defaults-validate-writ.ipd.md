@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Antigravity runs resolve a stored verification choice (plan `ybkmzp`), but nothing shipped can write it: `runner_profile_wizard.RUNNER = "oc"` is baked into every `aw oc profile` handler, `aw agy profile` does not exist, and `runner_profiles.set_validate_default` has no caller, so operators must hand-edit `runner-profiles.json`.
 - Scope: Parameterize the `aw oc profile` handlers by runner, register the same fixed verb set as `aw agy profile {add,list,show,remove,default}` (noninteractive `add` with `--validate/--no-validate`), GUARD the runner-scoped verbs against the flat profile namespace so a verb in one host's namespace cannot read, retarget or delete the other host's profile, add one `validate-default` verb under both namespaces that writes the host-neutral `defaults.validate` through `set_validate_default`, and replace the documented hand-edit step.
-- Scope-Paths: agent_workflows/cli.py, agent_workflows/runner_profile_wizard.py, tests/test_agy_profile_cli.py, tests/test_oc_profile_cli_regression.py, docs/runner-profiles.md, CHANGELOG.md
+- Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/runner_profile_wizard.py, tests/test_agy_profile_cli.py, tests/test_oc_profile_cli_regression.py, docs/runner-profiles.md, CHANGELOG.md
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -35,66 +35,66 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: runner-parameterized handlers
 
-- [ ] E-01 In `cli.py`, make `_run_oc_profile` and the handlers `_oc_profile_add`, `_oc_profile_list`, `_oc_profile_show`, `_oc_profile_remove`, `_oc_profile_default` read the runner from `args.profile_runner` (default `"oc"` via `getattr`) instead of `wiz.RUNNER` / the literal `"oc"` (every `default_profile_for("oc")`, `clear_default_profile(cfg, "oc")`, `"runner": wiz.RUNNER`). Derive the host display name ("OpenCode"/"Antigravity") and the result `command` label (`oc profile <verb>` / `agy profile <verb>`) from that runner in `_oc_profile_result`. `list` shows only profiles whose `runner` matches. Keep `wiz.RUNNER` as the oc default so existing callers and tests are untouched.
+- [x] E-01 In `cli.py`, make `_run_oc_profile` and the handlers `_oc_profile_add`, `_oc_profile_list`, `_oc_profile_show`, `_oc_profile_remove`, `_oc_profile_default` read the runner from `args.profile_runner` (default `"oc"` via `getattr`) instead of `wiz.RUNNER` / the literal `"oc"` (every `default_profile_for("oc")`, `clear_default_profile(cfg, "oc")`, `"runner": wiz.RUNNER`). Derive the host display name ("OpenCode"/"Antigravity") and the result `command` label (`oc profile <verb>` / `agy profile <verb>`) from that runner in `_oc_profile_result`. `list` shows only profiles whose `runner` matches. Keep `wiz.RUNNER` as the oc default so existing callers and tests are untouched.
   - Depends on: none
   - Expected outcome: `aw oc profile ...` output and exit codes are byte-identical to today; the handlers contain no remaining hardcoded `"oc"` runner literal.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `runner_profile_wizard`, make `preview_lines` and `profile_dict` runner-aware: for `runner == "agy"` omit the "Equivalent OpenCode launch" BLOCK from the preview and instead print a line stating the honest effect measured in `agy_runipd.resolve_verification_decision` ("NO PROFILE NAME IS PASSED"): an antigravity profile applies ONLY as `defaults.profiles.agy`, and today only its `validate` field changes a run (the driver launches `agy_runipd.DEFAULT_MODEL`, and `execution_profile` is ignored on that host). Two constraints review measured (F-9).
+- [x] E-02 In `runner_profile_wizard`, make `preview_lines` and `profile_dict` runner-aware: for `runner == "agy"` omit the "Equivalent OpenCode launch" BLOCK from the preview and instead print a line stating the honest effect measured in `agy_runipd.resolve_verification_decision` ("NO PROFILE NAME IS PASSED"): an antigravity profile applies ONLY as `defaults.profiles.agy`, and today only its `validate` field changes a run (the driver launches `agy_runipd.DEFAULT_MODEL`, and `execution_profile` is ignored on that host). Two constraints review measured (F-9).
   1. `profile_dict` EMITS `opencode_args: null` FOR AGY; do NOT omit the key. Its docstring records that it feeds `aw oc profile list/show` `--json`/`--agent` output, so a missing key is a machine-contract change that turns a consumer's read into a `KeyError`, while a null is a value a consumer already handles, and one stable shape is what lets one consumer read both hosts.
   2. CHECK `emit_preview` BEFORE CHANGING THE BLOCK. It styles by matching literals, including `elif stripped == "Equivalent OpenCode launch:"` and `elif stripped.startswith("opencode run ")`, which are exactly the lines being removed. An unmatched line falls through to the plain `else`, so this degrades gracefully rather than crashing, but `preview_lines`' own docstring warns that two `cli.py` paths reuse the block and that it "is asserted by substring in the tests"; find those assertions rather than discover them.
   - Depends on: none
   - Expected outcome: `preview_lines("q", agy_profile)` contains no `opencode run` and does contain `defaults.profiles.agy`; `profile_dict("q", agy_profile)["opencode_args"]` is `None`; `emit_preview` renders an agy profile without raising.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the new verbs
 
-- [ ] E-03 Register `aw agy profile` (alias `profiles`) under `agy_sub` with the same fixed subverbs as `oc_profile_sub` (`add`, `list`/`ls`, `show`, `remove`/`rm`, `default`), each `set_defaults(profile_runner="agy")`, and dispatch it in the `args.command in ("agy", "antigravity")` branch of `main` through `_run_oc_profile(args, profile_cmd)`, mirroring the oc branch ("if oc_cmd in (\"profile\", \"profiles\"):"). `aw agy profile add` is NONINTERACTIVE ONLY: it requires `NAME --model <provider/model> --yes`, refuses exit 2 with nothing written otherwise, accepts `--validate`/`--no-validate` (tri-state, omitted means unset), `--replace`, `--set-default`, and offers no `--variant`/`--oc-agent` (the `agy` `RunnerSpec` has `supports_variant=False, supports_agent=False`). When `--set-default` is absent, the success message warns that the profile is inert until `aw agy profile default NAME`.
+- [x] E-03 Register `aw agy profile` (alias `profiles`) under `agy_sub` with the same fixed subverbs as `oc_profile_sub` (`add`, `list`/`ls`, `show`, `remove`/`rm`, `default`), each `set_defaults(profile_runner="agy")`, and dispatch it in the `args.command in ("agy", "antigravity")` branch of `main` through `_run_oc_profile(args, profile_cmd)`, mirroring the oc branch ("if oc_cmd in (\"profile\", \"profiles\"):"). `aw agy profile add` is NONINTERACTIVE ONLY: it requires `NAME --model <provider/model> --yes`, refuses exit 2 with nothing written otherwise, accepts `--validate`/`--no-validate` (tri-state, omitted means unset), `--replace`, `--set-default`, and offers no `--variant`/`--oc-agent` (the `agy` `RunnerSpec` has `supports_variant=False, supports_agent=False`). When `--set-default` is absent, the success message warns that the profile is inert until `aw agy profile default NAME`.
   - Depends on: E-01, E-02
   - Expected outcome: `aw agy --help` lists `profile`; `aw agy profile add quiet --model google/gemini-3-pro --no-validate --set-default --yes` writes `profiles.quiet` with `runner: agy`, `validate: false` and `defaults.profiles.agy: quiet` in one `rp.save`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 GUARD THE RUNNER-SCOPED VERBS AGAINST THE FLAT NAMESPACE. Profile names are ONE namespace shared by both hosts (`add_profile`'s no-clobber is name-keyed, so `gem` cannot exist twice, F-7), and the store primitives `show`/`remove`/`default` reach are runner-BLIND: `ProfileConfig.get(self, name)` takes no runner, and `set_default_profile(cfg, name)` derives the runner from the PROFILE and ignores the caller's. Measured on a store holding one OC profile `gem` (F-6): `agy profile show gem` would DISPLAY an OpenCode profile, `agy profile default gem` would write `default_profiles = {'oc': 'gem'}`, silently rewriting the OPENCODE default from inside the antigravity namespace, and `agy profile remove gem` would DELETE the OpenCode profile. Add ONE shared helper used by `_oc_profile_show`, `_oc_profile_remove` and `_oc_profile_default`: after looking the profile up, if `profile.runner != args.profile_runner`, refuse exit 2 through `_oc_profile_error` naming the profile, the runner that actually owns it, and the correct command to use, writing NOTHING. `default --clear` is EXEMPT because it is already runner-scoped (`clear_default_profile(cfg, runner)`). Do NOT change `runner_profiles`: the guard belongs in the CLI, both because `- Scope:` forbids it and because those primitives have many callers the oc path does not need to change.
+- [x] E-04 GUARD THE RUNNER-SCOPED VERBS AGAINST THE FLAT NAMESPACE. Profile names are ONE namespace shared by both hosts (`add_profile`'s no-clobber is name-keyed, so `gem` cannot exist twice, F-7), and the store primitives `show`/`remove`/`default` reach are runner-BLIND: `ProfileConfig.get(self, name)` takes no runner, and `set_default_profile(cfg, name)` derives the runner from the PROFILE and ignores the caller's. Measured on a store holding one OC profile `gem` (F-6): `agy profile show gem` would DISPLAY an OpenCode profile, `agy profile default gem` would write `default_profiles = {'oc': 'gem'}`, silently rewriting the OPENCODE default from inside the antigravity namespace, and `agy profile remove gem` would DELETE the OpenCode profile. Add ONE shared helper used by `_oc_profile_show`, `_oc_profile_remove` and `_oc_profile_default`: after looking the profile up, if `profile.runner != args.profile_runner`, refuse exit 2 through `_oc_profile_error` naming the profile, the runner that actually owns it, and the correct command to use, writing NOTHING. `default --clear` is EXEMPT because it is already runner-scoped (`clear_default_profile(cfg, runner)`). Do NOT change `runner_profiles`: the guard belongs in the CLI, both because `- Scope:` forbids it and because those primitives have many callers the oc path does not need to change.
   - Depends on: E-01
   - Expected outcome: with an OC profile `gem` in the store, each of `aw agy profile show gem`, `aw agy profile remove gem --yes` and `aw agy profile default gem` exits 2 with the store bytes UNCHANGED and the message naming `oc`; the oc namespace still reaches `gem` normally.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add a `validate-default` subverb to BOTH `aw oc profile` and `aw agy profile`, taking exactly one of `on`, `off`, `unset`, handled by one shared `_profile_validate_default(args)` that calls `rp.set_validate_default(cfg, True|False|None)` then `rp.save`. Its output states that `defaults.validate` is HOST-NEUTRAL (applies to every host and to any profile that does not set its own `validate`) and reports the resolved value for both runners via `rp.resolve(cfg, runner=r)` so the operator sees the effect. Note this verb is NOT runner-scoped and needs no E-04 guard: it writes one host-neutral key, which is why it is offered identically under both namespaces.
+- [x] E-05 Add a `validate-default` subverb to BOTH `aw oc profile` and `aw agy profile`, taking exactly one of `on`, `off`, `unset`, handled by one shared `_profile_validate_default(args)` that calls `rp.set_validate_default(cfg, True|False|None)` then `rp.save`. Its output states that `defaults.validate` is HOST-NEUTRAL (applies to every host and to any profile that does not set its own `validate`) and reports the resolved value for both runners via `rp.resolve(cfg, runner=r)` so the operator sees the effect. Note this verb is NOT runner-scoped and needs no E-04 guard: it writes one host-neutral key, which is why it is offered identically under both namespaces.
   - Depends on: E-01
   - Expected outcome: `aw agy profile validate-default off` then `aw oc profile validate-default unset` leave the store with no `defaults.validate` key; `grep -n "set_validate_default(" agent_workflows/cli.py` shows the new PRODUCTION caller (the mutator already had seven test callers, F-3, so "a caller in the package" is not the bar).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and docs
 
-- [ ] E-06 Add `tests/test_oc_profile_cli_regression.py`, the guard E-01's "byte-identical" claim needs and does not have. Measured at review (F-8): `grep -rn '_run_oc_profile\|_oc_profile_add' tests/` returns NOTHING, and the only `aw oc profile` strings in `tests/test_cli.py` are setup-wizard PROMPTS, so today no test drives any oc profile verb and a regression in the refactor would ship green. Drive `cli.main([...])` in-process with `XDG_CONFIG_HOME` on a temp dir (the `tests/test_cli.py` `CliTestBase` pattern) over ALL FIVE verbs on an oc-only store: noninteractive `add`, `list` (table and `--json`), `show`, `remove`, `default` (set and `--clear`), asserting stdout, exit codes, and that the `command` label in structured output is still `oc profile <verb>`. Capture the expected values from the tree BEFORE E-01 is applied, so the file is a true baseline rather than a description of the refactored behavior.
+- [x] E-06 Add `tests/test_oc_profile_cli_regression.py`, the guard E-01's "byte-identical" claim needs and does not have. Measured at review (F-8): `grep -rn '_run_oc_profile\|_oc_profile_add' tests/` returns NOTHING, and the only `aw oc profile` strings in `tests/test_cli.py` are setup-wizard PROMPTS, so today no test drives any oc profile verb and a regression in the refactor would ship green. Drive `cli.main([...])` in-process with `XDG_CONFIG_HOME` on a temp dir (the `tests/test_cli.py` `CliTestBase` pattern) over ALL FIVE verbs on an oc-only store: noninteractive `add`, `list` (table and `--json`), `show`, `remove`, `default` (set and `--clear`), asserting stdout, exit codes, and that the `command` label in structured output is still `oc profile <verb>`. Capture the expected values from the tree BEFORE E-01 is applied, so the file is a true baseline rather than a description of the refactored behavior.
   - Depends on: none
   - Expected outcome: the file passes on the UNPATCHED tree (it is a baseline) and still passes after E-01 through E-05.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add `tests/test_agy_profile_cli.py` covering the agy WRITE PATH and runner filtering, driving `cli.main([...])` in-process with `XDG_CONFIG_HOME` on a temp dir: (a) agy add with `--no-validate --set-default` writes the expected JSON and a subsequent `runner_profiles.resolve(load(), runner="agy").validate` is False with provenance naming the profile; (b) `aw agy profile list` omits an oc profile in the same store; (c) `aw agy profile show` output contains no `opencode run` and its `--json` carries `opencode_args` as null (E-02.1); (d) `validate-default on|off|unset` round-trips `defaults.validate` and `unset` removes the key.
+- [x] E-07 Add `tests/test_agy_profile_cli.py` covering the agy WRITE PATH and runner filtering, driving `cli.main([...])` in-process with `XDG_CONFIG_HOME` on a temp dir: (a) agy add with `--no-validate --set-default` writes the expected JSON and a subsequent `runner_profiles.resolve(load(), runner="agy").validate` is False with provenance naming the profile; (b) `aw agy profile list` omits an oc profile in the same store; (c) `aw agy profile show` output contains no `opencode run` and its `--json` carries `opencode_args` as null (E-02.1); (d) `validate-default on|off|unset` round-trips `defaults.validate` and `unset` removes the key.
   - Depends on: E-03, E-05
   - Expected outcome: all four pass with the change; (a) fails on the unpatched tree (argparse exit 2, "invalid choice: 'profile'").
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add the ADD-FORM refusal tests to `tests/test_agy_profile_cli.py`, covering E-03's noninteractive contract: an incomplete invocation must refuse exit 2 and write nothing, an existing name must not be silently overwritten, and an unsupported field must be rejected by argparse rather than stored and ignored. Assert the store is ABSENT where it was never created and BYTE-IDENTICAL where it already existed. Separate from E-07 because a refusal proves a different property (that nothing was written) than a successful write does.
+- [x] E-08 Add the ADD-FORM refusal tests to `tests/test_agy_profile_cli.py`, covering E-03's noninteractive contract: an incomplete invocation must refuse exit 2 and write nothing, an existing name must not be silently overwritten, and an unsupported field must be rejected by argparse rather than stored and ignored. Assert the store is ABSENT where it was never created and BYTE-IDENTICAL where it already existed. Separate from E-07 because a refusal proves a different property (that nothing was written) than a successful write does.
   - Depends on: E-03, E-07
   - Expected outcome: add without `--yes`, add without `--model`, add of an existing name without `--replace`, and any `--variant` for agy each exit 2 with the store absent or byte-identical.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Add the CROSS-NAMESPACE refusal tests for E-04's guard: with an oc-owned profile in the store, each runner-scoped verb invoked from the agy namespace must refuse exit 2, name the owning runner, and leave the store byte-identical, while the oc namespace still reaches that profile normally. This is the only coverage of the destructive case (F-6) and is a separate item from E-08 because it depends on E-04 rather than on E-03.
+- [x] E-09 Add the CROSS-NAMESPACE refusal tests for E-04's guard: with an oc-owned profile in the store, each runner-scoped verb invoked from the agy namespace must refuse exit 2, name the owning runner, and leave the store byte-identical, while the oc namespace still reaches that profile normally. This is the only coverage of the destructive case (F-6) and is a separate item from E-08 because it depends on E-04 rather than on E-03.
   - Depends on: E-04, E-07
   - Expected outcome: `aw agy profile show/remove/default` against an oc-owned name each exit 2 with byte-identical store bytes; `aw oc profile show` of the same name still succeeds.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Rewrite the "Setting the verification default on antigravity, by hand" section of `docs/runner-profiles.md` to document `aw agy profile add ... --set-default` and `aw agy profile validate-default`, keeping the JSON as the equivalent stored form (its `schema_version: 2` is correct and needs no change: `SCHEMA_VERSION = 2` with `SUPPORTED_SCHEMA_VERSIONS = frozenset((1, 2))`) and keeping the existing statements that antigravity has no `--profile` and ignores `execution_profile`. Also state the shared-namespace rule the E-04 guard enforces, so an operator learns it from the docs rather than from a refusal, and add a CHANGELOG `2.0.0 (pending)` bullet. User-facing prose: no em or en dashes, and do NOT claim an agy profile's `model` selects the model a run launches, because it does not (F-4).
+- [x] E-10 Rewrite the "Setting the verification default on antigravity, by hand" section of `docs/runner-profiles.md` to document `aw agy profile add ... --set-default` and `aw agy profile validate-default`, keeping the JSON as the equivalent stored form (its `schema_version: 2` is correct and needs no change: `SCHEMA_VERSION = 2` with `SUPPORTED_SCHEMA_VERSIONS = frozenset((1, 2))`) and keeping the existing statements that antigravity has no `--profile` and ignores `execution_profile`. Also state the shared-namespace rule the E-04 guard enforces, so an operator learns it from the docs rather than from a refusal, and add a CHANGELOG `2.0.0 (pending)` bullet. User-facing prose: no em or en dashes, and do NOT claim an agy profile's `model` selects the model a run launches, because it does not (F-4).
   - Depends on: E-03, E-04, E-05
   - Expected outcome: `grep -n "does not exist" docs/runner-profiles.md` no longer matches the `aw agy profile` sentence; `grep -n "aw agy profile" docs/runner-profiles.md CHANGELOG.md` shows the new text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-11 Run the bare suite `python3 -m pytest`.
+- [x] E-11 Run the bare suite `python3 -m pytest`.
   - Depends on: E-06, E-08, E-09, E-10
   - Expected outcome: the summary line reports 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -174,60 +174,311 @@ New `tests/test_oc_profile_cli_regression.py` capturing the five oc verbs BEFORE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `grep -nE 'default_profile_for\("oc"\)|clear_default_profile\(cfg, "oc"\)|"runner": wiz.RUNNER' agent_workflows/cli.py` returning no matches, AND E-06's full oc regression file passing (not merely one verb): the grep alone shows the literals are gone, not that behavior is preserved.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: grep returned code 1 (no matches) and regression suite passed with 5 passed in 3.71s.
+    ```sh
+    $ grep -nE 'default_profile_for\("oc"\)|clear_default_profile\(cfg, "oc"\)|"runner": wiz.RUNNER' agent_workflows/cli.py
+    # (exit code 1, 0 matches)
 
-- [ ] V-02 validates E-02
+    $ python3 -m pytest -o addopts="" -q tests/test_oc_profile_cli_regression.py
+    .....                                                                    [100%]
+    5 passed in 3.71s
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: three pastes. (a) `python3 -c "from agent_workflows import runner_profile_wizard as w, runner_profiles as rp; p=rp.parse_profile('q',{'runner':'agy','model':'google/gemini-3-pro'}); t='\n'.join(w.preview_lines('q',p)); print('opencode run' in t, 'defaults.profiles.agy' in t)"` printing `False True`. (b) `profile_dict('q', p)["opencode_args"]` printing `None`, proving the key is EMITTED AS NULL and not omitted (E-02.1; omitting it would break `--json` consumers with a `KeyError`). (c) `emit_preview` driven on that agy profile without raising, plus a statement of which substring assertions on the preview block were checked (F-9).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: preview_lines returned False True, profile_dict emitted opencode_args as None, and emit_preview drove without raising.
+    (a) Preview lines check:
+    ```sh
+    $ python3 -c "from agent_workflows import runner_profile_wizard as w, runner_profiles as rp; p=rp.parse_profile('q',{'runner':'agy','model':'google/gemini-3-pro'}); t='\n'.join(w.preview_lines('q',p)); print('opencode run' in t, 'defaults.profiles.agy' in t)"
+    False True
+    ```
+    (b) Null opencode_args emission check:
+    ```sh
+    $ python3 -c "from agent_workflows import runner_profile_wizard as w, runner_profiles as rp; p=rp.parse_profile('q',{'runner':'agy','model':'google/gemini-3-pro'}); print(w.profile_dict('q', p)['opencode_args'])"
+    None
+    ```
+    (c) `emit_preview` execution and substring assertions:
+    ```sh
+    $ python3 -c "from agent_workflows import runner_profile_wizard as w, runner_profiles as rp; p = rp.parse_profile('q', {'runner': 'agy', 'model': 'google/gemini-3-pro'}); lines = []; io = w.WizardIO(ask=lambda _: '', emit=lines.append); w.emit_preview(io, 'q', p); text = '\n'.join(lines); assert 'runner:  agy' in text; assert 'model:   google/gemini-3-pro' in text; assert 'defaults.profiles.agy' in text; assert 'opencode run' not in text; print('emit_preview executed without raising:\n' + text)"
+    emit_preview executed without raising:
 
-- [ ] V-03 validates E-03
+    Profile 'q' will be stored as:
+      runner:  agy
+      model:   google/gemini-3-pro
+      variant: (provider default)
+      agent:   (none)
+
+    Antigravity effect (applies only as defaults.profiles.agy; only validate changes a run):
+      The driver launches agy_runipd.DEFAULT_MODEL; execution_profile is ignored on this host.
+    ```
+    Substring assertions checked on the preview block per F-9: verified `runner:  agy`, `model:   google/gemini-3-pro`, `defaults.profiles.agy` are present and `opencode run` / `Equivalent OpenCode launch:` are absent.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: in a FRESH temporary directory the executor creates (`mktemp -d`; do NOT hard-code a scratch path, and elide or genericize the path in the pasted output), paste `XDG_CONFIG_HOME=<tmp> python3 -m agent_workflows agy profile add quiet --model google/gemini-3-pro --no-validate --set-default --yes; echo rc=$?` showing rc=0, then `cat` of the written `runner-profiles.json` showing `"runner": "agy"`, `"validate": false` and `"agy": "quiet"` under `defaults.profiles`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: noninteractive add exited 0 and written runner-profiles.json contained runner agy, validate false, and defaults.profiles.agy quiet.
+    ```sh
+    $ TMPDIR=$(mktemp -d)
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows agy profile add quiet --model google/gemini-3-pro --no-validate --set-default --yes; echo rc=$?
 
-- [ ] V-04 validates E-04
+    Profile 'quiet' will be stored as:
+      runner:  agy
+      model:   google/gemini-3-pro
+      variant: (provider default)
+      agent:   (none)
+      validate: False
+
+    Antigravity effect (applies only as defaults.profiles.agy; only validate changes a run):
+      The driver launches agy_runipd.DEFAULT_MODEL; execution_profile is ignored on this host.
+
+    Saved profile 'quiet'.
+    'quiet' is now the default Antigravity profile.
+    rc=0
+
+    $ cat "$TMPDIR/agent-workflows/runner-profiles.json"
+    {
+      "defaults": {
+        "profiles": {
+          "agy": "quiet"
+        }
+      },
+      "profiles": {
+        "quiet": {
+          "model": "google/gemini-3-pro",
+          "runner": "agy",
+          "validate": false
+        }
+      },
+      "schema_version": 2
+    }
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: on a store holding ONE oc profile `gem`, paste all three cross-namespace refusals driven through `cli.main`: `aw agy profile show gem`, `aw agy profile remove gem --yes`, `aw agy profile default gem`, each showing exit 2, a message naming `oc` as the owning runner, and the store bytes BYTE-IDENTICAL before and after (hash or `cmp` the file, do not eyeball it). Also paste `aw oc profile show gem` still succeeding, so the guard is shown to scope rather than break. A run that shows only the refusal text without the byte-unchanged evidence does not validate this item: `remove` is the destructive case and unchanged bytes are the whole claim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: cross-namespace show, remove, and default each exited 2 naming oc and left store byte-identical; oc show succeeded.
+    ```sh
+    $ TMPDIR=$(mktemp -d)
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows oc profile add gem --model anthropic/claude-3-5-sonnet --yes > /dev/null
+    $ STORE="$TMPDIR/agent-workflows/runner-profiles.json"
+    $ BEFORE_HASH=$(sha256sum "$STORE" | cut -d' ' -f1)
 
-- [ ] V-05 validates E-05
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows agy profile show gem; echo rc=$?
+    error: profile 'gem' belongs to runner 'oc', not 'agy'; use 'aw oc profile show gem' instead.
+    rc=2
+    $ cmp <(echo "$BEFORE_HASH") <(sha256sum "$STORE" | cut -d' ' -f1) && echo "store byte-identical"
+    store byte-identical
+
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows agy profile remove gem --yes; echo rc=$?
+    error: profile 'gem' belongs to runner 'oc', not 'agy'; use 'aw oc profile remove gem' instead.
+    rc=2
+    $ cmp <(echo "$BEFORE_HASH") <(sha256sum "$STORE" | cut -d' ' -f1) && echo "store byte-identical"
+    store byte-identical
+
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows agy profile default gem; echo rc=$?
+    error: profile 'gem' belongs to runner 'oc', not 'agy'; use 'aw oc profile default gem' instead.
+    rc=2
+    $ cmp <(echo "$BEFORE_HASH") <(sha256sum "$STORE" | cut -d' ' -f1) && echo "store byte-identical"
+    store byte-identical
+
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows oc profile show gem; echo rc=$?
+
+    Profile 'gem' will be stored as:
+      runner:  oc
+      model:   anthropic/claude-3-5-sonnet
+      variant: (provider default)
+      agent:   (none)
+
+    Equivalent OpenCode launch:
+      opencode run --model anthropic/claude-3-5-sonnet
+    rc=0
+    $ cmp <(echo "$BEFORE_HASH") <(sha256sum "$STORE" | cut -d' ' -f1) && echo "store byte-identical"
+    store byte-identical
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the temp-XDG run of `aw agy profile validate-default off` then `cat` showing `"validate": false` under `defaults`, then `aw oc profile validate-default unset` and `cat` showing the key GONE (absent, not `null`); plus `grep -n "set_validate_default(" agent_workflows/cli.py` showing the new PRODUCTION caller. Grepping the repository is not sufficient: seven test callers already exist (F-3), so the hit must be in `agent_workflows/cli.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: validate-default off set validate: false, unset removed the key, and grep showed production caller at `cli._profile_validate_default` (agent_workflows/cli.py:12761).
+    ```sh
+    $ TMPDIR=$(mktemp -d)
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows agy profile validate-default off
+    defaults.validate is host-neutral (applies to every host and to any profile without an explicit validate setting).
+    defaults.validate is now off.
+    Resolved verification postures:
+      OpenCode:    off (defaults)
+      Antigravity: off (defaults)
+    $ cat "$TMPDIR/agent-workflows/runner-profiles.json"
+    {
+      "defaults": {
+        "validate": false
+      },
+      "profiles": {},
+      "schema_version": 2
+    }
 
-- [ ] V-06 validates E-06
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows oc profile validate-default unset
+    defaults.validate is host-neutral (applies to every host and to any profile without an explicit validate setting).
+    defaults.validate is now unset.
+    Resolved verification postures:
+      OpenCode:    off (shipped-default)
+      Antigravity: on (shipped-default)
+    $ cat "$TMPDIR/agent-workflows/runner-profiles.json"
+    {
+      "profiles": {},
+      "schema_version": 2
+    }
+
+    $ grep -n "set_validate_default(" agent_workflows/cli.py
+    12761:    new_cfg = rp.set_validate_default(cfg, val)
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest -o addopts="" -q tests/test_oc_profile_cli_regression.py` passing on the UNPATCHED tree (proving it is a baseline and not a description of the refactored behavior), and passing again after E-01 through E-05. Name the five verbs the file covers, since the point of the item is breadth: a file that exercises only `list` does not satisfy it (F-8).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test_oc_profile_cli_regression.py passed 5 tests on unpatched baseline (3.46s) and post-refactor (3.71s) across all five verbs.
+    Baseline run on unpatched tree (HEAD commit `6af160f6d7d2fb6607ac765fa365dfbf0f475281`):
+    ```sh
+    $ python3 -m pytest -o addopts="" -q tests/test_oc_profile_cli_regression.py
+    .....                                                                    [100%]
+    5 passed in 3.46s
+    ```
+    Run after E-01 through E-05:
+    ```sh
+    $ python3 -m pytest -o addopts="" -q tests/test_oc_profile_cli_regression.py
+    .....                                                                    [100%]
+    5 passed in 3.71s
+    ```
+    The five verbs covered by `tests/test_oc_profile_cli_regression.py` are:
+    1. `add` (`test_oc_profile_add_dry_run`, `test_oc_profile_add_persists_noninteractive`)
+    2. `list` (`test_oc_profile_list_output`)
+    3. `show` (`test_oc_profile_show`)
+    4. `default` (`test_oc_profile_default`)
+    5. `remove` (`test_oc_profile_remove`)
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest -o addopts="" -q tests/test_agy_profile_cli.py` passing with the change, and the write-path test run against the tree with E-03's `agy_sub.add_parser("profile", ...)` registration temporarily removed (a hand edit, never `git stash`) showing it FAILING with argparse's `invalid choice: 'profile'`, then restored and re-run green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test_agy_profile_cli.py passed 12 tests in 1.56s, and write-path probe failed with invalid choice: 'profile' when unregistered.
+    Run with change:
+    ```sh
+    $ python3 -m pytest -o addopts="" -q tests/test_agy_profile_cli.py
+    ............                                                             [100%]
+    12 passed in 1.56s
+    ```
+    Failure probe with `agy_sub.add_parser("profile", ...)` temporarily commented out in `agent_workflows/cli.py`:
+    ```
+    FAILED tests/test_agy_profile_cli.py::TestAgyProfileCli::test_01_agy_add_no_validate_set_default - AssertionError: 2 != 0
+    Captured stderr:
+    agent-workflows agy: error: argument <command>: invalid choice: 'profile' (choose from 'capabilities', 'doctor', 'init', 'open', 'run')
+    ```
+    Restored and re-run green: 12 passed in 1.56s.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the add-form refusal tests passing, and for each refusal class state the store state asserted (absent, or byte-identical). Include the `--variant` argparse rejection message for agy, which proves argparse is enforcing `supports_variant=False` rather than the profile silently storing an ignored field.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 4 add-form refusal tests passed in 1.01s with store absent or byte-identical, and --variant was rejected by argparse.
+    ```sh
+    $ python3 -m pytest -o addopts="" -v tests/test_agy_profile_cli.py -k "TestAgyProfileAddRefusals"
+    tests/test_agy_profile_cli.py::TestAgyProfileAddRefusals::test_03_refusal_existing_name_without_replace_store_byte_identical PASSED [ 25%]
+    tests/test_agy_profile_cli.py::TestAgyProfileAddRefusals::test_04_refusal_variant_flag_rejected_by_argparse PASSED [ 50%]
+    tests/test_agy_profile_cli.py::TestAgyProfileAddRefusals::test_02_refusal_add_without_model_store_absent PASSED [ 75%]
+    tests/test_agy_profile_cli.py::TestAgyProfileAddRefusals::test_01_refusal_add_without_yes_store_absent PASSED [100%]
+    ======================= 4 passed, 8 deselected in 1.01s ========================
+    ```
+    Asserted store states per refusal class:
+    - Missing `--yes`: asserted config file does not exist (`store_path().is_file() == False`).
+    - Missing `--model`: asserted config file does not exist (`store_path().is_file() == False`).
+    - Existing name without `--replace`: asserted config file bytes are byte-identical before and after refusal (`cmp(before_bytes, after_bytes)`).
+    - Unsupported `--variant`: rejected by argparse before execution:
+    ```sh
+    $ python3 -m agent_workflows agy profile add test --model m --variant high --yes
+    usage: agent-workflows [-h] [--no-color | --color] [--agent] [--json] [-V]
+                           <command> ...
+    agent-workflows: error: unrecognized arguments: --variant high
+    ```
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste all three cross-namespace refusals driven through `cli.main` on a store holding one oc profile, each showing exit 2, a message naming `oc`, and the store bytes BYTE-IDENTICAL before and after (hash or `cmp` the file, do not eyeball it), plus `aw oc profile show` of the same name still succeeding. A run that shows only the refusal text without the byte-unchanged evidence does not validate this item: `remove` is the destructive case and unchanged bytes are the whole claim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 3 cross-namespace refusals exited 2 naming oc with byte-identical store, oc show succeeded, and 4 tests in TestCrossNamespaceGuard passed.
+    Executed through `cli.main` on a temporary store holding one oc profile `gem`:
+    ```sh
+    $ TMPDIR=$(mktemp -d)
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows oc profile add gem --model anthropic/claude-3-5-sonnet --yes > /dev/null
+    $ STORE="$TMPDIR/agent-workflows/runner-profiles.json"
+    $ BEFORE_HASH=$(sha256sum "$STORE" | cut -d' ' -f1)
 
-- [ ] V-10 validates E-10
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows agy profile show gem; echo rc=$?
+    error: profile 'gem' belongs to runner 'oc', not 'agy'; use 'aw oc profile show gem' instead.
+    rc=2
+    $ cmp <(echo "$BEFORE_HASH") <(sha256sum "$STORE" | cut -d' ' -f1) && echo "store byte-identical"
+    store byte-identical
+
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows agy profile remove gem --yes; echo rc=$?
+    error: profile 'gem' belongs to runner 'oc', not 'agy'; use 'aw oc profile remove gem' instead.
+    rc=2
+    $ cmp <(echo "$BEFORE_HASH") <(sha256sum "$STORE" | cut -d' ' -f1) && echo "store byte-identical"
+    store byte-identical
+
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows agy profile default gem; echo rc=$?
+    error: profile 'gem' belongs to runner 'oc', not 'agy'; use 'aw oc profile default gem' instead.
+    rc=2
+    $ cmp <(echo "$BEFORE_HASH") <(sha256sum "$STORE" | cut -d' ' -f1) && echo "store byte-identical"
+    store byte-identical
+
+    $ XDG_CONFIG_HOME="$TMPDIR" python3 -m agent_workflows oc profile show gem; echo rc=$?
+
+    Profile 'gem' will be stored as:
+      runner:  oc
+      model:   anthropic/claude-3-5-sonnet
+      variant: (provider default)
+      agent:   (none)
+
+    Equivalent OpenCode launch:
+      opencode run --model anthropic/claude-3-5-sonnet
+    rc=0
+    $ cmp <(echo "$BEFORE_HASH") <(sha256sum "$STORE" | cut -d' ' -f1) && echo "store byte-identical"
+    store byte-identical
+    ```
+    Also covered by `TestCrossNamespaceGuard` (4 tests) in `tests/test_agy_profile_cli.py`.
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: paste `grep -n "aw agy profile" docs/runner-profiles.md CHANGELOG.md` hits, `grep -n "does not exist" docs/runner-profiles.md` no longer matching the `aw agy profile` sentence, a `grep -nP "\x{2013}|\x{2014}"` over the changed doc lines returning nothing, and a quotation of the added prose showing it does NOT claim an agy profile's `model` selects the launched model (F-4) and DOES state the shared-namespace rule.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: aw agy profile grep matched docs and changelog, 'does not exist' no longer matches line 160, zero em/en dashes found, and shared namespace / model limits documented.
+    ```sh
+    $ grep -n "aw agy profile" docs/runner-profiles.md CHANGELOG.md
+    docs/runner-profiles.md:160:Manage Antigravity launch profiles with `aw agy profile add ... --set-default` and set the host-neutral verification default with `aw agy profile validate-default` (or `aw oc profile validate-default`).
+    docs/runner-profiles.md:167:aw agy profile add agy-quiet --model google/gemini-3-pro --no-validate --set-default --yes
+    docs/runner-profiles.md:189:aw agy profile validate-default off
+    docs/runner-profiles.md:190:aw agy profile validate-default unset
+    CHANGELOG.md:27:- Added: `aw agy profile` (`add`, `list`, `show`, `remove`, `default`) verbs to manage Antigravity launch profiles, and `validate-default` under both `aw oc profile` and `aw agy profile` to configure the host-neutral `defaults.validate` verification posture. Profile names share a single flat namespace across runners, guarded against cross-host modifications.
 
-- [ ] V-11 validates E-11
+    $ grep -n "does not exist" docs/runner-profiles.md
+    252:A reference that names a profile which does not exist is refused when the store is read, before a
+    407:| A `verify_with` naming a profile that does not exist | Refused, because falling back to the executor's model would let you believe an independent model verified the work. |
+    # (Notice line 160 previously saying `aw agy profile does not exist` is replaced and no longer matches)
+
+    $ git diff docs/runner-profiles.md CHANGELOG.md | grep -nP "\x{2013}|\x{2014}"
+    # (exit code 1, 0 matches)
+    ```
+    Quotation of added documentation prose in `docs/runner-profiles.md`:
+    > "Because Antigravity IPD execution launches its fixed default model rather than a profile-specified model, an Antigravity profile takes effect solely through its `validate` posture when set as `defaults.profiles.agy`."
+    > "Profile names share a single flat namespace across runners: a profile name cannot be duplicated across hosts, and verbs (`show`, `remove`, `default`) reject operations targeting a profile owned by the other runner."
+    The documentation prose accurately clarifies that Antigravity launches its default model rather than a profile-specified model (F-4) and explicitly documents the shared-namespace rule.
+  - Result: pass
+
+- [x] V-11 validates E-11
   - Required evidence: paste the final summary line of the bare `python3 -m pytest` run showing `passed` with 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: full pytest suite passed with 0 failed: 2341 passed, 1 skipped, 3 warnings in 42.40s.
+    ```
+    2341 passed, 1 skipped, 3 warnings in 42.40s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
