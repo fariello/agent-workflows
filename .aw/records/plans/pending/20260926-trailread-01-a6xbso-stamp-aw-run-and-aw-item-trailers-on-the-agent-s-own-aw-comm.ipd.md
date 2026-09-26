@@ -113,8 +113,8 @@ All measured at HEAD `61ef21d8` on 2026-09-26.
   - Carrier: am1g38
   - Rationale: Order 2 of this Set, which depends on this plan so it does not read an empty corpus.
 - Trailering driver-side review-lane commits.
-  - Carrier: 8apjpp
-  - Rationale: that plan already owns `runner_shared.commit_review_lane_output`.
+  - Carrier-Evidence: .aw/records/plans/executed/20260925-revcommit-01-8apjpp-record-a-driver-side-review-output-commit-in-the-plan-s-own.ipd.md
+  - Rationale: that plan owned `runner_shared.commit_review_lane_output` and has since executed, delivering the AW-Run/AW-Item/AW-Committed-By trailers on the driver review commit; re-pointed from the now-terminal carrier to its evidence on 2026-09-26.
 
 ## Scope check
 
