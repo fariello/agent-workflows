@@ -6,7 +6,7 @@
 - Scope: IN: read `f.snippet` (bounded); stop the blanket except from masking programming errors; a regression test that also pins the recovered next action. OUT: sanitizer rules; the unrelated `scanned_files` defect found at review (carried separately).
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -15,11 +15,11 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: rpqv4q
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: muwwa5
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rpqv4q verified (set doctorleak, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 7 findings PR-801..PR-807 all FIXED, 4 decisions D-1..D-4 recorded; review record written; reproduced the bug and measured the lost `aw sanitize --fix` remediation (F-3), corrected E-02's fixture to a neutral runtime-composed path (F-4, F-6), and filed the `scanned_files` defect as item c0ppo0; aw ipd lint --phase review-finalize conforming and aw sanitize clean
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog muwwa5. Reproduced at HEAD in a scratch repo with a planted home path: `probe_sanitizer` returned only `doctor.probe-failed` with detail `'Finding' object has no attribute 'matched'`. Corrects the item: the human render does show the leak; the agent/drift channel does not.
