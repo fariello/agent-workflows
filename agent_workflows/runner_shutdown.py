@@ -267,6 +267,11 @@ class RunLockHandle:
     handle: Any
     released: bool = False
     unlinked: bool = False
+    #: The ``platform_lock.LockHandle`` that OWNS the lock, when the caller has one. Releasing it
+    #: here is what makes R2 observable on WINDOWS: there the lock belongs to the original handle,
+    #: an unlock through the dup'd ``handle`` is refused, and without this the lock stayed held
+    #: until the caller's later ``held.release()``, AFTER ``clean_shutdown`` had probed it.
+    owner: Any = None
 
     def _inode(self) -> tuple[int, int] | None:
         with contextlib.suppress(Exception):
@@ -315,6 +320,9 @@ class RunLockHandle:
         platform_lock.release_raw(self.handle)
         with contextlib.suppress(Exception):
             self.handle.close()
+        if self.owner is not None:
+            with contextlib.suppress(Exception):
+                self.owner.release()  # idempotent; the caller's own later release is a no-op
         self.released = True
 
 

@@ -119,10 +119,18 @@ def read_file_sddl(path: PathLike) -> Optional[str]:  # pragma: no cover - Windo
         kernel32.LocalFree(out)
 
 
-def sddl_is_owner_only(sddl: Optional[str], sid: str) -> Optional[str]:
+def sddl_is_owner_only(
+    sddl: Optional[str], sid: str, *, resolve_alias: Optional[object] = None
+) -> Optional[str]:
     """``None`` when ``sddl`` is a PROTECTED DACL with exactly one non-inherited ALLOW-FA ACE for
     ``sid``; otherwise a short reason. STRUCTURAL rather than string equality, because Windows
-    canonicalizes a descriptor on read-back (e.g. adding the ``AI`` auto-inherited flag)."""
+    CANONICALIZES a descriptor on read-back: it may add the ``AI`` flag, and it renders a
+    well-known SID as its two-letter ALIAS (measured on the Windows CI runner, whose account is
+    the built-in Administrator: the ACE read back as ``A;;FA;;;LA``, not ``...;;;S-1-5-21-...-500``).
+
+    ``resolve_alias`` maps an SDDL SID token to a SID string. It defaults to the OS resolver
+    (``ConvertStringSidToSidW``) on Windows, which accepts both aliases and ``S-1-...`` forms, and to
+    the identity elsewhere, so the check never hard-codes an alias table."""
 
     import re
 
@@ -138,9 +146,54 @@ def sddl_is_owner_only(sddl: Optional[str], sid: str) -> Optional[str]:
     if len(parts) != 6:
         return f"unparseable ACE {aces[0]!r}"
     ace_type, ace_flags, rights, _obj, _inh, ace_sid = parts
+    resolver = resolve_alias if resolve_alias is not None else _sid_token_to_string
+    try:
+        ace_sid = resolver(ace_sid)  # type: ignore[operator]
+    except Exception:  # noqa: BLE001 - an unresolvable token is simply not the current user
+        pass
     if ace_type != "A" or "ID" in ace_flags or rights != "FA" or ace_sid != sid:
         return f"ACE is not a non-inherited ALLOW FA for the current user: {aces[0]!r}"
     return None
+
+
+def _sid_token_to_string(token: str) -> str:
+    """An SDDL SID token (``LA``, ``BA``, ``S-1-5-...``) as a canonical ``S-1-...`` string.
+
+    Identity off Windows. On Windows, round-trips through ``ConvertStringSidToSidW`` and
+    ``ConvertSidToStringSidW``, the OS's own alias table.
+    """
+
+    if os.name != "nt":
+        return token
+    import ctypes  # pragma: no cover - Windows only
+    from ctypes import wintypes
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.ConvertStringSidToSidW.argtypes = [
+        wintypes.LPCWSTR,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    advapi32.ConvertStringSidToSidW.restype = wintypes.BOOL
+    advapi32.ConvertSidToStringSidW.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.LPWSTR),
+    ]
+    advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    psid = ctypes.c_void_p()
+    if not advapi32.ConvertStringSidToSidW(token, ctypes.byref(psid)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        out = wintypes.LPWSTR()
+        if not advapi32.ConvertSidToStringSidW(psid, ctypes.byref(out)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            return out.value
+        finally:
+            kernel32.LocalFree(out)
+    finally:
+        kernel32.LocalFree(psid)
 
 
 def _current_user_sid() -> str:  # pragma: no cover - Windows only

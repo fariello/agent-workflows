@@ -634,6 +634,8 @@ def release_raw(stream: Any) -> None:
 
     fcntl = posix_primitive()
     if fcntl is None:  # pragma: no cover - exercised only on a non-POSIX host
+        # Windows: the byte-range lock belongs to the ORIGINAL handle and cannot be released
+        # through a dup, so the owning `LockHandle.release` does it (`RunLockHandle.owner`).
         return
     with contextlib.suppress(Exception):
         fcntl.flock(stream.fileno(), fcntl.LOCK_UN)

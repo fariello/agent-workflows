@@ -25858,7 +25858,7 @@ def run_lock(run_dir: Path):
         raise
     # RunLockHandle owns the OBSERVABLE release (unlink-then-unlock under the inode check); the
     # underlying platform lock is released after it, so the descriptor outlives the unlink.
-    lock = runner_shutdown.RunLockHandle(path=lock_path, handle=handle)
+    lock = runner_shutdown.RunLockHandle(path=lock_path, handle=handle, owner=held)
     try:
         yield lock
     finally:

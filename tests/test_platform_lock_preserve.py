@@ -53,14 +53,14 @@ class _FakeMsvcrt:
 class PreservingWindowsLockTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
+        # addCleanup runs LIFO, so registering the tempdir FIRST makes it run LAST, after every
+        # per-test `release` cleanup. Windows refuses to delete a file a live handle holds open.
+        self.addCleanup(self._tmp.cleanup)
         self.path = Path(self._tmp.name) / "sub" / "driver.lock"
         self.fake = _FakeMsvcrt()
         patcher = mock.patch.object(PL, "windows_primitive", return_value=self.fake)
         patcher.start()
         self.addCleanup(patcher.stop)
-
-    def tearDown(self) -> None:
-        self._tmp.cleanup()
 
     def test_release_keeps_the_file_and_acquire_keeps_its_content(self) -> None:
         lock = PL._PreservingWindowsLock(str(self.path), 0.0)
@@ -112,8 +112,9 @@ class PreservingWindowsLockTests(unittest.TestCase):
 
 class LockSelectionTests(unittest.TestCase):
     def test_posix_uses_plain_filelock(self) -> None:
-        lock = PL._new_lock(Path("x.lock"), 0.0, windows=False)
-        self.assertIsInstance(lock, filelock.BaseFileLock)
+        with mock.patch.object(PL.filelock, "FileLock") as fl:
+            PL._new_lock(Path("x.lock"), 0.0, windows=False)
+        fl.assert_called_once_with("x.lock", timeout=0.0)
 
     def test_windows_with_modern_filelock_asks_it_to_preserve(self) -> None:
         with mock.patch.object(

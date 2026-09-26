@@ -66,6 +66,22 @@ class SddlCheckTests(unittest.TestCase):
             with self.subTest(sddl=sddl):
                 self.assertIsNone(private_file.sddl_is_owner_only(sddl, self.SID))
 
+    def test_an_alias_for_the_current_user_is_accepted(self) -> None:
+        # Windows renders a well-known SID as an alias on read-back (the CI runner's built-in
+        # Administrator reads as `LA`). Resolution is the OS's job; here a fake resolver stands in.
+        resolve = {"LA": self.SID}.get
+        self.assertIsNone(
+            private_file.sddl_is_owner_only(
+                "D:PAI(A;;FA;;;LA)", self.SID, resolve_alias=lambda t: resolve(t, t)
+            )
+        )
+        self.assertIsNotNone(
+            private_file.sddl_is_owner_only(
+                "D:P(A;;FA;;;BU)", self.SID, resolve_alias=lambda t: resolve(t, t)
+            ),
+            "an alias for a DIFFERENT principal (BU = all users) must be rejected",
+        )
+
     def test_rejects_every_permissive_shape(self) -> None:
         bad = {
             "inherits": f"D:(A;;FA;;;{self.SID})",
