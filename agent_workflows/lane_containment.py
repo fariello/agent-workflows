@@ -2603,7 +2603,10 @@ def materialize_lane_inputs(
 def read_lane_input_manifest(
     lane_root: Path, revision: int | None = None
 ) -> dict[str, Any] | None:
-    """One revision's manifest document, or `None`. `revision=None` reads the LATEST."""
+    """One revision's manifest document, or `None`. `revision=None` reads the LATEST.
+
+    `revision=None` is only correct for a single-owner lane; on a shared lane pass the turn's recorded `lane_input_revision`.
+    """
     if revision is None:
         revision = latest_lane_input_revision(lane_root)
         if revision is None:
@@ -2665,6 +2668,9 @@ def verify_link_independence(
     lane_root: Path, revision: int | None = None
 ) -> LinkIndependenceResult:
     """Establish LINK INDEPENDENCE for every manifest-listed lane file (spec R5.2, criterion A12).
+
+    `revision=None` reads the latest revision, which is only correct for a single-owner lane; on a
+    shared lane pass the turn's recorded `lane_input_revision`.
 
     WHY THIS IS NOT `not islink`, which is the whole point of R5.2 and of plan finding F-1. A HARD
     LINK is not a symlink and its bytes are identical to the source, so a check asserting
@@ -2750,6 +2756,9 @@ class SealResult(NamedTuple):
 def verify_lane_input_seal(lane_root: Path, revision: int | None = None) -> SealResult:
     """Check seal parts (i) and (ii): no write bit on the manifest or on any listed input (R5.1a).
 
+    `revision=None` reads the latest revision, which is only correct for a single-owner lane; on a
+    shared lane pass the turn's recorded `lane_input_revision`.
+
     Part (iii) (a change arrives as a NEW REVISION, never an in-place edit) is STRUCTURAL and is not
     checked here because it cannot be read off a single revision's permissions: it is established by
     `revise_lane_inputs` writing a new `rev-<N>` directory and by `latest_lane_input_revision`
@@ -2814,6 +2823,9 @@ def verify_lane_input_manifest(
     lane_root: Path, revision: int | None = None
 ) -> ManifestVerification:
     """The whole R5 input contract for one revision, in ONE predicate (spec R6.1).
+
+    `revision=None` reads the latest revision, which is only correct for a single-owner lane; on a
+    shared lane pass the turn's recorded `lane_input_revision`.
 
     Composed rather than duplicated: the drivers, the tests, and any later retention reader all call
     THIS, so "is this lane's input set conforming?" has one answer. It checks that every entry records
@@ -3077,6 +3089,12 @@ def localize_attachment(
     manifest lists one; otherwise returns `fallback` unchanged. So a NON-isolated turn is byte-for-byte
     untouched (the same discipline spec R1.3 imposes on the prompt), and an isolated turn attaches only
     what is provably inside its lane.
+
+    `revision=None` reads the LATEST revision, which is the turn's own only in a single-owner lane;
+    a shared lane (the review sweep) holds one revision per turn, so its caller MUST pass the turn's
+    recorded `lane_input_revision`. A revision the lane does NOT hold falls through to `fallback`,
+    which for a review is the main-checkout plan and therefore an out-of-lane attachment, so a caller
+    passing a revision must pass one it materialized.
 
     FALLBACK IS DELIBERATE AND IS NOT A HOLE IN R5.3. If materialization did not record this class, the
     honest options are to attach the out-of-lane original or to attach nothing. Attaching nothing would

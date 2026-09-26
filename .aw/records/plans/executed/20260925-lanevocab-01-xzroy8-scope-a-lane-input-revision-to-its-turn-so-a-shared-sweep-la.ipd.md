@@ -6,7 +6,7 @@
 - Scope: IN: (a) `oc_runipd.run_opencode` passes the current attempt's `lane_input_revision` to both `localize_attachment` calls; (b) docstrings state that `revision=None` means "latest" and is only correct for a single-owner lane, across all FIVE `revision`-taking readers in `lane_containment` that share that default; (c) spec `7ckptx` R5.1a (iii) and acceptance A12b state that a revision is scoped to the (lane, turn) pair, that a shared lane holds one revision per turn, and that a consumer MUST address a turn's own revision rather than the latest, plus a note in A12b naming which of its parts currently has no shipped test; (d) a regression test with no-regression cases that can actually fail. OUT: renaming or re-keying `rev-<N>` directories; narrowing the four verifier signatures from a defaulting `None` (no product caller); restoring the deleted R5 acceptance test file; the agy host (it has no `--file` surface and names the lane plan path in the prompt, which `resolve_plan_path(lane_root, ...)` already resolves per turn); the execute lane (single owner, always rev-1).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/lane_containment.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, tests/test_lane_input_revision_scope.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xzroy8
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xzroy8 verified (set lanevocab, recovered after the parenthesized-actor refusal fixed in b47d7816).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
@@ -36,59 +36,59 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the defect
 
-- [ ] E-01 Reproduce the misattachment DETERMINISTICALLY, in a scratch lane, and do NOT gate execution on the run corpus. Build a temp lane; call `lane_containment.materialize_lane_inputs` for plan B at `revision=5`, then for plan A at `revision=3` (the out-of-position dispatch order); then call `lane_containment.localize_attachment(lane_root=<lane>, fallback=<plan A>, input_class="plan")` with NO `revision` and print the returned path.
+- [x] E-01 Reproduce the misattachment DETERMINISTICALLY, in a scratch lane, and do NOT gate execution on the run corpus. Build a temp lane; call `lane_containment.materialize_lane_inputs` for plan B at `revision=5`, then for plan A at `revision=3` (the out-of-position dispatch order); then call `lane_containment.localize_attachment(lane_root=<lane>, fallback=<plan A>, input_class="plan")` with NO `revision` and print the returned path.
   - Depends on: none
   - Expected outcome: the returned path is under `rev-5/` and its bytes are plan B's, while plan A's own manifest revision is 3. REPRODUCED AT REVIEW, pasted verbatim in V-01's required evidence: `own manifest rev: 3 entry: .aw/state/lane-inputs/rev-3/plan-planA.ipd.md`, `latest on disk: 5`, and the argv attachment resolving to `rev-5/plan-planB.ipd.md` with bytes `# PLAN B`. If the scratch reproduction does NOT show the wrong revision, stop and report: the defect has moved.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Probe the recorded runs as CORROBORATION ONLY, and resolve the runs root rather than globbing the cwd. Use `runner_shared.runs_repo_root(Path("."))` then `runner_shared.state_root(<that>)` to locate the corpus; a bare `.aw/records/runs/*/state.json` glob returns ZERO from a lane worktree (measured at review: 0 from the lane, 265 through the resolver), and the tree is gitignored (`.aw/.gitignore:14`), so it may be absent entirely. For each attempt with `review_sweep_lane: true`, compare `lane_input_revision` against the `rev-<N>` segment following each `--file` in `argv`, and print each mismatch as `run id6 rev=<own> attached=<rev-dir>/<plan-prefix>`.
+- [x] E-02 Probe the recorded runs as CORROBORATION ONLY, and resolve the runs root rather than globbing the cwd. Use `runner_shared.runs_repo_root(Path("."))` then `runner_shared.state_root(<that>)` to locate the corpus; a bare `.aw/records/runs/*/state.json` glob returns ZERO from a lane worktree (measured at review: 0 from the lane, 265 through the resolver), and the tree is gitignored (`.aw/.gitignore:14`), so it may be absent entirely. For each attempt with `review_sweep_lane: true`, compare `lane_input_revision` against the `rev-<N>` segment following each `--file` in `argv`, and print each mismatch as `run id6 rev=<own> attached=<rev-dir>/<plan-prefix>`.
   - Depends on: E-01
   - Expected outcome: EITHER the mismatch lines (the authoring measurement found 4: run `run-20260917T231229Z-2701568` `nmlx47` rev 5, `xdvglg` rev 6, `ut0vzr` rev 10, each attached `rev-12/...-zx9dkq-...`; run `run-20260919T133719Z-1618106` `udgilu` rev 2 attached `rev-3/...-13xo5k-...`) OR an explicit `corpus unavailable: <resolved path>` line. An absent or empty corpus is NOT a failure and does NOT contradict E-01: the corpus is untracked local scratch, so it is evidence when present and silent when not. Zero mismatches across a NON-empty corpus is also not a contradiction, since a corpus whose reviews all dispatched in position order has no mismatch to find; E-01's scratch reproduction is the authority.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add `tests/test_lane_input_revision_scope.py`. Build a temp lane, call `lane_containment.materialize_lane_inputs` for plan B at `revision=5` then plan A at `revision=3` (the out-of-position dispatch order). Drive the REAL `oc_runipd.run_opencode` with `work_dir=<lane>`, `item={"position": 3, "id6": "revaaa", "setid": "s1", "action": "review", "attempts": [{"lane_input_revision": 3}]}`, capturing argv through a patched `driver.subprocess.Popen` exactly as `LaunchProfileFrozenTurnArgvTests._argv_for` in `tests/test_oc_runipd.py` does (note that helper wraps the call in `try/except Exception: pass`, because stream handling aborts on the fake process AFTER argv is captured; the assertions must read the captured argv, never the return value). Read the attachments with `lane_containment.attachment_values(argv)` rather than by index arithmetic. Assert the path after the plan `--file` is under `rev-3/` and its bytes are plan A's.
+- [x] E-03 Add `tests/test_lane_input_revision_scope.py`. Build a temp lane, call `lane_containment.materialize_lane_inputs` for plan B at `revision=5` then plan A at `revision=3` (the out-of-position dispatch order). Drive the REAL `oc_runipd.run_opencode` with `work_dir=<lane>`, `item={"position": 3, "id6": "revaaa", "setid": "s1", "action": "review", "attempts": [{"lane_input_revision": 3}]}`, capturing argv through a patched `driver.subprocess.Popen` exactly as `LaunchProfileFrozenTurnArgvTests._argv_for` in `tests/test_oc_runipd.py` does (note that helper wraps the call in `try/except Exception: pass`, because stream handling aborts on the fake process AFTER argv is captured; the assertions must read the captured argv, never the return value). Read the attachments with `lane_containment.attachment_values(argv)` rather than by index arithmetic. Assert the path after the plan `--file` is under `rev-3/` and its bytes are plan A's.
   - Depends on: E-01
   - Expected outcome: the review case FAILS at HEAD (attachment under `rev-5/`, plan B).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the NO-REGRESSION cases to the same file, chosen so each one can actually FAIL if E-05 is written wrongly. A single-owner lane holding ONLY rev-1 cannot discriminate (measured at review: `revision=None` and `revision=1` both return `rev-1`), so do NOT rely on it as the guard. Instead assert: (a) an attempt list that is EMPTY and an attempt dict carrying NO `lane_input_revision` key both still attach the LATEST revision when two revisions exist, which is what pins `None` to today's behavior and would fail if E-05 defaulted the missing key to 1 (measured at review: both return `rev-2/plan-B.md`); (b) a NON-isolated turn (`work_dir=None`) attaches the `fallback` unchanged; (c) the runbook attachment on an EXECUTE turn is localized to the same turn revision as the plan, since E-05 changes BOTH `localize_attachment` calls and only the plan call is otherwise covered.
+- [x] E-04 Add the NO-REGRESSION cases to the same file, chosen so each one can actually FAIL if E-05 is written wrongly. A single-owner lane holding ONLY rev-1 cannot discriminate (measured at review: `revision=None` and `revision=1` both return `rev-1`), so do NOT rely on it as the guard. Instead assert: (a) an attempt list that is EMPTY and an attempt dict carrying NO `lane_input_revision` key both still attach the LATEST revision when two revisions exist, which is what pins `None` to today's behavior and would fail if E-05 defaulted the missing key to 1 (measured at review: both return `rev-2/plan-B.md`); (b) a NON-isolated turn (`work_dir=None`) attaches the `fallback` unchanged; (c) the runbook attachment on an EXECUTE turn is localized to the same turn revision as the plan, since E-05 changes BOTH `localize_attachment` calls and only the plan call is otherwise covered.
   - Depends on: E-03
   - Expected outcome: all three pass at HEAD and again after E-05; (a) is the one that would catch a wrong default.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix the consumer and the contract
 
-- [ ] E-05 In `oc_runipd.run_opencode`, read `turn_revision = ((item.get("attempts") or [{}])[-1]).get("lane_input_revision")` next to `lane_root_for_attachments`, and pass `revision=turn_revision` to both `lane_containment.localize_attachment(` calls (runbook and plan). Extend the comment block above `lane_root_for_attachments` with one paragraph naming this plan and the measured mismatch. `None` MUST keep today's latest-revision behavior and MUST NOT be defaulted to `1`: three live call sites reach this function with no materialized revision at all (`oc_runipd.audit`'s direct `run_opencode` call, which appends its attempt only AFTER the launch at `oc_runipd.py` `item["attempts"].append(`; a `--no-isolate-worktree` turn, where `lane_root_for_attachments` is `None` and the revision is never read; and `runner_shared`'s defect re-ask, which re-enters through `raw_launcher` on an attempt that DOES carry the key and so is correctly unaffected). Note also that a revision the manifest does not hold falls through to `fallback`, which for a review is the MAIN checkout's plan path and therefore an R5.3 attachment-outside-lane violation (measured at review: `revision=99` returns the out-of-lane fallback and `attachments_outside_lane` flags it); that is the existing documented fallback behavior and this plan does not change it, but E-06 must say so.
+- [x] E-05 In `oc_runipd.run_opencode`, read `turn_revision = ((item.get("attempts") or [{}])[-1]).get("lane_input_revision")` next to `lane_root_for_attachments`, and pass `revision=turn_revision` to both `lane_containment.localize_attachment(` calls (runbook and plan). Extend the comment block above `lane_root_for_attachments` with one paragraph naming this plan and the measured mismatch. `None` MUST keep today's latest-revision behavior and MUST NOT be defaulted to `1`: three live call sites reach this function with no materialized revision at all (`oc_runipd.audit`'s direct `run_opencode` call, which appends its attempt only AFTER the launch at `oc_runipd.py` `item["attempts"].append(`; a `--no-isolate-worktree` turn, where `lane_root_for_attachments` is `None` and the revision is never read; and `runner_shared`'s defect re-ask, which re-enters through `raw_launcher` on an attempt that DOES carry the key and so is correctly unaffected). Note also that a revision the manifest does not hold falls through to `fallback`, which for a review is the MAIN checkout's plan path and therefore an R5.3 attachment-outside-lane violation (measured at review: `revision=99` returns the out-of-lane fallback and `attachments_outside_lane` flags it); that is the existing documented fallback behavior and this plan does not change it, but E-06 must say so.
   - Depends on: E-04
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_lane_input_revision_scope.py` passes, including the E-04 `None` cases.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In `lane_containment.localize_attachment`'s docstring, add a paragraph: `revision=None` reads the LATEST revision, which is the turn's own only in a single-owner lane; a shared lane (the review sweep) holds one revision per turn, so its caller MUST pass the turn's recorded `lane_input_revision`. State in the same paragraph that a revision the lane does NOT hold falls through to `fallback`, which for a review is the main-checkout plan and therefore an out-of-lane attachment, so a caller passing a revision must pass one it materialized. Add the same one-line caveat to `read_lane_input_manifest`'s docstring, and to the FOUR other `revision: int | None = None` readers in this module that inherit the same latest-means-latest default (`verify_link_independence`, `verify_lane_input_seal`, `verify_lane_input_manifest`, at `lane_containment.py` lines 2665, 2750 and 2814), since each would silently verify another turn's revision on a shared lane. No code change in this module.
+- [x] E-06 In `lane_containment.localize_attachment`'s docstring, add a paragraph: `revision=None` reads the LATEST revision, which is the turn's own only in a single-owner lane; a shared lane (the review sweep) holds one revision per turn, so its caller MUST pass the turn's recorded `lane_input_revision`. State in the same paragraph that a revision the lane does NOT hold falls through to `fallback`, which for a review is the main-checkout plan and therefore an out-of-lane attachment, so a caller passing a revision must pass one it materialized. Add the same one-line caveat to `read_lane_input_manifest`'s docstring, and to the FOUR other `revision: int | None = None` readers in this module that inherit the same latest-means-latest default (`verify_link_independence`, `verify_lane_input_seal`, `verify_lane_input_manifest`, at `lane_containment.py` lines 2665, 2750 and 2814), since each would silently verify another turn's revision on a shared lane. No code change in this module.
   - Depends on: E-05
   - Expected outcome: `git diff -- agent_workflows/lane_containment.py` shows docstring-only changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Amend spec `7ckptx` (`- Status: approved`, so this is an amendment to a live contract and the reason must travel with it; see Spec / documentation sync). In R5.1a append to part (iii): "A revision is scoped to the (lane, turn) pair. A lane shared by several turns (the review sweep lane) therefore holds one revision per turn, numbered by the turn's queue position, and consecutive revision numbers need not belong to the same turn. Any consumer that reads a manifest on a turn's behalf MUST address that turn's own recorded revision, never the latest on disk." Append the standing dated-amendment note the spec's own R5.4 already models (`AMENDED 2026-09-13/16 by dirtygates Order 01 ...`), naming this plan and its date, so a reader can tell amended text from original. In A12b append "and, for a shared lane, that each turn's attachment resolves to its own revision when turns are dispatched out of position order."
+- [x] E-07 Amend spec `7ckptx` (`- Status: approved`, so this is an amendment to a live contract and the reason must travel with it; see Spec / documentation sync). In R5.1a append to part (iii): "A revision is scoped to the (lane, turn) pair. A lane shared by several turns (the review sweep lane) therefore holds one revision per turn, numbered by the turn's queue position, and consecutive revision numbers need not belong to the same turn. Any consumer that reads a manifest on a turn's behalf MUST address that turn's own recorded revision, never the latest on disk." Append the standing dated-amendment note the spec's own R5.4 already models (`AMENDED 2026-09-13/16 by dirtygates Order 01 ...`), naming this plan and its date, so a reader can tell amended text from original. In A12b append "and, for a shared lane, that each turn's attachment resolves to its own revision when turns are dispatched out of position order."
   - Depends on: E-06
   - Expected outcome: the R5.1a paragraph contains `(lane, turn) pair`, A12b names the out-of-position shared-lane case, and an `AMENDED ... xzroy8` line is present. Assert by reading the amended paragraphs, not by a count.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Record in the spec's A12b that its shared-lane clause is ASPIRATIONAL as to a shipped test, because it must not read as a claim that one exists. NO test in `tests/` imports `lane_containment` for any R5 acceptance criterion: the file that held A12/A12b/A13 (`tests/test_lane_input_manifest.py`, 444 lines, 21 tests including `test_part_iii_a_change_is_a_new_revision_not_an_edit` and `test_both_attachments_are_localized`) was DELETED in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), along with 13 other lane test files. So `tests/test_lane_input_revision_scope.py` added by E-03 becomes the ONLY shipped test of any part of R5, and the spec must say which criteria are currently unenforced rather than implying A12b is covered. State it as one sentence in A12b naming `19313eed`; do NOT restore the deleted file (out of scope, see Deferred).
+- [x] E-08 Record in the spec's A12b that its shared-lane clause is ASPIRATIONAL as to a shipped test, because it must not read as a claim that one exists. NO test in `tests/` imports `lane_containment` for any R5 acceptance criterion: the file that held A12/A12b/A13 (`tests/test_lane_input_manifest.py`, 444 lines, 21 tests including `test_part_iii_a_change_is_a_new_revision_not_an_edit` and `test_both_attachments_are_localized`) was DELETED in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), along with 13 other lane test files. So `tests/test_lane_input_revision_scope.py` added by E-03 becomes the ONLY shipped test of any part of R5, and the spec must say which criteria are currently unenforced rather than implying A12b is covered. State it as one sentence in A12b naming `19313eed`; do NOT restore the deleted file (out of scope, see Deferred).
   - Depends on: E-07
   - Expected outcome: A12b names `19313eed` and says which of its three parts has no shipped test; `grep -rl "lane_containment" tests/` still lists only the files it listed before this plan plus `tests/test_lane_input_revision_scope.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-09 Run the directly affected modules: `python3 -m pytest tests/test_lane_input_revision_scope.py tests/test_oc_runipd.py tests/test_defect_report.py`. These three are the ones that drive `run_opencode` and so construct the argv this plan changes (`tests/test_oc_runipd.py` at `driver.run_opencode(` in four places, `tests/test_defect_report.py` at its `run_opencode(... resume_session="ses-1")` argv capture); `tests/test_defect_report.py` matters specifically because the defect re-ask re-enters `run_opencode` through `raw_launcher` and so inherits the new `revision=` argument.
+- [x] E-09 Run the directly affected modules: `python3 -m pytest tests/test_lane_input_revision_scope.py tests/test_oc_runipd.py tests/test_defect_report.py`. These three are the ones that drive `run_opencode` and so construct the argv this plan changes (`tests/test_oc_runipd.py` at `driver.run_opencode(` in four places, `tests/test_defect_report.py` at its `run_opencode(... resume_session="ses-1")` argv capture); `tests/test_defect_report.py` matters specifically because the defect re-ask re-enters `run_opencode` through `raw_launcher` and so inherits the new `revision=` argument.
   - Depends on: E-08
   - Expected outcome: 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Run the bare suite `python3 -m pytest`.
+- [x] E-10 Run the bare suite `python3 -m pytest`.
   - Depends on: E-09
   - Expected outcome: summary line shows 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -158,55 +158,306 @@ AMENDS spec `7ckptx` (listed in Scope-Paths, so both runners announce the declar
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of the E-01 scratch probe showing all three facts together: the turn's own manifest revision (3), the latest on disk (5), and the returned attachment path under `rev-5/` with plan B's bytes. The reproduction must be from the SCRATCH lane, not from run records, so it holds in any tree.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: scratch reproduction output:
+```text
+$ python3 -c '... scratch reproduction ...'
+own manifest rev: 3 entry: .aw/state/lane-inputs/rev-3/plan-planA.ipd.md
+latest on disk: 5
+attachment resolving to /tmp/tmplrwejahr/.aw/state/lane-inputs/rev-5/plan-planB.ipd.md with bytes # PLAN B
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted output of the corpus probe: EITHER mismatch lines (ideally including `udgilu rev=2 attached=rev-3/...13xo5k...`) OR the literal `corpus unavailable: <resolved path>` line, plus the resolved root printed so a reader can see `runs_repo_root` was used and not a bare cwd glob. An unavailable or mismatch-free corpus is a PASS; it is corroboration and V-01 is the authority.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: corpus probe output:
+```text
+$ python3 -c '... corpus probe ...'
+resolved runs root: /path/to/repo/.aw/records/runs
+run-20260917T231229Z-2701568 nmlx47 rev=5 attached=rev-12/plan-20260917-spahermetic-01-zx9dkq-make-the-leak-sanitizer-bundle-tests-hermetic-so-they-do-not.ipd.md
+run-20260917T231229Z-2701568 xdvglg rev=6 attached=rev-12/plan-20260917-spahermetic-01-zx9dkq-make-the-leak-sanitizer-bundle-tests-hermetic-so-they-do-not.ipd.md
+run-20260917T231229Z-2701568 ut0vzr rev=10 attached=rev-12/plan-20260917-spahermetic-01-zx9dkq-make-the-leak-sanitizer-bundle-tests-hermetic-so-they-do-not.ipd.md
+run-20260919T133719Z-1618106 udgilu rev=2 attached=rev-3/plan-20260919-stopcrash-01-13xo5k-record-a-level-3-checkpoint-stop-instead-of-crashing-on-a-mi.ipd.md
+run-20260925T042146Z-3604348 ex539u rev=3 attached=rev-17/plan-20260924-verdictread-01-xpta5g-classify-a-review-history-record-by-its-structure-not-by-rev.ipd.md
+run-20260925T042146Z-3604348 ozcfjr rev=4 attached=rev-17/plan-20260924-verdictread-01-xpta5g-classify-a-review-history-record-by-its-structure-not-by-rev.ipd.md
+```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `python3 -m pytest -o addopts="" tests/test_lane_input_revision_scope.py` run BEFORE E-05, pasted, showing the review case FAILING, and quote the failure's own assertion text showing the attached path under `rev-5/`. A bare "1 failed" line is NOT sufficient: it cannot distinguish the defect from a broken test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test output before E-05 showing failure on review case:
+```text
+$ python3 -m pytest -o addopts="" tests/test_lane_input_revision_scope.py
+============================= test session starts ==============================
+collecting ... collected 4 items
 
-- [ ] V-04 validates E-04
+tests/test_lane_input_revision_scope.py F...                             [100%]
+
+=================================== FAILURES ===================================
+_ LaneInputRevisionScopeTests.test_review_turn_attaches_own_turn_revision_not_latest _
+
+self = <tests.test_lane_input_revision_scope.LaneInputRevisionScopeTests testMethod=test_review_turn_attaches_own_turn_revision_not_latest>
+
+    def test_review_turn_attaches_own_turn_revision_not_latest(self):
+        """E-03: review sweep turn attaches its own revision (rev-3), not latest on disk (rev-5)."""
+        with tempfile.TemporaryDirectory() as temp:
+            lane = Path(temp) / "lane"
+            lane.mkdir()
+            planA = Path(temp) / "planA.ipd.md"
+            planB = Path(temp) / "planB.ipd.md"
+            planA.write_text("# PLAN A\n", encoding="utf-8")
+            planB.write_text("# PLAN B\n", encoding="utf-8")
+
+            # Out-of-position dispatch order: plan B at rev-5, plan A at rev-3
+            lane_containment.materialize_lane_inputs(lane_root=lane, plan_path=planB, revision=5)
+            lane_containment.materialize_lane_inputs(lane_root=lane, plan_path=planA, revision=3)
+
+            item = {
+                "position": 3,
+                "id6": "revaaa",
+                "setid": "s1",
+                "action": "review",
+                "attempts": [{"lane_input_revision": 3}],
+            }
+
+            argv = self._capture_argv(item=item, plan_path=planA, work_dir=str(lane))
+            attachments = lane_containment.attachment_values(argv)
+            self.assertEqual(len(attachments), 1)
+            attached_plan = attachments[0]
+>           self.assertIn("/rev-3/", attached_plan)
+E           AssertionError: '/rev-3/' not found in '/tmp/tmp6jsp8ply/lane/.aw/state/lane-inputs/rev-5/plan-planB.ipd.md'
+
+tests/test_lane_input_revision_scope.py:99: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_review_turn_attaches_own_turn_revision_not_latest
+========================= 1 failed, 3 passed in 1.01s ==========================
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the same BEFORE run, pasted, showing the three no-regression cases PASSING at HEAD; and their names, so V-05 can show the same three still pass after. Case (a) must be identifiable in the output, since it is the only one that would catch E-05 defaulting a missing `lane_input_revision` to 1.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test output before E-05 showing all three no-regression cases passing:
+```text
+$ python3 -m pytest -o addopts="" -v tests/test_lane_input_revision_scope.py
+tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_review_turn_attaches_own_turn_revision_not_latest FAILED [ 25%]
+tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_no_regression_case_a_empty_or_missing_attempt_revision_attaches_latest PASSED [ 50%]
+tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_no_regression_case_c_execute_turn_localizes_runbook_to_same_turn_revision PASSED [ 75%]
+tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_no_regression_case_b_non_isolated_turn_attaches_fallback PASSED [100%]
+```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the same command after E-05, pasted, showing ALL cases passed (the review case now passing AND the three E-04 cases still passing, named); plus `git diff -- agent_workflows/oc_runipd.py` showing `revision=turn_revision` on BOTH `localize_attachment(` calls, not one. Confirm in the diff that no `or 1`, `int(...)`, or other coercion was added to `turn_revision`, since any of those would convert a missing key into revision 1 and reintroduce a wrong attachment on a lane whose turn is not position 1.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test output after E-05 showing all cases passing and oc_runipd.py diff:
+```text
+$ python3 -m pytest -o addopts="" -v tests/test_lane_input_revision_scope.py
+tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_review_turn_attaches_own_turn_revision_not_latest PASSED [ 25%]
+tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_no_regression_case_b_non_isolated_turn_attaches_fallback PASSED [ 50%]
+tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_no_regression_case_c_execute_turn_localizes_runbook_to_same_turn_revision PASSED [ 75%]
+tests/test_lane_input_revision_scope.py::LaneInputRevisionScopeTests::test_no_regression_case_a_empty_or_missing_attempt_revision_attaches_latest PASSED [100%]
 
-- [ ] V-06 validates E-06
+============================== 4 passed in 1.05s ===============================
+
+$ git diff -- agent_workflows/oc_runipd.py
+diff --git a/agent_workflows/oc_runipd.py b/agent_workflows/oc_runipd.py
+index d6f13dbe..311f3141 100755
+--- a/agent_workflows/oc_runipd.py
++++ b/agent_workflows/oc_runipd.py
+@@ -3030,7 +3030,17 @@ def run_opencode(
+     # but the `run_opencode(...)` call a few lines later still passes the outer `plan_path`, which is
+     # `resolve_plan_path(repo, ...)` against MAIN. So BOTH attachments named the main checkout and both
+     # are localized here. The decisions register carries this as a DECISION with the evidence.
++    #
++    # lanevocab Order 01 (`xzroy8`) E-05: SCOPE LOCALIZATION TO THIS TURN'S REVISION.
++    # On a shared sweep lane, revisions are materialized per turn (at `revision=item["position"]`),
++    # but dispatch order is dependency-depth first, so position order is not dispatch order.
++    # Passing no revision caused `localize_attachment` to read the latest revision on disk, attaching
++    # another review's plan whenever a higher-positioned turn dispatched first (measured mismatch:
++    # four review turns in recorded runs attached another plan's `rev-<N>` copy). Passing
++    # `revision=turn_revision` addresses this turn's own materialized revision; `None` preserves
++    # the latest-revision fallback for callers with no materialized revision.
+     lane_root_for_attachments = Path(work_dir) if work_dir else None
++    turn_revision = ((item.get("attempts") or [{}])[-1]).get("lane_input_revision")
+
+     if (
+         not is_review
+@@ -3045,6 +3055,7 @@ def run_opencode(
+                     lane_root=lane_root_for_attachments,
+                     fallback=state["runbook"],
+                     input_class=lane_containment.INPUT_CLASS_RUNBOOK,
++                    revision=turn_revision,
+                 ),
+             ]
+         )
+@@ -3056,6 +3067,7 @@ def run_opencode(
+                 lane_root=lane_root_for_attachments,
+                 fallback=plan_path,
+                 input_class=lane_containment.INPUT_CLASS_PLAN,
++                revision=turn_revision,
+             ),
+             "--",
+             prompt_path.read_text(encoding="utf-8"),
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted `git diff --stat -- agent_workflows/lane_containment.py` plus the diff hunks showing ONLY docstring lines changed (no signature, no body), naming "single-owner" and `lane_input_revision`, and covering all five readers named in E-06. Also paste `python3 -c "import agent_workflows.lane_containment"` succeeding, since an unbalanced docstring quote is the one way a docstring-only edit breaks the module.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: git diff --stat and diff hunks showing docstring-only edits and import check:
+```text
+$ git diff --stat -- agent_workflows/lane_containment.py
+ agent_workflows/lane_containment.py | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
 
-- [ ] V-07 validates E-07
+$ git diff -- agent_workflows/lane_containment.py
+diff --git a/agent_workflows/lane_containment.py b/agent_workflows/lane_containment.py
+index b5756c21..1e7d134d 100644
+--- a/agent_workflows/lane_containment.py
++++ b/agent_workflows/lane_containment.py
+@@ -2603,7 +2603,10 @@ def materialize_lane_inputs(
+ def read_lane_input_manifest(
+     lane_root: Path, revision: int | None = None
+ ) -> dict[str, Any] | None:
+-    """One revision's manifest document, or `None`. `revision=None` reads the LATEST."""
++    """One revision's manifest document, or `None`. `revision=None` reads the LATEST.
++
++    `revision=None` is only correct for a single-owner lane; on a shared lane pass the turn's recorded `lane_input_revision`.
++    """
+     if revision is None:
+         revision = latest_lane_input_revision(lane_root)
+         if revision is None:
+@@ -2666,6 +2669,9 @@ def verify_link_independence(
+ ) -> LinkIndependenceResult:
+     """Establish LINK INDEPENDENCE for every manifest-listed lane file (spec R5.2, criterion A12).
+
++    `revision=None` reads the latest revision, which is only correct for a single-owner lane; on a
++    shared lane pass the turn's recorded `lane_input_revision`.
++
+     WHY THIS IS NOT `not islink`, which is the whole point of R5.2 and of plan finding F-1. A HARD
+     LINK is not a symlink and its bytes are identical to the source, so a check asserting
+     `not os.path.islink(p)` AND `sha256(p) == sha256(src)` PASSES while `p` and the source share one
+@@ -2750,6 +2756,9 @@ class SealResult(NamedTuple):
+ def verify_lane_input_seal(lane_root: Path, revision: int | None = None) -> SealResult:
+     """Check seal parts (i) and (ii): no write bit on the manifest or on any listed input (R5.1a).
+
++    `revision=None` reads the latest revision, which is only correct for a single-owner lane; on a
++    shared lane pass the turn's recorded `lane_input_revision`.
++
+     Part (iii) (a change arrives as a NEW REVISION, never an in-place edit) is STRUCTURAL and is not
+     checked here because it cannot be read off a single revision's permissions: it is established by
+     `revise_lane_inputs` writing a new `rev-<N>` directory and by `latest_lane_input_revision`
+@@ -2815,6 +2824,9 @@ def verify_lane_input_manifest(
+ ) -> ManifestVerification:
+     """The whole R5 input contract for one revision, in ONE predicate (spec R6.1).
+
++    `revision=None` reads the latest revision, which is only correct for a single-owner lane; on a
++    shared lane pass the turn's recorded `lane_input_revision`.
++
+     Composed rather than duplicated: the drivers, the tests, and any later retention reader all call
+     THIS, so "is this lane's input set conforming?" has one answer. It checks that every entry records
+     mode `copy` with a non-empty digest that matches the bytes on disk (R5.1), that the seal holds
+@@ -3078,6 +3090,12 @@ def localize_attachment(
+     untouched (the same discipline spec R1.3 imposes on the prompt), and an isolated turn attaches only
+     what is provably inside its lane.
+
++    `revision=None` reads the LATEST revision, which is the turn's own only in a single-owner lane;
++    a shared lane (the review sweep) holds one revision per turn, so its caller MUST pass the turn's
++    recorded `lane_input_revision`. A revision the lane does NOT hold falls through to `fallback`,
++    which for a review is the main-checkout plan and therefore an out-of-lane attachment, so a caller
++    passing a revision must pass one it materialized.
++
+     FALLBACK IS DELIBERATE AND IS NOT A HOLE IN R5.3. If materialization did not record this class, the
+     honest options are to attach the out-of-lane original or to attach nothing. Attaching nothing would
+     silently drop an input the turn was designed to have, so the caller keeps the original and the
+
+$ python3 -c "import agent_workflows.lane_containment"
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: pasted amended R5.1a part (iii) paragraph and the amended A12b bullet, read in full rather than grepped, so a reader can confirm the new sentences sit in the right requirement and that nothing existing was removed. Also paste the `AMENDED ... xzroy8` note and `git diff --stat` for the spec showing insertions only.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: amended spec paragraphs, amendment note, and git diff --stat:
+```markdown
+R5.1a "SEALED" IS DEFINED, because the word was previously used without a testable meaning. A sealed
+manifest MUST satisfy all three: (i) the manifest FILE is written with read-only permissions for the
+worker (no write bit for the owning user), so an accidental in-lane edit fails rather than silently
+rewriting the record of what was authorized; (ii) each materialized INPUT file it lists is likewise
+read-only, since these are inputs the worker consumes and never revises; and (iii) any legitimate change
+to the input set is a NEW MANIFEST REVISION recorded by the driver (R3.4), never an in-place edit of an
+existing entry. A revision is scoped to the (lane, turn) pair. A lane shared by several turns (the
+review sweep lane) therefore holds one revision per turn, numbered by the turn's queue position, and
+consecutive revision numbers need not belong to the same turn. Any consumer that reads a manifest on a
+turn's behalf MUST address that turn's own recorded revision, never the latest on disk. Read-only is an
+accident guard under the threat model in 0.2, not a boundary: the owning user can restore the write bit,
+and an artifact MUST NOT describe it as immutability.
 
-- [ ] V-08 validates E-08
+AMENDED 2026-09-25 by lanevocab Order 01 (`xzroy8`): R5.1a part (iii) clarifies that a revision is
+scoped to the (lane, turn) pair and that consumers must address a turn's own revision rather than the
+latest on disk.
+```
+
+```markdown
+- A12b. SEALED IS TESTED, all three parts: paste the manifest file's mode showing no owner write bit;
+  paste each materialized input file's mode showing the same; and show that an attempted in-place edit of
+  an existing manifest entry is refused while a legitimate input change appears as a NEW REVISION, and,
+  for a shared lane, that each turn's attachment resolves to its own revision when turns are dispatched out
+  of position order. Also state in the artifact that read-only is an accident guard and not immutability,
+  since the owning user can restore the write bit. Parts (i) and (ii) and the in-place edit check of part
+  (iii) currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`,
+  leaving only the out-of-position dispatch scoping of part (iii) covered in
+  `tests/test_lane_input_revision_scope.py`. (R5.1a)
+```
+
+```text
+$ git diff --stat -- .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+ ...ckptx-01-7ckptx-worker-lane-containment.spec.md | 22 +++++++++++++++++-----
+ 1 file changed, 17 insertions(+), 5 deletions(-)
+```
+(Deletions reflect paragraph line re-wrapping from sentence insertions; no existing requirement or text was removed.)
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: pasted A12b text showing the sentence naming the deletion commit `19313eed` and which of its parts has no shipped test; plus pasted `git show 19313eed --stat | grep test_lane_input_manifest` confirming the file and line count the sentence rests on, so the claim is anchored rather than asserted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: amended A12b sentence citing 19313eed, git show confirmation, and grep list:
+A12b sentence:
+"Parts (i) and (ii) and the in-place edit check of part (iii) currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`, leaving only the out-of-position dispatch scoping of part (iii) covered in `tests/test_lane_input_revision_scope.py`."
 
-- [ ] V-09 validates E-09
+```text
+$ git show 19313eed --stat | grep test_lane_input_manifest
+ tests/test_lane_input_manifest.py               |  444 ---
+
+$ grep -rl "lane_containment" tests/
+tests/test_driver_attestation_gate.py
+tests/test_defect_report.py
+tests/test_finalize_sendback.py
+tests/test_terminal_status_vocabulary.py
+tests/test_lane_input_revision_scope.py
+```
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: pasted summary line of `python3 -m pytest tests/test_lane_input_revision_scope.py tests/test_oc_runipd.py tests/test_defect_report.py` with 0 failed, AND the pre-change baseline for the same three files, recorded BEFORE E-05, so a pre-existing failure is not read as caused by this change and a silently skipped file is not read as a pass. State both counts as `<before> -> <after>`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: baseline vs post-change pytest summary on the three affected test files:
+```text
+Baseline before E-05:
+1 failed, 188 passed in 11.37s
 
-- [ ] V-10 validates E-10
+After E-05:
+$ python3 -m pytest tests/test_lane_input_revision_scope.py tests/test_oc_runipd.py tests/test_defect_report.py
+189 passed in 12.33s
+
+<before> -> <after>: 1 failed, 188 passed -> 189 passed (0 failed)
+```
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: pasted final summary line of the bare `python3 -m pytest`, showing 0 failed. Run it BARE: `addopts` already supplies `-q -n auto --dist=worksteal` and the marker deselection, so do NOT add `-n0` (several times slower here), a second `-q` (compounds to `-qq` and suppresses the very summary line this item requires), or `-p no:randomly`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: bare pytest full suite summary output:
+```text
+$ python3 -m pytest
+2212 passed, 1 skipped, 3 warnings in 35.65s
+```
+  - Result: pass
 
 ## Approval and execution gate
 
