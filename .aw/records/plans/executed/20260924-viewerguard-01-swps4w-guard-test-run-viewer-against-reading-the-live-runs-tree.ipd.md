@@ -6,7 +6,7 @@
 - Scope: IN: one autouse fixture plus a process audit hook, both inside `tests/test_run_viewer.py`, that fail any test in the module which lists or opens a path under the checkout's live run roots; permanent self-tests proving BOTH that the hook records and that the fixture actually FAILS (the latter via a subprocess, because an in-process test cannot assert its own fixture failed); a one-shot falsification probe against the real live tree (not committed). OUT: a suite-wide guard in the root `conftest.py` (Deferred); any change to `agent_workflows/run_viewer.py`.
 - Scope-Paths: tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: swps4w
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: swps4w verified (set viewerguard, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-601..PR-606 all fixed; added E-03 (subprocess self-test proving the fixture actually fails, measured falsifiable) and E-05 (xdist plus random-order stability); recorded the guard's honest reach (inert with no live tree); 6 items, 6:6 E/V bijection; findings and 4 decisions in .aw/records/reviews/20260924-viewerguard-01-swps4w-...review.md
 
