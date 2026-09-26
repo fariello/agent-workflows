@@ -6,7 +6,7 @@
 - Scope: IN: a pure planner plus a thin CLI route, `aw archive workflow-artifacts`, that previews by default and deletes only under `--apply`; retention is "keep the newest N runs per workflow AND anything younger than D days" (a run is deleted only when it is BOTH outside the newest N AND older than D); age comes from the run id's leading `YYYYMMDD` and falls back to the newest mtime inside the dir; a run is ALWAYS kept when it carries unresolved questions in EITHER projection shape (the `open-questions.md` marker OR an `assess`-style `decisions.md`, which is the only shape present in the measured tree), when it looks like an unfinished `release-review` run, when it is an `assess` run whose `ipd-link.md` records that no IPD was written, or when pinned with `--keep <run-id>`; the tree's README and non-directory entries are never touched; tests on a temp tree. OUT: un-ignoring the tree; moving runs anywhere (this reclaims disk, it does not shelve); any automatic or install-time prune; making `aw archive all` include this tree.
 - Scope-Paths: agent_workflows/workflow_artifacts_prune.py, agent_workflows/cli.py, agent_workflows/command_surface.py, .aw/system/workflows/templates/workflow-artifacts-README.md, tests/test_workflow_artifacts_prune.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: muza7y
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: zzsaq2
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: muza7y verified (set wfprune, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-701..PR-708 all fixed. BLOCKER PR-701: the only reader-safety rule could not fire on any run in the plan's own measured tree (E-02 keys on open-questions.md; the measured population is assess runs that write none). Added E-03/E-04 for the assess and unfinished-release-review shapes, E-07 to name every keep; 10 items, 10:10 E/V bijection; OQ-01/OQ-02 resolved from evidence. Findings and 4 decisions in .aw/records/reviews/20260924-wfprune-01-muza7y-...review.md
 
