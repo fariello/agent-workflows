@@ -1,5 +1,5 @@
 - Id: q6bbdb
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: q6bbdb
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: 14 slow-marked test failures remain unrelated to the runner-stop path and need triage (installer cleanup, CLI conformance, role guard, release readiness, turn bounds)
 
 ## Workflow history
+- 2026-09-26 done (aw set): HANDED OFF (retired as an umbrella, not implemented here). Measured 2026-09-26: the slow set is 3 failed / 169 passed. All 3 remaining failures are owned by gated bug items: test_installer DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed (3ypquf, 4vfkl1), test_installer UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory and test_cli InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw (57dwkc, 4vfkl1); all carry Blocks-Release: next, so the gate is preserved. test_command_surface_declarations now passes (f2cd41b1, 0yrtne). The other 11 node ids were in files deleted by the 19313eed suite trim. The slow set's visibility in CI/default runs is carried by xuc9v0.
 - 2026-09-23 created (aw backlog): 14 slow-marked test failures remain unrelated to the runner-stop path and need triage (installer cleanup, CLI conformance, role guard, release readiness, turn bounds)
 
 ## What
