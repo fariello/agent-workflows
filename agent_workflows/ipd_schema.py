@@ -504,7 +504,10 @@ def _check_path_status(status: str, directory: str) -> List[MetaError]:
     else:  # pre-terminal
         if directory not in ("pending", ""):
             errors.append(
-                MetaError("Status", "pre-terminal Status must live under pending/")
+                MetaError(
+                    "Status",
+                    "pre-terminal Status must live under the pending/ directory",
+                )
             )
     return errors
 

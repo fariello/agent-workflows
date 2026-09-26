@@ -1341,5 +1341,57 @@ class DynamicCutoverCheckEngineTests(unittest.TestCase):
             )
 
 
+class CheckIpdLintReachTerminalTreeTests(unittest.TestCase):
+    """IPD-M105 reachability from check_ipd_lint_reach into the terminal tree (plan lz0o6j E-04)."""
+
+    def test_check_ipd_lint_reach_finds_post_cutover_plan_in_executed(self):
+        """A post-cutover plan with to-review status in executed/ is reported with check.ipd-lint-diagnostic naming IPD-M105."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            exec_dir = root / ".aw" / "records" / "plans" / "executed"
+            exec_dir.mkdir(parents=True)
+
+            # Post-cutover plan with mismatched status (to-review in executed/)
+            post_offender = exec_dir / "20260925-sample-01-abc123-bad.ipd.md"
+            post_offender.write_text(
+                "# IPD: Bad\n\n- Date: 2026-09-25\n- Status: to-review\n- Id: abc123\n",
+                encoding="utf-8",
+            )
+
+            # Pre-cutover plan (suppressed by cutover gate)
+            pre_legacy = exec_dir / "20260701-sample-01-def456-leg.ipd.md"
+            pre_legacy.write_text(
+                "# IPD: Leg\n\n- Date: 2026-07-01\n- Status: EXECUTED\n- Id: def456\n",
+                encoding="utf-8",
+            )
+
+            # Matching post-cutover plan (clean)
+            post_clean = exec_dir / "20260925-sample-01-ghi789-clean.ipd.md"
+            post_clean.write_text(
+                "# IPD: Clean\n\n- Date: 2026-09-25\n- Status: executed\n- Id: ghi789\n",
+                encoding="utf-8",
+            )
+
+            drifts = ce.check_ipd_lint_reach(root)
+            self.assertEqual(len(drifts), 1)
+            self.assertEqual(drifts[0].rule, "check.ipd-lint-diagnostic")
+            self.assertIn("IPD-M105", drifts[0].detail)
+            self.assertIn("20260925-sample-01-abc123-bad.ipd.md", drifts[0].location)
+
+            # Cross-surface agreement (F-6): the set of files check_ipd_lint_reach reports
+            # equals the set ipd_lint.lint_file errors on.
+            from agent_workflows import ipd_lint
+
+            lint_error_files = set()
+            for p in (post_offender, pre_legacy, post_clean):
+                res = ipd_lint.lint_file(p)
+                if res.disposition == "error":
+                    lint_error_files.add(str(p))
+
+            check_error_files = {d.location for d in drifts}
+            self.assertEqual(check_error_files, lint_error_files)
+            self.assertEqual(check_error_files, {str(post_offender)})
+
+
 if __name__ == "__main__":
     unittest.main()

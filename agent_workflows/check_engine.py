@@ -6306,8 +6306,73 @@ def check_ipd_lint_reach(
     reason); citing the rule id sidesteps it without weakening anyone's test.
     """
     drift: List[_core.Drift] = []
-    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
-        if "pending" not in p.parts:
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import ipd_schema as _schema
+    from agent_workflows import plans as _plans
+
+    # Widening include_retired=True is deliberate (plan lz0o6j E-04): include_retired is the exact
+    # flag that produced a measured zero-versus-one check.id6-collision disagreement between
+    # aw check and doctor.py. Widening it here allows check_ipd_lint_reach to reach the terminal
+    # tree for the cheap path/status predicate only, keeping the full lint scoped to pending/ so the
+    # two surfaces (aw check and aw ipd lint) report the identical file set by construction.
+    for p in _iter_type_files(
+        repo_root,
+        "plans",
+        include_untracked=include_untracked,
+        include_retired=True,
+    ):
+        if "pending" in p.parts:
+            drift.extend(evaluate_ipd_lint_diagnostics(repo_root, plan_path=p))
             continue
-        drift.extend(evaluate_ipd_lint_diagnostics(repo_root, plan_path=p))
+
+        anchor = _lint._dir_of(p)
+        if not _lint._is_terminal_dir(anchor):
+            continue
+
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        m = _re.search(r"^- Date:\s*(\S+)", text, _re.MULTILINE)
+        raw_date = m.group(1) if m else None
+        if not _lint._m105_terminal_date_applies(raw_date):
+            continue
+
+        status = _plans.read_status(p, text=text)
+        if status is None:
+            continue
+
+        errs = _schema._check_path_status(status, anchor)
+        if not errs:
+            continue
+
+        diags = [
+            _lint.Diagnostic(0, 0, _lint.C_META_PATH, f"{me.field}: {me.message}")
+            for me in errs
+        ]
+        shown = diags[:_IPD_LINT_SHOWN]
+        detail = "{0} lint diagnostic(s) at the `{1}` checkpoint: {2}{3}".format(
+            len(diags),
+            "author",
+            "; ".join("{0} {1}".format(d.code, d.message) for d in shown),
+            ""
+            if len(diags) == len(shown)
+            else " (and {0} more)".format(len(diags) - len(shown)),
+        )
+        codes = ", ".join(sorted({d.code for d in diags}))
+        drift.append(
+            enrich_drift(
+                _core.Drift(str(p), _IPD_LINT_RULE, detail),
+                observed="`aw ipd lint --phase {0}` reports {1} diagnostic(s) ({2})".format(
+                    "author", len(diags), codes
+                ),
+                required=(
+                    "a plan must satisfy the `IPD-*` structural/state contract that "
+                    "`aw ipd lint` enforces, so a defect the per-file verb refuses cannot sit "
+                    "committed unnoticed"
+                ),
+                recovery="aw ipd lint {0} --phase {1}".format(p, "author"),
+            )
+        )
     return drift
