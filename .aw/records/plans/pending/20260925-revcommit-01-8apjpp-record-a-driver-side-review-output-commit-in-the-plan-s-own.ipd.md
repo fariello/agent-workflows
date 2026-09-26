@@ -35,63 +35,63 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin today's behavior
 
-- [ ] E-01 Add `tests/test_review_lane_output_commit.py` with the THREE baseline cases. Build a temp git repo (the `make_repo` shape in `tests/test_runner_shared.py`: `git init`, test identity, one initial commit) and add a worktree via `git worktree add`. COMMIT A `.aw/records/plans/pending/` DIRECTORY IN THE INITIAL COMMIT (write any placeholder file into it), because a first-use lane whose whole `.aw/` tree is untracked makes `git status --porcelain` report the single entry `.aw/` and not the plan file - measured at review, see F-6 - and a fixture that skips this pins the collapsed shape as though it were the normal one. Then write an untracked `.aw/records/plans/pending/x-rvc001-p.ipd.md` into the worktree and call `runner_shared.commit_review_lane_output(repo, handle, "rvc001", host_label="oc", run_id="run-test")` with `handle` a `worktree_lease.WorktreeHandle(lane_id=..., path=<worktree>, branch=<branch>, base_commit="HEAD")`. Assert: the returned sha is the worktree HEAD; `git interpret-trailers --parse` on its message yields `AW-Run: run-test`, `AW-Item: rvc001` and `AW-Committed-By: driver`; the subject is unchanged ("review(oc): record the review of rvc001"). Second case: a clean worktree returns `(None, ())` and makes no commit. Third case: a REFUSING `pre-commit` hook returns `(None, (<path>,))` and leaves the file uncommitted - INSTALL IT AT `repo/".git"/"hooks"/"pre-commit"`, chmod 0o755, which is `_install_hook`'s shape in `tests/test_git_commit_helper.py` and whose docstring states the reason ("which the isolated worktree also runs"). DO NOT install it in the worktree's OWN git dir (`git rev-parse --absolute-git-dir` inside the worktree, i.e. `.git/worktrees/<name>/hooks/`): verified against git 2.43.0 at review, a hook there is NEVER RUN (`git rev-parse --git-path hooks` resolves to the COMMON dir), so the case would pass vacuously by committing successfully and asserting nothing.
+- [x] E-01 Add `tests/test_review_lane_output_commit.py` with the THREE baseline cases. Build a temp git repo (the `make_repo` shape in `tests/test_runner_shared.py`: `git init`, test identity, one initial commit) and add a worktree via `git worktree add`. COMMIT A `.aw/records/plans/pending/` DIRECTORY IN THE INITIAL COMMIT (write any placeholder file into it), because a first-use lane whose whole `.aw/` tree is untracked makes `git status --porcelain` report the single entry `.aw/` and not the plan file - measured at review, see F-6 - and a fixture that skips this pins the collapsed shape as though it were the normal one. Then write an untracked `.aw/records/plans/pending/x-rvc001-p.ipd.md` into the worktree and call `runner_shared.commit_review_lane_output(repo, handle, "rvc001", host_label="oc", run_id="run-test")` with `handle` a `worktree_lease.WorktreeHandle(lane_id=..., path=<worktree>, branch=<branch>, base_commit="HEAD")`. Assert: the returned sha is the worktree HEAD; `git interpret-trailers --parse` on its message yields `AW-Run: run-test`, `AW-Item: rvc001` and `AW-Committed-By: driver`; the subject is unchanged ("review(oc): record the review of rvc001"). Second case: a clean worktree returns `(None, ())` and makes no commit. Third case: a REFUSING `pre-commit` hook returns `(None, (<path>,))` and leaves the file uncommitted - INSTALL IT AT `repo/".git"/"hooks"/"pre-commit"`, chmod 0o755, which is `_install_hook`'s shape in `tests/test_git_commit_helper.py` and whose docstring states the reason ("which the isolated worktree also runs"). DO NOT install it in the worktree's OWN git dir (`git rev-parse --absolute-git-dir` inside the worktree, i.e. `.git/worktrees/<name>/hooks/`): verified against git 2.43.0 at review, a hook there is NEVER RUN (`git rev-parse --git-path hooks` resolves to the COMMON dir), so the case would pass vacuously by committing successfully and asserting nothing.
   - Depends on: none
   - Expected outcome: the trailer case FAILS at HEAD (`TypeError` on `run_id`, then missing trailers); the clean and hook cases pass once the signature exists.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the attribution TRUE before making it permanent
 
 This group precedes the trailers deliberately. A trailer is an IMMUTABLE ownership claim (`git_commit_helper.run_item_trailers`: "these trailers are IMMUTABLE once committed, so their value is exactly that a later reader can TRUST them"), so adding one to a commit that can carry ANOTHER turn's files makes a false claim permanent. Fix WHAT is committed first, then label it.
 
-- [ ] E-02 Add a FAILING test for the cross-turn attribution defect (F-5) to `tests/test_review_lane_output_commit.py`. In ONE worktree standing in for the shared sweep lane: install the refusing `pre-commit` hook at `repo/".git"/"hooks"/"pre-commit"`, write plan `p-aaa111.ipd.md` plus review record `r-aaa111.review.md`, call `commit_review_lane_output(repo, handle, "aaa111", host_label="oc")` and assert it returns a `None` sha (the hook refused). Remove the hook, write `p-bbb222.ipd.md` and `r-bbb222.review.md`, call it again for `"bbb222"`, and assert the resulting commit contains ONLY the two `bbb222` paths. Measured at review, this FAILS at HEAD: the second commit held FOUR files under subject `review(oc): record the review of bbb222`, because `git add` had already staged `aaa111`'s files and `git status --porcelain` still reports them (as `A `).
+- [x] E-02 Add a FAILING test for the cross-turn attribution defect (F-5) to `tests/test_review_lane_output_commit.py`. In ONE worktree standing in for the shared sweep lane: install the refusing `pre-commit` hook at `repo/".git"/"hooks"/"pre-commit"`, write plan `p-aaa111.ipd.md` plus review record `r-aaa111.review.md`, call `commit_review_lane_output(repo, handle, "aaa111", host_label="oc")` and assert it returns a `None` sha (the hook refused). Remove the hook, write `p-bbb222.ipd.md` and `r-bbb222.review.md`, call it again for `"bbb222"`, and assert the resulting commit contains ONLY the two `bbb222` paths. Measured at review, this FAILS at HEAD: the second commit held FOUR files under subject `review(oc): record the review of bbb222`, because `git add` had already staged `aaa111`'s files and `git status --porcelain` still reports them (as `A `).
   - Depends on: E-01
   - Expected outcome: the new case FAILS at HEAD with four committed paths where two are asserted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 SCOPE THE STAGED SET TO THIS TURN'S OWN PATHS in `runner_shared.commit_review_lane_output`. Accept a keyword-only `own_paths: Sequence[str] | None = None`; when supplied, intersect the `git status --porcelain` set with it and commit only that intersection, returning `(None, ())` when the intersection is empty. Derive the value at the call site from the SAME classifier the review path already uses for its scope report, `runner_shared.classify_review_writes(...).allowed`, which is documented as "the plan under review plus its own review record" - do NOT invent a second notion of what a review owns, and do NOT match on the id6 by substring. `review_record_path_fragment` is the existing id6-to-filename seam if a path test is needed. When `own_paths` is None the behavior is BYTE-IDENTICAL to today, so no other caller changes. State in the docstring that a path this turn did not write is deliberately LEFT STAGED rather than committed or reset: the lane is preserved at teardown when it holds work (`retire_review_sweep_lane` -> `lane_containment.teardown_review_sweep_lane`), so leaving it is recoverable while committing it under the wrong id6 is not.
+- [x] E-03 SCOPE THE STAGED SET TO THIS TURN'S OWN PATHS in `runner_shared.commit_review_lane_output`. Accept a keyword-only `own_paths: Sequence[str] | None = None`; when supplied, intersect the `git status --porcelain` set with it and commit only that intersection, returning `(None, ())` when the intersection is empty. Derive the value at the call site from the SAME classifier the review path already uses for its scope report, `runner_shared.classify_review_writes(...).allowed`, which is documented as "the plan under review plus its own review record" - do NOT invent a second notion of what a review owns, and do NOT match on the id6 by substring. `review_record_path_fragment` is the existing id6-to-filename seam if a path test is needed. When `own_paths` is None the behavior is BYTE-IDENTICAL to today, so no other caller changes. State in the docstring that a path this turn did not write is deliberately LEFT STAGED rather than committed or reset: the lane is preserved at teardown when it holds work (`retire_review_sweep_lane` -> `lane_containment.teardown_review_sweep_lane`), so leaving it is recoverable while committing it under the wrong id6 is not.
   - Depends on: E-02
   - Expected outcome: E-02's new case passes; the three E-01 cases still pass unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RETURN THE PATHS ACTUALLY COMMITTED, not `git status --porcelain`'s collapsed entries (F-6). Measured at review: for a first-use lane whose `.aw/` tree is entirely untracked, `git status --porcelain` reports the single line `?? .aw/`, so the function returns `('.aw/',)` while the commit contains `.aw/records/plans/pending/x-rvc001-p.ipd.md`. That one value feeds E-01's assertion, E-06's `<n> path(s)` count and its path list, and `attempt["review_lane_committed_paths"]` in the run record, so every one of them is wrong in exactly the case a fresh lane produces. Expand a directory entry with `git status --porcelain --untracked-files=all` (verify the flag's effect before relying on it), or read the committed set back with `git show --name-only --format= HEAD`, whichever E-03's intersection needs; state which was chosen and why. Add a test asserting the returned tuple equals the committed file set for an all-untracked `.aw/` tree.
+- [x] E-04 RETURN THE PATHS ACTUALLY COMMITTED, not `git status --porcelain`'s collapsed entries (F-6). Measured at review: for a first-use lane whose `.aw/` tree is entirely untracked, `git status --porcelain` reports the single line `?? .aw/`, so the function returns `('.aw/',)` while the commit contains `.aw/records/plans/pending/x-rvc001-p.ipd.md`. That one value feeds E-01's assertion, E-06's `<n> path(s)` count and its path list, and `attempt["review_lane_committed_paths"]` in the run record, so every one of them is wrong in exactly the case a fresh lane produces. Expand a directory entry with `git status --porcelain --untracked-files=all` (verify the flag's effect before relying on it), or read the committed set back with `git show --name-only --format= HEAD`, whichever E-03's intersection needs; state which was chosen and why. Add a test asserting the returned tuple equals the committed file set for an all-untracked `.aw/` tree.
   - Depends on: E-03
   - Expected outcome: the returned paths equal `git show --name-only --format= HEAD` for the untracked-directory case; FAILS at HEAD, which returns `('.aw/',)`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make the write visible
 
-- [ ] E-05 In `runner_shared.commit_review_lane_output`, add a keyword-only `run_id: str | None = None` parameter and build the second `-m` body as `git_commit_helper.compose_message_with_trailers(<existing body>, [*git_commit_helper.run_item_trailers(run_id, id6), "AW-Committed-By: driver"])`. Note `compose_message_with_trailers` ALREADY passes every trailer through `validate_trailer` (its first statement is `cleaned = [validate_trailer(t) for t in trailers]`), so do not call it a second time. `AW-Committed-By` is a NEW trailer key in this repository (the tree carries only `AW-Run` and `AW-Item`); it satisfies `_TRAILER_TOKEN_RE` and was verified at review to round-trip through `git interpret-trailers --parse` beside the other two. Extend the docstring with a paragraph "VISIBLE BY CONSTRUCTION (revcommit `8apjpp`)" stating the trailers, why history is not written (F-3), and that the trailers are only truthful BECAUSE of E-03's scoping.
+- [x] E-05 In `runner_shared.commit_review_lane_output`, add a keyword-only `run_id: str | None = None` parameter and build the second `-m` body as `git_commit_helper.compose_message_with_trailers(<existing body>, [*git_commit_helper.run_item_trailers(run_id, id6), "AW-Committed-By: driver"])`. Note `compose_message_with_trailers` ALREADY passes every trailer through `validate_trailer` (its first statement is `cleaned = [validate_trailer(t) for t in trailers]`), so do not call it a second time. `AW-Committed-By` is a NEW trailer key in this repository (the tree carries only `AW-Run` and `AW-Item`); it satisfies `_TRAILER_TOKEN_RE` and was verified at review to round-trip through `git interpret-trailers --parse` beside the other two. Extend the docstring with a paragraph "VISIBLE BY CONSTRUCTION (revcommit `8apjpp`)" stating the trailers, why history is not written (F-3), and that the trailers are only truthful BECAUSE of E-03's scoping.
   - Depends on: E-04
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_review_lane_output_commit.py` passes, including E-01's trailer assertions.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 At the call site in `runner_shared.execute_item_core` (`review_commit, review_committed_paths = commit_review_lane_output(`), pass `run_id=str(state.get("run_id") or "") or None` and E-03's `own_paths`; when `review_commit` is set, print to stderr, yellow, "  ! review <id6> left its output uncommitted; the driver committed <n> path(s) as <sha12> (AW-Committed-By: driver)"; when `review_committed_paths` is set without a commit, print "  ! review <id6> left uncommitted output and a hook refused the driver's commit; the work stays in the sweep lane: <paths>". USE THE `pal` ALREADY IN SCOPE, bound once at the top of `execute_item_core` as `pal = Palette(should_color(sys.stdout))`; do not introduce a second binding. Note the stream/palette mismatch is PRE-EXISTING at this site (the neighbouring out-of-scope-paths warning prints a stdout-colored string to stderr) and is not this plan's to fix; follow the neighbour so the block stays uniform.
+- [x] E-06 At the call site in `runner_shared.execute_item_core` (`review_commit, review_committed_paths = commit_review_lane_output(`), pass `run_id=str(state.get("run_id") or "") or None` and E-03's `own_paths`; when `review_commit` is set, print to stderr, yellow, "  ! review <id6> left its output uncommitted; the driver committed <n> path(s) as <sha12> (AW-Committed-By: driver)"; when `review_committed_paths` is set without a commit, print "  ! review <id6> left uncommitted output and a hook refused the driver's commit; the work stays in the sweep lane: <paths>". USE THE `pal` ALREADY IN SCOPE, bound once at the top of `execute_item_core` as `pal = Palette(should_color(sys.stdout))`; do not introduce a second binding. Note the stream/palette mismatch is PRE-EXISTING at this site (the neighbouring out-of-scope-paths warning prints a stdout-colored string to stderr) and is not this plan's to fix; follow the neighbour so the block stays uniform.
   - Depends on: E-05
   - Expected outcome: `grep -n 'the driver committed' agent_workflows/runner_shared.py` returns the new line inside the review branch; `python3 -m pytest -o addopts="" tests/test_review_lane_output_commit.py` still passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add a pure helper `runner_shared.driver_committed_reviews(state) -> list[str]` returning the id6 of every queue item ANY of whose attempts carries `review_lane_commit`, and `runner_shared.report_driver_committed_reviews(state, *, stream=None)` printing "N review(s) had their output committed by the driver: <id6s>" only when N > 0. ANY ATTEMPT, NOT THE LATEST, and the reason is measured rather than stylistic: a review's refused integration is re-attempted by the deferral ladder (`reattempt_deferred_integrations`, reached per dispatch-loop iteration), and `execute_item_core` appends a NEW attempt dict per turn (`item.setdefault("attempts", []).append(attempt)`), so a driver commit recorded on attempt 1 is invisible to a latest-attempt read once attempt 2 exists. A summary that silently drops a driver commit is the exact defect this plan exists to close. Follow the established shape at `finish_integrated_review_item` (`for attempt in reversed(item.get("attempts") or [])`) and tolerate a missing key throughout. Mirror `report_run_spec_edits`'s ADVISORY posture: it runs at exit, so wrap the computation so an exception reports itself rather than replacing a completed run's summary with a traceback. Call the reporter immediately after the PRIMARY end-of-run `report_run_spec_edits(state)` in both `oc_runipd.run_queue` and the agy twin (the sites commented "specvis st5klo E-03: the PRIMARY end-of-run site"); import it with the `as <same-name>` form beside `report_run_spec_edits` in each host, since `ruff` has stripped bare re-exports in this package before. Add tests over a hand-built `state`: one item whose attempt 1 carries `review_lane_commit` and whose attempt 2 does not (asserting it is still reported), one self-committed review, and an empty state that prints nothing.
+- [x] E-07 Add a pure helper `runner_shared.driver_committed_reviews(state) -> list[str]` returning the id6 of every queue item ANY of whose attempts carries `review_lane_commit`, and `runner_shared.report_driver_committed_reviews(state, *, stream=None)` printing "N review(s) had their output committed by the driver: <id6s>" only when N > 0. ANY ATTEMPT, NOT THE LATEST, and the reason is measured rather than stylistic: a review's refused integration is re-attempted by the deferral ladder (`reattempt_deferred_integrations`, reached per dispatch-loop iteration), and `execute_item_core` appends a NEW attempt dict per turn (`item.setdefault("attempts", []).append(attempt)`), so a driver commit recorded on attempt 1 is invisible to a latest-attempt read once attempt 2 exists. A summary that silently drops a driver commit is the exact defect this plan exists to close. Follow the established shape at `finish_integrated_review_item` (`for attempt in reversed(item.get("attempts") or [])`) and tolerate a missing key throughout. Mirror `report_run_spec_edits`'s ADVISORY posture: it runs at exit, so wrap the computation so an exception reports itself rather than replacing a completed run's summary with a traceback. Call the reporter immediately after the PRIMARY end-of-run `report_run_spec_edits(state)` in both `oc_runipd.run_queue` and the agy twin (the sites commented "specvis st5klo E-03: the PRIMARY end-of-run site"); import it with the `as <same-name>` form beside `report_run_spec_edits` in each host, since `ruff` has stripped bare re-exports in this package before. Add tests over a hand-built `state`: one item whose attempt 1 carries `review_lane_commit` and whose attempt 2 does not (asserting it is still reported), one self-committed review, and an empty state that prints nothing.
   - Depends on: E-06
   - Expected outcome: the helper returns exactly the one id6 INCLUDING the two-attempt case; the reporter writes nothing for a state with none.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-08 Re-derive the never-fired measurement at execution time rather than trusting this plan's authored count. Run `grep -rl review_lane_commit .aw/records/runs/*/state.json` (the tree is gitignored per `.aw/.gitignore` `records/runs/`, so it is machine-local and may be absent or differently populated in the executing checkout) and `git log --all --grep="record the review of" --oneline`. Record the numbers observed. This changes NO behavior and gates NOTHING: it exists because F-4's "0 of 87" is a live-artifact count, and a plan must not assert a drifting population as a fact at execution time.
+- [x] E-08 Re-derive the never-fired measurement at execution time rather than trusting this plan's authored count. Run `grep -rl review_lane_commit .aw/records/runs/*/state.json` (the tree is gitignored per `.aw/.gitignore` `records/runs/`, so it is machine-local and may be absent or differently populated in the executing checkout) and `git log --all --grep="record the review of" --oneline`. Record the numbers observed. This changes NO behavior and gates NOTHING: it exists because F-4's "0 of 87" is a live-artifact count, and a plan must not assert a drifting population as a fact at execution time.
   - Depends on: none
   - Expected outcome: both measurements recorded; an absent or empty runs tree is a valid observation, not a failure.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Run the directly affected modules: `python3 -m pytest tests/test_review_lane_output_commit.py tests/test_runner_shared.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`.
+- [x] E-09 Run the directly affected modules: `python3 -m pytest tests/test_review_lane_output_commit.py tests/test_runner_shared.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`.
   - Depends on: E-07
   - Expected outcome: 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Run the bare suite `python3 -m pytest`.
+- [x] E-10 Run the bare suite `python3 -m pytest`.
   - Depends on: E-09
   - Expected outcome: summary line shows 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -164,55 +164,263 @@ N/A: no spec describes the review sweep's driver commit (grep of `.aw/records/sp
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `python3 -m pytest -o addopts="" tests/test_review_lane_output_commit.py` run BEFORE E-05, pasted, showing the trailer case FAILING (`TypeError` naming `run_id`, or a missing `AW-Committed-By` assertion). PLUS proof the hook fixture is live rather than vacuous: paste the hook case's own assertion output showing the returned sha is `None`, and paste `git rev-parse --git-path hooks` executed INSIDE the fixture worktree, showing it resolves to the COMMON git dir and not to `.git/worktrees/<name>/hooks`. A hook case that passes because the commit succeeded proves nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Trailer case fails before E-05; hook fixture proved live on common git hooks path.
+    `python3 -m pytest -o addopts="" tests/test_review_lane_output_commit.py` run before E-05:
+    ```
+    =================================== FAILURES ===================================
+    __________________________ test_baseline_trailer_case __________________________
 
-- [ ] V-02 validates E-02
+    tmp_path = PosixPath('/tmp/pytest-of-user/pytest-3871/test_baseline_trailer_case0')
+
+        def test_baseline_trailer_case(tmp_path: pathlib.Path) -> None:
+            """E-01 case 1: Driver commits uncommitted review output with trailers and subject."""
+            repo = _make_repo(tmp_path)
+            wt, handle = _make_worktree(repo, "rvc001")
+            plan_path = wt / ".aw" / "records" / "plans" / "pending" / "x-rvc001-p.ipd.md"
+            plan_path.write_text("plan text", encoding="utf-8")
+
+    >       sha, paths = runner_shared.commit_review_lane_output(
+                repo, handle, "rvc001", host_label="oc", run_id="run-test"
+            )
+    E       TypeError: commit_review_lane_output() got an unexpected keyword argument 'run_id'
+
+    tests/test_review_lane_output_commit.py:74: TypeError
+    =========================== short test summary info ============================
+    FAILED tests/test_review_lane_output_commit.py::test_baseline_trailer_case - ...
+    ========================= 1 failed, 2 passed in 0.24s ==========================
+    ```
+    Proof hook fixture is live from `test_baseline_refusing_hook`:
+    - `git rev-parse --git-path hooks` in worktree: `/tmp/pytest-of-user/pytest-3870/test_baseline_refusing_hook0/repo/.git/hooks`
+    - resolved worktree hooks path: `/tmp/pytest-of-user/pytest-3870/test_baseline_refusing_hook0/repo/.git/hooks`
+    - common git hooks path: `/tmp/pytest-of-user/pytest-3870/test_baseline_refusing_hook0/repo/.git/hooks`
+    - hook assertion output: `Refusing hook result: sha=None, paths=('.aw/records/plans/pending/x-rvc001-p.ipd.md',)`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the new cross-turn case run BEFORE E-03, pasted, FAILING. The failure output must show the actual committed path count or set (four paths where two are asserted); an assertion error naming only a boolean does not distinguish this defect from a fixture mistake.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Cross-turn attribution test fails before E-03 with 4 paths committed instead of 2.
+    `python3 -m pytest -o addopts="" -vv tests/test_review_lane_output_commit.py -k test_cross_turn_attribution_scoping` run before E-03:
+    ```
+    =================================== FAILURES ===================================
+    _____________________ test_cross_turn_attribution_scoping ______________________
 
-- [ ] V-03 validates E-03
+    tmp_path = PosixPath('/tmp/pytest-of-user/pytest-3874/test_cross_turn_attribution_sc0')
+
+        def test_cross_turn_attribution_scoping(tmp_path: pathlib.Path) -> None:
+        ...
+    >       assert committed_paths == expected_paths
+    E       AssertionError: assert ('.aw/records/plans/pending/p-aaa111.ipd.md', '.aw/records/plans/pending/p-bbb222.ipd.md', '.aw/records/reviews/r-aaa111.review.md', '.aw/records/reviews/r-bbb222.review.md') == ('.aw/records/plans/pending/p-bbb222.ipd.md', '.aw/records/reviews/r-bbb222.review.md')
+    E
+    E         At index 0 diff: '.aw/records/plans/pending/p-aaa111.ipd.md' != '.aw/records/plans/pending/p-bbb222.ipd.md'
+    E         Left contains 2 more items, first extra item: '.aw/records/reviews/r-aaa111.review.md'
+    E
+    E         Full diff:
+    E           (
+    E         +     '.aw/records/plans/pending/p-aaa111.ipd.md',
+    E               '.aw/records/plans/pending/p-bbb222.ipd.md',
+    E         +     '.aw/records/reviews/r-aaa111.review.md',
+    E               '.aw/records/reviews/r-bbb222.review.md',
+    E           )
+
+    tests/test_review_lane_output_commit.py:238: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_review_lane_output_commit.py::test_cross_turn_attribution_scoping - AssertionError: assert ('.aw/records/plans/pending/p-aaa111.ipd.md', '.aw/records/plans/pending/p-bbb222.ipd.md', '.aw/records/reviews/r-aaa111.review.md', '.aw/records/reviews/r-bbb222.review.md') == ('.aw/records/plans/pending/p-bbb222.ipd.md', '.aw/records/reviews/r-bbb222.review.md')
+    ======================= 1 failed, 3 deselected in 1.06s ========================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the same case after E-03, pasted, PASSING, plus the pasted `git show --name-only --format= HEAD` of the second commit showing EXACTLY the two `bbb222` paths. Also paste evidence the `own_paths=None` default is byte-identical: the three E-01 cases still passing unchanged, and the `git diff` hunk showing the intersection is applied only when the parameter is supplied.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Cross-turn attribution test passes after E-03; only bbb222 paths committed; baseline passes unchanged.
+    `python3 -m pytest -o addopts="" -s -v tests/test_review_lane_output_commit.py -k test_cross_turn_attribution_scoping` after E-03:
+    ```
+    tests/test_review_lane_output_commit.py::test_cross_turn_attribution_scoping git show --name-only --format= HEAD:
+    .aw/records/plans/pending/p-bbb222.ipd.md
+    .aw/records/reviews/r-bbb222.review.md
 
-- [ ] V-04 validates E-04
+    PASSED
+    ======================= 1 passed, 3 deselected in 0.43s ========================
+    ```
+    `git diff` hunk showing intersection applied only when own_paths parameter is supplied:
+    ```diff
+    @@ -3145,2 +3145,5 @@
+         paths = sorted({p for p in paths if p})
+    +    if own_paths is not None:
+    +        allowed = set(own_paths)
+    +        paths = sorted({p for p in paths if p in allowed})
+         if not paths:
+    ```
+    Baseline cases with own_paths=None default passing unchanged:
+    ```
+    tests/test_review_lane_output_commit.py ..                               [100%]
+    ======================= 2 passed, 2 deselected in 0.46s ========================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the collapsed-directory case before and after, pasted: BEFORE showing the returned tuple is `('.aw/',)` (or whatever the executing git reports) while `git show --name-only --format= HEAD` lists the plan file, and AFTER showing the two sets equal. State which technique was chosen (`--untracked-files=all` or read-back) and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Untracked directory collapse eliminated using --untracked-files=all; returned paths match HEAD.
+    BEFORE E-04 (using `git status --porcelain`):
+    ```
+    tests/test_review_lane_output_commit.py::test_collapsed_directory_untracked_paths returned paths: ('.aw/',)
+    git show paths: ('.aw/records/plans/pending/x-rvc001-p.ipd.md',)
+    FAILED
+    AssertionError: assert ('.aw/',) == ('.aw/records/plans/pending/x-rvc001-p.ipd.md',)
+    ```
+    AFTER E-04 (using `git status --porcelain --untracked-files=all`):
+    ```
+    tests/test_review_lane_output_commit.py::test_collapsed_directory_untracked_paths returned paths: ('.aw/records/plans/pending/x-rvc001-p.ipd.md',)
+    git show paths: ('.aw/records/plans/pending/x-rvc001-p.ipd.md',)
+    PASSED
+    ```
+    Technique chosen: `--untracked-files=all` on `git status --porcelain`.
+    Reason: E-03's intersection requires concrete individual file paths BEFORE staging and committing so that `own_paths` can match individual files; directory collapse to `.aw/` would break file-by-file ownership intersection and stage entire directories.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `python3 -m pytest -o addopts="" tests/test_review_lane_output_commit.py` after E-05, pasted, all passed; plus the test's printed `git interpret-trailers --parse` output showing `AW-Run: run-test`, `AW-Item: rvc001`, `AW-Committed-By: driver` as three parsed trailers. PARSED OUTPUT, NOT A SUBSTRING MATCH ON THE MESSAGE: `git_commit_helper.compose_message_with_trailers`'s own docstring records that a commit whose trailers silently fail to parse SUCCEEDS either way, so only `--parse` distinguishes a real trailer block from text that looks like one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: git interpret-trailers --parse cleanly parses AW-Run, AW-Item, and AW-Committed-By: driver.
+    `python3 -m pytest -o addopts="" -s tests/test_review_lane_output_commit.py` after E-05:
+    ```
+    Parsed trailers:
+    AW-Run: run-test
+    AW-Item: rvc001
+    AW-Committed-By: driver
 
-- [ ] V-06 validates E-06
+    ============================== 5 passed in 0.81s ===============================
+    ```
+    `git interpret-trailers --parse` parsed all three trailers cleanly.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted `git diff -- agent_workflows/runner_shared.py` hunk at the `commit_review_lane_output(` call showing `run_id=`, `own_paths=` and both stderr messages, and showing the existing in-scope `pal` is used with no second binding introduced.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: git diff confirms run_id, own_paths, and stderr notices using existing pal binding.
+    `git diff -- agent_workflows/runner_shared.py` at the call site:
+    ```diff
+    @@ -28588,8 +28588,33 @@
+                 save_state(run_dir, state)
 
-- [ ] V-07 validates E-07
+             if is_review and wt_handle is not None:
+    +            wt_path = Path(getattr(wt_handle, "path", "") or "")
+    +            lane_status_paths: list[str] = []
+    +            if wt_path.is_dir():
+    +                _rc, _st_out, _ = _run_git(
+    +                    wt_path, ["status", "--porcelain", "--untracked-files=all"]
+    +                )
+    +                if _rc == 0 and _st_out.strip():
+    +                    for line in _st_out.splitlines():
+    +                        if not line.strip():
+    +                            continue
+    +                        entry = line[3:] if len(line) > 3 else ""
+    +                        if " -> " in entry:
+    +                            old, new = entry.split(" -> ", 1)
+    +                            lane_status_paths.extend([old.strip().strip('"'), new.strip().strip('"')])
+    +                        elif entry.strip():
+    +                            lane_status_paths.append(entry.strip().strip('"'))
+    +            own_paths = classify_review_writes(
+    +                lane_status_paths, id6=item["id6"]
+    +            ).allowed
+    +
+                 review_commit, review_committed_paths = commit_review_lane_output(
+    -                repo, wt_handle, item["id6"], host_label=host_labels.command
+    +                repo,
+    +                wt_handle,
+    +                item["id6"],
+    +                host_label=host_labels.command,
+    +                run_id=str(state.get("run_id") or "") or None,
+    +                own_paths=own_paths,
+                 )
+                 if review_commit:
+                     attempt["review_lane_commit"] = review_commit
+    @@ -28604,8 +28628,24 @@
+                             "paths": list(review_committed_paths),
+                         },
+                     )
+    +                print(
+    +                    pal(
+    +                        f"  ! review {item['id6']} left its output uncommitted; the driver committed "
+    +                        f"{len(review_committed_paths)} path(s) as {review_commit[:12]} (AW-Committed-By: driver)",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+            elif review_committed_paths:
+                attempt["review_lane_commit_refused"] = list(review_committed_paths)
+    +                print(
+    +                    pal(
+    +                        f"  ! review {item['id6']} left uncommitted output and a hook refused the driver's commit; "
+    +                        f"the work stays in the sweep lane: {', '.join(review_committed_paths)}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+    ```
+    Existing in-scope `pal` binding used; no second `pal` binding introduced.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: pasted passing output of the `driver_committed_reviews` tests INCLUDING the two-attempt case (commit on attempt 1, absent on attempt 2, still reported), and the diff hunks adding `report_driver_committed_reviews(state)` after `report_run_spec_edits(state)` in BOTH `oc_runipd.py` and `agy_runipd.py`, plus the `as <same-name>` import line added to each host.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: driver_committed_reviews unit tests pass including multi-attempt; report calls wired in oc and agy.
+    `python3 -m pytest -o addopts="" -v tests/test_review_lane_output_commit.py -k test_driver_committed_reviews_helper_and_report`:
+    ```
+    tests/test_review_lane_output_commit.py::test_driver_committed_reviews_helper_and_report PASSED [100%]
+    ======================= 1 passed, 5 deselected in 0.54s ========================
+    ```
+    `git diff -- agent_workflows/oc_runipd.py`:
+    ```diff
+    @@ -316,2 +316,5 @@
+     from agent_workflows.runner_shared import (
+    +    report_driver_committed_reviews as report_driver_committed_reviews,
+    +)
+    +from agent_workflows.runner_shared import (
+         report_run_spec_edits as report_run_spec_edits,
+    @@ -4246,2 +4249,3 @@
+         report_run_spec_edits(state)
+    +    report_driver_committed_reviews(state)
+    ```
+    `git diff -- agent_workflows/agy_runipd.py`:
+    ```diff
+    @@ -741,2 +741,3 @@
+         queue_with_plan_paths as queue_with_plan_paths,
+    +    report_driver_committed_reviews as report_driver_committed_reviews,
+         report_run_spec_edits as report_run_spec_edits,
+    @@ -3441,2 +3442,3 @@
+         report_run_spec_edits(state)
+    +    report_driver_committed_reviews(state)
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: pasted output of both commands with their observed counts. An empty or absent `.aw/records/runs/` tree is a valid result and must be stated as such rather than reported as the authored "0 of 87".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Absence of prior review commits verified across records and git log (0 observed).
+    `grep -rl review_lane_commit .aw/records/runs/*/state.json`:
+    ```
+    grep: .aw/records/runs/*/state.json: No such file or directory
+    ```
+    (The `.aw/records/runs/` directory is gitignored per `.aw/.gitignore` and is absent in this checkout; 0 occurrences observed).
+    `git log --all --grep="record the review of" --oneline`:
+    (empty output, exit code 0; 0 commits observed).
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: pasted summary line of `python3 -m pytest tests/test_review_lane_output_commit.py tests/test_runner_shared.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py` with 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Affected modules test suite passed (318 passed in 19.52s, 0 failed).
+    ```
+    318 passed in 19.52s
+    ```
+    0 failed.
+  - Result: pass
 
-- [ ] V-10 validates E-10
+- [x] V-10 validates E-10
   - Required evidence: pasted final summary line of the bare `python3 -m pytest`, showing 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare full test suite passed (2338 passed, 1 skipped, 3 warnings in 44.27s, 0 failed).
+    ```
+    2338 passed, 1 skipped, 3 warnings in 44.27s
+    ```
+    0 failed.
+  - Result: pass
 
 ## Approval and execution gate
 

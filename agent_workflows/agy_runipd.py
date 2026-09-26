@@ -739,6 +739,7 @@ from agent_workflows.runner_shared import (
     SPEC_RECONCILE_REFUSED as SPEC_RECONCILE_REFUSED,
     queue_plan_path as queue_plan_path,
     queue_with_plan_paths as queue_with_plan_paths,
+    report_driver_committed_reviews as report_driver_committed_reviews,
     report_run_spec_edits as report_run_spec_edits,
     spec_edit_record as spec_edit_record,
     spec_edit_summary as spec_edit_summary,
@@ -3438,6 +3439,7 @@ def run_queue(
     # `report_run_spec_edits` the OpenCode driver calls. The report's computation and wording are
     # defined once (in `oc_runipd`/`render_stream`); only the SITE is per-driver.
     report_run_spec_edits(state)
+    report_driver_committed_reviews(state)
     # runnoop Order 03 (`bsc457`) E-03: THE CLOSING DISPOSITION SUMMARY, the exact mirror of the oc
     # twin and printed UNCONDITIONALLY, including for a run that acted on nothing - the case that
     # previously closed with a sentence reading as a failed launch beneath a table saying COMPLETED.

@@ -314,6 +314,9 @@ from agent_workflows.runner_shared import (
     queue_with_plan_paths as queue_with_plan_paths,
 )
 from agent_workflows.runner_shared import (
+    report_driver_committed_reviews as report_driver_committed_reviews,
+)
+from agent_workflows.runner_shared import (
     report_run_spec_edits as report_run_spec_edits,
 )
 from agent_workflows.runner_shared import (
@@ -4243,6 +4246,7 @@ def run_queue(
     # anywhere else would be as easy to miss as it was when the only report was pre-dispatch. NOT
     # `partial`: this path runs after the queue drained normally.
     report_run_spec_edits(state)
+    report_driver_committed_reviews(state)
     # runnoop Order 03 (`bsc457`) E-03: THE CLOSING DISPOSITION SUMMARY, printed UNCONDITIONALLY,
     # INCLUDING for a run that acted on nothing - which is precisely the case that printed no answer
     # at all. Measured (backlog `em0z50`): `aw oc run wtiso` matched 8 plans, acted on none, and the
