@@ -319,6 +319,20 @@ class TestWorkflowArtifactsPrune(unittest.TestCase):
         self.assertEqual(entry.decision, "delete")
         self.assertEqual(entry.reason, "aged")
 
+    def test_ipd_link_path_shapes_are_captured_whole(self):
+        """Drive letters and 8.3 `~` names must not truncate the captured path (Windows CI)."""
+        # A target whose ABSOLUTE path contains a `~` segment, the 8.3 short-name shape that the
+        # old character class cut off, resolved through the real resolver.
+        target = self.tmp / "SHORT~1" / "x.ipd.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("# IPD\n", encoding="utf-8")
+        run_dir = self._create_run(
+            "assess",
+            "20260701-shapes",
+            {"ipd-link.md": f"- Also: [plan]({target.as_posix()})\n"},
+        )
+        self.assertTrue(wap._resolve_ipd_link(run_dir, self.artifacts_root)[1])
+
     def test_reader_safety_release_review_unfinished(self):
         """A release-review run missing 12-final-response.md is kept as unfinished-run."""
         # In-progress or aborted run missing 12-final-response.md
