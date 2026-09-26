@@ -1208,6 +1208,58 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertEqual(res_reinv.exit_code, LC.EXIT_CANNOT_RUN)
         self.assertIn("unknown-outcome", res_reinv.message)
 
+    def test_rollback_restores_recorded_index_entry_not_head(self):
+        """Rollback restores the recorded index entry byte-for-byte instead of resetting to HEAD."""
+        plan_rel = str(self.plan.relative_to(self.root))
+        dest_rel = str(self._executed_path().relative_to(self.root))
+
+        # Stage an edit to the plan file
+        staged_text = self.plan.read_text(encoding="utf-8") + "\n# Staged peer edit\n"
+        self.plan.write_text(staged_text, encoding="utf-8")
+        subprocess.run(["git", "add", plan_rel], cwd=self.root, check=True)
+
+        status_before = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+
+        recorded_entries = LC._git_index_entries(self.root, [plan_rel, dest_rel])
+        journal = {
+            "original_path": plan_rel,
+            "dest_path": dest_rel,
+            "original_bytes": staged_text,  # current on-disk bytes, so step 2 is a no-op
+            "owned_paths": [plan_rel, dest_rel],
+            "git_index_entries": recorded_entries,
+        }
+
+        ok, msg = LC._rollback_precommit(self.root, journal)
+        after_entries = LC._git_index_entries(self.root, [plan_rel, dest_rel])
+        status_after = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+
+        # (a) ok is True
+        self.assertTrue(ok, f"rollback reported failure: {msg}")
+        # (b) the PLAN PATH's entry equals the recorded line explicitly
+        self.assertEqual(
+            after_entries.get(plan_rel),
+            recorded_entries.get(plan_rel),
+            f"staged blob reset to HEAD (status flipped from {status_before.strip()!r} to {status_after.strip()!r})",
+        )
+        # (c) _git_index_entries after equals the recorded dict
+        self.assertEqual(after_entries, recorded_entries)
+        # (d) destination path has no index entry
+        self.assertNotIn(dest_rel, after_entries)
+        # porcelain status is unchanged
+        self.assertEqual(status_after, status_before)
+
 
 class TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout(unittest.TestCase):
     """plan `u23gbn`: the relocation is in the SHARED transaction body, so EVERY plan gets it.

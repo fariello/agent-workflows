@@ -3307,14 +3307,45 @@ def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool,
             return (False, f"rollback could not restore {orig_rel}: {exc}")
 
     # 3. Restore the exact prior Git-index entries for lifecycle-owned paths (no disjoint work).
+    #    Since mutations moved into a coordinator-owned worktree (plan `u23gbn`), the shared index
+    #    is normally untouched, so the common case is a no-op that writes nothing (F-5). When an
+    #    owned path's index entry differs from the journal's recording, restore the exact recorded
+    #    line via `git update-index --index-info`.
+    import subprocess
+
     owned = journal.get("owned_paths", [])
     prior_index = journal.get("git_index_entries", {})
     for p in owned:
-        # Reset the index entry for this owned path to its recorded state without staging others.
-        if p in prior_index:
-            _git(repo_root, ["restore", "--staged", "--", p])
+        current_entry = _git_index_entries(repo_root, [p]).get(p)
+        prior_entry = prior_index.get(p)
+        if current_entry == prior_entry:
+            # Case 1: current index entry already matches recorded state (including both absent).
+            # Do nothing; leaves the shared index untouched.
+            continue
+        elif p in prior_index:
+            # Case 2: path has a recorded prior index entry. Restore the exact line via update-index.
+            line = prior_index[p]
+            res = subprocess.run(
+                ["git", "update-index", "--index-info"],
+                cwd=repo_root,
+                input=line + "\n",
+                text=True,
+                capture_output=True,
+            )
+            if res.returncode != 0:
+                err = res.stderr.strip()
+                return (
+                    False,
+                    f"rollback could not restore the index entry for {p}: {err}",
+                )
         else:
-            _git(repo_root, ["restore", "--staged", "--", p])
+            # Case 3: absent-evidence guard (p not in prior_index). Write NOTHING.
+            # An unrecorded path must never be force-removed: `git update-index --force-remove` on a
+            # path in the index stages a deletion (`D  <path>`), and `_git_index_entries` returns `{}`
+            # both when unindexed and when `git ls-files` fails. Absence is evidence absence, not
+            # evidence of absence; writing would invert the refuse-rather-than-overwrite discipline
+            # of steps 1 and 2 ("refusing a destructive restore").
+            pass
 
     # 4. The plans manifests are DELIBERATELY NOT TOUCHED. See this function's docstring for the
     #    measurement: nothing in the pre-commit phase writes the shared `INDEX.json`/`INDEX.md`, so

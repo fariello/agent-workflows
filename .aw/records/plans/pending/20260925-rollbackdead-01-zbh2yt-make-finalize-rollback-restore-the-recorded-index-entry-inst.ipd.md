@@ -36,34 +36,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: regression test first
 
-- [ ] E-01 Add a test to `tests/test_ipd_lifecycle_cli.py` class `RollbackFailureSemanticsTests`, named `test_rollback_restores_recorded_index_entry_not_head`. That class is the right home because its `setUp` calls `_commit_all(self.root, "init")`, so its plan file is genuinely tracked at HEAD and a staged-edit-versus-HEAD assertion is meaningful (the orchestrator-retirement fixture never commits, see F-6). It stages an edit to the plan file (`git add`), records `LC._git_index_entries(self.root, [plan_rel, dest_rel])`, calls `LC._rollback_precommit(self.root, journal)` with a journal carrying `original_path`, `original_bytes` (the current on-disk bytes, so step 2 is a no-op), `owned_paths`, and that `git_index_entries`, then asserts (a) `ok` is True, (b) the PLAN PATH's entry equals the recorded line explicitly, asserted on that single entry and not only through whole-dict equality so the failure message names BOTH blob ids, (c) `_git_index_entries` after equals the recorded dict, and (d) the destination path has no index entry. Also capture `git status --porcelain` before and after and assert it is unchanged, because the `M ` to ` M` flip is the operator-visible symptom. Run it against the UNCHANGED code and record that it fails.
+- [x] E-01 Add a test to `tests/test_ipd_lifecycle_cli.py` class `RollbackFailureSemanticsTests`, named `test_rollback_restores_recorded_index_entry_not_head`. That class is the right home because its `setUp` calls `_commit_all(self.root, "init")`, so its plan file is genuinely tracked at HEAD and a staged-edit-versus-HEAD assertion is meaningful (the orchestrator-retirement fixture never commits, see F-6). It stages an edit to the plan file (`git add`), records `LC._git_index_entries(self.root, [plan_rel, dest_rel])`, calls `LC._rollback_precommit(self.root, journal)` with a journal carrying `original_path`, `original_bytes` (the current on-disk bytes, so step 2 is a no-op), `owned_paths`, and that `git_index_entries`, then asserts (a) `ok` is True, (b) the PLAN PATH's entry equals the recorded line explicitly, asserted on that single entry and not only through whole-dict equality so the failure message names BOTH blob ids, (c) `_git_index_entries` after equals the recorded dict, and (d) the destination path has no index entry. Also capture `git status --porcelain` before and after and assert it is unchanged, because the `M ` to ` M` flip is the operator-visible symptom. Run it against the UNCHANGED code and record that it fails.
   - Depends on: none
   - Expected outcome: the test exists and fails on assertion (b) against current code, with the failure naming the recorded blob and HEAD's blob, because `restore --staged` resets to HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-02 Rewrite step 3 of `ipd_lifecycle._rollback_precommit` (the block under the comment "3. Restore the exact prior Git-index entries for lifecycle-owned paths") as a TWO-case rule. For each `p` in `owned`: read the CURRENT entry with `_git_index_entries(repo_root, [p])`; if it equals `prior_index.get(p)` (including both absent), DO NOTHING; else if `p in prior_index`, restore it by piping the recorded line to `git update-index --index-info` (the line is already in `ls-files --stage` format `<mode> <object> <stage>\t<path>`, which `--index-info` accepts, proven by F-4). The third case (no recorded entry) is E-03's and writes nothing; do NOT add a `--force-remove` arm (F-7). Delete the identical-arm `if/else`. Update the step-3 comment to state the cases and why the no-op case matters (the coordinator-worktree design means the shared index is normally untouched, so the common case must write nothing, F-5). `_git` cannot pass stdin (it delegates to `git_commit_helper._git`, which takes only args), so use a LOCAL `subprocess.run(["git", "update-index", "--index-info"], cwd=repo_root, input=line + "\n", text=True, capture_output=True)` rather than changing that shared signature. Both `cwd=repo_root` and `capture_output=True` are REQUIRED, not optional: the first so the call cannot run against whatever directory the process happens to be in, the second so E-04's failure message has stderr text to quote.
+- [x] E-02 Rewrite step 3 of `ipd_lifecycle._rollback_precommit` (the block under the comment "3. Restore the exact prior Git-index entries for lifecycle-owned paths") as a TWO-case rule. For each `p` in `owned`: read the CURRENT entry with `_git_index_entries(repo_root, [p])`; if it equals `prior_index.get(p)` (including both absent), DO NOTHING; else if `p in prior_index`, restore it by piping the recorded line to `git update-index --index-info` (the line is already in `ls-files --stage` format `<mode> <object> <stage>\t<path>`, which `--index-info` accepts, proven by F-4). The third case (no recorded entry) is E-03's and writes nothing; do NOT add a `--force-remove` arm (F-7). Delete the identical-arm `if/else`. Update the step-3 comment to state the cases and why the no-op case matters (the coordinator-worktree design means the shared index is normally untouched, so the common case must write nothing, F-5). `_git` cannot pass stdin (it delegates to `git_commit_helper._git`, which takes only args), so use a LOCAL `subprocess.run(["git", "update-index", "--index-info"], cwd=repo_root, input=line + "\n", text=True, capture_output=True)` rather than changing that shared signature. Both `cwd=repo_root` and `capture_output=True` are REQUIRED, not optional: the first so the call cannot run against whatever directory the process happens to be in, the second so E-04's failure message has stderr text to quote.
   - Depends on: E-01
   - Expected outcome: step 3 contains no duplicated call and no `--force-remove`; E-01 passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add the ABSENT-EVIDENCE GUARD as an explicit, commented case: when `p not in prior_index`, write NOTHING. State the reason in the comment, because the obvious-looking alternative is destructive. Measured at review: `git update-index --force-remove` on a path that IS in the index stages a DELETION (`git status` goes from clean to `D  <path>` with the file still on disk), and `_git_index_entries` returns `{}` both when a path genuinely had no entry AND when `ls-files` fails, so an absent recording is EVIDENCE ABSENCE rather than evidence of absence. Writing on it would invert the discipline steps 1 and 2 establish, both of which refuse rather than overwrite content the transaction did not write ("refusing a destructive restore"). The guard is PER PATH, not keyed on an empty dict: a journal carrying entries for some owned paths and not others is not empty, so an empty-dict-only guard would still write on the unrecorded path (OQ-01). This costs no coverage, measured: for a destination that a partial finalize staged, step 1 has already unlinked it, and `restore --staged`, `--force-remove` and do-nothing ALL end with no index entry and a clean or `?? `-only status.
+- [x] E-03 Add the ABSENT-EVIDENCE GUARD as an explicit, commented case: when `p not in prior_index`, write NOTHING. State the reason in the comment, because the obvious-looking alternative is destructive. Measured at review: `git update-index --force-remove` on a path that IS in the index stages a DELETION (`git status` goes from clean to `D  <path>` with the file still on disk), and `_git_index_entries` returns `{}` both when a path genuinely had no entry AND when `ls-files` fails, so an absent recording is EVIDENCE ABSENCE rather than evidence of absence. Writing on it would invert the discipline steps 1 and 2 establish, both of which refuse rather than overwrite content the transaction did not write ("refusing a destructive restore"). The guard is PER PATH, not keyed on an empty dict: a journal carrying entries for some owned paths and not others is not empty, so an empty-dict-only guard would still write on the unrecorded path (OQ-01). This costs no coverage, measured: for a destination that a partial finalize staged, step 1 has already unlinked it, and `restore --staged`, `--force-remove` and do-nothing ALL end with no index entry and a clean or `?? `-only status.
   - Depends on: E-02
   - Expected outcome: no code path in step 3 writes the index for a path absent from `prior_index`; the two existing `"git_index_entries": {}` fixtures still pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make a failed index restore surface instead of being swallowed: if the `update-index` call returns nonzero, return `(False, "rollback could not restore the index entry for {p}: <stderr>")`, matching the existing step-1/step-2 failure strings ("rollback could not remove", "rollback could not restore"). Confirm by reading both callers in `_finalize_transaction` (the resume branch "Interrupted before the commit: finish rollback idempotently" and `_rollback_and_return`) that a `False` already routes to `PHASE_UNKNOWN_OUTCOME` with `rollback_error`, so no caller change is needed. Verified at review: the resume branch sets `existing["phase"] = PHASE_UNKNOWN_OUTCOME` plus `existing["rollback_error"] = msg` and returns `EXIT_CANNOT_RUN`; `_rollback_and_return` does the same on `cur`.
+- [x] E-04 Make a failed index restore surface instead of being swallowed: if the `update-index` call returns nonzero, return `(False, "rollback could not restore the index entry for {p}: <stderr>")`, matching the existing step-1/step-2 failure strings ("rollback could not remove", "rollback could not restore"). Confirm by reading both callers in `_finalize_transaction` (the resume branch "Interrupted before the commit: finish rollback idempotently" and `_rollback_and_return`) that a `False` already routes to `PHASE_UNKNOWN_OUTCOME` with `rollback_error`, so no caller change is needed. Verified at review: the resume branch sets `existing["phase"] = PHASE_UNKNOWN_OUTCOME` plus `existing["rollback_error"] = msg` and returns `EXIT_CANNOT_RUN`; `_rollback_and_return` does the same on `cur`.
   - Depends on: E-03
   - Expected outcome: a nonzero `update-index` produces a `(False, ...)` result carrying the stderr text; callers unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: suite
 
-- [ ] E-05 Run the bare suite `python3 -m pytest` and record the summary line.
+- [x] E-05 Run the bare suite `python3 -m pytest` and record the summary line.
   - Depends on: E-04
   - Expected outcome: no new failures relative to the pre-change baseline (compare by node id if the baseline is not clean).
-  - Execution state: pending
+  - Execution state: performed
+
 
 ## Project conventions discovered (Step 0)
 
@@ -128,30 +129,246 @@ N/A: no spec describes step 3's index mechanics; the docstring of `_rollback_pre
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_ipd_lifecycle_cli.py -k test_rollback_restores_recorded_index_entry_not_head` run BEFORE E-02, showing `1 failed`, with the failure output naming BOTH blob ids (the recorded staged blob and HEAD's blob) and the `git status --porcelain` before/after values showing the `M ` to ` M` flip. A failure that reports only "dicts differ" does not satisfy this item: this test is the sole proof the bug exists, so its output must identify which blob replaced which.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Run before E-02:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=881130925
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 38 items / 37 deselected / 1 selected
 
-- [ ] V-02 validates E-02
+    tests/test_ipd_lifecycle_cli.py F                                        [100%]
+
+    =================================== FAILURES ===================================
+    _ RollbackFailureSemanticsTests.test_rollback_restores_recorded_index_entry_not_head _
+
+    self = <tests.test_ipd_lifecycle_cli.RollbackFailureSemanticsTests testMethod=test_rollback_restores_recorded_index_entry_not_head>
+
+        def test_rollback_restores_recorded_index_entry_not_head(self):
+            """Rollback restores the recorded index entry byte-for-byte instead of resetting to HEAD."""
+            plan_rel = str(self.plan.relative_to(self.root))
+            dest_rel = str(self._executed_path().relative_to(self.root))
+
+            # Stage an edit to the plan file
+            staged_text = self.plan.read_text(encoding="utf-8") + "\n# Staged peer edit\n"
+            self.plan.write_text(staged_text, encoding="utf-8")
+            subprocess.run(["git", "add", plan_rel], cwd=self.root, check=True)
+
+            status_before = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+
+            recorded_entries = LC._git_index_entries(self.root, [plan_rel, dest_rel])
+            journal = {
+                "original_path": plan_rel,
+                "dest_path": dest_rel,
+                "original_bytes": staged_text,  # current on-disk bytes, so step 2 is a no-op
+                "owned_paths": [plan_rel, dest_rel],
+                "git_index_entries": recorded_entries,
+            }
+
+            ok, msg = LC._rollback_precommit(self.root, journal)
+            after_entries = LC._git_index_entries(self.root, [plan_rel, dest_rel])
+            status_after = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+
+            # (a) ok is True
+            self.assertTrue(ok, f"rollback reported failure: {msg}")
+            # (b) the PLAN PATH's entry equals the recorded line explicitly
+    >       self.assertEqual(
+                after_entries.get(plan_rel),
+                recorded_entries.get(plan_rel),
+                f"staged blob reset to HEAD (status flipped from {status_before.strip()!r} to {status_after.strip()!r})",
+            )
+    E       AssertionError: '100644 2cfb1abada22829d8035c9046292d03bb858639f [60 chars]d.md' != '100644 8bfb0e885a5001fa5ea20e755d6b89be8599be77 [60 chars]d.md'
+    E       - 100644 2cfb1abada22829d8035c9046292d03bb858639f 0	.aw/records/plans/pending/20260824-demo-01-abc123-demo.ipd.md
+    E       ?        ^^    ^^^  ^^^^ -------- -------   --- ^
+    E       + 100644 8bfb0e885a5001fa5ea20e755d6b89be8599be77 0	.aw/records/plans/pending/20260824-demo-01-abc123-demo.ipd.md
+    E       ?        ^^  +++++++++ + ^^  ^^^^^    ++++  ^^^^^
+    E        : staged blob reset to HEAD (status flipped from 'M  .aw/records/plans/pending/20260824-demo-01-abc123-demo.ipd.md' to 'M .aw/records/plans/pending/20260824-demo-01-abc123-demo.ipd.md')
+
+    tests/test_ipd_lifecycle_cli.py:1251: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_rollback_restores_recorded_index_entry_not_head
+    ======================= 1 failed, 37 deselected in 1.75s =======================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the same command after E-02 showing `1 passed`, and `git diff agent_workflows/ipd_lifecycle.py` showing the duplicated `restore --staged` arms removed, the no-op-when-equal case present, and the `update-index --index-info` call carrying both `cwd=repo_root` and `capture_output=True`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Run after E-02:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3074638250
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 38 items / 37 deselected / 1 selected
 
-- [ ] V-03 validates E-03
+    tests/test_ipd_lifecycle_cli.py .                                        [100%]
+
+    ======================= 1 passed, 37 deselected in 0.28s =======================
+    ```
+    `git diff agent_workflows/ipd_lifecycle.py`:
+    ```diff
+    diff --git a/agent_workflows/ipd_lifecycle.py b/agent_workflows/ipd_lifecycle.py
+    index 907d91c4..613f94cc 100644
+    --- a/agent_workflows/ipd_lifecycle.py
+    +++ b/agent_workflows/ipd_lifecycle.py
+    @@ -3307,14 +3307,45 @@ def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool,
+                 return (False, f"rollback could not restore {orig_rel}: {exc}")
+
+         # 3. Restore the exact prior Git-index entries for lifecycle-owned paths (no disjoint work).
+    +    #    Since mutations moved into a coordinator-owned worktree (plan `u23gbn`), the shared index
+    +    #    is normally untouched, so the common case is a no-op that writes nothing (F-5). When an
+    +    #    owned path's index entry differs from the journal's recording, restore the exact recorded
+    +    #    line via `git update-index --index-info`.
+    +    import subprocess
+    +
+         owned = journal.get("owned_paths", [])
+         prior_index = journal.get("git_index_entries", {})
+         for p in owned:
+    -        # Reset the index entry for this owned path to its recorded state without staging others.
+    -        if p in prior_index:
+    -            _git(repo_root, ["restore", "--staged", "--", p])
+    +        current_entry = _git_index_entries(repo_root, [p]).get(p)
+    +        prior_entry = prior_index.get(p)
+    +        if current_entry == prior_entry:
+    +            # Case 1: current index entry already matches recorded state (including both absent).
+    +            # Do nothing; leaves the shared index untouched.
+    +            continue
+    +        elif p in prior_index:
+    +            # Case 2: path has a recorded prior index entry. Restore the exact line via update-index.
+    +            line = prior_index[p]
+    +            res = subprocess.run(
+    +                ["git", "update-index", "--index-info"],
+    +                cwd=repo_root,
+    +                input=line + "\n",
+    +                text=True,
+    +                capture_output=True,
+    +            )
+    +            if res.returncode != 0:
+    +                err = res.stderr.strip()
+    +                return (
+    +                    False,
+    +                    f"rollback could not restore the index entry for {p}: {err}",
+    +                )
+             else:
+    -            _git(repo_root, ["restore", "--staged", "--", p])
+    +            # Case 3: absent-evidence guard (p not in prior_index). Write NOTHING.
+    +            # An unrecorded path must never be force-removed: `git update-index --force-remove` on a
+    +            # path in the index stages a deletion (`D  <path>`), and `_git_index_entries` returns `{}`
+    +            # both when unindexed and when `git ls-files` fails. Absence is evidence absence, not
+    +            # evidence of absence; writing would invert the refuse-rather-than-overwrite discipline
+    +            # of steps 1 and 2 ("refusing a destructive restore").
+    +            pass
+
+         # 4. The plans manifests are DELIBERATELY NOT TOUCHED. See this function's docstring for the
+         #    measurement: nothing in the pre-commit phase writes the shared `INDEX.json`/`INDEX.md`, so
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: three pastes. (a) `git diff agent_workflows/ipd_lifecycle.py` showing NO `--force-remove` anywhere in step 3 and the absent-evidence case commented with its reason. (b) `python3 -m pytest -o addopts="" tests/test_orchestrator_retirement.py -k rollback` passing, AND a statement naming which cases exercised step 3 (cases 2 and 3 of `test_rollback_preserves_peer_edits_restores_half_moves_and_is_idempotent`; per F-6 the other two `{}` sites return at step 1, so a bare "the rollback tests pass" does NOT show the guard was exercised). (c) A driven probe on a scratch repo showing that with a journal whose `git_index_entries` OMITS an owned path that IS in the index, `_rollback_precommit` leaves that entry untouched and `git status` unchanged, which is the F-7 regression this guard exists to prevent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Three pieces of evidence collected:
+    (a) `git diff agent_workflows/ipd_lifecycle.py` shows no `--force-remove` anywhere in step 3, and Case 3 contains the explicit absent-evidence guard comment:
+    ```python
+            # Case 3: absent-evidence guard (p not in prior_index). Write NOTHING.
+            # An unrecorded path must never be force-removed: `git update-index --force-remove` on a
+            # path in the index stages a deletion (`D  <path>`), and `_git_index_entries` returns `{}`
+            # both when unindexed and when `git ls-files` fails. Absence is evidence absence, not
+            # evidence of absence; writing would invert the refuse-rather-than-overwrite discipline
+            # of steps 1 and 2 ("refusing a destructive restore").
+            pass
+    ```
+    (b) `python3 -m pytest -o addopts="" tests/test_orchestrator_retirement.py -k rollback`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1866068220
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 42 items / 41 deselected / 1 selected
 
-- [ ] V-04 validates E-04
+    tests/test_orchestrator_retirement.py .                                  [100%]
+
+    ======================= 1 passed, 41 deselected in 0.47s =======================
+    ```
+    Statement: Cases 2 and 3 of `test_rollback_preserves_peer_edits_restores_half_moves_and_is_idempotent` exercised step 3 (both assert `ok` True and reach step 3; cases 1 and the second `{}` site return at step 1 on `unknown-outcome` per F-6).
+    (c) Driven probe on a scratch repo:
+    ```
+    status_before: 'M  plan.md\n'
+    entry_before: {'plan.md': '100644 fe305749c35dfb37407eadf934c8debea4b63fa5 0\tplan.md'}
+    rollback ok: True msg: pre-commit state restored (plan bytes/path + owned Git-index; plans manifests left untouched, so the tree is as it was found).
+    status_after: 'M  plan.md\n'
+    entry_after: {'plan.md': '100644 fe305749c35dfb37407eadf934c8debea4b63fa5 0\tplan.md'}
+    PROBE PASSED: index entry and git status left completely untouched!
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste a `mock.patch` probe (or an added assertion) where the `update-index` call returns nonzero and `_rollback_precommit` returns `(False, "rollback could not restore the index entry for ...")` WITH the stderr text present in the message (empty stderr means `capture_output=True` was dropped, E-02); quote the two caller sites showing `ok` False sets `PHASE_UNKNOWN_OUTCOME` and `rollback_error`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `mock.patch` probe output:
+    ```
+    ok: False
+    msg: 'rollback could not restore the index entry for plan.md: fatal: mock git update-index corruption error'
+    PROBE PASSED: update-index failure cleanly surfaced with stderr text!
+    ```
+    Caller 1 (`_finalize_transaction` resume branch, `ipd_lifecycle.py:4257-4268`):
+    ```python
+                ok, msg = _rollback_precommit(repo_root, existing)
+                if not ok:
+                    existing["phase"] = PHASE_UNKNOWN_OUTCOME
+                    existing["rollback_error"] = msg
+                    _write_finalize_journal(repo_root, existing)
+                    return FinalizeResult(
+                        EXIT_CANNOT_RUN,
+                        None,
+                        f"prior interrupted finalize could not be rolled back ({msg}); journal retained "
+                        "for recovery. NOT restored.",
+                        evidence,
+                    )
+    ```
+    Caller 2 (`_finalize_transaction._rollback_and_return`, `ipd_lifecycle.py:4333-4344`):
+    ```python
+            ok, msg = _rollback_precommit(repo_root, cur)
+            if not ok:
+                cur["phase"] = PHASE_UNKNOWN_OUTCOME
+                cur["rollback_error"] = msg
+                _write_finalize_journal(repo_root, cur)
+                return FinalizeResult(
+                    exit_code,
+                    None,
+                    f"{reason}; rollback FAILED ({msg}); journal retained, repository NOT reported "
+                    "restored.",
+                    evidence,
+                )
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `python3 -m pytest` summary line (`N passed ...`); if any failures, list node ids and show each also fails on the pre-change baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full suite run `python3 -m pytest`:
+    ```
+    2356 passed, 1 skipped, 3 warnings in 44.86s
+    ```
+  - Result: pass
+
 
 ## Approval and execution gate
 
