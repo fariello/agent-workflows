@@ -6,7 +6,7 @@
 - Scope: IN: (a) one shared helper in `runner_shared` that reads the attempt's own session log (`attempt["log"]`) with the existing readers `extract_session_id` and `run_viewer.extract_log_metrics`, and writes `attempt["session_id"]`, `attempt["cost"]`, `attempt["tokens"]` and (main-tree turns only, drift-safe) `state["set_sessions"][setid]` / `state["session_id"]`; (b) call it from the three existing interrupt handlers and from the `except KeyboardInterrupt` handler `87jnym` adds, before their `save_state`; (c) behavioral tests through both hosts' real `execute_item`, including the summary table. OUT: parsing session logs in the summary table (rejected by `pfh5qa`, P8 two-derivations hazard); the verifier-turn interrupt handlers; other success-only attempt fields (`exit_code`, `ending_head`, `ending_status`, `argv`); whether spend of a POPPED clean-no-changes attempt survives (OQ-02).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_interrupt_attempt_metadata.py
 - Item-Dependencies: executed:87jnym
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: zrvtm2
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zrvtm2 verified (set intrmeta, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
@@ -36,42 +36,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one writer for interrupted-attempt accounting
 
-- [ ] E-01 ADD `record_interrupted_attempt_accounting(state, item, attempt, work_dir)` to `agent_workflows/runner_shared.py`, near `reconcile_interrupted`, writing the ATTEMPT-LOCAL fields only. Body: `raw = attempt.get("log")`; if falsy or the file is absent, return without writing. Otherwise (1) `sid = extract_session_id(Path(raw))` and, if `sid`, set `attempt["session_id"] = sid`; (2) `from agent_workflows.run_viewer import extract_log_metrics` (local import, as the success path does at `from agent_workflows.run_viewer import extract_log_metrics` inside `execute_item_core`, so module import order is unchanged); `cost, toks = extract_log_metrics(raw)`; set `attempt["cost"]` when `cost is not None` and `attempt["tokens"]` when `toks`, identical to the success-path conditions. Wrap the whole body in `try/except Exception` recording `attempt["accounting_error"] = f"{type(exc).__name__}: {exc}"`: bookkeeping must never replace the interrupt being handled. Docstring states the P8 reason (one ledger, read by the same two readers the success path uses) AND the measured precedence fact that makes this safe: `run_viewer.extract_step_usage` prefers a stored `attempt["cost"]`/`attempt["tokens"]` in an exclusive `if/else` and falls back to the log ONLY when both are absent, so writing the field cannot double-count.
+- [x] E-01 ADD `record_interrupted_attempt_accounting(state, item, attempt, work_dir)` to `agent_workflows/runner_shared.py`, near `reconcile_interrupted`, writing the ATTEMPT-LOCAL fields only. Body: `raw = attempt.get("log")`; if falsy or the file is absent, return without writing. Otherwise (1) `sid = extract_session_id(Path(raw))` and, if `sid`, set `attempt["session_id"] = sid`; (2) `from agent_workflows.run_viewer import extract_log_metrics` (local import, as the success path does at `from agent_workflows.run_viewer import extract_log_metrics` inside `execute_item_core`, so module import order is unchanged); `cost, toks = extract_log_metrics(raw)`; set `attempt["cost"]` when `cost is not None` and `attempt["tokens"]` when `toks`, identical to the success-path conditions. Wrap the whole body in `try/except Exception` recording `attempt["accounting_error"] = f"{type(exc).__name__}: {exc}"`: bookkeeping must never replace the interrupt being handled. Docstring states the P8 reason (one ledger, read by the same two readers the success path uses) AND the measured precedence fact that makes this safe: `run_viewer.extract_step_usage` prefers a stored `attempt["cost"]`/`attempt["tokens"]` in an exclusive `if/else` and falls back to the log ONLY when both are absent, so writing the field cannot double-count.
   - Depends on: none
   - Expected outcome: a pure attempt mutator that writes `session_id`, `cost` and `tokens` exactly as the success path would, touches no `state` key, and never raises.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 EXTEND THE SAME HELPER WITH THE STATE-LEVEL SESSION WRITE, kept separate from E-01 because it is the only part that mutates shared run state and the only part with a drift rule. Only when `not work_dir and not turn_runs_in_review_sweep_lane(state, work_dir)` and a `sid` was observed, apply the drift-safe rule `reconcile_interrupted` already uses (`existing in (None, session_id)`): on agreement set `state.setdefault("set_sessions", {})[item["setid"]] = sid` and `state["session_id"] = sid`; on disagreement write `attempt["session_reconciliation_error"] = f"persisted={existing} observed={sid}"` and do NOT raise (the success path's `raise DriverError(... "changed session unexpectedly" ...)` must not fire from an interrupt handler, where it would mask the interrupt being handled). DO NOT bump `session_turn_counts`, which the authored plan proposed: `reconcile_interrupted`, the existing recovery-path precedent this helper copies, deliberately does NOT bump it, and the counter is READ as the session-rotation trigger (`session_turns >= max_items` in `execute_item_core` and again in `oc_runipd.run_opencode`), so incrementing it on an interrupt would make a killed turn consume a rotation slot and could rotate the session a resume is trying to reuse. If a later measurement shows a killed turn must consume a slot, that is a separate change with its own evidence.
+- [x] E-02 EXTEND THE SAME HELPER WITH THE STATE-LEVEL SESSION WRITE, kept separate from E-01 because it is the only part that mutates shared run state and the only part with a drift rule. Only when `not work_dir and not turn_runs_in_review_sweep_lane(state, work_dir)` and a `sid` was observed, apply the drift-safe rule `reconcile_interrupted` already uses (`existing in (None, session_id)`): on agreement set `state.setdefault("set_sessions", {})[item["setid"]] = sid` and `state["session_id"] = sid`; on disagreement write `attempt["session_reconciliation_error"] = f"persisted={existing} observed={sid}"` and do NOT raise (the success path's `raise DriverError(... "changed session unexpectedly" ...)` must not fire from an interrupt handler, where it would mask the interrupt being handled). DO NOT bump `session_turn_counts`, which the authored plan proposed: `reconcile_interrupted`, the existing recovery-path precedent this helper copies, deliberately does NOT bump it, and the counter is READ as the session-rotation trigger (`session_turns >= max_items` in `execute_item_core` and again in `oc_runipd.run_opencode`), so incrementing it on an interrupt would make a killed turn consume a rotation slot and could rotate the session a resume is trying to reuse. If a later measurement shows a killed turn must consume a slot, that is a separate change with its own evidence.
   - Depends on: E-01
   - Expected outcome: `set_sessions` written for a main-tree turn, untouched for a lane turn, and a mismatch recorded rather than raised; `session_turn_counts` unchanged on every path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 CALL THE HELPER FROM EVERY EXECUTOR-SPAWN INTERRUPT HANDLER in `runner_shared.execute_item_core` (the inner `try:` whose body is `exit_code, session_id, log_path, argv = spawn_executor(...)`): in `except runner_stop.StopNowForce as stop:`, `except runner_stop.StopAtCheckpoint as stop:` and `except StallTimeout:`, insert `record_interrupted_attempt_accounting(state, item, attempt, work_dir)` immediately before that handler's `save_state(run_dir, state)`; in the `except KeyboardInterrupt as exc:` handler `87jnym` adds, insert it BEFORE the `reconcile_item_on_interrupt(...)` call (that function persists state via `save_state_fn`, so the fields land in the same write). Change nothing else in any handler (their `return`/`raise` and status routing belong to `ccu3k7`). Do not touch the verifier `spawn_verifier(...)` handlers. VERIFY THE KeyboardInterrupt CALL SITE EXISTS FIRST: at the time of review there is NO `except KeyboardInterrupt` anywhere in `execute_item_core` (`grep -n "except KeyboardInterrupt" agent_workflows/runner_shared.py` returns only comment lines and `run_queue`'s own handler), and `reconcile_item_on_interrupt` has ZERO callers, which is exactly the defect `87jnym` fixes. If that handler is still absent when this plan runs, `87jnym` has not executed and the declared `executed:87jnym` dependency was not honored: stop and report rather than adding the handler here, which would duplicate `87jnym`'s own scope.
+- [x] E-03 CALL THE HELPER FROM EVERY EXECUTOR-SPAWN INTERRUPT HANDLER in `runner_shared.execute_item_core` (the inner `try:` whose body is `exit_code, session_id, log_path, argv = spawn_executor(...)`): in `except runner_stop.StopNowForce as stop:`, `except runner_stop.StopAtCheckpoint as stop:` and `except StallTimeout:`, insert `record_interrupted_attempt_accounting(state, item, attempt, work_dir)` immediately before that handler's `save_state(run_dir, state)`; in the `except KeyboardInterrupt as exc:` handler `87jnym` adds, insert it BEFORE the `reconcile_item_on_interrupt(...)` call (that function persists state via `save_state_fn`, so the fields land in the same write). Change nothing else in any handler (their `return`/`raise` and status routing belong to `ccu3k7`). Do not touch the verifier `spawn_verifier(...)` handlers. VERIFY THE KeyboardInterrupt CALL SITE EXISTS FIRST: at the time of review there is NO `except KeyboardInterrupt` anywhere in `execute_item_core` (`grep -n "except KeyboardInterrupt" agent_workflows/runner_shared.py` returns only comment lines and `run_queue`'s own handler), and `reconcile_item_on_interrupt` has ZERO callers, which is exactly the defect `87jnym` fixes. If that handler is still absent when this plan runs, `87jnym` has not executed and the declared `executed:87jnym` dependency was not honored: stop and report rather than adding the handler here, which would duplicate `87jnym`'s own scope.
   - Depends on: E-02
   - Expected outcome: `grep -c "record_interrupted_attempt_accounting(" agent_workflows/runner_shared.py` is 5 (def plus four calls), all inside the executor-spawn `try`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests
 
-- [ ] E-04 ADD UNIT TESTS FOR THE HELPER in new `tests/test_interrupt_attempt_metadata.py`, writing real JSONL logs under a temp dir (no mocking of `extract_session_id` / `extract_log_metrics`). Log fixture: one `{"type": "step_finish", "sessionID": "ses_probe1", "part": {"cost": 2.17, "tokens": {"input": 100, "output": 20, "cache": {"read": 5, "write": 0}}}}` line; BOTH readers were driven against exactly this line at review and returned `ses_probe1` and `(2.17, {'total': 125, 'input': 100, 'output': 20, 'cache': 5})`, so assert `tokens["total"] == 125` and do NOT assert a `reasoning` key, which this fixture does not produce. Cases: (1) `work_dir=None`, empty `set_sessions`: attempt gets `session_id == "ses_probe1"`, `cost == 2.17`, `tokens["total"] == 125`; `state["set_sessions"]["demo"] == "ses_probe1"`; and `state.get("session_turn_counts", {})` is UNCHANGED (assert this positively, since E-02 deliberately does not bump it). (2) `set_sessions == {"demo": "ses_other"}`: no exception, `attempt["session_reconciliation_error"] == "persisted=ses_other observed=ses_probe1"`, `set_sessions` unchanged, cost still written. (3) `work_dir="/some/lane"`: attempt fields written, `set_sessions` untouched. (4) `attempt["log"]` pointing at a missing file: no keys added, no exception. (5) `attempt` with no `"log"` key at all: same, no exception.
+- [x] E-04 ADD UNIT TESTS FOR THE HELPER in new `tests/test_interrupt_attempt_metadata.py`, writing real JSONL logs under a temp dir (no mocking of `extract_session_id` / `extract_log_metrics`). Log fixture: one `{"type": "step_finish", "sessionID": "ses_probe1", "part": {"cost": 2.17, "tokens": {"input": 100, "output": 20, "cache": {"read": 5, "write": 0}}}}` line; BOTH readers were driven against exactly this line at review and returned `ses_probe1` and `(2.17, {'total': 125, 'input': 100, 'output': 20, 'cache': 5})`, so assert `tokens["total"] == 125` and do NOT assert a `reasoning` key, which this fixture does not produce. Cases: (1) `work_dir=None`, empty `set_sessions`: attempt gets `session_id == "ses_probe1"`, `cost == 2.17`, `tokens["total"] == 125`; `state["set_sessions"]["demo"] == "ses_probe1"`; and `state.get("session_turn_counts", {})` is UNCHANGED (assert this positively, since E-02 deliberately does not bump it). (2) `set_sessions == {"demo": "ses_other"}`: no exception, `attempt["session_reconciliation_error"] == "persisted=ses_other observed=ses_probe1"`, `set_sessions` unchanged, cost still written. (3) `work_dir="/some/lane"`: attempt fields written, `set_sessions` untouched. (4) `attempt["log"]` pointing at a missing file: no keys added, no exception. (5) `attempt` with no `"log"` key at all: same, no exception.
   - Depends on: E-02
   - Expected outcome: 5 passing tests.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ADD A NO-DOUBLE-COUNT TEST for the precedence claim the fix rests on, in the same file. Call `run_viewer.extract_step_usage` on one item twice: once with an attempt carrying ONLY `log` (today's interrupted shape) and once with the same attempt ALSO carrying `cost`/`tokens` (the post-fix shape), and assert the two results are EQUAL. Measured at review, both return `(2.17, {...'total': 125...}, 2.17, {...}, None, {})`, because `extract_step_usage` reads the stored fields in an exclusive `if/else` that falls back to the log only when both are absent. This is the one assertion that proves the fix cannot inflate `aw runs`, which the authored plan asserted in prose and never tested; it is also the test that would catch a future refactor turning that `if/else` into two additive branches.
+- [x] E-05 ADD A NO-DOUBLE-COUNT TEST for the precedence claim the fix rests on, in the same file. Call `run_viewer.extract_step_usage` on one item twice: once with an attempt carrying ONLY `log` (today's interrupted shape) and once with the same attempt ALSO carrying `cost`/`tokens` (the post-fix shape), and assert the two results are EQUAL. Measured at review, both return `(2.17, {...'total': 125...}, 2.17, {...}, None, {})`, because `extract_step_usage` reads the stored fields in an exclusive `if/else` that falls back to the log only when both are absent. This is the one assertion that proves the fix cannot inflate `aw runs`, which the authored plan asserted in prose and never tested; it is also the test that would catch a future refactor turning that `if/else` into two additive branches.
   - Depends on: E-01
   - Expected outcome: 1 passing test showing byte-equal usage tuples before and after the stored fields exist.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 ADD BEHAVIORAL TESTS THROUGH EACH HOST'S REAL `execute_item` in `tests/test_interrupt_attempt_metadata.py`, parametrized over `oc_runipd` (fixtures `tests.test_oc_runipd._init_repo_with_conforming_plan` and the `SelfFinalizeWiringTests._state_and_item` / `_mk_run_dir` SHAPE, which must also create `sessions/` since those fixtures create only `outcomes/` and `prompts/`) and `agy_runipd` (`tests.test_agy_runipd_cli._init_repo_with_conforming_plan` plus its `AgySelfFinalizeTests` equivalents), both `isolate_worktree: False` and `self_finalize: False`, `no_audit: True`. Patch `driver_begin` to `(0, "ok")` and the host spawn (`oc_runipd.run_opencode` / `agy_runipd.run_agy_turn`) with a fake that writes the E-04 log line to `runner_shared.attempt_log_path(run_dir, item, attempt_no)` and then raises, parametrized over ALL FOUR: `runner_shared.StallTimeout("stall")`, `runner_stop.StopNowForce()`, `runner_stop.StopAtCheckpoint(runner_stop.CheckpointObserver(detector=lambda s: False, last_checkpoint_label="E-01"))`, and `KeyboardInterrupt("clean-up-and-terminate")` (for the last, the fake also writes an untracked file into the repo so `reconcile_item_on_interrupt` keeps the attempt; wrap in `pytest.raises(KeyboardInterrupt)`). Assert, for each: `item["attempts"][-1]` has `session_id == "ses_probe1"`, `cost == 2.17`, `tokens["total"] == 125`; the persisted `run_dir / "state.json"` agrees; `state["set_sessions"]["demo"] == "ses_probe1"`; `render_stream.render_run_summary_table(state, run_dir)` output contains `2.17` for the row. Call the hint as `runner_shared.render_continuation_hint(state, run_dir, labels=<host labels>)` and assert it contains `ses_probe1`: the signature is `(state, run_dir, driver_cmd=None, *, labels)`, `run_dir` is REQUIRED POSITIONALLY and `labels` is KEYWORD-ONLY, so the authored phrasing "called with the host's `labels`" omits a required argument and a literal reading raises `TypeError` (hit at review). Do NOT assert an exact item `status`: measured at review, the four raises end `interrupted`, `unknown_outcome`, `interrupted` and `running` respectively, so a single expected status would be wrong for three of them and status routing is `ccu3k7`'s, not this plan's.
+- [x] E-06 ADD BEHAVIORAL TESTS THROUGH EACH HOST'S REAL `execute_item` in `tests/test_interrupt_attempt_metadata.py`, parametrized over `oc_runipd` (fixtures `tests.test_oc_runipd._init_repo_with_conforming_plan` and the `SelfFinalizeWiringTests._state_and_item` / `_mk_run_dir` SHAPE, which must also create `sessions/` since those fixtures create only `outcomes/` and `prompts/`) and `agy_runipd` (`tests.test_agy_runipd_cli._init_repo_with_conforming_plan` plus its `AgySelfFinalizeTests` equivalents), both `isolate_worktree: False` and `self_finalize: False`, `no_audit: True`. Patch `driver_begin` to `(0, "ok")` and the host spawn (`oc_runipd.run_opencode` / `agy_runipd.run_agy_turn`) with a fake that writes the E-04 log line to `runner_shared.attempt_log_path(run_dir, item, attempt_no)` and then raises, parametrized over ALL FOUR: `runner_shared.StallTimeout("stall")`, `runner_stop.StopNowForce()`, `runner_stop.StopAtCheckpoint(runner_stop.CheckpointObserver(detector=lambda s: False, last_checkpoint_label="E-01"))`, and `KeyboardInterrupt("clean-up-and-terminate")` (for the last, the fake also writes an untracked file into the repo so `reconcile_item_on_interrupt` keeps the attempt; wrap in `pytest.raises(KeyboardInterrupt)`). Assert, for each: `item["attempts"][-1]` has `session_id == "ses_probe1"`, `cost == 2.17`, `tokens["total"] == 125`; the persisted `run_dir / "state.json"` agrees; `state["set_sessions"]["demo"] == "ses_probe1"`; `render_stream.render_run_summary_table(state, run_dir)` output contains `2.17` for the row. Call the hint as `runner_shared.render_continuation_hint(state, run_dir, labels=<host labels>)` and assert it contains `ses_probe1`: the signature is `(state, run_dir, driver_cmd=None, *, labels)`, `run_dir` is REQUIRED POSITIONALLY and `labels` is KEYWORD-ONLY, so the authored phrasing "called with the host's `labels`" omits a required argument and a literal reading raises `TypeError` (hit at review). Do NOT assert an exact item `status`: measured at review, the four raises end `interrupted`, `unknown_outcome`, `interrupted` and `running` respectively, so a single expected status would be wrong for three of them and status routing is `ccu3k7`'s, not this plan's.
   - Depends on: E-03, E-04
   - Expected outcome: 8 passing tests (2 hosts x 4 raises); each FAILS with E-03's calls removed (attempt `session_id` None, table `$0.00`), which is the measured HEAD behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RUN THE BARE SUITE `python3 -m pytest` (no extra flags; `addopts` already supplies `-q -n auto --dist=worksteal` and the marker deselection, so do NOT add `-n0`, a second `-q`, or `-p no:randomly`); in particular `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py` and `87jnym`'s `tests/test_interrupt_reconcile.py` must stay green.
+- [x] E-07 RUN THE BARE SUITE `python3 -m pytest` (no extra flags; `addopts` already supplies `-q -n auto --dist=worksteal` and the marker deselection, so do NOT add `-n0`, a second `-q`, or `-p no:randomly`); in particular `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py` and `87jnym`'s `tests/test_interrupt_reconcile.py` must stay green.
   - Depends on: E-06, E-05
   - Expected outcome: the bare suite summary line shows 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -155,40 +155,206 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the diff adding `record_interrupted_attempt_accounting` showing the local `extract_log_metrics` import, the two success-path-identical write conditions (`cost is not None`, `if toks`), and the outer `except Exception` recording `accounting_error`; plus `python3 -c "from agent_workflows import runner_shared as r; print(callable(r.record_interrupted_attempt_accounting))"` printing `True`. Confirm in the diff that E-01's portion writes NO `state` key, so the attempt-local and state-level halves stay separable.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/runner_shared.py` shows the local `extract_log_metrics` import, the two conditions (`cost is not None`, `if toks`), and outer `except Exception` recording `accounting_error`:
+    ```diff
+    +def record_interrupted_attempt_accounting(
+    +    state: dict[str, Any],
+    +    item: MutableMapping[str, Any],
+    +    attempt: dict[str, Any],
+    +    work_dir: str | Path | None,
+    +) -> None:
+    +    try:
+    +        raw = attempt.get("log")
+    +        if not raw or not Path(raw).is_file():
+    +            return
+    +
+    +        sid = extract_session_id(Path(raw))
+    +        if sid:
+    +            attempt["session_id"] = sid
+    ...
+    +        from agent_workflows.run_viewer import extract_log_metrics
+    +
+    +        cost, toks = extract_log_metrics(raw)
+    +        if cost is not None:
+    +            attempt["cost"] = cost
+    +        if toks:
+    +            attempt["tokens"] = toks
+    +    except Exception as exc:
+    +        attempt["accounting_error"] = f"{type(exc).__name__}: {exc}"
+    ```
+    E-01's attempt-local portion writes only to `attempt` keys and touches no `state` key.
+    `python3 -c "from agent_workflows import runner_shared as r; print(callable(r.record_interrupted_attempt_accounting))"` output:
+    ```
+    True
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the diff showing the `existing in (None, sid)` drift rule, the `session_reconciliation_error` write, and the `not work_dir and not turn_runs_in_review_sweep_lane(...)` guard; plus pasted `grep -n "session_turn_counts" agent_workflows/runner_shared.py` with the same line set as before the change, proving no bump was added. The absence of a bump is a REQUIRED property, not an omission: a bump would let a killed turn consume a session-rotation slot.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/runner_shared.py` shows:
+    ```diff
+    +            if not work_dir and not turn_runs_in_review_sweep_lane(state, work_dir):
+    +                existing = state.setdefault("set_sessions", {}).get(item["setid"])
+    +                if existing in (None, sid):
+    +                    state.setdefault("set_sessions", {})[item["setid"]] = sid
+    +                    state["session_id"] = sid
+    +                else:
+    +                    attempt["session_reconciliation_error"] = (
+    +                        f"persisted={existing} observed={sid}"
+    +                    )
+    ```
+    `grep -n "session_turn_counts" agent_workflows/runner_shared.py` output:
+    ```
+    18850:         their normal launch path, which is what increments `session_turn_counts`. Stated explicitly
+    18929:    session_turn_counts: dict[str, int] | None = None,
+    18951:    `session_turn_counts` implements the third session rule EXPLICITLY: a re-ask CONSUMES a turn
+    18966:    if session_turn_counts is not None and session_id:
+    18967:        session_turn_counts[session_id] = session_turn_counts.get(session_id, 0) + 1
+    20901:    session_turn_counts: dict[str, int] | None = None,
+    20912:    file before it is re-read, and `session_turn_counts` makes the follow-up turn COUNT against
+    20967:        if session_turn_counts is not None and session_id:
+    20968:            session_turn_counts[session_id] = session_turn_counts.get(session_id, 0) + 1
+    24584:        "session_turn_counts": {},
+    26906:        session_turns = state.get("session_turn_counts", {}).get(raw_session, 0)
+    27500:                counts = state.setdefault("session_turn_counts", {})
+    27517:                counts = state.setdefault("session_turn_counts", {})
+    28002:                        session_turn_counts=(
+    28005:                            else state.setdefault("session_turn_counts", {})
+    28313:                    session_turn_counts=(
+    28316:                        else state.setdefault("session_turn_counts", {})
+    ```
+    The set of occurrences is identical to baseline (shifted by the 47 lines added by the helper); no bump was added.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `grep -n "record_interrupted_attempt_accounting(" agent_workflows/runner_shared.py` showing the def plus exactly four calls, each inside the executor-spawn handlers (`StopNowForce`, `StopAtCheckpoint`, `StallTimeout`, `KeyboardInterrupt`), and `git diff` showing no other line of those handlers changed. ALSO paste `grep -n "except KeyboardInterrupt" agent_workflows/runner_shared.py` showing the handler EXISTS inside `execute_item_core` before this plan's edit, which is the evidence that `87jnym` actually executed; at review it did not exist.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `grep -n "record_interrupted_attempt_accounting(" agent_workflows/runner_shared.py` output:
+    ```
+    26645:def record_interrupted_attempt_accounting(
+    27401:            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
+    27427:            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
+    27439:            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
+    27480:            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
+    ```
+    `git diff agent_workflows/runner_shared.py` shows only the four call additions inside `StopNowForce`, `StopAtCheckpoint`, `KeyboardInterrupt`, and `StallTimeout`, with no other lines in those handlers changed.
+    `grep -n "except KeyboardInterrupt" agent_workflows/runner_shared.py` output showing the handler exists inside `execute_item_core` before this plan's edit (authored by `87jnym`):
+    ```
+    18259:# SIGINT via `except KeyboardInterrupt`) ALREADY funnel through either `turn_telemetry`'s `finally`
+    25366:      `except KeyboardInterrupt` (marks the item `interrupted`, appends `ipd-interrupted`, reclaims
+    27389:        except KeyboardInterrupt as exc:
+    30793:# funnel that ALREADY exists (`except KeyboardInterrupt`), which needs no registration at all. When
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `python3 -m pytest tests/test_interrupt_attempt_metadata.py -o addopts="" -v -k helper` (or the actual names) showing the five helper tests passing, and a test-source excerpt showing real JSONL files and no patching of the two readers. Case (1)'s assertion that `session_turn_counts` is unchanged must be visible in the pasted names or source.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_interrupt_attempt_metadata.py -o addopts="" -v -k helper` output:
+    ```
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_missing_log_file_noop PASSED [ 20%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_session_reconciliation_conflict PASSED [ 40%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_empty_set_sessions PASSED [ 60%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_no_log_key_noop PASSED [ 80%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_lane_work_dir_does_not_mutate_set_sessions PASSED [100%]
+    ======================= 5 passed, 9 deselected in 0.33s ========================
+    ```
+    Test source excerpt (`tests/test_interrupt_attempt_metadata.py`) showing real JSONL writes, no mocking of readers, and case (1) asserting `session_turn_counts` unchanged:
+    ```python
+    def test_helper_empty_set_sessions(self):
+        with tempfile.TemporaryDirectory() as td:
+            log_path = Path(td) / "attempt.log"
+            log_path.write_text(json.dumps(LOG_ENTRY) + "\n", encoding="utf-8")
+            attempt = {"log": str(log_path)}
+            item = {"id6": "demo01", "setid": "demo"}
+            state = {"set_sessions": {}, "session_turn_counts": {}}
+            runner_shared.record_interrupted_attempt_accounting(
+                state, item, attempt, work_dir=None
+            )
+            self.assertEqual(attempt.get("session_id"), "ses_probe1")
+            self.assertEqual(attempt.get("cost"), 2.17)
+            self.assertIsInstance(attempt.get("tokens"), dict)
+            self.assertEqual(attempt["tokens"]["total"], 125)
+            self.assertEqual(state["set_sessions"].get("demo"), "ses_probe1")
+            self.assertEqual(state.get("session_id"), "ses_probe1")
+            self.assertEqual(state.get("session_turn_counts", {}), {})
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the two `extract_step_usage` tuples pasted side by side (attempt with `log` only, and the same attempt with `cost`/`tokens` added) showing them EQUAL, plus the passing test name. This is the evidence that the fix does not inflate `aw runs`; a claim without the two tuples is not acceptable.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: The two `extract_step_usage` tuples side by side:
+    ```
+    attempt with log only:
+    (2.17, {'total': 125, 'input': 100, 'output': 20, 'cache': 5}, 2.17, {'total': 125, 'input': 100, 'output': 20, 'cache': 5}, None, {})
 
-- [ ] V-06 validates E-06
+    attempt with stored cost/tokens:
+    (2.17, {'total': 125, 'input': 100, 'output': 20, 'cache': 5}, 2.17, {'total': 125, 'input': 100, 'output': 20, 'cache': 5}, None, {})
+
+    Equal: True
+    ```
+    Passing test name:
+    `tests/test_interrupt_attempt_metadata.py::InterruptAttemptNoDoubleCountTests::test_extract_step_usage_no_double_count`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted `python3 -m pytest tests/test_interrupt_attempt_metadata.py -o addopts="" -v` listing the EIGHT host x raise tests passing (2 hosts x `StallTimeout`, `StopNowForce`, `StopAtCheckpoint`, `KeyboardInterrupt`); then the four E-03 calls temporarily removed and the same run pasted with those eight FAILING (session_id None / `2.17` absent), then restored. All four raises must be exercised BEHAVIORALLY: `StopAtCheckpoint` is constructible without a live stream (`CheckpointObserver(detector=lambda s: False, last_checkpoint_label="E-01")`, verified at review), so a grep-only substitute for it is NOT acceptable. Also paste the `render_continuation_hint(state, run_dir, labels=...)` output containing `ses_probe1`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_interrupt_attempt_metadata.py -o addopts="" -v` passing output:
+    ```
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptNoDoubleCountTests::test_extract_step_usage_no_double_count PASSED [  7%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_empty_set_sessions PASSED [ 14%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_no_log_key_noop PASSED [ 21%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_missing_log_file_noop PASSED [ 28%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_lane_work_dir_does_not_mutate_set_sessions PASSED [ 35%]
+    tests/test_interrupt_attempt_metadata.py::InterruptAttemptMetadataUnitTests::test_helper_session_reconciliation_conflict PASSED [ 42%]
+    tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_agy_stall_timeout PASSED [ 50%]
+    tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_oc_stop_now_force PASSED [ 57%]
+    tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_agy_keyboard_interrupt PASSED [ 64%]
+    tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_oc_stall_timeout PASSED [ 71%]
+    tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_oc_stop_at_checkpoint PASSED [ 78%]
+    tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_oc_keyboard_interrupt PASSED [ 85%]
+    tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_agy_stop_at_checkpoint PASSED [ 92%]
+    tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_agy_stop_now_force PASSED [100%]
+    ============================== 14 passed in 1.43s ==============================
+    ```
+    Mutation run with the four E-03 calls temporarily removed showing all 8 host x raise tests failing on `AssertionError: None != 'ses_probe1'`:
+    ```
+    FAILED tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_oc_stall_timeout
+    FAILED tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_oc_keyboard_interrupt
+    FAILED tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_oc_stop_at_checkpoint
+    FAILED tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_agy_stop_now_force
+    FAILED tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_agy_stall_timeout
+    FAILED tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_oc_stop_now_force
+    FAILED tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_agy_keyboard_interrupt
+    FAILED tests/test_interrupt_attempt_metadata.py::HostBehavioralInterruptMetadataTests::test_agy_stop_at_checkpoint
+    ========================= 8 failed, 6 passed in 1.69s ==========================
+    ```
+    Restored after.
+    `render_continuation_hint` output containing `ses_probe1`:
+    ```
+    --- OpenCode Session Continuity ---
+    Captured session: ses_probe1 (Set: demo)
+    To run a new plan under the same session:
+      aw oc run --session ses_probe1 <selector>
+    To resume this run:
+      aw oc run resume --repo /tmp run-...
+    To stop a future run gracefully:
+      aw oc run stop <run-id> --after-call
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the pasted summary line of a bare `python3 -m pytest` run, showing 0 failed, plus the pre-change baseline count so a pre-existing failure is not read as caused by this change. State it as `<before> -> <after>`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare suite summary line:
+    ```
+    2268 passed, 1 skipped, 3 warnings in 44.43s
+    ```
+    Pre-change baseline:
+    ```
+    2254 passed, 1 skipped, 3 warnings in 47.64s
+    ```
+    Delta: `2254 passed, 1 skipped -> 2268 passed, 1 skipped` (0 failed, +14 new tests passing).
+  - Result: pass
 
 ## Approval and execution gate
 
