@@ -6,7 +6,7 @@
 - Scope: IN: one disposition rule in the evidence step of each of the four review workflows (re-locate by symbol or quoted string; drift whose anchor resolves is at most LOW; an anchor that does not resolve is a real evidence finding), and a recommendation that the reviewer's OWN evidence cells carry a symbol beside `path:line`. The recommendation is applied to the `Evidence` field of ALL THREE workflows that declare one, not `plan-review` alone (F-6): `plan-review.md`'s `- **Evidence:** `path:line`.`, `plan-review-long/02-review-and-revise.md`'s `- Evidence: `path:line`.`, and `spec-review.md`'s `Evidence (`path:line`)`. OUT: changing the `path:line` format or the findings-table COLUMN (the table row placeholders stay as they are); any lint (the `hesb87` promotion decision owns that); the authoring rule (already in Section 10.2); retrofitting existing plans or reviews; `plan-review-long/report-template.md` and the four report-table rows, which are output FORMAT rather than evidence-gathering instructions.
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/01-discover-and-snapshot.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/spec-review/spec-review.md, .aw/system/workflows/verify-execution/verify-execution.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: x7i14a
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: x7i14a verified (set citesym, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
