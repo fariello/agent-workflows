@@ -799,6 +799,29 @@ def run_set(args) -> int:
             sys.stderr.write(f"aw specs set: {_gt_err}\n")
             return 2
         new_text = _releases.set_graduated_to_line(new_text, _gt_canonical)
+    # uruqaz E-02/E-03: write From-Backlog and inherit the item's release gate on the `--status` path,
+    # matching the bare spelling handled by `status_set.py`.
+    from_backlog_arg = getattr(args, "from_backlog", None)
+    if from_backlog_arg is not None:
+        from agent_workflows import releases as _releases
+
+        new_text = _releases.set_from_backlog_line(new_text, from_backlog_arg)
+        if from_backlog_arg != "-" and getattr(args, "blocks_release", None) is None:
+            from agent_workflows import backlog as _backlog
+
+            _carrier_m = re.search(
+                r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", new_text
+            )
+            if _carrier_m is None:
+                _item_gate = _backlog.blocks_release_of_item(
+                    _repo_root_of(path), from_backlog_arg
+                )
+                if _item_gate:
+                    new_text = _releases.set_blocks_release_line(new_text, _item_gate)
+                    sys.stdout.write(
+                        f"aw set: inherited - Blocks-Release: {_item_gate} from backlog item "
+                        f"{from_backlog_arg} (graduation handoff: the gate travels with the work)\n"
+                    )
     # validate the complete result in memory; refuse (byte-identical) if it would not conform
     residual = validate_spec(path, new_text)
     if residual:
