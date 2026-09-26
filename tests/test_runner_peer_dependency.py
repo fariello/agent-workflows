@@ -686,6 +686,118 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                 )
                 self.assertEqual(reloaded["queue"][0]["status"], "executed")
 
+    def _drain_fixture(self, name: str) -> tuple[Path, Path, Path]:
+        """A run whose only item waits on `prereq`, which a live peer holds `running`."""
+        repo, rd, peer = _setup_repo_and_runs(
+            self.tmp,
+            repo_name=f"repo-{name}",
+            run_name=f"run-{name}",
+            peer_name=f"run-peer-{name}",
+        )
+        (peer / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": peer.name,
+                    "repo": str(repo),
+                    "queue": [{"id6": "prereq", "status": "running"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        (pending / "20260101-s-01-prereq-plan.ipd.md").write_text(
+            "# Plan prereq\n- Id: prereq\n- Status: approved\n", encoding="utf-8"
+        )
+        dep = pending / "20260101-s-02-dep001-plan.ipd.md"
+        dep.write_text(
+            "# Plan dep001\n- Id: dep001\n- Status: approved\n- Item-Dependencies: executed:prereq\n",
+            encoding="utf-8",
+        )
+        state = {
+            "schema_version": 1,
+            "run_id": rd.name,
+            "repo": str(repo),
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+            "selectors": ["s"],
+            "options": {},
+            "queue": [
+                {
+                    "position": 1,
+                    "id6": "dep001",
+                    "setid": "s",
+                    "action": "execute",
+                    "kind": "child",
+                    "status": "queued",
+                    "path": str(dep.relative_to(repo)),
+                    "dependencies": ["executed:prereq"],
+                    "attempts": [],
+                    "order": 2,
+                }
+            ],
+        }
+        (rd / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        return repo, rd, peer
+
+    def test_h_level3_stop_during_wait_ends_the_run_on_both_hosts(self) -> None:
+        """A level-3 stop mid-wait must END the run, not re-enter the drain arm forever.
+
+        Regression for the verify-execution finding: `_observe_between_turn_stop` makes no wind-down
+        for level 3, so a bare `continue` after a stopped wait re-waited indefinitely.
+        """
+        from agent_workflows import runner_stop
+
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                _repo, rd, peer = self._drain_fixture(f"h-{module.__name__}")
+                orig = runner_shared.wait_for_peer_prerequisites
+                calls = [0]
+
+                def bounded(*a: object, **k: object) -> runner_shared.PeerWaitOutcome:
+                    calls[0] += 1
+                    if calls[0] > 5:
+                        raise AssertionError(
+                            "drain arm re-entered the wait after a stop (spin)"
+                        )
+                    k["poll"] = 0.02
+                    k["timeout"] = 5.0
+                    return orig(*a, **k)
+
+                def stopper() -> None:
+                    time.sleep(0.2)
+                    runner_stop.request_stop(rd, runner_stop.LEVEL_NOW, "test")
+
+                with _HolderProcess(peer / "driver.lock"):
+                    th = threading.Thread(target=stopper)
+                    th.start()
+                    try:
+                        with (
+                            mock.patch.object(
+                                runner_shared, "wait_for_peer_prerequisites", bounded
+                            ),
+                            contextlib.redirect_stdout(io.StringIO()),
+                            contextlib.redirect_stderr(io.StringIO()),
+                        ):
+                            module.run_queue(rd, retry_incomplete=False)
+                    finally:
+                        th.join()
+                reloaded = json.loads((rd / "state.json").read_text(encoding="utf-8"))
+                self.assertEqual(calls[0], 1)
+                self.assertEqual(reloaded["queue"][0]["status"], "queued")
+
+    def test_i_wait_is_visible_by_default(self) -> None:
+        """With no `say=` (as the hosts call it) the wait must announce itself on stderr."""
+        _repo, rd, peer = self._drain_fixture("i")
+        state = json.loads((rd / "state.json").read_text(encoding="utf-8"))
+        err = io.StringIO()
+        with _HolderProcess(peer / "driver.lock"), contextlib.redirect_stderr(err):
+            res = runner_shared.wait_for_peer_prerequisites(
+                rd, state, [state["queue"][0]], poll=0.01, timeout=0.05
+            )
+        self.assertTrue(res.waited)
+        self.assertIn("[peer-dependency]", err.getvalue())
+        self.assertIn("prereq", err.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

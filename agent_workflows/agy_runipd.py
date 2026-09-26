@@ -2991,7 +2991,17 @@ def run_queue(
                 register_signal_report(run_dir, state)
                 continue
             if peer_wait.stopped:
-                continue
+                # e54nz9 verify fix: a BETWEEN-TURN stop (levels 1-2) is honored by the loop's own
+                # checkpoint on the next pass, which becomes a wind-down and exits. A level-3/4 stop
+                # is NOT turned into a wind-down by `_observe_between_turn_stop` (it returns None for
+                # it), so a bare `continue` re-entered the drain arm, re-waited, and spun forever
+                # (measured: 51 wait calls in 30s, never exiting). With no turn in flight there is
+                # nothing to interrupt, so stop the run here like a checkpoint stop: the remainder
+                # stays `queued` (spec R22), nothing is labelled.
+                if runner_stop.poll_stop(run_dir) in runner_stop.BETWEEN_TURN_LEVELS:
+                    continue
+                stopped_at_checkpoint = True
+                break
             # depblock 01 (`akzy45`) E-02/E-04: CLASSIFY BEFORE LABELLING, through the SAME shared
             # predicate `oc_runipd`'s counterpart arm calls. This host owns its own `run_queue` and so
             # its own copy of this loop, which is exactly why the classification itself must live in

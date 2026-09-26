@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_peer_dependency.py, CHANGELOG.md
 - Item-Dependencies: executed:xu3yxw
 - Status: approved
-- Readiness: go
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
 - Set: partition
@@ -365,6 +365,19 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     - []
     + ['dep001'] : agent_workflows.oc_runipd did not dispatch dep001
     1 failed, 6 deselected in 0.64s
+    ```
+
+    VERIFY-EXECUTION ADDENDUM (opencode/its_direct/pt3-claude-opus-5.5-1m-us, 2026-09-26): two defects found in the shipped wiring and fixed in place. (1) A LEVEL-3/4 STOP during the wait SPUN: `if peer_wait.stopped: continue` relies on the loop-top checkpoint, but `_observe_between_turn_stop` makes no wind-down for levels 3/4, so the drain arm re-entered the wait indefinitely (measured before the fix: 51 wait calls in 30s, never exiting, on both hosts). Now a stopped wait `continue`s only for a between-turn level and otherwise sets `stopped_at_checkpoint = True` and breaks, leaving the remainder `queued`. (2) The wait was SILENT: both hosts call it without `say=`, whose default was a no-op; the default now writes `[peer-dependency]` lines to stderr, plus one immediate line naming the prerequisite and peer. Regression tests `test_h_level3_stop_during_wait_ends_the_run_on_both_hosts` and `test_i_wait_is_visible_by_default` FAIL on the pre-fix code and pass after:
+    ```
+    # pre-fix code:
+    E           AssertionError: drain arm re-entered the wait after a stop (spin)
+    E       AssertionError: '[peer-dependency]' not found in ''
+    2 failed, 7 deselected in 1.81s
+    # with the fix:
+    $ python3 -m pytest tests/test_runner_peer_dependency.py -o addopts="" -q
+    9 passed in 5.91s
+    $ python3 -m pytest
+    2498 passed, 2 skipped, 3 warnings in 35.10s
     ```
   - Result: pass
 

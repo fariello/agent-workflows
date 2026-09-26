@@ -5364,7 +5364,14 @@ def wait_for_peer_prerequisites(
     _poll_stop = poll_stop if poll_stop is not None else runner_stop.poll_stop
     _sleep = sleep if sleep is not None else time.sleep
     _now = now if now is not None else time.monotonic
-    _say = say if say is not None else (lambda _msg: None)
+    # e54nz9 verify fix: the DEFAULT is visible, not silent. The hosts call this without `say=`, and a
+    # silent wait of up to PEER_DEPENDENCY_WAIT_SECONDS is operationally identical to a hang (the same
+    # reasoning `INTEGRATION_LOCK_PROGRESS_SECONDS` records for the integration-lock wait).
+    _say = (
+        say
+        if say is not None
+        else (lambda msg: print(f"  [peer-dependency] {msg}", file=sys.stderr))
+    )
     _append = append_jsonl if append_jsonl is not None else globals()["append_jsonl"]
 
     initial_held: dict[str, PeerHold] = {}
@@ -5389,6 +5396,11 @@ def wait_for_peer_prerequisites(
 
     start_mono = _now()
     last_say_elapsed = 0.0
+    for prereq_id, hold in initial_held.items():
+        _say(
+            f"waiting up to {timeout:.0f}s for prerequisite {prereq_id}, which live peer run "
+            f"{hold.run_id} has {hold.item_status!r}"
+        )
 
     _append(
         run_dir / "events.jsonl",
