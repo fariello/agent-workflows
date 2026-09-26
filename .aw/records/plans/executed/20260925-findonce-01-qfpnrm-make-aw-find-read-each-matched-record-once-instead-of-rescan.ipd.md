@@ -6,7 +6,7 @@
 - Scope: Replace the whole-tree `plans_index.scan_plans` / `research_index._scan_docs` call on the SELECTOR branch of `cli._find_type_records` with a per-path entry builder applied only to the resolver's matched paths; the no-selector branch, the matching semantics, and the displayed output stay byte-identical. INCLUDES preserving three behaviors the whole-tree scan currently supplies as side effects and a per-path builder can silently lose: the once-per-scan `artifact_core.get_ignored_dirs` result (a `git ls-files` SUBPROCESS, measured 2.7ms, which must not be re-run per matched path, F-6); the research scan's SKIP of a doc whose name or frontmatter does not parse, which today makes two resolver-matchable files display as "no matching research" (F-7); and `scan_plans`'s unguarded `read_text`, which a per-path builder must not turn into a new exception path (F-8).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/plans_index.py, agent_workflows/research_index.py, agent_workflows/selectors.py, tests/test_find_single_read.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qfpnrm
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qfpnrm verified (set findonce, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
