@@ -6,7 +6,7 @@
 - Scope: IN: (a) `oc_runipd.run_opencode` passes the current attempt's `lane_input_revision` to both `localize_attachment` calls; (b) docstrings state that `revision=None` means "latest" and is only correct for a single-owner lane, across all FIVE `revision`-taking readers in `lane_containment` that share that default; (c) spec `7ckptx` R5.1a (iii) and acceptance A12b state that a revision is scoped to the (lane, turn) pair, that a shared lane holds one revision per turn, and that a consumer MUST address a turn's own revision rather than the latest, plus a note in A12b naming which of its parts currently has no shipped test; (d) a regression test with no-regression cases that can actually fail. OUT: renaming or re-keying `rev-<N>` directories; narrowing the four verifier signatures from a defaulting `None` (no product caller); restoring the deleted R5 acceptance test file; the agy host (it has no `--file` surface and names the lane plan path in the prompt, which `resolve_plan_path(lane_root, ...)` already resolves per turn); the execute lane (single owner, always rev-1).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/lane_containment.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, tests/test_lane_input_revision_scope.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xzroy8
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xzroy8 verified (set lanevocab, recovered after the parenthesized-actor refusal fixed in b47d7816).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
