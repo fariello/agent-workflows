@@ -5520,6 +5520,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "commas; '-' clears the field. A malformed setid is refused.",
     )
     p_specs_set.add_argument(
+        "--from-backlog",
+        dest="from_backlog",
+        default=None,
+        help="Link this spec to the backlog item it graduated from (a backlog id6); '-' clears it.",
+    )
+    p_specs_set.add_argument(
         "--by-human",
         dest="by_human",
         action="store_true",

@@ -1,5 +1,5 @@
 - Id: mod4ml
-- Status: graduated
+- Status: done
 - Graduated-To: specfb
 - Set: mod4ml
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw specs set has no --from-backlog flag, so a spec-first graduation has no setter route to record or inherit its gate
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD uruqaz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-specfb-01-uruqaz-let-aw-specs-set-record-and-inherit-from-backlog-on-both-spe.ipd.md); evidence .aw/records/plans/executed/20260925-specfb-01-uruqaz-let-aw-specs-set-record-and-inherit-from-backlog-on-both-spe.ipd.md
 - 2026-09-25 graduated (aw set): graduated into specfb (plan uruqaz); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): aw specs set has no --from-backlog flag, so a spec-first graduation has no setter route to record or inherit its gate
 
