@@ -5689,7 +5689,13 @@ EXAMPLES
         "--keep",
         action="append",
         default=None,
-        help="In a sweep, send this <id6> to reference instead of archive.",
+        help="In a sweep, send this <id6> to reference instead of archive, or pin a run id against pruning.",
+    )
+    p_archive.add_argument(
+        "--keep-last",
+        type=int,
+        default=5,
+        help="Number of newest runs to keep per workflow in workflow-artifacts sweep (default: 5).",
     )
     p_archive.add_argument(
         "--apply",
@@ -11045,9 +11051,14 @@ def _run_archive(args: argparse.Namespace, term: Term) -> int:
     """awcmdsurf Order 03: generalized `archive <type> [target]`. If the first positional is a known
     TYPE (research|plans|all), route by type; otherwise treat it as a research target (back-compat:
     `aw archive <id6>` still archives research)."""
+    tot = getattr(args, "type_or_target", None)
+    if tot == "workflow-artifacts":
+        from agent_workflows import workflow_artifacts_prune as wap
+
+        return wap.run_archive(args, term)
+
     from agent_workflows import artifact_types as at
 
-    tot = getattr(args, "type_or_target", None)
     resolved_type = None
     if tot is not None:
         try:
