@@ -4999,6 +4999,159 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Arguments forwarded verbatim to the packaged pwatch core.",
     )
 
+    # upgrehearse Order 01 (8ud1is): top-level `aw upgrade-test` graduates tools/aw_upgrade_test.py.
+    # We use a dedicated common parser for upgrade-test subparsers with action="store_const",
+    # default=argparse.SUPPRESS for --json, so that a --json supplied BEFORE the subcommand is
+    # not clobbered by the subparser's own default (F-5 / CliTests regression).
+    common_upgrade = _AwArgumentParser(add_help=False, parents=[presentation])
+    common_upgrade.add_argument(
+        "--agent",
+        dest="agent",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Machine-readable output (aw.agent/v1 JSONL).",
+    )
+    common_upgrade.add_argument(
+        "--json",
+        dest="json",
+        action="store_const",
+        const=True,
+        default=argparse.SUPPRESS,
+        help="Emit full structured JSON representation.",
+    )
+
+    p_upgrade_test = sub.add_parser(
+        "upgrade-test",
+        parents=[common_upgrade],
+        help="Rehearse an agent-workflows install/update/migrate against a disposable copy of a real repo.",
+        description=(
+            "Rehearse an agent-workflows install/update/migrate against a disposable copy "
+            "of a real repo. Never mutates the source, never pushes, never touches the "
+            "real aw config."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw upgrade-test list --size\n"
+            "  aw upgrade-test new <repo> --rerun\n"
+            "  aw upgrade-test new <repo> -- --to-aw\n"
+            "  aw upgrade-test new <big-repo> --strategy clone\n"
+            "  aw upgrade-test probe <sandbox> --json\n"
+            "  aw upgrade-test clean --all -y\n"
+        ),
+    )
+    upgrade_test_sub = p_upgrade_test.add_subparsers(dest="upgrade_test_command")
+
+    p_upg_list = upgrade_test_sub.add_parser(
+        "list",
+        parents=[common_upgrade],
+        help="List candidate source repos and their versions.",
+    )
+    p_upg_list.add_argument(
+        "--installed-only",
+        action="store_true",
+        help="Only repos with the framework already installed.",
+    )
+    p_upg_list.add_argument(
+        "--size", action="store_true", help="Compute directory sizes (slower)."
+    )
+
+    p_upg_new = upgrade_test_sub.add_parser(
+        "new",
+        parents=[common_upgrade],
+        help="Create a sandbox copy and run the upgrade.",
+    )
+    p_upg_new.add_argument(
+        "repo", help="Source repo name (under search roots) or a path."
+    )
+    p_upg_new.add_argument(
+        "--dest",
+        default=None,
+        help="Sandbox root (default: a 'tmp/aw-upgrade-tests' directory "
+        "under your first configured search root, outside the "
+        "discovery scan; override with AW_UPGRADE_TEST_ROOT).",
+    )
+    p_upg_new.add_argument(
+        "--sibling",
+        action="store_true",
+        help="Place the sandbox beside its source instead of under --dest.",
+    )
+    p_upg_new.add_argument(
+        "--strategy",
+        choices=("full", "clone"),
+        default="full",
+        help="full: cp -a, faithful (default). clone: cheap, committed "
+        "state plus the framework trees.",
+    )
+    p_upg_new.add_argument(
+        "--no-run", action="store_true", help="Copy only; do not run the installer."
+    )
+    p_upg_new.add_argument(
+        "--rerun",
+        action="store_true",
+        help="Run the installer twice to check idempotency.",
+    )
+    p_upg_new.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show full installer output and the file delta.",
+    )
+    p_upg_new.add_argument(
+        "-y", "--yes", action="store_true", help="Skip the large-copy note."
+    )
+    p_upg_new.add_argument(
+        "--warn-bytes",
+        type=int,
+        default=512 * 1024 * 1024,
+        help="Size above which a full copy prints a note.",
+    )
+    p_upg_new.add_argument(
+        "install_args",
+        nargs="*",
+        metavar="-- INSTALL_ARGS",
+        help="Args passed verbatim to 'aw install' after a bare --.",
+    )
+
+    p_upg_boxes = upgrade_test_sub.add_parser(
+        "sandboxes",
+        parents=[common_upgrade],
+        help="List existing sandboxes.",
+    )
+    p_upg_boxes.add_argument(
+        "--root", action="append", help="Extra root to search (repeatable)."
+    )
+
+    p_upg_probe = upgrade_test_sub.add_parser(
+        "probe",
+        parents=[common_upgrade],
+        help="Re-probe a sandbox's state (read-only).",
+    )
+    p_upg_probe.add_argument("sandbox")
+
+    p_upg_env = upgrade_test_sub.add_parser(
+        "env",
+        parents=[common_upgrade],
+        help="Print shell exports to explore a sandbox safely.",
+    )
+    p_upg_env.add_argument("sandbox")
+
+    p_upg_clean = upgrade_test_sub.add_parser(
+        "clean",
+        parents=[common_upgrade],
+        help="Remove sandboxes (marker-gated).",
+    )
+    p_upg_clean.add_argument("paths", nargs="*", help="Sandbox paths to remove.")
+    p_upg_clean.add_argument(
+        "--all", action="store_true", help="Remove every found sandbox."
+    )
+    p_upg_clean.add_argument(
+        "--root", action="append", help="Extra root to search (repeatable)."
+    )
+    p_upg_clean.add_argument(
+        "-y", "--yes", action="store_true", help="Actually remove."
+    )
+
     p_backlog = sub.add_parser(
         "backlog",
         parents=[common],
@@ -13798,6 +13951,55 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import pwatch
 
         return pwatch.main(list(getattr(args, "pwatch_args", []) or []))
+    # upgrehearse Order 01 (8ud1is): top-level `aw upgrade-test` graduated from tools/aw_upgrade_test.py.
+    if args.command == "upgrade-test":
+        from agent_workflows import upgrade_rehearsal
+
+        subcmd = getattr(args, "upgrade_test_command", None)
+        if not subcmd:
+            for sa in [
+                a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+            ]:
+                if "upgrade-test" in sa.choices:
+                    sa.choices["upgrade-test"].print_help()
+                    break
+            return 2
+
+        if getattr(args, "install_args", None):
+            args.install_args = [a for a in args.install_args if a != "--"]
+
+        handlers = {
+            "list": upgrade_rehearsal.cmd_list,
+            "new": upgrade_rehearsal.cmd_new,
+            "sandboxes": upgrade_rehearsal.cmd_sandboxes,
+            "probe": upgrade_rehearsal.cmd_probe,
+            "env": upgrade_rehearsal.cmd_env,
+            "clean": upgrade_rehearsal.cmd_clean,
+        }
+        handler = handlers.get(subcmd)
+        if not handler:
+            print(
+                f"agent-workflows: error: unknown upgrade-test command: {subcmd}",
+                file=sys.stderr,
+            )
+            return 2
+
+        try:
+            return handler(args)
+        except upgrade_rehearsal.HarnessError as exc:
+            if getattr(args, "agent", False):
+                return upgrade_rehearsal._emit_agent(
+                    f"upgrade-test {subcmd}",
+                    {"error": str(exc)},
+                    exit_code=2,
+                    status="cannot-run",
+                    summary=str(exc),
+                )
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except KeyboardInterrupt:
+            print("interrupted", file=sys.stderr)
+            return 130
     if args.command in ("ipd", "plan", "plans"):
         ipd_cmd = (
             getattr(args, "ipd_command", None)
