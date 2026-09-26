@@ -1,7 +1,8 @@
 # Spec: Universal artifact dispatch: one selector, one action table, one conformance gate for every runner and reader
 
 - Date: 2026-09-16
-- Status: approved
+- Status: implementing
+- Graduated-To: artdispatch
 - Blocks-Release: next
 - Id: z7nbn1
 - Author: opencode/its_direct-pt3-claude-opus-5 (dictated by the maintainer 2026-09-16)
@@ -9,6 +10,7 @@
 - Scope: Every tool that looks at or acts on artifacts resolves them through one selector, decides what to do through one action table, and refuses clearly on anything it cannot classify; executing a spec or backlog item PRODUCES plans or backlog items rather than doing work itself.
 
 ## Workflow history
+- 2026-09-26 implementing (aw set): Graduated 2026-09-26 into Set artdispatch (7icz68, 8l8dgb, jdn790, 2ptgds, aeq7f8, y3p3p5; every plan carries From-Spec z7nbn1 and Blocks-Release next; 5.7 owned by mxzogk).
 - 2026-09-26 approved (aw set, --by-human): Maintainer approved 2026-09-26 in chat ('Yes, approve and graduate') after /spec-review APPROVE WITH REVISIONS APPLIED
 
 - 2026-09-26 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-010 FIXED; review record .aw/records/reviews/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.review.md; ready for human approval
