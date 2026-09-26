@@ -1687,6 +1687,12 @@ RUN_RETRY_BUDGET_MEMBER = "retry_budget"
 #: The member of the `run` object holding the active runner conflict policy.
 RUN_ON_CONFLICT_MEMBER = "on_conflict"
 
+#: The member of the `run` object holding the worktree isolation policy.
+RUN_ISOLATE_MEMBER = "isolate_worktree"
+
+#: The action types governed by repository worktree isolation policy.
+ISOLATION_ACTIONS: Tuple[str, ...] = ("execute", "review")
+
 #: The canonical conflict resolution policies accepted in configuration.
 VALID_ON_CONFLICT_POLICIES: Tuple[str, ...] = ("drop", "refuse", "force", "prompt")
 
@@ -1857,6 +1863,84 @@ def policy_on_conflict(
         f"Fix the value in that file to make the policy take effect."
     )
     return None
+
+
+def policy_isolation(
+    repo_root: "os.PathLike[str] | str | None",
+    *,
+    warn: Any = None,
+) -> Dict[str, bool]:
+    """The repository-policy worktree isolation defaults per action ('execute', 'review').
+
+    Reads `.aw/config/project.json` under `run.isolate_worktree` (or top-level `isolate_worktree`).
+    Accepted shapes:
+      - `{"run": {"isolate_worktree": {"execute": true, "review": false}}}`
+      - `{"run": {"isolate_worktree": false}}` (bare bool applies to both actions)
+    Missing actions default to `True`.
+
+    Posture per the run-policy section's recorded rule ("FALL BACK TO THE DEFAULT AND EMIT A
+    VISIBLE WARNING NAMING THE KEY AND THE BAD VALUE"): a non-bool value or unknown action name
+    falls back to `True` for that action and warns once. Never raises; not registered in
+    `CONFIG_SCHEMA`.
+    """
+    import sys as _sys
+
+    def _emit(message: str) -> None:
+        if warn is None:
+            print(message, file=_sys.stderr)
+        else:
+            warn(message)
+
+    default_result = {act: True for act in ISOLATION_ACTIONS}
+    if not repo_root:
+        return default_result
+
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    run_policy = read_run_policy(repo_root)
+    raw = None
+    where = None
+    if run_policy is not None and RUN_ISOLATE_MEMBER in run_policy:
+        raw = run_policy.get(RUN_ISOLATE_MEMBER)
+        where = f"{RUN_POLICY_KEY}.{RUN_ISOLATE_MEMBER}"
+    else:
+        try:
+            data = json.loads(project_file.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and RUN_ISOLATE_MEMBER in data:
+                raw = data.get(RUN_ISOLATE_MEMBER)
+                where = RUN_ISOLATE_MEMBER
+        except (OSError, ValueError):
+            return default_result
+
+    if raw is None:
+        return default_result
+
+    if isinstance(raw, bool):
+        return {act: raw for act in ISOLATION_ACTIONS}
+
+    if isinstance(raw, dict):
+        result = dict(default_result)
+        for key, val in raw.items():
+            if key not in ISOLATION_ACTIONS:
+                _emit(
+                    f"WARNING: {where} in {project_file} contains unknown action {key!r}. "
+                    f"Ignoring it and using default (True)."
+                )
+                continue
+            if not isinstance(val, bool):
+                _emit(
+                    f"WARNING: {where}.{key} in {project_file} is {val!r}, which is not a boolean. "
+                    f"Falling back to default (True)."
+                )
+                result[key] = True
+            else:
+                result[key] = val
+        return result
+
+    _emit(
+        f"WARNING: {where} in {project_file} is {raw!r}, which is not a boolean or mapping. "
+        f"Falling back to default (True for both actions)."
+    )
+    return default_result
 
 
 # --------------------------------------------------------------------------------------
