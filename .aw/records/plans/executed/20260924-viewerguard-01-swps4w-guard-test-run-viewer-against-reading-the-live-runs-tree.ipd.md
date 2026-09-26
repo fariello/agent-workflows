@@ -6,7 +6,7 @@
 - Scope: IN: one autouse fixture plus a process audit hook, both inside `tests/test_run_viewer.py`, that fail any test in the module which lists or opens a path under the checkout's live run roots; permanent self-tests proving BOTH that the hook records and that the fixture actually FAILS (the latter via a subprocess, because an in-process test cannot assert its own fixture failed); a one-shot falsification probe against the real live tree (not committed). OUT: a suite-wide guard in the root `conftest.py` (Deferred); any change to `agent_workflows/run_viewer.py`.
 - Scope-Paths: tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: swps4w
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: swps4w verified (set viewerguard, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-601..PR-606 all fixed; added E-03 (subprocess self-test proving the fixture actually fails, measured falsifiable) and E-05 (xdist plus random-order stability); recorded the guard's honest reach (inert with no live tree); 6 items, 6:6 E/V bijection; findings and 4 decisions in .aw/records/reviews/20260924-viewerguard-01-swps4w-...review.md
 
@@ -37,28 +37,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: build the guard
 
-- [ ] E-01 Add the live-runs read guard to `tests/test_run_viewer.py`, just below the imports.
+- [x] E-01 Add the live-runs read guard to `tests/test_run_viewer.py`, just below the imports.
   (a) Module constant `_REPO = Path(__file__).resolve().parents[1]`. Define `_LIVE_RUN_ROOTS` as a list of `os.path.realpath` strings for the three roots `run_viewer.discover_run_dirs` scans: `runner_shared.state_root(_REPO)` (the canonical `.aw/records/runs`, resolved through the project-context authority so a non-repository records backend is covered too), `_REPO / ".aw" / "runs"` and `_REPO / ".agents" / "runs"`. Wrap the `state_root` call in `try/except Exception` and fall back to `_REPO / ".aw" / "records" / "runs"`, so the guard can never break module import.
   (b) A module-level `_hook(event, args)` registered once with `sys.addaudithook`. It does nothing unless a module flag `_ARMED[0]` is true. When armed, for the events `open`, `os.scandir` and `os.listdir` it runs `os.path.realpath(os.fsdecode(args[0]))` inside `try/except` (non-path first args such as file descriptors are ignored). The `try/except` is LOAD-BEARING, not defensive decoration: measured at review, `os.fsdecode(3)` raises `TypeError`, and an fd-based `open(fd, 'w')` does reach the hook with an int first arg, so without the guard a legitimate fd write would raise from inside the hook. It records `(event, path)` whenever the path equals a guarded root or sits under one (`p == g or p.startswith(g + os.sep)`). Re-entrancy is bounded: `os.path.realpath` inside the hook does not itself emit a guarded event (measured max re-entry depth 1).
   (c) An `@pytest.fixture(autouse=True)` named `_forbid_live_runs_reads` that clears the module list `_HITS`, arms, yields, disarms, and then calls `pytest.fail(...)` if anything was recorded. CLEAR `_HITS` BEFORE CALLING `pytest.fail`, not after, or the recorded hit leaks into the next test in the same worker and fails it too, reporting the wrong test as the offender. The failure message names the event and path, says that `.aw/records/runs/` is gitignored and box-local, and points the author at `_build_viewer_fixture`. Add `import os`, `import sys` and `import pytest` - measured at review, the module currently imports NONE of the three (it has `argparse`, `io`, `json`, `tempfile`, `contextlib`, `datetime`, `pathlib`, `typing`, `unittest`), so all three are new; `pytest` is already an established import in sibling test modules (`tests/test_cli.py`, `tests/test_installer.py` and others), so it introduces no new dependency.
   (d) A short comment block in the style of the root `conftest.py` "Home isolation" block, stating: what it catches, and why (`rcmbnb`, `xbwq8n`); that audit hooks cannot be removed, which is why it is flag-gated; that `Path.is_dir`/`exists`/`stat` emit no audit event (verified at review: all three record nothing, while `iterdir` emits `os.scandir` and a MISSING-path `open`/`iterdir` still emits its event), so existence probes are deliberately allowed and only real reads fail; and its reach - this module only, only in-process reads, and ONLY on a box where the live tree exists, since an absent root is never scanned past `is_dir` (F-5). State that last limit explicitly in the comment: a future reader who assumes CI enforces this guard would be wrong.
   - Depends on: none
   - Expected outcome: the module still reports every existing test passing, and a test that lists or opens a path under any guarded root fails in teardown with the explanatory message.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a permanent self-test class `LiveRunsGuardSelfTests` in the module, covering what the HOOK records. `test_guard_records_a_read_under_a_guarded_root` makes a `tempfile.TemporaryDirectory()` with a `runs/run-x` child and temporarily appends its realpath to `_LIVE_RUN_ROOTS` (restoring it in `finally`). It then calls `list(Path(td, "runs").iterdir())`, asserts `_HITS` holds exactly one `os.scandir` entry for that path, and clears `_HITS` before returning so the fixture does not fail the self-test. A second test, `test_guard_ignores_unguarded_and_existence_probes`, asserts `_HITS` stays empty after `list(Path(td).iterdir())` on an unguarded temp dir and after `Path(_LIVE_RUN_ROOTS[0]).is_dir()`. NOTE WHAT THESE DO NOT PROVE, and do not let the item's own clearing of `_HITS` read as sufficient: because they clear `_HITS`, the autouse fixture never fails, so the `pytest.fail` branch - the entire enforcement mechanism - is NOT exercised. Measured at review by replacing the `pytest.fail(...)` call with `pass`: both of these self-tests still PASSED. E-03 is what closes that hole; do not merge E-03 into this item, because its mechanism (a subprocess) is unrelated to these two in-process assertions. Also make the second test robust when `_LIVE_RUN_ROOTS[0]` does not exist (the fresh-clone case): `Path(absent).is_dir()` is `False` and emits no event, so the assertion holds, but state that this is deliberate rather than accidental so a later reader does not "strengthen" it into requiring the path to exist.
+- [x] E-02 Add a permanent self-test class `LiveRunsGuardSelfTests` in the module, covering what the HOOK records. `test_guard_records_a_read_under_a_guarded_root` makes a `tempfile.TemporaryDirectory()` with a `runs/run-x` child and temporarily appends its realpath to `_LIVE_RUN_ROOTS` (restoring it in `finally`). It then calls `list(Path(td, "runs").iterdir())`, asserts `_HITS` holds exactly one `os.scandir` entry for that path, and clears `_HITS` before returning so the fixture does not fail the self-test. A second test, `test_guard_ignores_unguarded_and_existence_probes`, asserts `_HITS` stays empty after `list(Path(td).iterdir())` on an unguarded temp dir and after `Path(_LIVE_RUN_ROOTS[0]).is_dir()`. NOTE WHAT THESE DO NOT PROVE, and do not let the item's own clearing of `_HITS` read as sufficient: because they clear `_HITS`, the autouse fixture never fails, so the `pytest.fail` branch - the entire enforcement mechanism - is NOT exercised. Measured at review by replacing the `pytest.fail(...)` call with `pass`: both of these self-tests still PASSED. E-03 is what closes that hole; do not merge E-03 into this item, because its mechanism (a subprocess) is unrelated to these two in-process assertions. Also make the second test robust when `_LIVE_RUN_ROOTS[0]` does not exist (the fresh-clone case): `Path(absent).is_dir()` is `False` and emits no event, so the assertion holds, but state that this is deliberate rather than accidental so a later reader does not "strengthen" it into requiring the path to exist.
   - Depends on: E-01
   - Expected outcome: both self-tests pass, and deleting the `sys.addaudithook` registration makes the first one fail.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add the permanent self-test that the FIXTURE ACTUALLY FAILS, which is the one assertion E-02 structurally cannot make: a test cannot assert that its own teardown fixture failed it. Add `test_fixture_fails_a_test_that_reads_a_guarded_root` to `LiveRunsGuardSelfTests`, which writes a tiny throwaway test module into a `tempfile.TemporaryDirectory()` containing a COPY of the hook plus autouse fixture (guarding one fake root passed via an env var) and one test that lists that root, then runs it with `subprocess.run([sys.executable, "-m", "pytest", <mod>, "-o", "addopts=", "-q", "-p", "no:randomly"], capture_output=True, text=True, cwd=td)` and asserts a NONZERO returncode and the guard message substring in stdout. Prototyped at review: it passes as written, and when the inner `pytest.fail(...)` is replaced with `pass` it FAILS (`AssertionError`, inner run reported `1 passed`), so it is genuinely falsifiable. Use `-o addopts=` so the parent suite's `-n auto` does not nest, and `cwd=td` so the inner run cannot pick up this repository's `conftest.py`. It needs NO live tree, so unlike E-04 it protects the guard in CI and in a lane worktree too.
+- [x] E-03 Add the permanent self-test that the FIXTURE ACTUALLY FAILS, which is the one assertion E-02 structurally cannot make: a test cannot assert that its own teardown fixture failed it. Add `test_fixture_fails_a_test_that_reads_a_guarded_root` to `LiveRunsGuardSelfTests`, which writes a tiny throwaway test module into a `tempfile.TemporaryDirectory()` containing a COPY of the hook plus autouse fixture (guarding one fake root passed via an env var) and one test that lists that root, then runs it with `subprocess.run([sys.executable, "-m", "pytest", <mod>, "-o", "addopts=", "-q", "-p", "no:randomly"], capture_output=True, text=True, cwd=td)` and asserts a NONZERO returncode and the guard message substring in stdout. Prototyped at review: it passes as written, and when the inner `pytest.fail(...)` is replaced with `pass` it FAILS (`AssertionError`, inner run reported `1 passed`), so it is genuinely falsifiable. Use `-o addopts=` so the parent suite's `-n auto` does not nest, and `cwd=td` so the inner run cannot pick up this repository's `conftest.py`. It needs NO live tree, so unlike E-04 it protects the guard in CI and in a lane worktree too.
   - Depends on: E-02
   - Expected outcome: the subprocess self-test passes; replacing the copied `pytest.fail` with `pass` makes it fail.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it and run the suite
 
-- [ ] E-04 FALSIFY AGAINST THE REAL LIVE TREE, without committing the probe. In a checkout that has a populated `.aw/records/runs/` (the maintainer checkout does: 264 entries at authoring), temporarily append to `tests/test_run_viewer.py`, outside every other class:
+- [x] E-04 FALSIFY AGAINST THE REAL LIVE TREE, without committing the probe. In a checkout that has a populated `.aw/records/runs/` (the maintainer checkout does: 264 entries at authoring), temporarily append to `tests/test_run_viewer.py`, outside every other class:
 
   ```python
   class _ProbeLiveRead(TestCase):
@@ -69,17 +69,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Run `python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -p no:randomly`, which must FAIL on `test_probe` with the guard message. Then delete the probe class and rerun, which must pass. A worktree with no live tree cannot show the failure, because `discover_run_dirs` never scans an absent root - CONFIRMED at review: with the tree moved aside, the same probe passed silently and the hook recorded nothing. That is expected, and it is why E-02 and E-03 exist. IF THIS EXECUTES IN A LANE WORKTREE OR ANY CHECKOUT WITH NO LIVE TREE, synthesize one first: create `_REPO/.aw/records/runs/run-probe/` with a `state.json`, run the probe, then remove the directory you created and confirm with `git status --short` that nothing remains (the path is gitignored by `.aw/.gitignore`'s `records/runs/`, verified at review, so it will not appear as untracked - check the filesystem, not only git).
   - Depends on: E-03
   - Expected outcome: probe present gives exactly `1 failed` (or `1 error`) with the guard message naming a path under the runs root; probe removed gives zero failures; `git status --short tests/test_run_viewer.py` shows only the E-01..E-03 diff and no synthesized run directory remains on disk.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Confirm the guard does not change the module's cost or its result under the REAL suite conditions, which are xdist plus random ordering and are not what E-02's targeted runs exercise. Run `python3 -m pytest tests/test_run_viewer.py` (bare, so the configured `-n auto --dist=worksteal` and `pytest-randomly` both apply) three times and confirm the same pass count each time with no ordering-dependent failure. Rationale, measured at review: the hook is installed process-wide and fires on every `open`/`os.scandir`/`os.listdir` in the worker, and `_HITS`/`_ARMED` are module-level mutable state shared by every test in the worker; the prototype was stable across xdist and five random seeds, but the plan should demonstrate that on the real module rather than inherit the prototype's result. Review also measured the overhead as negligible (a disarmed hook cost 1.00x on a 3,000-file write-and-read loop, 320.5ms against 319.6ms), so a large slowdown would indicate a mistake rather than an inherent cost.
+- [x] E-05 Confirm the guard does not change the module's cost or its result under the REAL suite conditions, which are xdist plus random ordering and are not what E-02's targeted runs exercise. Run `python3 -m pytest tests/test_run_viewer.py` (bare, so the configured `-n auto --dist=worksteal` and `pytest-randomly` both apply) three times and confirm the same pass count each time with no ordering-dependent failure. Rationale, measured at review: the hook is installed process-wide and fires on every `open`/`os.scandir`/`os.listdir` in the worker, and `_HITS`/`_ARMED` are module-level mutable state shared by every test in the worker; the prototype was stable across xdist and five random seeds, but the plan should demonstrate that on the real module rather than inherit the prototype's result. Review also measured the overhead as negligible (a disarmed hook cost 1.00x on a 3,000-file write-and-read loop, 320.5ms against 319.6ms), so a large slowdown would indicate a mistake rather than an inherent cost.
   - Depends on: E-04
   - Expected outcome: three bare runs of the module report the same pass count with zero failures and no order-dependent flake.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Run the bare suite `python3 -m pytest`, with no extra flags.
+- [x] E-06 Run the bare suite `python3 -m pytest`, with no extra flags.
   - Depends on: E-05
   - Expected outcome: zero failures; the summary line is pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -140,35 +140,272 @@ N/A: test-only change. No spec describes the test module's isolation. The ration
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff tests/test_run_viewer.py` showing `sys.addaudithook`, `_LIVE_RUN_ROOTS` built from `runner_shared.state_root` plus the two legacy roots, the `try/except` around the `state_root` call, and the `_forbid_live_runs_reads` autouse fixture with `pytest.fail` AND with `_HITS` cleared BEFORE the `pytest.fail` call. Also paste the tail of `python3 -m pytest tests/test_run_viewer.py -o addopts="" -q` showing zero failures, and quote the comment block's reach sentence (the one stating the guard is inert where no live tree exists), since that limit is the review's F-5 and must not be dropped.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Guard diff, test passing output, and reach sentence verified:
+```diff
+@@ -9,6 +9,9 @@
+ import argparse
+ import io
+ import json
++import os
++import subprocess
++import sys
+ import tempfile
+ from contextlib import redirect_stderr, redirect_stdout
+ from datetime import datetime, timezone
+@@ -15,10 +15,91 @@
+ from typing import Any
+ from unittest import TestCase
 
-- [ ] V-02 validates E-02
+-from agent_workflows import cli, run_viewer
++import pytest
++
++from agent_workflows import cli, run_viewer, runner_shared
+ from agent_workflows.term import Term
+
++# --------------------------------------------------------------------------------------------------
++# Live-runs isolation: no test in this module may read the checkout's live runs tree.
++# --------------------------------------------------------------------------------------------------
++#
++# WHAT IT CATCHES, AND WHY (`rcmbnb`, `xbwq8n`). `.aw/records/runs/` is gitignored, box-local driver
++# output. A test that reads it passes on a machine that has run the driver and fails in a fresh clone,
++# in CI, and in a lane worktree. Fourteen cases did that until plan `xbwq8n` moved them onto
++# `_build_viewer_fixture`. This guard catches regression reads under `.aw/records/runs/` (and legacy
++# run roots) during test execution.
++#
++# AUDIT HOOK MECHANISM AND SCOPE. Python audit hooks (`sys.addaudithook`) cannot be removed once
++# registered. The hook is therefore flag-gated via `_ARMED[0]` so it is active only while a test in
++# this module executes, and inert for any other tests sharing the worker process.
++#
++# EXISTENCE PROBES VS REAL READS. `Path.is_dir()`, `exists()`, and `stat()` emit no audit event in
++# Python, whereas `iterdir()` emits `os.scandir`, `os.listdir()` emits `os.listdir`, and file reading
++# emits `open`. Existence probes are deliberately allowed, while directory listings and file opens
++# under the guarded roots fail.
++#
++# HONEST REACH AND LIMITATIONS (F-5). This guard protects this module only, for in-process reads, and
++# ONLY on a box where the live tree exists, since `run_viewer.discover_run_dirs` checks `r.is_dir()`
++# before scanning and an absent root is never scanned past `is_dir`. On a machine with no live runs
++# tree (such as a fresh clone, CI, or a lane worktree), an unisolated call to `discover_run_dirs`
++# returns an empty list without emitting an audit event; the guard is inert where no live tree exists.
++# CI does not enforce this guard; it is designed to catch regressions on the author's machine where
++# live run records actually exist.
++_REPO = Path(__file__).resolve().parents[1]
++try:
++    _canonical_runs = runner_shared.state_root(_REPO)
++except Exception:
++    _canonical_runs = _REPO / ".aw" / "records" / "runs"
++
++_LIVE_RUN_ROOTS: list[str] = [
++    os.path.realpath(str(_canonical_runs)),
++    os.path.realpath(str(_REPO / ".aw" / "runs")),
++    os.path.realpath(str(_REPO / ".agents" / "runs")),
++]
++
++_ARMED: list[bool] = [False]
++_HITS: list[tuple[str, str]] = []
++
++
++def _hook(event: str, args: tuple[Any, ...]) -> None:
++    if not _ARMED[0]:
++        return
++    if event in ("open", "os.scandir", "os.listdir"):
++        try:
++            p = os.path.realpath(os.fsdecode(args[0]))
++        except Exception:
++            return
++        for g in _LIVE_RUN_ROOTS:
++            if p == g or p.startswith(g + os.sep):
++                _HITS.append((event, p))
++                break
++
++
++sys.addaudithook(_hook)
++
++
++@pytest.fixture(autouse=True)
++def _forbid_live_runs_reads():
++    _HITS.clear()
++    _ARMED[0] = True
++    try:
++        yield
++    finally:
++        _ARMED[0] = False
++    if _HITS:
++        hits = list(_HITS)
++        _HITS.clear()
++        first_event, first_path = hits[0]
++        pytest.fail(
++            f"Test performed live runs read ({first_event} on {first_path!r}). "
++            ".aw/records/runs/ is gitignored and box-local; "
++            "use _build_viewer_fixture instead. "
++            f"Total hits: {hits}"
++        )
+```
+Tail of `python3 -m pytest tests/test_run_viewer.py -o addopts="" -q`:
+```
+.............................                                            [100%]
+29 passed in 9.08s
+```
+Quoted reach sentence:
+> "On a machine with no live runs tree (such as a fresh clone, CI, or a lane worktree), an unisolated call to `discover_run_dirs` returns an empty list without emitting an audit event; the guard is inert where no live tree exists. CI does not enforce this guard; it is designed to catch regressions on the author's machine where live run records actually exist."
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -k LiveRunsGuardSelfTests` showing the self-tests passing. Then temporarily comment out the `sys.addaudithook(...)` line, rerun, and paste output showing `test_guard_records_a_read_under_a_guarded_root` FAILED. Restore the line and paste an empty `git diff --stat tests/test_run_viewer.py`-relative confirmation that only the intended diff remains.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Self-tests passing, hook falsification failure, and line restored:
+1. Self-tests passing:
+```
+$ python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -k LiveRunsGuardSelfTests
+...                                                                      [100%]
+3 passed, 26 deselected in 1.43s
+```
+2. With `sys.addaudithook` commented out:
+```
+$ python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -k LiveRunsGuardSelfTests
+F..                                                                      [100%]
+=================================== FAILURES ===================================
+____ LiveRunsGuardSelfTests.test_guard_records_a_read_under_a_guarded_root _____
 
-- [ ] V-03 validates E-03
+self = <tests.test_run_viewer.LiveRunsGuardSelfTests testMethod=test_guard_records_a_read_under_a_guarded_root>
+
+    def test_guard_records_a_read_under_a_guarded_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            runs_dir = Path(td) / "runs"
+            (runs_dir / "run-x").mkdir(parents=True)
+            guarded_path = os.path.realpath(str(runs_dir))
+            _LIVE_RUN_ROOTS.append(guarded_path)
+            try:
+                list(Path(td, "runs").iterdir())
+>               self.assertEqual(len(_HITS), 1)
+E               AssertionError: 0 != 1
+
+tests/test_run_viewer.py:2065: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_run_viewer.py::LiveRunsGuardSelfTests::test_guard_records_a_read_under_a_guarded_root
+1 failed, 2 passed, 26 deselected in 0.78s
+```
+3. Line restored and diff confirmed:
+```
+$ git diff --stat tests/test_run_viewer.py
+ tests/test_run_viewer.py | 199 ++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 198 insertions(+), 1 deletion(-)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the subprocess self-test PASSING. Then perform the falsification that E-02 cannot: replace the `pytest.fail(...)` call INSIDE the generated inner module with `pass`, rerun, and paste the output showing the self-test FAILING (the review's prototype reported `AssertionError` with the inner run's `1 passed`). Restore it. This is the plan's single most important piece of evidence, because F-6 measured that without it the entire enforcement branch is untested; a passing run alone does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Subprocess self-test passing, gutted inner fail falsified, and restored test passing:
+1. Subprocess self-test passing:
+```
+$ python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -k test_fixture_fails_a_test_that_reads_a_guarded_root
+.                                                                        [100%]
+1 passed, 28 deselected in 0.75s
+```
+2. Falsification with `pytest.fail(...)` replaced with `pass` in inner module:
+```
+$ python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -k test_fixture_fails_a_test_that_reads_a_guarded_root
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ LiveRunsGuardSelfTests.test_fixture_fails_a_test_that_reads_a_guarded_root __
 
-- [ ] V-04 validates E-04
+self = <tests.test_run_viewer.LiveRunsGuardSelfTests testMethod=test_fixture_fails_a_test_that_reads_a_guarded_root>
+
+        def test_fixture_fails_a_test_that_reads_a_guarded_root(self):
+...
+>               self.assertNotEqual(res.returncode, 0)
+E               AssertionError: 0 == 0
+
+tests/test_run_viewer.py:2154: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_run_viewer.py::LiveRunsGuardSelfTests::test_fixture_fails_a_test_that_reads_a_guarded_root
+1 failed, 28 deselected in 0.78s
+```
+3. Restored `pytest.fail(...)` and re-verified pass:
+```
+$ python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -k test_fixture_fails_a_test_that_reads_a_guarded_root
+.                                                                        [100%]
+1 passed, 28 deselected in 0.78s
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the run WITH `_ProbeLiveRead` present, showing `_ProbeLiveRead::test_probe` failed (or errored) with the guard message naming a path under the runs root. Then paste the run WITHOUT it, showing zero failures, and `git diff --stat tests/test_run_viewer.py` showing no probe class left behind. If you synthesized a runs tree because this checkout had none, say so explicitly and paste the filesystem check (for example `ls .aw/records/runs`) proving you removed it; `git status` alone is NOT sufficient evidence here, because the path is gitignored and would look clean either way.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Synthesized runs tree in lane worktree (.aw/records/runs/run-probe/state.json created); probe failed, probe removed passed, tree removed verified:
+Synthesized runs tree in lane worktree: `.aw/records/runs/run-probe/state.json` created.
+1. Run with `_ProbeLiveRead` present:
+```
+$ python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -p no:randomly
+..............................E                                          [100%]
+==================================== ERRORS ====================================
+________________ ERROR at teardown of _ProbeLiveRead.test_probe ________________
 
-- [ ] V-05 validates E-05
+    @pytest.fixture(autouse=True)
+    def _forbid_live_runs_reads():
+        _HITS.clear()
+        _ARMED[0] = True
+        try:
+            yield
+        finally:
+            _ARMED[0] = False
+        if _HITS:
+            hits = list(_HITS)
+            _HITS.clear()
+            first_event, first_path = hits[0]
+>           pytest.fail(
+                f"Test performed live runs read ({first_event} on {first_path!r}). "
+                ".aw/records/runs/ is gitignored and box-local; "
+                "use _build_viewer_fixture instead. "
+                f"Total hits: {hits}"
+            )
+E           Failed: Test performed live runs read (os.scandir on '/home/user/VC/agent-workflows/.aw/worktrees/swps4w/.aw/records/runs'). .aw/records/runs/ is gitignored and box-local; use _build_viewer_fixture instead. Total hits: [('os.scandir', '/home/user/VC/agent-workflows/.aw/worktrees/swps4w/.aw/records/runs')]
+
+tests/test_run_viewer.py:98: Failed
+=========================== short test summary info ============================
+ERROR tests/test_run_viewer.py::_ProbeLiveRead::test_probe - Failed: Test per...
+30 passed, 1 error in 6.06s
+```
+2. Run with `_ProbeLiveRead` removed:
+```
+$ python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -p no:randomly
+.............................                                            [100%]
+29 passed in 9.36s
+```
+3. Synthesized runs tree removed; filesystem check confirming it no longer exists:
+```
+$ rm -rf .aw/records/runs
+$ ls .aw/records/runs
+ls: cannot access '.aw/records/runs': No such file or directory
+```
+4. Git status and diff stat confirming probe class removed:
+```
+$ git status --short
+ M tests/test_run_viewer.py
+$ git diff --stat tests/test_run_viewer.py
+ tests/test_run_viewer.py | 199 ++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 198 insertions(+), 1 deletion(-)
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the summary line of all THREE bare `python3 -m pytest tests/test_run_viewer.py` runs, showing the same pass count and zero failures each time. State the pass count explicitly; review measured 26 collected items in this module, so a materially different number is worth explaining rather than glossing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Three consecutive bare runs stable with 29 passed across xdist and random ordering:
+Three consecutive bare runs (xdist parallel + randomized test order):
+- Bare run 1: `29 passed in 7.22s`
+- Bare run 2: `29 passed in 7.03s`
+- Bare run 3: `29 passed in 3.76s`
+Pass count is 29 (26 pre-existing tests + 3 new tests in `LiveRunsGuardSelfTests`). Zero failures across all three runs with stable execution under xdist and random ordering.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the final summary line of bare `python3 -m pytest` (for example `N passed, M skipped`) with zero failed and zero errors. Bare per AGENTS.md: no `-n0`, no extra `-q`, no `-p no:randomly`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare full suite run completed with 2253 passed, 1 skipped, 0 failed, 0 errors:
+```
+$ python3 -m pytest
+2253 passed, 1 skipped, 3 warnings in 42.74s
+```
+Zero failed, zero errors.
+  - Result: pass
 
 ## Approval and execution gate
 

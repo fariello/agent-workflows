@@ -1,5 +1,5 @@
 - Id: rcmbnb
-- Status: graduated
+- Status: done
 - Graduated-To: viewerguard
 - Set: testisoguard
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: test_run_viewer.py has no guard against a new test re-reading the gitignored live .aw/records/runs/ tree
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD swps4w executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260924-viewerguard-01-swps4w-guard-test-run-viewer-against-reading-the-live-runs-tree.ipd.md); evidence .aw/records/plans/executed/20260924-viewerguard-01-swps4w-guard-test-run-viewer-against-reading-the-live-runs-tree.ipd.md
 - 2026-09-25 graduated (aw set): graduated into viewerguard plan swps4w (to-review)
 - 2026-09-10 created (aw backlog): test_run_viewer.py has no guard against a new test re-reading the gitignored live .aw/records/runs/ tree
 

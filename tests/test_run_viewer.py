@@ -9,6 +9,9 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
+import subprocess
+import sys
 import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
@@ -16,8 +19,89 @@ from pathlib import Path
 from typing import Any
 from unittest import TestCase
 
-from agent_workflows import cli, run_viewer
+import pytest
+
+from agent_workflows import cli, run_viewer, runner_shared
 from agent_workflows.term import Term
+
+# --------------------------------------------------------------------------------------------------
+# Live-runs isolation: no test in this module may read the checkout's live runs tree.
+# --------------------------------------------------------------------------------------------------
+#
+# WHAT IT CATCHES, AND WHY (`rcmbnb`, `xbwq8n`). `.aw/records/runs/` is gitignored, box-local driver
+# output. A test that reads it passes on a machine that has run the driver and fails in a fresh clone,
+# in CI, and in a lane worktree. Fourteen cases did that until plan `xbwq8n` moved them onto
+# `_build_viewer_fixture`. This guard catches regression reads under `.aw/records/runs/` (and legacy
+# run roots) during test execution.
+#
+# AUDIT HOOK MECHANISM AND SCOPE. Python audit hooks (`sys.addaudithook`) cannot be removed once
+# registered. The hook is therefore flag-gated via `_ARMED[0]` so it is active only while a test in
+# this module executes, and inert for any other tests sharing the worker process.
+#
+# EXISTENCE PROBES VS REAL READS. `Path.is_dir()`, `exists()`, and `stat()` emit no audit event in
+# Python, whereas `iterdir()` emits `os.scandir`, `os.listdir()` emits `os.listdir`, and file reading
+# emits `open`. Existence probes are deliberately allowed, while directory listings and file opens
+# under the guarded roots fail.
+#
+# HONEST REACH AND LIMITATIONS (F-5). This guard protects this module only, for in-process reads, and
+# ONLY on a box where the live tree exists, since `run_viewer.discover_run_dirs` checks `r.is_dir()`
+# before scanning and an absent root is never scanned past `is_dir`. On a machine with no live runs
+# tree (such as a fresh clone, CI, or a lane worktree), an unisolated call to `discover_run_dirs`
+# returns an empty list without emitting an audit event; the guard is inert where no live tree exists.
+# CI does not enforce this guard; it is designed to catch regressions on the author's machine where
+# live run records actually exist.
+_REPO = Path(__file__).resolve().parents[1]
+try:
+    _canonical_runs = runner_shared.state_root(_REPO)
+except Exception:
+    _canonical_runs = _REPO / ".aw" / "records" / "runs"
+
+_LIVE_RUN_ROOTS: list[str] = [
+    os.path.realpath(str(_canonical_runs)),
+    os.path.realpath(str(_REPO / ".aw" / "runs")),
+    os.path.realpath(str(_REPO / ".agents" / "runs")),
+]
+
+_ARMED: list[bool] = [False]
+_HITS: list[tuple[str, str]] = []
+
+
+def _hook(event: str, args: tuple[Any, ...]) -> None:
+    if not _ARMED[0]:
+        return
+    if event in ("open", "os.scandir", "os.listdir"):
+        try:
+            p = os.path.realpath(os.fsdecode(args[0]))
+        except Exception:
+            return
+        for g in _LIVE_RUN_ROOTS:
+            if p == g or p.startswith(g + os.sep):
+                _HITS.append((event, p))
+                break
+
+
+sys.addaudithook(_hook)
+
+
+@pytest.fixture(autouse=True)
+def _forbid_live_runs_reads():
+    _HITS.clear()
+    _ARMED[0] = True
+    try:
+        yield
+    finally:
+        _ARMED[0] = False
+    if _HITS:
+        hits = list(_HITS)
+        _HITS.clear()
+        first_event, first_path = hits[0]
+        pytest.fail(
+            f"Test performed live runs read ({first_event} on {first_path!r}). "
+            ".aw/records/runs/ is gitignored and box-local; "
+            "use _build_viewer_fixture instead. "
+            f"Total hits: {hits}"
+        )
+
 
 # --------------------------------------------------------------------------------------------------
 # Fixture helpers for the unresolvable-target refusal (runsverify 7wei1o E-05)
@@ -1962,3 +2046,115 @@ class RepairReportsRecoveredProvenanceTests(TestCase):
         self.assertIn("downgraded to `substantially-complete`", help_text)
         for dash in ("\u2014", "\u2013"):
             self.assertNotIn(dash, help_text)
+
+
+# --------------------------------------------------------------------------------------------------
+# Self-tests for the live-runs read guard (swps4w E-02, E-03)
+# --------------------------------------------------------------------------------------------------
+
+
+class LiveRunsGuardSelfTests(TestCase):
+    def test_guard_records_a_read_under_a_guarded_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            runs_dir = Path(td) / "runs"
+            (runs_dir / "run-x").mkdir(parents=True)
+            guarded_path = os.path.realpath(str(runs_dir))
+            _LIVE_RUN_ROOTS.append(guarded_path)
+            try:
+                list(Path(td, "runs").iterdir())
+                self.assertEqual(len(_HITS), 1)
+                self.assertEqual(_HITS[0][0], "os.scandir")
+                self.assertEqual(_HITS[0][1], guarded_path)
+            finally:
+                if guarded_path in _LIVE_RUN_ROOTS:
+                    _LIVE_RUN_ROOTS.remove(guarded_path)
+                _HITS.clear()
+
+    def test_guard_ignores_unguarded_and_existence_probes(self):
+        with tempfile.TemporaryDirectory() as td:
+            # Unguarded directory listing should not record any hit.
+            list(Path(td).iterdir())
+            # Existence probe on a guarded root emits no audit event.
+            # Deliberately robust when _LIVE_RUN_ROOTS[0] does not exist (e.g. fresh clone / lane worktree):
+            # Path(absent).is_dir() returns False without emitting an event, so _HITS stays empty.
+            _ = Path(_LIVE_RUN_ROOTS[0]).is_dir()
+            self.assertEqual(_HITS, [])
+
+    def test_fixture_fails_a_test_that_reads_a_guarded_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            fake_root = Path(td) / "fake_runs"
+            fake_root.mkdir()
+            (fake_root / "child").mkdir()
+            mod_path = Path(td) / "test_inner.py"
+            mod_code = """import os
+import sys
+from pathlib import Path
+import pytest
+
+_FAKE_ROOT = os.path.realpath(os.environ["_GUARD_TEST_ROOT"])
+_LIVE_RUN_ROOTS = [_FAKE_ROOT]
+_ARMED = [False]
+_HITS = []
+
+
+def _hook(event, args):
+    if not _ARMED[0]:
+        return
+    if event in ("open", "os.scandir", "os.listdir"):
+        try:
+            p = os.path.realpath(os.fsdecode(args[0]))
+        except Exception:
+            return
+        for g in _LIVE_RUN_ROOTS:
+            if p == g or p.startswith(g + os.sep):
+                _HITS.append((event, p))
+                break
+
+
+sys.addaudithook(_hook)
+
+
+@pytest.fixture(autouse=True)
+def _forbid_live_runs_reads():
+    _HITS.clear()
+    _ARMED[0] = True
+    try:
+        yield
+    finally:
+        _ARMED[0] = False
+    if _HITS:
+        hits = list(_HITS)
+        _HITS.clear()
+        first_event, first_path = hits[0]
+        pytest.fail(
+            f"Test performed live runs read ({first_event} on {first_path!r}). "
+            ".aw/records/runs/ is gitignored and box-local; "
+            "use _build_viewer_fixture instead."
+        )
+
+
+def test_violator():
+    list(Path(os.environ["_GUARD_TEST_ROOT"]).iterdir())
+"""
+            mod_path.write_text(mod_code, encoding="utf-8")
+            env = dict(os.environ, _GUARD_TEST_ROOT=str(fake_root))
+            res = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    str(mod_path),
+                    "-o",
+                    "addopts=",
+                    "-q",
+                    "-p",
+                    "no:randomly",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=td,
+                env=env,
+            )
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("Test performed live runs read", res.stdout)
+            self.assertIn(".aw/records/runs/ is gitignored and box-local", res.stdout)
