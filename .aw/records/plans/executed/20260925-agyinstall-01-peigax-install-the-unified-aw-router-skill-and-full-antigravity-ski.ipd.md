@@ -6,12 +6,11 @@
 - Scope: Add a generated `aw` router skill package to the canonical adapter bundle so every install writes `.agents/skills/aw/SKILL.md`; map antigravity's native `skill` feature to the router role and list it among the v1 hosts; test and document it.
 - Scope-Paths: agent_workflows/host_adapters.py, tests/test_agy_skill_install.py, docs/skill-selection.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
 - Id: peigax
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: u0fmeu
 - Blocks-Release: next
 - Set: agyinstall
@@ -20,6 +19,7 @@
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: peigax verified (set agyinstall, attempt 2).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
