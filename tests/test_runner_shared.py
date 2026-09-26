@@ -10,10 +10,10 @@ a hand-written translation wrapper. So the proof is mechanical and lives here.
 
 THE THREE INDEPENDENT ASSERTIONS, none of which implies another:
 
-  1. FINGERPRINT EQUALITY. `tests/fixtures/runner_shared_premove_fingerprints.json` holds the
-     PRE-MOVE `ast.dump(ast.parse(ast.unparse(node)))` of all 34 symbols from BOTH runners, captured
-     at HEAD `1ecc5891`. Each moved body must still fingerprint IDENTICALLY. This is what makes "pure
-     move" falsifiable: edit one moved line and this fails.
+  1. FINGERPRINT EQUALITY. `tests/fixtures/runner_shared_premove_fingerprints.json` is a RETAINED
+     HISTORICAL CAPTURE that no test reads, rather than a live pin (the test harness was deleted in
+     `19313eed`). Formerly held the PRE-MOVE `ast.dump(ast.parse(ast.unparse(node)))` of all 34
+     symbols from BOTH runners, captured at HEAD `1ecc5891`.
   2. OBJECT IDENTITY. Both runners must resolve each moved name to the SAME object. Fingerprint
      equality alone would pass while a runner kept its own copy that merely looks the same, which is
      precisely the state this plan exists to end.
@@ -25,7 +25,7 @@ THE FINGERPRINT RULE SPLITS, and the exemption is ENUMERATED rather than implici
 exempting the riskiest symbols is how a harness becomes decorative:
 
   * 27 symbols have NO outside dependency and are held to STRICT fingerprint equality.
-  * 5 symbols gained ONE keyword-only parameter by design (`INJECTED`, below), so their post-move
+  * 4 symbols gained ONE keyword-only parameter by design (`INJECTED`, below), so their post-move
     fingerprint CANNOT equal the pre-move capture - a body that gained a parameter is not
     byte-identical, and claiming otherwise about exactly the five highest-risk symbols would be a
     false claim. They are held to fingerprint equality MODULO the injection (proven by re-deriving
@@ -55,14 +55,14 @@ _MODULES = {
     "runner_shared": runner_shared,
 }
 
-# The 5 symbols that take an injected dependency, mapped to the keyword-only parameter each gained.
+# The 4 symbols that take an injected dependency, mapped to the keyword-only parameter each gained.
 # THE MAINTAINER RULED THE THIN RUNNER-LOCAL WRAPPER over uniform parameter injection, for two
 # measured reasons: uniform injection would have rewritten ~86 call sites in the two
 # highest-contention files in the repo, and it would have broken assertion (1) above on exactly these
 # five symbols. So `runner_shared` owns the parameterized function and each runner keeps a one-line
 # wrapper at the ORIGINAL name and signature. `test_no_call_site_was_rewritten` is the measurement
 # that keeps that promise honest.
-# THE COUNT IS 8, NOT THE PLAN'S 5, and the three additions are recorded here rather than absorbed
+# THE COUNT IS 7, NOT THE PLAN'S 4, and the three additions are recorded here rather than absorbed
 # silently. `git_head`/`git_status`/`git_common_dir` call `run_checked`, which is in the SAME seam and
 # which gained a parameter, so a naive lift raises `TypeError: missing 1 required keyword-only
 # argument`. The plan's analysis looked for calls OUT of the moved set and could not see an
@@ -70,7 +70,6 @@ _MODULES = {
 INJECTED: dict[str, str] = {
     "run_checked": "env_builder",
     "save_state": "write_report",
-    "discover_plans": "parse_plan_file",
     "validate_manifest": "parse_dependency_token",
     "print_status": "driver_label",
     "git_head": "run_checked",
@@ -80,8 +79,8 @@ INJECTED: dict[str, str] = {
 
 # integpath-02 (`6sb3yu`): the lane->main integration seam, extracted LATER than the 34 above and
 # therefore held to a DIFFERENT standard, stated here so the split is deliberate rather than an
-# exemption. `INJECTED` above is pinned against `runner_shared_premove_fingerprints.json`, a capture
-# of the PRE-MOVE source at HEAD `1ecc5891`; these three symbols do not appear in that fixture
+# exemption. `runner_shared_premove_fingerprints.json` is a retained historical capture that no test
+# reads; these three symbols do not appear in that fixture
 # because they did not exist in it, so they have no pre-move fingerprint to match and adding them to
 # `INJECTED` would make the fixture-backed tests raise `KeyError` rather than prove anything.
 # `LaneIntegrationExtractionTests` is what replaces the fingerprint for them: it asserts the same

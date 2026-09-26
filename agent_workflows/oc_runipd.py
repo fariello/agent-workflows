@@ -772,6 +772,7 @@ from agent_workflows.runner_shared import (
     _read_item_dependencies as _read_item_dependencies,
     _read_kind as _read_kind,
     build_dynamic_manifest as build_dynamic_manifest,
+    discover_plans as discover_plans,
     parse_plan_file as parse_plan_file,
     plan_kind_from_file as plan_kind_from_file,
     resolve_manifest_kind as resolve_manifest_kind,
@@ -1900,24 +1901,10 @@ def locked_run(run_dir: Path):
 # (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
-# rununify 02 (`818uru`) E-08: one-line wrapper over the shared `discover_plans`, binding
-# `parse_plan_file`.
-#
-# THE INJECTION IS NOW VESTIGIAL, and saying so plainly matters because the comment this replaces
-# asserted the opposite as a design principle. `818uru` wrote that "the two drivers' `PlanRecord` are
-# DIFFERENT NamedTuples (oc's carries a `kind` field agy's lacks)" and that "injecting the PARSER keeps
-# each driver's own record type". rununify 06 (`sy7uwh`) unified BOTH the record and the parser, so
-# there is exactly one of each and this wrapper now injects the SHARED `parse_plan_file` - the same
-# object the agy wrapper injects. Nothing is kept apart any more.
-#
-# WHY THE PARAMETER STAYS ANYWAY, so nobody "finishes" this and breaks a guard: `discover_plans`'s
-# signature is fingerprint-pinned in `tests/fixtures/runner_shared_premove_fingerprints.json` and
-# enumerated in `tests/test_runner_shared.py::INJECTED`, and the maintainer's wrapper ruling exists
-# specifically to leave call sites untouched. Collapsing the seam is a later plan's work, not a
-# side effect of unifying a record.
-def discover_plans(repo: Path) -> dict[str, PlanRecord]:
-    """Scan the repository for all IPD files, returning id6 -> PlanRecord."""
-    return runner_shared.discover_plans(repo, parse_plan_file=parse_plan_file)
+# runnerlayer Order 02 (`1f7xno`), plan `0i4fkt`: re-export discover_plans from runner_shared.
+# Formerly wrapped with parse_plan_file; runner_shared_premove_fingerprints.json is a retained
+# historical capture that no test reads, rather than a live pin.
+# (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
 # rununify 02 (`818uru`) E-08: one-line wrapper over the shared `validate_manifest`, binding

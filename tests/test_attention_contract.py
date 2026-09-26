@@ -430,6 +430,74 @@ class TrackedTreeScanCoverageTests(unittest.TestCase):
         self.assertEqual(uncovered, ["releases"])
 
 
+class TrackedTreeReachabilityTests(unittest.TestCase):
+    """smallfix-01 (`0i4fkt`), backlog `2rb85l`: assert per-tree REACHABILITY through `attention.scan`.
+
+    `TrackedTreeScanCoverageTests` proves declaration (each tracked tree has a scan root), not
+    reachability (records actually arrive in the view). This synthesizes one minimal valid record per
+    tracked tree in a temp repo under its load-bearing `.aw/records/<tree>/` root, asserting
+    `attention.scan` returns the record with its declared attention class and zero drift.
+    """
+
+    _FIXTURES: dict[str, tuple[str, str]] = {
+        "specs": (
+            ".aw/records/specs/20260101-s1-01-s1-test.spec.md",
+            "# Spec\n\n- Id: s1\n- Status: draft\n\n## Workflow history\n- 2026-01-01 draft (t): init\n",
+        ),
+        "plans": (
+            ".aw/records/plans/pending/20260101-set-01-p1-test.ipd.md",
+            "# Plan\n\n- Id: p1\n- Status: to-review\n- Set: set\n- Order: 1\n- Kind: primary\n",
+        ),
+        "research": (
+            ".aw/records/research/20260101-01-test.research.md",
+            "---\nid: r1\nstatus: todo\n---\n",
+        ),
+        "backlog": (
+            ".aw/records/backlog/open/20260101-b1-01-b1-test.backlog.md",
+            "- Id: b1\n- Status: open\n- Priority: high\n- Work-Kind: feature\n- Summary: test\n",
+        ),
+        "releases": (
+            ".aw/records/releases/20260101-rel-01-rel-test.release.md",
+            "# Release\n\n- Id: rel1\n- Status: planned\n- Version: 1.0.0\n",
+        ),
+        "prompts": (
+            ".aw/records/prompts/pending/20260101-prm-01-test.prompt.md",
+            "# Prompt\n\n- Id: prm1\n- Status: pending\n",
+        ),
+    }
+
+    def test_every_tracked_tree_records_reach_the_view(self):
+        from agent_workflows import attention as ATT
+
+        for tree in A.TRACKED_TREES:
+            with self.subTest(tree=tree):
+                self.assertIn(
+                    tree, self._FIXTURES, f"missing fixture for tracked tree {tree!r}"
+                )
+                rel_path, content = self._FIXTURES[tree]
+                with tempfile.TemporaryDirectory() as d:
+                    root = Path(d)
+                    target = root / rel_path
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(content, encoding="utf-8")
+                    items, drift = ATT.scan(root)
+                    tree_items = [i for i in items if i.tree == tree]
+                    self.assertEqual(
+                        len(tree_items),
+                        1,
+                        f"tree {tree!r} returned {len(tree_items)} items, expected 1",
+                    )
+                    expected_class = A.CLASS_MAPS[tree][tree_items[0].native_status]
+                    self.assertEqual(
+                        tree_items[0].attention_class,
+                        expected_class,
+                        f"tree {tree!r} class mismatch: {tree_items[0].attention_class} != {expected_class}",
+                    )
+                    self.assertEqual(
+                        drift, [], f"tree {tree!r} reported drift: {drift}"
+                    )
+
+
 class ReviewsTreeIsDecidedTests(unittest.TestCase):
     """durablecapture-02 (`m867ox`) E-03: `reviews` is an EXPLICIT exclusion, not an omission."""
 
