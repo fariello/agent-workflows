@@ -1621,6 +1621,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
+        command="config unset",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
         command="config add",
         command_class="mutation",
         human_recipe="status",
