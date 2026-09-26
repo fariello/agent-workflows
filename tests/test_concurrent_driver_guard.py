@@ -415,15 +415,13 @@ class RealTwoProcessContentionTests(unittest.TestCase):
         path = runner_shared.integration_lock_path(self.repo)
         with runner_shared.integration_lock(self.repo, holder_label="x") as outcome:
             self.assertTrue(outcome.acquired)
-        if sys.platform != "win32":
-            # POSIX ONLY. `filelock`'s Windows backend removes the lock file on release by design,
-            # and the hazard this pins cannot arise there: every lock handle is opened WITHOUT
-            # FILE_SHARE_DELETE, so the path cannot be unlinked while any holder or waiter has it
-            # open, and no "fresh inode under a live holder" can exist.
-            self.assertTrue(
-                path.is_file(),
-                "the lock file must SURVIVE release; unlinking it breaks mutual exclusion",
-            )
+        # EVERY PLATFORM. On Windows `platform_lock` passes `preserve_lock_file=True` (filelock 4+)
+        # or uses its own non-unlinking lock (older filelock, i.e. Python 3.9), because filelock's
+        # default Windows release deletes the file.
+        self.assertTrue(
+            path.is_file(),
+            "the lock file must SURVIVE release; unlinking it breaks mutual exclusion",
+        )
         # The holder SIDECAR is the thing cleared, so a stale name cannot outlive the hold.
         self.assertEqual(runner_shared.read_integration_lock_holder(self.repo), "")
 

@@ -41,10 +41,6 @@ _CHILD_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
 #: test that reads or rewrites a HELD lock file through a fresh `open()` asserts POSIX advisory-lock
 #: semantics that cannot hold there. Such reads go through the holder's own descriptor on Windows.
 _WINDOWS = sys.platform == "win32"
-_MANDATORY_LOCKS = (
-    "Windows byte-range locks are mandatory: no other handle may read, write, or replace a held "
-    "lock file, so this POSIX advisory-lock property cannot be observed from outside the holder"
-)
 # Every subprocess probe is bounded, so a reintroduced deadlock FAILS the suite rather than hanging it.
 _CHILD_TIMEOUT = 30.0
 
@@ -69,7 +65,17 @@ import sys
 from pathlib import Path
 from agent_workflows import platform_lock
 
+import os
 held = platform_lock.acquire(Path(sys.argv[1]))
+if len(sys.argv) > 2:
+    # Write the record the way the drivers do: through the LOCKED handle (`dup_stream`), the only
+    # handle Windows' mandatory byte-range lock lets write the file.
+    stream = held.dup_stream()
+    stream.seek(0)
+    stream.write(sys.argv[2])
+    stream.flush()
+    os.fsync(stream.fileno())
+    stream.close()
 sys.stdout.write("locked\\n")
 sys.stdout.flush()
 sys.stdin.read()
@@ -80,8 +86,9 @@ held.release()
 class _HolderProcess:
     """A live subprocess holding the lock, as a context manager."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, record: str | None = None) -> None:
         self._path = path
+        self._record = record
         self._proc: subprocess.Popen | None = None
 
     def __enter__(self) -> subprocess.Popen:
@@ -89,7 +96,8 @@ class _HolderProcess:
             script = Path(temp) / "holder.py"
             script.write_text(textwrap.dedent(_HOLDER), encoding="utf-8")
             self._proc = subprocess.Popen(
-                [sys.executable, str(script), str(self._path)],
+                [sys.executable, str(script), str(self._path)]
+                + ([self._record] if self._record is not None else []),
                 env=_CHILD_ENV,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -421,22 +429,30 @@ class ProbeDoesNotMutateTests(unittest.TestCase):
         )
         print("probe of an absent lock file: reported free, created nothing")
 
-    @unittest.skipIf(_WINDOWS, _MANDATORY_LOCKS)
     def test_probing_a_live_holder_preserves_its_record(self):
-        """The driver records `pid=` INSIDE driver.lock and `aw runs` reads it back."""
+        """The driver records `pid=` INSIDE driver.lock and `aw runs` reads it back.
+
+        The HOLDER writes the record through its locked handle, as the drivers do. That is the only
+        write Windows' mandatory lock allows, and it is the real-world shape; the probe must not
+        blank it. Read back with `read_lock_record_pid`, which tolerates Windows' unreadable byte 0.
+        """
 
         path = self.tmp / "driver.lock"
-        with _HolderProcess(path) as holder:
-            path.write_text(f"pid={holder.pid} started=now\n", encoding="utf-8")
-            recorded = path.read_text(encoding="utf-8")
-            self.assertEqual(platform_lock.probe_free(path), False)
-            after = path.read_text(encoding="utf-8")
+        record = "pid=4242 started=now\n"
+        with _HolderProcess(path, record=record):
+            before = platform_lock.read_lock_record_pid(path)
             self.assertEqual(
-                after,
-                recorded,
+                before, 4242, "the holder's record must be readable while held"
+            )
+            self.assertEqual(platform_lock.probe_free(path), False)
+            self.assertEqual(
+                platform_lock.read_lock_record_pid(path),
+                before,
                 "the probe BLANKED the live holder's record; `aw runs` would lose the pid",
             )
-            print(f"probe reported held and left the record intact: {after.strip()!r}")
+        # After release the whole record is readable on every OS, and the file survived.
+        self.assertTrue(path.is_file())
+        self.assertEqual(path.read_text(encoding="utf-8"), record)
 
     def test_probing_a_free_file_preserves_its_content(self):
         path = self.tmp / "stale.lock"

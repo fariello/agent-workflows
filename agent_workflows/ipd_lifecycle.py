@@ -170,18 +170,18 @@ def lane_worktree_active(repo_root: Path) -> bool:
 
 
 def mint_driver_attestation(run_dir: Path) -> str:
-    """Mint a per-run driver attestation token into ``run_dir / DRIVER_ATTEST_FILENAME`` with mode 0600.
+    """Mint a per-run driver attestation token into ``run_dir / DRIVER_ATTEST_FILENAME``, owner-only.
 
     Returns the attestation string in ``<run-id>:<hex-token>`` format.
     """
     rd = Path(run_dir)
     token = secrets.token_hex(32)
     token_path = rd / DRIVER_ATTEST_FILENAME
-    fd = os.open(str(token_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    try:
-        os.write(fd, token.encode("utf-8"))
-    finally:
-        os.close(fd)
+    # Owner-only on EVERY OS: mode 0600 on POSIX, a protected current-user-only DACL on Windows
+    # (where the 0o600 mode argument is ignored and the file would inherit its folder's ACL).
+    from agent_workflows import private_file
+
+    private_file.create_private_file(token_path, token.encode("utf-8"))
     return f"{rd.name}:{token}"
 
 

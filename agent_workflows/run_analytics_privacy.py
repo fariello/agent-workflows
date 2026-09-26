@@ -275,10 +275,17 @@ def load_or_create_salt(cache_dir: Path | str) -> str:
     target.parent.mkdir(parents=True, exist_ok=True)
     minted = secrets.token_hex(_SALT_BYTES)
     tmp = target.parent / f".{SALT_FILENAME}.{os.getpid()}.tmp"
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # Owner-only on EVERY OS (a protected current-user-only DACL on Windows, where 0o600 is
+    # ignored). A leftover tmp from a crashed writer with this pid is removed first, because the
+    # private create is exclusive.
+    from agent_workflows import private_file
+
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(minted + "\n")
+        tmp.unlink()
+    except OSError:
+        pass
+    try:
+        private_file.create_private_file(tmp, (minted + "\n").encode("utf-8"))
     except BaseException:
         try:
             tmp.unlink()

@@ -128,12 +128,6 @@ class DriverTests(unittest.TestCase):
         )
         self.assertEqual(queue, queue_prefix)
 
-    @unittest.skipIf(
-        sys.platform == "win32",
-        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
-        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
-        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
-    )
     def test_atomic_state_and_set_session_continuity(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -178,8 +172,8 @@ class DriverTests(unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             runbook = root / "runbook.md"
             runbook.write_text("test runbook\n", encoding="utf-8")
-            fake = root / "opencode"
-            fake.write_text(
+            fake = support.make_fake_executable(
+                root / "opencode",
                 textwrap.dedent(
                     """\
                     #!/usr/bin/env python3
@@ -193,7 +187,7 @@ class DriverTests(unittest.TestCase):
                              ('ses' + '_' + hashlib.sha1(args[args.index('--title')+1].encode()).hexdigest()[:12]))
                     outcome=pathlib.Path(re.search(r'Required JSON outcome: (.+)', prompt).group(1).strip())
                     plan=pathlib.Path(re.search(r'Plan file at launch: (.+)', prompt).group(1).strip())
-                    executed=pathlib.Path(str(plan).replace('/pending/', '/executed/'))
+                    executed=plan.parent.parent / 'executed' / plan.name
                     executed.parent.mkdir(parents=True, exist_ok=True)
                     plan.rename(executed)
                     id6=re.search(r'Assigned IPD: ([a-z0-9]{6})', prompt).group(1)
@@ -201,9 +195,7 @@ class DriverTests(unittest.TestCase):
                     print(json.dumps({'type':'text','sessionID':session,'part':{'text':'done'}}))
                     """
                 ),
-                encoding="utf-8",
             )
-            fake.chmod(0o755)
             result = subprocess.run(
                 [
                     *_DRIVER_CMD,
@@ -253,12 +245,6 @@ class DriverTests(unittest.TestCase):
 
 
 class ReviewPlanRoutingTests(unittest.TestCase):
-    @unittest.skipIf(
-        sys.platform == "win32",
-        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
-        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
-        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
-    )
     def test_to_review_plans_invoke_plan_review_and_share_session(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -288,8 +274,8 @@ class ReviewPlanRoutingTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            fake = root / "fake_opencode"
-            fake.write_text(
+            fake = support.make_fake_executable(
+                root / "fake_opencode",
                 textwrap.dedent(
                     """\
                     #!/usr/bin/env python3
@@ -317,9 +303,7 @@ class ReviewPlanRoutingTests(unittest.TestCase):
                     print(json.dumps({'type':'text','sessionID':session,'part':{'text':'review complete'}}))
                     """
                 ),
-                encoding="utf-8",
             )
-            fake.chmod(0o755)
 
             ses_test_val = "ses" + "_" + "initialsession"
             # Run with direct selectors (id6 and filename) and explicit --session
@@ -1682,12 +1666,6 @@ class ProcessGroupTerminationTests(unittest.TestCase):
 
 
 class StallWatchdogTests(unittest.TestCase):
-    @unittest.skipIf(
-        sys.platform == "win32",
-        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
-        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
-        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
-    )
     def test_stall_watchdog_terminates_silent_child_and_marks_interrupted(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1712,8 +1690,8 @@ class StallWatchdogTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            silent_child = root / "silent_opencode"
-            silent_child.write_text(
+            silent_child = support.make_fake_executable(
+                root / "silent_opencode",
                 textwrap.dedent(
                     """\
                     #!/usr/bin/env python3
@@ -1721,9 +1699,7 @@ class StallWatchdogTests(unittest.TestCase):
                     time.sleep(60)
                     """
                 ),
-                encoding="utf-8",
             )
-            silent_child.chmod(0o755)
 
             result = subprocess.run(
                 [
@@ -1779,12 +1755,6 @@ class StallWatchdogTests(unittest.TestCase):
             self.assertEqual(item["status"], "queued")
             self.assertTrue(item.get("recovery_next"))
 
-    @unittest.skipIf(
-        sys.platform == "win32",
-        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
-        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
-        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
-    )
     def test_stall_watchdog_does_not_trip_on_active_child(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1809,8 +1779,8 @@ class StallWatchdogTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            active_child = root / "active_opencode"
-            active_child.write_text(
+            active_child = support.make_fake_executable(
+                root / "active_opencode",
                 textwrap.dedent(
                     """\
                     #!/usr/bin/env python3
@@ -1831,9 +1801,7 @@ class StallWatchdogTests(unittest.TestCase):
                     print(json.dumps({'type':'text','sessionID':'ses_activ1','part':{'text':'done'}}), flush=True)
                     """
                 ),
-                encoding="utf-8",
             )
-            active_child.chmod(0o755)
 
             result = subprocess.run(
                 [
@@ -2108,12 +2076,6 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             )
             self.assertFalse(driver.is_plan_review_approved(p_nogo))
 
-    @unittest.skipIf(
-        sys.platform == "win32",
-        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
-        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
-        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
-    )
     def test_full_auto_reviews_approves_and_executes_plan(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -2180,7 +2142,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                 'elif "Required JSON outcome:" in prompt:',
                 '    outcome = pathlib.Path(re.search(r"Required JSON outcome: (.+)", prompt).group(1).strip())',
                 '    plan = pathlib.Path(re.search(r"Plan file at launch: (.+)", prompt).group(1).strip())',
-                '    executed = pathlib.Path(str(plan).replace("/pending/", "/executed/"))',
+                '    executed = plan.parent.parent / "executed" / plan.name',
                 "    executed.parent.mkdir(parents=True, exist_ok=True)",
                 "    plan.rename(executed)",
                 '    outcome.write_text(json.dumps({"schema_version": 1, "id6": "fa0001", "disposition": "executed", "pushed": False}))',
@@ -2188,8 +2150,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                 "else:",
                 '    print(json.dumps({"type": "text", "sessionID": session, "part": {"text": "verify done"}}))',
             ]
-            fake.write_text("\n".join(fake_lines) + "\n", encoding="utf-8")
-            fake.chmod(0o755)
+            fake = support.make_fake_executable(fake, "\n".join(fake_lines) + "\n")
 
             result = subprocess.run(
                 [
@@ -2246,12 +2207,6 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             self.assertIn("auto-approved", plan_text)
             self.assertNotIn("--by-human", plan_text)
 
-    @unittest.skipIf(
-        sys.platform == "win32",
-        "the fake host is an extensionless `#!/usr/bin/env python3` script: Windows CreateProcess "
-        "ignores shebangs (it looks for an .exe), and `--opencode` takes one path, so there is no "
-        "portable way to launch it; a .cmd wrapper would mangle the multi-line prompt argv",
-    )
     def test_without_full_auto_stops_at_reviewed(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -2286,8 +2241,8 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            fake = root / "fake_opencode"
-            fake.write_text(
+            fake = support.make_fake_executable(
+                root / "fake_opencode",
                 textwrap.dedent(
                     """\
                     #!/usr/bin/env python3
@@ -2314,9 +2269,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                         print(json.dumps({'type':'text','sessionID':session,'part':{'text':'review done'}}))
                     """
                 ),
-                encoding="utf-8",
             )
-            fake.chmod(0o755)
 
             result = subprocess.run(
                 [

@@ -151,12 +151,20 @@ class DriverAttestationPrimitivesTests(unittest.TestCase):
 
         token_file = run_dir / LC.DRIVER_ATTEST_FILENAME
         self.assertTrue(token_file.is_file())
-        # POSIX only: Windows has no owner/group/other mode bits (os.chmod toggles read-only
-        # alone, and stat reports 0o666), so 0600 is unrepresentable there, not violated.
         if os.name == "posix":
             file_mode = stat.S_IMODE(token_file.stat().st_mode)
             self.assertEqual(
                 file_mode, 0o600, f"Expected 0600 permissions, got {oct(file_mode)}"
+            )
+        else:
+            # Windows ignores the mode; owner-only is a PROTECTED DACL with exactly ONE allow ACE,
+            # for the current user. Read it back from the OS, not from our own bookkeeping.
+            from agent_workflows import private_file
+
+            sddl = private_file.read_file_sddl(token_file)
+            self.assertIsNone(
+                private_file.sddl_is_owner_only(sddl, private_file._current_user_sid()),
+                "the attestation token must carry an owner-only, non-inherited DACL",
             )
 
         ok, msg = LC.verify_driver_attestation(self.root, attestation)

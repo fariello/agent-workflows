@@ -8,7 +8,7 @@ name: tests
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "fix/win-gaps"]
   pull_request:
 
 permissions:

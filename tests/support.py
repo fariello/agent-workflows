@@ -404,3 +404,48 @@ def ready_plan_text(
             continue
         out.append(line)
     return "\n".join(out) + "\n"
+
+
+def make_fake_executable(path: Path, source: str) -> Path:
+    """Write ``source`` (a Python program) as a DIRECTLY EXECUTABLE file and return what to invoke.
+
+    POSIX: a ``#!<this interpreter>`` script at ``path``, chmod 0755, returned as-is.
+
+    WINDOWS: ``CreateProcess`` ignores shebang lines (it only runs ``.exe``/``.com``, and hands
+    ``.bat``/``.cmd`` to ``cmd.exe``, which mangles multi-line arguments such as a prompt), so a
+    ``#!`` script fails with ``WinError 193``. Instead build a real ``<path>.exe`` the same way pip
+    builds console scripts (``opencode.exe`` included): distlib's launcher stub, then a ``#!`` line
+    naming this interpreter, then a zip whose ``__main__.py`` is ``source``. The launcher passes argv
+    through untouched, so the product's own argv handling is exercised exactly as on POSIX.
+    """
+
+    path = Path(path)
+    body = source.lstrip()
+    if body.startswith("#!"):
+        body = body.split("\n", 1)[1] if "\n" in body else ""
+    if os.name != "nt":
+        path.write_text(f"#!{sys.executable}\n{body}", encoding="utf-8")
+        path.chmod(0o755)
+        return path
+
+    return _write_windows_launcher(path, body)
+
+
+def _write_windows_launcher(path: Path, body: str) -> Path:
+    """The Windows half of :func:`make_fake_executable`; callable on any OS so it can be unit-checked."""
+
+    import io
+    import struct
+    import zipfile
+
+    from pip._vendor import distlib
+
+    bits = 64 if struct.calcsize("P") == 8 else 32
+    launcher = (Path(distlib.__file__).parent / f"t{bits}.exe").read_bytes()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("__main__.py", body)
+    exe = path.with_suffix(".exe") if path.suffix.lower() != ".exe" else path
+    shebang = f"#!{sys.executable}\r\n".encode("utf-8")
+    exe.write_bytes(launcher + shebang + buf.getvalue())
+    return exe

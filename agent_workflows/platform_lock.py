@@ -318,6 +318,116 @@ def _probe_free_windows(msvcrt: Any, target: Path) -> Optional[bool]:
         os.close(fd)
 
 
+def _filelock_can_preserve() -> bool:
+    """Does the installed ``filelock`` accept ``preserve_lock_file`` (4.0+)?"""
+
+    import inspect
+
+    try:
+        return "preserve_lock_file" in inspect.signature(
+            filelock.FileLock.__new__
+        ).parameters or (
+            "preserve_lock_file"
+            in inspect.signature(filelock.FileLock.__init__).parameters
+        )
+    except (TypeError, ValueError):  # pragma: no cover - an unintrospectable build
+        return False
+
+
+class _PreservingWindowsLock:
+    """A non-re-entrant Windows lock that NEVER deletes and NEVER truncates its file.
+
+    WHY IT EXISTS. The lock file must SURVIVE release: a waiter that opened the old file, plus a
+    newcomer that re-creates the deleted name, can each lock a DIFFERENT file and both believe they
+    hold the lock (``tests/test_concurrent_driver_guard.py``). ``filelock`` < 4.0 on Windows
+    unconditionally unlinks on release and truncates on acquire (erasing the holder's ``pid=``
+    record), with no opt-out. ``filelock`` 4.0 adds ``preserve_lock_file`` but requires Python
+    3.10, so this class serves exactly one combination: Windows on Python 3.9.
+
+    THE BYTE-RANGE PITFALL THIS MODULE'S DOCSTRING WARNS ABOUT IS AVOIDED, not re-introduced: this
+    locks the SAME single byte at offset 0 that ``filelock``'s Windows backend and
+    :func:`_probe_free_windows` use, always after an explicit ``lseek(0)``, so every party in every
+    version contends on one byte and none can lock a disjoint range.
+
+    Presents the slice of ``filelock.BaseFileLock`` that :class:`LockHandle` uses: ``acquire``,
+    ``release``, ``is_locked`` and ``_context.lock_file_fd``.
+    """
+
+    class _Ctx:
+        lock_file_fd: Optional[int] = None
+
+    def __init__(self, path: str, timeout: float) -> None:
+        self.lock_file = path
+        self.timeout = timeout
+        self._context = self._Ctx()
+
+    @property
+    def is_locked(self) -> bool:
+        return self._context.lock_file_fd is not None
+
+    def acquire(self) -> None:
+        import time
+
+        msvcrt = windows_primitive()
+        if msvcrt is None:  # pragma: no cover - only selected on Windows
+            raise OSError(errno.ENOSYS, "msvcrt unavailable")
+        Path(self.lock_file).parent.mkdir(parents=True, exist_ok=True)
+        deadline = None if self.timeout < 0 else time.monotonic() + self.timeout
+        while True:
+            # O_CREAT but NOT O_TRUNC: the file keeps its identity and the holder's record.
+            fd = os.open(
+                self.lock_file,
+                os.O_RDWR | os.O_CREAT | getattr(os, "O_BINARY", 0),
+                0o644,
+            )
+            try:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                os.close(fd)
+                if exc.errno not in (
+                    errno.EACCES,
+                    errno.EAGAIN,
+                    getattr(errno, "EDEADLK", -1),
+                ):
+                    raise
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise filelock.Timeout(self.lock_file) from exc
+                time.sleep(0.05)
+                continue
+            self._context.lock_file_fd = fd
+            return
+
+    def release(self) -> None:
+        fd = self._context.lock_file_fd
+        if fd is None:
+            return
+        msvcrt = windows_primitive()
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            if msvcrt is not None:
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        finally:
+            # Closing the handle drops the lock regardless; the FILE is deliberately left in place.
+            self._context.lock_file_fd = None
+            os.close(fd)
+
+
+def _new_lock(target: Path, timeout: float) -> Any:
+    """A fresh, non-re-entrant lock object for ``target`` that never deletes the file on release.
+
+    POSIX: ``filelock``'s ``flock`` backend already leaves the file in place on release.
+    Windows + ``filelock`` 4.0+: ``preserve_lock_file=True``.
+    Windows + older ``filelock`` (only reachable on Python 3.9): :class:`_PreservingWindowsLock`.
+    """
+
+    if os.name != "nt":
+        return filelock.FileLock(str(target), timeout=timeout)
+    if _filelock_can_preserve():
+        return filelock.FileLock(str(target), timeout=timeout, preserve_lock_file=True)
+    return _PreservingWindowsLock(str(target), timeout)
+
+
 class LockHandle:
     """A HELD exclusive lock, plus the little that callers legitimately need from it.
 
@@ -434,7 +544,7 @@ def acquire(
 
     # A FRESH lock object per acquisition. This is what makes the helper non-re-entrant; sharing
     # or caching one would re-enable filelock's per-object counter. See the module docstring.
-    lock = filelock.FileLock(str(target), timeout=timeout)
+    lock = _new_lock(target, timeout)
     try:
         lock.acquire()
     except filelock.Timeout as exc:
