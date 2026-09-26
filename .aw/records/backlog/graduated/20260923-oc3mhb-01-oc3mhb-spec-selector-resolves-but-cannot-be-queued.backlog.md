@@ -1,13 +1,13 @@
 - Id: oc3mhb
-- Status: blocked
-- Gate-Kind: artifact
-- Gate-Ref: .aw/records/specs/reviewed/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md
+- Status: graduated
+- Graduated-To: artdispatch
 - Set: oc3mhb
 - Priority: medium
 - Work-Kind: feature
 - Summary: aw oc run refuses a spec selector it can now resolve, because the queue is plan-shaped; spec 25kzda 1.3/2.1 still describe graduation as shipped
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into Set artdispatch after the maintainer approved spec z7nbn1 (plan 7icz68 carries From-Backlog oc3mhb and Blocks-Release next).
 - 2026-09-26 same-status (aw set): Gate path corrected: spec z7nbn1 is now reviewed; graduate once it is approved.
 - 2026-09-26 same-status (aw set): Gate retyped: an artifact gate naming spec z7nbn1 (graduate from it once the maintainer approves it).
 - 2026-09-26 blocked (aw set): Blocked 2026-09-26: graduate from spec z7nbn1 immediately after the maintainer approves it (maintainer ruling).
