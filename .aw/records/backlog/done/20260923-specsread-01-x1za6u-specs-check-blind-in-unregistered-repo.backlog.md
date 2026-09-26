@@ -1,5 +1,5 @@
 - Id: x1za6u
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: specsread
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: aw specs check sees ZERO specs in an UNREGISTERED repo, even a flat one, and reports conformance
 
 ## Workflow history
+- 2026-09-26 done (aw set): DONE: already fixed by 6f59cb53 (y4bdoz, specs._spec_files appends the literal .aw/records/specs root); regression test test_unregistered_flat_repo_is_checked_not_vacuous added in 4b3bafee (fails on 6f59cb53^).
 - 2026-09-23 created (aw backlog): Found while executing IPD y4bdoz (specdirs Order 01).
 
 MEASURED 2026-09-23 while executing IPD `y4bdoz`, in a throwaway git repo with NO `.aw/config/project.json` and ONE nonconforming spec at the FLAT root `.aw/records/specs/`: `aw specs check` printed `all specs conform` with unpiped exit 0, `--json` reported `{'checked': 0, 'violations': 0}`, and `check_engine._iter_type_files` returned 1 on the same tree.
