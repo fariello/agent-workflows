@@ -1,5 +1,5 @@
 - Id: zzsaq2
-- Status: graduated
+- Status: done
 - Graduated-To: wfprune
 - Set: wfartgrowth
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Nothing prunes or archives .aw/workflow-artifacts/, so per-run workflow dirs accumulate unbounded in a gitignored tree
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD muza7y executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260924-wfprune-01-muza7y-prune-aged-workflow-artifacts-run-dirs-with-a-dry-run-by-def.ipd.md); evidence .aw/records/plans/executed/20260924-wfprune-01-muza7y-prune-aged-workflow-artifacts-run-dirs-with-a-dry-run-by-def.ipd.md
 - 2026-09-25 graduated (aw set): graduated into wfprune plan muza7y (to-review)
 - 2026-08-29 created (aw backlog): Nothing prunes or archives .aw/workflow-artifacts/, so per-run workflow dirs accumulate unbounded in a gitignored tree
 
