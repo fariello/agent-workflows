@@ -6,7 +6,8 @@
 - Scope: IN: rewrite the trailer clause of the "Infrastructure status" paragraph so it states, without counts, that several driver-side commit sites pass trailers, agent code commits are generally untrailered, and nothing reads trailers back, each with a dated measurement and its carrier; move the trailers OUT of that sentence's "STILL NET-NEW and to be built:" list, because the writer is shipped and leaving them there keeps the sentence self-contradictory (review F-7); update that paragraph's own measurement header and the preamble's correction-history sentence to record this correction; record the amendment with `aw specs note`; and FILE ONE backlog item for the two code comments that repeat the same false claim (review F-8). OUT: Section 4.2's finding-code table (including the `RUN-COMMIT-CONTENTS`/`RUN-COMMIT-GATEWAY` rows, which stay correctly unbound); the other two dated preamble paragraphs; EDITING those two code comments (E-05 files their carrier instead); the rotted citations backlog `sbh1o1` tracks, which live in OTHER artifacts (see Findings F-4).
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: j0ag0u
@@ -17,6 +18,9 @@
 - Id: olkeju
 
 ## Workflow history
+- 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed in place
+
+- 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED in place. The core claim verified false (63 trailered commits at HEAD `46cb6af4`, not zero). PR-001: the target sentence also lists the trailers under "STILL NET-NEW and to be built", so rewriting only the parenthetical left it self-contradictory and still told a graduating Set to rebuild a shipped writer, which the paragraph's own header names as the defect that destroyed `a54m79`; E-02 now moves them out of that list. PR-004: the identical false claim lives in two CODE COMMENTS (`run_evidence`'s `RUN-COMMIT-CONTENTS` `waiting_on`, `ipd_lifecycle`'s attribution docstring, the latter pointing at the now-`done` `a8eufb`), so E-05 files one carrier rather than editing out-of-fence files. Also: counts and the site list were already stale and `8apjpp` has EXECUTED (a third driver-side site is live), so E-01/E-02 now word the site list categorically and re-verify plan statuses; `sbh1o1`'s quotation of the deleted sentence is preserved as a findable trail; and the false "tests read this spec by path" rationale was corrected. Findings F-6..F-9 added. Watermark 04 -> 05.
 
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog j0ag0u on the maintainer's batch-graduation instruction. The false clause and the trailered-commit population were re-measured at HEAD 61ef21d8; backlog sbh1o1 was read and found to concern other artifacts, so it is not folded in.
 - 2026-09-26 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
