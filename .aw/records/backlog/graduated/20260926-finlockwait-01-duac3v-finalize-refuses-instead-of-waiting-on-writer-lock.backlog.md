@@ -1,5 +1,6 @@
 - Id: duac3v
-- Status: open
+- Status: graduated
+- Graduated-To: finlockwait
 - Blocks-Release: next
 - Set: finlockwait
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: aw ipd finalize fails an item terminally (fail-gate) when the shared writer lock is momentarily held by a peer's self-commit, instead of waiting or retrying
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): graduated into plan y2vzit (finlockwait-01), which carries Blocks-Release: next; the writer_lock budget half was split to bqz8kn
 - 2026-09-26 created (aw backlog): Filed from run run-20260926T051642Z-116672 triage: 9npssm lost its finalize to lock contention from a concurrent run.
 
 OBSERVED. Run run-20260926T051642Z-116672 (aw agy run) item 9npssm: executed and VERIFIED, pre-transition lint conforming, yet ended fail-gate with 'ipd finalize writer lock held by active PID 402458 (plan None)' (events.jsonl line 17, 05:43:32Z). A concurrent run (run-20260926T051623Z-115951, started 19s earlier in the same checkout) was finalizing/self-committing ooydp3 at that moment (commit 7865e26d at 05:43:28Z, ipd-finalized 05:47:24Z). 'plan None' identifies the holder as a commit_lock.writer_lock holder (git_commit_helper.offer_commit, used by every self-committing aw verb), which writes 'owner' but no 'plan_id'. The exact holder is NOT recorded; candidates in that window include the peer run's ooydp3 commits and an interactive `aw specs set` commit (870e193b, 05:43:42Z) in the same checkout. By 05:4x the PID was gone and the lock file is absent now.
