@@ -123,6 +123,7 @@ N/A: test-only restoration.
 - Blocking: no
 - Status: open
 - Owner: the executor, at E-03
+- Carrier: 6vozur
 - Resolution or deferral rationale: DELIBERATELY LEFT TO EXECUTION with the criterion and the measurements supplied, rather than decided here, because both answers are defensible on the evidence and the choice changes what E-04 must prove. FOR marking: `pyproject.toml` defines `slow` as "heavy subprocess/integration tests (spawn the CLI, install into temp repos)" and this file is 13 `subprocess.run` sites driving real `git init`/`merge`/`commit` plus an installed hook that shells `python3 -m agent_workflows`, which is that description almost verbatim; all four shipped users of the marker carry it for exactly this reason. AGAINST marking: the file measured 3.71-5.21s alone and the bare-suite delta (38.12/40.64/44.54s without vs 46.75/43.65/38.59s with) is inside run-to-run noise, the original file carried no marker before deletion so leaving it unmarked restores the prior state, and marking it removes these 6 tests from the default suite that every lane runs - which for a restoration whose purpose is regained coverage is a real cost. Non-blocking because either choice is safe once E-03 records the reason and E-04 proves collection in the matching surface.
 
 ## Validation and cross-check (verify before reporting done)

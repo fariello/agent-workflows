@@ -18,3 +18,9 @@ shorter setid instead.
 Walkthroughs are OPTIONAL and are not expected per executed plan. Most executed plans do not have one, and that is fine: the authoritative evidence that a plan was implemented and validated lives in the plan's own verification items (with pasted runner output), the run ledger, and the commit history, not here. Write a walkthrough only when a narrative of what actually happened during an execution adds material value beyond those records (for example, notable deviations from the plan, surprises, or a sequence worth preserving for handoff). Do not create one by default.
 
 When a walkthrough is written, it may capture command logs, test results, and screenshots or recording paths. If an agent drafts a walkthrough in a private, hidden, or tool-internal scratch or "brain" space, the tracked copy here is the source of truth (see AGENTS.md); the private copy is disposable.
+
+## Walkthroughs are never durable carriers
+
+A walkthrough carries no lifecycle status and is not tracked in the attention contract (`tracked=False`). It is filename-only checked and nothing scans its contents for outstanding work, so an obligation recorded only in a walkthrough is invisible to every gate and will never be revisited.
+
+Consequently, `Carrier-Evidence` explicitly refuses paths under the walkthroughs tree (both `.aw/records/walkthroughs/` and legacy `.agents/docs/walkthroughs/`). Leftover work, defects, or follow-ups discovered during execution must be handed off to an open backlog item (`aw backlog new`) or a child or follow-up plan, never parked in a walkthrough.
