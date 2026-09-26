@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import pytest
 import textwrap
 from pathlib import Path
 
@@ -176,6 +177,11 @@ def _pre_marker_bootstrap() -> str:
     )
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason="child-side bootstrap recognition reads sys.orig_argv (3.10+); on 3.9 only the "
+    "AW_PINNED_CHILD marker applies, as checkout_pin._launched_by_pin_bootstrap documents",
+)
 def test_07b_pre_marker_driver_bootstrap_runs_real_cli_silent(tmp_path: Path) -> None:
     # Regression for run-20260925T174509Z-636951 (u27oh3): a long-lived driver keeps its in-memory
     # bootstrap, so its pinned children carry NO AW_PINNED_CHILD. They must still be recognized and

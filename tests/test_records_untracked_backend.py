@@ -36,7 +36,7 @@ from agent_workflows.term import Term
 
 class TestRecordsUntrackedBackend(unittest.TestCase):
     def setUp(self):
-        self.tmp_dir = tempfile.mkdtemp()
+        self.tmp_dir = os.path.realpath(tempfile.mkdtemp())
         self.target_repo = os.path.join(self.tmp_dir, "myrepo")
         os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
         self.aw_home = os.path.join(self.tmp_dir, "aw_home")

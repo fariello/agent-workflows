@@ -25,8 +25,10 @@ COLLISION_RULES = {
 def _rel(loc: str, root: Path) -> str:
     p = Path(loc)
     if p.is_absolute() and p.is_relative_to(root):
-        return str(p.relative_to(root))
-    return loc
+        return p.relative_to(root).as_posix()
+    # as_posix: on Windows the drift location is `.aw\records\...`, and the expected tuples below
+    # are written with `/`, so compare in one separator.
+    return Path(loc).as_posix()
 
 
 def _extract_collisions(drifts, root: Path) -> set[tuple[str, str]]:

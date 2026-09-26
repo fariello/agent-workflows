@@ -151,10 +151,13 @@ class DriverAttestationPrimitivesTests(unittest.TestCase):
 
         token_file = run_dir / LC.DRIVER_ATTEST_FILENAME
         self.assertTrue(token_file.is_file())
-        file_mode = stat.S_IMODE(token_file.stat().st_mode)
-        self.assertEqual(
-            file_mode, 0o600, f"Expected 0600 permissions, got {oct(file_mode)}"
-        )
+        # POSIX only: Windows has no owner/group/other mode bits (os.chmod toggles read-only
+        # alone, and stat reports 0o666), so 0600 is unrepresentable there, not violated.
+        if os.name == "posix":
+            file_mode = stat.S_IMODE(token_file.stat().st_mode)
+            self.assertEqual(
+                file_mode, 0o600, f"Expected 0600 permissions, got {oct(file_mode)}"
+            )
 
         ok, msg = LC.verify_driver_attestation(self.root, attestation)
         self.assertTrue(ok, f"Verification failed: {msg}")

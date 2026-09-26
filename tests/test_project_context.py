@@ -68,7 +68,7 @@ class TestProjectContextResolver(unittest.TestCase):
     """Test pure resolver behavior, all 6 precedence levels, security, determinism, and CLI."""
 
     def setUp(self):
-        self.tmp_dir = tempfile.mkdtemp()
+        self.tmp_dir = os.path.realpath(tempfile.mkdtemp())
         self.target_repo = os.path.join(self.tmp_dir, "myrepo")
         os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
         self.aw_home = os.path.join(self.tmp_dir, "aw_home")
@@ -389,7 +389,7 @@ class PhysicalContextResolutionTests(unittest.TestCase):
     """Exhaustive contract, precedence, and security tests for Order 02 (E-01..E-06 & V-01..V-06)."""
 
     def setUp(self):
-        self.tmp_dir = tempfile.mkdtemp()
+        self.tmp_dir = os.path.realpath(tempfile.mkdtemp())
         self.target_repo = os.path.join(self.tmp_dir, "myrepo")
         os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
         self.aw_home = os.path.join(self.tmp_dir, "aw_home")
