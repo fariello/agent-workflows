@@ -1,11 +1,12 @@
 - Id: 7tw016
-- Status: open
+- Status: done
 - Set: runverdict
 - Priority: medium
 - Work-Kind: followup
 - Summary: The verifier-evidence gate has no effect when validation is OFF, which is oc's shipped default
 
 ## Workflow history
+- 2026-09-26 done (aw set): NOT A DEFECT (retired, not implemented): the premise cannot occur. runner_shared computes validate once and the SAME variable guards the whole verifier block and is passed to integration_is_earned; every verify_disp assignment is inside that guard, so with validation OFF no verifier runs and no failed-evidence state exists. Reachable only by calling integration_is_earned directly in a test. Whether oc should validate by default is a separate policy question (runner_profiles RUNNER_REGISTRY oc validate_default), not this defect.
 - 2026-09-23 created (aw backlog): The verifier-evidence gate has no effect when validation is OFF, which is oc's shipped default
 
 MEASURED while executing plan `bxx9af` (runverdict Order 05), by calling the real `runner_shared.integration_is_earned` rather than reasoning about it.
