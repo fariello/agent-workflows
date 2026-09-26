@@ -343,6 +343,92 @@ class AgySelfFinalizeTests(unittest.TestCase):
             self.assertIn("finalize_refusal", item)
             self.assertTrue(plan.is_file(), "plan must not move on finalize refusal")
 
+    def test_execute_item_spec_edits_report_parity_with_oc(self):
+        # specrpt (9npssm) E-06: agy execute_item records spec_edits and reports them identically to oc.
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+            )
+            (repo / "docs").mkdir(parents=True, exist_ok=True)
+            (repo / "docs" / "A.spec.md").write_text("# Spec A\n", encoding="utf-8")
+
+            plan_text = _CONFORMING_PLAN.format(id6="agy001").replace(
+                "- Scope-Paths: src/", "- Scope-Paths: docs/A.spec.md"
+            )
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            plan = pending / "20260828-demo-01-agy001-demo.ipd.md"
+            plan.write_text(plan_text, encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            def fake_turn(*a, **k):
+                (repo / "docs" / "A.spec.md").write_text(
+                    "# Spec A modified\n", encoding="utf-8"
+                )
+                (repo / "docs" / "B.spec.md").write_text(
+                    "# Spec B undeclared\n", encoding="utf-8"
+                )
+                subprocess.run(
+                    ["git", "add", "docs/A.spec.md", "docs/B.spec.md"],
+                    cwd=repo,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "commit", "-qm", "edit A and B"], cwd=repo, check=True
+                )
+                (run_dir / "outcomes" / "01-agy001.json").write_text(
+                    json.dumps(
+                        {
+                            "disposition": "substantially-complete",
+                            "pushed": False,
+                            "defect_report": {
+                                "state": "none-found",
+                                "findings": [],
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return 0, "ses1", str(run_dir / "log"), ["agy"]
+
+            passing_suite = runner_shared.SuiteCheckResult(
+                True, 0, "1 passed", "ok", str(repo), 60.0, 0.1
+            )
+            with (
+                mock.patch.object(agy_runipd, "run_agy_turn", fake_turn),
+                mock.patch.object(
+                    agy_runipd, "run_suite_check", lambda *a, **k: passing_suite
+                ),
+                mock.patch.object(
+                    agy_runipd, "driver_finalize", lambda *a, **k: (0, "finalized")
+                ),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            buf = io.StringIO()
+            lines = agy_runipd.report_run_spec_edits(state, stream=buf)
+            rendered = "\n".join(lines)
+            self.assertIn("declared -> docs/A.spec.md", rendered)
+            self.assertNotIn("declared, unmodified -> docs/A.spec.md", rendered)
+            self.assertIn("modified (undeclared) -> docs/B.spec.md", rendered)
+            self.assertIn("Reconciled 1 item(s)", rendered)
+            self.assertNotIn("NOT FINALIZED", rendered)
+            self.assertIn("spec_edits", item)
+            self.assertNotIn("spec_edits_reconciliation", item)
+
 
 class AgyWorktreeIsolationTests(unittest.TestCase):
     """driverfin-02 (emus4n) parity for the agy driver: each execute child runs in its own worktree;

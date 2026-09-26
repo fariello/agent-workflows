@@ -38,54 +38,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce before changing
 
-- [ ] E-01 RE-MEASURE THE DEFECT at the executing HEAD. (1) `grep -n "spec_edits_reconciliation\|\"spec_edits\"\|item.get(\"spec_edits\")" agent_workflows/*.py` and confirm the writer/reader split. (2) Run a throwaway probe (under `/tmp/`) that calls `runner_shared.record_item_spec_edits` on a plan declaring `docs/A.spec.md` with an injected `reconcile` returning `({"docs/B.spec.md": "why"}, {})`, then `runner_shared.report_run_spec_edits` on `{"repo": ..., "queue": [item]}`; confirm the item is reported `NOT FINALIZED` and that a plan declaring NO spec yields `[]` (silent) even though B was changed. (3) Confirm `oc_runipd.record_item_spec_edits` has no caller (`grep -rn "record_item_spec_edits(" agent_workflows/`), and that `agy_runipd` imports it from `oc_runipd`. If the writer and reader already agree, STOP and report: the defect is fixed.
+- [x] E-01 RE-MEASURE THE DEFECT at the executing HEAD. (1) `grep -n "spec_edits_reconciliation\|\"spec_edits\"\|item.get(\"spec_edits\")" agent_workflows/*.py` and confirm the writer/reader split. (2) Run a throwaway probe (under `/tmp/`) that calls `runner_shared.record_item_spec_edits` on a plan declaring `docs/A.spec.md` with an injected `reconcile` returning `({"docs/B.spec.md": "why"}, {})`, then `runner_shared.report_run_spec_edits` on `{"repo": ..., "queue": [item]}`; confirm the item is reported `NOT FINALIZED` and that a plan declaring NO spec yields `[]` (silent) even though B was changed. (3) Confirm `oc_runipd.record_item_spec_edits` has no caller (`grep -rn "record_item_spec_edits(" agent_workflows/`), and that `agy_runipd` imports it from `oc_runipd`. If the writer and reader already agree, STOP and report: the defect is fixed.
   DO NOT ATTEMPT TO RE-DERIVE F-5's ON-DISK COUNTS, and do not read the main checkout to get them. `.aw/records/runs/` is GITIGNORED, so in a lane or a fresh clone it does not exist (measured at review: absent here), and the 146/32/4 figures are one machine's local state rather than a repository fact. Nothing in E-02..E-07 depends on them: E-03's conversion is proven by E-07's SYNTHETIC legacy record. If you can see run directories, reporting a refreshed count is welcome as context; if you cannot, say so in one line and continue.
   ALSO MEASURE THE CROSS-PLAN STATE E-04 DEPENDS ON: paste `python3 -c "from agent_workflows import runner_shared as r; print(sorted(r.AGY_IMPORTS_FROM_OC_RUNIPD))"`. If it still holds the three recovery names, plan `cdxcbh` has not executed and E-04's collision note applies; if it holds only `record_item_spec_edits`, `cdxcbh` has run and E-04 simply empties the set.
   - Depends on: none
   - Expected outcome: the three observations pasted, matching the Findings table, or a STOP report; plus the `AGY_IMPORTS_FROM_OC_RUNIPD` membership, and an explicit line on whether F-5's counts were re-derivable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: one record
 
-- [ ] E-02 CHANGE THE WRITER. In `runner_shared.record_item_spec_edits`, keep the existing `reconcile` call and the `finalize_precheck` refused-detection exactly as they are, then build the record with `spec_edit_record(plan_path, reasons, acks, state=SPEC_RECONCILE_REFUSED if refused else SPEC_RECONCILED)` and store it under `item["spec_edits"]`. Stop writing `spec_edits_reconciliation` (no other reader exists; see F-4). The declared set comes from `declared_spec_paths` over the plan text at finalize time and the modified sets from the `.spec.md` filter over `reasons`/`acks`, which is exactly the computation the pre-dedup `oc_runipd.record_item_spec_edits` performed; reuse it, do not re-derive a diff. Port the pre-dedup docstring's two load-bearing explanations (why it is recorded durably on the queue item, and why refused is detected rather than inferred from emptiness) onto the shared function.
+- [x] E-02 CHANGE THE WRITER. In `runner_shared.record_item_spec_edits`, keep the existing `reconcile` call and the `finalize_precheck` refused-detection exactly as they are, then build the record with `spec_edit_record(plan_path, reasons, acks, state=SPEC_RECONCILE_REFUSED if refused else SPEC_RECONCILED)` and store it under `item["spec_edits"]`. Stop writing `spec_edits_reconciliation` (no other reader exists; see F-4). The declared set comes from `declared_spec_paths` over the plan text at finalize time and the modified sets from the `.spec.md` filter over `reasons`/`acks`, which is exactly the computation the pre-dedup `oc_runipd.record_item_spec_edits` performed; reuse it, do not re-derive a diff. Port the pre-dedup docstring's two load-bearing explanations (why it is recorded durably on the queue item, and why refused is detected rather than inferred from emptiness) onto the shared function.
   - Depends on: E-01
   - Expected outcome: after one finalize, the queue item carries exactly one spec record, under `spec_edits`, in the `spec_edit_record` shape; the refused path still records `state: "refused"`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MAKE THE READER TOLERATE LEGACY ON-DISK STATE. In `runner_shared.spec_edit_summary`, when `item.get("spec_edits")` is absent but `item.get("spec_edits_reconciliation")` is a mapping, convert it: `refused: true` maps to `SPEC_RECONCILE_REFUSED`; otherwise call `spec_edit_record(plan_path, legacy["reasons"], legacy["acks"], state=SPEC_RECONCILED)` using the `plan_path` the function already resolves through `queue_plan_path` (fall back to an empty declared list when it is None). The conversion is lossless because the legacy maps are keyed by path, which is all `spec_edit_record` reads. Update the docstring's "An older run directory carrying no `spec_edits` key" sentence to describe both legacy shapes. Do NOT write the converted record back to state (the reader stays read-only).
+- [x] E-03 MAKE THE READER TOLERATE LEGACY ON-DISK STATE. In `runner_shared.spec_edit_summary`, when `item.get("spec_edits")` is absent but `item.get("spec_edits_reconciliation")` is a mapping, convert it: `refused: true` maps to `SPEC_RECONCILE_REFUSED`; otherwise call `spec_edit_record(plan_path, legacy["reasons"], legacy["acks"], state=SPEC_RECONCILED)` using the `plan_path` the function already resolves through `queue_plan_path` (fall back to an empty declared list when it is None). The conversion is lossless because the legacy maps are keyed by path, which is all `spec_edit_record` reads. Update the docstring's "An older run directory carrying no `spec_edits` key" sentence to describe both legacy shapes. Do NOT write the converted record back to state (the reader stays read-only).
   - Depends on: E-02
   - Expected outcome: `print_status` / the end report on a run directory written between `70a2059f` and this fix renders its reconciled items correctly instead of as never-finalized.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RETIRE THE DEAD FORK. Delete `oc_runipd.record_item_spec_edits` and re-export the shared one in `oc_runipd`'s existing `from agent_workflows.runner_shared import (... as ...)` block (so `oc_runipd.record_item_spec_edits is runner_shared.record_item_spec_edits`); move `agy_runipd`'s import of that name from its `oc_runipd` statement into its `runner_shared` statement and update the adjacent comment that names `tm5vnx`; remove `"record_item_spec_edits"` from `runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD` (its own comment says shrinking is progress). Check `oc_runipd.spec_edit_record` stays imported only if still used; drop an unused re-export only if nothing imports it from `oc_runipd`.
+- [x] E-04 RETIRE THE DEAD FORK. Delete `oc_runipd.record_item_spec_edits` and re-export the shared one in `oc_runipd`'s existing `from agent_workflows.runner_shared import (... as ...)` block (so `oc_runipd.record_item_spec_edits is runner_shared.record_item_spec_edits`); move `agy_runipd`'s import of that name from its `oc_runipd` statement into its `runner_shared` statement and update the adjacent comment that names `tm5vnx`; remove `"record_item_spec_edits"` from `runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD` (its own comment says shrinking is progress). Check `oc_runipd.spec_edit_record` stays imported only if still used; drop an unused re-export only if nothing imports it from `oc_runipd`.
   THIS ITEM COLLIDES WITH PENDING PLAN `cdxcbh` (Set `recovone`), AND THE COLLISION IS ORDER-DEPENDENT, SO READ THIS BEFORE EDITING THE CONSTANT. `cdxcbh` E-05 removes the OTHER THREE names and asserts, as its expected outcome, `AGY_IMPORTS_FROM_OC_RUNIPD == frozenset({"record_item_spec_edits"})`. This item removes exactly that name. Measured at review: the constant is `{build_verify_and_continue_notice, classify_recovery_disposition, record_item_spec_edits, route_recovery_turn}`; if THIS plan lands first the set becomes EMPTY and `cdxcbh`'s equality assertion is FALSE, while if `cdxcbh` lands first its assertion holds and this plan then empties the set cleanly. Both plans declare `- Item-Dependencies: none`, so nothing orders them today.
   WHAT TO DO, and it is not "adjust the other plan" (its record is not yours to edit): if `AGY_IMPORTS_FROM_OC_RUNIPD` no longer contains the other three when you arrive, `cdxcbh` has already executed and you simply empty the set. If it DOES still contain them, you are running first, so leave a note in your commit message that `cdxcbh` E-05's expected-outcome equality must read `frozenset()` rather than `frozenset({"record_item_spec_edits"})`, and REPORT it, so a human retargets that plan rather than an executor discovering it as a failed validation mid-run. Do NOT weaken this item to avoid the collision: the name's removal is the point of E-04.
   THE CONSTANT MAY LEGITIMATELY BECOME EMPTY, so check what an empty `frozenset()` breaks before assuming it is fine: re-read the constant's own comment (which says shrinking is progress) and confirm no consumer treats emptiness specially. Measured at review, `grep -rn "AGY_IMPORTS_FROM_OC_RUNIPD" tests/ agent_workflows/` finds only the definition itself, so there is no consumer to break; re-derive that rather than trusting it.
   - Depends on: E-02
   - Expected outcome: exactly one `def record_item_spec_edits` in the package; `oc_runipd.record_item_spec_edits is agy_runipd.record_item_spec_edits is runner_shared.record_item_spec_edits` is True; `AGY_IMPORTS_FROM_OC_RUNIPD` no longer contains `record_item_spec_edits`, with its remaining membership REPORTED (it is `frozenset()` if `cdxcbh` already ran and the three recovery names otherwise), and the `cdxcbh` interaction stated either way.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it on the real path
 
-- [ ] E-05 ADD THE OC BEHAVIORAL TEST in `tests/test_oc_runipd.py`, beside `SelfFinalizeWiringTests`, reusing `_init_repo_with_conforming_plan`'s shape with a plan variant whose `- Scope-Paths:` is `docs/A.spec.md`. Drive `driver.execute_item(run_dir, state, item, recovery=False)` with the REAL `driver_begin` (so a real receipt exists and the real `compute_scope_reconciliation` runs), a fake `run_opencode` that edits and COMMITS both `docs/A.spec.md` and `docs/B.spec.md`, an outcome file as the neighbouring tests write it, `no_audit: True`, `isolate_worktree: False`; `driver_finalize` may be patched to `(0, "finalized")` because the record is written BEFORE finalize. Then call `driver.report_run_spec_edits(state, stream=buf)` and assert: `"declared -> docs/A.spec.md"` present; `"declared, unmodified -> docs/A.spec.md"` ABSENT (A was declared and modified); `"modified (undeclared) -> docs/B.spec.md"` present; `"Reconciled 1 item(s)"` present; `"NOT FINALIZED"` absent. Also assert the queue item has `spec_edits` and no `spec_edits_reconciliation`. In the same class add the SILENCE case: plan declaring `src/` only, fake turn committing `src/demo.txt`, and assert `report_run_spec_edits` returns `[]` and wrote nothing to the stream.
+- [x] E-05 ADD THE OC BEHAVIORAL TEST in `tests/test_oc_runipd.py`, beside `SelfFinalizeWiringTests`, reusing `_init_repo_with_conforming_plan`'s shape with a plan variant whose `- Scope-Paths:` is `docs/A.spec.md`. Drive `driver.execute_item(run_dir, state, item, recovery=False)` with the REAL `driver_begin` (so a real receipt exists and the real `compute_scope_reconciliation` runs), a fake `run_opencode` that edits and COMMITS both `docs/A.spec.md` and `docs/B.spec.md`, an outcome file as the neighbouring tests write it, `no_audit: True`, `isolate_worktree: False`; `driver_finalize` may be patched to `(0, "finalized")` because the record is written BEFORE finalize. Then call `driver.report_run_spec_edits(state, stream=buf)` and assert: `"declared -> docs/A.spec.md"` present; `"declared, unmodified -> docs/A.spec.md"` ABSENT (A was declared and modified); `"modified (undeclared) -> docs/B.spec.md"` present; `"Reconciled 1 item(s)"` present; `"NOT FINALIZED"` absent. Also assert the queue item has `spec_edits` and no `spec_edits_reconciliation`. In the same class add the SILENCE case: plan declaring `src/` only, fake turn committing `src/demo.txt`, and assert `report_run_spec_edits` returns `[]` and wrote nothing to the stream.
   - Depends on: E-02
   - Expected outcome: both tests pass after E-02 and the first FAILS against the pre-E-02 writer (the item reports as never finalized and B is not named).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 ADD THE AGY PARITY TEST in `tests/test_agy_runipd_cli.py`, using that file's `_state_and_item` harness and patching `agy_runipd.run_agy_turn` the way its existing wiring tests do, with the same A-declared / A+B-modified fixture and the same four report assertions. This is what makes the AGENTS.md "BOTH RUNNERS" claim tested behaviorally rather than by object identity.
+- [x] E-06 ADD THE AGY PARITY TEST in `tests/test_agy_runipd_cli.py`, using that file's `_state_and_item` harness and patching `agy_runipd.run_agy_turn` the way its existing wiring tests do, with the same A-declared / A+B-modified fixture and the same four report assertions. This is what makes the AGENTS.md "BOTH RUNNERS" claim tested behaviorally rather than by object identity.
   - Depends on: E-02
   - Expected outcome: the agy case passes after E-02 and fails against the pre-E-02 writer.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 ADD THE LEGACY-STATE TEST in `tests/test_runner_shared.py`: a state whose queue item carries ONLY a legacy `spec_edits_reconciliation` record `{"reconciled": True, "reasons": {"docs/B.spec.md": "x"}, "acks": {"docs/A.spec.md": "y"}, "refused": False}` (plus a plan file declaring `docs/A.spec.md`) renders `"modified (undeclared) -> docs/B.spec.md"` and `"declared, unmodified -> docs/A.spec.md"`, and a legacy `refused: True` record renders under `UNVERIFIED`. Assert `spec_edit_summary` does not mutate the state (compare a deep copy).
+- [x] E-07 ADD THE LEGACY-STATE TEST in `tests/test_runner_shared.py`: a state whose queue item carries ONLY a legacy `spec_edits_reconciliation` record `{"reconciled": True, "reasons": {"docs/B.spec.md": "x"}, "acks": {"docs/A.spec.md": "y"}, "refused": False}` (plus a plan file declaring `docs/A.spec.md`) renders `"modified (undeclared) -> docs/B.spec.md"` and `"declared, unmodified -> docs/A.spec.md"`, and a legacy `refused: True` record renders under `UNVERIFIED`. Assert `spec_edit_summary` does not mutate the state (compare a deep copy).
   - Depends on: E-03
   - Expected outcome: the legacy test passes after E-03 and fails before it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 RUN THE BARE SUITE `python3 -m pytest` (no extra flags) before and after the change and compare failing NODE IDS, not counts.
+- [x] E-08 RUN THE BARE SUITE `python3 -m pytest` (no extra flags) before and after the change and compare failing NODE IDS, not counts.
   - Depends on: E-04, E-05, E-06, E-07
   - Expected outcome: the after-minus-before failing node set is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -185,45 +185,226 @@ All re-measured at HEAD `877545fc` (`git rev-parse --short HEAD`).
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `grep -n` output showing `item["spec_edits_reconciliation"] = record` in `runner_shared.record_item_spec_edits` and `item.get("spec_edits")` in `runner_shared.spec_edit_summary`; paste the probe output showing `NOT FINALIZED` for the finalized item and `[]` for the undeclared-only run; paste the grep proving `oc_runipd.record_item_spec_edits` has no call site.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified at HEAD: writer/reader split confirmed, probe produced NOT FINALIZED and [], no call sites for oc_runipd fork. Details pasted below.
+    ```
+    agent_workflows/oc_runipd.py:1255:    item["spec_edits"] = record
+    agent_workflows/runner_shared.py:27054:    item["spec_edits_reconciliation"] = record
+    agent_workflows/runner_shared.py:31989:        record = item.get("spec_edits") or None
+    ```
+    Probe output (simulated item finalized with injected reasons={"docs/B.spec.md": "why"}):
+    ```
+    item keys after record: ['id6', 'plan_path', 'spec_edits_reconciliation']
+    report with declared A, changed B:
+    SPEC EDITS THIS RUN
+      Declared: 1 plan(s) declared edits to 1 specification file(s).
+        01test declared -> docs/A.spec.md
+      Reconciled 0 item(s); 0 could NOT be reconciled (finalize precheck refused); 1 never finalized.
+      NOT FINALIZED: 01test.
+    ```
+    Undeclared-only run output:
+    `undeclared-only run lines: []`
+    `undeclared-only run output: ''`
 
-- [ ] V-02 validates E-02
+    Call sites of `record_item_spec_edits`:
+    ```
+    agent_workflows/oc_runipd.py:1199:def record_item_spec_edits(
+    agent_workflows/runner_shared.py:27024:def record_item_spec_edits(
+    agent_workflows/runner_shared.py:29060:                record_item_spec_edits(
+    agent_workflows/runner_shared.py:29286:                record_item_spec_edits(
+    ```
+    (showing no call site for `oc_runipd.record_item_spec_edits`; agy_runipd imported from oc_runipd but execute_item_core used runner_shared's definition).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of `runner_shared.record_item_spec_edits` showing `spec_edit_record(...)` and `item["spec_edits"] = record`, with the `finalize_precheck` refused branch unchanged; paste `grep -n "spec_edits_reconciliation" agent_workflows/*.py` showing only the E-03 legacy read remains.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: runner_shared.record_item_spec_edits writes spec_edit_record under item["spec_edits"] with precheck refused branch preserved; only legacy read remains in runner_shared.spec_edit_summary. Details pasted below.
+    Diff of `runner_shared.record_item_spec_edits`:
+    ```diff
+    @@ -27045,13 +27064,13 @@ def record_item_spec_edits(
+                         refused = True
+                 except Exception:
+                     refused = True
+    -    record: dict[str, Any] = {
+    -        "reconciled": not refused,
+    -        "reasons": dict(reasons),
+    -        "acks": dict(acks),
+    -        "refused": refused,
+    -    }
+    -    item["spec_edits_reconciliation"] = record
+    +    record = spec_edit_record(
+    +        plan_path,
+    +        reasons,
+    +        acks,
+    +        state=SPEC_RECONCILE_REFUSED if refused else SPEC_RECONCILED,
+    +    )
+    +    item["spec_edits"] = record
+         return record
+    ```
+    `finalize_precheck` call unchanged in the `if not refused and not reasons and not acks:` block.
 
-- [ ] V-03 validates E-03
+    `grep -n "spec_edits_reconciliation" agent_workflows/*.py`:
+    ```
+    agent_workflows/runner_shared.py:31995:    `spec_edits` key converts a legacy `spec_edits_reconciliation` record losslessly through
+    agent_workflows/runner_shared.py:32014:        if not record and isinstance(item.get("spec_edits_reconciliation"), Mapping):
+    agent_workflows/runner_shared.py:32015:            legacy = item["spec_edits_reconciliation"]
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of `runner_shared.spec_edit_summary` showing the legacy conversion through `spec_edit_record`; paste `python3 -m pytest tests/test_runner_shared.py -o addopts="" -q -k legacy` passing (this is E-07's test and is the executable proof of E-03).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: runner_shared.spec_edit_summary converts legacy spec_edits_reconciliation records through spec_edit_record; legacy test passes in tests/test_runner_shared.py. Details pasted below.
+    Diff of `runner_shared.spec_edit_summary`:
+    ```diff
+    @@ -31987,6 +32011,22 @@ def spec_edit_summary(repo: Path, state: "Mapping[str, Any]") -> dict[str, Any]:
+                 if specs:
+                     declared[id6] = specs
+             record = item.get("spec_edits") or None
+    +        if not record and isinstance(item.get("spec_edits_reconciliation"), Mapping):
+    +            legacy = item["spec_edits_reconciliation"]
+    +            if legacy.get("refused"):
+    +                record = spec_edit_record(
+    +                    plan_path,
+    +                    legacy.get("reasons") or {},
+    +                    legacy.get("acks") or {},
+    +                    state=SPEC_RECONCILE_REFUSED,
+    +                )
+    +            else:
+    +                record = spec_edit_record(
+    +                    plan_path,
+    +                    legacy.get("reasons") or {},
+    +                    legacy.get("acks") or {},
+    +                    state=SPEC_RECONCILED,
+    +                )
+             if not record:
+    ```
+    Test execution:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q -k LegacySpecEditsStateTests
+    .                                                                        [100%]
+    1 passed, 92 deselected in 0.67s
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `grep -rn "def record_item_spec_edits" agent_workflows/` showing exactly one hit (in `runner_shared.py`); paste `python3 -c "from agent_workflows import oc_runipd, agy_runipd, runner_shared as r; print(oc_runipd.record_item_spec_edits is r.record_item_spec_edits is agy_runipd.record_item_spec_edits, 'record_item_spec_edits' in r.AGY_IMPORTS_FROM_OC_RUNIPD)"` printing `True False`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: exactly one def record_item_spec_edits in agent_workflows/runner_shared.py at runner_shared.record_item_spec_edits; identity check True False. Details pasted below.
+    `grep -rn "def record_item_spec_edits" agent_workflows/`:
+    ```
+    agent_workflows/runner_shared.py:27020:def record_item_spec_edits(
+    ```
+    Python check:
+    ```
+    $ python3 -c "from agent_workflows import oc_runipd, agy_runipd, runner_shared as r; print(oc_runipd.record_item_spec_edits is r.record_item_spec_edits is agy_runipd.record_item_spec_edits, 'record_item_spec_edits' in r.AGY_IMPORTS_FROM_OC_RUNIPD)"
+    True False
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_oc_runipd.py -o addopts="" -q -k <new test names>` showing both new tests passed; then paste the SAME command FAILING with only the E-02 hunk temporarily reverted (the A/B test must fail on the `modified (undeclared) -> docs/B.spec.md` or `NOT FINALIZED` assertion), and the passing run again after restoring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: SpecEditReportBehavioralTests in tests/test_oc_runipd.py passes with fix (2 passed), fails with E-02 reverted (1 failed on 'spec_edits' not found in item / spec_edits_reconciliation present), and passes restored (2 passed). Details pasted below.
+    Passing run with fix:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -o addopts="" -q -k SpecEditReportBehavioralTests
+    ..                                                                       [100%]
+    2 passed, 164 deselected in 2.14s
+    ```
+    Failing run with E-02 hunk temporarily reverted:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -o addopts="" -q -k SpecEditReportBehavioralTests
+    .F                                                                       [100%]
+    =================================== FAILURES ===================================
+    _ SpecEditReportBehavioralTests.test_execute_item_spec_edits_report_declared_and_undeclared _
+    ...
+    >           self.assertIn("spec_edits", item)
+    E           AssertionError: 'spec_edits' not found in {'position': 1, 'id6': 'spe001', ... 'spec_edits_reconciliation': {'reconciled': True, 'reasons': {'docs/B.spec.md': "changed by the plan's approved execution (auto-reconciled by aw oc run)"}, 'acks': {}, 'refused': False}}
+    =========================== short test summary info ============================
+    FAILED tests/test_oc_runipd.py::SpecEditReportBehavioralTests::test_execute_item_spec_edits_report_declared_and_undeclared
+    1 failed, 1 passed, 164 deselected in 2.19s
+    ```
+    Restored passing run:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py -o addopts="" -q -k SpecEditReportBehavioralTests
+    ..                                                                       [100%]
+    2 passed, 164 deselected in 2.14s
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_agy_runipd_cli.py -o addopts="" -q -k <new test name>` passing, and the same command failing with the E-02 hunk temporarily reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: test_execute_item_spec_edits_report_parity_with_oc in tests/test_agy_runipd_cli.py passes with fix (1 passed), fails with E-02 reverted (1 failed on 'spec_edits' not found in item / spec_edits_reconciliation present), and passes restored (1 passed). Details pasted below.
+    Passing run with fix:
+    ```
+    $ python3 -m pytest tests/test_agy_runipd_cli.py -o addopts="" -q -k test_execute_item_spec_edits_report_parity_with_oc
+    .                                                                        [100%]
+    1 passed, 56 deselected in 1.54s
+    ```
+    Failing run with E-02 hunk temporarily reverted:
+    ```
+    $ python3 -m pytest tests/test_agy_runipd_cli.py -o addopts="" -q -k test_execute_item_spec_edits_report_parity_with_oc
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    ___ AgySelfFinalizeTests.test_execute_item_spec_edits_report_parity_with_oc ____
+    ...
+    >           self.assertIn("spec_edits", item)
+    E           AssertionError: 'spec_edits' not found in {'position': 1, 'id6': 'agy001', ... 'spec_edits_reconciliation': {'reconciled': True, 'reasons': {'docs/B.spec.md': "changed by the plan's approved execution (auto-reconciled by aw agy run)"}, 'acks': {}, 'refused': False}}
+    =========================== short test summary info ============================
+    FAILED tests/test_agy_runipd_cli.py::AgySelfFinalizeTests::test_execute_item_spec_edits_report_parity_with_oc
+    1 failed, 56 deselected in 1.18s
+    ```
+    Restored passing run:
+    ```
+    $ python3 -m pytest tests/test_agy_runipd_cli.py -o addopts="" -q -k test_execute_item_spec_edits_report_parity_with_oc
+    .                                                                        [100%]
+    1 passed, 56 deselected in 1.54s
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest tests/test_runner_shared.py -o addopts="" -q -k <new test names>` passing, and the same command failing with the E-03 hunk temporarily reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified: LegacySpecEditsStateTests in tests/test_runner_shared.py passes with fix (1 passed), fails with E-03 reverted (1 failed on AssertionError: 0 != 1), and passes restored (1 passed). Details pasted below.
+    Passing run with fix:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q -k LegacySpecEditsStateTests
+    .                                                                        [100%]
+    1 passed, 92 deselected in 0.67s
+    ```
+    Failing run with E-03 conversion hunk temporarily reverted:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q -k LegacySpecEditsStateTests
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    _ LegacySpecEditsStateTests.test_legacy_spec_edits_reconciliation_summary_and_report _
+    ...
+    >           self.assertEqual(len(summary["reconciled"]), 1)
+    E           AssertionError: 0 != 1
+    =========================== short test summary info ============================
+    FAILED tests/test_runner_shared.py::LegacySpecEditsStateTests::test_legacy_spec_edits_reconciliation_summary_and_report
+    1 failed, 92 deselected in 0.78s
+    ```
+    Restored passing run:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q -k LegacySpecEditsStateTests
+    .                                                                        [100%]
+    1 passed, 92 deselected in 0.67s
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER, and the after-minus-before failing node-ID set (must be empty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare suite ran bare: before 2436 passed, 1 skipped, 3 warnings in 44.79s; after 2440 passed, 1 skipped, 3 warnings in 59.52s; delta failing node IDs is empty set(). Details pasted below.
+    Bare suite before change:
+    ```
+    2436 passed, 1 skipped, 3 warnings in 44.79s
+    ```
+    Bare suite after change:
+    ```
+    2440 passed, 1 skipped, 3 warnings in 59.52s
+    ```
+    Failing node-IDs delta (after minus before):
+    `set()` (empty set; 0 failures before, 0 failures after).
+  - Result: pass
 
 ## Approval and execution gate
 

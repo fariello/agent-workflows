@@ -3465,6 +3465,183 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             )
 
 
+class SpecEditReportBehavioralTests(unittest.TestCase):
+    """specrpt (9npssm): end-of-run declared-spec-edit report reflects what execute_item writes.
+
+    Drives driver.execute_item on the real finalize path with real driver_begin and real
+    _compute_scope_reconciliation, proving declared, undeclared-modified, and silence cases.
+    """
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+
+    def _state_and_item(self, repo: Path, plan: Path) -> tuple[dict, dict]:
+        item = {
+            "position": 1,
+            "id6": "spe001",
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-test",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "opencode": "/bin/true",
+                "model": "opus",
+                "self_finalize": True,
+                "no_audit": True,
+                "isolate_worktree": False,
+            },
+        }
+        return state, item
+
+    def _mk_run_dir(self, repo: Path) -> Path:
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        return run_dir
+
+    def test_execute_item_spec_edits_report_declared_and_undeclared(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+            )
+            (repo / "docs").mkdir(parents=True, exist_ok=True)
+            (repo / "docs" / "A.spec.md").write_text("# Spec A\n", encoding="utf-8")
+
+            plan_text = _CONFORMING_PLAN.format(id6="spe001").replace(
+                "- Scope-Paths: src/", "- Scope-Paths: docs/A.spec.md"
+            )
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            plan = pending / "20260828-demo-01-spe001-demo.ipd.md"
+            plan.write_text(plan_text, encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            def fake_run(*a, **k):
+                (repo / "docs" / "A.spec.md").write_text(
+                    "# Spec A modified\n", encoding="utf-8"
+                )
+                (repo / "docs" / "B.spec.md").write_text(
+                    "# Spec B undeclared\n", encoding="utf-8"
+                )
+                subprocess.run(
+                    ["git", "add", "docs/A.spec.md", "docs/B.spec.md"],
+                    cwd=repo,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "commit", "-qm", "edit A and B"], cwd=repo, check=True
+                )
+                (run_dir / "outcomes" / "01-spe001.json").write_text(
+                    json.dumps(
+                        {
+                            "disposition": "substantially-complete",
+                            "pushed": False,
+                            "defect_report": {
+                                "state": "none-found",
+                                "findings": [],
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return 0, "ses1", str(run_dir / "log"), ["opencode"]
+
+            passing_suite = runner_shared.SuiteCheckResult(
+                True, 0, "1 passed", "ok", str(repo), 60.0, 0.1
+            )
+            with (
+                mock.patch.object(driver, "run_opencode", fake_run),
+                mock.patch.object(
+                    driver, "run_suite_check", lambda *a, **k: passing_suite
+                ),
+                mock.patch.object(
+                    driver, "driver_finalize", lambda *a, **k: (0, "finalized")
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            buf = io.StringIO()
+            lines = driver.report_run_spec_edits(state, stream=buf)
+            rendered = "\n".join(lines)
+            self.assertIn("declared -> docs/A.spec.md", rendered)
+            self.assertNotIn("declared, unmodified -> docs/A.spec.md", rendered)
+            self.assertIn("modified (undeclared) -> docs/B.spec.md", rendered)
+            self.assertIn("Reconciled 1 item(s)", rendered)
+            self.assertNotIn("NOT FINALIZED", rendered)
+            self.assertIn("spec_edits", item)
+            self.assertNotIn("spec_edits_reconciliation", item)
+
+    def test_execute_item_spec_edits_report_silence_on_no_spec_edits(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "sil001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            def fake_run(*a, **k):
+                (repo / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                subprocess.run(["git", "add", "src/demo.txt"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "edit demo.txt"], cwd=repo, check=True
+                )
+                (run_dir / "outcomes" / "01-sil001.json").write_text(
+                    json.dumps(
+                        {
+                            "disposition": "substantially-complete",
+                            "pushed": False,
+                            "defect_report": {
+                                "state": "none-found",
+                                "findings": [],
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return 0, "ses1", str(run_dir / "log"), ["opencode"]
+
+            passing_suite = runner_shared.SuiteCheckResult(
+                True, 0, "1 passed", "ok", str(repo), 60.0, 0.1
+            )
+            with (
+                mock.patch.object(driver, "run_opencode", fake_run),
+                mock.patch.object(
+                    driver, "run_suite_check", lambda *a, **k: passing_suite
+                ),
+                mock.patch.object(
+                    driver, "driver_finalize", lambda *a, **k: (0, "finalized")
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            buf = io.StringIO()
+            lines = driver.report_run_spec_edits(state, stream=buf)
+            self.assertEqual(lines, [])
+            self.assertEqual(buf.getvalue(), "")
+
+
 class WorktreeIsolationTests(unittest.TestCase):
     """driverfin-02 (emus4n): each execute-action child runs in its OWN git worktree; the main tree
     stays clean during the turn; a verified child's commits integrate back to main via the REUSED

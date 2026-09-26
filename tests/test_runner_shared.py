@@ -38,6 +38,7 @@ exempting the riskiest symbols is how a harness becomes decorative:
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import json
 import pathlib
@@ -4364,6 +4365,74 @@ class FollowGeneratedRemovedTests(unittest.TestCase):
         )
         content = specs[0].read_text(encoding="utf-8")
         self.assertNotIn("--follow-generated", content)
+
+
+class LegacySpecEditsStateTests(unittest.TestCase):
+    """specrpt (9npssm) E-07: legacy on-disk spec_edits_reconciliation state renders correctly.
+
+    A state whose queue item carries ONLY a legacy spec_edits_reconciliation record renders
+    modified_not_declared, declared_not_modified, and refused items under UNVERIFIED without
+    mutating the state.
+    """
+
+    def test_legacy_spec_edits_reconciliation_summary_and_report(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            plan = repo / "plan.ipd.md"
+            plan.write_text("- Scope-Paths: docs/A.spec.md\n", encoding="utf-8")
+
+            item = {
+                "id6": "leg001",
+                "setid": "demo",
+                "plan_path": str(plan),
+                "spec_edits_reconciliation": {
+                    "reconciled": True,
+                    "reasons": {"docs/B.spec.md": "x"},
+                    "acks": {"docs/A.spec.md": "y"},
+                    "refused": False,
+                },
+            }
+            state = {
+                "repo": str(repo),
+                "queue": [item],
+            }
+            state_before = copy.deepcopy(state)
+
+            summary = runner_shared.spec_edit_summary(repo, state)
+            self.assertEqual(len(summary["reconciled"]), 1)
+            self.assertEqual(
+                state, state_before, "spec_edit_summary must not mutate state"
+            )
+
+            buf = io.StringIO()
+            lines = runner_shared.report_run_spec_edits(state, stream=buf)
+            rendered = "\n".join(lines)
+            self.assertIn("modified (undeclared) -> docs/B.spec.md", rendered)
+            self.assertIn("declared, unmodified -> docs/A.spec.md", rendered)
+
+            # A legacy refused: True record renders under UNVERIFIED
+            item_refused = {
+                "id6": "leg002",
+                "setid": "demo",
+                "plan_path": str(plan),
+                "spec_edits_reconciliation": {
+                    "reconciled": False,
+                    "reasons": {},
+                    "acks": {},
+                    "refused": True,
+                },
+            }
+            state_refused = {
+                "repo": str(repo),
+                "queue": [item_refused],
+            }
+            buf_refused = io.StringIO()
+            lines_refused = runner_shared.report_run_spec_edits(
+                state_refused, stream=buf_refused
+            )
+            rendered_refused = "\n".join(lines_refused)
+            self.assertIn("UNVERIFIED", rendered_refused)
+            self.assertIn("leg002", rendered_refused)
 
 
 if __name__ == "__main__":
