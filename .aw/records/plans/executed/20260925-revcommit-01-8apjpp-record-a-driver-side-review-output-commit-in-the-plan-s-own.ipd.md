@@ -6,7 +6,7 @@
 - Scope: IN: (a) the driver commit carries the canonical `AW-Run`/`AW-Item` trailers (`git_commit_helper.run_item_trailers` composed with `compose_message_with_trailers`) plus an `AW-Committed-By: driver` trailer, so the commit is self-describing in permanent history; (b) the driver prints one yellow stderr line naming the id6, the commit and the paths when it commits, and one when a hook refuses; (c) the end-of-run report on both hosts counts driver-committed reviews; (d) the commit ATTRIBUTES ONLY THIS TURN'S OWN PATHS, because the sweep lane is shared across every review of the run and a previously-refused turn's staged files otherwise ride the NEXT turn's commit under the next turn's id6 (F-5, measured); (e) the reported path set is the set actually committed rather than `git status --porcelain`'s directory collapse (F-6, measured); (f) a regression test. OUT: writing a line into the plan's `## Workflow history` (rejected, see Findings F-3); refusing a non-committing review as a failed turn (the maintainer decision in OQ-01, defaulted to keep the safety net).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_review_lane_output_commit.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8apjpp
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8apjpp verified (set revcommit, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
