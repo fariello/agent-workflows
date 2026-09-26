@@ -6,8 +6,7 @@
 - Scope: IN: fix (1)-(4) in `agent_workflows/partition.py` and `tests/test_partition.py`; OUT: re-doing any of `xu3yxw`'s correct work (algorithm shape, formatting, CLI flags, inventory entry, CHANGELOG), and any change to `attention`. The lifecycle gap (5) is closed by this plan's own execution through a runner, which begins and finalizes `xu3yxw`'s successor state; see the gate.
 - Scope-Paths: agent_workflows/partition.py, tests/test_partition.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: 2026-09-26, human ("approved"): Human approved in chat: '.aw/worktrees/feat-partition/.aw/records/plans/pending/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md approve. Go!'
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +18,7 @@
 - Id: jfza7e
 
 ## Workflow history
+- 2026-09-26 executed (antigravity): finalize jfza7e: close xu3yxw execution gaps [Scope reconciliation - in-scope-unmodified agent_workflows/partition.py: committed in 564fc488; in-scope-unmodified tests/test_partition.py: committed in 564fc488]
 
 - 2026-09-26 approved (human): Human approved in chat: '.aw/worktrees/feat-partition/.aw/records/plans/pending/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md approve. Go!'
 - 2026-09-26 reviewed (antigravity): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed. Readiness GO - PENDING HUMAN APPROVAL.
