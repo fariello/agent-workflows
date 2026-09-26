@@ -1,5 +1,5 @@
 - Id: 59t9x5
-- Status: graduated
+- Status: done
 - Graduated-To: findonce
 - Blocks-Release: next
 - Set: 59t9x5
@@ -8,6 +8,7 @@
 - Summary: aw find opens every record twice: the display layer re-reads the 616 records the resolver just read, costing ~128ms of a ~530ms command an operator waits on
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD qfpnrm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-findonce-01-qfpnrm-make-aw-find-read-each-matched-record-once-instead-of-rescan.ipd.md); evidence .aw/records/plans/executed/20260925-findonce-01-qfpnrm-make-aw-find-read-each-matched-record-once-instead-of-rescan.ipd.md
 - 2026-09-25 graduated (aw set): graduated into findonce plan qfpnrm (re-measured: 1509 opens for 754 plans)
 - 2026-09-12 open (aw set): Reclassified chore -> bug and GATED on the maintainer's ruling of 2026-09-12. Basis: provably redundant work is a DEFECT, not merely an inefficiency; measured 1240 opens end to end against 620 needed, i.e. every record opened about twice. THIS IS A PRECEDENT THAT WIDENS THE GATE, recorded here because it decides more than this item: a performance defect with CORRECT OUTPUT now counts as a bug and therefore blocks a release, so known inefficiencies are release blockers. It bears directly on qmgn12 OQ-02 (whether a defect filed as chore escapes the bug gate) and answers it in the direction of closing that leak. NOTE the Work-Kind field was edited by hand because 'aw backlog set' has no --work-kind setter, unlike 'aw ipd set'; filed as its own gap.
 - 2026-09-12 created (aw backlog): aw find opens every record twice: the display layer re-reads the 616 records the resolver just read (~119.6ms of a ~252ms warm find, 1240 opens end to end)
