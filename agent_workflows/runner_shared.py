@@ -89,11 +89,11 @@ the plan's 34-symbol manifest will otherwise think they were forgotten:
 
   * `disable_lane_prompt` MUTATES a module-level `_LANE_PROMPT_DISABLED` flag through `global`. A
     shared `global` would write THIS module's flag while each runner's `_lane_reclaim_prompt`
-    (DIVERGED, so it stays behind) kept reading its OWN, and prompt suppression on a repeated
-    interrupt would silently stop working - a regression whose only symptom is an unattended run
-    stopping to ask a question nobody is there to answer. It stays defined in both runners, and
-    `tests/test_runner_shared.py::UnmovableSymbolTests` pins that reason so it is not "finished"
-    later by someone who reads the count and not the constraint.
+    kept reading its OWN, and prompt suppression on a repeated interrupt would silently stop working -
+    a regression whose only symptom is an unattended run stopping to ask a question nobody is there to
+    answer. It stays defined in both runners, while `lane_reclaim_prompt` is shared and takes
+    suppression as an injected parameter; `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests`
+    pins that reason so it is not "finished" later by someone who reads the count and not the constraint.
   * `_read_set`/`_read_order`/`describe_unresolved_plan_selector`/`validate_manifest` close over the
     module constants `_SET_RE`, `_ORDER_RE`, `ID6_RE` and `SCHEMA_VERSION`. Those four constants are
     themselves byte-identical in both runners, so they MOVE here rather than being injected, and each
@@ -1017,7 +1017,8 @@ def print_status(run_dir: Path, *, driver_label: str) -> None:
 # ---- lanes ---------------------------------------------------------------------------------------
 # `disable_lane_prompt` is deliberately ABSENT and stays in both runners: it mutates a module-level
 # `_LANE_PROMPT_DISABLED` via `global`, and a shared `global` would write THIS module's flag while
-# each runner's DIVERGED `_lane_reclaim_prompt` kept reading its own. See the module docstring.
+# each runner's `_lane_reclaim_prompt` (a thin wrapper delegating to `lane_reclaim_prompt`) reads its
+# own flag at call time. Pinned by tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests.
 
 
 def _lane_records_from_state(state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -2486,6 +2487,60 @@ def lane_records_including_sweep(state: dict[str, Any]) -> list[dict[str, Any]]:
     return lanes
 
 
+def lane_reclaim_prompt(
+    lane: dict[str, Any],
+    default_action: str,
+    *,
+    disabled: bool,
+    timeout: float,
+) -> str | None:
+    """Offer the operator a choice for ONE lane, but ONLY with a real TTY (E-10).
+
+    HARD CONSTRAINTS, because these runs are non-interactive by design and usually unattended: no TTY
+    means no prompt and no waiting, ever; an unanswered prompt falls through to the automatic decision
+    rather than blocking shutdown; a repeated interrupt skips the prompt entirely; and the offered
+    default IS the automatic decision. The content-based decision is the authority; this only
+    front-runs it, and it can never be the safety net.
+    """
+    if disabled:
+        return None
+    if not (getattr(sys.stdin, "isatty", None) and sys.stdin.isatty()):
+        return None
+    if not (getattr(sys.stderr, "isatty", None) and sys.stderr.isatty()):
+        return None
+    if lane["holds_work"]:
+        question = "Lane {0} ({1}) HOLDS WORK. [k]eep+snapshot (default) or [d]iscard? ".format(
+            lane["lane_id"], lane["branch"]
+        )
+        options = {"k": "keep", "d": "discard"}
+    else:
+        question = "Lane {0} ({1}) is empty. [d]iscard (default) or [k]eep? ".format(
+            lane["lane_id"], lane["branch"]
+        )
+        options = {"d": "discard", "k": "keep"}
+    print(question, end="", file=sys.stderr, flush=True)
+    import select
+
+    try:
+        ready, _w, _x = select.select([sys.stdin], [], [], timeout)
+    except Exception:
+        print(file=sys.stderr)
+        return None
+    if not ready:
+        print(
+            f"\n  (no answer in {timeout}s; taking the automatic decision: {default_action})",
+            file=sys.stderr,
+        )
+        return None
+    try:
+        answer = (sys.stdin.readline() or "").strip().lower()
+    except Exception:
+        return None
+    if not answer:
+        return None
+    return options.get(answer[0])
+
+
 def reclaim_lanes_on_interrupt(
     repo: Path,
     run_dir: Path,
@@ -2513,8 +2568,7 @@ def reclaim_lanes_on_interrupt(
     THIS module's flag while both hosts kept reading theirs, so prompt suppression on a repeated
     interrupt would silently stop working, and the only symptom would be an unattended run pausing to
     ask a question nobody is there to answer. That pin is held by
-    `tests/test_runner_shared.py::UnmovableSymbolTests` and
-    `tests/test_hostdedup_identical_lift.py::TheDeliberatelyUnliftedSymbol`, and it is honored here
+    `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests`, and it is honored here
     rather than weakened: the two per-host symbols stay per host, and this body receives them. Both
     parameters are keyword-only and have NO DEFAULT, deliberately, so a caller cannot silently get a
     prompt that writes the wrong module's flag.
@@ -8871,6 +8925,155 @@ def reattempt_deferred_integrations(
             }
         )
     return records
+
+
+def retry_deferred_integrations(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    poll: bool = False,
+    ask: bool = False,
+    integrate_lane_branch: Any,
+    integrate_review_lane_branch: Any,
+    make_validation_runner: Any,
+    run_suite_check: Any,
+    process_backlog_close: Any,
+    save_state: Any,
+) -> list[dict[str, Any]]:
+    """integpath-03 (`51vw4y`) E-03/E-04/E-05, forkresid (`184tn9`) E-04: re-attempt deferred integrations.
+
+    A thin adapter: the LADDER is :func:`reattempt_deferred_integrations`, and this binds what is
+    host-specific via injected parameters.
+    """
+    from agent_workflows import lane_containment, worktree_lease
+
+    repo = Path(state["repo"])
+
+    def _handle_for(item: Any) -> Any:
+        branch = item.get("preserved_branch")
+        worktree = item.get("preserved_worktree")
+        if not branch:
+            return None
+        rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", str(branch)])
+        if rc != 0:
+            return None
+        return worktree_lease.WorktreeHandle(
+            lane_id=str(item.get("preserved_lane_id") or item.get("id6") or ""),
+            path=Path(worktree) if worktree else Path(""),
+            branch=str(branch),
+            base_commit=str(item.get("preserved_base") or ""),
+        )
+
+    def _integrate(item: Any, handle: Any) -> tuple[bool, str, str]:
+        # integearn-03 (`daexj1`) E-03: pass THIS host's `run_suite_check` so the gate's revalidation
+        # step measures the merge result instead of returning a constant True.
+        # forkresid (`184tn9`) E-04: pass the LIVE `item` (not a copy), so revalidation results
+        # are written to the queue item and unmeasured refusals can be reclassified.
+        return integrate_lane_branch(
+            repo,
+            handle,
+            str(item.get("id6") or ""),
+            make_validation_runner(state, run_dir, item, suite_check=run_suite_check),
+        )
+
+    def _finish(item: Any, handle: Any, reason: str) -> None:
+        item["status"] = "executed"
+        item["integrated"] = reason
+        attempts = item.get("attempts") or []
+        if attempts:
+            attempts[-1]["disposition"] = "executed"
+            attempts[-1]["integrated"] = reason
+        decision = lane_containment.teardown_lane_if_classified(
+            repo=repo, handle=handle, run_dir=run_dir, item=item
+        )
+        if not decision.torn_down:
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                item=item,
+                handle=handle,
+                reason=decision.reason,
+                reason_codes=decision.reason_codes,
+                detail=decision.inventory.as_dict(),
+            )
+        else:
+            for key in (
+                "preserved_worktree",
+                "preserved_branch",
+                "preserved_lane_id",
+                "preserved_base",
+                "preserved_reason",
+                "preserved_retention_reasons",
+            ):
+                item.pop(key, None)
+        with contextlib.suppress(DriverError):
+            item["last_plan_path"] = str(
+                resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
+            )
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "ipd-integrated-after-deferral",
+                "id6": item.get("id6"),
+                "setid": item.get("setid"),
+                "integration": reason,
+                "attempts_used": item.get("integration_attempts"),
+            },
+        )
+        print(
+            Palette(should_color(sys.stdout))(
+                f"  \u2713 IPD {item.get('id6')} integrated to main on a deferred re-attempt "
+                f"({reason})",
+                "green",
+            )
+        )
+        # Skip when the lane-side close already succeeded: re-evaluating would answer
+        # `item is already done` (close=False) and OVERWRITE the success record with a refusal, so a
+        # correct close would be reported to the operator as "left open".
+        if not (item.get("backlog_close") or {}).get("closed"):
+            process_backlog_close(run_dir, state, item)
+        save_state(run_dir, state)
+
+    def _integrate_review(item: Any, handle: Any) -> tuple[bool, str, str]:
+        return integrate_review_lane_branch(repo, handle, str(item.get("id6") or ""))
+
+    def _finish_review(item: Any, handle: Any, reason: str) -> None:
+        pal = Palette(should_color(sys.stdout))
+        finish_integrated_review_item(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            handle=handle,
+            reason=reason,
+            save_state=save_state,
+            append_jsonl=append_jsonl,
+            report=lambda message: print(pal(message, "green")),
+        )
+
+    return reattempt_deferred_integrations(
+        repo=repo,
+        run_dir=run_dir,
+        state=state,
+        integrate=_integrate,
+        finish_integrated=_finish,
+        integrate_review=_integrate_review,
+        finish_integrated_review=_finish_review,
+        save_state=save_state,
+        append_jsonl=append_jsonl,
+        handle_for=_handle_for,
+        validation_runner_for=lambda item: make_validation_runner(
+            state, run_dir, dict(item), suite_check=run_suite_check
+        ),
+        poll=poll,
+        interactive=is_interactive_run(
+            argparse.Namespace(
+                unattended=bool((state.get("options") or {}).get("unattended")),
+                full_auto=bool((state.get("options") or {}).get("full_auto")),
+            )
+        ),
+        ask=ask,
+    )
 
 
 def resolve_exhausted_deferrals(

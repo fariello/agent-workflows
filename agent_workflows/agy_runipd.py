@@ -17,7 +17,6 @@ import contextlib
 import json
 import os
 import re
-import select
 import shutil
 import subprocess
 import sys
@@ -1317,43 +1316,12 @@ def _lane_reclaim_prompt(lane: dict[str, Any], default_action: str) -> str | Non
     default IS the automatic decision. The content-based decision is the authority; this only
     front-runs it, and it can never be the safety net.
     """
-    if _LANE_PROMPT_DISABLED:
-        return None
-    if not (getattr(sys.stdin, "isatty", None) and sys.stdin.isatty()):
-        return None
-    if not (getattr(sys.stderr, "isatty", None) and sys.stderr.isatty()):
-        return None
-    if lane["holds_work"]:
-        question = "Lane {0} ({1}) HOLDS WORK. [k]eep+snapshot (default) or [d]iscard? ".format(
-            lane["lane_id"], lane["branch"]
-        )
-        options = {"k": "keep", "d": "discard"}
-    else:
-        question = "Lane {0} ({1}) is empty. [d]iscard (default) or [k]eep? ".format(
-            lane["lane_id"], lane["branch"]
-        )
-        options = {"d": "discard", "k": "keep"}
-    print(question, end="", file=sys.stderr, flush=True)
-    try:
-        ready, _w, _x = select.select([sys.stdin], [], [], LANE_PROMPT_TIMEOUT)
-    except Exception:
-        print("", file=sys.stderr)
-        return None
-    if not ready:
-        print(
-            "\n  (no answer in {0}s; taking the automatic decision: {1})".format(
-                LANE_PROMPT_TIMEOUT, default_action
-            ),
-            file=sys.stderr,
-        )
-        return None
-    try:
-        answer = (sys.stdin.readline() or "").strip().lower()
-    except Exception:
-        return None
-    if not answer:
-        return None
-    return options.get(answer[0])
+    return runner_shared.lane_reclaim_prompt(
+        lane,
+        default_action,
+        disabled=_LANE_PROMPT_DISABLED,
+        timeout=LANE_PROMPT_TIMEOUT,
+    )
 
 
 def reclaim_lanes_on_interrupt(
@@ -1376,7 +1344,7 @@ def reclaim_lanes_on_interrupt(
     `_LANE_PROMPT_DISABLED` through `global` and THIS module's `_lane_reclaim_prompt` reads THIS
     module's copy. Binding the shared module's pair instead would set a flag nobody reads, silently
     breaking prompt suppression on a repeated interrupt. See the shared implementation's docstring and
-    `tests/test_runner_shared.py::UnmovableSymbolTests`.
+    `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests`.
     """
     return runner_shared.reclaim_lanes_on_interrupt(
         repo,
@@ -1570,163 +1538,21 @@ def retry_deferred_integrations(
     poll: bool = False,
     ask: bool = False,
 ) -> list[dict[str, Any]]:
-    """integpath-03 (`51vw4y`) E-03/E-04/E-05: re-attempt THIS host's deferred integrations.
+    """integpath-03 (`51vw4y`) E-03/E-04/E-05, forkresid (`184tn9`) E-04: re-attempt THIS host's deferred integrations.
 
-    The MIRROR of the oc twin and equally thin: the LADDER is the single shared
-    `runner_shared.reattempt_deferred_integrations`, and this binds only what is host-specific - this
-    host's `integrate_lane_branch` wrapper (so a re-attempt's merge commit still reads
-    `integrate(aw agy run)`), its validation runner, its lane-handle reconstruction from the durable
-    `preserved_*` fields, and what "finished" means here. A ladder written into each driver would be
-    written twice and fixed once (CID-3), which is the failure integpath-02 collapsed these symbols to
-    prevent.
-
-    `i4ak5n` E-04/E-06: the REVIEW-ACTION pair is bound here too, symmetrically with the oc twin (which
-    carries the full rationale). The execute pair pins `action_kind=execute` - exactly what triggers the
-    revalidation gate a review must skip by NOT RUNNING - and its success path writes `executed` and
-    closes a backlog item, neither valid for a review. The review pair is this host's
-    `integrate_review_lane_branch` plus the SHARED `runner_shared.finish_integrated_review_item`, and the
-    shared `integration_action_for_item` (never a local test) decides which pair an item gets.
+    Delegates to :func:`runner_shared.retry_deferred_integrations` with host bindings.
     """
-
-    from agent_workflows import worktree_lease
-
-    repo = Path(state["repo"])
-
-    def _handle_for(item: Any) -> Any:
-        branch = item.get("preserved_branch")
-        worktree = item.get("preserved_worktree")
-        if not branch:
-            return None
-        rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", str(branch)])
-        if rc != 0:
-            return None
-        return worktree_lease.WorktreeHandle(
-            lane_id=str(item.get("preserved_lane_id") or item.get("id6") or ""),
-            path=Path(worktree) if worktree else Path(""),
-            branch=str(branch),
-            base_commit=str(item.get("preserved_base") or ""),
-        )
-
-    def _integrate(item: Any, handle: Any) -> tuple[bool, str, str]:
-        # integearn-03 (`daexj1`) E-03: pass THIS host's `run_suite_check` so the gate's revalidation
-        # step measures the merge result instead of returning a constant True. The name is the SAME
-        # object oc binds (agy re-exports oc's definition), so the two hosts measure identically.
-        return integrate_lane_branch(
-            repo,
-            handle,
-            str(item.get("id6") or ""),
-            make_integration_validation_runner(
-                state, run_dir, dict(item), suite_check=run_suite_check
-            ),
-        )
-
-    def _finish(item: Any, handle: Any, reason: str) -> None:
-        item["status"] = "executed"
-        item["integrated"] = reason
-        attempts = item.get("attempts") or []
-        if attempts:
-            attempts[-1]["disposition"] = "executed"
-            attempts[-1]["integrated"] = reason
-        decision = lane_containment.teardown_lane_if_classified(
-            repo=repo, handle=handle, run_dir=run_dir, item=item
-        )
-        if not decision.torn_down:
-            lane_containment.record_lane_preserved(
-                run_dir=run_dir,
-                item=item,
-                handle=handle,
-                reason=decision.reason,
-                reason_codes=decision.reason_codes,
-                detail=decision.inventory.as_dict(),
-            )
-        else:
-            for key in (
-                "preserved_worktree",
-                "preserved_branch",
-                "preserved_lane_id",
-                "preserved_base",
-                "preserved_reason",
-                "preserved_retention_reasons",
-            ):
-                item.pop(key, None)
-        with contextlib.suppress(DriverError):
-            item["last_plan_path"] = str(
-                resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
-            )
-        save_state(run_dir, state)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "ipd-integrated-after-deferral",
-                "id6": item.get("id6"),
-                "setid": item.get("setid"),
-                "integration": reason,
-                "attempts_used": item.get("integration_attempts"),
-            },
-        )
-        print(
-            Palette(should_color(sys.stdout))(
-                f"  \u2713 IPD {item.get('id6')} integrated to main on a deferred re-attempt "
-                f"({reason})",
-                "green",
-            )
-        )
-        # dirtygates-03 (`9iq461`), symmetric with `oc_runipd`: the original turn already attempted
-        # the close IN ITS LANE, so an eligible item arrives with this merge and this call skips. Kept
-        # for the one case it still answers (an item not eligible during the original turn but eligible
-        # now). The guard prevents re-evaluating an already-closed item, which would answer
-        # `item is already done` and overwrite the success record with a refusal.
-        if not (item.get("backlog_close") or {}).get("closed"):
-            process_backlog_close(run_dir, state, item)
-        save_state(run_dir, state)
-
-    def _integrate_review(item: Any, handle: Any) -> tuple[bool, str, str]:
-        """THE REVIEW-ACTION MERGE, the agy twin: `action_kind=review`, no validation runner to pass."""
-        return integrate_review_lane_branch(repo, handle, str(item.get("id6") or ""))
-
-    def _finish_review(item: Any, handle: Any, reason: str) -> None:
-        """THE REVIEW SUCCESS PATH, delegated to the SHARED performer (never a second copy).
-
-        NOT `_finish`: no `executed`, no backlog close, no plan-path resolution, and NEVER a per-item
-        teardown of the shared sweep lane (OQ-02 option (a)).
-        """
-        pal = Palette(should_color(sys.stdout))
-        runner_shared.finish_integrated_review_item(
-            run_dir=run_dir,
-            state=state,
-            item=item,
-            handle=handle,
-            reason=reason,
-            save_state=save_state,
-            append_jsonl=append_jsonl,
-            report=lambda message: print(pal(message, "green")),
-        )
-
-    return runner_shared.reattempt_deferred_integrations(
-        repo=repo,
-        run_dir=run_dir,
-        state=state,
-        integrate=_integrate,
-        finish_integrated=_finish,
-        integrate_review=_integrate_review,
-        finish_integrated_review=_finish_review,
-        save_state=save_state,
-        append_jsonl=append_jsonl,
-        handle_for=_handle_for,
-        # integearn-03 (`daexj1`) E-03: carry the host's suite checker here too, so a DEFERRED
-        # integration re-attempt revalidates on the same terms a first attempt does.
-        validation_runner_for=lambda item: make_integration_validation_runner(
-            state, run_dir, dict(item), suite_check=run_suite_check
-        ),
+    return runner_shared.retry_deferred_integrations(
+        run_dir,
+        state,
         poll=poll,
-        interactive=runner_shared.is_interactive_run(
-            argparse.Namespace(
-                unattended=bool((state.get("options") or {}).get("unattended")),
-                full_auto=bool((state.get("options") or {}).get("full_auto")),
-            )
-        ),
         ask=ask,
+        integrate_lane_branch=integrate_lane_branch,
+        integrate_review_lane_branch=integrate_review_lane_branch,
+        make_validation_runner=make_integration_validation_runner,
+        run_suite_check=run_suite_check,
+        process_backlog_close=process_backlog_close,
+        save_state=save_state,
     )
 
 
@@ -2316,52 +2142,6 @@ def _record_checkpoint_stop(
         work_dir=work_dir,
         git_status_fn=git_status,
     )
-
-
-def _record_forced_stop(
-    run_dir: Path,
-    state: dict[str, Any],
-    item: dict[str, Any],
-    stop: "runner_stop.StopNowForce",
-    *,
-    work_dir: str | Path | None = None,
-) -> dict[str, Any]:
-    """Record a level-4 stop on the item as INDETERMINATE (spec R18/R21/R22), returning the record.
-
-    runstop m0z0ti (E-02/E-03); the exact counterpart of the `oc_runipd` helper, sharing the SAME
-    record builder in `runner_stop` so an operator switching hosts gets the same guarantee
-    (orchestrator CID-3). No last-completed-operation is invented: the cut point was not observed.
-    """
-
-    effective_dir = (
-        work_dir
-        or item.get("worktree")
-        or (
-            item.get("attempts", [{}])[-1].get("worktree")
-            if item.get("attempts")
-            else None
-        )
-    )
-    repo = Path(effective_dir) if effective_dir else Path(state["repo"])
-    try:
-        observed_git = git_status(repo)
-    except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
-        observed_git = f"<unobserved: {exc}>"
-    record = runner_stop.forced_disposition(
-        level=stop.level,
-        requester=stop.requester,
-        git_state=observed_git,
-        events_seen=stop.events_seen,
-        prior_completed_index=stop.prior_completed_index,
-        prior_completed_label=stop.prior_completed_label,
-        at=utc_now(),
-    )
-    item["stopped"] = record
-    append_jsonl(
-        run_dir / "events.jsonl",
-        runner_stop.forced_stop_event(record, id6=item.get("id6", ""), at=utc_now()),
-    )
-    return record
 
 
 def run_agy_turn(

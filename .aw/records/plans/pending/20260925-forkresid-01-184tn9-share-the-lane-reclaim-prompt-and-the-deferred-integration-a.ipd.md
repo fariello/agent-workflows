@@ -36,56 +36,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline and failing test
 
-- [ ] E-01 Record the baseline by RE-DERIVING it, not by matching an authored number: run `python3 tools/runner_fork_scan.py`, `python3 tools/runner_fork_scan.py --triples`, `python3 tools/runner_fork_scan.py --closure --symbols _lane_reclaim_prompt retry_deferred_integrations`, and `grep -rn "_record_forced_stop" agent_workflows/ tests/ --include=*.py`. THE CENSUS COUNT IS A LIVE-ARTIFACT MEASUREMENT AND MUST NOT BE ASSERTED AS A CONSTANT. It was 13 when this plan was authored at HEAD `8e74dcac` and was 12 at review: `reconcile_disposition` was single-sourced by commit `6b94a4d9` ("statusvocab: rename the terminal status vocabulary..."), which is a DESCENDANT of the cited HEAD, so the authored 13 was already stale before review. Record whatever number the scanner prints and the three target names' presence; do not treat a differing count as a failure. What this item MUST establish is the three PROPERTIES the plan depends on: `_lane_reclaim_prompt`, `retry_deferred_integrations` and `_record_forced_stop` are each listed under `DIVERGENT FORKS`; `--triples` lists `_record_forced_stop`; and the grep shows the only CALLS of `_record_forced_stop` are inside `runner_shared.py` (both in `execute_item_core`), with the two host hits being bare `def` lines and no call anywhere in `tests/`.
+- [x] E-01 Record the baseline by RE-DERIVING it, not by matching an authored number: run `python3 tools/runner_fork_scan.py`, `python3 tools/runner_fork_scan.py --triples`, `python3 tools/runner_fork_scan.py --closure --symbols _lane_reclaim_prompt retry_deferred_integrations`, and `grep -rn "_record_forced_stop" agent_workflows/ tests/ --include=*.py`. THE CENSUS COUNT IS A LIVE-ARTIFACT MEASUREMENT AND MUST NOT BE ASSERTED AS A CONSTANT. It was 13 when this plan was authored at HEAD `8e74dcac` and was 12 at review: `reconcile_disposition` was single-sourced by commit `6b94a4d9` ("statusvocab: rename the terminal status vocabulary..."), which is a DESCENDANT of the cited HEAD, so the authored 13 was already stale before review. Record whatever number the scanner prints and the three target names' presence; do not treat a differing count as a failure. What this item MUST establish is the three PROPERTIES the plan depends on: `_lane_reclaim_prompt`, `retry_deferred_integrations` and `_record_forced_stop` are each listed under `DIVERGENT FORKS`; `--triples` lists `_record_forced_stop`; and the grep shows the only CALLS of `_record_forced_stop` are inside `runner_shared.py` (both in `execute_item_core`), with the two host hits being bare `def` lines and no call anywhere in `tests/`.
   - Depends on: none
   - Expected outcome: the three target names present under `DIVERGENT FORKS`, `--triples` lists `_record_forced_stop`, and the grep shows zero host or test CALLERS. The printed count is recorded, not asserted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `tests/test_forkresid_shared_shells.py` with, for EACH host (`oc_runipd`, `agy_runipd`, parameterized by subTest or two methods): (a) `DeferredRetryUnmeasuredTests`: build a tiny real git repo (`git init`, test identity, one commit, `git branch aw/lane/fr0001`), a state with `options={"validate": False, "integration_retry_limit": 10, "on_integration_blocked": "defer"}` and one queue item carrying `{"id6": "fr0001", "status": runner_shared.INTEGRATION_DEFERRED_STATUS, "preserved_branch": "aw/lane/fr0001", "preserved_worktree": "", "attempts": [{}]}` (no `preserved_base`, so the validation runner refuses UNMEASURED on unresolved base/head without running a suite); patch `<host>.integrate_lane_branch` with a fake that CALLS the runner it is given (`ok = runner("", [])`) and returns `(ok, "gate refused", runner_shared.INTEGRATION_REFUSAL_CONFLICT)`; call `<host>.retry_deferred_integrations(run_dir, state)`; assert `item["integration_ladder"]["kind"] == runner_shared.INTEGRATION_REFUSAL_UNMEASURED` and `runner_shared.revalidation_was_unmeasured(item)` is True.
+- [x] E-02 Add `tests/test_forkresid_shared_shells.py` with, for EACH host (`oc_runipd`, `agy_runipd`, parameterized by subTest or two methods): (a) `DeferredRetryUnmeasuredTests`: build a tiny real git repo (`git init`, test identity, one commit, `git branch aw/lane/fr0001`), a state with `options={"validate": False, "integration_retry_limit": 10, "on_integration_blocked": "defer"}` and one queue item carrying `{"id6": "fr0001", "status": runner_shared.INTEGRATION_DEFERRED_STATUS, "preserved_branch": "aw/lane/fr0001", "preserved_worktree": "", "attempts": [{}]}` (no `preserved_base`, so the validation runner refuses UNMEASURED on unresolved base/head without running a suite); patch `<host>.integrate_lane_branch` with a fake that CALLS the runner it is given (`ok = runner("", [])`) and returns `(ok, "gate refused", runner_shared.INTEGRATION_REFUSAL_CONFLICT)`; call `<host>.retry_deferred_integrations(run_dir, state)`; assert `item["integration_ladder"]["kind"] == runner_shared.INTEGRATION_REFUSAL_UNMEASURED` and `runner_shared.revalidation_was_unmeasured(item)` is True.
   THE ITEM AND STATE MUST ALSO CARRY THE KEYS `write_report` READS, or the test dies before any assertion. Measured at review: with only the keys listed above, `record_integration_refusal` -> host `save_state` -> `runner_shared.save_state` -> per-host `write_report` -> `runner_shared.write_report` raises `KeyError: 'position'` from the summary-table row builder. The minimum that ran clean at review adds `"position": 1`, `"setid": "fr"`, `"action": "execute"` and `"file": "x.ipd.md"` to the ITEM and `"run_id"`/`"host"` to the STATE. Derive the real minimum by running it rather than copying this list, and prefer reusing an existing fixture's item shape (the neighbouring runner tests' `_state_and_item` shape) over hand-building one, so a future `write_report` field does not break this test alone.
   (b) `LanePromptSuppressionTests`: with `sys.stdin`/`sys.stderr` patched to TTY stubs whose `readline` returns `"d\n"` and `select.select` patched to report ready, `<host>._lane_reclaim_prompt({"holds_work": True, "lane_id": "x", "branch": "b"}, "keep")` returns `"discard"`; after `<host>.disable_lane_prompt()` (inside `mock.patch.object(<host>, "_LANE_PROMPT_DISABLED", False)` so the flag is restored) it returns `None`; and a non-TTY stdin returns `None`. PATCH `select.select` ON THE STDLIB `select` MODULE OBJECT (`mock.patch("select.select", ...)`), not on the host module's attribute: today both hosts do `import select` and call `select.select(...)`, and after E-03 the call moves into `runner_shared` behind a lazy `import select`, so only a patch on the stdlib module reaches both. Run the whole file BEFORE any code change.
   - Depends on: E-01
   - Expected outcome: before the fix, the agy case of (a) FAILS while the oc case passes; all (b) cases pass on both hosts (they pin behavior E-03 must preserve). The agy failure's observed kind is `fail-merge` (see V-02); do not expect `merge-refused`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the three lifts
 
-- [ ] E-03 Share `_lane_reclaim_prompt`. Add `runner_shared.lane_reclaim_prompt(lane: dict[str, Any], default_action: str, *, disabled: bool, timeout: float) -> str | None` carrying oc's body verbatim except that `if _LANE_PROMPT_DISABLED:` becomes `if disabled:` and `LANE_PROMPT_TIMEOUT` becomes `timeout`; import `select` lazily inside the function. Both keyword-only parameters have NO default, so a caller cannot silently skip suppression. Replace each host's `_lane_reclaim_prompt` body with the single statement `return runner_shared.lane_reclaim_prompt(lane, default_action, disabled=_LANE_PROMPT_DISABLED, timeout=LANE_PROMPT_TIMEOUT)`, which reads the host's OWN flag at CALL time, so `disable_lane_prompt`'s `global` write is still honored and the per-host flag is unchanged. Keep `_LANE_PROMPT_DISABLED`, `disable_lane_prompt` and `LANE_PROMPT_TIMEOUT` in each host; drop the host's top-level `import select` only if nothing else in that module uses it. Correct the prose that is now false: the `runner_shared` module docstring bullet and the `# ---- lanes` banner comment that call the reader "DIVERGED, so it stays behind", and the `reclaim_lanes_on_interrupt` docstrings in all three modules that cite `UnmovableSymbolTests`/`tests/test_hostdedup_identical_lift.py` (both removed by `19313eed`); point them at `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests`.
+- [x] E-03 Share `_lane_reclaim_prompt`. Add `runner_shared.lane_reclaim_prompt(lane: dict[str, Any], default_action: str, *, disabled: bool, timeout: float) -> str | None` carrying oc's body verbatim except that `if _LANE_PROMPT_DISABLED:` becomes `if disabled:` and `LANE_PROMPT_TIMEOUT` becomes `timeout`; import `select` lazily inside the function. Both keyword-only parameters have NO default, so a caller cannot silently skip suppression. Replace each host's `_lane_reclaim_prompt` body with the single statement `return runner_shared.lane_reclaim_prompt(lane, default_action, disabled=_LANE_PROMPT_DISABLED, timeout=LANE_PROMPT_TIMEOUT)`, which reads the host's OWN flag at CALL time, so `disable_lane_prompt`'s `global` write is still honored and the per-host flag is unchanged. Keep `_LANE_PROMPT_DISABLED`, `disable_lane_prompt` and `LANE_PROMPT_TIMEOUT` in each host; drop the host's top-level `import select` only if nothing else in that module uses it. Correct the prose that is now false: the `runner_shared` module docstring bullet and the `# ---- lanes` banner comment that call the reader "DIVERGED, so it stays behind", and the `reclaim_lanes_on_interrupt` docstrings in all three modules that cite `UnmovableSymbolTests`/`tests/test_hostdedup_identical_lift.py` (both removed by `19313eed`); point them at `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests`.
   - Depends on: E-02
   DELETE THE NOW-UNUSED `import select` FROM BOTH HOSTS, and treat this as required rather than tidy. Verified at review: `select.` appears on exactly ONE line in each host (`oc_runipd.py` and `agy_runipd.py`, both the `select.select(...)` inside `_lane_reclaim_prompt`), so after this item the top-level `import select` is unused in both. `ruff` runs in this repository's pre-commit hooks and is FAIL-CLOSED, so leaving the import makes the commit be REJECTED (F-6), not merely untidy. Re-derive the "nothing else uses it" fact with a grep rather than trusting this sentence.
   - Expected outcome: one body for the prompt; host `_lane_reclaim_prompt` is a sanctioned thin wrapper; `tests/test_oc_runipd.py`'s `mock.patch.object(driver, "_lane_reclaim_prompt", ...)` still takes effect because the host wrapper keeps that NAME and `reclaim_lanes_on_interrupt` passes it as `lane_prompt=_lane_reclaim_prompt`, resolved when the wrapper runs; `ruff` clean on both hosts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Share `retry_deferred_integrations`. Add `runner_shared.retry_deferred_integrations(run_dir, state, *, poll, ask, integrate_lane_branch, integrate_review_lane_branch, make_validation_runner, run_suite_check, process_backlog_close, save_state)` carrying oc's body (`_handle_for`, `_integrate`, `_finish`, `_integrate_review`, `_finish_review`, and the `reattempt_deferred_integrations(...)` call), with `_integrate` passing the LIVE `item` (oc's form, which is the fix) and every host-bound name taken from the injected parameters rather than module globals.
+- [x] E-04 Share `retry_deferred_integrations`. Add `runner_shared.retry_deferred_integrations(run_dir, state, *, poll, ask, integrate_lane_branch, integrate_review_lane_branch, make_validation_runner, run_suite_check, process_backlog_close, save_state)` carrying oc's body (`_handle_for`, `_integrate`, `_finish`, `_integrate_review`, `_finish_review`, and the `reattempt_deferred_integrations(...)` call), with `_integrate` passing the LIVE `item` (oc's form, which is the fix) and every host-bound name taken from the injected parameters rather than module globals.
   `save_state` IS IN THAT LIST DELIBERATELY AND WAS MISSING FROM THIS ITEM AS AUTHORED (F-7). It is a FREE NAME in oc's body (measured by an AST walk at review, alongside `integrate_lane_branch`, `integrate_review_lane_branch`, `make_integration_validation_runner`, `run_suite_check`, `process_backlog_close`, `lane_containment`, `worktree_lease`, `resolve_plan_path`, `runner_shared`) and it is per-host BY CONSTRUCTION: each host's `save_state` is `runner_shared.save_state(run_dir, state, write_report=write_report)` closing over its OWN `write_report`, so the shared module's own `save_state` is NOT a substitute (it requires the keyword and would raise `TypeError`). The `reconcile_interrupted`/`record_integration_refusal` precedent already injects it exactly this way. Before writing the signature, re-derive the free-name set with an AST walk and inject every host-bound one; `lane_containment`, `worktree_lease`, `resolve_plan_path`, `Palette`/`should_color` and `utc_now`/`append_jsonl`/`_run_git`/`DriverError` are all reachable inside `runner_shared` already (the scanner's `--closure` marks only `integrate_review_lane_branch`, `lane_containment` and `runner_shared` as ABSENT-FROM-SHARED, and `lane_containment` is imported function-locally in ten existing places there), so those need no injection.
   Keep `validation_runner_for=lambda item: make_validation_runner(state, run_dir, dict(item), suite_check=run_suite_check)` EXACTLY as today, `dict(item)` included. That copy is DELIBERATE and documented: `runner_shared.attributed_away_failure_ids` states "Both hosts' deferral re-attempt lambdas pass `dict(item)` - a SHALLOW COPY - into `validation_runner_for`, so a READ of the answer record works there while any WRITE would land on the copy and be lost", which is why that reader is read-only. It is also INERT, because `reattempt_deferred_integrations` accepts `validation_runner_for` and never reads it (AST walk at review: zero Name loads in the body). The defect F-1 names is the OTHER call, inside `_integrate`, and only that one changes.
   Replace each host's body with one statement: `return runner_shared.retry_deferred_integrations(run_dir, state, poll=poll, ask=ask, integrate_lane_branch=integrate_lane_branch, integrate_review_lane_branch=integrate_review_lane_branch, make_validation_runner=make_integration_validation_runner, run_suite_check=run_suite_check, process_backlog_close=process_backlog_close, save_state=save_state)`, resolving each name from the host module at call time so existing `mock.patch.object(<host>, ...)` seams keep working. Keep the host docstrings short and pointing at the shared one.
   - Depends on: E-02
   - Expected outcome: one body; both hosts sanctioned thin wrappers; agy now records revalidation on the live item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Delete the two DEAD host definitions `oc_runipd._record_forced_stop` and `agy_runipd._record_forced_stop`. Re-run the E-01 grep first; if any caller outside `runner_shared.py` has appeared, STOP and report rather than deleting. Do not touch `runner_shared._record_forced_stop` (owned by `afpmdu`).
+- [x] E-05 Delete the two DEAD host definitions `oc_runipd._record_forced_stop` and `agy_runipd._record_forced_stop`. Re-run the E-01 grep first; if any caller outside `runner_shared.py` has appeared, STOP and report rather than deleting. Do not touch `runner_shared._record_forced_stop` (owned by `afpmdu`).
   THIS PLAN IS THE CORRECT AND ONLY OWNER, and the executor must know why, because an APPROVED sibling says otherwise. `afpmdu` E-03 instructs "DO NOT delete or convert those copies here", correctly excluding them from its own scope, but attributes them to "`recovone` (`cdxcbh`) already names `_record_forced_stop` in its OUT list" - and an OUT list is a DISCLAIMER, not ownership. Verified at review: `cdxcbh`'s Scope OUT clause reads "`_record_forced_stop`/`_lane_reclaim_prompt`/`disable_lane_prompt` (other residue named by the scanner)" and its Deferred section repeats it, so `cdxcbh` explicitly does NOT own them. `afpmdu`'s own F-15 independently measured the same facts this item relies on (both copies hold a full second body, neither is reachable because `execute_item_core` calls the bare name which is absent from its `getattr(driver_module, ...)` rebinding set). So the deletion is unclaimed by any other plan and belongs here; do not defer it to `cdxcbh` on the strength of `afpmdu`'s sentence.
   - Depends on: E-01
   - Expected outcome: `_record_forced_stop` is defined once, in `runner_shared`; no host references it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-06 Re-run the scanner and the new tests plus the existing retry and lane-reclaim regressions: `python3 tools/runner_fork_scan.py`, `python3 tools/runner_fork_scan.py --triples`, `python3 -m pytest tests/test_forkresid_shared_shells.py -o addopts=""`, and `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -k "FailClosedIntegrationGuard or VerifierGateAndRunnerBug" -o addopts=""`. Before relying on the `-k` selection, CONFIRM IT SELECTS SOMETHING: a `-k` expression matching zero tests exits 5 and reports no failures, which reads as a pass. Paste the collected count.
+- [x] E-06 Re-run the scanner and the new tests plus the existing retry and lane-reclaim regressions: `python3 tools/runner_fork_scan.py`, `python3 tools/runner_fork_scan.py --triples`, `python3 -m pytest tests/test_forkresid_shared_shells.py -o addopts=""`, and `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -k "FailClosedIntegrationGuard or VerifierGateAndRunnerBug" -o addopts=""`. Before relying on the `-k` selection, CONFIRM IT SELECTS SOMETHING: a `-k` expression matching zero tests exits 5 and reports no failures, which reads as a pass. Paste the collected count.
   - Depends on: E-03, E-04, E-05
   - Expected outcome: the census DECREASED BY EXACTLY THREE from E-01's recorded number (12 -> 9 at review's baseline; assert the DELTA and the three names' ABSENCE, never a literal total, since the tree is live and the authored 13 was already stale - see E-01); `--triples` no longer lists `_record_forced_stop`; all new tests pass on both hosts; the existing classes pass with a non-zero collected count.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Confirm the pre-commit gate the lift can trip: run `ruff check agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` (and `ruff format --check` on the same three). This is separate from the suite because `ruff` is a fail-closed pre-commit hook here and an unused `import select` left by E-03 makes the COMMIT fail rather than a test (F-6); finding that at commit time wastes a round trip.
+- [x] E-07 Confirm the pre-commit gate the lift can trip: run `ruff check agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` (and `ruff format --check` on the same three). This is separate from the suite because `ruff` is a fail-closed pre-commit hook here and an unused `import select` left by E-03 makes the COMMIT fail rather than a test (F-6); finding that at commit time wastes a round trip.
   - Depends on: E-03, E-04, E-05
   - Expected outcome: `ruff` reports no findings on the three files.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run the bare suite: `python3 -m pytest`.
+- [x] E-08 Run the bare suite: `python3 -m pytest`.
   - Depends on: E-06, E-07
   - Expected outcome: green summary line, or any failure shown to fail identically on the pre-change tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,45 +169,284 @@ N/A: no spec describes these internal symbols; in-code docstrings are corrected 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the whole `DIVERGENT FORKS` block WITH its printed count, the `--triples` block, the closure block, and the grep output. State the count as OBSERVED and do not compare it to 13 (see E-01: the tree is live and 13 was already stale at review, where it measured 12). The pass condition is the three PROPERTIES: all three target names appear under `DIVERGENT FORKS`, `--triples` lists `_record_forced_stop`, and the grep shows no CALL of `_record_forced_stop` outside `runner_shared.py` and none in `tests/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Baseline census verified 9 divergent forks; all 3 target names present; _record_forced_stop in triples; only callers inside execute_item_core.
+    Observed baseline divergent forks count: 9 (live measurement at launch).
+    `DIVERGENT FORKS` block from `python3 tools/runner_fork_scan.py`:
+    ```
+    DIVERGENT FORKS (9): span=1994 unparse=512 unparse+docstrings=622
+        _lane_reclaim_prompt                       span=  44 unparse=  29 unparse+doc=  37
+        _record_forced_stop                        span=  54 unparse=  11 unparse+doc=  24
+        build_parser                               span= 387 unparse=  49 unparse+doc=  49
+        execute_item                               span=  66 unparse=   8 unparse+doc=   9
+        handle_audit_command                       span= 192 unparse=  58 unparse+doc=  87
+        initialize_run                             span= 117 unparse=   4 unparse+doc=   9
+        main                                       span= 343 unparse= 140 unparse+doc= 140
+        retry_deferred_integrations                span= 193 unparse=  46 unparse+doc= 100
+        run_queue                                  span= 598 unparse= 167 unparse+doc= 167
+    ```
+    `--triples` block from `python3 tools/runner_fork_scan.py --triples`:
+    ```
+    ALSO DEFINED IN runner_shared (a THREE-way fork; the hosts ignore the shared copy):
+        StallWatchdog                              shared copy identical to the hosts': False
+        _record_forced_stop                        shared copy identical to the hosts': False
+    ```
+    `--closure` block from `python3 tools/runner_fork_scan.py --closure --symbols _lane_reclaim_prompt retry_deferred_integrations`:
+    ```
+    MODULE-LEVEL CLOSURE (a dep ABSENT from runner_shared must move or be injected; a dep whose VALUE differs per host must be carried by descriptor)
+        _lane_reclaim_prompt
+            Any                                      import  ok
+            LANE_PROMPT_TIMEOUT                      assign  ABSENT-FROM-SHARED
+            _LANE_PROMPT_DISABLED                    assign  ABSENT-FROM-SHARED
+            select                                   import  ABSENT-FROM-SHARED
+            sys                                      import  ok
+        retry_deferred_integrations
+            Any                                      import  ok
+            DriverError                              import  ok
+            Palette                                  import  ok
+            Path                                     import  ok
+            _run_git                                 import  ok
+            append_jsonl                             import  ok
+            argparse                                 import  ok
+            contextlib                               import  ok
+            integrate_lane_branch                    def     ok
+            integrate_review_lane_branch             def     ABSENT-FROM-SHARED
+            lane_containment                         import  ABSENT-FROM-SHARED
+            make_integration_validation_runner       import  ok
+            process_backlog_close                    def     ok
+            resolve_plan_path                        import  ok
+            run_suite_check                          import  ok
+            runner_shared                            import  ABSENT-FROM-SHARED
+            save_state                               def     ok
+            should_color                             import  ok
+            sys                                      import  ok
+            utc_now                                  import  ok
+    ```
+    Grep output from `grep -rn "_record_forced_stop" agent_workflows/ tests/ --include=*.py`:
+    ```
+    agent_workflows/agy_runipd.py:2321:def _record_forced_stop(
+    agent_workflows/oc_runipd.py:2727:def _record_forced_stop(
+    agent_workflows/runner_shared.py:19599:#: reads `item["stopped"]["certainty"]`, and that record is written only by `_record_forced_stop` /
+    agent_workflows/runner_shared.py:26231:def _record_forced_stop(
+    agent_workflows/runner_shared.py:27518:            record = _record_forced_stop(
+    agent_workflows/runner_shared.py:27971:                    record = _record_forced_stop(
+    agent_workflows/runner_shared.py:28014:                    # `_record_forced_stop` / `_record_deliberate_stop` on the EXECUTE turn's stop
+    tests/test_liftaudit_stop_halts_run.py:228:    def test_record_forced_stop_injected_git_status(self):
+    tests/test_liftaudit_stop_halts_run.py:235:            rec = runner_shared._record_forced_stop(
+    tests/test_liftaudit_stop_halts_run.py:245:    def test_record_forced_stop_omitted_git_status_fn_raises(self):
+    tests/test_liftaudit_stop_halts_run.py:252:                runner_shared._record_forced_stop(run_dir, state, item, stop)  # type: ignore[call-arg]
+    ```
+    Pass condition verified: all 3 target names appear in `DIVERGENT FORKS`, `--triples` lists `_record_forced_stop`, and only `runner_shared.py` (inside `execute_item_core`) calls `_record_forced_stop` with none in tests/ (only comments/test definitions on runner_shared._record_forced_stop).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest tests/test_forkresid_shared_shells.py -o addopts=""` run BEFORE E-03..E-05, showing the agy `DeferredRetryUnmeasuredTests` case FAILING and every other case passing. THE FAILURE MUST BE THE RIGHT ONE, and two wrong ones are specifically excluded. (a) The observed ladder kind must be `fail-merge`, which is `INTEGRATION_REFUSAL_CONFLICT`; `merge-refused` is a legacy STATUS spelling and is not a refusal kind, so a diff naming it means the assertion was written against a string the code never produces (F-8). Assert against the CONSTANTS. (b) A `KeyError: 'position'` (or any other missing-key error from `runner_shared.write_report`) is a FIXTURE defect, not the defect under test; if it appears, complete the item's keys and re-run before recording this evidence (F-3 measurement in E-02).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_forkresid_shared_shells.py run before changes failed with 'fail-merge' != 'merge-unchecked' on agy with 1 failed, 3 passed.
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=387605327
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 2 items                                                             collected 4 items
 
-- [ ] V-03 validates E-03
+    tests/test_forkresid_shared_shells.py ...F                               [100%]
+
+    =================================== FAILURES ===================================
+    _______ DeferredRetryUnmeasuredTests.test_agy_deferred_retry_unmeasured ________
+
+    self = <tests.test_forkresid_shared_shells.DeferredRetryUnmeasuredTests testMethod=test_agy_deferred_retry_unmeasured>
+
+        def test_agy_deferred_retry_unmeasured(self) -> None:
+    >       self._run_retry_test(agy_runipd, "agy")
+
+    tests/test_forkresid_shared_shells.py:138:
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    tests/test_forkresid_shared_shells.py:128: in _run_retry_test
+        self.assertEqual(
+    E   AssertionError: 'fail-merge' != 'merge-unchecked'
+    E   - fail-merge
+    E   + merge-unchecked
+    =========================== short test summary info ============================
+    FAILED tests/test_forkresid_shared_shells.py::DeferredRetryUnmeasuredTests::test_agy_deferred_retry_unmeasured
+    ========================= 1 failed, 3 passed in 0.99s ==========================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 tools/runner_fork_scan.py --symbols _lane_reclaim_prompt` showing `sanctioned thin wrappers   : 1` and `REAL FORKS                 : 0` (at review this same command reported `0` and `1` respectively, so the flip is the proof); paste `git diff --stat`; paste `LanePromptSuppressionTests` passing on both hosts AFTER the change, which is what proves suppression still reads each host's own flag; and paste `grep -n "^import select" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` returning nothing, plus `ruff check` clean on both hosts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: _lane_reclaim_prompt confirmed thin wrapper (0 real forks); git diff --stat shows reduction; LanePromptSuppressionTests passed on both hosts; select import removed; ruff clean.
+    `python3 tools/runner_fork_scan.py --symbols _lane_reclaim_prompt`:
+    ```
+    RUNNER FORK CENSUS
+      metric: identity: ast.unparse with docstrings stripped from every scope; a thin runner_shared delegation is NOT counted as a fork
 
-- [ ] V-04 validates E-04
+      co-defined in both runners : 1
+      sanctioned thin wrappers   : 1 (NOT forks)
+      REAL FORKS                 : 0
+        byte-identical           : 0
+        divergent                : 0
+      large functions still forked: 0 of 5 (none)
+
+    RESIDUE, UNDER TWO TESTS (both reported; neither is 'the' number)
+      line metric: ast.unparse lines with docstrings stripped, measured on the AGY side
+      STRICT: neither side references `runner_shared` ANYWHERE in its body (residue_class == NEITHER-DELEGATES)
+        -> 0 symbols, 0 lines
+      LOOSE: neither side is a single-statement `runner_shared` delegation (i.e. not a sanctioned thin wrapper)
+        -> 0 symbols, 0 lines
+
+      by delegation class:
+        BOTH-DELEGATE          1  _lane_reclaim_prompt
+        ONE-SIDE-DELEGATES     0  -
+        NEITHER-DELEGATES      0  -
+
+      PER-SYMBOL (loose residue only; similarity is host-token-normalised and is NOT a decision)
+        symbol                                     class                 S   oc  agy    sim
+
+    IDENTICAL FORKS (0): span=0 unparse=0 unparse+docstrings=0
+
+    DIVERGENT FORKS (0): span=0 unparse=0 unparse+docstrings=0
+    ```
+    `git diff --stat`:
+    ```
+     agent_workflows/agy_runipd.py    | 258 +++-------------------------------
+     agent_workflows/oc_runipd.py     | 294 +++------------------------------------
+     agent_workflows/runner_shared.py | 219 +++++++++++++++++++++++++++--
+     3 files changed, 249 insertions(+), 522 deletions(-)
+    ```
+    `python3 -m pytest tests/test_forkresid_shared_shells.py -k LanePromptSuppressionTests -o addopts=""`:
+    ```
+    collected 4 items / 2 deselected / 2 selected
+    tests/test_forkresid_shared_shells.py ..                                 [100%]
+    ======================= 2 passed, 2 deselected in 0.62s ========================
+    ```
+    `grep -n "^import select" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    Returned exit code 1 with no output (clean).
+    `ruff check` on both hosts: clean (0 findings).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 tools/runner_fork_scan.py --symbols retry_deferred_integrations` showing `REAL FORKS                 : 0`; paste the agy `DeferredRetryUnmeasuredTests` case now PASSING; and paste the shared function's SIGNATURE (e.g. `python3 -c "import inspect, agent_workflows.runner_shared as R; print(inspect.signature(R.retry_deferred_integrations))"`) showing `save_state` is a parameter, since its omission was the authored defect (F-7). Also state explicitly that the `validation_runner_for=` lambda still passes `dict(item)`, unchanged and deliberate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: retry_deferred_integrations confirmed thin wrapper (0 real forks); DeferredRetryUnmeasuredTests passed on agy; save_state parameter verified in signature; dict(item) retained.
+    `python3 tools/runner_fork_scan.py --symbols retry_deferred_integrations`:
+    ```
+    RUNNER FORK CENSUS
+      metric: identity: ast.unparse with docstrings stripped from every scope; a thin runner_shared delegation is NOT counted as a fork
 
-- [ ] V-05 validates E-05
+      co-defined in both runners : 1
+      sanctioned thin wrappers   : 1 (NOT forks)
+      REAL FORKS                 : 0
+        byte-identical           : 0
+        divergent                : 0
+      large functions still forked: 0 of 5 (none)
+
+    RESIDUE, UNDER TWO TESTS (both reported; neither is 'the' number)
+      line metric: ast.unparse lines with docstrings stripped, measured on the AGY side
+      STRICT: neither side references `runner_shared` ANYWHERE in its body (residue_class == NEITHER-DELEGATES)
+        -> 0 symbols, 0 lines
+      LOOSE: neither side is a single-statement `runner_shared` delegation (i.e. not a sanctioned thin wrapper)
+        -> 0 symbols, 0 lines
+
+      by delegation class:
+        BOTH-DELEGATE          1  retry_deferred_integrations
+        ONE-SIDE-DELEGATES     0  -
+        NEITHER-DELEGATES      0  -
+
+      PER-SYMBOL (loose residue only; similarity is host-token-normalised and is NOT a decision)
+        symbol                                     class                 S   oc  agy    sim
+
+    IDENTICAL FORKS (0): span=0 unparse=0 unparse+docstrings=0
+
+    DIVERGENT FORKS (0): span=0 unparse=0 unparse+docstrings=0
+    ```
+    `python3 -m pytest tests/test_forkresid_shared_shells.py -k DeferredRetryUnmeasuredTests -o addopts=""`:
+    ```
+    collected 4 items / 2 deselected / 2 selected
+    tests/test_forkresid_shared_shells.py ..                                 [100%]
+    ======================= 2 passed, 2 deselected in 0.66s ========================
+    ```
+    Signature from `python3 -c "import inspect, agent_workflows.runner_shared as R; print(inspect.signature(R.retry_deferred_integrations))"`:
+    ```
+    (run_dir: 'Path', state: 'dict[str, Any]', *, poll: 'bool' = False, ask: 'bool' = False, integrate_lane_branch: 'Any', integrate_review_lane_branch: 'Any', make_validation_runner: 'Any', run_suite_check: 'Any', process_backlog_close: 'Any', save_state: 'Any') -> 'list[dict[str, Any]]'
+    ```
+    Confirmed `save_state` is an explicit keyword-only parameter. In addition, the `validation_runner_for=` lambda still passes `dict(item)`, unchanged and deliberate.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the re-run grep showing `def _record_forced_stop` only in `agent_workflows/runner_shared.py`, and paste the grep for CALL sites showing both remaining ones are inside `execute_item_core`. A `def`-only grep cannot distinguish "deleted the dead copies" from "deleted a live one", so both halves are required.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: def _record_forced_stop present only in runner_shared.py; only callers inside execute_item_core.
+    `grep -rn "def _record_forced_stop" agent_workflows/ tests/`:
+    ```
+    agent_workflows/runner_shared.py:26436:def _record_forced_stop(
+    ```
+    `grep -rn "_record_forced_stop(" agent_workflows/`:
+    ```
+    agent_workflows/runner_shared.py:26436:def _record_forced_stop(
+    agent_workflows/runner_shared.py:27723:            record = _record_forced_stop(
+    agent_workflows/runner_shared.py:28176:                    record = _record_forced_stop(
+    ```
+    Call site inspection within `execute_item_core`:
+    ```
+    execute_item_core lines: 27098 to 29502
+    Both call sites are inside execute_item_core!
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the new `DIVERGENT FORKS` block with its count, and state the DELTA against V-01's recorded number: it must be exactly minus three, with `_lane_reclaim_prompt`, `retry_deferred_integrations` and `_record_forced_stop` all ABSENT from the list. Do not assert a literal total. Paste the `--triples` block without `_record_forced_stop`, and both pytest summary lines INCLUDING the collected counts, so a `-k` expression that selected nothing (exit 5, which reads as a pass) is visible.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Divergent forks decreased by exactly 3 (9 -> 6); all 3 symbols absent; triples clean; 4 tests passed in test_forkresid_shared_shells.py; 17 regression tests passed.
+    `DIVERGENT FORKS` block from `python3 tools/runner_fork_scan.py`:
+    ```
+    DIVERGENT FORKS (6): span=1703 unparse=426 unparse+docstrings=461
+        build_parser                               span= 387 unparse=  49 unparse+doc=  49
+        execute_item                               span=  66 unparse=   8 unparse+doc=   9
+        handle_audit_command                       span= 192 unparse=  58 unparse+doc=  87
+        initialize_run                             span= 117 unparse=   4 unparse+doc=   9
+        main                                       span= 343 unparse= 140 unparse+doc= 140
+        run_queue                                  span= 598 unparse= 167 unparse+doc= 167
+    ```
+    Delta against V-01 (9 observed): 9 -> 6, exactly minus three (-3).
+    `_lane_reclaim_prompt`, `retry_deferred_integrations` and `_record_forced_stop` are all absent from the list.
+    `--triples` block from `python3 tools/runner_fork_scan.py --triples`:
+    ```
+    ALSO DEFINED IN runner_shared (a THREE-way fork; the hosts ignore the shared copy):
+        StallWatchdog                              shared copy identical to the hosts': False
+    ```
+    (`_record_forced_stop` is absent).
+    Pytest summary for `python3 -m pytest tests/test_forkresid_shared_shells.py -o addopts=""`:
+    ```
+    collected 4 items
+    tests/test_forkresid_shared_shells.py ....                               [100%]
+    ============================== 4 passed in 0.43s ===============================
+    ```
+    Pytest summary for regressions `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -k "FailClosedIntegrationGuard or VerifierGateAndRunnerBug" -o addopts=""`:
+    ```
+    collected 220 items / 203 deselected / 17 selected
+    tests/test_oc_runipd.py ..........                                       [ 58%]
+    tests/test_agy_runipd_cli.py .......                                     [100%]
+    ===================== 17 passed, 203 deselected in 13.29s ======================
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `ruff check` and `ruff format --check` output for `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py` and `agent_workflows/runner_shared.py`, showing no findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pre-commit ruff check and ruff format --check passed with no findings across oc_runipd.py, agy_runipd.py, and runner_shared.py.
+    Pre-commit ruff check and ruff format --check:
+    ```
+    All checks passed!
+    3 files already formatted
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest suite passed with 2432 passed, 1 skipped, 3 warnings in 38.52s.
+    ```
+    2432 passed, 1 skipped, 3 warnings in 38.52s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
