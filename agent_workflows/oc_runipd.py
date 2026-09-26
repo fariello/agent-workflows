@@ -19,7 +19,7 @@ import re
 import subprocess
 import sys
 import time
-from collections.abc import Iterable, Mapping, MutableMapping
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Callable
 
@@ -319,7 +319,7 @@ from agent_workflows.runner_shared import (
     report_run_spec_edits as report_run_spec_edits,
 )
 from agent_workflows.runner_shared import (
-    spec_edit_record as spec_edit_record,
+    record_item_spec_edits as record_item_spec_edits,
 )
 from agent_workflows.runner_shared import (
     spec_edit_summary as spec_edit_summary,
@@ -1194,66 +1194,6 @@ def driver_begin(
         env_builder=pinned_child_env,
         argv_builder=pinned_module_argv,
     )
-
-
-def record_item_spec_edits(
-    repo: Path,
-    plan_path: Path,
-    item: "MutableMapping[str, Any]",
-    *,
-    reconcile: "Callable[[Path, Path], tuple[Mapping[str, str], Mapping[str, str]]]",
-) -> dict[str, Any]:
-    """Store one item's spec reconciliation on the queue entry, and return what was stored.
-
-    Called from each driver's finalize CALL SITE, which is the one place where both the queue item and
-    the LANE worktree the reconciliation must be resolved against are in hand. Recording it durably
-    (rather than returning it up a call chain) is what makes the end-of-run report correct on a RESUMED
-    run and on an ABORTED one: the report reads `state.json`, not process memory.
-
-    ``reconcile`` IS AN INJECTED PARAMETER, AND DELIBERATELY SO. `_compute_scope_reconciliation` is
-    FORKED into two near-identical per-driver definitions (`oc_runipd.py` and `agy_runipd.py`), which is
-    real drift, but unifying it touches the finalize path this plan must not alter, so it stays out of
-    scope. Taking it as an argument lets this ONE recorder serve both hosts while each passes its OWN
-    copy: the fork is neither deepened (no third copy) nor silently unified (neither host's behavior
-    changes). This is the same explicit-injection form `runner_shared` uses for exactly this situation.
-
-    THE REFUSED CASE IS DETECTED HERE, NOT INFERRED FROM EMPTINESS. `_compute_scope_reconciliation`
-    returns `({}, {})` both when the delta is genuinely clean and when `finalize_precheck` REFUSED (bad
-    or missing begin receipt, failing pre-transition lint), so emptiness alone cannot tell a caller
-    which happened. That is the same ambiguity E-01 removed from the start announcement, and printing a
-    positive all-clear for an item whose scope was never actually checked would reintroduce it. So when
-    the pair comes back empty this asks the precheck DIRECTLY for its exit code and records `refused`
-    when it did not pass. The extra call is read-only and mutates nothing (`finalize_precheck` is
-    documented "No mutation"), and it is made only in the empty case, so the common path pays nothing.
-    """
-    reasons: Mapping[str, str] = {}
-    acks: Mapping[str, str] = {}
-    refused = False
-    try:
-        reasons, acks = reconcile(repo, plan_path)
-    except Exception:
-        # A reconciliation that could not run is NOT a clean delta. Record it as refused, which is the
-        # conservative reading: the report will say the item could not be reconciled rather than
-        # claiming its specs were unchanged.
-        refused = True
-    if not refused and not reasons and not acks:
-        try:
-            from agent_workflows import ipd_lifecycle
-
-            exit_code, _msg, _evidence, _findings = ipd_lifecycle.finalize_precheck(
-                repo, plan_path
-            )
-            refused = exit_code != 0
-        except Exception:
-            refused = True
-    record = spec_edit_record(
-        plan_path,
-        reasons,
-        acks,
-        state=SPEC_RECONCILE_REFUSED if refused else SPEC_RECONCILED,
-    )
-    item["spec_edits"] = record
-    return record
 
 
 # rununify 04 (`tx6q0h`): one-line wrapper over the shared definition, binding THIS host's labels.

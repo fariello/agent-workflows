@@ -23244,15 +23244,11 @@ EXECUTION_SUCCESS_STATES = {"executed"}
 #: every pair of branches. A bare count also cannot say WHICH names it expected, so the failure could
 #: not explain itself; whoever hit it had to reconstruct the history to find out that 56 was simply
 #: stale. A named set fails with the actual diff instead.
-#:
-#: WHY 1 IS THE INTENDED RESTING POINT AND NOT AN ACCIDENT. `recovone` (`cdxcbh`) single-sourced
+#: WHY 1 WAS THE INTERMEDIATE RESTING POINT. `recovone` (`cdxcbh`) single-sourced
 #: the three recovery-routing symbols (classify_recovery_disposition, build_verify_and_continue_notice,
 #: route_recovery_turn) onto `runner_shared`, leaving only `record_item_spec_edits`.
-AGY_IMPORTS_FROM_OC_RUNIPD = frozenset(
-    {
-        "record_item_spec_edits",
-    }
-)
+#: `specrpt` (`9npssm`) unified `record_item_spec_edits`, so the set is now completely empty.
+AGY_IMPORTS_FROM_OC_RUNIPD = frozenset()
 
 #: The durable, explicit fact that an item was NOT dispatched because its plan still needs human
 #: approval (zz5yxq E-03). Frozen onto the queue entry as a boolean under this KEY, and reported as
@@ -27028,6 +27024,29 @@ def record_item_spec_edits(
     *,
     reconcile: Callable[[Path, Path], tuple[Mapping[str, str], Mapping[str, str]]],
 ) -> dict[str, Any]:
+    """Store one item's spec reconciliation on the queue entry, and return what was stored.
+
+    Called from each driver's finalize CALL SITE, which is the one place where both the queue item and
+    the LANE worktree the reconciliation must be resolved against are in hand. Recording it durably
+    (rather than returning it up a call chain) is what makes the end-of-run report correct on a RESUMED
+    run and on an ABORTED one: the report reads `state.json`, not process memory.
+
+    ``reconcile`` IS AN INJECTED PARAMETER, AND DELIBERATELY SO. `_compute_scope_reconciliation` is
+    FORKED into two near-identical per-driver definitions (`oc_runipd.py` and `agy_runipd.py`), which is
+    real drift, but unifying it touches the finalize path this plan must not alter, so it stays out of
+    scope. Taking it as an argument lets this ONE recorder serve both hosts while each passes its OWN
+    copy: the fork is neither deepened (no third copy) nor silently unified (neither host's behavior
+    changes). This is the same explicit-injection form `runner_shared` uses for exactly this situation.
+
+    THE REFUSED CASE IS DETECTED HERE, NOT INFERRED FROM EMPTINESS. `_compute_scope_reconciliation`
+    returns `({}, {})` both when the delta is genuinely clean and when `finalize_precheck` REFUSED (bad
+    or missing begin receipt, failing pre-transition lint), so emptiness alone cannot tell a caller
+    which happened. That is the same ambiguity E-01 removed from the start announcement, and printing a
+    positive all-clear for an item whose scope was never actually checked would reintroduce it. So when
+    the pair comes back empty this asks the precheck DIRECTLY for its exit code and records `refused`
+    when it did not pass. The extra call is read-only and mutates nothing (`finalize_precheck` is
+    documented "No mutation"), and it is made only in the empty case, so the common path pays nothing.
+    """
     reasons: Mapping[str, str] = {}
     acks: Mapping[str, str] = {}
     refused = False
@@ -27045,13 +27064,13 @@ def record_item_spec_edits(
                     refused = True
             except Exception:
                 refused = True
-    record: dict[str, Any] = {
-        "reconciled": not refused,
-        "reasons": dict(reasons),
-        "acks": dict(acks),
-        "refused": refused,
-    }
-    item["spec_edits_reconciliation"] = record
+    record = spec_edit_record(
+        plan_path,
+        reasons,
+        acks,
+        state=SPEC_RECONCILE_REFUSED if refused else SPEC_RECONCILED,
+    )
+    item["spec_edits"] = record
     return record
 
 
@@ -31924,7 +31943,7 @@ SPEC_NOT_FINALIZED = (
 
 
 def spec_edit_record(
-    plan_path: Path,
+    plan_path: Path | None,
     reasons: "Mapping[str, str]",
     acks: "Mapping[str, str]",
     *,
@@ -31945,9 +31964,12 @@ def spec_edit_record(
     ``state`` must be one of the three constants above and is stored verbatim, because the renderer's
     honesty depends on distinguishing "reconciled and clean" from "we could not tell".
     """
-    try:
-        declared = declared_spec_paths(plan_path.read_text(encoding="utf-8"))
-    except OSError:
+    if plan_path is not None:
+        try:
+            declared = declared_spec_paths(plan_path.read_text(encoding="utf-8"))
+        except OSError:
+            declared = []
+    else:
         declared = []
     modified_not_declared = sorted(p for p in (reasons or {}) if p.endswith(".spec.md"))
     declared_not_modified = sorted(p for p in (acks or {}) if p.endswith(".spec.md"))
@@ -31970,7 +31992,9 @@ def spec_edit_summary(repo: Path, state: "Mapping[str, Any]") -> dict[str, Any]:
 
     Reads ONLY durable state, so it renders identically from `print_status` on a finished run
     directory, from a normal exit, and from a signal path mid-run. An older run directory carrying no
-    `spec_edits` key degrades to `not_finalized`, which is the honest reading rather than a clean one.
+    `spec_edits` key converts a legacy `spec_edits_reconciliation` record losslessly through
+    `spec_edit_record`, while one carrying neither degrades to `not_finalized`, which is the honest
+    reading rather than a clean one.
     """
     declared: dict[str, list[str]] = {}
     reconciled: list[dict[str, Any]] = []
@@ -31987,6 +32011,22 @@ def spec_edit_summary(repo: Path, state: "Mapping[str, Any]") -> dict[str, Any]:
             if specs:
                 declared[id6] = specs
         record = item.get("spec_edits") or None
+        if not record and isinstance(item.get("spec_edits_reconciliation"), Mapping):
+            legacy = item["spec_edits_reconciliation"]
+            if legacy.get("refused"):
+                record = spec_edit_record(
+                    plan_path,
+                    legacy.get("reasons") or {},
+                    legacy.get("acks") or {},
+                    state=SPEC_RECONCILE_REFUSED,
+                )
+            else:
+                record = spec_edit_record(
+                    plan_path,
+                    legacy.get("reasons") or {},
+                    legacy.get("acks") or {},
+                    state=SPEC_RECONCILED,
+                )
         if not record:
             # Only an item that could have finalized is interesting here. A queued/never-dispatched
             # item is reported as not-finalized too, which is correct: nothing vouched for its scope.

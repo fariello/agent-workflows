@@ -729,15 +729,15 @@ from agent_workflows.runner_shared import (
 # eight names used to be DEFINED in `oc_runipd` and imported from there, which made the OTHER host
 # driver a library for this one. They now have ONE definition in `runner_shared` and both drivers bind
 # it from there, so the objects are unchanged and every call site below is untouched; only the module
-# this statement names is different. `record_item_spec_edits` deliberately stays on the `oc_runipd`
-# import below: `runner_shared` carries its OWN DIVERGED copy of that one name, so re-homing it would
-# be a reconciliation rather than a pure move (backlog `tm5vnx`).
+# this statement names is different. `record_item_spec_edits` was unified onto `runner_shared` under
+# backlog `tm5vnx` (plan `9npssm`), so both drivers bind the shared definition directly.
 from agent_workflows.runner_shared import (
     SPEC_NOT_FINALIZED as SPEC_NOT_FINALIZED,
     SPEC_RECONCILED as SPEC_RECONCILED,
     SPEC_RECONCILE_REFUSED as SPEC_RECONCILE_REFUSED,
     queue_plan_path as queue_plan_path,
     queue_with_plan_paths as queue_with_plan_paths,
+    record_item_spec_edits as record_item_spec_edits,
     report_driver_committed_reviews as report_driver_committed_reviews,
     report_run_spec_edits as report_run_spec_edits,
     spec_edit_record as spec_edit_record,
@@ -758,9 +758,6 @@ from agent_workflows.runner_shared import (
     _lane_commit_subjects as _lane_commit_subjects,
 )
 from agent_workflows import agy_models
-from agent_workflows.oc_runipd import (
-    record_item_spec_edits as record_item_spec_edits,
-)
 
 # No model is hardcoded in code; default model is dynamically resolved from the
 # config file (~/.gemini/antigravity-cli/settings.json) or left to agy host default.
