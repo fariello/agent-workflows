@@ -1,5 +1,5 @@
 - Id: u27q6g
-- Status: graduated
+- Status: done
 - Graduated-To: upgrehearse
 - Set: u27q6g
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Graduate tools/aw_upgrade_test.py to a first-class aw noun once the rehearsal workflow has proven itself
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD 8ud1is executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-upgrehearse-01-8ud1is-restore-the-upgrade-rehearsal-safety-tests-and-graduate-the.ipd.md); evidence .aw/records/plans/executed/20260925-upgrehearse-01-8ud1is-restore-the-upgrade-rehearsal-safety-tests-and-graduate-the.ipd.md
 - 2026-09-25 graduated (aw set): graduated into upgrehearse (plan 8ud1is); verified live at 8e74dcac
 - 2026-09-12 created (aw backlog): Deliberate follow-up: shipped as a maintainer script first, per the maintainer's script-now-promote-later decision
 
