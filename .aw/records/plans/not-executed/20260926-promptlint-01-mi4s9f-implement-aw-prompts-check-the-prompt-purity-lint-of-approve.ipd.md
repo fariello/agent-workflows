@@ -1,3 +1,5 @@
+RETIRED 2026-09-26: maintainer decided against any prompt-purity gate (phrase lists miss new wordings and flag innocent text; existing instructions already prevent the problem, 0 violations in the 7 prompts written since 2026-08-20); no replacement.
+
 # IPD: Implement aw prompts check, the prompt-purity lint of approved spec 20260808-1958-01
 
 - Date: 2026-09-26
