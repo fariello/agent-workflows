@@ -1,13 +1,14 @@
 - Id: 67k1ol
-- Status: graduated
+- Status: done
 - Graduated-To: rollbackdead
-- Work-Kind: bug
 - Blocks-Release: next
 - Set: 67k1ol
 - Priority: low
+- Work-Kind: bug
 - Summary: _rollback_precommit step 3 issues an identical git restore --staged in both branches of an if/else on prior_index
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD zbh2yt executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-rollbackdead-01-zbh2yt-make-finalize-rollback-restore-the-recorded-index-entry-inst.ipd.md); evidence .aw/records/plans/executed/20260925-rollbackdead-01-zbh2yt-make-finalize-rollback-restore-the-recorded-index-entry-inst.ipd.md
 - 2026-09-25 graduated (aw set): graduated into rollbackdead plan zbh2yt; not just a dead branch: rollback resets a staged plan edit to HEAD
 - 2026-09-16 created (aw backlog): _rollback_precommit step 3 issues an identical git restore --staged in both branches of an if/else on prior_index
 
