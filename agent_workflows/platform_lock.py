@@ -413,7 +413,7 @@ class _PreservingWindowsLock:
             os.close(fd)
 
 
-def _new_lock(target: Path, timeout: float) -> Any:
+def _new_lock(target: Path, timeout: float, *, windows: Optional[bool] = None) -> Any:
     """A fresh, non-re-entrant lock object for ``target`` that never deletes the file on release.
 
     POSIX: ``filelock``'s ``flock`` backend already leaves the file in place on release.
@@ -421,7 +421,9 @@ def _new_lock(target: Path, timeout: float) -> Any:
     Windows + older ``filelock`` (only reachable on Python 3.9): :class:`_PreservingWindowsLock`.
     """
 
-    if os.name != "nt":
+    if windows is None:
+        windows = os.name == "nt"
+    if not windows:
         return filelock.FileLock(str(target), timeout=timeout)
     if _filelock_can_preserve():
         return filelock.FileLock(str(target), timeout=timeout, preserve_lock_file=True)

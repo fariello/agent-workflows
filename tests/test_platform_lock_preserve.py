@@ -112,22 +112,19 @@ class PreservingWindowsLockTests(unittest.TestCase):
 
 class LockSelectionTests(unittest.TestCase):
     def test_posix_uses_plain_filelock(self) -> None:
-        with mock.patch.object(PL.os, "name", "posix"):
-            lock = PL._new_lock(Path("x.lock"), 0.0)
+        lock = PL._new_lock(Path("x.lock"), 0.0, windows=False)
         self.assertIsInstance(lock, filelock.BaseFileLock)
 
     def test_windows_with_modern_filelock_asks_it_to_preserve(self) -> None:
-        with mock.patch.object(PL.os, "name", "nt"), mock.patch.object(
+        with mock.patch.object(
             PL, "_filelock_can_preserve", return_value=True
         ), mock.patch.object(PL.filelock, "FileLock") as fl:
-            PL._new_lock(Path("x.lock"), 0.0)
+            PL._new_lock(Path("x.lock"), 0.0, windows=True)
         fl.assert_called_once_with("x.lock", timeout=0.0, preserve_lock_file=True)
 
     def test_windows_with_old_filelock_uses_the_preserving_fallback(self) -> None:
-        with mock.patch.object(PL.os, "name", "nt"), mock.patch.object(
-            PL, "_filelock_can_preserve", return_value=False
-        ):
-            lock = PL._new_lock(Path("x.lock"), 0.0)
+        with mock.patch.object(PL, "_filelock_can_preserve", return_value=False):
+            lock = PL._new_lock(Path("x.lock"), 0.0, windows=True)
         self.assertIsInstance(lock, PL._PreservingWindowsLock)
 
     def test_the_installed_filelock_is_detected_consistently(self) -> None:
