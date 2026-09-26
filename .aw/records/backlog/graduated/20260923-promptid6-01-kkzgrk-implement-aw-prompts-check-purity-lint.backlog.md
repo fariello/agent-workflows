@@ -1,11 +1,13 @@
 - Id: kkzgrk
-- Status: open
+- Status: graduated
+- Graduated-To: promptlint
 - Set: promptid6
 - Priority: medium
 - Work-Kind: feature
 - Summary: aw prompts check (the purity lint approved spec 20260808-1958-01-prompt-purity-lint specifies) is not implemented, so nothing mechanically guards prompt purity
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set promptlint (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): aw prompts check (the purity lint approved spec 20260808-1958-01-prompt-purity-lint specifies) is not implemented, so nothing mechanically guards prompt purity
 
 FOUND WHILE EXECUTING IPD ubac5n (promptid6), which had to demonstrate a purity property by inspecting file contents because no lint exists to cite.
