@@ -120,7 +120,10 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         )
         expected_records = os.path.join(self.target_repo, ".aw", "records")
         self.assertTrue(os.path.isdir(expected_records))
-        self.assertEqual(roots["records"], expected_records)
+        # normpath: the layout returns `/` separators, os.path.join yields `\` on Windows.
+        self.assertEqual(
+            os.path.normpath(roots["records"]), os.path.normpath(expected_records)
+        )
 
         # validate_storage_boundaries accepts in-target path for repository-untracked
         validate_storage_boundaries(
@@ -135,7 +138,9 @@ class TestRecordsUntrackedBackend(unittest.TestCase):
         self.assertEqual(
             status.records_backend, RecordsBackend.REPOSITORY_UNTRACKED.value
         )
-        self.assertEqual(status.records_path, expected_records)
+        self.assertEqual(
+            os.path.normpath(status.records_path), os.path.normpath(expected_records)
+        )
 
     def test_e04_project_policy_override_and_validation(self):
         """E-04 / V-04: ProjectPolicy sets target-ignored/ignored under both empty and explicit placements,

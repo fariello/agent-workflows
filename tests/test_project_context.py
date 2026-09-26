@@ -239,12 +239,12 @@ class TestProjectContextResolver(unittest.TestCase):
         )
         self.assertEqual(ctx.records_backend, "repository-untracked")
         self.assertEqual(
-            ctx.logical_roots[LogicalRoot.RECORDS.value],
-            os.path.join(self.target_repo, ".aw", "records"),
+            os.path.normpath(ctx.logical_roots[LogicalRoot.RECORDS.value]),
+            os.path.normpath(os.path.join(self.target_repo, ".aw", "records")),
         )
         self.assertEqual(
-            ctx.physical_classes[RootClass.RECORDS.value],
-            os.path.join(self.target_repo, ".aw", "records"),
+            os.path.normpath(ctx.physical_classes[RootClass.RECORDS.value]),
+            os.path.normpath(os.path.join(self.target_repo, ".aw", "records")),
         )
         self.assertEqual(
             ctx.git_policies[RootClass.RECORDS.value],
