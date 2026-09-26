@@ -6,7 +6,7 @@
 - Scope: IN: (a) an explicit `skills` branch in `classify_item`'s `agents` arm that PRESERVES the directory in place, with the prefix read from `engine.SKILLS_DIR` via the existing `layout_migration._skills_prefix` authority rather than re-spelled; (b) explicit `partial-aw` branches for `.gitignore` and `setup-repo-needed.md` that leave both where they already are (they are framework-owned files already at their final `.aw/` location); (c) behavioral tests over the four measured shapes plus a combined shape, driving the real inventory and a real dry-run `execute_migration`, and asserting skills content survives an APPLIED migration with `leftover_disposition="remove"`; (d) widening backlog `72qlya`'s text to name all three triggers, per the maintainer's 2026-09-25 ruling. OUT: the install-time default flip, the remembered-answer config, and the fail-soft guard (all plan `je74a0`, Order 2 of this Set, which depends on this plan); any other `block-unknown` path not measured here; changing the preflight's fail-closed rule itself.
 - Scope-Paths: agent_workflows/layout_inventory.py, tests/test_layout_inventory.py, .aw/records/backlog/graduated/20260923-72qlya-01-72qlya-migrate-layout-refuses-agents-skills.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: 72qlya
@@ -16,10 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: vv6y7e
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - Readiness: go-pending-approval
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vv6y7e verified (set setprompt, attempt 2). [Scope reconciliation - in-scope-unmodified .aw/records/backlog/graduated/20260923-72qlya-01-72qlya-migrate-layout-refuses-agents-skills.backlog.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; Readiness: GO - PENDING HUMAN APPROVAL
 
