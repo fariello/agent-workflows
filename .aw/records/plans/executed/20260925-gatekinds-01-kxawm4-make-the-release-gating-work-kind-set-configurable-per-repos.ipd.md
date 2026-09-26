@@ -6,7 +6,7 @@
 - Scope: Add a `release_gate_work_kinds` key to `.aw/config/project.json`, read by one new `config` reader that defaults to `bug` alone, and route BOTH consumers of the hardcoded set (`backlog.decide_gate_default` and `check_engine.check_live_bug_gate`) through it; update the AGENTS.md sentence and the `backlog.py` comment that say it is unbuilt.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/backlog.py, agent_workflows/check_engine.py, AGENTS.md, tests/test_config_release_gate_kinds.py, tests/test_check_engine_release_gate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -15,10 +15,10 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kxawm4
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 0htqmm
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kxawm4 verified (set gatekinds, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
