@@ -1,5 +1,5 @@
 - Id: 9yf5u9
-- Status: graduated
+- Status: done
 - Graduated-To: doctorhint
 - Blocks-Release: next
 - Set: doctorfix
@@ -8,6 +8,7 @@
 - Summary: aw doctor prints an unrunnable rename remediation: 'aw rename <type> <path>' exits 2 without --slug, and with --slug but no --apply it exits 0 having written nothing
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD 6k7xot executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-doctorhint-01-6k7xot-make-every-aw-doctor-remediation-command-runnable-as-printed.ipd.md); evidence .aw/records/plans/executed/20260925-doctorhint-01-6k7xot-make-every-aw-doctor-remediation-command-runnable-as-printed.ipd.md
 - 2026-09-25 graduated (aw set): graduated into doctorhint plan 6k7xot (covers two more unrunnable doctor hints)
 - 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-08 created (aw backlog): aw doctor prints an unrunnable rename remediation: 'aw rename <type> <path>' exits 2 without --slug, and with --slug but no --apply it exits 0 having written nothing

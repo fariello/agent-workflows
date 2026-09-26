@@ -6,7 +6,7 @@
 - Scope: `agent_workflows/doctor.py` `build_remediation` branches that return a non-None `command`, their paired `summary_fix` strings, plus the `resolve_next_actions` consumer; regression tests in `tests/test_doctor.py`. No change to `aw rename`, `aw group`, `aw set`, or any checker.
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6k7xot
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6k7xot verified (set doctorhint, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review: 12 findings (1 BLOCKER, 4 HIGH, 4 MEDIUM, 3 LOW), all FIXED in place; 5 decisions recorded; added E-04/E-05 for two unaddressed branches and corrected four prescribed command shapes that were measured wrong
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED; readiness go-pending-approval; record `.aw/records/reviews/20260925-doctorhint-01-6k7xot-make-every-aw-doctor-remediation-command-runnable-as-printed.review.md`
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: honest remediations
 
-- [ ] E-01 Make the `name-nonconformant` branch of `doctor.build_remediation` advisory: `command=None`; `summary_fix` and `detailed_fix` name the required shape and state that the corrected slug is a human decision (a truncated slug cannot be derived). This follows the `id6-identity-slot` branch, which already returns `command=None` for a judgement call.
+- [x] E-01 Make the `name-nonconformant` branch of `doctor.build_remediation` advisory: `command=None`; `summary_fix` and `detailed_fix` name the required shape and state that the corrected slug is a human decision (a truncated slug cannot be derived). This follows the `id6-identity-slot` branch, which already returns `command=None` for a judgement call.
 
   THE ADVISORY SHAPE MUST SELECT BY id6, NOT BY PATH, and this is a correction to the shape this plan was authored with. `aw rename plans` routes to `plans_refs.run_mv` (`artifact_types.backend_name("plans", "rename")`), whose resolver is ID-DIRECTED: it calls `plans_refs._find_plan_by_id` and refuses a path with `error: no plan has Id '<path>'` (`plans_refs.py:504`). Measured 2026-09-25 on a scratch repo, `aw rename plans <relative path> --slug newslug` and the same with an ABSOLUTE path both exit 2, while `aw rename plans <id6> --slug newslug` exits 0 and prints the target name. `backlog` and `specs` route to `artifact_rename.run_rename_generic` instead and DO accept a path, so a single path-shaped hint is correct for two of the three types this branch can emit and refuses for the third. The repository already settled this exact question in `check_engine._identity_rename_hint`, whose docstring states the selector is the declared id6 "wherever one exists" precisely because "a suggested command that refuses is worse than no suggestion". Follow that precedent: prefer the record's declared `- Id:` and fall back to the path only when the record declares no id6.
 
@@ -45,55 +45,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SECOND CORRECTION: `--slug` ALONE DOES NOT ALWAYS RESTORE CONFORMANCE, so the advisory text must not promise that it does. Measured against `check_engine._load_normalizer().is_conformant`: renaming `20260908-demo-01-aaa111-a-truncated-slug-.backlog.md` with `--slug corrected-slug` yields a CONFORMANT name, but a FREE-FORM name (`weird.ipd.md`, `notes.spec.md`) hits `compute_target_name`'s free-form fallback (`artifact_rename.py`, "Free-form filename fallback") and yields a bare `corrected-slug.md`, which is STILL nonconformant. A free-form name needs `--to-id6` (the conversion mode), not `--slug`. So the `detailed_fix` must name `--to-id6 --apply` for a name carrying no id6 and `--slug <corrected-slug> --apply` for a clustered name whose slug is merely wrong, exactly the two-branch distinction `_identity_rename_hint` already draws on its `modern` argument.
   - Depends on: none
   - Expected outcome: `build_remediation(Drift(<backlog path>, "check.name-nonconformant", ...)).command is None`. For a CLUSTERED location the `detailed_fix` names the declared/filename id6 as the selector (not the path) plus `--slug <corrected-slug>` and `--apply`; for a FREE-FORM location it names `--to-id6 --apply`. No emitted `detailed_fix` names `aw rename plans <path>`, the form measured to exit 2.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the `setid-collision` branch advisory in the same way: `command=None`, with a `detailed_fix` naming a shape that actually leaves the repository clean. It currently emits `aw group ... --set <new-set-id>`, which carries a placeholder and omits `--apply` (measured: `aw group backlog <f> --set newset` prints `--- would set metadata Set: newset ...`, exit 0, file unchanged).
+- [x] E-02 Make the `setid-collision` branch advisory in the same way: `command=None`, with a `detailed_fix` naming a shape that actually leaves the repository clean. It currently emits `aw group ... --set <new-set-id>`, which carries a placeholder and omits `--apply` (measured: `aw group backlog <f> --set newset` prints `--- would set metadata Set: newset ...`, exit 0, file unchanged).
 
   THE SHAPE MUST CARRY `--rename`, NOT ONLY `--apply`, and this is a correction to the shape this plan was authored with. `aw group <type> <path> --set newset --apply` WITHOUT `--rename` rewrites the `- Set:` metadata and LEAVES THE FILENAME'S setid segment untouched, because `run_group_generic` only computes a new name when `rename_files` is set (`artifact_rename.run_group_generic`, `rename_files = bool(getattr(args, "rename", False))`). Measured 2026-09-25 on a two-record scratch repo: the prescribed shape cleared `check.setid-collision` and IMMEDIATELY RAISED `check.identity-absent-from-name` on the same file, so the recommended fix trades one finding for another rather than resolving it. Adding `--rename` renames `20260908-demo-01-aaa111-x.backlog.md` to `20260908-newset-01-aaa111-x.backlog.md` and leaves BOTH rules clean. So the advisory shape is `aw group <type> <selector> --set <new-set-id> --rename --apply`. This matches `check_engine._identity_rename_hint`, which already emits `aw group <type> <selector> --set <setid> --rename --apply` for the `Set` field for exactly this reason.
 
   APPLY THE E-01 SELECTOR RULE HERE TOO: `aw group plans` routes to `plans_refs.run_set_assign`, the same id-directed backend family, and `aw group plans <path> --set newset` was measured to exit 2 with `no plan has Id '<path>'`. Prefer the id6.
   - Depends on: none
   - Expected outcome: `command is None`; `detailed_fix` contains `--set`, `--rename` and `--apply`, and names an id6 selector rather than a path for the `plans` case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Fix the `blocks-release-dangling` branch. It emits `aw {target_type} set {loc} --blocks-release next`, which exits 2 with `FAIL aw set: at least one target selector (id6, setid, or filename) is required.` (measured for both `backlog` and `specs`; the refusal is `status_set.py:1628`, reached because the first positional is consumed as the STATUS and nothing remains as a selector). Make it advisory (`command=None`) with `detailed_fix` naming `aw <type> set <path> --status <current-status> --blocks-release next`.
+- [x] E-03 Fix the `blocks-release-dangling` branch. It emits `aw {target_type} set {loc} --blocks-release next`, which exits 2 with `FAIL aw set: at least one target selector (id6, setid, or filename) is required.` (measured for both `backlog` and `specs`; the refusal is `status_set.py:1628`, reached because the first positional is consumed as the STATUS and nothing remains as a selector). Make it advisory (`command=None`) with `detailed_fix` naming `aw <type> set <path> --status <current-status> --blocks-release next`.
 
   `target_type` COMES FROM `_infer_artifact_type` AND CAN BE A TYPE WITH NO `set` VERB, which the current string does not account for. `releases.check_blocks_release` scans `backlog`, `specs` AND `plans`, so a dangling gate on a PLAN emits `aw plans set ...`; measured 2026-09-25, `aw plans ...` exits 2 with `invalid choice: 'plans'`, because the plan spelling is `aw ipd set`. Of the nine types `_infer_artifact_type` can return, only `specs`, `backlog` and `prompts` declare a `set` verb (`command_surface._DECLARATION_INDEX`). So the `detailed_fix` must map `plans` to `aw ipd set <selector> --blocks-release next` (which takes no `--status` and accepts the gate flag directly) and must not invent an `aw <type> set` for a type that has none; fall back to prose naming the field to edit.
 
   THE `hg2oop` CAUTION THIS PLAN CITES DOES NOT APPLY TO THE SHAPE IT RECOMMENDS, and saying so matters because the plan currently forbids auto-filling the status on that basis. `hg2oop` was CORRECTED ON THE DAY IT WAS FILED (see its own "CORRECTED 2026-09-10" section): the history truncation is a deliberate design, the live defect is that the durable sidecar is gitignored, and the remedy is not a change to this path. Measured 2026-09-25 against current code on a three-record item, the prescribed `aw backlog set <path> --status open --blocks-release next` PRESERVED all three records and prepended a fourth, and it correctly rewrote `- Blocks-Release: nosuchrelease` to `next`, clearing the drift. Keep `command=None` anyway, for the reason that actually holds: `<current-status>` is a value this function cannot read from a `Drift` (which carries only location, rule and detail), so the command still cannot be emitted complete. Replace the `hg2oop` justification with that one rather than repeating a corrected claim.
   - Depends on: none
   - Expected outcome: `command is None`; `detailed_fix` contains `--blocks-release next`, names `--status` for a `backlog`/`specs` location, names `aw ipd set` for a `plans` location, and names no `aw <type> set` for a type that declares no `set` verb.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the `status-untooled` branch advisory. This is a SEPARATE defect from E-01..E-03 and is the one that most directly defeats this plan's Goal, so it gets its own item rather than the passing mention E-04 originally gave it.
+- [x] E-04 Make the `status-untooled` branch advisory. This is a SEPARATE defect from E-01..E-03 and is the one that most directly defeats this plan's Goal, so it gets its own item rather than the passing mention E-04 originally gave it.
 
   It emits `aw set {status_word} <id6>`. The status word is real (extracted from the detail), so the only placeholder is the id6, and for a clustered filename that id6 IS derivable. The original plan therefore proposed filling it in. THAT IS THE WRONG REMEDY, because the completed command still does not clear the finding. Measured 2026-09-25 end to end on a scratch repo: a plan hand-edited from `to-review` to `approved` and staged raises `check.status-untooled`; running the completed `aw set approved aaa111` exits 0, reports success, writes `- 2026-09-25 same-status (aw set): status unchanged (approved)`, and the drift is STILL PRESENT on re-check. The cause is a genuine disagreement between two shipped components: `status_set.apply_status_change` tags a write whose old status already equals the target as `same-status` (its own docstring says so), while `check_engine._has_matching_history_line` only accepts a line whose status token EQUALS the new status. A hand-edited `- Status:` is by definition already at the target, so the recommended fix can only ever produce the one tag the checker rejects.
 
   So this branch is the exact false-completion path the Goal names, and completing the command would make it WORSE by turning an obviously-unrunnable placeholder into a plausible command that silently does not work. Set `command=None` and make `detailed_fix` state the two-step recovery the check's own detail implies: revert the hand edit (so the status returns to its previous value), then apply the transition with `aw ipd set <status> <id6>` so a genuine transition record is written. Do NOT attempt to fix `apply_status_change` or `_has_matching_history_line` here; that is a behavior change outside this plan's `Scope-Paths` and is recorded under "Deferred / out of scope" below.
   - Depends on: none
   - Expected outcome: `build_remediation(Drift(<plan path>, "check.status-untooled", "... changed to 'approved' ...")).command is None`; `detailed_fix` names reverting the hand edit AND `aw ipd set`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Make the `git-dirty` and `git-staged` branches advisory. Both currently emit a runnable `git commit -m "Update" -- <path>` whenever the drift location is a real path (measured: `doctor.git-dirty` on `some/file.md` yields exactly that), falling back to a placeholder `git commit -m "<msg>" -- <paths>` only for the `<git>` sentinel.
+- [x] E-05 Make the `git-dirty` and `git-staged` branches advisory. Both currently emit a runnable `git commit -m "Update" -- <path>` whenever the drift location is a real path (measured: `doctor.git-dirty` on `some/file.md` yields exactly that), falling back to a placeholder `git commit -m "<msg>" -- <paths>` only for the `<git>` sentinel.
 
   The concrete form is the more dangerous of the two, because it IS runnable as printed and `resolve_next_actions` promotes it to a `Next` action an agent may execute. Running it violates the repository's execution contract three ways at once: `AGENTS.md` requires committing through `aw commit` and states raw `git commit` obliges an explicit report; the message `Update` is not a conforming commit message; and in a shared checkout a bare commit of a path an agent did not modify sweeps a co-worker's work into its commit, which is the exact loss `AGENTS.md`'s "BEFORE EVERY COMMIT" section exists to prevent. A dirty working tree is also not a defect with a single mechanical remedy: whether to commit, stash or discard is a human decision, which is the same reasoning the neighbouring `git-untracked` and `git-conflict` branches already use to return `command=None`.
 
   Set `command=None` on both and have `detailed_fix` name `aw commit` as the tooled path, state that the paths must be reviewed first, and keep the existing advice to inspect the changes. This aligns these two branches with their two already-advisory siblings.
   - Depends on: none
   - Expected outcome: `command is None` for both `doctor.git-dirty` and `doctor.git-staged`, for a real path AND for the `<git>` sentinel; no emitted `command` anywhere in the module starts with `git commit`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the family guard in `tests/test_doctor.py`. For a representative drift of every rule `build_remediation` handles, assert that any non-None `command`: contains no `<`...`>` placeholder; does not start with `git commit`; and, when it starts with `aw rename` or `aw group`, contains `--apply`. Assert that `resolve_next_actions` returns no action for a drift set made only of the five rules made advisory by E-01..E-05. Add per-branch tests for E-01..E-05, including the two-branch `name-nonconformant` case (clustered name gets `--slug`, free-form name gets `--to-id6`) and the `plans` case of `blocks-release-dangling` (names `aw ipd set`, never `aw plans set`).
+- [x] E-06 Add the family guard in `tests/test_doctor.py`. For a representative drift of every rule `build_remediation` handles, assert that any non-None `command`: contains no `<`...`>` placeholder; does not start with `git commit`; and, when it starts with `aw rename` or `aw group`, contains `--apply`. Assert that `resolve_next_actions` returns no action for a drift set made only of the five rules made advisory by E-01..E-05. Add per-branch tests for E-01..E-05, including the two-branch `name-nonconformant` case (clustered name gets `--slug`, free-form name gets `--to-id6`) and the `plans` case of `blocks-release-dangling` (names `aw ipd set`, never `aw plans set`).
 
   Enumerate the rules from a table in the test rather than by scraping `doctor.py`, and include a rule id for every branch listed in this plan's Findings table plus `id6-identity-slot`, `summary-unsafe`, `stale-index`, `setup-needed`, `layout-split-brain`, `pypi-update-available`, `version-`, `leak-`, `git-untracked`, `git-conflict` and the generic fallback. That makes the guard a real family check rather than a check of the branches this plan happened to touch, which is the property that stops the next added branch from reintroducing the defect.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: the new tests pass with the fix and fail on the unfixed `doctor.py`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the bare suite `python3 -m pytest`.
+- [x] E-07 Run the bare suite `python3 -m pytest`.
   - Depends on: E-06
   - Expected outcome: the summary line shows 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -196,40 +196,248 @@ d = core.Drift(".aw/records/backlog/open/x.backlog.md", "check.name-nonconforman
 print("PRE-FIX command:", m.build_remediation(d, Path(".")).command)'
 ```
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the output of `python3 -m pytest -o addopts="" tests/test_doctor.py -k name_nonconformant -v`, showing the new tests PASSED. Paste the pre-fix comparison above, showing the old `command` was non-None. Paste the `detailed_fix` for BOTH a clustered location (must contain the id6 as selector, `--slug` and `--apply`, and must NOT contain the path as the `aw rename` selector for a `plans` location) and a free-form location (must contain `--to-id6`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified tests pass, pre-fix command was non-None, and detailed_fix has correct selectors:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_doctor.py -k name_nonconformant -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3>
+    cachedir: .pytest_cache
+    Using --randomly-seed=624812918
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 26 items / 25 deselected / 1 selected
 
-- [ ] V-02 validates E-02
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_name_nonconformant_clustered_and_freeform PASSED [100%]
+
+    ======================= 1 passed, 25 deselected in 0.18s =======================
+
+    PRE-FIX comparison:
+    PRE-FIX command: aw rename backlog .aw/records/backlog/open/x.backlog.md
+
+    CLUSTERED BACKLOG detailed_fix:
+    the slug in .aw/records/backlog/open/20260908-demo-01-aaa111-a-truncated-slug-.backlog.md is nonconformant; choosing a corrected slug is a human decision (cannot be derived mechanically). Run 'aw rename backlog aaa111 --slug <corrected-slug> --apply' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.
+
+    CLUSTERED PLANS detailed_fix:
+    the slug in .aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md is nonconformant; choosing a corrected slug is a human decision (cannot be derived mechanically). Run 'aw rename plans 6k7xot --slug <corrected-slug> --apply' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.
+
+    FREE-FORM detailed_fix:
+    weird.ipd.md does not carry a clustered identity prefix; run 'aw rename plans weird.ipd.md --to-id6 --apply' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the pytest output for the `setid_collision` remediation test, showing it passed, and the `detailed_fix` string itself showing it contains `--set`, `--rename` and `--apply`. Separately, in a throwaway repo, paste before/after `check.setid-collision` AND `check.identity-absent-from-name` findings around running the recommended shape, showing BOTH are clear afterwards (the no-`--rename` shape was measured to leave the second one raised).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified pytest passes, detailed_fix contains required flags, and throwaway repo clears both checks:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_doctor.py -k setid_collision -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3>
+    cachedir: .pytest_cache
+    Using --randomly-seed=4092893780
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 26 items / 25 deselected / 1 selected
 
-- [ ] V-03 validates E-03
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_setid_collision PASSED [100%]
+
+    ======================= 1 passed, 25 deselected in 0.18s =======================
+
+    SETID COLLISION detailed_fix:
+    another record of the SAME type uses this Set ID with a different descriptive; run 'aw group backlog aaa111 --set <new-set-id> --rename --apply' to regroup this record, or align the two descriptives. Sharing a Set ID with a different record type is correct and is not reported.
+
+    Throwaway repo before/after:
+    === BEFORE RUNNING aw group ===
+    RULE: check.setid-collision | DETAIL: setid demo conflicts with /tmp/tmpayk3w5xe/.aw/records/backlog/open/20260908-demo-01-aaa111-first.backlog.md (descriptive: 'First Descriptive' vs 'Second Descriptive')
+
+    === RUNNING: aw group backlog bbb222 --set newset --rename --apply --no-commit ===
+    EXIT: 0
+    STDOUT:
+    renamed .aw/records/backlog/open/20260908-demo-02-bbb222-second.backlog.md -> .aw/records/backlog/open/20260908-newset-02-bbb222-second.backlog.md
+    set metadata Set: newset in .aw/records/backlog/open/20260908-newset-02-bbb222-second.backlog.md
+
+    === AFTER RUNNING aw group ===
+    RELEVANT FINDINGS COUNT: 0
+
+    (Without --rename, check.identity-absent-from-name is raised:
+    RULE: check.identity-absent-from-name | DETAIL: [drift] declared `Set: newset` is absent from an otherwise MODERN id6-clustered filename)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the pytest output for the `blocks_release_dangling` remediation test, showing it passed, for a `backlog`, a `specs` AND a `plans` location. Show the `plans` case names `aw ipd set` and never `aw plans set`. In a throwaway repo carrying a `planned` release record, paste the output of the recommended `backlog` shape (`aw backlog set <f> --status open --blocks-release next`) and the resulting `- Blocks-Release:` line, showing the dangling value was rewritten and `releases.check_blocks_release` returns no drift.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified pytest passes across types (naming aw ipd set for plans, never aw plans set) and throwaway repo rewrites gate:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_doctor.py -k blocks_release_dangling -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3>
+    cachedir: .pytest_cache
+    Using --randomly-seed=634332733
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 26 items / 25 deselected / 1 selected
 
-- [ ] V-04 validates E-04
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_blocks_release_dangling PASSED [100%]
+
+    ======================= 1 passed, 25 deselected in 0.16s =======================
+
+    Throwaway repo before/after:
+    === BEFORE RUNNING aw backlog set ===
+    DRIFT: check.blocks-release-dangling | Blocks-Release 'nosuchrelease' does not resolve to a release record
+
+    === RUNNING: aw backlog set .aw/records/backlog/open/20260908-demo-01-aaa111-item.backlog.md --status open --blocks-release next --no-commit ===
+    EXIT: 0
+    STDOUT:
+    aw backlog set: 20260908-demo-01-aaa111-item.backlog.md -> open
+
+    === RESULTING - Blocks-Release: LINE ===
+    - Blocks-Release: next
+
+    === AFTER RUNNING aw backlog set ===
+    DRIFT COUNT: 0
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the pytest output for the `status_untooled` remediation test, showing `command is None` and that `detailed_fix` names both reverting the hand edit and `aw ipd set`. ALSO paste the reproduction that justifies the item: in a throwaway repo, hand-edit a staged plan's `- Status:`, show `check_engine.check_status_untooled` reports it, run the OLD recommended command with the id6 filled in, and show it exits 0 while the drift is STILL reported. That evidence is what proves completing the command would not have worked.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified pytest passes and reproduction confirms completing old command leaves drift:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_doctor.py -k status_untooled -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3>
+    cachedir: .pytest_cache
+    Using --randomly-seed=2706436765
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 26 items / 25 deselected / 1 selected
 
-- [ ] V-05 validates E-05
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_status_untooled PASSED [100%]
+
+    ======================= 1 passed, 25 deselected in 0.17s =======================
+
+    Reproduction on throwaway repo:
+    === AFTER HAND EDIT & STAGE: check_status_untooled ===
+    DRIFT: check.status-untooled | '- Status:' changed to 'approved' in this commit with no matching tool-authored '## Workflow history' line; apply it via `aw set approved <id6>` (or `aw ipd set approved <id6>`) so the transition is attributed
+
+    === RUNNING OLD COMMAND: aw set approved aaa111 --yes --by-human --no-commit ===
+    EXIT: 0
+    STDOUT:
+    -    plan        20260925-demo-01-aaa111  [medium]  unchanged
+
+    === FILE CONTENT AFTER aw set ===
+    # Test Plan
+    - Date: 2026-09-25
+    - Id: aaa111
+    - Approval: 2026-09-26, human ("approved"): status unchanged (approved)
+    - Set: demo (Demo Plan)
+    - Status: approved
+    - Priority: medium
+    - Work-Kind: bug
+    - Highest E allocated: 01
+
+    ## Workflow history
+    - 2026-09-26 same-status (aw set, --by-human): status unchanged (approved)
+    - 2026-09-25 to-review (aw ipd new): created
+
+    === RE-CHECKING check_status_untooled ===
+    DRIFT COUNT: 1
+    DRIFT: check.status-untooled | '- Status:' changed to 'approved' in this commit with no matching tool-authored '## Workflow history' line; apply it via `aw set approved <id6>` (or `aw ipd set approved <id6>`) so the transition is attributed
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the pytest output for the `git-dirty` and `git-staged` remediation tests, showing `command is None` for a real path AND for the `<git>` sentinel. Paste a grep over `agent_workflows/doctor.py` showing no remaining `cmd` assignment produces a string starting with `git commit`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified pytest passes and grep confirms no command starting with git commit:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_doctor.py -k git_dirty_and_staged -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3>
+    cachedir: .pytest_cache
+    Using --randomly-seed=1396529009
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 26 items / 25 deselected / 1 selected
 
-- [ ] V-06 validates E-06
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_git_dirty_and_staged PASSED [100%]
+
+    ======================= 1 passed, 25 deselected in 0.18s =======================
+
+    $ grep -n 'cmd =.*git commit' agent_workflows/doctor.py
+    No 'cmd = ... git commit' assignments found in agent_workflows/doctor.py
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the pytest output for the family guard, showing it passed, and its FAILING output against the pre-fix module (via the recipe above) naming at least the `aw rename`, `aw group`, `aw set <status>` and `git commit` commands. Paste the guard's rule table from the test source, so a reviewer can confirm it enumerates every branch rather than only the ones this plan touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified family guard passes, fails against pre-fix module on all four defect families, and rule table covers all branches:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_doctor.py -k test_remediation_family_guard -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3>
+    cachedir: .pytest_cache
+    Using --randomly-seed=1552637457
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 26 items / 25 deselected / 1 selected
 
-- [ ] V-07 validates E-07
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_family_guard PASSED [100%]
+
+    ======================= 1 passed, 25 deselected in 0.18s =======================
+
+    Failing output against pre-fix module:
+    Running family guard assertions against PRE-FIX module:
+    FAIL [missing --apply]: rule=check.name-nonconformant cmd='aw rename backlog .aw/records/backlog/open/20260908-demo-01-aaa111-a-truncated-slug-.backlog.md'
+    FAIL [placeholder]: rule=check.setid-collision cmd='aw group plans .aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md --set <new-set-id>'
+    FAIL [missing --apply]: rule=check.setid-collision cmd='aw group plans .aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md --set <new-set-id>'
+    FAIL [placeholder]: rule=check.status-untooled cmd='aw set approved <id6>'
+    FAIL [git commit]: rule=doctor.git-dirty cmd='git commit -m "Update" -- some/file.py'
+    FAIL [placeholder]: rule=doctor.git-dirty cmd='git commit -m "<msg>" -- <paths>'
+    FAIL [git commit]: rule=doctor.git-dirty cmd='git commit -m "<msg>" -- <paths>'
+    FAIL [git commit]: rule=doctor.git-staged cmd='git commit -m "Update" -- some/file.py'
+    FAIL [placeholder]: rule=doctor.git-staged cmd='git commit -m "<msg>" -- <paths>'
+    FAIL [git commit]: rule=doctor.git-staged cmd='git commit -m "<msg>" -- <paths>'
+
+    Guard rule table from tests/test_doctor.py:
+        REPRESENTATIVE_DRIFTS = [
+            core.Drift(".aw/records/backlog/open/20260908-demo-01-aaa111-a-truncated-slug-.backlog.md", "check.name-nonconformant", "nonconformant name"),
+            core.Drift(".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md", "check.setid-collision", "setid collision with other"),
+            core.Drift(".aw/records/specs/draft/20260925-1111-01-test.spec.md", "check.blocks-release-dangling", "dangling release gate"),
+            core.Drift(".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md", "check.status-untooled", "status changed to 'approved'"),
+            core.Drift("some/file.py", "doctor.git-dirty", "uncommitted modification"),
+            core.Drift("<git>", "doctor.git-dirty", "uncommitted modification"),
+            core.Drift("some/file.py", "doctor.git-staged", "staged change"),
+            core.Drift("<git>", "doctor.git-staged", "staged change"),
+            core.Drift(".aw/records/plans/pending/20260925-doctorhint-01-aaa111-test.ipd.md", "check.id6-identity-slot", "identity slot does not match"),
+            core.Drift(".aw/records/plans/pending/20260925-doctorhint-01-aaa111-test.ipd.md", "check.summary-unsafe", "multiline summary"),
+            core.Drift(".aw/records/plans/manifest.json", "check.stale-index-missing", "index missing"),
+            core.Drift(".aw/records/plans/manifest.json", "check.stale-index-stale", "index stale"),
+            core.Drift(".aw/records/plans/manifest.json", "doctor.index-stale", "index stale"),
+            core.Drift(".aw/setup-repo-needed.md", "doctor.setup-needed", "setup needed"),
+            core.Drift(".agents/workflows/assess", "doctor.layout-split-brain", "split brain"),
+            core.Drift("<pypi>", "doctor.pypi-update-available", "update available"),
+            core.Drift(".aw/system/VERSION", "doctor.version-not-installed", "version mismatch"),
+            core.Drift("some/secret.py", "doctor.leak-detected", "sensitive token"),
+            core.Drift("some/untracked.txt", "doctor.git-untracked", "untracked file"),
+            core.Drift("some/conflict.txt", "doctor.git-conflict", "unmerged conflict"),
+            core.Drift("some/artifact.md", "check.generic-fallback", "unknown check finding"),
+        ]
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the final summary line of the bare `python3 -m pytest` run, showing `N passed` and 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified bare suite passes with 0 failures:
+    ```
+    2363 passed, 1 skipped, 3 warnings in 45.38s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
