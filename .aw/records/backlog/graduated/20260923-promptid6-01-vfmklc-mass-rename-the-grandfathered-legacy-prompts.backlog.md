@@ -1,11 +1,13 @@
 - Id: vfmklc
-- Status: open
+- Status: graduated
+- Graduated-To: promptren
 - Set: promptid6
 - Priority: low
 - Work-Kind: chore
 - Summary: Mass-rename the 17 grandfathered legacy-named prompts to the id6-clustered grammar
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set promptren (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): Mass-rename the 17 grandfathered legacy-named prompts to the id6-clustered grammar
 
 DEFERRED BY IPD ubac5n (promptid6), which adopted the clustered grammar GOING FORWARD and grandfathered the existing corpus rather than renaming it.
