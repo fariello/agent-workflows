@@ -3030,7 +3030,17 @@ def run_opencode(
     # but the `run_opencode(...)` call a few lines later still passes the outer `plan_path`, which is
     # `resolve_plan_path(repo, ...)` against MAIN. So BOTH attachments named the main checkout and both
     # are localized here. The decisions register carries this as a DECISION with the evidence.
+    #
+    # lanevocab Order 01 (`xzroy8`) E-05: SCOPE LOCALIZATION TO THIS TURN'S REVISION.
+    # On a shared sweep lane, revisions are materialized per turn (at `revision=item["position"]`),
+    # but dispatch order is dependency-depth first, so position order is not dispatch order.
+    # Passing no revision caused `localize_attachment` to read the latest revision on disk, attaching
+    # another review's plan whenever a higher-positioned turn dispatched first (measured mismatch:
+    # four review turns in recorded runs attached another plan's `rev-<N>` copy). Passing
+    # `revision=turn_revision` addresses this turn's own materialized revision; `None` preserves
+    # the latest-revision fallback for callers with no materialized revision.
     lane_root_for_attachments = Path(work_dir) if work_dir else None
+    turn_revision = ((item.get("attempts") or [{}])[-1]).get("lane_input_revision")
 
     if (
         not is_review
@@ -3045,6 +3055,7 @@ def run_opencode(
                     lane_root=lane_root_for_attachments,
                     fallback=state["runbook"],
                     input_class=lane_containment.INPUT_CLASS_RUNBOOK,
+                    revision=turn_revision,
                 ),
             ]
         )
@@ -3056,6 +3067,7 @@ def run_opencode(
                 lane_root=lane_root_for_attachments,
                 fallback=plan_path,
                 input_class=lane_containment.INPUT_CLASS_PLAN,
+                revision=turn_revision,
             ),
             "--",
             prompt_path.read_text(encoding="utf-8"),

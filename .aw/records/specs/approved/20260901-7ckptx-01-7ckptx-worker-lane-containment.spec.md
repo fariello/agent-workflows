@@ -406,8 +406,16 @@ worker (no write bit for the owning user), so an accidental in-lane edit fails r
 rewriting the record of what was authorized; (ii) each materialized INPUT file it lists is likewise
 read-only, since these are inputs the worker consumes and never revises; and (iii) any legitimate change
 to the input set is a NEW MANIFEST REVISION recorded by the driver (R3.4), never an in-place edit of an
-existing entry. Read-only is an accident guard under the threat model in 0.2, not a boundary: the owning
-user can restore the write bit, and an artifact MUST NOT describe it as immutability.
+existing entry. A revision is scoped to the (lane, turn) pair. A lane shared by several turns (the
+review sweep lane) therefore holds one revision per turn, numbered by the turn's queue position, and
+consecutive revision numbers need not belong to the same turn. Any consumer that reads a manifest on a
+turn's behalf MUST address that turn's own recorded revision, never the latest on disk. Read-only is an
+accident guard under the threat model in 0.2, not a boundary: the owning user can restore the write bit,
+and an artifact MUST NOT describe it as immutability.
+
+AMENDED 2026-09-25 by lanevocab Order 01 (`xzroy8`): R5.1a part (iii) clarifies that a revision is
+scoped to the (lane, turn) pair and that consumers must address a turn's own revision rather than the
+latest on disk.
 
 R5.2 No manifest-listed lane path may be a symlink OR a hard link to a file outside the lane. Both are
 violations: a hard link satisfies a symlink check and a digest comparison while still sharing an inode
@@ -602,9 +610,13 @@ re-flag it as a traceability gap.
   outside the lane. (R5.1, R5.2)
 - A12b. SEALED IS TESTED, all three parts: paste the manifest file's mode showing no owner write bit;
   paste each materialized input file's mode showing the same; and show that an attempted in-place edit of
-  an existing manifest entry is refused while a legitimate input change appears as a NEW REVISION. Also
-  state in the artifact that read-only is an accident guard and not immutability, since the owning user
-  can restore the write bit. (R5.1a)
+  an existing manifest entry is refused while a legitimate input change appears as a NEW REVISION, and,
+  for a shared lane, that each turn's attachment resolves to its own revision when turns are dispatched out
+  of position order. Also state in the artifact that read-only is an accident guard and not immutability,
+  since the owning user can restore the write bit. Parts (i) and (ii) and the in-place edit check of part
+  (iii) currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`,
+  leaving only the out-of-position dispatch scoping of part (iii) covered in
+  `tests/test_lane_input_revision_scope.py`. (R5.1a)
 - A13. Every attachment handed to an isolated worker resolves inside the lane, asserted over ALL
   attachments with at least two checked. (R5.3)
 - A14. With a dirty TRACKED file, the evaluation happens before any worker process is spawned, and its
