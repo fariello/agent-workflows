@@ -1,11 +1,13 @@
 - Id: t5ycse
-- Status: open
+- Status: graduated
+- Graduated-To: staledocs
 - Set: trailerdoc
 - Priority: low
 - Work-Kind: chore
 - Summary: work_cmd._trailers_from_args cites a runbook directive that y9vpvv removed: agent commits are no longer instructed to use raw git commit
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set staledocs (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): Found by commitguard-03 (2s0iym) E-02 while judging Order 02's shipped prose surface.
 
 agent_workflows/work_cmd.py:422-423 (in `_trailers_from_args`) states that an agent's own code commits "are made by the agent running raw `git commit -m msg -- <path>` per the runbook directive, pass through no `offer_commit` call, and so cannot be reached by wiring one".
