@@ -1182,7 +1182,7 @@ class DispositionTests(unittest.TestCase):
         ),
         (
             "a perfectly conforming CHILD plan sitting in a terminal directory",
-            _conforming_child(),
+            _conforming_child().replace("- Status: to-review", "- Status: executed"),
             "executed",
             "author",
             S.DISPOSITION_LEGACY,
@@ -3104,12 +3104,181 @@ class SetidLengthLintTests(unittest.TestCase):
 
         # Terminal plan reaches legacy disposition first
         res_leg = L.lint_text(
-            self._plan_text("a" * 25), checkpoint="author", directory="executed"
+            self._plan_text("a" * 25).replace(
+                "- Status: to-review", "- Status: executed"
+            ),
+            checkpoint="author",
+            directory="executed",
         )
         self.assertEqual(res_leg.disposition, L.S.DISPOSITION_LEGACY)
         self.assertEqual(
             [x.code for x in res_leg.diagnostics if x.code == L.C_SETID_LENGTH], []
         )
+
+
+class TerminalPathStatusLintTests(unittest.TestCase):
+    """IPD-M105 reachability in terminal plan directories (plan lz0o6j E-03)."""
+
+    def _plan(
+        self,
+        *,
+        date: str | None = "2026-09-25",
+        status: str | None = "to-review",
+    ) -> str:
+        lines = [
+            "# IPD: sample (Set x, Order 1)",
+            "",
+        ]
+        if date is not None:
+            lines.append(f"- Date: {date}")
+        lines.extend(
+            [
+                "- Kind: child",
+                "- Concern: sample.",
+                "- Scope: sample.",
+            ]
+        )
+        if status is not None:
+            lines.append(f"- Status: {status}")
+        lines.extend(
+            [
+                "- Work-Kind: chore",
+                "- Priority: medium",
+                "- Set: x",
+                "- Order: 1",
+                "- Highest E allocated: 01",
+                "- Author: tester",
+                "- Id: abc123",
+                "",
+                "## Workflow history",
+                "- 2026-09-25 to-review: test",
+                "",
+                "## Goal",
+                "sample goal",
+                "",
+                "## Detailed Implementation Checklist (TODO)",
+                "- [ ] E-01 sample",
+                "  - Depends on: none",
+                "  - Expected outcome: sample",
+                "  - Execution state: pending",
+                "",
+                "## Validation and cross-check (verify before reporting done)",
+                "- [ ] V-01 validates E-01",
+                "  - Required evidence: sample",
+                "  - Observed evidence:",
+                "  - Result: pending",
+            ]
+        )
+        return "\n".join(lines) + "\n"
+
+    def test_m105_terminal_cutover_constant_is_strictly_greater(self):
+        """The constant must be compact YYYYMMDD and strictly greater than the newest affected plan date (2026-07-11)."""
+        self.assertEqual(len(L.M105_TERMINAL_CUTOVER_DATE), 8)
+        self.assertTrue(L.M105_TERMINAL_CUTOVER_DATE.isdigit())
+        self.assertGreater(L.M105_TERMINAL_CUTOVER_DATE, "20260711")
+
+    def test_terminal_directories_crossed_with_statuses(self):
+        """Test terminal directories crossed with pre-terminal, other-terminal, and matching statuses."""
+        terminal_dirs = ("executed", "superseded", "not-executed")
+        status_map = {
+            "executed": ("to-review", "superseded", "executed"),
+            "superseded": ("draft", "executed", "superseded"),
+            "not-executed": ("approved", "executed", "not-executed"),
+        }
+        for tdir in terminal_dirs:
+            pre_term, other_term, matching = status_map[tdir]
+
+            # Pre-terminal status in terminal directory -> error with IPD-M105
+            res_pre = L.lint_text(self._plan(status=pre_term), directory=tdir)
+            self.assertEqual(
+                res_pre.disposition,
+                S.DISPOSITION_ERROR,
+                f"Expected error for {pre_term} in {tdir}",
+            )
+            self.assertEqual(
+                [d.code for d in res_pre.diagnostics],
+                [L.C_META_PATH],
+            )
+
+            # Other terminal status in terminal directory -> error with IPD-M105
+            res_other = L.lint_text(self._plan(status=other_term), directory=tdir)
+            self.assertEqual(
+                res_other.disposition,
+                S.DISPOSITION_ERROR,
+                f"Expected error for {other_term} in {tdir}",
+            )
+            self.assertEqual(
+                [d.code for d in res_other.diagnostics],
+                [L.C_META_PATH],
+            )
+
+            # Matching status in terminal directory -> legacy with no diagnostics
+            res_match = L.lint_text(self._plan(status=matching), directory=tdir)
+            self.assertEqual(
+                res_match.disposition,
+                S.DISPOSITION_LEGACY,
+                f"Expected legacy for {matching} in {tdir}",
+            )
+            self.assertEqual(res_match.diagnostics, [])
+
+    def test_status_less_terminal_file_stays_legacy(self):
+        """A terminal file with no Status line stays legacy/not evaluated."""
+        res = L.lint_text(self._plan(status=None), directory="executed")
+        self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
+        self.assertEqual(res.diagnostics, [])
+
+    def test_pre_cutover_plan_stays_legacy(self):
+        """A pre-cutover plan with mismatched status is suppressed and stays legacy/not evaluated."""
+        res = L.lint_text(
+            self._plan(date="2026-07-01", status="to-review"), directory="executed"
+        )
+        self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
+        self.assertEqual(res.diagnostics, [])
+
+    def test_uppercase_executed_status_stays_legacy(self):
+        """An upper-case '- Status: EXECUTED' in executed/ stays legacy because normalized reader matches."""
+        res = L.lint_text(
+            self._plan(date="2026-09-25", status="EXECUTED"), directory="executed"
+        )
+        self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
+        self.assertEqual(res.diagnostics, [])
+
+    def test_lint_file_in_temp_repo(self):
+        """lint_file on real files under executed/ and executed/<shard>/ in a temp repo."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            exec_dir = root / ".aw" / "records" / "plans" / "executed"
+            shard_dir = exec_dir / "202608"
+            shard_dir.mkdir(parents=True)
+
+            # Post-cutover to-review under executed/ -> error
+            p_exec = exec_dir / "20260925-sample-01-abc123-slug.ipd.md"
+            p_exec.write_text(
+                self._plan(date="2026-09-25", status="to-review"), encoding="utf-8"
+            )
+            res_exec = L.lint_file(p_exec)
+            self.assertEqual(res_exec.disposition, S.DISPOSITION_ERROR)
+            self.assertEqual([d.code for d in res_exec.diagnostics], [L.C_META_PATH])
+
+            # Post-cutover to-review under executed/202608/ -> error
+            p_shard = shard_dir / "20260925-sample-01-def456-shard.ipd.md"
+            p_shard.write_text(
+                self._plan(date="2026-09-25", status="to-review"), encoding="utf-8"
+            )
+            res_shard = L.lint_file(p_shard)
+            self.assertEqual(res_shard.disposition, S.DISPOSITION_ERROR)
+            self.assertEqual([d.code for d in res_shard.diagnostics], [L.C_META_PATH])
+
+            # Matching status executed under executed/ -> legacy
+            p_clean = exec_dir / "20260925-sample-01-ghi789-clean.ipd.md"
+            p_clean.write_text(
+                self._plan(date="2026-09-25", status="executed"), encoding="utf-8"
+            )
+            res_clean = L.lint_file(p_clean)
+            self.assertEqual(res_clean.disposition, S.DISPOSITION_LEGACY)
+            self.assertEqual(res_clean.diagnostics, [])
 
 
 if __name__ == "__main__":

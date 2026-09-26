@@ -743,7 +743,7 @@ class MetadataValidationTests(unittest.TestCase):
             "a pre-terminal Status sitting in executed/",
             _meta(Status="to-review"),
             "executed",
-            [("Status", "pre-terminal Status must live under pending/")],
+            [("Status", "pre-terminal Status must live under the pending/ directory")],
             "THE MIRROR VIOLATION, which is not symmetric with the one above: it reports a DIFFERENT "
             "message, so a refactor that collapsed the three branches of `_check_path_status` into "
             "one generic message would fail here and pass if only the terminal case were tested",
@@ -818,6 +818,16 @@ class MetadataValidationTests(unittest.TestCase):
             "collapsed or its messages rewritten. FIX: each row pins the EXACT error set, not merely "
             "that the expected one appears, so an extra error is a failure by design; do not weaken "
             f"a row to an `any()` to make it pass.\n" + "\n".join(wrong),
+        )
+
+    def test_path_status_pre_terminal_message(self):
+        """Pre-terminal status in a non-pending directory must include 'directory' for IPD-M105 routing."""
+        errs = S._check_path_status("to-review", "executed")
+        self.assertEqual(len(errs), 1)
+        self.assertEqual(errs[0].field, "Status")
+        self.assertEqual(
+            errs[0].message,
+            "pre-terminal Status must live under the pending/ directory",
         )
 
 

@@ -27,6 +27,7 @@ from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 from agent_workflows import ipd_schema as S
 from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import lifecycle_style as _LS
+from agent_workflows import plans as _plans
 from agent_workflows import term as _T
 from agent_workflows.term import Term
 
@@ -1765,6 +1766,45 @@ class LintResult(NamedTuple):
         return self.disposition in S.PASSING_DISPOSITIONS
 
 
+#: IPD-M105 TERMINAL-TREE DATE CUTOVER (plan lz0o6j E-02).
+#:
+#: Evaluates path/status compatibility for plans sitting in terminal directories
+#: (executed/superseded/not-executed).
+#:
+#: CORRECTED MEASUREMENT (plan lz0o6j F-5, F-6):
+#: Evaluating raw `doc.meta_fields['Status']` across the terminal tree yields 25 errors on
+#: legacy plans dated 2026-06-30..2026-07-11 carrying prose or upper-case status lines
+#: (e.g. `EXECUTED`). Those plans cannot be modified because AGENTS.md and the
+#: `ipd-executed-transition-gate` hook forbid adding commits to plans in executed/.
+#: Evaluating normalized status via `plans.read_status` yields 0 errors across all 727+
+#: terminal plans.
+#:
+#: SET STRICTLY AFTER 2026-07-11, the newest affected plan date, mirroring the
+#: `CITATION_ANCHOR_CUTOVER_DATE` convention. Plans with no parseable `- Date:` or dated
+#: before this cutover are treated as pre-cutover and suppressed (returning DISPOSITION_LEGACY).
+M105_TERMINAL_CUTOVER_DATE = "20260712"  # compact YYYYMMDD
+
+
+def _m105_terminal_date_applies(raw_date: Optional[str]) -> bool:
+    """True when ``raw_date`` is POST-cutover for terminal path/status checking.
+
+    A plan with NO parseable `- Date:` is treated as PRE-cutover (suppressed). That direction is
+    copied from `CITATION_ANCHOR_CUTOVER_DATE` and for its stated reason: `IPD-M101` already owns the
+    missing-`Date` complaint, so this rule must not invent a second consequence for the same defect.
+    """
+    if not raw_date:
+        return False
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", str(raw_date).strip())
+    if m is None:
+        return False
+    return "{0}{1}{2}".format(*m.groups()) >= M105_TERMINAL_CUTOVER_DATE
+
+
+def _m105_terminal_applies(doc: ParsedDoc) -> bool:
+    """True when this plan is POST-cutover and subject to terminal path/status checking."""
+    return _m105_terminal_date_applies(doc.meta_fields.get("Date"))
+
+
 def _is_terminal_dir(directory: Optional[str]) -> bool:
     return directory in ("executed", "superseded", "not-executed")
 
@@ -1790,6 +1830,16 @@ def lint_text(
     # Legacy/grandfathered: a terminal-dir file evaluated without migration.
     # At post-transition, the just-transitioned plan is evaluated for S405 history agreement.
     if _is_terminal_dir(directory) and not legacy and checkpoint != "post-transition":
+        if _m105_terminal_applies(doc):
+            status = _plans.read_status(Path(""), text=text)
+            if status is not None:
+                errs = S._check_path_status(status, directory)
+                if errs:
+                    diags = [
+                        Diagnostic(0, 0, C_META_PATH, f"{me.field}: {me.message}")
+                        for me in errs
+                    ]
+                    return LintResult(S.DISPOSITION_ERROR, diags)
         return LintResult(S.DISPOSITION_LEGACY, [])
     # Quarantined: metadata declares quarantine (nonterminal only; the trio is validated in metadata).
     if S.is_quarantined(doc.meta_fields) and not _is_terminal_dir(directory):
