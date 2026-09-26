@@ -1,5 +1,5 @@
 - Id: u0fmeu
-- Status: graduated
+- Status: done
 - Graduated-To: agyinstall
 - Blocks-Release: next
 - Set: agyskill
@@ -8,6 +8,7 @@
 - Summary: Installer must install Antigravity (agy) skills and unified /aw router
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD peigax executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-agyinstall-01-peigax-install-the-unified-aw-router-skill-and-full-antigravity-ski.ipd.md); evidence .aw/records/plans/executed/20260925-agyinstall-01-peigax-install-the-unified-aw-router-skill-and-full-antigravity-ski.ipd.md
 - 2026-09-25 graduated (aw set): graduated into agyinstall plan peigax (to-review)
 - 2026-09-15 created (aw backlog): Installer must install Antigravity skills and unified /aw router
 
