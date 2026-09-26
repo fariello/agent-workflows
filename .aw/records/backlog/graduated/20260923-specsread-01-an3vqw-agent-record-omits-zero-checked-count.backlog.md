@@ -1,5 +1,6 @@
 - Id: an3vqw
-- Status: open
+- Status: graduated
+- Graduated-To: specsread
 - Blocks-Release: next
 - Set: specsread
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: The --agent record omits the checked count at ZERO, hiding the exact case a validated-nothing verdict occurs
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set specsread (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): Found while executing IPD y4bdoz (specdirs Order 01); the plan deferred the fix and required it be reported.
 
 MEASURED 2026-09-23 while executing IPD `y4bdoz`. `result_types.py` builds the count from `self.data.get('checked') or self.data.get('total_checked')`, and a falsy `0` fails that `or`, so the emitted `aw.agent/v1` record OMITS the `checked` key ENTIRELY when the count is zero. Observed side by side: a zero-spec repo emitted `{\"schema\":\"aw.agent/v1\",...,\"outcome\":\"clean\",\"exit\":0,...,\"findings\":0,...}` with no `checked` key, while this repository emitted `\"checked\":36`. The human branch prints no count at all, so `--json` is the ONLY surface that reports it.
