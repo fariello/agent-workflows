@@ -1,5 +1,5 @@
 - Id: yos8rq
-- Status: graduated
+- Status: done
 - Graduated-To: citesym
 - Set: yos8rq
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: plan-review mandates path:line citations but never says to re-locate by symbol, so line drift reads as a false claim
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD x7i14a executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-citesym-01-x7i14a-tell-reviewers-to-re-locate-drifted-citations-by-symbol-befo.ipd.md); evidence .aw/records/plans/executed/20260925-citesym-01-x7i14a-tell-reviewers-to-re-locate-drifted-citations-by-symbol-befo.ipd.md
 - 2026-09-25 graduated (aw set): graduated into citesym plan x7i14a (review-side half; authoring half shipped via mzc019)
 - 2026-09-16 created (aw backlog): plan-review mandates path:line citations but never says to re-locate by symbol, so line drift reads as a false claim
 

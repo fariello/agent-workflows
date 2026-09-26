@@ -27,7 +27,7 @@ Each finding MUST contain:
 - Severity: `BLOCKER`, `HIGH`, `MEDIUM`, or `LOW`.
 - Scope: `IN-SCOPE`, `OVER-SCOPE`, or `UNDER-SCOPE`.
 - Area: rubric and project-rule reference.
-- Evidence: `path:line`.
+- Evidence: `path:line`, plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line.
 - Finding and impact.
 - Remediation Risk on complexity, usability, security, functionality, and
   overall.
