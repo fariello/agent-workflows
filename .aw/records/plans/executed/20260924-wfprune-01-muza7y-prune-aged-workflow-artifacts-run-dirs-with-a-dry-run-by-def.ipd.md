@@ -6,7 +6,7 @@
 - Scope: IN: a pure planner plus a thin CLI route, `aw archive workflow-artifacts`, that previews by default and deletes only under `--apply`; retention is "keep the newest N runs per workflow AND anything younger than D days" (a run is deleted only when it is BOTH outside the newest N AND older than D); age comes from the run id's leading `YYYYMMDD` and falls back to the newest mtime inside the dir; a run is ALWAYS kept when it carries unresolved questions in EITHER projection shape (the `open-questions.md` marker OR an `assess`-style `decisions.md`, which is the only shape present in the measured tree), when it looks like an unfinished `release-review` run, when it is an `assess` run whose `ipd-link.md` records that no IPD was written, or when pinned with `--keep <run-id>`; the tree's README and non-directory entries are never touched; tests on a temp tree. OUT: un-ignoring the tree; moving runs anywhere (this reclaims disk, it does not shelve); any automatic or install-time prune; making `aw archive all` include this tree.
 - Scope-Paths: agent_workflows/workflow_artifacts_prune.py, agent_workflows/cli.py, agent_workflows/command_surface.py, .aw/system/workflows/templates/workflow-artifacts-README.md, tests/test_workflow_artifacts_prune.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: muza7y
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: zzsaq2
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: muza7y verified (set wfprune, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): plan-review complete: PR-701..PR-708 all fixed. BLOCKER PR-701: the only reader-safety rule could not fire on any run in the plan's own measured tree (E-02 keys on open-questions.md; the measured population is assess runs that write none). Added E-03/E-04 for the assess and unfinished-release-review shapes, E-07 to name every keep; 10 items, 10:10 E/V bijection; OQ-01/OQ-02 resolved from evidence. Findings and 4 decisions in .aw/records/reviews/20260924-wfprune-01-muza7y-...review.md
 
@@ -35,59 +35,59 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: planner
 
-- [ ] E-01 Add `agent_workflows/workflow_artifacts_prune.py` with a PURE planner `plan_prune(artifacts_root, *, keep_last, older_than_days, keep_ids=(), today=None) -> PrunePlan` returning, per run dir, a decision (`keep` or `delete`) and a reason (`newest-N`, `younger-than-D`, `open-questions`, `pinned`, `aged`). Root is `repo_root / set_records.RUN_ARTIFACTS_SUBDIR` (reuse the constant, do not re-spell the path). Only directories at exactly depth 2 (`<workflow>/<run-id>`) are candidates; files at depth 1 (the README) and symlinked dirs are skipped and never followed. Run age = leading `YYYYMMDD` of the run id when it parses as a date, else the newest mtime of any file under the dir (`os.walk(followlinks=False)`). Order within a workflow by that age, newest first, run id as tie-break. A run is `delete` only if it is outside the newest `keep_last` AND older than `older_than_days`.
+- [x] E-01 Add `agent_workflows/workflow_artifacts_prune.py` with a PURE planner `plan_prune(artifacts_root, *, keep_last, older_than_days, keep_ids=(), today=None) -> PrunePlan` returning, per run dir, a decision (`keep` or `delete`) and a reason (`newest-N`, `younger-than-D`, `open-questions`, `pinned`, `aged`). Root is `repo_root / set_records.RUN_ARTIFACTS_SUBDIR` (reuse the constant, do not re-spell the path). Only directories at exactly depth 2 (`<workflow>/<run-id>`) are candidates; files at depth 1 (the README) and symlinked dirs are skipped and never followed. Run age = leading `YYYYMMDD` of the run id when it parses as a date, else the newest mtime of any file under the dir (`os.walk(followlinks=False)`). Order within a workflow by that age, newest first, run id as tie-break. A run is `delete` only if it is outside the newest `keep_last` AND older than `older_than_days`.
   - Depends on: none
   - Expected outcome: importable module; calling it on a temp tree performs zero filesystem writes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the FIRST reader-safety rule to the planner, for the `set_records` projection shape: a run dir whose `set_records.OPEN_QUESTIONS_FILE` exists and does NOT contain the renderer's empty marker `_No unresolved questions._` (the same string `run_cli._run_questions` keys on) is `keep` with reason `open-questions`, regardless of age or N. Also `keep` any run id listed in `keep_ids` (reason `pinned`). NOTE THE REACH, measured at review and the reason E-03 exists: `set_records.write_local_projections` writes `decisions.md`, `open-questions.md` and `deferred-work.md` TOGETHER in one call (verified: a call with zero records produced all three, with `open-questions.md` containing the empty marker), so this rule fires only on runs produced by THAT writer. It cannot fire on any run in the measured tree, because F-5 found 10 `decisions.md` and ZERO `open-questions.md`, which is only possible for a different producer.
+- [x] E-02 Add the FIRST reader-safety rule to the planner, for the `set_records` projection shape: a run dir whose `set_records.OPEN_QUESTIONS_FILE` exists and does NOT contain the renderer's empty marker `_No unresolved questions._` (the same string `run_cli._run_questions` keys on) is `keep` with reason `open-questions`, regardless of age or N. Also `keep` any run id listed in `keep_ids` (reason `pinned`). NOTE THE REACH, measured at review and the reason E-03 exists: `set_records.write_local_projections` writes `decisions.md`, `open-questions.md` and `deferred-work.md` TOGETHER in one call (verified: a call with zero records produced all three, with `open-questions.md` containing the empty marker), so this rule fires only on runs produced by THAT writer. It cannot fire on any run in the measured tree, because F-5 found 10 `decisions.md` and ZERO `open-questions.md`, which is only possible for a different producer.
   - Depends on: E-01
   - Expected outcome: an aged run with unresolved questions in the `set_records` shape is never planned for deletion, so `aw runs questions` and `set_records.promote_local_checkpoints` still find it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add the SECOND reader-safety rule, for the `assess` projection shape, which is the only shape present in the measured tree. The `assess` workflow hand-authors `decisions.md` and its own spec for that file says it holds "Key decisions and assumptions, ... and any open questions for the user" - in PROSE, with no `open-questions.md` written at all (confirmed at review against `.aw/system/workflows/assess/assess.md`'s artifact table, and consistent with F-5's 10-and-zero measurement). So a run dir that has `decisions.md` but NO `open-questions.md` is NOT covered by E-02 and must be handled here: treat such a run as `keep` with reason `unreviewed-decisions` unless it ALSO carries positive evidence of completion. Choose the discriminator from what the workflow actually writes rather than inventing one - `assess` writes `ipd-link.md` naming the IPD it produced, so a run with a resolvable `ipd-link.md` whose IPD path exists has handed its durable output off and is prunable, while one without it has not. Do NOT attempt prose parsing of `decisions.md` for question-like text: it is unbounded natural language and a false negative here deletes a record.
+- [x] E-03 Add the SECOND reader-safety rule, for the `assess` projection shape, which is the only shape present in the measured tree. The `assess` workflow hand-authors `decisions.md` and its own spec for that file says it holds "Key decisions and assumptions, ... and any open questions for the user" - in PROSE, with no `open-questions.md` written at all (confirmed at review against `.aw/system/workflows/assess/assess.md`'s artifact table, and consistent with F-5's 10-and-zero measurement). So a run dir that has `decisions.md` but NO `open-questions.md` is NOT covered by E-02 and must be handled here: treat such a run as `keep` with reason `unreviewed-decisions` unless it ALSO carries positive evidence of completion. Choose the discriminator from what the workflow actually writes rather than inventing one - `assess` writes `ipd-link.md` naming the IPD it produced, so a run with a resolvable `ipd-link.md` whose IPD path exists has handed its durable output off and is prunable, while one without it has not. Do NOT attempt prose parsing of `decisions.md` for question-like text: it is unbounded natural language and a false negative here deletes a record.
   - Depends on: E-02
   - Expected outcome: an aged `assess` run carrying `decisions.md` and no `open-questions.md` is kept unless its `ipd-link.md` resolves to an existing IPD; no rule depends on parsing prose.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the THIRD reader-safety rule, for runs whose own workflow calls the dir authoritative or sole output. TWO cases, both read out of the shipped workflow text at review. (a) UNFINISHED `release-review`: `00-run-protocol.md` states "`.aw/workflow-artifacts/release-review/<RUN_ID>/` is the authoritative run record" and, for the fresh-context mode, "the authoritative state", so an in-progress or ABORTED-PRE-FLIGHT run is live resumable state, not scratch. Keep a `release-review` run (reason `unfinished-run`) unless it carries positive completion evidence; derive the test from the required-artifact list (for example `08-checkpoints.md` present AND `00-run-metadata.md` recording a terminal status), and state in a comment which artifact you keyed on and why. (b) NO-IPD `assess`: the workflow calls the run record one of "two durable outputs", and for a run that proposed no IPD it documents a closing report reading "Created: none." - in that case the run record is the ONLY output that run produced, so deleting it destroys the sole record of the assessment. Keep a run whose `ipd-link.md` is absent or records that no IPD was created (reason `sole-durable-output`). This overlaps E-03 deliberately: E-03 decides on the QUESTIONS hazard, this decides on the SOLE-OUTPUT hazard, and a run can trip either.
+- [x] E-04 Add the THIRD reader-safety rule, for runs whose own workflow calls the dir authoritative or sole output. TWO cases, both read out of the shipped workflow text at review. (a) UNFINISHED `release-review`: `00-run-protocol.md` states "`.aw/workflow-artifacts/release-review/<RUN_ID>/` is the authoritative run record" and, for the fresh-context mode, "the authoritative state", so an in-progress or ABORTED-PRE-FLIGHT run is live resumable state, not scratch. Keep a `release-review` run (reason `unfinished-run`) unless it carries positive completion evidence; derive the test from the required-artifact list (for example `08-checkpoints.md` present AND `00-run-metadata.md` recording a terminal status), and state in a comment which artifact you keyed on and why. (b) NO-IPD `assess`: the workflow calls the run record one of "two durable outputs", and for a run that proposed no IPD it documents a closing report reading "Created: none." - in that case the run record is the ONLY output that run produced, so deleting it destroys the sole record of the assessment. Keep a run whose `ipd-link.md` is absent or records that no IPD was created (reason `sole-durable-output`). This overlaps E-03 deliberately: E-03 decides on the QUESTIONS hazard, this decides on the SOLE-OUTPUT hazard, and a run can trip either.
   - Depends on: E-03
   - Expected outcome: an unfinished or aborted `release-review` run and a no-IPD `assess` run are never planned for deletion, whatever their age.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `apply_prune(plan) -> list[Path]` that `shutil.rmtree`s only the `delete` entries, and before each removal re-checks that the path is a real directory (not a symlink) resolving inside the artifacts root; a path failing that check is skipped and reported, never deleted. The `is_symlink` half of that check is LOAD-BEARING and not belt-and-braces: measured at review, `Path.is_dir()` returns True for a symlink pointing at a directory, so an `is_dir`-only test would follow the link and `rmtree` the target outside the root. Use `shutil.rmtree(..., ignore_errors=False)` and let a failure be reported rather than swallowed, so a partial delete is visible.
+- [x] E-05 Add `apply_prune(plan) -> list[Path]` that `shutil.rmtree`s only the `delete` entries, and before each removal re-checks that the path is a real directory (not a symlink) resolving inside the artifacts root; a path failing that check is skipped and reported, never deleted. The `is_symlink` half of that check is LOAD-BEARING and not belt-and-braces: measured at review, `Path.is_dir()` returns True for a symlink pointing at a directory, so an `is_dir`-only test would follow the link and `rmtree` the target outside the root. Use `shutil.rmtree(..., ignore_errors=False)` and let a failure be reported rather than swallowed, so a partial delete is visible.
   - Depends on: E-01
   - Expected outcome: deletion is confined to planned depth-2 real directories under the root; a symlinked entry is skipped and reported.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: CLI surface
 
-- [ ] E-06 Route `aw archive workflow-artifacts` in `cli._run_archive`: check the literal token `workflow-artifacts` BEFORE `artifact_types.normalize_type` (it is not an artifact type; `normalize_type("workflow-artifacts")` raises today - verified at review: `ValueError: unknown artifact type 'workflow-artifacts'` - which is why it currently falls through to research and prints "no research doc or set matches 'workflow-artifacts'"). Add `--keep-last N` (default 5) to `p_archive`; reuse the existing `--age` and `--keep`, `--apply` and `--dir`. Two measured details to get right. FIRST, `args.age` defaults to `None`, not to a number (verified by parsing `archive workflow-artifacts`), so pass the route-local default explicitly as `duration.parse_age_duration(args.age, default_days=30)`; do NOT rely on the parser's own `default_days=14.0`. SECOND, `--keep` is ALREADY `action="append"`, so pinning several run ids works unchanged - but its help text reads "In a sweep, send this `<id6>` to reference instead of archive", which describes the research-specific MOVE and is wrong for this route; widen that help string to cover both meanings rather than leaving a flag whose documentation contradicts its behavior here. `aw archive all` stays research plus plans only. Add `--keep-last` to the `archive` `CommandDeclaration.legacy_flags` in `command_surface.py`; `mutation_gate="dry_run_default"` already fits and `discover_parser_leaves` reports `archive` as a single leaf, so no new declaration is needed (both verified at review). Do not call `_offer_archive_commit`: the tree is untracked, so there is nothing to commit.
+- [x] E-06 Route `aw archive workflow-artifacts` in `cli._run_archive`: check the literal token `workflow-artifacts` BEFORE `artifact_types.normalize_type` (it is not an artifact type; `normalize_type("workflow-artifacts")` raises today - verified at review: `ValueError: unknown artifact type 'workflow-artifacts'` - which is why it currently falls through to research and prints "no research doc or set matches 'workflow-artifacts'"). Add `--keep-last N` (default 5) to `p_archive`; reuse the existing `--age` and `--keep`, `--apply` and `--dir`. Two measured details to get right. FIRST, `args.age` defaults to `None`, not to a number (verified by parsing `archive workflow-artifacts`), so pass the route-local default explicitly as `duration.parse_age_duration(args.age, default_days=30)`; do NOT rely on the parser's own `default_days=14.0`. SECOND, `--keep` is ALREADY `action="append"`, so pinning several run ids works unchanged - but its help text reads "In a sweep, send this `<id6>` to reference instead of archive", which describes the research-specific MOVE and is wrong for this route; widen that help string to cover both meanings rather than leaving a flag whose documentation contradicts its behavior here. `aw archive all` stays research plus plans only. Add `--keep-last` to the `archive` `CommandDeclaration.legacy_flags` in `command_surface.py`; `mutation_gate="dry_run_default"` already fits and `discover_parser_leaves` reports `archive` as a single leaf, so no new declaration is needed (both verified at review). Do not call `_offer_archive_commit`: the tree is untracked, so there is nothing to commit.
   - Depends on: E-04, E-05
   - Expected outcome: preview is the default and writes nothing; `--apply` deletes exactly the previewed set; `--keep` accepts repetition and its help text is true for both routes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Make the route's OUTPUT say what it is doing, since this is the one `archive` route that DELETES rather than moves. Preview prints one line per run as `would delete <workflow>/<run-id> (<age>d, <reason>)`, then the kept count, the total bytes reclaimable, and the closing `preview only; re-run with --apply to delete`. Under `--apply` it prints `deleted ...` lines. A run KEPT for a reader-safety reason (`open-questions`, `unreviewed-decisions`, `unfinished-run`, `sole-durable-output`, `pinned`) must be named in the preview with its reason rather than folded into a bare count, because a silently-kept run is indistinguishable from a bug and the operator cannot otherwise tell the guard worked. A missing tree is an empty result, exit 0.
+- [x] E-07 Make the route's OUTPUT say what it is doing, since this is the one `archive` route that DELETES rather than moves. Preview prints one line per run as `would delete <workflow>/<run-id> (<age>d, <reason>)`, then the kept count, the total bytes reclaimable, and the closing `preview only; re-run with --apply to delete`. Under `--apply` it prints `deleted ...` lines. A run KEPT for a reader-safety reason (`open-questions`, `unreviewed-decisions`, `unfinished-run`, `sole-durable-output`, `pinned`) must be named in the preview with its reason rather than folded into a bare count, because a silently-kept run is indistinguishable from a bug and the operator cannot otherwise tell the guard worked. A missing tree is an empty result, exit 0.
   - Depends on: E-06
   - Expected outcome: the preview names every deletion candidate with its age and reason AND every reader-safety keep with its reason, and closes with the `--apply` hint; a missing tree prints an empty result and exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Document the retention verb in `.aw/system/workflows/templates/workflow-artifacts-README.md` under a short "Reclaiming space" section: the command, the keep rule, that runs with unresolved questions or unfinished state are always kept, and that deletion is permanent because the tree is untracked. Reconcile it with what that README ALREADY says rather than appending a contradiction: it currently states "treat its contents as disposable working material" and "Nothing here survives a fresh clone", which is true for scratch but is precisely the sentence that makes deleting a no-IPD `assess` run look safe (E-04). Add the qualification that a run whose workflow calls its record a durable output is the exception, and that the prune verb keeps those. No em or en dashes (user-facing prose).
+- [x] E-08 Document the retention verb in `.aw/system/workflows/templates/workflow-artifacts-README.md` under a short "Reclaiming space" section: the command, the keep rule, that runs with unresolved questions or unfinished state are always kept, and that deletion is permanent because the tree is untracked. Reconcile it with what that README ALREADY says rather than appending a contradiction: it currently states "treat its contents as disposable working material" and "Nothing here survives a fresh clone", which is true for scratch but is precisely the sentence that makes deleting a no-IPD `assess` run look safe (E-04). Add the qualification that a run whose workflow calls its record a durable output is the exception, and that the prune verb keeps those. No em or en dashes (user-facing prose).
   - Depends on: E-07
   - Expected outcome: the README names `aw archive workflow-artifacts` and `--apply`, and its disposability sentence carries the durable-output exception.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and suite
 
-- [ ] E-09 Add `tests/test_workflow_artifacts_prune.py` building a temp tree and asserting the planner and deleter. The tree: `assess-bugs` with 7 dated runs, `release-review` with 2, one undated run id, a README FILE at depth 1, a symlinked run dir whose target holds a sentinel file, one aged run with an unresolved `open-questions.md`, one aged `assess` run with a prose `decisions.md` and NO `open-questions.md` (the E-03 case, which is the shape the measured tree actually contains), one aged `assess` run whose `ipd-link.md` records no IPD (the E-04(b) case), and one `release-review` run missing its completion artifact (the E-04(a) case). Assert: newest N kept per workflow; young runs kept even beyond N; each of the four reader-safety keeps fires with its own reason; `--keep` pins; undated run falls back to mtime; README file and symlink target both untouched (check the sentinel file still exists); `--apply` removes exactly the previewed set. Include at least one FAIL-WITHOUT-FIX demonstration per reader-safety rule, since a keep rule that never fires is indistinguishable from a passing test.
+- [x] E-09 Add `tests/test_workflow_artifacts_prune.py` building a temp tree and asserting the planner and deleter. The tree: `assess-bugs` with 7 dated runs, `release-review` with 2, one undated run id, a README FILE at depth 1, a symlinked run dir whose target holds a sentinel file, one aged run with an unresolved `open-questions.md`, one aged `assess` run with a prose `decisions.md` and NO `open-questions.md` (the E-03 case, which is the shape the measured tree actually contains), one aged `assess` run whose `ipd-link.md` records no IPD (the E-04(b) case), and one `release-review` run missing its completion artifact (the E-04(a) case). Assert: newest N kept per workflow; young runs kept even beyond N; each of the four reader-safety keeps fires with its own reason; `--keep` pins; undated run falls back to mtime; README file and symlink target both untouched (check the sentinel file still exists); `--apply` removes exactly the previewed set. Include at least one FAIL-WITHOUT-FIX demonstration per reader-safety rule, since a keep rule that never fires is indistinguishable from a passing test.
   - Depends on: E-08
   - Expected outcome: planner and deleter tests pass, and each reader-safety rule is shown failing when its rule is disabled.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Add the CLI-surface tests and run the bare suite. Through `cli.main(["archive","workflow-artifacts","--dir",tmp])`: preview leaves the tree byte-identical (compare a `find | sort` digest before and after); `--apply` removes exactly the previewed set; a missing tree exits 0; `archive all` does not touch the tree; `--keep` given twice pins both runs. Also assert the route's exit codes stay inside the `archive` declaration's `exit_contract` of `(0, 2)` (verified at review) - in particular that a skipped-because-unsafe path does NOT introduce a bare exit 1, since the declaration does not permit it and the conformance matrix reads that contract. Then run the bare suite `python3 -m pytest`.
+- [x] E-10 Add the CLI-surface tests and run the bare suite. Through `cli.main(["archive","workflow-artifacts","--dir",tmp])`: preview leaves the tree byte-identical (compare a `find | sort` digest before and after); `--apply` removes exactly the previewed set; a missing tree exits 0; `archive all` does not touch the tree; `--keep` given twice pins both runs. Also assert the route's exit codes stay inside the `archive` declaration's `exit_contract` of `(0, 2)` (verified at review) - in particular that a skipped-because-unsafe path does NOT introduce a bare exit 1, since the declaration does not permit it and the conformance matrix reads that contract. Then run the bare suite `python3 -m pytest`.
   - Depends on: E-09
   - Expected outcome: CLI tests pass, the route's exits stay within `(0, 2)`, and the bare suite is green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,55 +169,209 @@ Temp-tree unit tests for the planner and deleter, including a fixture for EACH o
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_workflow_artifacts_prune.py -k "keep_last or younger or undated or depth" -v` showing those tests PASSED, including the undated-run mtime fallback test and the test that a run with id `20260703-...` but mtime today is treated as aged. Also paste a direct demonstration that the planner wrote nothing: a `find <tmp> | sort | sha256sum` identical before and after a `plan_prune` call.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    ```
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_dated_run_with_today_mtime_is_aged_undated_check PASSED [ 20%]
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_depth_and_non_dir_skipped PASSED [ 40%]
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_undated_run_mtime_fallback PASSED [ 60%]
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_keep_last_and_retention PASSED [ 80%]
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_younger_than_days_kept PASSED [100%]
 
-- [ ] V-02 validates E-02
+    ======================= 5 passed, 18 deselected in 0.17s =======================
+    ```
+    Demonstration that `plan_prune` performs zero filesystem writes:
+    ```
+    Before: 423c66dce46d28a415a09a31d4ee0726716be3ce27485fe56e83b334ab15b99b  -
+    After:  423c66dce46d28a415a09a31d4ee0726716be3ce27485fe56e83b334ab15b99b  -
+    Identical before and after plan_prune!
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the passing run of the `open-questions` and pin tests; AND paste the same open-questions test FAILING (`1 failed`) with the E-02 rule temporarily commented out, then restored. Also paste the output of a `set_records.write_local_projections(tmp, wf, rid, [])` call listing the three files it created, which is the measurement establishing that this rule's reach is limited to that writer and therefore why E-03 exists.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    Passing test:
+    ```
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_open_questions PASSED [ 50%]
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_pinned PASSED [100%]
 
-- [ ] V-03 validates E-03
+    ======================= 2 passed, 21 deselected in 0.18s =======================
+    ```
+    Failing demonstration with E-02 rule disabled:
+    ```
+    FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_open_questions - AssertionError: 'delete' != 'keep'
+    ======================= 1 failed, 22 deselected in 0.18s =======================
+    ```
+    Output of `set_records.write_local_projections`:
+    ```
+    Created files: ['decisions.md', 'deferred-work.md', 'open-questions.md']
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the passing test for the `assess`-shape run (a `decisions.md` with prose questions and NO `open-questions.md`) showing it is KEPT with reason `unreviewed-decisions`, and the paired test showing a run WITH a resolvable `ipd-link.md` is prunable. Then paste the same keep test FAILING with the E-03 rule disabled, restored afterwards. This is the plan's most important single piece of evidence: review measured that without this rule NO run in the real tree is protected, because the only shape present there is the one E-02 cannot see.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    Passing tests:
+    ```
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_assess_unreviewed_decisions PASSED [ 50%]
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_assess_with_resolvable_ipd_link_is_prunable PASSED [100%]
 
-- [ ] V-04 validates E-04
+    ======================= 2 passed, 21 deselected in 0.20s =======================
+    ```
+    Failing demonstration with E-03 rule disabled:
+    ```
+    FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_assess_unreviewed_decisions - AssertionError: 'delete' != 'keep'
+    ======================= 1 failed, 22 deselected in 0.17s =======================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste passing tests for BOTH cases with their distinct reasons - an in-progress/aborted `release-review` run kept as `unfinished-run`, and a no-IPD `assess` run kept as `sole-durable-output` - plus each FAILING with its rule disabled. State in the evidence which completion artifact you keyed the `release-review` test on and quote the protocol sentence that justifies it, since review found the protocol calls that directory "the authoritative run record" and the choice of discriminator is the whole safety of this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    Passing tests:
+    ```
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_assess_no_ipd_sole_durable_output PASSED [ 50%]
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_release_review_unfinished PASSED [100%]
 
-- [ ] V-05 validates E-05
+    ======================= 2 passed, 21 deselected in 0.17s =======================
+    ```
+    Failing demonstrations with rules disabled:
+    1. `unfinished-run` rule disabled:
+    ```
+    FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_release_review_unfinished - AssertionError: 'delete' != 'keep'
+    ======================= 1 failed, 22 deselected in 0.18s =======================
+    ```
+    2. `sole-durable-output` rule disabled:
+    ```
+    FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_assess_no_ipd_sole_durable_output - AssertionError: 'delete' != 'keep'
+    ======================= 1 failed, 22 deselected in 0.18s =======================
+    ```
+    Release-review completion artifact choice: keyed on `12-final-response.md`.
+    Protocol justification from `.aw/system/workflows/release-review/00-run-protocol.md`:
+    - Line 305: "Write the response to `.aw/workflow-artifacts/release-review/<RUN_ID>/12-final-response.md` (the authoritative run record, gitignored so local context does not leak)."
+    - Line 489: "Section 8 writes the final response into the run record (`12-final-response.md`)."
+    Without `12-final-response.md`, the run is in-progress or aborted pre-flight and constitutes resumable working state, protected as `unfinished-run`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the passing symlink-confinement test showing the symlink TARGET directory and its sentinel file still exist after `apply_prune`, and the depth-1 README file still present. Additionally paste a run of the same test with the `is_symlink` half of the check removed, showing it FAILS (the sentinel gone or the target removed), since review measured `is_dir()` to be True for a symlinked directory and that is the only thing distinguishing a safe deleter from one that escapes the root.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    Passing test:
+    ```
+    tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_symlink_confinement_sentinel_safe PASSED [100%]
 
-- [ ] V-06 validates E-06
+    ======================= 1 passed, 22 deselected in 0.17s =======================
+    ```
+    Failing demonstration with `p.is_symlink()` check disabled in `apply_prune`:
+    ```
+    FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_symlink_confinement_sentinel_safe - AssertionError: False is not true
+    ======================= 1 failed, 22 deselected in 0.19s =======================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m agent_workflows archive workflow-artifacts --dir <tmp>` showing the route is reached (no "no research doc or set matches" line). Paste `rg -n '"--keep-last"' agent_workflows/command_surface.py` showing the flag declared in `legacy_flags`. Paste a test asserting the effective age default is 30 days when `--age` is absent (review measured `args.age is None`, so a route that forgot `default_days=30` would silently use 14). Paste the widened `--keep` help text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    Route reached:
+    ```
+    $ python3 -m agent_workflows archive workflow-artifacts --dir <tmp>
+    ✓ CLEAN  no workflow artifacts to prune
+    ```
+    Command surface declaration:
+    ```
+    $ rg -n '"--keep-last"' agent_workflows/command_surface.py
+    544:        legacy_flags=("--keep", "--apply", "--keep-last"),
+    ```
+    Effective age default test passing:
+    ```
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_default_age_is_30_days PASSED [100%]
 
-- [ ] V-07 validates E-07
+    ======================= 1 passed, 22 deselected in 0.35s =======================
+    ```
+    Widened `--keep` help text from `aw archive --help`:
+    ```
+      --keep KEEP           In a sweep, send this <id6> to reference instead of
+                            archive, or pin a run id against pruning.
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste a preview against a tree containing at least one deletion candidate AND at least one reader-safety keep, showing a `would delete <workflow>/<run-id> (<age>d, <reason>)` line for the candidate, a NAMED line with its reason for the keep, the kept count, the reclaimable bytes, and the closing `preview only; re-run with --apply to delete`. Separately paste the missing-tree invocation showing an empty result and exit 0 (echo the exit code).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    Preview against tree:
+    ```
+    $ aw archive workflow-artifacts --dir <tmp> --keep-last 0
+    would delete custom-wf/20260701-01 (87d, aged)
+    keep custom-wf/20260702-02 (open-questions)
+    kept: 1 run(s)
+    reclaimable: 5 bytes
+    preview only; re-run with --apply to delete
+    RC: 0
+    ```
+    Missing-tree invocation:
+    ```
+    $ aw archive workflow-artifacts --dir <empty-tmp>
+    ✓ CLEAN  no workflow artifacts to prune
+    EXIT: 0
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste `rg -n "aw archive workflow-artifacts|--apply" .aw/system/workflows/templates/workflow-artifacts-README.md` with at least one hit each, and `rg -n "[\u2013\u2014]" .aw/system/workflows/templates/workflow-artifacts-README.md` returning no hits. Also quote the sentence you added qualifying the existing "treat its contents as disposable working material" claim, so the reconciliation E-08 requires is visible rather than assumed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    ```
+    $ rg -n "aw archive workflow-artifacts|--apply" .aw/system/workflows/templates/workflow-artifacts-README.md
+    32:aw archive workflow-artifacts
+    38:aw archive workflow-artifacts --apply
+    ```
+    Dash check (zero hits):
+    ```
+    $ rg -n "[\u2013\u2014]" .aw/system/workflows/templates/workflow-artifacts-README.md
+    (exit code 1, zero matches)
+    ```
+    Qualification sentence:
+    "Because this tree is untracked, treat its contents as disposable working material, with the exception of runs whose workflow calls their record a durable output (such as an assess run where no IPD was created, or an in-progress release-review run). Nothing here survives a fresh clone."
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste the planner/deleter test run summary (`N passed`) and, in one place, the four fail-without-fix results from V-02/V-03/V-04/V-05 listed together, so a reviewer can see every reader-safety rule was independently shown to fire. A rule with no failing demonstration does not count as validated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    Planner and deleter test suite summary:
+    ```
+    ======================= 14 passed, 9 deselected in 0.21s =======================
+    ```
+    Four fail-without-fix demonstrations:
+    1. V-02 (`open-questions` disabled): `FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_open_questions - AssertionError: 'delete' != 'keep'`
+    2. V-03 (`unreviewed-decisions` disabled): `FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_assess_unreviewed_decisions - AssertionError: 'delete' != 'keep'`
+    3. V-04a (`unfinished-run` disabled): `FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_release_review_unfinished - AssertionError: 'delete' != 'keep'`
+       V-04b (`sole-durable-output` disabled): `FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_reader_safety_assess_no_ipd_sole_durable_output - AssertionError: 'delete' != 'keep'`
+    4. V-05 (`is_symlink` check disabled in deleter): `FAILED tests/test_workflow_artifacts_prune.py::TestWorkflowArtifactsPrune::test_symlink_confinement_sentinel_safe - AssertionError: False is not true`
+  - Result: pass
 
-- [ ] V-10 validates E-10
+- [x] V-10 validates E-10
   - Required evidence: paste the CLI test results including the before/after `find <tmp>/.aw/workflow-artifacts | sort | sha256sum` identical across a preview, the `--apply` output whose `deleted` lines match the preview's `would delete` lines exactly, the missing-tree exit 0, the `archive all` isolation assertion, the repeated-`--keep` assertion, and the exit-code assertion showing the route stays within `(0, 2)`. Then paste the final summary line of the bare `python3 -m pytest` showing 0 failed (bare per AGENTS.md: no `-n0`, no extra `-q`, no `-p no:randomly`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS; see the pasted evidence below.
+    CLI test suite:
+    ```
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_preview_byte_identity PASSED [ 11%]
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_preview_output_format PASSED [ 22%]
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_exit_contract PASSED [ 33%]
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_apply_matches_preview PASSED [ 44%]
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_archive_all_does_not_touch_workflow_artifacts PASSED [ 55%]
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_command_surface_declaration PASSED [ 66%]
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_repeated_keep_pins_both PASSED [ 77%]
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_missing_tree_exits_zero PASSED [ 88%]
+    tests/test_workflow_artifacts_prune.py::TestCliSurface::test_cli_default_age_is_30_days PASSED [100%]
+
+    ======================= 9 passed, 14 deselected in 0.83s =======================
+    ```
+    Bare `python3 -m pytest` full suite run:
+    ```
+    2280 passed, 1 skipped, 3 warnings in 41.86s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

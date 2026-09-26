@@ -21,8 +21,25 @@ permanent, so committing one publishes machine identity into it unrecoverably. T
 the ignore rule should be left alone: do not remove it, and do not force-add a path under
 here.
 
-Because this tree is untracked, treat its contents as disposable working material. Nothing
+Because this tree is untracked, treat its contents as disposable working material, with the exception of runs whose workflow calls their record a durable output (such as an assess run where no IPD was created, or an in-progress release-review run). Nothing
 here survives a fresh clone.
+
+## Reclaiming space
+
+To preview and prune aged runs, run:
+
+```sh
+aw archive workflow-artifacts
+```
+
+By default this previews deletions without modifying disk. To permanently delete candidate runs, re-run with:
+
+```sh
+aw archive workflow-artifacts --apply
+```
+
+The prune rule keeps the newest 5 runs per workflow and any run younger than 30 days. Runs with unresolved questions, unreviewed decisions, unfinished release reviews, or runs that represent a sole durable output are always kept regardless of age. Deletion is permanent because the tree is untracked.
+
 
 ## Where durable review history goes instead
 
