@@ -6,7 +6,7 @@
 - Scope: IN: `runner_shared.lane_reclaim_prompt` taking suppression and timeout as PARAMETERS with each host's `_lane_reclaim_prompt` a one-statement delegation (the flag, `disable_lane_prompt` and `LANE_PROMPT_TIMEOUT` stay per host); `runner_shared.retry_deferred_integrations` on oc's body with host bindings injected, both hosts one-statement delegations; deleting both dead host `_record_forced_stop` definitions; one behavioral test module; correcting the docstrings that call `_lane_reclaim_prompt` "DIVERGED" or cite test files deleted in `19313eed`. OUT: the four `cdxcbh` symbols; `runner_shared._record_forced_stop` itself (`afpmdu`); the five host shells; `handle_audit_command`; `disable_lane_prompt` (stays per host by design); the unused `validation_runner_for` parameter of `runner_shared.reattempt_deferred_integrations`.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_forkresid_shared_shells.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,11 +15,11 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 184tn9
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: dstnso
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 184tn9 verified (set forkresid, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
