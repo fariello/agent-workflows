@@ -3845,7 +3845,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 metavar="N",
                 help="Limit search to N directory levels below each record root (0 = the root itself).",
             )
-        elif _verb != "check":
+        elif _verb not in ("search", "find", "check"):
             _p.add_argument(
                 "type",
                 help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all'.",
@@ -3878,10 +3878,35 @@ def _build_parser() -> argparse.ArgumentParser:
             )
             _p.add_argument(
                 "--short",
-                "-s",
+                "-S",
                 dest="short",
                 action="store_true",
                 help="Print matching files with type and status in attention format (- [type] path (status)).",
+            )
+            _p.add_argument(
+                "--type",
+                "-t",
+                "--tree",
+                dest="types",
+                action="append",
+                default=[],
+                help="Filter by artifact type (plans/specs/backlog/research/releases/roadmaps/walkthroughs/prompts/comms/reviews). Supports multiple flags or comma-separated lists (e.g. -t plans,specs or -t plans -t specs).",
+            )
+            _p.add_argument(
+                "--status",
+                "-s",
+                dest="status",
+                action="append",
+                default=[],
+                help="Filter by artifact status (e.g. open, to-review, reviewed, approved). Supports multiple flags or comma-separated lists (e.g. -s open,to-review or -s open -s to-review).",
+            )
+            _p.add_argument(
+                "--full",
+                "-F",
+                dest="full",
+                action="store_true",
+                default=False,
+                help="Search the entire artifact body. Without it, only search the file name and metadata/front-matter.",
             )
         # backend-relevant passthrough flags (index/find/check)
         _p.add_argument(
@@ -3889,7 +3914,8 @@ def _build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="Validation mode (index/check): fail on drift.",
         )
-        _p.add_argument("--status", default=None, help="Filter/selector: status.")
+        if _verb != "search":
+            _p.add_argument("--status", default=None, help="Filter/selector: status.")
         _p.add_argument("--id", default=None, help="Filter/selector: id6.")
         _p.add_argument("--set", default=None, help="Filter/selector: Set id.")
         _p.add_argument(
@@ -11600,6 +11626,8 @@ def _run_search(
     from pathlib import Path
 
     from agent_workflows import artifact_types as at
+    from agent_workflows import attention as att
+    from agent_workflows import selectors
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
@@ -11611,12 +11639,37 @@ def _run_search(
     ctx = context or select_output(args)
     raw_type = getattr(args, "type", None)
     raw_selector = list(getattr(args, "selector", None) or [])
+    flag_types = list(getattr(args, "types", None) or [])
+    flag_status = list(getattr(args, "status", None) or [])
+    full_search = bool(getattr(args, "full", False))
+    line_numbers = bool(getattr(args, "line_numbers", False))
+    short_format = bool(getattr(args, "short", False))
+    files_only = bool(getattr(args, "files_only", False))
+    paths_only = bool(getattr(args, "paths", False))
 
-    if at.is_type_token(raw_type):
+    if flag_types:
+        parsed_types = att.parse_type_filters(flag_types)
+        types_set = set()
+        for t_tok in parsed_types:
+            if t_tok == "all":
+                types_set.update(at.ARTIFACT_TYPES)
+            elif at.is_type_token(t_tok):
+                types_set.add(at.normalize_type(t_tok))
+            else:
+                types_set.add(att.TYPE_ALIASES.get(t_tok, t_tok))
+        norm = (
+            sorted(types_set)[0]
+            if len(types_set) == 1
+            else (",".join(sorted(types_set)) if types_set else "all")
+        )
+        pattern_tokens = ([raw_type] if raw_type is not None else []) + raw_selector
+    elif at.is_type_token(raw_type):
         norm = at.normalize_type(raw_type)
+        types_set = set(at.ARTIFACT_TYPES) if norm == "all" else {norm}
         pattern_tokens = raw_selector
     else:
         norm = "all"
+        types_set = set(at.ARTIFACT_TYPES)
         pattern_tokens = ([raw_type] if raw_type is not None else []) + raw_selector
 
     pattern = " ".join(pattern_tokens) if pattern_tokens else None
@@ -11646,19 +11699,30 @@ def _run_search(
         return 2
 
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
-    types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
-    line_numbers = getattr(args, "line_numbers", False)
-    short_format = getattr(args, "short", False)
-    files_only = getattr(args, "files_only", False)
+    types = [t for t in at.ARTIFACT_TYPES if t in types_set]
+    status_filters = att.parse_status_filters(flag_status)
 
     hits = 0
     json_results = []
     matching_files = []
 
+    _YAML_FENCE_OPEN_RE = re.compile(r"\A---[ \t]*\r?\n")
+    _YAML_FENCE_CLOSE_RE = re.compile(r"(?m)^---[ \t]*\r?$")
+    _METADATA_END_RE = re.compile(r"(?m)^##[ \t]+")
+
     def _artifact_status(p: Path, text: str) -> str:
+        m_open = _YAML_FENCE_OPEN_RE.match(text)
+        if m_open:
+            m_close = _YAML_FENCE_CLOSE_RE.search(text, m_open.end())
+            if m_close:
+                m_st = re.search(
+                    r"(?m)^status:\s*(\S+)", text[m_open.end() : m_close.start()]
+                )
+                if m_st:
+                    return m_st.group(1).lower().strip("\"'")
         m = re.search(r"(?m)^-\s*Status:\s*(\S+)", text)
         if m:
-            return m.group(1)
+            return m.group(1).lower()
         parts = p.parts
         for bucket in (
             "executed",
@@ -11672,8 +11736,8 @@ def _run_search(
             "open",
             "done",
             "parked",
-            "todo",  # rstodo p3o9je: research hot state (renamed from `intake`)
-            "intake",  # legacy alias kept for any unmigrated on-disk path bucket
+            "todo",
+            "intake",
             "reference",
             "archived",
             "planned",
@@ -11684,27 +11748,83 @@ def _run_search(
         return "-"
 
     item_map = None
-    if short_format:
+    if short_format or status_filters:
         try:
-            from agent_workflows import attention as att
-
             items_scanned, _ = att.scan(repo_root)
             item_map = {(repo_root / it.path).resolve(): it for it in items_scanned}
         except Exception:
             item_map = {}
 
+    seen_files = set()
     for t in types:
-        for base in (repo_root / ".aw" / "records" / t, repo_root / ".agents" / t):
+        bases = selectors.record_dirs(repo_root, t) or [
+            repo_root / ".aw" / "records" / t,
+            repo_root / ".agents" / t,
+        ]
+        for base in bases:
             if not base.is_dir():
                 continue
             for p in sorted(base.rglob("*.md")):
+                resolved_p = p.resolve()
+                if resolved_p in seen_files:
+                    continue
+                seen_files.add(resolved_p)
                 try:
                     text = p.read_text(encoding="utf-8")
                 except OSError:
                     continue
 
+                # Status filtering
+                file_status = None
+                if item_map and resolved_p in item_map:
+                    file_status = item_map[resolved_p].native_status
+                if not file_status:
+                    file_status = _artifact_status(p, text)
+
+                if status_filters:
+                    norm_st = file_status.lower()
+                    if (
+                        norm_st not in status_filters
+                        and norm_st.replace("_", "-") not in status_filters
+                    ):
+                        continue
+
+                try:
+                    rel_p = str(p.relative_to(repo_root))
+                except ValueError:
+                    rel_p = str(p)
+
+                filename_matched = bool(rx.search(p.name) or rx.search(rel_p))
+
+                all_lines = text.split("\n")
+                if full_search:
+                    search_lines = list(enumerate(all_lines, 1))
+                else:
+                    m_open = _YAML_FENCE_OPEN_RE.match(text)
+                    if m_open is not None:
+                        m_close = _YAML_FENCE_CLOSE_RE.search(text, m_open.end())
+                        if m_close is not None:
+                            end_offset = m_close.end()
+                            line_count = text[:end_offset].count("\n") + 1
+                            post_fence = text[end_offset:]
+                            m_h1 = re.search(r"\A([ \t]*\r?\n)*#\s+[^\n]+", post_fence)
+                            if m_h1 is not None:
+                                line_count += text[
+                                    end_offset : end_offset + m_h1.end()
+                                ].count("\n")
+                            search_lines = list(enumerate(all_lines[:line_count], 1))
+                        else:
+                            search_lines = list(enumerate(all_lines, 1))
+                    else:
+                        m_end = _METADATA_END_RE.search(text)
+                        if m_end is not None:
+                            line_count = text[: m_end.start()].count("\n")
+                            search_lines = list(enumerate(all_lines[:line_count], 1))
+                        else:
+                            search_lines = list(enumerate(all_lines, 1))
+
                 file_matches = []
-                for i, line in enumerate(text.split("\n"), 1):
+                for i, line in search_lines:
                     if rx.search(line):
                         hits += 1
                         file_matches.append((i, line))
@@ -11712,24 +11832,17 @@ def _run_search(
                             {"path": str(p), "line": i, "text": line.strip()}
                         )
 
+                if filename_matched and not file_matches:
+                    hits += 1
+                    file_matches.append((0, p.name))
+                    json_results.append({"path": str(p), "line": 0, "text": p.name})
+
                 if file_matches:
                     matching_files.append(str(p))
                     if not (ctx.is_agent or ctx.is_json):
                         if short_format:
-                            from agent_workflows import attention as att
-
-                            it = item_map.get(p.resolve()) if item_map else None
+                            it = item_map.get(resolved_p) if item_map else None
                             if it:
-                                # `aw search --short` RENDERS THE SAME `attention.Item` THE BOARD
-                                # DOES, so it must render it the same way (criterion A17). Plan
-                                # `f9t5hz` converted `attention.py`'s three row builders and this
-                                # FOURTH consumer of the same object was left on the old table,
-                                # which made the two views disagree out loud: measured 2026-09-20,
-                                # `aw search --short` painted `approved` bright green 46 while `aw
-                                # attention` painted the identical item 45 with a `◕`, i.e. this
-                                # view showed a not-yet-run plan in the color the board uses for a
-                                # merged one. It routes through `attention`'s own resolution seam
-                                # rather than a local copy so the two cannot drift again.
                                 status_word = it.native_status
                                 _res = att._resolve_item_lifecycle(
                                     it.tree, it.native_status
@@ -11752,7 +11865,6 @@ def _run_search(
                                 blk = (age + gate_glyph + rb_glyph).strip()
                                 lead = f"{blk:<3}" if blk else "   "
                                 path_txt = att._identity_stem(it.path)
-                                # PLAIN TYPE WORD (criterion A10), matching the board after `f9t5hz`.
                                 type_word = att._SINGULAR_TYPE.get(it.tree, it.tree)
                                 type_prefix = (
                                     type_word
@@ -11790,26 +11902,11 @@ def _run_search(
                                     f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{blocking}{inline_gate}"
                                 )
                             else:
-                                try:
-                                    rel = str(p.relative_to(repo_root))
-                                except ValueError:
-                                    rel = str(p)
-                                stem = att._identity_stem(rel)
-                                # THE NO-ATTENTION-ITEM FALLBACK ROW, converted through the SAME
-                                # helper `aw find` uses (criterion A17: these two commands render
-                                # the same artifact types and must agree). The helper is the right
-                                # seam rather than a bare `resolve_lifecycle` call for a measured
-                                # reason: `_artifact_status` above falls back to a DIRECTORY BUCKET
-                                # when a file carries no `- Status:` line, and several buckets
-                                # (`pending/` for plans, notably) are not statuses of their type at
-                                # all, so passing one straight to the resolver would render
-                                # criterion A20's `?` where a user reads a word today. That
-                                # translation lives in `_find_status_and_id6`.
-                                status_word = _artifact_status(p, text)
+                                stem = att._identity_stem(rel_p)
+                                status_word = file_status or _artifact_status(p, text)
                                 status_padded, _unused_id6 = _find_status_and_id6(
                                     t, status_word, "", term
                                 )
-                                # PLAIN TYPE WORD (criterion A10).
                                 type_word = att._SINGULAR_TYPE.get(t, t)
                                 type_prefix = (
                                     type_word
@@ -11817,6 +11914,8 @@ def _run_search(
                                     + "  "
                                 )
                                 term.line(f"-    {status_padded}  {type_prefix}{stem}")
+                        elif paths_only:
+                            term.line(rel_p)
                         elif files_only:
                             file_header = (
                                 term.color256(str(p), 39, bold=True)
@@ -11842,6 +11941,12 @@ def _run_search(
                                     term.line(f"  {line_no} {highlighted}")
                                 else:
                                     term.line(f"  {highlighted}")
+
+    filters_data = {"type": norm, "pattern": pattern}
+    if status_filters:
+        filters_data["status"] = sorted(status_filters)
+    if full_search:
+        filters_data["full"] = True
 
     if ctx.is_agent or ctx.is_json:
         exit_code = 0 if hits else 1
@@ -11876,7 +11981,7 @@ def _run_search(
                 "hits": hits,
                 "files": matching_files,
                 "matches": json_results,
-                "filters": {"type": norm, "pattern": pattern},
+                "filters": filters_data,
             },
         )
         return get_renderer(ctx).emit(res, ctx)
@@ -11884,7 +11989,7 @@ def _run_search(
     if not hits:
         term.empty_result(
             summary=f"no matching lines for '{pattern}'",
-            filters={"type": norm, "pattern": pattern},
+            filters=filters_data,
             next_action=NextAction(
                 command="aw search <pattern>",
                 description="search with broader pattern",
