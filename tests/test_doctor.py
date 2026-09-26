@@ -202,6 +202,29 @@ class DoctorTests(unittest.TestCase):
             )
         self.assertIn("Starting aw doctor repository health check...", out.getvalue())
 
+    def test_probe_sanitizer_reports_leak_and_remediation(self) -> None:
+        """E-02/V-02: probe_sanitizer reports doctor.leak-<rule> Drift and recovered remediation."""
+        planted = "/home/" + "someuser" + "/x"
+        (self.root / "leaking_file.txt").write_text(planted + "\n", encoding="utf-8")
+        _git(self.root, "add", "leaking_file.txt")
+        _git(self.root, "commit", "-qm", "add leak")
+
+        res = doctor.probe_sanitizer(self.root)
+        self.assertFalse(
+            any(d.rule == "doctor.probe-failed" for d in res.drift),
+            f"probe_sanitizer unexpectedly failed: {[d.detail for d in res.drift if d.rule == 'doctor.probe-failed']}",
+        )
+        leak_drifts = [d for d in res.drift if d.rule == "doctor.leak-home-path"]
+        self.assertEqual(len(leak_drifts), 1)
+
+        # Assert recovered remediation command and next actions (F-3)
+        rem = doctor.build_remediation(leak_drifts[0], self.root)
+        self.assertEqual(rem.command, "aw sanitize --fix")
+        primary, actions = doctor.resolve_next_actions(res.drift, self.root)
+        self.assertEqual(primary, "aw sanitize --fix")
+        self.assertTrue(len(actions) > 0)
+        self.assertTrue(any(a.command == "aw sanitize --fix" for a in actions))
+
 
 class DoctorEnvironmentProbeReadsCanonicalPathsTests(unittest.TestCase):
     """h90ij1: doctor's environment probe must read the paths a real install actually writes.

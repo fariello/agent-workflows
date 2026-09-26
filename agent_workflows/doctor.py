@@ -679,15 +679,16 @@ def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
     try:
         findings = leak_sanitizer.scan_working_tree(repo_root)
         res.findings = findings
-        for f in findings:
-            res.drift.append(
-                core.Drift(
-                    f.location, f"doctor.leak-{f.rule}", f"{f.severity}: {f.matched}"
-                )
-            )
     except Exception as exc:
         res.drift.append(
             core.Drift("<sanitizer>", "doctor.probe-failed", str(exc)[:120])
+        )
+        return res
+    for f in findings:
+        res.drift.append(
+            core.Drift(
+                f.location, f"doctor.leak-{f.rule}", f"{f.severity}: {f.snippet[:120]}"
+            )
         )
     return res
 
