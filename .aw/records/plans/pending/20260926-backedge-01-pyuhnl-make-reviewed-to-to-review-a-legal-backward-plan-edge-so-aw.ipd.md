@@ -6,7 +6,7 @@
 - Scope: IN: (a) add `("reviewed", "to-review")` to `ipd_lifecycle._LEGAL_BACKWARD_EDGES`, per the maintainer's 2026-09-26 ruling (OQ-01); (b) amend the IPD spec's one-sentence enumeration of legal backward edges, which spec `2vev8j` 4.8 point 3 delegates to it, and declare that amendment; (c) correct the plans section of `docs/artifact-lifecycles.md`, whose "Moving backwards" example (`approved` -> `to-review`) names an edge the checker refuses both before and after this change; (d) behavioral tests: the scratch-repo repro through the real `aw ipd set` and `aw commit`, which FAILS before the change, plus controls proving un-enumerated backward edges (`approved -> to-review`, `reviewed -> draft`) are still refused. OUT: downgrading or scoping `aw commit`'s plan gate (Carrier-Declined, see Deferred); any other backward edge; the spec lifecycle (`attention_contract.SPEC_TRANSITIONS`, which already permits `reviewed -> to-review`).
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md, docs/artifact-lifecycles.md, tests/test_ipd_lifecycle_backward_edges.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: pyuhnl
+- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, none deferred, no open question raised. Reviewed at HEAD `5a6b144e`; `aw ipd lint --phase author` conformed before revision. EVERY authored claim reproduced: the F-1 defect was re-run end to end on a scratch repo and produced the quoted refusal verbatim (`aw ipd set to-review` exit 0, then `aw commit` exit 1 naming check.lifecycle-transition-invalid), F-2s four predicate results, F-3s wrong doc example, F-4s clean live corpus and F-5s absent test coverage all hold, and both spec `2vev8j` 4.8 citations are accurate and load-bearing. WENT FURTHER AND MEASURED THE FIX (new F-6): applying the one-line frozenset addition in-process cleared the finding and made `aw commit` exit 0, while five un-enumerated backward edges (approved->to-review, reviewed->draft, approved->draft, executed->reviewed, to-review->draft) stayed REFUSED, so the fix is surgical and the rank comparison is provably still load-bearing. Three corrections: E-04 named the WRONG SECTION of the IPD spec (the sentence is in the bullet describing `## Workflow history` inside `## What an IPD MUST contain`, not in the spec own history log, where an executor could have rewritten a prior line the same bullet forbids rewriting), its hedge that `aw specs note` may refuse on an implemented spec is unfounded (`specs.run_note` reads no status), and V-04 asked for no new finding against an unstated non-zero `aw check specs` baseline of errors 1. Also established by sweep that E-05s docs fix is complete rather than a sample. Findings recorded in `.aw/records/reviews/20260926-backedge-01-pyuhnl-make-reviewed-to-to-review-a-legal-backward-plan-edge-so-aw.review.md`.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog qzo6dn on the maintainer's 2026-09-26 ruling that reviewed -> to-review is a legal backward plan edge (OQ-01). Defect re-measured at HEAD 61ef21d8: `aw ipd set to-review` on a reviewed scratch plan succeeds, and the next `aw commit <plan> -- src/f.py` refuses with check.lifecycle-transition-invalid.
 - 2026-09-26 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.

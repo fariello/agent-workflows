@@ -6,7 +6,7 @@
 - Scope: IN: an advisory CI step that runs the slow set; a notice on every default run naming how many tests were deselected and how to run them; the release-review final-validation section requiring the full-suite target; correcting the two comments that claim CI runs the full suite; recording the fail-closed flip condition on the three owning bug items. OUT: fixing the 3 slow failures (owned by 57dwkc, 3ypquf, 4vfkl1); changing `addopts` itself.
 - Scope-Paths: .github/workflows/tests.yml, conftest.py, tests/deselect_notice.py, tests/test_deselect_notice.py, .aw/system/workflows/release-review/08-final-ship-review.md, pyproject.toml, Makefile, .aw/records/backlog/open/20260918-57dwkc-01-57dwkc-deep-cleanup-orphans-layout-json.backlog.md, .aw/records/backlog/graduated/20260923-3ypquf-01-3ypquf-deep-cleanup-gitignored-readme-at-risk.backlog.md, .aw/records/backlog/open/20260918-4vfkl1-01-4vfkl1-installer-deep-cleanup-leaves-aw-dir.backlog.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 4petcj
+- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed in place
 
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED in place. Ran the described plugin design on a scratch fixture and it ABORTS under `-p no:xdist` (`PluginValidationError: unknown hook 'pytest_testnodedown'`, exit 3) because that hook is xdist-owned; `-n 0` cannot catch it, which is why the authored prototype passed. E-03 now registers it behind a `hasplugin("xdist")` probe (verified correct on `-n 2`/`-n 0`/`-p no:xdist`/`-m ""`) and E-04 gains a distinct `-n 0` case plus an INTERNALERROR-absent assertion. Re-measured the slow set: FOUR failures, not three, and the fourth (`SubcommandDescriptionTests::test_every_subparser_has_fuller_description`, eight subparser description gaps) is owned by NO backlog item and landed the same day via executed plan `8ud1is`, so E-02 now re-derives the set and files a gated bug item for any unowned failure. Corrected a `- Scope-Paths:` entry pointing at a moved file (`3ypquf` is graduated), restated drifted counts as properties (174/2634 now, was 172/2411), and fixed the mis-quoted CI command (`-rs`, not `-q`). Verified the gate's stop condition is safe (`parse_suite_summary` still returns the count line with the NOTE present) and that nothing enforces the stale `managed-sections.json` digest. Findings F-7..F-12 added. Watermark unchanged at 06.

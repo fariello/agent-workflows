@@ -6,7 +6,7 @@
 - Scope: IN: (a) add `"--repo"` as a SECOND option string on each existing `--dir` argument under `aw runs`, with `dest="dir"` so every consumer is untouched: `_runs_viewer_flags`, `_register_run_leaf` (which also serves the `aw run` writing leaves `start`/`record`/`cancel`/`finalize`, which gain the alias too, since one helper registers both nouns), and the `runs analyze`/`runs query`/`runs export`/`runs submit` parsers; (b) add `"--repo"` to the `legacy_flags` of every `COMMAND_INVENTORY` declaration in `command_surface` that already lists `"--dir"` for one of those leaves (today only `runs list`), so the declared surface names the accepted spelling; (c) behavioral tests that parse real argv through `cli._build_parser()` and assert `args.dir`. OUT: adding `--dir` to `aw oc run` / `aw agy run` (deferred, see below); renaming either flag; changing any other command family's `--dir`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_runs_repo_alias.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8y13kn
+- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all FIXED. All four of the plan's findings hold, including F-3's exact leaf count (13 `runs` leaves plus the root), and both cited artifacts resolve. Review did not stop at the diagnosis: it APPLIED the six-site change, measured it, and reverted it, leaving `cli.py` byte-unchanged - the coverage walk returned an EMPTY violation set, ten argv shapes parsed to the same `args.dir`, `runs --repo <tmp>` exited 0 with output identical to `--dir`, the help line rendered `--dir, --repo DIR` with no help-string edit, and the bare suite held at `2436 passed, 1 skipped`. So the approach is demonstrated, recorded as F-5. The gaps were elsewhere. PR-901: the plan never checked that the alias becomes VISIBLE, although discoverability is its entire purpose; added E-06 (argparse renders it automatically, as the sibling `--last, --latest, -l` line in the same parser shows, but nothing would have noticed otherwise). PR-903: review lost a cycle to `aw` importing `agent_workflows` from a DIFFERENT checkout and showing stale help, so E-01/E-06 now mandate the in-tree route and a banner check. PR-904: neither check named for E-04 can detect a missing declaration (`find_undeclared_leaves` is about leaves; `declared - accepted` passes for a subset), so V-04 asserts the tuple directly. PR-902: the declared cross-noun widening to the four `aw run` writing leaves had no test; E-05 now covers it plus a derived coverage walk. PR-905: F-3's row had unescaped pipes (9 cells, not 6); while fixing it review mis-corrected the leaf count and caught itself by re-running the walk, so the plan's original number stands. 5 items -> 6 with a 6:6 E/V bijection. Review record: `.aw/records/reviews/20260926-runsrepo-01-8y13kn-accept-repo-as-an-alias-of-dir-on-aw-runs-so-the-run-footer.review.md`.
 - 2026-09-26 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all FIXED. All four findings hold; review APPLIED the six-site change, measured it (empty coverage-violation set, 10 argv shapes, end-to-end exit 0, help renders --dir/--repo, 2436 passed) and reverted it. 5 items -> 6.
 

@@ -6,7 +6,7 @@
 - Scope: IN: restore the recovered file as `tests/test_executed_transition_gate_e2e.py`, keeping only tests that assert outcomes; declare the execution role where the file drives `ipd_lifecycle.begin`/`finalize`; a module docstring stating its relation to kecxnb's file; PROVE COLLECTION by the bare suite (review PR-701: a filename pytest does not collect adds zero tests while the suite still reports green, so "the file exists and passes when named directly" is not evidence it runs); decide and record the `slow` marker per the project's documented convention (review PR-702). OUT: any change to the hook; kecxnb's file; restoring `tests/test_role_declaration_guard.py`, whose absence review found but which is a separate deleted file with its own restoration decision (review PR-704).
 - Scope-Paths: tests/test_executed_transition_gate_e2e.py
 - Item-Dependencies: executed:kecxnb
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6vozur
+- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701, PR-702, PR-703, PR-705 FIXED, PR-704 DEFERRED (over-scope). All four of the plan's own findings were REPRODUCED at HEAD `f375e650` and hold: the recovered file gives `6 passed` against the post-kecxnb hook, and `1 failed, 5 passed` under a worker-role re-assert, fixed to `6 passed` by the plan's exact E-02 remedy. The gaps were elsewhere. PR-701 (HIGH): the plan's success criteria cannot distinguish a real restoration from one that restores nothing - review restored the file under a non-conforming filename and the bare suite reported an unchanged, fully green `2436 passed` with all 6 tests uncollected, so E-04 now demands a test COUNT (+6 exactly). PR-702: the `slow` marker was declined on duration when `pyproject.toml` defines it by KIND, so E-03/OQ-02 now require a recorded decision with both sides' measurements. PR-703: the verification recipe hardcoded an out-of-workspace path, and its obvious simplification (`AW_EXECUTION_ROLE=worker`) reports `6 passed` against the UNFIXED file because `conftest.py` scrubs the marker. 3 items -> 5 with a 5:5 E/V bijection. Baseline recorded for the executor: `2436 passed, 1 skipped in 41.67s`. Review record: `.aw/records/reviews/20260926-restorecov-01-6vozur-restore-the-outcome-tests-of-the-deleted-executed-transition.review.md`.
 - 2026-09-26 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-701..PR-705 (PR-704 DEFERRED as over-scope). All four of the plan's findings reproduced and hold; the gaps were a missing collection check and an unexamined slow-marker convention. 3 items -> 5.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog ove09p: restore the 6-test executed-transition gate e2e suite from 19313eed^ as tests/test_executed_transition_gate_e2e.py; all six audited as outcome tests.
