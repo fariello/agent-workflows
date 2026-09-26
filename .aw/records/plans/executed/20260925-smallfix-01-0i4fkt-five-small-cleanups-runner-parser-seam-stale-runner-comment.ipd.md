@@ -6,7 +6,7 @@
 - Scope: IN: exactly those five concerns, across nine right-sized E-items. OUT: anything else in the files touched, plus four things review named explicitly and Deferred records with consequences: editing or deleting the orphaned fingerprint fixture, restoring a fingerprint/refork guard, flipping the adjacent `aw check release-gates` CI step, and sweeping the two terminal `.aw/records/` artifacts that still quote the dissolved record split.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_attention_contract.py, .github/workflows/tests.yml, .aw/records/specs/implemented/20260817-2124-01-records-taxonomy-cleanup.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 0i4fkt
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: ykfgpd
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0i4fkt verified (set smallfix, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 10 findings PR-401..PR-410 all FIXED, 6 decisions D-1..D-6 recorded; review record written; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlogs ykfgpd, 1gw7nl, 2rb85l, e85snf, q0m7qf (all verified live at HEAD; each E-group names its item). Measured: `oc_runipd.parse_plan_file is agy_runipd.parse_plan_file is runner_shared.parse_plan_file` -> True; `aw check backlog` -> conforms, exit 0; walkthrough of the git mv/rm --cached mechanism reproduced in a scratch repo.
