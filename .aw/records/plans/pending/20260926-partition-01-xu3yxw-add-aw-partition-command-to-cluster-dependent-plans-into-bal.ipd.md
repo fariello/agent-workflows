@@ -6,7 +6,7 @@
 - Scope: IN: (a) `agent_workflows/partition.py`: in-selection dependency graph, weakly connected components, balanced greedy packing, dependency-first ordering within a shard, oversized-component splitting, and command formatting; (b) candidate selection through the EXISTING resolvers (positional selectors, `--status`, `--priority`, `--max`, or whitespace-separated ids on stdin); (c) `-n`/`--shards K` (default 3); (d) `--run {oc,agy,as,none}` output with `--model`/`--variant` passthrough and `--as <profile>` routed through the host-neutral `aw run as <profile>`; (e) register `aw partition` in `agent_workflows/cli.py` and declare it in `agent_workflows/command_surface.py`'s `COMMAND_INVENTORY`; (f) behavioral and CLI tests in `tests/test_partition.py`; (g) a CHANGELOG entry. OUT: in-runner worker pools; launching runs or mutating any record (read-only command); non-plan artifact types (the runners dispatch plans only today; see Deferred).
 - Scope-Paths: agent_workflows/partition.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_partition.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -17,6 +17,7 @@
 - Id: xu3yxw
 
 ## Workflow history
+- 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED. Corrected two non-existent resolver names, replaced the head/tail placement rule (the runner re-sorts queues by dependency depth) with depth-ordered splitting plus reported cut edges, added the COMMAND_INVENTORY declaration the conformance test requires, routed --as through host-neutral `aw run as`, made stdin explicit, guarded empty shards, dropped the `batch` alias and `--type`. Readiness GO - PENDING HUMAN APPROVAL.
 - 2026-09-26 to-review (antigravity): authored review-ready plan for aw partition command.
