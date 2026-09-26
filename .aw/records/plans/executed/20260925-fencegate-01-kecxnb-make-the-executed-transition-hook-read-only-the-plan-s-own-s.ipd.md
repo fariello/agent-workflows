@@ -6,7 +6,7 @@
 - Scope: IN: `_has_executed_status` reads only the metadata region's FIRST `- Status:`; tests. OUT: the rest of the hook's logic; the sibling `check_engine._status_meta` residual case found at review (carried).
 - Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, tests/test_executed_transition_gate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,11 +15,11 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: kecxnb
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 4vhe5o
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kecxnb verified (set fencegate, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 6 findings PR-901..PR-906 all FIXED, 4 decisions D-1..D-4 recorded; review record written; reproduced the false refusal end to end and narrowed the trigger (F-3), found the first-bullet requirement (F-4), proved the fix regresses nothing by running the hook's deleted suite against it (6 passed), and filed items ove09p and pyk78c; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog 4vhe5o. Reproduced at HEAD: `_has_executed_status` on a plan whose own Status is `approved` but which quotes `- Status: executed` in a fence returns True.
