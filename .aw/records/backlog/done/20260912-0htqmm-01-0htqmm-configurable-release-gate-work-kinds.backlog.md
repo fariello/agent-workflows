@@ -1,5 +1,5 @@
 - Id: 0htqmm
-- Status: graduated
+- Status: done
 - Graduated-To: gatekinds
 - Set: 0htqmm
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Make the release-gating work-kind set configurable per repository, defaulting to bug alone, mirroring the shipped review_findings_gate key
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD kxawm4 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-gatekinds-01-kxawm4-make-the-release-gating-work-kind-set-configurable-per-repos.ipd.md); evidence .aw/records/plans/executed/20260925-gatekinds-01-kxawm4-make-the-release-gating-work-kind-set-configurable-per-repos.ipd.md
 - 2026-09-25 graduated (aw set): graduated into gatekinds plan kxawm4 (to-review)
 - 2026-09-12 created (aw backlog): Make the release-gating work-kind set configurable per repository, defaulting to bug alone, mirroring the shipped review_findings_gate key
 
