@@ -1,5 +1,6 @@
 - Id: xuc9v0
-- Status: open
+- Status: graduated
+- Graduated-To: slowvis
 - Blocks-Release: next
 - Set: xuc9v0
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: The default test command hides 33 real slow-marked failures, including every end-to-end runner-stop test; a green routine run proves less than it appears to
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set slowvis (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): The default test command hides 33 real slow-marked failures, including every end-to-end runner-stop test; a green routine run proves less than it appears to
 
 ## What
