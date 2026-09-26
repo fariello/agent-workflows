@@ -6,7 +6,7 @@
 - Scope: IN: step 3 of `ipd_lifecycle._rollback_precommit` (restore each owned path's index entry to exactly what `_git_index_entries` recorded, no-op when already equal, and WRITE NOTHING when no entry was recorded) and one regression test. OUT: steps 1, 2 and 4 of the rollback; the journal schema; `_git_index_entries` itself; the post-commit paths.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: zbh2yt
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zbh2yt verified (set rollbackdead, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
