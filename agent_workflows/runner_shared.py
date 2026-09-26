@@ -5024,12 +5024,29 @@ INTEGRATION_LOCK_TIMEOUT_SECONDS = 1800.0
 #: design and the one the plan's approval gate names.
 INTEGRATION_LOCK_PROGRESS_SECONDS = 30.0
 
+PEER_DEPENDENCY_WAIT_SECONDS: float = 1800.0
+PEER_DEPENDENCY_POLL_SECONDS: float = 5.0
+
 #: :func:`peer_drivers`'s three-valued liveness vocabulary, mirroring `run_viewer`'s rather than
 #: inventing a second one. UNKNOWN is a REAL answer and must never be collapsed into NONE: failing to
 #: prove a holder is alive is not proof that it is dead.
 PEER_LIVE = "live"
 PEER_NONE = "none"
 PEER_UNKNOWN = "unknown"
+
+
+class PeerHold(NamedTuple):
+    run_id: str
+    peer_state: str
+    item_status: str
+
+
+class PeerWaitOutcome(NamedTuple):
+    waited: bool
+    released: bool
+    stopped: bool
+    outcome: str
+    elapsed_s: float
 
 
 class PeerDriver(NamedTuple):
@@ -5208,6 +5225,276 @@ def format_peer_driver_report(peers: "Sequence[PeerDriver]") -> list[str]:
             f"({INTEGRATION_LOCK_FILENAME}); parallel EXECUTION is unaffected."
         )
     return lines
+
+
+def peer_held_prerequisites(
+    repo: Path,
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    *,
+    exclude_run_dir: Path | None = None,
+) -> dict[str, PeerHold]:
+    """Every external executed: IPD prerequisite of ``item`` held by a LIVE peer run in ``repo``.
+
+    READ-ONLY: creates, truncates, and modifies nothing. Answers whether an unsatisfied external
+    dependency is currently in flight in another run, so a draining runner can wait for it rather
+    than immediately declaring ``fail-depend``.
+
+    Returns a mapping of ``target_id6 -> PeerHold(run_id, peer_state, item_status)``.
+    Only ``executed:`` edges with ``target_type == "ipd"`` whose target is NOT in this run's queue
+    and which :func:`edge_satisfied` reports unsatisfied are considered.
+
+    Liveness is established through :func:`peer_drivers` (which probes ``driver.lock`` acquirability);
+    a recorded PID is NEVER treated as a liveness signal. Only peers with ``state == PEER_LIVE`` hold
+    an edge; ``PEER_UNKNOWN`` and dead peers never hold. The edge is held when the live peer's queue
+    entry has a status not in :data:`TERMINAL_STATES`.
+
+    Never raises: any read error yields an empty result.
+    """
+    try:
+        repo_path = Path(repo)
+        queue_id6s = {
+            str(entry.get("id6"))
+            for entry in state.get("queue", [])
+            if isinstance(entry, Mapping) and "id6" in entry
+        }
+        by_id = {
+            str(entry.get("id6")): entry
+            for entry in state.get("queue", [])
+            if isinstance(entry, Mapping) and "id6" in entry
+        }
+        state_dict = dict(state)
+        state_dict.setdefault("repo", str(repo_path))
+
+        # Collect raw dependency tokens
+        deps_list: list[Any] = []
+        for k in ("dependencies", "item_dependencies"):
+            val = item.get(k)
+            if isinstance(val, (list, tuple)):
+                for dep in val:
+                    if dep not in deps_list:
+                        deps_list.append(dep)
+
+        # Filter candidate edges: executed: IPD targets not in our queue, currently unsatisfied
+        candidate_edges: dict[str, Any] = {}
+        for dep in deps_list:
+            edge = parse_dependency_token(str(dep))
+            if (
+                edge is not None
+                and getattr(edge, "kind", None) == "executed"
+                and getattr(edge, "target_type", None) == "ipd"
+            ):
+                target_id6 = str(edge.id6)
+                if target_id6 in queue_id6s:
+                    continue
+                sat, _ = edge_satisfied(edge, dict(item), state_dict, by_id)
+                if not sat:
+                    candidate_edges[target_id6] = edge
+
+        if not candidate_edges:
+            return {}
+
+        peers = peer_drivers(repo_path, exclude_run_dir=exclude_run_dir)
+        live_peers = [p for p in peers if p.state == PEER_LIVE]
+        if not live_peers:
+            return {}
+
+        held: dict[str, PeerHold] = {}
+        for peer in live_peers:
+            try:
+                peer_state_data = json.loads(
+                    (peer.run_dir / "state.json").read_text(encoding="utf-8")
+                )
+            except Exception:
+                continue
+
+            peer_queue = peer_state_data.get("queue")
+            if not isinstance(peer_queue, list):
+                continue
+
+            for q_entry in peer_queue:
+                if not isinstance(q_entry, Mapping):
+                    continue
+                q_id6 = str(q_entry.get("id6", ""))
+                if q_id6 in candidate_edges and q_id6 not in held:
+                    st = str(q_entry.get("status", ""))
+                    if st not in TERMINAL_STATES:
+                        held[q_id6] = PeerHold(
+                            run_id=peer.run_id,
+                            peer_state=peer.state,
+                            item_status=st,
+                        )
+
+        return held
+    except Exception:
+        return {}
+
+
+def wait_for_peer_prerequisites(
+    run_dir: Path,
+    state: dict[str, Any],
+    items: Sequence[dict[str, Any]],
+    *,
+    timeout: float = PEER_DEPENDENCY_WAIT_SECONDS,
+    poll: float = PEER_DEPENDENCY_POLL_SECONDS,
+    poll_stop: Callable[[Path], Any] | None = None,
+    sleep: Callable[[float], None] | None = None,
+    now: Callable[[], float] | None = None,
+    say: Callable[[str], None] | None = None,
+    append_jsonl: Callable[[Path, dict[str, Any]], None] | None = None,
+) -> PeerWaitOutcome:
+    """Bounded, stop-aware wait for external prerequisites held by a live peer run.
+
+    Called by host drain arms when runnable is None and the queue still holds items.
+    Writes NO item status.
+
+    Returns immediately with ``waited=False`` if no item in ``items`` has a peer-held
+    prerequisite. Otherwise logs ``peer-dependency-wait-started`` and polls every ``poll``
+    seconds until:
+      1. Stop requested (via ``poll_stop``) -> ``stopped=True, outcome="stopped"``
+      2. Any waited item's dependencies become satisfied on disk -> ``released=True, outcome="released"``
+      3. No prerequisite is held by a live peer anymore -> ``released=False, outcome="peer-gone"``
+      4. Elapsed time exceeds ``timeout`` -> ``released=False, outcome="timeout"``
+
+    Logs ``peer-dependency-wait-ended`` upon exit.
+    """
+    from agent_workflows import runner_stop
+
+    repo = Path(state.get("repo") or runs_repo_root(run_dir.parent.parent.parent))
+    _poll_stop = poll_stop if poll_stop is not None else runner_stop.poll_stop
+    _sleep = sleep if sleep is not None else time.sleep
+    _now = now if now is not None else time.monotonic
+    _say = say if say is not None else (lambda _msg: None)
+    _append = append_jsonl if append_jsonl is not None else globals()["append_jsonl"]
+
+    initial_held: dict[str, PeerHold] = {}
+    waited_items: list[dict[str, Any]] = []
+    for it in items:
+        h = peer_held_prerequisites(repo, it, state, exclude_run_dir=run_dir)
+        if h:
+            initial_held.update(h)
+            waited_items.append(it)
+
+    if not initial_held:
+        return PeerWaitOutcome(
+            waited=False,
+            released=False,
+            stopped=False,
+            outcome="none",
+            elapsed_s=0.0,
+        )
+
+    all_prereq_id6s = sorted(initial_held.keys())
+    all_peers = sorted({h.run_id for h in initial_held.values()})
+
+    start_mono = _now()
+    last_say_elapsed = 0.0
+
+    _append(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "peer-dependency-wait-started",
+            "id6s": all_prereq_id6s,
+            "peers": all_peers,
+            "waiting_id6s": sorted(
+                {str(it.get("id6")) for it in waited_items if it.get("id6")}
+            ),
+        },
+    )
+
+    outcome = "timeout"
+    released = False
+    stopped = False
+
+    state_dict = dict(state)
+    state_dict.setdefault("repo", str(repo))
+
+    while True:
+        elapsed = _now() - start_mono
+        if elapsed >= timeout:
+            outcome = "timeout"
+            released = False
+            stopped = False
+            break
+
+        _sleep(poll)
+        elapsed = _now() - start_mono
+
+        # 1. Stop requested?
+        stop_level = _poll_stop(run_dir)
+        if stop_level is not None:
+            stopped = True
+            released = False
+            outcome = "stopped"
+            break
+
+        # Periodic progress report every INTEGRATION_LOCK_PROGRESS_SECONDS
+        if elapsed - last_say_elapsed >= INTEGRATION_LOCK_PROGRESS_SECONDS:
+            last_say_elapsed = elapsed
+            for prereq_id, hold in initial_held.items():
+                _say(
+                    f"Waiting for peer prerequisite {prereq_id} (peer {hold.run_id}) "
+                    f"({elapsed:.1f}s / {timeout:.1f}s)"
+                )
+
+        # 2. Has any waited item's dependency_status become satisfied on disk?
+        any_released = False
+        for it in waited_items:
+            sat, _ = dependency_status(it, state_dict)
+            if sat:
+                any_released = True
+                break
+        if any_released:
+            released = True
+            stopped = False
+            outcome = "released"
+            break
+
+        # 3. Are any edges still held by a live peer?
+        current_held: dict[str, PeerHold] = {}
+        for it in waited_items:
+            h = peer_held_prerequisites(repo, it, state_dict, exclude_run_dir=run_dir)
+            if h:
+                current_held.update(h)
+
+        if not current_held:
+            released = False
+            stopped = False
+            outcome = "peer-gone"
+            break
+
+        initial_held = current_held
+
+        if elapsed >= timeout:
+            outcome = "timeout"
+            released = False
+            stopped = False
+            break
+
+    elapsed_s = _now() - start_mono
+    _append(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "peer-dependency-wait-ended",
+            "id6s": all_prereq_id6s,
+            "peers": all_peers,
+            "waiting_id6s": sorted(
+                {str(it.get("id6")) for it in waited_items if it.get("id6")}
+            ),
+            "outcome": outcome,
+            "elapsed_s": round(elapsed_s, 3),
+        },
+    )
+
+    return PeerWaitOutcome(
+        waited=True,
+        released=released,
+        stopped=stopped,
+        outcome=outcome,
+        elapsed_s=elapsed_s,
+    )
 
 
 class IntegrationLockOutcome(NamedTuple):

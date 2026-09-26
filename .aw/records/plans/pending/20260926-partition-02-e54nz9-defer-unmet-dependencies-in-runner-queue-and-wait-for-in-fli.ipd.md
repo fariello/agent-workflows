@@ -6,8 +6,8 @@
 - Scope: IN: (a) one shared, read-only predicate in `runner_shared` answering "is this external `executed:` prerequisite still live in a peer run", built on the EXISTING `peer_drivers` (OS-lock liveness) and the peer's `state.json` queue; (b) one shared bounded wait that, at drain time only, polls until every such edge is satisfied on disk, its peer stops holding it live, a stop is requested, or the bound expires; (c) wiring it into BOTH hosts' drain arms (`oc_runipd.run_queue`, `agy_runipd.run_queue`) BEFORE the existing classification, so a satisfied item re-enters dispatch and anything else falls through to today's unchanged labelling; (d) behavioral tests. OUT: changing `edge_satisfied`'s disk-authority rule or `classify_drain_block`'s verdicts; waiting on a `spec`/`backlog` edge or on a prerequisite no live peer holds; in-queue reordering (already how selection works); cross-machine coordination.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_peer_dependency.py, CHANGELOG.md
 - Item-Dependencies: executed:xu3yxw
-- Status: reviewed
-- Readiness: go-pending-approval
+- Status: approved
+- Readiness: go
 - Work-Kind: feature
 - Priority: medium
 - Set: partition
@@ -15,8 +15,10 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: e54nz9
+- Approval: 2026-09-26, human ("approved"): Human approved in chat: 'OK, They're reviewed. I approve them both. Please do 01.'
 
 ## Workflow history
+- 2026-09-26 approved (aw set, --by-human): Human approved in chat: 'OK, They're reviewed. I approve them both. Please do 01.'
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED. Narrowed on the maintainer's 2026-09-26 ruling to the one missing behavior (a bounded, stop-aware drain-time wait for a prerequisite a LIVE peer run holds), after measuring that in-queue deferral and peer detection already exist; rebuilt on peer_drivers, wired into both hosts' drain arms, bound raised 900s -> 1800s on measured item durations. Readiness GO - PENDING HUMAN APPROVAL.
@@ -33,36 +35,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared predicate
 
-- [ ] E-01 ADD `runner_shared.peer_held_prerequisites(repo, item, state, *, exclude_run_dir) -> dict[str, PeerHold]` (a `NamedTuple` `PeerHold(run_id, peer_state, item_status)`), READ-ONLY. For each of the item's dependency tokens: parse with `parse_dependency_token`; keep only `executed:` edges with `target_type == "ipd"` whose id6 is NOT in this run's queue and which `edge_satisfied` reports unsatisfied. For each such edge, walk `peer_drivers(repo, exclude_run_dir=run_dir)` (do NOT re-implement liveness or read a PID for it: `peer_drivers` already uses `run_viewer.driver_holder_state`'s `flock` probe and states that a recorded PID is "DIAGNOSTIC ONLY, never a liveness signal") and, for each peer with `state == PEER_LIVE`, read its `state.json` fail-safe and look the id6 up in its `queue`. The edge is HELD when a live peer's entry exists and its status is NOT in `TERMINAL_STATES` (so `queued`, `running`, and any other non-terminal status; derive it from the shared set, do not list names). Return only held edges. A `PEER_UNKNOWN` peer does NOT hold (unprovable liveness must not start a wait). Never raises: any read error yields "not held" for that peer.
+- [x] E-01 ADD `runner_shared.peer_held_prerequisites(repo, item, state, *, exclude_run_dir) -> dict[str, PeerHold]` (a `NamedTuple` `PeerHold(run_id, peer_state, item_status)`), READ-ONLY. For each of the item's dependency tokens: parse with `parse_dependency_token`; keep only `executed:` edges with `target_type == "ipd"` whose id6 is NOT in this run's queue and which `edge_satisfied` reports unsatisfied. For each such edge, walk `peer_drivers(repo, exclude_run_dir=run_dir)` (do NOT re-implement liveness or read a PID for it: `peer_drivers` already uses `run_viewer.driver_holder_state`'s `flock` probe and states that a recorded PID is "DIAGNOSTIC ONLY, never a liveness signal") and, for each peer with `state == PEER_LIVE`, read its `state.json` fail-safe and look the id6 up in its `queue`. The edge is HELD when a live peer's entry exists and its status is NOT in `TERMINAL_STATES` (so `queued`, `running`, and any other non-terminal status; derive it from the shared set, do not list names). Return only held edges. A `PEER_UNKNOWN` peer does NOT hold (unprovable liveness must not start a wait). Never raises: any read error yields "not held" for that peer.
   - Depends on: none
   - Expected outcome: held edges are returned for a live peer with the id6 non-terminal; nothing is returned for a dead/crashed peer (lock not held), an unknown peer, a peer whose entry is terminal, an in-queue target, a `spec`/`backlog` edge, or an already-satisfied edge.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the bounded wait
 
-- [ ] E-02 ADD `runner_shared.wait_for_peer_prerequisites(run_dir, state, items, *, timeout, poll, poll_stop, sleep, now, say, append_jsonl) -> PeerWaitOutcome`, the ONE wait loop both hosts call. It takes the drain arm's remaining `queued` items, computes `peer_held_prerequisites` for each, and returns immediately (`waited=False`) if none is held. Otherwise it loops: sleep `poll`; call `poll_stop(run_dir)` and return `stopped=True` at once if any level is requested; recompute; return `released=True` as soon as ANY waited item's `dependency_status` becomes satisfied (disk remains the only authority, via `edge_satisfied`); return `released=False` when no edge is held any more (the peer finished without executing it, died, or went terminal) or when `now()` passes `timeout`. Every `INTEGRATION_LOCK_PROGRESS_SECONDS` it calls `say(...)` with the id6, peer run id and elapsed/limit. It appends `peer-dependency-wait-started` once and `peer-dependency-wait-ended` once (fields: `id6s`, `peers`, `outcome` in `released|peer-gone|timeout|stopped`, `elapsed_s`) to `events.jsonl`. It writes NO item status. Constants: `PEER_DEPENDENCY_WAIT_SECONDS = 1800.0`, `PEER_DEPENDENCY_POLL_SECONDS = 5.0`.
+- [x] E-02 ADD `runner_shared.wait_for_peer_prerequisites(run_dir, state, items, *, timeout, poll, poll_stop, sleep, now, say, append_jsonl) -> PeerWaitOutcome`, the ONE wait loop both hosts call. It takes the drain arm's remaining `queued` items, computes `peer_held_prerequisites` for each, and returns immediately (`waited=False`) if none is held. Otherwise it loops: sleep `poll`; call `poll_stop(run_dir)` and return `stopped=True` at once if any level is requested; recompute; return `released=True` as soon as ANY waited item's `dependency_status` becomes satisfied (disk remains the only authority, via `edge_satisfied`); return `released=False` when no edge is held any more (the peer finished without executing it, died, or went terminal) or when `now()` passes `timeout`. Every `INTEGRATION_LOCK_PROGRESS_SECONDS` it calls `say(...)` with the id6, peer run id and elapsed/limit. It appends `peer-dependency-wait-started` once and `peer-dependency-wait-ended` once (fields: `id6s`, `peers`, `outcome` in `released|peer-gone|timeout|stopped`, `elapsed_s`) to `events.jsonl`. It writes NO item status. Constants: `PEER_DEPENDENCY_WAIT_SECONDS = 1800.0`, `PEER_DEPENDENCY_POLL_SECONDS = 5.0`.
   - Depends on: E-01
   - Expected outcome: the loop ends on each of its four causes, never exceeds the bound, and never writes a status.
   - WHY 1800s AND NOT THE PLAN'S ORIGINAL 900s: measured over the last 30 run records' `ipd-started`/`ipd-finished` pairs, an item takes p50 17.0 min, p90 46.7 min, max 182 min (194 items). 900s is shorter than a MEDIAN item, so it would time out on the normal case; 1800s matches `INTEGRATION_LOCK_TIMEOUT_SECONDS`, the repository's existing bound for waiting on a peer, and still expires inside an operator's attention span. A longer prerequisite still ends the wait and falls through to today's behavior, which is the honest outcome.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 WIRE IT INTO BOTH HOSTS' DRAIN ARMS, identically. In `oc_runipd.run_queue` and `agy_runipd.run_queue`, in the `runnable is None` branch, AFTER the existing integration-deferral block and BEFORE the "CLASSIFY BEFORE LABELLING" loop, call `runner_shared.wait_for_peer_prerequisites(...)` (skipped when `wind_down is not None`, which that branch already handles by breaking earlier). If it returns `released=True`, reload/save state and `continue` the outer loop so the now-satisfied item is dispatched by the normal selection (no new dispatch path). If it returns `stopped=True`, `continue` so the loop's existing stop observation handles it (no new stop semantics). Otherwise fall through UNCHANGED to `classify_drain_block` and today's labelling, which still writes `fail-depend` for the external edge. The per-host change must be the same few lines calling the shared function; all logic lives in `runner_shared`.
+- [x] E-03 WIRE IT INTO BOTH HOSTS' DRAIN ARMS, identically. In `oc_runipd.run_queue` and `agy_runipd.run_queue`, in the `runnable is None` branch, AFTER the existing integration-deferral block and BEFORE the "CLASSIFY BEFORE LABELLING" loop, call `runner_shared.wait_for_peer_prerequisites(...)` (skipped when `wind_down is not None`, which that branch already handles by breaking earlier). If it returns `released=True`, reload/save state and `continue` the outer loop so the now-satisfied item is dispatched by the normal selection (no new dispatch path). If it returns `stopped=True`, `continue` so the loop's existing stop observation handles it (no new stop semantics). Otherwise fall through UNCHANGED to `classify_drain_block` and today's labelling, which still writes `fail-depend` for the external edge. The per-host change must be the same few lines calling the shared function; all logic lives in `runner_shared`.
   - Depends on: E-02
   - Expected outcome: with no live peer holding anything, both hosts' drain arm behaves byte-identically to before; with one, the dependent is dispatched after the prerequisite lands.
   - NO SPIN: each call to the wait either returns `released=True` because an item became dispatchable (so the next pass dispatches it, making progress), or returns a non-released outcome, after which this pass labels and breaks exactly as today. It cannot return `released=True` twice for the same unchanged queue.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and changelog
 
-- [ ] E-04 ADD `tests/test_runner_peer_dependency.py`, behavioral, using real temp run directories and a REAL peer lock holder (a child process holding `driver.lock` via the same `platform_lock` API the drivers use), no mocking of `peer_drivers` or `edge_satisfied`. Cases: (a) predicate: live peer with the id6 `running` -> held; peer process exited (lock released) -> not held; peer entry `executed`/`fail-verify` -> not held; target in own queue -> not held; `exists:`/`state:`/spec edge -> not held; (b) wait released: a background thread moves the prerequisite plan into `executed/` after ~1s -> `released=True`; (c) peer-gone: the holder process exits mid-wait -> `released=False`, outcome `peer-gone`, well before the bound; (d) timeout with an injected clock -> outcome `timeout`; (e) stop: a stop request written mid-wait -> `stopped=True` on the next poll; (f) no-peer drain arm: with no live peer, the external-edge item still ends `fail-depend` with the same event fields as before (regression pin); (g) BOTH hosts: drive each host's `run_queue` drain arm (or the smallest shared seam it calls) on a two-item fixture where the prerequisite lands during the wait, and assert the dependent is dispatched rather than labelled. Use injected `sleep`/`now`/`poll` so the suite stays fast.
+- [x] E-04 ADD `tests/test_runner_peer_dependency.py`, behavioral, using real temp run directories and a REAL peer lock holder (a child process holding `driver.lock` via the same `platform_lock` API the drivers use), no mocking of `peer_drivers` or `edge_satisfied`. Cases: (a) predicate: live peer with the id6 `running` -> held; peer process exited (lock released) -> not held; peer entry `executed`/`fail-verify` -> not held; target in own queue -> not held; `exists:`/`state:`/spec edge -> not held; (b) wait released: a background thread moves the prerequisite plan into `executed/` after ~1s -> `released=True`; (c) peer-gone: the holder process exits mid-wait -> `released=False`, outcome `peer-gone`, well before the bound; (d) timeout with an injected clock -> outcome `timeout`; (e) stop: a stop request written mid-wait -> `stopped=True` on the next poll; (f) no-peer drain arm: with no live peer, the external-edge item still ends `fail-depend` with the same event fields as before (regression pin); (g) BOTH hosts: drive each host's `run_queue` drain arm (or the smallest shared seam it calls) on a two-item fixture where the prerequisite lands during the wait, and assert the dependent is dispatched rather than labelled. Use injected `sleep`/`now`/`poll` so the suite stays fast.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: all pass; (b), (c), (g) FAIL against the pre-change code (show by reverting E-03's wiring).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 `CHANGELOG.md` unreleased entry in plain user-facing language, no dashes: when two runs share a checkout, a run that has finished its other work now waits up to 30 minutes for a prerequisite the other run is still executing, instead of failing the dependent item.
+- [x] E-05 `CHANGELOG.md` unreleased entry in plain user-facing language, no dashes: when two runs share a checkout, a run that has finished its other work now waits up to 30 minutes for a prerequisite the other run is still executing, instead of failing the dependent item.
   - Depends on: E-03
   - Expected outcome: one entry.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -150,30 +152,262 @@ No spec amendment. Spec `25kzda` 2.9 says an external target "is evaluated from 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the predicate's code and the passing output of case (a) for every listed sub-case, and `grep -n` showing it calls `peer_drivers` and does not read a PID for liveness.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 5 predicate sub-cases passed in test_a_predicate_subcases, peer_drivers called at line 5297 with no PID liveness probe.
+    Predicate implementation in `agent_workflows/runner_shared.py`:
+    ```python
+    def peer_held_prerequisites(
+        repo: Path,
+        item: Mapping[str, Any],
+        state: Mapping[str, Any],
+        *,
+        exclude_run_dir: Path | None = None,
+    ) -> dict[str, PeerHold]:
+        try:
+            repo_path = Path(repo)
+            queue_id6s = {
+                str(entry.get("id6"))
+                for entry in state.get("queue", [])
+                if isinstance(entry, Mapping) and "id6" in entry
+            }
+            by_id = {
+                str(entry.get("id6")): entry
+                for entry in state.get("queue", [])
+                if isinstance(entry, Mapping) and "id6" in entry
+            }
+            state_dict = dict(state)
+            state_dict.setdefault("repo", str(repo_path))
 
-- [ ] V-02 validates E-02
+            deps_list: list[Any] = []
+            for k in ("dependencies", "item_dependencies"):
+                val = item.get(k)
+                if isinstance(val, (list, tuple)):
+                    for dep in val:
+                        if dep not in deps_list:
+                            deps_list.append(dep)
+
+            candidate_edges: dict[str, Any] = {}
+            for dep in deps_list:
+                edge = parse_dependency_token(str(dep))
+                if (
+                    edge is not None
+                    and getattr(edge, "kind", None) == "executed"
+                    and getattr(edge, "target_type", None) == "ipd"
+                ):
+                    target_id6 = str(edge.id6)
+                    if target_id6 in queue_id6s:
+                        continue
+                    sat, _ = edge_satisfied(edge, dict(item), state_dict, by_id)
+                    if not sat:
+                        candidate_edges[target_id6] = edge
+
+            if not candidate_edges:
+                return {}
+
+            peers = peer_drivers(repo_path, exclude_run_dir=exclude_run_dir)
+            live_peers = [p for p in peers if p.state == PEER_LIVE]
+            if not live_peers:
+                return {}
+
+            held: dict[str, PeerHold] = {}
+            for peer in live_peers:
+                try:
+                    peer_state_data = json.loads(
+                        (peer.run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                except Exception:
+                    continue
+
+                peer_queue = peer_state_data.get("queue")
+                if not isinstance(peer_queue, list):
+                    continue
+
+                for q_entry in peer_queue:
+                    if not isinstance(q_entry, Mapping):
+                        continue
+                    q_id6 = str(q_entry.get("id6", ""))
+                    if q_id6 in candidate_edges and q_id6 not in held:
+                        st = str(q_entry.get("status", ""))
+                        if st not in TERMINAL_STATES:
+                            held[q_id6] = PeerHold(
+                                run_id=peer.run_id,
+                                peer_state=peer.state,
+                                item_status=st,
+                            )
+
+            return held
+        except Exception:
+            return {}
+    ```
+    Passing output of case (a):
+    ```
+    $ python3 -m pytest tests/test_runner_peer_dependency.py -k "test_a" -o addopts="" -v
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_a_predicate_subcases PASSED [100%]
+    1 passed, 6 deselected in 0.93s
+    ```
+    `grep -n` verification showing calls to `peer_drivers` and no PID read for liveness:
+    ```
+    $ grep -n "def peer_held_prerequisites" agent_workflows/runner_shared.py -A 85 | grep -E "peer_drivers|pid"
+    5247-    Liveness is established through :func:`peer_drivers` (which probes ``driver.lock`` acquirability);
+    5297-        peers = peer_drivers(repo_path, exclude_run_dir=exclude_run_dir)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the passing output of cases (b) to (e) and the two emitted event dicts for one run, showing `outcome` and `elapsed_s`, and show the function contains no write to an item's `status`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All cases (b) through (e) passed in 3.44s, events emitted with outcome and elapsed_s, and no status writes exist in wait_for_peer_prerequisites.
+    Passing output of cases (b) to (e):
+    ```
+    $ python3 -m pytest tests/test_runner_peer_dependency.py -k "test_b or test_c or test_d or test_e" -o addopts="" -v
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_d_timeout PASSED [ 25%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_b_wait_released PASSED [ 50%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_e_stop PASSED [ 75%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_c_peer_gone PASSED [100%]
+    4 passed, 3 deselected in 3.44s
+    ```
+    Emitted events from `events.jsonl`:
+    ```json
+    {
+      "at": "2026-09-26T23:18:45+00:00",
+      "event": "peer-dependency-wait-started",
+      "id6s": [
+        "prereq"
+      ],
+      "peers": [
+        "run-peer"
+      ],
+      "waiting_id6s": [
+        "dep001"
+      ]
+    }
+    {
+      "at": "2026-09-26T23:18:46+00:00",
+      "elapsed_s": 0.257,
+      "event": "peer-dependency-wait-ended",
+      "id6s": [
+        "prereq"
+      ],
+      "outcome": "released",
+      "peers": [
+        "run-peer"
+      ],
+      "waiting_id6s": [
+        "dep001"
+      ]
+    }
+    ```
+    Grep confirming no item status write in `wait_for_peer_prerequisites`:
+    ```
+    $ grep -n 'status' agent_workflows/runner_shared.py | grep -E "53[3-9][0-9]|54[0-8][0-9]"
+    5349:    Writes NO item status.
+    5439:        # 2. Has any waited item's dependency_status become satisfied on disk?
+    5442:            sat, _ = dependency_status(it, state_dict)
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste both hosts' diffs, showing the same call in the same position before `classify_drain_block`, and the passing output of cases (f) and (g) for both hosts, plus (g) FAILING with the wiring reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both hosts wired identically before classify_drain_block, cases (f) and (g) pass, and (g) fails when wiring reverted.
+    Both hosts' wiring diff:
+    ```diff
+    --- a/agent_workflows/oc_runipd.py
+    +++ b/agent_workflows/oc_runipd.py
+    @@ -3638,6 +3638,18 @@ def run_queue(
+                         # An integration that landed during the rungs above can have unblocked a dependent,
+                         # so go round again rather than declaring the queue drained.
+                         continue
+    +            peer_wait = runner_shared.wait_for_peer_prerequisites(
+    +                run_dir,
+    +                state,
+    +                queued,
+    +                append_jsonl=append_jsonl,
+    +            )
+    +            if peer_wait.released:
+    +                state = load_state(run_dir)
+    +                register_signal_report(run_dir, state)
+    +                continue
+    +            if peer_wait.stopped:
+    +                continue
+                 # depblock 01 (`akzy45`) E-02: CLASSIFY BEFORE LABELLING. This loop used to write the
+    --- a/agent_workflows/agy_runipd.py
+    +++ b/agent_workflows/agy_runipd.py
+    @@ -2980,6 +2980,18 @@ def run_queue(
+                         save_state(run_dir, state)
+                     if [it for it in state["queue"] if it["status"] == "queued"]:
+                         continue
+    +            peer_wait = runner_shared.wait_for_peer_prerequisites(
+    +                run_dir,
+    +                state,
+    +                queued,
+    +                append_jsonl=append_jsonl,
+    +            )
+    +            if peer_wait.released:
+    +                state = load_state(run_dir)
+    +                register_signal_report(run_dir, state)
+    +                continue
+    +            if peer_wait.stopped:
+    +                continue
+                 # depblock 01 (`akzy45`) E-02/E-04: CLASSIFY BEFORE LABELLING, through the SAME shared
+    ```
+    Passing output of cases (f) and (g) for both hosts:
+    ```
+    $ python3 -m pytest tests/test_runner_peer_dependency.py -k "test_f or test_g" -o addopts="" -v
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_g_both_hosts_dispatch_after_peer_release PASSED [ 50%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_f_no_peer_drain_arm PASSED [100%]
+    2 passed, 5 deselected in 2.14s
+    ```
+    Revert test: case (g) FAILING when wiring was temporarily disabled:
+    ```
+    $ python3 -m pytest tests/test_runner_peer_dependency.py -k "test_g" -o addopts="" -v
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_g_both_hosts_dispatch_after_peer_release FAILED [100%]
+    AssertionError: Lists differ: [] != ['dep001']
+    - []
+    + ['dep001'] : agent_workflows.oc_runipd did not dispatch dep001
+    1 failed, 6 deselected in 0.64s
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the full `tests/test_runner_peer_dependency.py` run output, the before/after output of the drain/dependency `-k` selection, and the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 7 tests in test_runner_peer_dependency.py pass in 5.19s, drain/dependency suite expands from 19 to 26 passing, and bare pytest suite passes with 2496 passed.
+    Full `tests/test_runner_peer_dependency.py` suite output:
+    ```
+    $ python3 -m pytest tests/test_runner_peer_dependency.py -o addopts="" -v
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_c_peer_gone PASSED [ 14%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_b_wait_released PASSED [ 28%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_e_stop PASSED [ 42%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_f_no_peer_drain_arm PASSED [ 57%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_a_predicate_subcases PASSED [ 71%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_g_both_hosts_dispatch_after_peer_release PASSED [ 85%]
+    tests/test_runner_peer_dependency.py::RunnerPeerDependencyTests::test_d_timeout PASSED [100%]
+    7 passed in 5.19s
+    ```
+    Before/after output of drain/dependency suite (`-k "drain or depblock or dependency"`):
+    Before:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/ -k "drain or depblock or dependency"
+    19 passed, 2646 deselected in 2.40s
+    ```
+    After:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/ -k "drain or depblock or dependency"
+    26 passed, 2646 deselected in 4.85s
+    ```
+    Bare `python3 -m pytest` summary line:
+    ```
+    2496 passed, 2 skipped, 3 warnings in 43.52s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the CHANGELOG entry.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Unreleased entry with no em or en dashes added to CHANGELOG.md under 2.0.0 (pending).
+    Entry added to `CHANGELOG.md` under `2.0.0 (pending)`:
+    ```markdown
+    - Added: when two runs share a checkout, a run that has finished its other work now waits up to 30 minutes for a prerequisite the other run is still executing, instead of failing the dependent item.
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

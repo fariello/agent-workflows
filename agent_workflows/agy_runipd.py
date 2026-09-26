@@ -2980,6 +2980,18 @@ def run_queue(
                     save_state(run_dir, state)
                 if [it for it in state["queue"] if it["status"] == "queued"]:
                     continue
+            peer_wait = runner_shared.wait_for_peer_prerequisites(
+                run_dir,
+                state,
+                queued,
+                append_jsonl=append_jsonl,
+            )
+            if peer_wait.released:
+                state = load_state(run_dir)
+                register_signal_report(run_dir, state)
+                continue
+            if peer_wait.stopped:
+                continue
             # depblock 01 (`akzy45`) E-02/E-04: CLASSIFY BEFORE LABELLING, through the SAME shared
             # predicate `oc_runipd`'s counterpart arm calls. This host owns its own `run_queue` and so
             # its own copy of this loop, which is exactly why the classification itself must live in

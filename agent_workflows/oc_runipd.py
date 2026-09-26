@@ -3638,6 +3638,18 @@ def run_queue(
                     # An integration that landed during the rungs above can have unblocked a dependent,
                     # so go round again rather than declaring the queue drained.
                     continue
+            peer_wait = runner_shared.wait_for_peer_prerequisites(
+                run_dir,
+                state,
+                queued,
+                append_jsonl=append_jsonl,
+            )
+            if peer_wait.released:
+                state = load_state(run_dir)
+                register_signal_report(run_dir, state)
+                continue
+            if peer_wait.stopped:
+                continue
             # depblock 01 (`akzy45`) E-02: CLASSIFY BEFORE LABELLING. This loop used to write the
             # TERMINAL `dependency-blocked` on EVERY remaining queued item unconditionally, which
             # conflated "not ready yet" with "can never be ready" and made the first one unrecoverable
