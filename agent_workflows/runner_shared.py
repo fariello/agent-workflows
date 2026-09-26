@@ -26642,6 +26642,53 @@ def reconcile_interrupted(
     save_state(run_dir, state)
 
 
+def record_interrupted_attempt_accounting(
+    state: dict[str, Any],
+    item: MutableMapping[str, Any],
+    attempt: dict[str, Any],
+    work_dir: str | Path | None,
+) -> None:
+    """Record session ID, cost, and tokens for an interrupted execute attempt.
+
+    ONE LEDGER (P8): An interrupted attempt's session log already records its session ID
+    and spend. Reading them with the same two readers the success path uses
+    (:func:`extract_session_id` and :func:`agent_workflows.run_viewer.extract_log_metrics`)
+    and writing them to the attempt record and run state keeps state.json consistent across
+    continuation hints, summary tables, and aw runs.
+
+    MEASURED EXCLUSIVE PRECEDENCE: :func:`agent_workflows.run_viewer.extract_step_usage`
+    prefers a stored ``attempt["cost"]``/``attempt["tokens"]`` in an exclusive if/else and
+    falls back to the log ONLY when both are absent, so writing the field cannot double-count.
+    """
+    try:
+        raw = attempt.get("log")
+        if not raw or not Path(raw).is_file():
+            return
+
+        sid = extract_session_id(Path(raw))
+        if sid:
+            attempt["session_id"] = sid
+            if not work_dir and not turn_runs_in_review_sweep_lane(state, work_dir):
+                existing = state.setdefault("set_sessions", {}).get(item["setid"])
+                if existing in (None, sid):
+                    state.setdefault("set_sessions", {})[item["setid"]] = sid
+                    state["session_id"] = sid
+                else:
+                    attempt["session_reconciliation_error"] = (
+                        f"persisted={existing} observed={sid}"
+                    )
+
+        from agent_workflows.run_viewer import extract_log_metrics
+
+        cost, toks = extract_log_metrics(raw)
+        if cost is not None:
+            attempt["cost"] = cost
+        if toks:
+            attempt["tokens"] = toks
+    except Exception as exc:
+        attempt["accounting_error"] = f"{type(exc).__name__}: {exc}"
+
+
 def record_item_spec_edits(
     repo: Path,
     plan_path: Path,
@@ -27351,6 +27398,7 @@ def execute_item_core(
             attempt["stopped"] = record
             attempt["disposition"] = runner_stop.FORCED_DISPOSITION
             item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
             save_state(run_dir, state)
             print(
                 pal(
@@ -27376,6 +27424,7 @@ def execute_item_core(
             attempt["stopped"] = record
             attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
             item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
             save_state(run_dir, state)
             print(
                 pal(
@@ -27387,6 +27436,7 @@ def execute_item_core(
             )
             raise
         except KeyboardInterrupt as exc:
+            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
             reconcile_item_on_interrupt(
                 repo,
                 run_dir,
@@ -27427,6 +27477,7 @@ def execute_item_core(
                     reason="turn stalled; lane preserved for recovery",
                     reason_codes=("stall-timeout",),
                 )
+            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
             save_state(run_dir, state)
             append_jsonl(
                 run_dir / "events.jsonl",
