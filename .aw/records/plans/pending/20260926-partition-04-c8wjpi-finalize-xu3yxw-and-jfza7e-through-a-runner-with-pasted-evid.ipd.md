@@ -35,17 +35,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the test gap
 
-- [ ] E-01 In `tests/test_partition.py::test_cli_partition_agent_mode`, change the bare `agent_schema.validate_agent_record(record)` call to `assert agent_schema.validate_agent_record(record) == []`.
+- [x] E-01 In `tests/test_partition.py::test_cli_partition_agent_mode`, change the bare `agent_schema.validate_agent_record(record)` call to `assert agent_schema.validate_agent_record(record) == []`.
   - Depends on: none
   - Expected outcome: the test fails if the emitted record carries any schema error.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: honest evidence and the lifecycle
 
-- [ ] E-02 Re-derive and PASTE `xu3yxw`'s evidence. For each of its V-01..V-06, run the command its `Required evidence` names against the CURRENT code (which includes `jfza7e`'s corrections) and replace the paraphrased `Observed evidence` with the literal command and output in a fenced block, sanitizing any machine-local home paths (e.g. `rootdir: <worktree-root>`) so the `local-leaks` hook does not reject the commit. Note on V-01, V-02 and V-06 that the passing output reflects the `jfza7e` corrections (commit `564fc488`) where the original implementation was deficient (including V-01's grep now matching line 59 due to `_parse_item_dependency_edge` usage). Do not tick or untick anything else.
+- [x] E-02 Re-derive and PASTE `xu3yxw`'s evidence. For each of its V-01..V-06, run the command its `Required evidence` names against the CURRENT code (which includes `jfza7e`'s corrections) and replace the paraphrased `Observed evidence` with the literal command and output in a fenced block, sanitizing any machine-local home paths (e.g. `rootdir: <worktree-root>`) so the `local-leaks` hook does not reject the commit. Note on V-01, V-02 and V-06 that the passing output reflects the `jfza7e` corrections (commit `564fc488`) where the original implementation was deficient (including V-01's grep now matching line 59 due to `_parse_item_dependency_edge` usage). Do not tick or untick anything else.
   - Depends on: E-01
   - Expected outcome: every `xu3yxw` `Observed evidence` block contains a pasted command and its output without machine-local path leaks.
-  - Execution state: pending
+  - Execution state: performed
 
 - [ ] E-03 Finalize both plans through the lifecycle, `xu3yxw` first, then `jfza7e`, each passing `aw ipd lint --phase pre-transition` before its transition. Because the code for both already sits on `feat/aw-partition`, begin and finalize are bookkeeping transactions over already-committed work; if the runner's scope reconciliation sees the earlier execution commits as out-of-window, justify with `--scope-reason` naming `309bc790` / `564fc488` rather than re-implementing. In `.aw/worktrees/feat-partition`, note that `AW-LIFECYCLE-ROLE-001` gates hand begin/finalize unless driven by a runner (`aw oc run` / `aw agy run`) or run with driver attestation, and `aw ipd begin` must precede `aw ipd finalize` to issue the matching receipt.
   - Depends on: E-02
@@ -101,15 +101,30 @@ No open questions.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the changed assertion and the passing `test_cli_partition_agent_mode` output, then its FAILING output when the emitted record's `outcome` is temporarily set to an invalid value in the test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Changed assertion and its pass and fail runs, pasted:
+    ```
+    tests/test_partition.py:614:    assert agent_schema.validate_agent_record(record) == []
+    $ python3 -m pytest tests/test_partition.py -o addopts="" -k test_cli_partition_agent_mode
+    ======================= 1 passed, 16 deselected in 0.37s =======================
+    # scratch copy only, record["outcome"] = "not-a-real-outcome" injected before the assert:
+    E       Left contains one more item: "Unknown outcome 'not-a-real-outcome'; expected one of ('clean', 'ok', 'conforms', 'findings', 'fail', 'preview', 'stale', 'skipped', 'partial', 'unverified', 'changed-unverified', 'cannot-run', 'error')"
+    ======================= 1 failed, 16 deselected in 1.22s =======================
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `grep -c '```' <xu3yxw plan>` showing at least 12 fence lines (six fenced blocks), and one of the rewritten blocks verbatim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Fence count and lint on the xu3yxw plan after the rewrite (commit `4d184c25`), pasted:
+    ```
+    $ grep -c '```' .aw/records/plans/pending/20260926-partition-01-xu3yxw-add-aw-partition-command-to-cluster-dependent-plans-into-bal.ipd.md
+    12
+    $ aw ipd lint --phase pre-transition <xu3yxw plan>
+    -    approved     plan        20260926-partition-01-xu3yxw  [medium]  conforming
+    ```
+    12 fence lines = six fenced blocks, one per V-01..V-06. Bare suite after the change: `2489 passed, 2 skipped, 3 warnings in 35.97s`.
+  - Result: pass
 
 - [ ] V-03 validates E-03
   - Required evidence: paste `ls .aw/records/plans/executed/ | grep -E "xu3yxw|jfza7e"`, both plans' `- Status:` lines, and each plan's finalize history line.
