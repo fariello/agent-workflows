@@ -6,7 +6,7 @@
 - Scope: `agent_workflows/ipd_lint.py` (`lint_text` terminal short-circuit), `agent_workflows/ipd_schema.py` (`_check_path_status` pre-terminal message routing to `IPD-M105`), and `agent_workflows/check_engine.py` (`check_ipd_lint_reach`, which only sweeps `pending/`), plus their tests. The rest of the terminal-tree grandfathering stays unchanged.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, agent_workflows/check_engine.py, tests/test_ipd_lint.py, tests/test_ipd_schema.py, tests/test_check_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: dbslfm
@@ -17,9 +17,9 @@
 - Readiness: go-pending-approval
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lz0o6j
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: lz0o6j verified (set m105term, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
