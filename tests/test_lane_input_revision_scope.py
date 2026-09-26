@@ -1,5 +1,7 @@
 """Tests for scoping lane input revisions to their turn (IPD xzroy8, spec 7ckptx R5.1a / A12b)."""
 
+from __future__ import annotations
+
 import io
 from pathlib import Path
 import tempfile

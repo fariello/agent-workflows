@@ -112,7 +112,8 @@ F-1 through F-3 were measured by the author at HEAD `0c2e7970` and all three rep
 ## Deferred / out of scope (with reason)
 
 - REPAIRING the vacuous output-conformance CI step, and restoring `tests/test_command_surface_declarations.py` / `tests/test_cli_conformance_matrix.py` (F-9).
-  - Carrier: 0yrtne
+  - Carrier-Evidence: .aw/records/plans/executed/20260925-cmdsurf-01-0yrtne-declare-the-five-aw-oc-profile-commands-and-restore-the-whol.ipd.md
+  - Note: satisfied by plan `0yrtne` (executed 2026-09-25), which restored `tests/test_command_surface_declarations.py` (the whole-CLI declaration test) and repointed the CI output-conformance step at it; the carrier was re-pointed from the now-terminal plan to its evidence so the obligation stays resolvable.
 - The SYNTHETIC BASELINE rehearsal (install an old git tag into a throwaway repo, then upgrade it with current code, giving arbitrary version pairs and a CI-runnable upgrade test), which the source item `u27q6g` records as "the other half of this".
   - Carrier: u27q6g
 - New rehearsal features of any kind.
