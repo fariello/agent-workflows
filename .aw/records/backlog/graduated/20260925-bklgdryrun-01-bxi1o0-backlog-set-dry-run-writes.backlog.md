@@ -1,5 +1,6 @@
 - Id: bxi1o0
-- Status: open
+- Status: graduated
+- Graduated-To: bklgdryrun
 - Blocks-Release: next
 - Set: bklgdryrun
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: aw backlog set and aw specs set IGNORE --dry-run on their --status spelling: the backlog one rewrites the record and the specs one MOVES it between disposition directories, both reporting success
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set bklgdryrun (commit 2c7068ca).
 - 2026-09-25 created (aw backlog): aw backlog set --dry-run silently WRITES when the --status spelling is used: backlog.run_set never reads dry_run, so a preview mutates the file and reports success
 
 ## How it was found (a live incident in a shared checkout, not a lab exercise)
