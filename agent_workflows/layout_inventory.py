@@ -258,6 +258,24 @@ def classify_item(
                 "disposition": "regenerate",
                 "destination_relpath_override": "README.md",
             }
+        # 4) The shared skills directory (.agents/skills) -> preserved in place (backlog 72qlya).
+        # Skills are discovered by host tools scanning a fixed directory (engine.SKILLS_DIR)
+        # and are the same for both layouts; preserved in place as host-adapter-in-place.
+        from agent_workflows import engine as _engine
+
+        skills_dir_name = (
+            _engine.SKILLS_DIR.replace("\\", "/")
+            .strip("/")
+            .removeprefix(".agents")
+            .strip("/")
+        )
+        if first == skills_dir_name:
+            return {
+                "ownership": "host-adapter-candidate",
+                "lifecycle_class": "host-adapter-candidate",
+                "expected_destination_class": "host-adapter-in-place",
+                "disposition": "preserve",
+            }
         return {
             "ownership": "unknown",
             "lifecycle_class": "review-required",
@@ -318,6 +336,34 @@ def classify_item(
                 "lifecycle_class": "records",
                 "expected_destination_class": "records",
                 "disposition": "migrate",
+            }
+        # Framework-owned files ALREADY at their final .aw/ location (E-03).
+        # Both .aw/.gitignore (written by engine._ensure_aw_gitignore) and
+        # .aw/setup-repo-needed.md (engine.SETUP_MARKER_PATH) are framework-owned
+        # and already at their final location. The migration must not relocate a file
+        # onto its own path. PRESERVED IN PLACE with disposition "skip", following the
+        # precedent of the state/durable/runtime branch above, so they are excluded from the map.
+        if posix == ".gitignore":
+            return {
+                "ownership": "system",
+                "lifecycle_class": "system",
+                "expected_destination_class": "system",
+                "disposition": "skip",
+            }
+        from agent_workflows import engine as _engine
+
+        marker_rel = (
+            _engine.SETUP_MARKER_PATH.replace("\\", "/")
+            .strip("/")
+            .removeprefix(".aw")
+            .strip("/")
+        )
+        if posix == marker_rel:
+            return {
+                "ownership": "system",
+                "lifecycle_class": "system",
+                "expected_destination_class": "system",
+                "disposition": "skip",
             }
         return {
             "ownership": "unknown",
