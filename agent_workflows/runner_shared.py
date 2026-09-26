@@ -3093,7 +3093,13 @@ def finish_integrated_review_item(
 
 
 def commit_review_lane_output(
-    repo: Path, handle: Any, id6: str, *, host_label: str
+    repo: Path,
+    handle: Any,
+    id6: str,
+    *,
+    host_label: str,
+    run_id: str | None = None,
+    own_paths: Sequence[str] | None = None,
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit a review turn's UNCOMMITTED lane output to the lane branch, so the merge can carry it.
 
@@ -3110,10 +3116,22 @@ def commit_review_lane_output(
     the work is therefore the conservative choice, not the liberal one.
 
     IT IS PATH-SCOPED, ALWAYS, and never `git add -A`/`git add .`/`git commit -a` (the execution contract
-    forbids all three). The staged set is exactly what `git status --porcelain` reports INSIDE THE LANE,
-    which by construction is only this turn's own work: the lane is cut fresh from HEAD for the sweep and
-    nothing else writes to it. It also cannot sweep a co-worker's edit into a commit, because a co-worker
-    works in the shared checkout and not in the driver's lane.
+    forbids all three). The staged set is scoped to this turn's own work. When `own_paths` is supplied,
+    only the intersection with `git status --porcelain` is committed. A path this turn did not write is
+    deliberately LEFT STAGED rather than committed or reset: the lane is preserved at teardown when it
+    holds work (`retire_review_sweep_lane` -> `lane_containment.teardown_review_sweep_lane`), so leaving it
+    is recoverable while committing it under the wrong id6 is not.
+
+    VISIBLE BY CONSTRUCTION (revcommit `8apjpp`).
+    The driver commit carries canonical trailers `AW-Run: <run_id>` and `AW-Item: <id6>` (via
+    `git_commit_helper.run_item_trailers`) plus `AW-Committed-By: driver`, so the driver-authored
+    commit is self-describing in permanent git history. Writing a driver line into the plan's
+    `## Workflow history` was rejected (F-3) because it would become the newest record and would
+    silently mask the review's verdict in the pre-field prose auto-approve fallback, as well as requiring
+    a second driver commit editing the reviewed plan. Crucially, these trailers are only truthful
+    BECAUSE of E-03's scoping: the sweep lane is shared across all reviews in a run, so scoping the
+    commit strictly to the turn's own paths prevents a previously-refused review's staged files from
+    being committed under this turn's id6 with a false immutable ownership claim.
 
     NO HOOK-SUPPRESSING FLAG IS USED, and no `--no-verify`: this is an ordinary `git commit`, so whatever
     a repository's hooks would say about a review's output they still say. A hook REJECTION is returned as
@@ -3123,7 +3141,7 @@ def commit_review_lane_output(
     wt = Path(getattr(handle, "path", "") or "")
     if not wt.is_dir():
         return None, ()
-    rc, out, _err = _run_git(wt, ["status", "--porcelain"])
+    rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
     if rc != 0 or not out.strip():
         return None, ()
     paths: list[str] = []
@@ -3139,12 +3157,23 @@ def commit_review_lane_output(
         elif entry.strip():
             paths.append(entry.strip().strip('"'))
     paths = sorted({p for p in paths if p})
+    if own_paths is not None:
+        allowed = set(own_paths)
+        paths = sorted({p for p in paths if p in allowed})
     if not paths:
         return None, ()
     rc, _out, _err = _run_git(wt, ["add", "--", *paths])
     if rc != 0:
         return None, ()
+    from agent_workflows import git_commit_helper as _gch
+
     subject = f"review({host_label}): record the review of {id6}"
+    body = (
+        "Committed by the driver because the review turn left its output uncommitted in its "
+        "lane. Path-scoped to the paths the turn itself wrote; hooks ran normally."
+    )
+    trailers = [*_gch.run_item_trailers(run_id, id6), "AW-Committed-By: driver"]
+    message_body = _gch.compose_message_with_trailers(body, trailers)
     rc, _out, _err = _run_git(
         wt,
         [
@@ -3152,10 +3181,7 @@ def commit_review_lane_output(
             "-m",
             subject,
             "-m",
-            (
-                "Committed by the driver because the review turn left its output uncommitted in its "
-                "lane. Path-scoped to the paths the turn itself wrote; hooks ran normally."
-            ),
+            message_body,
             "--",
             *paths,
         ],
@@ -28562,8 +28588,35 @@ def execute_item_core(
             save_state(run_dir, state)
 
         if is_review and wt_handle is not None:
+            wt_path = Path(getattr(wt_handle, "path", "") or "")
+            lane_status_paths: list[str] = []
+            if wt_path.is_dir():
+                _rc, _st_out, _ = _run_git(
+                    wt_path, ["status", "--porcelain", "--untracked-files=all"]
+                )
+                if _rc == 0 and _st_out.strip():
+                    for line in _st_out.splitlines():
+                        if not line.strip():
+                            continue
+                        entry = line[3:] if len(line) > 3 else ""
+                        if " -> " in entry:
+                            old, new = entry.split(" -> ", 1)
+                            lane_status_paths.extend(
+                                [old.strip().strip('"'), new.strip().strip('"')]
+                            )
+                        elif entry.strip():
+                            lane_status_paths.append(entry.strip().strip('"'))
+            own_paths = classify_review_writes(
+                lane_status_paths, id6=item["id6"]
+            ).allowed
+
             review_commit, review_committed_paths = commit_review_lane_output(
-                repo, wt_handle, item["id6"], host_label=host_labels.command
+                repo,
+                wt_handle,
+                item["id6"],
+                host_label=host_labels.command,
+                run_id=str(state.get("run_id") or "") or None,
+                own_paths=own_paths,
             )
             if review_commit:
                 attempt["review_lane_commit"] = review_commit
@@ -28579,8 +28632,24 @@ def execute_item_core(
                         "paths": list(review_committed_paths),
                     },
                 )
+                print(
+                    pal(
+                        f"  ! review {item['id6']} left its output uncommitted; the driver committed "
+                        f"{len(review_committed_paths)} path(s) as {review_commit[:12]} (AW-Committed-By: driver)",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
             elif review_committed_paths:
                 attempt["review_lane_commit_refused"] = list(review_committed_paths)
+                print(
+                    pal(
+                        f"  ! review {item['id6']} left uncommitted output and a hook refused the driver's commit; "
+                        f"the work stays in the sweep lane: {', '.join(review_committed_paths)}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
             review_scope = None
             try:
                 lane_changed = review_turn_changed_files(
@@ -31795,6 +31864,61 @@ def report_run_spec_edits(
         lines = format_spec_edit_report(summary, pal=pal, partial=partial)
     except Exception as exc:
         lines = format_spec_impact_failure(exc, pal=pal)
+    for line in lines:
+        print(line, file=out)
+    return lines
+
+
+def driver_committed_reviews(state: Any) -> list[str]:
+    """Return the id6 of every queue item ANY of whose attempts carries `review_lane_commit` (E-07).
+
+    ANY ATTEMPT, NOT THE LATEST. A review whose integration is refused is re-attempted by the deferral
+    ladder (`reattempt_deferred_integrations`), and each turn appends a new attempt dict to
+    `item["attempts"]`. Reading only the latest attempt would silently drop a driver commit made on
+    attempt 1 once attempt 2 exists.
+    """
+    if not isinstance(state, Mapping):
+        return []
+    queue = state.get("queue")
+    if not isinstance(queue, Sequence):
+        return []
+    committed_id6s: list[str] = []
+    for item in queue:
+        if not isinstance(item, Mapping):
+            continue
+        id6 = str(item.get("id6") or "").strip()
+        attempts = item.get("attempts") or []
+        for attempt in reversed(attempts):
+            if isinstance(attempt, Mapping) and attempt.get("review_lane_commit"):
+                if id6 and id6 not in committed_id6s:
+                    committed_id6s.append(id6)
+                break
+    return committed_id6s
+
+
+def report_driver_committed_reviews(
+    state: Any,
+    *,
+    stream: Any = None,
+) -> list[str]:
+    """Print the count and id6s of reviews whose output was committed by the driver (E-07).
+
+    Prints "N review(s) had their output committed by the driver: <id6s>" only when N > 0.
+    Advisory posture like `report_run_spec_edits`: runs at exit, so wrap the computation so an
+    exception reports itself rather than replacing a completed run's summary with a traceback.
+    """
+    out = stream if stream is not None else sys.stdout
+    lines: list[str] = []
+    try:
+        reviews = driver_committed_reviews(state)
+        if reviews:
+            count = len(reviews)
+            id6s_str = ", ".join(reviews)
+            lines.append(
+                f"{count} review(s) had their output committed by the driver: {id6s_str}"
+            )
+    except Exception as exc:
+        lines.append(f"error: failed to summarize driver-committed reviews: {exc}")
     for line in lines:
         print(line, file=out)
     return lines

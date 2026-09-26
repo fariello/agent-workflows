@@ -1,5 +1,5 @@
 - Id: wtaxvk
-- Status: graduated
+- Status: done
 - Graduated-To: revcommit
 - Set: dirtygates
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: A review that leaves its output uncommitted needs the driver to commit it, and that step is invisible in the plan record
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD 8apjpp executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-revcommit-01-8apjpp-record-a-driver-side-review-output-commit-in-the-plan-s-own.ipd.md); evidence .aw/records/plans/executed/20260925-revcommit-01-8apjpp-record-a-driver-side-review-output-commit-in-the-plan-s-own.ipd.md
 - 2026-09-25 graduated (aw set): graduated into revcommit plan 8apjpp (to-review)
 - 2026-09-16 created (aw backlog): A review that leaves its output uncommitted needs the driver to commit it, and that step is invisible in the plan record
 
