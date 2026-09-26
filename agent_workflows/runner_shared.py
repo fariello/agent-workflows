@@ -13738,8 +13738,8 @@ BENCHMARK_DOLLAR_BOUNDARY = (
 #: this one means no reader exists, that one means the file needs hand-editing.
 #:
 #: THE AGY CASE, AND IT IS A REAL ONE RATHER THAN A PLACEHOLDER (`w33lrl` E-04). `agy_runipd`
-#: already records a CONCRETE model (`DEFAULT_MODEL = "gemini-3.7-flash-high"`, written into
-#: `options["model"]` at run creation and the `--model` default), so agy needs NO model work and it
+#: records the model dynamically resolved from the user's settings.json (or host default),
+#: written into `options["model"]` at run creation), so agy needs NO model work and it
 #: is oc that was behind on identity. What agy cannot resolve is a CARD: that model is absent from
 #: the OpenCode config's gemini entries, Antigravity's own pricing lives in no file this tool reads,
 #: and `oc_models.resolve_config_path` resolves OPENCODE's config -- so pointing agy at it would

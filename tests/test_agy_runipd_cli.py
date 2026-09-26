@@ -2221,7 +2221,7 @@ class AgyCostAttributionTests(unittest.TestCase):
             resolve_card=False,
         )
         self.assertEqual(record["host"], "agy")
-        self.assertEqual(record["model"], "gemini-3.7-flash-high")
+        self.assertEqual(record["model"], agy_runipd.DEFAULT_MODEL or "")
         self.assertEqual(record["kind"], "launch-time-snapshot")
         self.assertEqual(record["unit"], "$/Mtok")
 

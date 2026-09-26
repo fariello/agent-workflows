@@ -49,7 +49,7 @@ class ScriptError(RuntimeError):
     """A user-actionable script failure."""
 
 
-_DEFAULT_MODEL = "gemini-3.7-flash-high"
+_DEFAULT_MODEL: str | None = None
 
 # The prompt-preamble/audit files live at the repository's tools/awphysical/ (unchanged by
 # this graduation). agy_run.py now lives under agent_workflows/, whose parent is the repo
@@ -243,8 +243,8 @@ STREAMING LOGS AND MONITORING:
     runtime_group.add_argument(
         "--model",
         dest="model",
-        default=_DEFAULT_MODEL,
-        help=f"Antigravity model ID (default: {_DEFAULT_MODEL}).",
+        default=None,
+        help="Antigravity model ID (default: from ~/.gemini/antigravity-cli/settings.json or agy host default).",
     )
     runtime_group.add_argument(
         "--timeout",

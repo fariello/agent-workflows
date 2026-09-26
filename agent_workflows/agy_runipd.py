@@ -756,11 +756,14 @@ from agent_workflows.runner_shared import (
     DISPOSITION_VERIFY_AND_CONTINUE as DISPOSITION_VERIFY_AND_CONTINUE,
     _lane_commit_subjects as _lane_commit_subjects,
 )
+from agent_workflows import agy_models
 from agent_workflows.oc_runipd import (
     record_item_spec_edits as record_item_spec_edits,
 )
 
-DEFAULT_MODEL = "gemini-3.7-flash-high"
+# No model is hardcoded in code; default model is dynamically resolved from the
+# config file (~/.gemini/antigravity-cli/settings.json) or left to agy host default.
+DEFAULT_MODEL: str | None = agy_models.resolve_agy_config_model()
 DEFAULT_TIMEOUT = "240m"
 DEFAULT_STALL_TIMEOUT: float = 600.0
 _SIGINT_GRACE_SECONDS = 5.0
@@ -2059,10 +2062,16 @@ def initialize_run(args: argparse.Namespace) -> Path:
     # hostdefault-02 (`ybkmzp`) E-04: resolve THIS run's verification decision here, at the same
     # pre-durable seam as the refusals and BEFORE the run directory is created below.
     verification = resolve_verification_decision(args)
+    cli_model = getattr(args, "model", None)
+    config_model, model_source = agy_models.resolve_agy_default_model()
+    effective_model = cli_model or config_model
+    effective_source = "cli-argument" if cli_model else model_source
+
     host_options = {
         "agy_executable": getattr(args, "agy_executable", None)
         or getattr(args, "agy", None),
-        "model": getattr(args, "model", DEFAULT_MODEL),
+        "model": effective_model,
+        "explicit_model": cli_model,
         "effort": getattr(args, "effort", None),
         "timeout": getattr(args, "timeout", DEFAULT_TIMEOUT),
         "new_session": getattr(args, "new_session", False),
@@ -2070,21 +2079,10 @@ def initialize_run(args: argparse.Namespace) -> Path:
             args, "dangerously_skip_permissions", True
         ),
         "no_verify": not verification.validate,
-        # runverdict Order 07 (`w33lrl`) E-04: the SAME cost-attribution record oc freezes, with this
-        # host's honest answer. NO agy model work was needed and none was added: `DEFAULT_MODEL` above
-        # already writes a CONCRETE model into `options["model"]` on every run, so it is oc that was
-        # behind on identity, not agy.
-        #
-        # `resolve_card=False`, and the reason is specific rather than a shrug. This host's model is
-        # NOT among the OpenCode config's gemini entries, Antigravity's own pricing lives in no file
-        # this tool reads, and `oc_models.resolve_config_path` resolves OPENCODE's config -- so
-        # resolving a card here would attribute one vendor's rates to another host's model. The
-        # inability is RECORDED, distinguishably from an oc config that was found but unparseable.
-        # Building an Antigravity config reader is separate work with its own security surface.
         runner_shared.COST_ATTRIBUTION_KEY: runner_shared.cost_attribution_record(
             host="agy",
-            model=getattr(args, "model", DEFAULT_MODEL),
-            model_source="host-default-constant",
+            model=effective_model,
+            model_source=effective_source,
             resolve_card=False,
         ),
     }
@@ -2412,8 +2410,11 @@ def run_agy_turn(
     if options.get("dangerously_skip_permissions", True):
         argv.append("--dangerously-skip-permissions")
 
-    if options.get("model"):
-        argv.extend(["--model", options["model"]])
+    model_flag = options.get("explicit_model")
+    if model_flag is None and "explicit_model" not in options:
+        model_flag = options.get("model")
+    if model_flag:
+        argv.extend(["--model", model_flag])
     if options.get("effort"):
         argv.extend(["--effort", options["effort"]])
 
@@ -3611,8 +3612,8 @@ AUTOMATIC STATUS ROUTING:
     )
     start.add_argument(
         "--model",
-        default=DEFAULT_MODEL,
-        help=f"Antigravity model (default: {DEFAULT_MODEL})",
+        default=None,
+        help="Antigravity model (default: from ~/.gemini/antigravity-cli/settings.json or agy host default)",
     )
     start.add_argument("--effort", help="Reasoning effort (low|medium|high)")
     start.add_argument(

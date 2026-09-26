@@ -52,12 +52,16 @@ class AgyRunArgParseTests(unittest.TestCase):
     def test_default_options(self):
         args = agy_run.parse_args(["7cvh9t"])
         self.assertEqual(args.target, "7cvh9t")
-        self.assertEqual(args.model, "gemini-3.7-flash-high")
+        self.assertIsNone(args.model)
         self.assertEqual(args.timeout, "240m")
         self.assertFalse(args.new_session)
         self.assertTrue(args.continue_session)
         self.assertFalse(args.no_audit)
         self.assertFalse(args.audit_only)
+
+    def test_explicit_model(self):
+        args = agy_run.parse_args(["7cvh9t", "--model", "gemini-3.8-flash-high"])
+        self.assertEqual(args.model, "gemini-3.8-flash-high")
 
     def test_explicit_ipd_mode(self):
         args = agy_run.parse_args(["--ipd", "20260816-test-01-abc123-test.md"])
