@@ -6,7 +6,7 @@
 - Scope: IN: (a) one shared, read-only predicate in `runner_shared` answering "is this external `executed:` prerequisite still live in a peer run", built on the EXISTING `peer_drivers` (OS-lock liveness) and the peer's `state.json` queue; (b) one shared bounded wait that, at drain time only, polls until every such edge is satisfied on disk, its peer stops holding it live, a stop is requested, or the bound expires; (c) wiring it into BOTH hosts' drain arms (`oc_runipd.run_queue`, `agy_runipd.run_queue`) BEFORE the existing classification, so a satisfied item re-enters dispatch and anything else falls through to today's unchanged labelling; (d) behavioral tests. OUT: changing `edge_satisfied`'s disk-authority rule or `classify_drain_block`'s verdicts; waiting on a `spec`/`backlog` edge or on a prerequisite no live peer holds; in-queue reordering (already how selection works); cross-machine coordination.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_peer_dependency.py, CHANGELOG.md
 - Item-Dependencies: executed:xu3yxw
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -17,6 +17,7 @@
 - Id: e54nz9
 
 ## Workflow history
+- 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED. Narrowed on the maintainer's 2026-09-26 ruling to the one missing behavior (a bounded, stop-aware drain-time wait for a prerequisite a LIVE peer run holds), after measuring that in-queue deferral and peer detection already exist; rebuilt on peer_drivers, wired into both hosts' drain arms, bound raised 900s -> 1800s on measured item durations. Readiness GO - PENDING HUMAN APPROVAL.
 - 2026-09-26 to-review (antigravity): authored review-ready plan for runner peer-dependency deferral and wait.
