@@ -6,7 +6,9 @@
 - Scope: IN: fix (1)-(4) in `agent_workflows/partition.py` and `tests/test_partition.py`; OUT: re-doing any of `xu3yxw`'s correct work (algorithm shape, formatting, CLI flags, inventory entry, CHANGELOG), and any change to `attention`. The lifecycle gap (5) is closed by this plan's own execution through a runner, which begins and finalizes `xu3yxw`'s successor state; see the gate.
 - Scope-Paths: agent_workflows/partition.py, tests/test_partition.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
+- Approval: 2026-09-26, human ("approved"): Human approved in chat: '.aw/worktrees/feat-partition/.aw/records/plans/pending/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md approve. Go!'
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - Blocks-Release: next
@@ -18,6 +20,8 @@
 
 ## Workflow history
 
+- 2026-09-26 approved (human): Human approved in chat: '.aw/worktrees/feat-partition/.aw/records/plans/pending/20260926-partition-03-jfza7e-close-xu3yxw-execution-gaps-shared-edge-parser-dead-depth-fa.ipd.md approve. Go!'
+- 2026-09-26 reviewed (antigravity): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed. Readiness GO - PENDING HUMAN APPROVAL.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Emitted by /verify-execution of xu3yxw (commit 309bc790); verdict INCOMPLETE / FIDELITY_PARTIAL. Every finding re-measured in the feat-partition worktree; run record .aw/workflow-artifacts/verify-execution/20260926-181803/.
 - 2026-09-26 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -31,32 +35,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one parser, one depth function
 
-- [ ] E-01 In `partition.in_selection_edges`, parse each token with `ipd_schema._parse_item_dependency_edge` (the same call `attention.dependency_depths` makes, so the two cannot disagree) and keep an edge only when it parses without error, its `target_type == "ipd"`, its `id6` is in the selection, and it is not a self-edge. Remove the `split(":")[-1]` parsing.
+- [x] E-01 In `partition.in_selection_edges`, parse each token with `ipd_schema._parse_item_dependency_edge` (the same call `attention.dependency_depths` makes, so the two cannot disagree) and keep an edge only when it parses without error, its `target_type == "ipd"`, its `id6` is in the selection, and it is not a self-edge. Remove the `split(":")[-1]` parsing.
   - Depends on: none
   - Expected outcome: a `state:spec:approved:<id6>` or `exists:backlog:<id6>` edge never becomes a plan-to-plan edge, even when a selected plan shares that id6; `executed:`, `exists:ipd:` and `state:ipd:` edges to selected plans still do.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Delete `partition._compute_in_selection_depths` and both call sites (in `partition` and in `collect`'s `--max` branch), using `attention.dependency_depths` alone. If any test then fails, the test fixture is what is wrong (for example a hand-built `Item` whose tokens `ipd_schema` rejects): fix the fixture, never reintroduce a second depth algorithm.
+- [x] E-02 Delete `partition._compute_in_selection_depths` and both call sites (in `partition` and in `collect`'s `--max` branch), using `attention.dependency_depths` alone. If any test then fails, the test fixture is what is wrong (for example a hand-built `Item` whose tokens `ipd_schema` rejects): fix the fixture, never reintroduce a second depth algorithm.
   - Depends on: E-01
   - Expected outcome: `grep -n "_compute_in_selection_depths" agent_workflows/partition.py` returns nothing and every existing test still passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: honest tests and agent output
 
-- [ ] E-03 Replace the lexical assertion in `test_packing_oversized_component_split` with a real dependency check: for every shard, for every pair where item B declares an in-selection edge to item A in the same shard, assert A's index < B's index. Use a chain whose ids are NOT lexically ordered (for example `zzz001 <- aaa002 <- mmm003 <- bbb004`) so a lexical sort would fail it, and assert every in-selection cross-shard edge appears in `cut_edges` (exact set, not `len > 0`).
+- [x] E-03 Replace the lexical assertion in `test_packing_oversized_component_split` with a real dependency check: for every shard, for every pair where item B declares an in-selection edge to item A in the same shard, assert A's index < B's index. Use a chain whose ids are NOT lexically ordered (for example `zzz001 <- aaa002 <- mmm003 <- bbb004`) so a lexical sort would fail it, and assert every in-selection cross-shard edge appears in `cut_edges` (exact set, not `len > 0`).
   - Depends on: E-02
   - Expected outcome: the test fails if within-shard ordering falls back to id order.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the CLI cases `xu3yxw` E-06 required and did not deliver: (a) `--stdin` end to end with `sys.stdin` replaced by `io.StringIO("pln001\nunknown99\n")`, asserting the command contains `pln001` and stderr names `unknown99`; (b) a positional selector (`set1`) end to end; (c) `--json` on an EMPTY selection, asserting exit 0, `shards == []`, `commands == []`; (d) a mixed-type edge fixture proving E-01 (a plan declaring `state:spec:approved:<id6>` where a selected plan has that id6 stays unconnected).
+- [x] E-04 Add the CLI cases `xu3yxw` E-06 required and did not deliver: (a) `--stdin` end to end with `sys.stdin` replaced by `io.StringIO("pln001\nunknown99\n")`, asserting the command contains `pln001` and stderr names `unknown99`; (b) a positional selector (`set1`) end to end; (c) `--json` on an EMPTY selection, asserting exit 0, `shards == []`, `commands == []`; (d) a mixed-type edge fixture proving E-01 (a plan declaring `state:spec:approved:<id6>` where a selected plan has that id6 stays unconnected).
   - Depends on: E-01
   - Expected outcome: all four pass; (d) fails against the pre-E-01 parser.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Honor `--agent`: when `args.agent` is set, emit exactly one `aw.agent/v1` `result` record on stdout (the same fields as `--json`: `shards`, `commands`, `split_components`, `cycles`, `unknown`, plus `schema`, `kind: "result"`, `cmd: "partition"`, `exit`), through the package's existing agent-record writer rather than a hand-built dict if one exists (locate it by searching for `"aw.agent/v1"` in `agent_workflows/`), and keep the human summary on stderr. Add a test asserting the single stdout line parses as JSON with `schema == "aw.agent/v1"` and `cmd == "partition"`.
+- [x] E-05 Honor `--agent`: when `args.agent` is set, emit exactly one `aw.agent/v1` `result` record on stdout (the same fields as `--json`: `shards`, `commands`, `split_components`, `cycles`, `unknown`, plus normative `aw.agent/v1` result envelope fields: `schema="aw.agent/v1"`, `kind="result"`, `cmd="partition"`, `exit=0`, `outcome="ok"`, `verified=True`, `complete=True`), serialized through `agent_schema.render_jsonl_record` (which validates against schema invariants), and keep the human summary on stderr. Add a test asserting the single stdout line validates with `agent_schema.validate_agent_record`, parses as JSON with `schema == "aw.agent/v1"`, `kind == "result"`, and `cmd == "partition"`.
   - Depends on: E-02
-  - Expected outcome: `aw partition -s approved --agent` prints one parseable agent record, matching the inventory's declared `agent_record_kind="result"`.
-  - Execution state: pending
+  - Expected outcome: `aw partition -s approved --agent` prints one parseable, valid agent record, matching the inventory's declared `agent_record_kind="result"`.
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -115,30 +119,183 @@ No open questions.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `in_selection_edges` diff and the passing output of E-04 (d), plus the same test FAILING with E-01's hunk reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified with diff, passing test, and negative test failure on revert.
+    `in_selection_edges` diff:
+    ```diff
+    @@ -54,9 +56,15 @@ def in_selection_edges(items: Sequence[_att.Item]) -> Dict[str, Set[str]]:
+             if not it.id:
+                 continue
+             for token in it.item_dependencies or ():
+    -            target = token.strip().split(":")[-1]
+    -            if target and target in present_ids and target != it.id:
+    -                edges[it.id].add(target)
+    +            edge, err = _schema._parse_item_dependency_edge(token)
+    +            if err or edge is None:
+    +                continue
+    +            if (
+    +                edge.target_type == "ipd"
+    +                and edge.id6 in present_ids
+    +                and edge.id6 != it.id
+    +            ):
+    +                edges[it.id].add(edge.id6)
+    ```
+    Passing test output:
+    ```
+    $ python3 -m pytest tests/test_partition.py -k test_in_selection_edges_mixed_type_fixture -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <worktree-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 17 items / 16 deselected / 1 selected
 
-- [ ] V-02 validates E-02
+    tests/test_partition.py .                                                [100%]
+
+    ======================= 1 passed, 16 deselected in 0.20s =======================
+    ```
+    Failing output with E-01 hunk reverted:
+    ```
+    __________________ test_in_selection_edges_mixed_type_fixture __________________
+    ...
+    >       assert edges["aaaaaa"] == {"dddddd"}
+    E       AssertionError: assert {'bbbbbb', 'cccccc', 'dddddd'} == {'dddddd'}
+    E
+    E         Extra items in the left set:
+    E         'bbbbbb'
+    E         'cccccc'
+    E         Use -v to get more diff
+
+    tests/test_partition.py:125: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_partition.py::test_in_selection_edges_mixed_type_fixture - AssertionError: assert {'bbbbbb', 'cccccc', 'dddddd'} == {'dddddd'}
+    ======================= 1 failed, 16 deselected in 0.21s =======================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `grep -n "_compute_in_selection_depths" agent_workflows/partition.py` output and the passing `tests/test_partition.py` run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified with empty grep exit code 1 and all tests passing.
+    Empty grep output (exit code 1):
+    ```sh
+    $ grep -n "_compute_in_selection_depths" agent_workflows/partition.py
+    ```
+    Passing tests run:
+    ```
+    $ python3 -m pytest tests/test_partition.py tests/test_command_surface_declarations.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <worktree-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 18 items
 
-- [ ] V-03 validates E-03
+    tests/test_command_surface_declarations.py .                             [  5%]
+    tests/test_partition.py .................                                [100%]
+
+    ============================== 18 passed in 1.23s ==============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the rewritten test and its passing output, then its FAILING output when within-shard sorting is temporarily changed to `key=lambda it: it.id`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified with passing non-lexical test and failure under ID-based sorting mutation.
+    Rewritten test in `tests/test_partition.py`:
+    ```python
+    def test_packing_oversized_component_split() -> None:
+        # 6 items in one chain with non-lexical ID order:
+        # zzz001 <- aaa002 <- mmm003 <- bbb004 <- yyy005 <- ccc006
+        # K = 3 -> cap = ceil(6 / 3) = 2.
+        # Component size 6 > 2, so component must be split.
+        items = [
+            make_item("zzz001"),
+            make_item("aaa002", ("executed:zzz001",)),
+            make_item("mmm003", ("executed:aaa002",)),
+            make_item("bbb004", ("executed:mmm003", "executed:zzz001")),
+            make_item("yyy005", ("executed:bbb004",)),
+            make_item("ccc006", ("executed:yyy005", "executed:mmm003")),
+        ]
+        p = part.partition(items, 3)
+        assert len(p.shards) == 3
+        assert len(p.split_components) == 1
+    ...
+    ```
+    Passing test output:
+    ```
+    $ python3 -m pytest tests/test_partition.py -k test_packing_oversized_component_split -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <worktree-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 17 items / 16 deselected / 1 selected
 
-- [ ] V-04 validates E-04
+    tests/test_partition.py .                                                [100%]
+
+    ======================= 1 passed, 16 deselected in 0.19s =======================
+    ```
+    Failing output when within-shard sorting is temporarily changed to `key=lambda it: it.id`:
+    ```
+    ____________________ test_packing_oversized_component_split ____________________
+    ...
+    >                       assert a_idx < b_idx, f"Prerequisite {a_id} must precede {b_id}"
+    E                       AssertionError: Prerequisite zzz001 must precede bbb004
+    E                       assert 1 < 0
+
+    tests/test_partition.py:249: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_partition.py::test_packing_oversized_component_split - AssertionError: Prerequisite zzz001 must precede bbb004
+    ======================= 1 failed, 16 deselected in 0.21s =======================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the passing output of the four new tests by name.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified with four new CLI and edge tests passing.
+    ```sh
+    $ python3 -m pytest tests/test_partition.py -k "test_cli_partition_stdin_end_to_end or test_cli_partition_positional_selector or test_cli_partition_json_empty_selection or test_in_selection_edges_mixed_type_fixture" -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <worktree-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 17 items / 13 deselected / 4 selected
 
-- [ ] V-05 validates E-05
-  - Required evidence: paste `aw partition -s approved --agent` output from the real repository and the passing agent-record test.
-  - Observed evidence:
-  - Result: pending
+    tests/test_partition.py ....                                             [100%]
+
+    ======================= 4 passed, 13 deselected in 0.42s =======================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: paste `aw partition -s approved --agent` output from the real repository and the passing agent-record test asserting schema validity via `validate_agent_record`.
+  - Observed evidence: Verified with agent output on real repository, passing agent schema test, and bare test suite passing.
+    `aw partition -s approved --agent` output:
+    ```
+    Partitioned 19 items across 3 shard(s): [7, 6, 6]
+    {"schema":"aw.agent/v1","kind":"result","cmd":"partition","exit":0,"outcome":"ok","verified":true,"complete":true,"shards":[["2a6phj","8y13kn","jfza7e","olkeju","slqvmx","wd6npl","2yqt0a"],["4petcj","dmxc5h","me227c","pyuhnl","xz59ai","cnzrxb"],["6vozur","isgno7","o7k6lt","s6ne9d","xu3yxw","e54nz9"]],"commands":["aw oc run 2a6phj 8y13kn jfza7e olkeju slqvmx wd6npl 2yqt0a","aw oc run 4petcj dmxc5h me227c pyuhnl xz59ai cnzrxb","aw oc run 6vozur isgno7 o7k6lt s6ne9d xu3yxw e54nz9"],"split_components":[],"cycles":[],"unknown":[]}
+    ```
+    Passing agent-record test output:
+    ```sh
+    $ python3 -m pytest tests/test_partition.py -k "test_cli_partition_agent_mode" -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <worktree-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 17 items / 16 deselected / 1 selected
+
+    tests/test_partition.py .                                                [100%]
+
+    ======================= 1 passed, 16 deselected in 0.29s =======================
+    ```
+    Full test suite bare:
+    ```
+    $ python3 -m pytest
+    2489 passed, 2 skipped, 3 warnings in 42.18s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

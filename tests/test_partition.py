@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
 import pytest
 
+from agent_workflows import agent_schema
 from agent_workflows import attention
 from agent_workflows import cli
 from agent_workflows import partition as part
@@ -106,6 +108,26 @@ def test_in_selection_edges_ignores_external_and_self() -> None:
     assert edges["itm002"] == set()
 
 
+def test_in_selection_edges_mixed_type_fixture() -> None:
+    # A plan declaring state:spec:approved:<id6> or exists:backlog:<id6> where
+    # a selected plan shares that id6 must NOT create an in-selection edge.
+    # Only ipd edges (e.g. executed:dddddd) are kept.
+    items = [
+        make_item(
+            "aaaaaa",
+            ("state:spec:approved:bbbbbb", "exists:backlog:cccccc", "executed:dddddd"),
+        ),
+        make_item("bbbbbb"),
+        make_item("cccccc"),
+        make_item("dddddd"),
+    ]
+    edges = part.in_selection_edges(items)
+    assert edges["aaaaaa"] == {"dddddd"}
+    assert edges["bbbbbb"] == set()
+    assert edges["cccccc"] == set()
+    assert edges["dddddd"] == set()
+
+
 # ==============================================================================
 # (b) Packing: K=1, K > N, empty, balanced independents, fitting whole, oversized split
 # ==============================================================================
@@ -169,16 +191,17 @@ def test_packing_fitting_component_kept_whole() -> None:
 
 
 def test_packing_oversized_component_split() -> None:
-    # 6 items in one linear chain: n00001 -> n00002 -> n00003 -> n00004 -> n00005 -> n00006
+    # 6 items in one chain with non-lexical ID order:
+    # zzz001 <- aaa002 <- mmm003 <- bbb004 <- yyy005 <- ccc006
     # K = 3 -> cap = ceil(6 / 3) = 2.
     # Component size 6 > 2, so component must be split.
     items = [
-        make_item("n00001"),
-        make_item("n00002", ("executed:n00001",)),
-        make_item("n00003", ("executed:n00002",)),
-        make_item("n00004", ("executed:n00003",)),
-        make_item("n00005", ("executed:n00004",)),
-        make_item("n00006", ("executed:n00005",)),
+        make_item("zzz001"),
+        make_item("aaa002", ("executed:zzz001",)),
+        make_item("mmm003", ("executed:aaa002",)),
+        make_item("bbb004", ("executed:mmm003", "executed:zzz001")),
+        make_item("yyy005", ("executed:bbb004",)),
+        make_item("ccc006", ("executed:yyy005", "executed:mmm003")),
     ]
     p = part.partition(items, 3)
     assert len(p.shards) == 3
@@ -186,32 +209,52 @@ def test_packing_oversized_component_split() -> None:
 
     sn = p.split_components[0]
     assert sn.component_ids == [
-        "n00001",
-        "n00002",
-        "n00003",
-        "n00004",
-        "n00005",
-        "n00006",
+        "zzz001",
+        "aaa002",
+        "mmm003",
+        "bbb004",
+        "yyy005",
+        "ccc006",
     ]
     assert sn.shard_indexes == [0, 1, 2]
-    assert len(sn.cut_edges) > 0
+    expected_cut_edges = [
+        ("aaa002", "zzz001"),
+        ("bbb004", "mmm003"),
+        ("ccc006", "yyy005"),
+        ("mmm003", "aaa002"),
+        ("yyy005", "bbb004"),
+    ]
+    assert sn.cut_edges == expected_cut_edges
 
     # Every item should be in exactly one shard
     all_assigned = [it.id for s in p.shards for it in s]
     assert sorted(all_assigned) == [
-        "n00001",
-        "n00002",
-        "n00003",
-        "n00004",
-        "n00005",
-        "n00006",
+        "aaa002",
+        "bbb004",
+        "ccc006",
+        "mmm003",
+        "yyy005",
+        "zzz001",
     ]
 
-    # Within each shard, prerequisites precede dependents
+    # For every shard, for every pair where item B declares an in-selection edge
+    # to item A in the same shard, assert A's index < B's index.
+    in_sel = part.in_selection_edges(items)
     for shard in p.shards:
         ids = [it.id for it in shard]
-        for i in range(len(ids) - 1):
-            assert ids[i] < ids[i + 1]
+        for b_idx, b_id in enumerate(ids):
+            for a_id in in_sel.get(b_id, ()):
+                if a_id in ids:
+                    a_idx = ids.index(a_id)
+                    assert a_idx < b_idx, f"Prerequisite {a_id} must precede {b_id}"
+
+    # Specifically prove that lexical ordering would fail:
+    # In Shard 0: zzz001 (depth 0) must precede bbb004 (depth 3)
+    s0_ids = [it.id for it in p.shards[0]]
+    assert s0_ids.index("zzz001") < s0_ids.index("bbb004")
+    # In Shard 2: mmm003 (depth 2) must precede ccc006 (depth 5)
+    s2_ids = [it.id for it in p.shards[2]]
+    assert s2_ids.index("mmm003") < s2_ids.index("ccc006")
 
 
 def test_packing_determinism() -> None:
@@ -481,3 +524,101 @@ def test_cli_partition_exit_codes(
         )
         == 2
     )
+
+
+def test_cli_partition_stdin_end_to_end(
+    plan_fixture_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("pln001\nunknown99\n"))
+    exit_code = cli.main(
+        [
+            "partition",
+            "--dir",
+            str(plan_fixture_repo),
+            "--stdin",
+            "-n",
+            "1",
+            "--run",
+            "oc",
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "pln001" in captured.out
+    assert "unknown99" in captured.err
+
+
+def test_cli_partition_positional_selector(
+    plan_fixture_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = cli.main(
+        [
+            "partition",
+            "set1",
+            "--dir",
+            str(plan_fixture_repo),
+            "-n",
+            "1",
+            "--run",
+            "oc",
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "pln001" in captured.out
+    assert "pln002" in captured.out
+    assert "pln003" not in captured.out
+
+
+def test_cli_partition_json_empty_selection(
+    plan_fixture_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = cli.main(
+        [
+            "partition",
+            "nonexistent-selector",
+            "--dir",
+            str(plan_fixture_repo),
+            "--json",
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["shards"] == []
+    assert payload["commands"] == []
+
+
+def test_cli_partition_agent_mode(
+    plan_fixture_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = cli.main(
+        [
+            "partition",
+            "--dir",
+            str(plan_fixture_repo),
+            "-s",
+            "approved",
+            "-n",
+            "2",
+            "--agent",
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert len(lines) == 1
+    record = json.loads(lines[0])
+    agent_schema.validate_agent_record(record)
+    assert record["schema"] == "aw.agent/v1"
+    assert record["kind"] == "result"
+    assert record["cmd"] == "partition"
+    assert record["outcome"] == "ok"
+    assert record["exit"] == 0
+    assert record["verified"] is True
+    assert record["complete"] is True
+    assert len(record["shards"]) == 2
+    assert len(record["commands"]) == 2
+    assert "Partitioned 2 items across 2 shard(s)" in captured.err

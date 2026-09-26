@@ -10,8 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from agent_workflows import agent_schema
 from agent_workflows import attention as _att
 from agent_workflows import attention_contract
+from agent_workflows import ipd_schema as _schema
 from agent_workflows import plans as _plans
 from agent_workflows import selectors as _selectors
 
@@ -45,7 +47,7 @@ def in_selection_edges(items: Sequence[_att.Item]) -> Dict[str, Set[str]]:
     """Dependency edges among the given items whose target is also in items.
 
     Returns a mapping from item id to set of prerequisite ids it depends on within
-    the selection. External dependencies and self-edges are excluded.
+    the selection. Non-ipd targets, external dependencies, and self-edges are excluded.
     """
     present_ids = {it.id for it in items if it.id}
     edges: Dict[str, Set[str]] = {it.id: set() for it in items if it.id}
@@ -54,9 +56,15 @@ def in_selection_edges(items: Sequence[_att.Item]) -> Dict[str, Set[str]]:
         if not it.id:
             continue
         for token in it.item_dependencies or ():
-            target = token.strip().split(":")[-1]
-            if target and target in present_ids and target != it.id:
-                edges[it.id].add(target)
+            edge, err = _schema._parse_item_dependency_edge(token)
+            if err or edge is None:
+                continue
+            if (
+                edge.target_type == "ipd"
+                and edge.id6 in present_ids
+                and edge.id6 != it.id
+            ):
+                edges[it.id].add(edge.id6)
 
     return edges
 
@@ -104,32 +112,6 @@ def components(items: Sequence[_att.Item]) -> List[List[_att.Item]]:
     return comps
 
 
-def _compute_in_selection_depths(
-    items: Sequence[_att.Item], edges: Dict[str, Set[str]]
-) -> Dict[str, int]:
-    """Fallback topological depth calculation when item IDs are synthetic/short."""
-    depths: Dict[str, int] = {}
-    visited_in_path: Set[str] = set()
-
-    def get_depth(node: str) -> int:
-        if node in visited_in_path:
-            return 0
-        if node in depths:
-            return depths[node]
-        visited_in_path.add(node)
-        best = 0
-        for prereq in edges.get(node, ()):
-            best = max(best, 1 + get_depth(prereq))
-        visited_in_path.remove(node)
-        depths[node] = best
-        return best
-
-    for it in items:
-        if it.id:
-            get_depth(it.id)
-    return depths
-
-
 def partition(items: Sequence[_att.Item], k: int) -> Partition:
     """Partition items into k balanced shards preserving dependency clusters.
 
@@ -152,12 +134,7 @@ def partition(items: Sequence[_att.Item], k: int) -> Partition:
 
     comps = components(items)
     depths, cycles = _att.dependency_depths(items)
-
     edges = in_selection_edges(items)
-    # If all computed depths are 0 despite presence of in-selection edges (e.g. short test IDs),
-    # use pure in-selection topological depths.
-    if any(edges.values()) and all(d == 0 for d in depths.values()):
-        depths = _compute_in_selection_depths(items, edges)
 
     shards: List[List[_att.Item]] = [[] for _ in range(clamped_k)]
     split_components: List[SplitNote] = []
@@ -321,9 +298,6 @@ def collect(
 
     if max_count is not None and max_count > 0:
         depths, _ = _att.dependency_depths(candidates)
-        edges = in_selection_edges(candidates)
-        if any(edges.values()) and all(d == 0 for d in depths.values()):
-            depths = _compute_in_selection_depths(candidates, edges)
         candidates = sorted(candidates, key=lambda it: (depths.get(it.id, 0), it.id))[
             :max_count
         ]
@@ -369,6 +343,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
     model = getattr(args, "model", None)
     variant = getattr(args, "variant", None)
     is_json = bool(getattr(args, "json", False))
+    is_agent = bool(getattr(args, "agent", False))
 
     # Stdin handling
     stdin_ids: Optional[List[str]] = None
@@ -431,6 +406,24 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
             )
     if part_res.cycles:
         print(f"Detected dependency cycles: {part_res.cycles}", file=sys.stderr)
+
+    if is_agent:
+        record = {
+            "schema": agent_schema.SCHEMA_VERSION,
+            "kind": "result",
+            "cmd": "partition",
+            "exit": 0,
+            "outcome": "ok",
+            "verified": True,
+            "complete": True,
+            "shards": [[it.id for it in s if it.id] for s in part_res.shards],
+            "commands": commands,
+            "split_components": [sc.to_dict() for sc in part_res.split_components],
+            "cycles": part_res.cycles,
+            "unknown": unknown_ids,
+        }
+        sys.stdout.write(agent_schema.render_jsonl_record(record))
+        return 0
 
     if is_json:
         payload = {
