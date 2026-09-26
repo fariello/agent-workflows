@@ -6,7 +6,7 @@
 - Scope: Orchestration only. Child 01 `nomhl1` (broker, OpenCode HTTP API nudge, loopback-only), child 02 `ex539u` (filesystem target registry, depends on 01), child 03 `ozcfjr` (agent acks and status, depends on 01). This plan authors no code and no docs; each child owns its own spec amendment.
 - Scope-Paths: .aw/records/plans/pending/20260924-commsbroker-00-u8tabj-agent-comms-broker-set-payload-blind-nudge-broker-discovery.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: u8tabj
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set commsbroker reached executed, so the runner (run run-20260926T042128Z-3748222) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: nomhl1, ex539u, ozcfjr.
 - 2026-09-25 approved (aw set): status set to approved
 
 - 2026-09-25 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (uncarriered OQ, `check.ipd-uncarried-obligation` at `error`), PR-002 (cross-IPD opt-in grep false-positives on its own Set), PR-003 (backlog closure asserted a route no child carries), PR-004 (a completion criterion no child owns; recorded as OQ-02), PR-005 (gate carried almost no execution contract) all FIXED. Findings recorded in `.aw/records/reviews/20260924-commsbroker-00-u8tabj-agent-comms-broker-set-payload-blind-nudge-broker-discovery.review.md`. Readiness go-pending-approval.
@@ -31,6 +31,9 @@
 Deliver the three deferred comms follow-ups in dependency order, each opt-in, so the broker-free convention keeps working unchanged when none of them is used.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
