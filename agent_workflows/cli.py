@@ -3768,6 +3768,99 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    p_partition = sub.add_parser(
+        "partition",
+        parents=[common],
+        help="Partition plans into balanced runner shards while preserving cross-plan dependencies.",
+        description=(
+            "Partition plans into balanced runner shards while keeping cross-plan dependencies "
+            "clustered together to prevent concurrent runner failures. Formats cut-and-paste "
+            "`aw oc run` or `aw agy run` commands."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw partition approved                 # split approved plans into 3 shards\n"
+            "  aw partition -n 3 -s approved         # same with explicit shard count\n"
+            "  aw partition --max 30 --run oc        # partition first 30 approved plans for OpenCode\n"
+            "  aw partition --as gem                 # format with 'aw run as gem' launch profile\n"
+            "  aw partition --model <model> --variant <variant> # pass through model options\n"
+            "  aw att -t plan -s approved -id | aw partition --stdin # pipe IDs from standard input\n"
+        ),
+    )
+    p_partition.add_argument(
+        "selectors",
+        nargs="*",
+        default=[],
+        help="Positional arguments: optional selector tokens (e.g. approved, id6, setid).",
+    )
+    p_partition.add_argument(
+        "-n",
+        "--shards",
+        dest="shards",
+        type=int,
+        default=3,
+        help="Number of balanced shards to produce (default: 3).",
+    )
+    p_partition.add_argument(
+        "-s",
+        "--status",
+        dest="status",
+        action="append",
+        default=[],
+        help="Filter by artifact status (repeatable, exact match).",
+    )
+    p_partition.add_argument(
+        "-p",
+        "--priority",
+        dest="priority",
+        action="append",
+        default=[],
+        help="Filter by priority (high, medium, low).",
+    )
+    p_partition.add_argument(
+        "--max",
+        dest="max",
+        type=int,
+        default=None,
+        help="Maximum number of candidate plans to select before partitioning.",
+    )
+    p_partition.add_argument(
+        "--run",
+        dest="run",
+        choices=("oc", "agy", "none"),
+        default=None,
+        help="Runner command format: 'oc' (aw oc run), 'agy' (aw agy run), or 'none' (space-separated IDs). Default: oc.",
+    )
+    p_partition.add_argument(
+        "--as",
+        dest="as_profile",
+        default=None,
+        help="Runner launch profile name (e.g. 'gem' for 'aw run as gem ...').",
+    )
+    p_partition.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Passthrough model flag for the runner command.",
+    )
+    p_partition.add_argument(
+        "--variant",
+        dest="variant",
+        default=None,
+        help="Passthrough variant flag for the runner command.",
+    )
+    p_partition.add_argument(
+        "--stdin",
+        dest="stdin",
+        action="store_true",
+        default=False,
+        help="Read plan IDs explicitly from standard input.",
+    )
+    p_partition.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     # setupmarker Order 01: the operational-action ledger was removed (redundant with backlog);
     # the complete/dismiss/reopen/history action verbs are gone. The post-install "run setup"
     # reminder is now the `.aw/setup-repo-needed.md` marker, cleared by `aw setup` / the /setup-repo
@@ -10793,6 +10886,15 @@ def _run_graduation(
     return 0
 
 
+def _run_partition(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
+    """`aw partition`: partition plans into balanced runner shards while preserving cross-plan dependencies."""
+    from agent_workflows import partition
+
+    return partition.run_partition(args, term, context=context)
+
+
 def _nv_resolve_types(args, term, verb):
     """Resolve the verb's TYPE argument to a list of supported types, or None on error (after
     emitting a fail). `all` expands to every type this verb has a backend for."""
@@ -13916,6 +14018,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_record_history(args, term, context=context)
     if args.command == "graduation":
         return _run_graduation(args, term, context=context)
+    if args.command == "partition":
+        return _run_partition(args, term, context=context)
     if args.command in ("check", "find", "search", "index", "rename", "group"):
         return _run_noun_verb(args, term, context=context)
     if args.command == "migrate-layout":

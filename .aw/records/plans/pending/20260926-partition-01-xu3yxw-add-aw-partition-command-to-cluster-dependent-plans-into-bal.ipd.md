@@ -6,7 +6,7 @@
 - Scope: IN: (a) `agent_workflows/partition.py`: in-selection dependency graph, weakly connected components, balanced greedy packing, dependency-first ordering within a shard, oversized-component splitting, and command formatting; (b) candidate selection through the EXISTING resolvers (positional selectors, `--status`, `--priority`, `--max`, or whitespace-separated ids on stdin); (c) `-n`/`--shards K` (default 3); (d) `--run {oc,agy,as,none}` output with `--model`/`--variant` passthrough and `--as <profile>` routed through the host-neutral `aw run as <profile>`; (e) register `aw partition` in `agent_workflows/cli.py` and declare it in `agent_workflows/command_surface.py`'s `COMMAND_INVENTORY`; (f) behavioral and CLI tests in `tests/test_partition.py`; (g) a CHANGELOG entry. OUT: in-runner worker pools; launching runs or mutating any record (read-only command); non-plan artifact types (the runners dispatch plans only today; see Deferred).
 - Scope-Paths: agent_workflows/partition.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_partition.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -15,8 +15,10 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: xu3yxw
+- Approval: 2026-09-26, human ("approved"): Human approved in chat: 'OK, They're reviewed. I approve them both. Please do 01.'
 
 ## Workflow history
+- 2026-09-26 approved (aw set, --by-human): Human approved in chat: 'OK, They're reviewed. I approve them both. Please do 01.'
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED. Corrected two non-existent resolver names, replaced the head/tail placement rule (the runner re-sorts queues by dependency depth) with depth-ordered splitting plus reported cut edges, added the COMMAND_INVENTORY declaration the conformance test requires, routed --as through host-neutral `aw run as`, made stdin explicit, guarded empty shards, dropped the `batch` alias and `--type`. Readiness GO - PENDING HUMAN APPROVAL.
@@ -38,42 +40,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the pure algorithm
 
-- [ ] E-01 GRAPH AND COMPONENTS in `agent_workflows/partition.py`. The unit is `attention.Item` (which already carries `item_dependencies` parsed by `ipd_schema.parse_item_dependencies`; do NOT call the private `ipd_schema._parse_item_dependency_edge`). `in_selection_edges(items) -> dict[str, set[str]]`: for every item, every dependency edge whose target id6 is ALSO in the selection (any edge kind: `executed:`, `exists:`, `state:`; edges to non-selected ids are external and ignored). `components(items) -> list[list[Item]]`: undirected weakly connected components over those edges, isolated items as singletons, returned in a deterministic order (by size descending, then smallest id6).
+- [x] E-01 GRAPH AND COMPONENTS in `agent_workflows/partition.py`. The unit is `attention.Item` (which already carries `item_dependencies` parsed by `ipd_schema.parse_item_dependencies`; do NOT call the private `ipd_schema._parse_item_dependency_edge`). `in_selection_edges(items) -> dict[str, set[str]]`: for every item, every dependency edge whose target id6 is ALSO in the selection (any edge kind: `executed:`, `exists:`, `state:`; edges to non-selected ids are external and ignored). `components(items) -> list[list[Item]]`: undirected weakly connected components over those edges, isolated items as singletons, returned in a deterministic order (by size descending, then smallest id6).
   - Depends on: none
   - Expected outcome: for synthetic selections (two independent chains, a fork-join, isolated nodes, a cycle), components are exactly the expected id6 sets in a deterministic order.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PACKING AND ORDERING in `agent_workflows/partition.py`. `partition(items, k) -> Partition(shards: list[list[Item]], split_components: list[SplitNote])`, pure and deterministic. (1) `k` is clamped to `max(1, min(k, len(items)))`; an empty selection yields zero shards. (2) Capacity `cap = ceil(N / k)`. (3) Components with `size <= cap` are placed WHOLE, largest first, each into the currently smallest shard (ties broken by lowest shard index), which is LPT greedy. (4) A component with `size > cap` is SPLIT: order its items by `attention.dependency_depths` depth ascending (ties by id6), then place them one at a time in that order into the currently smallest shard, so prerequisites are placed before their dependents; record a `SplitNote(component_ids, shard_indexes, cut_edges)` naming every in-selection edge that now crosses shards. (5) Within each shard, order items by `attention.dependency_depths` depth then id6, so each shard's command lists prerequisites first; this matches the runner's own `queue_sort_key` direction, which re-sorts anyway. (6) Cycles reported by `dependency_depths` are passed through into the result, not repaired.
+- [x] E-02 PACKING AND ORDERING in `agent_workflows/partition.py`. `partition(items, k) -> Partition(shards: list[list[Item]], split_components: list[SplitNote])`, pure and deterministic. (1) `k` is clamped to `max(1, min(k, len(items)))`; an empty selection yields zero shards. (2) Capacity `cap = ceil(N / k)`. (3) Components with `size <= cap` are placed WHOLE, largest first, each into the currently smallest shard (ties broken by lowest shard index), which is LPT greedy. (4) A component with `size > cap` is SPLIT: order its items by `attention.dependency_depths` depth ascending (ties by id6), then place them one at a time in that order into the currently smallest shard, so prerequisites are placed before their dependents; record a `SplitNote(component_ids, shard_indexes, cut_edges)` naming every in-selection edge that now crosses shards. (5) Within each shard, order items by `attention.dependency_depths` depth then id6, so each shard's command lists prerequisites first; this matches the runner's own `queue_sort_key` direction, which re-sorts anyway. (6) Cycles reported by `dependency_depths` are passed through into the result, not repaired.
   - Depends on: E-01
   - Expected outcome: independent items spread within one item of each other; every component with `size <= cap` lands in exactly one shard; an oversized component is split, every crossing edge is listed in `split_components`, and within each shard prerequisites precede dependents; output is byte-identical across repeated runs.
   - REPLACES the original "head/tail buffering" rule. Measured reason: the runner re-sorts each queue by `queue_sort_key` (dependency depth first), so the order `aw partition` prints cannot put an item at a shard's "tail"; and when a cross-shard edge exists, the dependent's run fails it at drain regardless of position (`classify_drain_block`). The honest mitigation for an oversized component is to REPORT the cut (step 4) so the operator can run that component serially or raise `-n`'s capacity by lowering K, and plan `e54nz9` (Order 2) makes a draining run wait for a prerequisite a live peer is executing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: selection and formatting
 
-- [ ] E-03 CANDIDATE SELECTION in `agent_workflows/partition.py`: `collect(repo_root, selectors, statuses, priorities, max_count, stdin_ids) -> list[Item]`. Build the universe with `attention.scan(repo_root)` restricted to type `plan` (plans are the only type the runners can dispatch; see Deferred). With `stdin_ids`, keep items whose id6 is in that set and report every unknown or non-plan id on stderr (never silently dropped). Otherwise resolve positional selectors with `selectors.resolve_selectors(repo_root, "plans", tokens)` and intersect by path; no selectors means all plans. Apply `--status` (repeatable, exact match on `Item.status`) and `--priority` through `attention.parse_priority_filters` (so an invalid value errors rather than returning nothing, the defect that function's comment records). Exclude items in a terminal directory. `--max N` truncates AFTER filtering, keeping the first N in `dependency_depths` order (depth then id6) so a prerequisite is kept before its dependents.
+- [x] E-03 CANDIDATE SELECTION in `agent_workflows/partition.py`: `collect(repo_root, selectors, statuses, priorities, max_count, stdin_ids) -> list[Item]`. Build the universe with `attention.scan(repo_root)` restricted to type `plan` (plans are the only type the runners can dispatch; see Deferred). With `stdin_ids`, keep items whose id6 is in that set and report every unknown or non-plan id on stderr (never silently dropped). Otherwise resolve positional selectors with `selectors.resolve_selectors(repo_root, "plans", tokens)` and intersect by path; no selectors means all plans. Apply `--status` (repeatable, exact match on `Item.status`) and `--priority` through `attention.parse_priority_filters` (so an invalid value errors rather than returning nothing, the defect that function's comment records). Exclude items in a terminal directory. `--max N` truncates AFTER filtering, keeping the first N in `dependency_depths` order (depth then id6) so a prerequisite is kept before its dependents.
   - Depends on: E-01
   - Expected outcome: each filter, stdin, and `--max` behave as stated on a fixture repo; an unknown stdin id and an invalid priority are reported, not swallowed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 COMMAND FORMATTING in `agent_workflows/partition.py`: `format_shard(run, ids, *, profile, model, variant) -> str`. `none` -> space-separated id6s. `oc`/`agy` -> `aw <run> run <ids...>` then `--model <m>` / `--variant <v>` when given. `--as <profile>` -> the host-neutral `aw run as <profile> <ids...>` (plus passthrough flags), because a profile names its own runner (`runner_profiles`) and `aw run as` is the route that lets the profile pick the host (`cli` "HOST-NEUTRAL DISPATCH"); `--as` with `--run oc|agy` is a usage error rather than a guessed combination. Values are shell-quoted with `shlex.quote`. An empty shard prints nothing (not a command with no ids, which would mean `all`).
+- [x] E-04 COMMAND FORMATTING in `agent_workflows/partition.py`: `format_shard(run, ids, *, profile, model, variant) -> str`. `none` -> space-separated id6s. `oc`/`agy` -> `aw <run> run <ids...>` then `--model <m>` / `--variant <v>` when given. `--as <profile>` -> the host-neutral `aw run as <profile> <ids...>` (plus passthrough flags), because a profile names its own runner (`runner_profiles`) and `aw run as` is the route that lets the profile pick the host (`cli` "HOST-NEUTRAL DISPATCH"); `--as` with `--run oc|agy` is a usage error rather than a guessed combination. Values are shell-quoted with `shlex.quote`. An empty shard prints nothing (not a command with no ids, which would mean `all`).
   - Depends on: E-03
   - Expected outcome: every format matches the runners' documented grammar (`aw oc run as gem SELECTOR`, `aw oc run SELECTOR --model ... --variant ...`); no command is ever emitted with an empty id list.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: CLI integration
 
-- [ ] E-05 REGISTER `aw partition` in `agent_workflows/cli.py` using the shared `common` parent (so `--agent`/`--json`/`--color` behave like every other verb), and DECLARE it in `command_surface.COMMAND_INVENTORY` (class `read`, no mutation gate) so `tests/test_command_surface_declarations.py::test_zero_undeclared_parser_leaves` stays green. No alias (`batch` is dropped: an alias is a second public name to support, and nothing requires it). Arguments: positional `selectors` (`nargs="*"`); `-n/--shards` (int, default 3, must be >= 1); `-s/--status` (append); `-p/--priority` (append); `--max` (int >= 1); `--run {oc,agy,none}` (default `oc`); `--as` (dest `as_profile`); `--model`; `--variant`; `--stdin` to read ids from standard input explicitly (a bare pipe is NOT auto-detected, so a scripted call cannot hang on an inherited terminal). Output: one line per non-empty shard on stdout; a summary (shard sizes, any `split_components` with their cut edges, any cycles, unknown ids) on stderr always, since those are warnings an operator must see; `--json` emits `{shards: [[id6...]], commands: [...], split_components: [...], cycles: [...], unknown: [...]}`. Exit 0 on success including an empty selection (prints a note, no commands), 2 on usage error.
+- [x] E-05 REGISTER `aw partition` in `agent_workflows/cli.py` using the shared `common` parent (so `--agent`/`--json`/`--color` behave like every other verb), and DECLARE it in `command_surface.COMMAND_INVENTORY` (class `read`, no mutation gate) so `tests/test_command_surface_declarations.py::test_zero_undeclared_parser_leaves` stays green. No alias (`batch` is dropped: an alias is a second public name to support, and nothing requires it). Arguments: positional `selectors` (`nargs="*"`); `-n/--shards` (int, default 3, must be >= 1); `-s/--status` (append); `-p/--priority` (append); `--max` (int >= 1); `--run {oc,agy,none}` (default `oc`); `--as` (dest `as_profile`); `--model`; `--variant`; `--stdin` to read ids from standard input explicitly (a bare pipe is NOT auto-detected, so a scripted call cannot hang on an inherited terminal). Output: one line per non-empty shard on stdout; a summary (shard sizes, any `split_components` with their cut edges, any cycles, unknown ids) on stderr always, since those are warnings an operator must see; `--json` emits `{shards: [[id6...]], commands: [...], split_components: [...], cycles: [...], unknown: [...]}`. Exit 0 on success including an empty selection (prints a note, no commands), 2 on usage error.
   - Depends on: E-02, E-04
   - Expected outcome: `aw partition --help` documents every option; the inventory test passes; the command writes nothing to the repository.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: tests and changelog
 
-- [ ] E-06 ADD `tests/test_partition.py` (behavioral; no source-text or AST pins, per the 2026-09-26 test-policy ruling) and a CHANGELOG entry. Tests: (a) components on synthetic `Item`s: two chains, fork-join, isolated, cycle; (b) packing: K=1, K > N (clamped), empty selection, balanced independents (sizes differ by at most one), a fitting component kept whole, an oversized component split with every cut edge reported and prerequisites before dependents in every shard; determinism (same input twice -> identical output); (c) selection on a fixture repo with real plan files: selectors, `--status`, `--priority` (and an invalid value erroring), `--max` keeping prerequisites, `--stdin` with an unknown id reported, terminal plans excluded; (d) formatting: `none`, `oc`, `agy`, `--as` -> `aw run as`, `--as` with `--run oc` refused, shell quoting, no empty-id command; (e) CLI: `cli.main(["partition", ...])` end to end on the fixture, `--json` shape, exit codes, and a before/after tree listing showing no file changed. CHANGELOG (user-facing, no dashes): a new `aw partition` command splits approved plans into balanced groups for running in several terminals at once, keeping dependent plans together.
+- [x] E-06 ADD `tests/test_partition.py` (behavioral; no source-text or AST pins, per the 2026-09-26 test-policy ruling) and a CHANGELOG entry. Tests: (a) components on synthetic `Item`s: two chains, fork-join, isolated, cycle; (b) packing: K=1, K > N (clamped), empty selection, balanced independents (sizes differ by at most one), a fitting component kept whole, an oversized component split with every cut edge reported and prerequisites before dependents in every shard; determinism (same input twice -> identical output); (c) selection on a fixture repo with real plan files: selectors, `--status`, `--priority` (and an invalid value erroring), `--max` keeping prerequisites, `--stdin` with an unknown id reported, terminal plans excluded; (d) formatting: `none`, `oc`, `agy`, `--as` -> `aw run as`, `--as` with `--run oc` refused, shell quoting, no empty-id command; (e) CLI: `cli.main(["partition", ...])` end to end on the fixture, `--json` shape, exit codes, and a before/after tree listing showing no file changed. CHANGELOG (user-facing, no dashes): a new `aw partition` command splits approved plans into balanced groups for running in several terminals at once, keeping dependent plans together.
   - Depends on: E-05
   - Expected outcome: all tests pass; the command-surface inventory test passes; the CHANGELOG entry exists.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -166,35 +168,35 @@ No spec amendment: `aw partition` is a new read-only verb and changes no existin
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the passing output of the component tests (two chains, fork-join, isolated, cycle) showing the exact id6 sets, and a grep showing `partition.py` does not call `_parse_item_dependency_edge`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Two chains: [{'chn001', 'chn002'}, {'chn003', 'chn004'}]; Fork-join: [{'frk001', 'frk002', 'frk003', 'frk004'}]; Isolated: [['iso001'], ['iso002'], ['iso003']]; Cycle: [{'cyc001', 'cyc002'}]; Grep confirmation: grep "_parse_item_dependency_edge" agent_workflows/partition.py exits 1 with 0 matches.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the passing output of the packing tests, including the oversized case's reported cut edges and a determinism test that runs the partition twice and compares.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. 5 tests passed in 2.36s; Oversized case split component into 3 shards with cut_edges: [['n00002', 'n00001'], ['n00003', 'n00002'], ['n00004', 'n00003'], ['n00005', 'n00004'], ['n00006', 'n00005']]; determinism verified with identical shards and split_components across runs.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the passing selection tests on the fixture repo, including the invalid-priority error text and the unknown-stdin-id report.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Selection tests passed in 2.38s; invalid priority raised ValueError: invalid priority 'urgent', expected one of: high, medium, low; unknown stdin id reported: ['unknown99']; terminal plans in executed/ excluded.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste each format's output from the tests (`none`, `oc`, `agy`, `--as`), the refusal for `--as` with `--run oc`, and the test proving no empty-id command is emitted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. none: 'pln001 pln002'; oc: 'aw oc run pln001 pln002'; agy: 'aw agy run pln001 pln002'; --as: 'aw run as gem pln001 pln002'; refusal raised ValueError: '--as cannot be combined with --run oc'; empty-id command emitted: ''.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `aw partition --help`, the passing `test_zero_undeclared_parser_leaves` output, and a `--json` sample.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. aw partition --help output verified with all options; test_zero_undeclared_parser_leaves passed 1 in 2.81s; --json emitted valid JSON payload with shards, commands, split_components, cycles, unknown.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the full `tests/test_partition.py` run, the before/after tree comparison proving no file changed, the CHANGELOG entry, and the bare `python3 -m pytest` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. tests/test_partition.py passed 12 in 2.60s; test_cli_partition_end_to_end confirmed tree_before == tree_after; CHANGELOG entry added under 2.0.0 (pending) with no dashes; bare pytest: 2484 passed, 2 skipped, 3 warnings in 44.25s.
+  - Result: pass
 
 ## Approval and execution gate
 
