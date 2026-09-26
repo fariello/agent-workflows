@@ -7351,7 +7351,9 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
             resolve_card=False,
         )
         self.assertEqual(record["host"], "agy")
-        self.assertEqual(record["model"], agy_runipd.DEFAULT_MODEL)
+        # `DEFAULT_MODEL` is resolved from the operator's agy settings.json (1864f5b9) and is None on
+        # a machine without one (every CI runner); the record normalizes an absent model to "".
+        self.assertEqual(record["model"], agy_runipd.DEFAULT_MODEL or "")
         self.assertEqual(record["card"], {})
         self.assertEqual(record["card_reason"], "host-card-not-in-any-readable-config")
         self.assertEqual(record["card_reason"], runner_shared.CARD_HOST_NOT_READABLE)
@@ -7359,11 +7361,13 @@ class AgyCardIsNotResolvableTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             env, path = _cost_config(temp, cost={"input": 5.5})
             parsed = json.loads(path.read_text(encoding="utf-8"))
+        # A CONCRETE agy model id, not `DEFAULT_MODEL`: this half asserts that an agy id is not
+        # priced by the opencode config, which needs an id to exist. `DEFAULT_MODEL` depends on the
+        # machine's agy settings.json and is None on CI, which turned this into a no-model case.
+        agy_model = agy_runipd.DEFAULT_MODEL or "gemini-3.7-flash-high"
         declared = oc_models.models_from_config(parsed)
-        self.assertNotIn(agy_runipd.DEFAULT_MODEL, declared)
-        components, reason = oc_models.card_from_config(
-            parsed, agy_runipd.DEFAULT_MODEL
-        )
+        self.assertNotIn(agy_model, declared)
+        components, reason = oc_models.card_from_config(parsed, agy_model)
         self.assertEqual(components, {})
         self.assertEqual(reason, oc_models.CARD_MODEL_NOT_DECLARED)
 

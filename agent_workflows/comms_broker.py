@@ -186,6 +186,26 @@ def unregister_target(comms_dir: Path | str, agent: str) -> bool:
     return False
 
 
+#: Every errno a refused TCP connect can carry. POSIX reports `ECONNREFUSED`; Windows reports
+#: `WSAECONNREFUSED` (10061) through `winerror`/`errno`, which `errno.ECONNREFUSED` (111/61) does
+#: not equal, so a Windows refusal was classified `agent-not-responding` (CI, windows-latest).
+#: Windows can ALSO surface a loopback refusal as a connect TIMEOUT: with no listener, the
+#: Windows TCP stack retries the SYN (about 2s) before reporting, which a short `timeout` beats.
+#: That case stays `agent-not-responding`; the test uses a timeout above the retry window.
+_REFUSED_ERRNOS = frozenset(
+    e for e in (errno.ECONNREFUSED, getattr(errno, "WSAECONNREFUSED", None), 10061) if e
+)
+
+
+def _is_connection_refused(exc: object) -> bool:
+    if isinstance(exc, ConnectionRefusedError):
+        return True
+    return (
+        getattr(exc, "errno", None) in _REFUSED_ERRNOS
+        or getattr(exc, "winerror", None) in _REFUSED_ERRNOS
+    )
+
+
 def resolve_target(
     comms_dir: Path | str,
     agent: str,
@@ -260,12 +280,7 @@ def resolve_target(
                 return "agent-not-responding"
     except (urllib.error.URLError, OSError, ConnectionRefusedError) as exc:
         reason_val = getattr(exc, "reason", exc)
-        if (
-            isinstance(reason_val, ConnectionRefusedError)
-            or getattr(reason_val, "errno", None) == errno.ECONNREFUSED
-            or isinstance(exc, ConnectionRefusedError)
-            or getattr(exc, "errno", None) == errno.ECONNREFUSED
-        ):
+        if _is_connection_refused(exc) or _is_connection_refused(reason_val):
             return "agent-not-running"
         return "agent-not-responding"
     except Exception:
@@ -288,12 +303,7 @@ def resolve_target(
                 return "agent-not-responding"
     except (urllib.error.URLError, OSError, ConnectionRefusedError) as exc:
         reason_val = getattr(exc, "reason", exc)
-        if (
-            isinstance(reason_val, ConnectionRefusedError)
-            or getattr(reason_val, "errno", None) == errno.ECONNREFUSED
-            or isinstance(exc, ConnectionRefusedError)
-            or getattr(exc, "errno", None) == errno.ECONNREFUSED
-        ):
+        if _is_connection_refused(exc) or _is_connection_refused(reason_val):
             return "agent-not-running"
         return "agent-not-responding"
     except Exception:
@@ -427,15 +437,7 @@ def deliver(
         return "agent-not-responding"
     except (urllib.error.URLError, OSError, ConnectionRefusedError) as exc:
         reason_val = getattr(exc, "reason", exc)
-        if (
-            isinstance(reason_val, ConnectionRefusedError)
-            or getattr(reason_val, "errno", None) == errno.ECONNREFUSED
-        ):
-            return "agent-not-running"
-        if (
-            isinstance(exc, ConnectionRefusedError)
-            or getattr(exc, "errno", None) == errno.ECONNREFUSED
-        ):
+        if _is_connection_refused(exc) or _is_connection_refused(reason_val):
             return "agent-not-running"
         if isinstance(reason_val, (socket.timeout, TimeoutError)) or isinstance(
             exc, (socket.timeout, TimeoutError)

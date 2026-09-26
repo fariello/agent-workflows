@@ -478,8 +478,25 @@ def test_resolve_target_connection_refused(tmp_path: Path):
         session="s1",
     )
 
-    resolved = resolve_target(comms_dir, "target.agent", repo_root, timeout=2.0)
+    # 10s, not 2s: on Windows a connect to a closed loopback port is retried by the TCP stack for
+    # about 2s before WSAECONNREFUSED is reported, so a 2s timeout raced it and saw a TIMEOUT
+    # (`agent-not-responding`) on every windows-latest job. A refusal still returns in milliseconds
+    # on POSIX, so the larger ceiling costs nothing there.
+    resolved = resolve_target(comms_dir, "target.agent", repo_root, timeout=10.0)
     assert resolved == "agent-not-running"
+
+
+def test_connection_refused_classifier_covers_windows_errno():
+    from agent_workflows.comms_broker import _is_connection_refused
+
+    class _WinErr(OSError):
+        pass
+
+    win = _WinErr()
+    win.winerror = 10061
+    assert _is_connection_refused(win)
+    assert _is_connection_refused(ConnectionRefusedError())
+    assert not _is_connection_refused(TimeoutError())
 
 
 # --- E-05, E-06, V-05, V-06: Wiring, Explicit URL and Idempotence ------------------------------
