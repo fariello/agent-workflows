@@ -518,6 +518,228 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             rc = cli._run_check(args, term)
             self.assertEqual(rc, 0)
 
+    def test_gate_mismatch_not_reported_when_next_and_id6_resolve_to_same_release(
+        self,
+    ) -> None:
+        """(a) Item 'next' and From-Backlog plan with resolved release id6 produce no gate mismatch."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug001\n"
+                "- Status: open\n"
+                "- Blocks-Release: next\n"
+                "- Set: bug001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Gated bug\n",
+                encoding="utf-8",
+            )
+            plan_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260920-plan01-01-plan01-fix-bug.ipd.md"
+            )
+            plan_file.write_text(
+                "# IPD: Fix bug\n\n"
+                "- Id: plan01\n"
+                "- Status: approved\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: rel001\n"
+                "- Set: plan01\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            rules = [d.rule for d in findings]
+            self.assertNotIn("check.from-backlog-gate-mismatch", rules)
+
+    def test_evaluate_blocking_close_legitimate_when_next_and_id6_resolve_to_same_release(
+        self,
+    ) -> None:
+        """(b) evaluate_blocking_close is legitimate with path HANDOFF when gates resolve identically."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug001\n"
+                "- Status: open\n"
+                "- Blocks-Release: next\n"
+                "- Set: bug001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Gated bug\n",
+                encoding="utf-8",
+            )
+            plan_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260920-plan01-01-plan01-fix-bug.ipd.md"
+            )
+            plan_file.write_text(
+                "# IPD: Fix bug\n\n"
+                "- Id: plan01\n"
+                "- Status: approved\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: rel001\n"
+                "- Set: plan01\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n",
+                encoding="utf-8",
+            )
+            verdict = check_engine.evaluate_blocking_close(repo, bug_file, "done")
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.path, "HANDOFF")
+            self.assertEqual(verdict.severity, "ok")
+
+    def test_gate_mismatch_reported_for_genuinely_different_release(
+        self,
+    ) -> None:
+        """(c) Gate mismatch is reported when carrier names a genuinely different release."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            # Create a second planned release
+            (
+                repo
+                / ".aw"
+                / "records"
+                / "releases"
+                / "20260902-rel002-01-rel002-v2.release.md"
+            ).write_text(
+                "- Id: rel002\n- Status: planned\n- Version: 2.0.0\n- Summary: R2\n",
+                encoding="utf-8",
+            )
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug001\n"
+                "- Status: open\n"
+                "- Blocks-Release: rel001\n"
+                "- Set: bug001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Gated bug\n",
+                encoding="utf-8",
+            )
+            plan_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260920-plan01-01-plan01-fix-bug.ipd.md"
+            )
+            plan_file.write_text(
+                "# IPD: Fix bug\n\n"
+                "- Id: plan01\n"
+                "- Status: approved\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: rel002\n"
+                "- Set: plan01\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            rules = [d.rule for d in findings]
+            self.assertIn("check.from-backlog-gate-mismatch", rules)
+
+            verdict = check_engine.evaluate_blocking_close(repo, bug_file, "done")
+            self.assertFalse(verdict.legitimate)
+            self.assertEqual(verdict.severity, "error")
+            self.assertIsNone(verdict.path)
+
+    def test_gate_mismatch_unresolvable_next_falls_back_to_string_mismatch(
+        self,
+    ) -> None:
+        """(d) When 'next' cannot be resolved (multiple planned releases), fallback treats it as mismatch."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            # Create a second planned release so 'next' fails to resolve (ambiguous)
+            (
+                repo
+                / ".aw"
+                / "records"
+                / "releases"
+                / "20260902-rel002-01-rel002-v2.release.md"
+            ).write_text(
+                "- Id: rel002\n- Status: planned\n- Version: 2.0.0\n- Summary: R2\n",
+                encoding="utf-8",
+            )
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug001\n"
+                "- Status: open\n"
+                "- Blocks-Release: next\n"
+                "- Set: bug001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Gated bug\n",
+                encoding="utf-8",
+            )
+            plan_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260920-plan01-01-plan01-fix-bug.ipd.md"
+            )
+            plan_file.write_text(
+                "# IPD: Fix bug\n\n"
+                "- Id: plan01\n"
+                "- Status: approved\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: rel001\n"
+                "- Set: plan01\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            rules = [d.rule for d in findings]
+            self.assertIn("check.from-backlog-gate-mismatch", rules)
+            self.assertIn("check.blocks-release-dangling", rules)
+
+            verdict = check_engine.evaluate_blocking_close(repo, bug_file, "done")
+            self.assertFalse(verdict.legitimate)
+            self.assertEqual(verdict.severity, "error")
+            self.assertIsNone(verdict.path)
+
 
 if __name__ == "__main__":
     unittest.main()
