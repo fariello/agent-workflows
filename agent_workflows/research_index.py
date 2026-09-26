@@ -60,6 +60,108 @@ class DocEntry(NamedTuple):
 Drift = _core.Drift
 
 
+def _doc_entry(
+    research_root: Path,
+    p: Path,
+    *,
+    ignored_dirs: set[str],
+) -> Tuple[Optional[DocEntry], List[Drift]]:
+    """Parse a single research doc at ``p`` under ``research_root``.
+
+    Returns (entry, drift). Returns (None, []) or (None, drift) for skipped docs
+    (non-conformant name, missing/invalid frontmatter, or excluded).
+    Keyword-only ``ignored_dirs`` must be provided by the caller to prevent redundant git
+    subprocesses (F-6).
+    """
+
+    if (
+        p.name in (INDEX_MD,)
+        or p.name == "README.md"
+        or _core.is_ignored_path(p, research_root, ignored_dirs)
+    ):
+        return None, []
+    try:
+        rel = p.relative_to(research_root).as_posix()
+    except ValueError:
+        return None, []
+
+    parsed, name_err = R.parse_name(p.name)
+    if parsed is None:
+        # Non-conformant filename: not an indexable research doc; skip quietly (migration
+        # handles back-fill). Only report a name-vs-frontmatter mismatch for files that DO
+        # carry research frontmatter.
+        text = p.read_text(encoding="utf-8")
+        if R.parse_frontmatter(text) is not None:
+            return None, [
+                Drift(
+                    p.name,
+                    "name-invalid",
+                    name_err.message if name_err else "bad name",
+                )
+            ]
+        return None, []
+    text = p.read_text(encoding="utf-8")
+    fm = R.parse_frontmatter(text)
+    if fm is None:
+        return None, [Drift(rel, "frontmatter-missing", "no valid frontmatter block")]
+    errs = R.validate_frontmatter(fm)
+    if errs:
+        return None, [
+            Drift(rel, "frontmatter-invalid", f"{e.field}: {e.message}") for e in errs
+        ]
+    drift: List[Drift] = []
+    # name-vs-frontmatter consistency
+    if fm.get("id") != parsed.id6:
+        drift.append(
+            Drift(
+                rel,
+                "name-frontmatter-mismatch",
+                f"id {fm.get('id')} != name {parsed.id6}",
+            )
+        )
+    if fm.get("set") != parsed.set_id:
+        drift.append(
+            Drift(
+                rel,
+                "name-frontmatter-mismatch",
+                f"set {fm.get('set')} != name {parsed.set_id}",
+            )
+        )
+    topic_val = fm.get("topic")
+    topic_list = [str(t) for t in topic_val] if isinstance(topic_val, list) else []
+    consumed_val = fm.get("consumed-by")
+    consumed_list = (
+        [str(c) for c in consumed_val] if isinstance(consumed_val, list) else []
+    )
+    # Check body presence after the closing ---
+    has_body = False
+    lines = text.splitlines()
+    if lines and lines[0].strip() == "---":
+        for idx, line in enumerate(lines[1:], start=1):
+            if line.strip() == "---":
+                body_text = "\n".join(lines[idx + 1 :]).strip()
+                has_body = bool(body_text)
+                break
+    entry = DocEntry(
+        id6=parsed.id6,
+        path=rel,
+        set_id=parsed.set_id,
+        order=parsed.order,
+        date=parsed.date,
+        created=str(fm.get("created", "")),
+        topic=topic_list,
+        model=str(fm.get("model", "") or ""),
+        kind=parsed.kind,
+        status=str(fm.get("status", "") or ""),
+        outcome=str(fm.get("outcome", "") or ""),
+        summary=str(fm.get("summary", "") or ""),
+        consumed_by=consumed_list,
+        priority=str(fm.get("priority", "") or ""),
+        has_body=has_body,
+    )
+    return entry, drift
+
+
 def _scan_docs(
     research_root: Path,
 ) -> Tuple[List[DocEntry], List[Drift]]:
@@ -71,93 +173,10 @@ def _scan_docs(
         return entries, drift
     ignored_dirs = _core.get_ignored_dirs(research_root)
     for p in sorted(research_root.rglob("*.md")):
-        if (
-            p.name in (INDEX_MD,)
-            or p.name == "README.md"
-            or _core.is_ignored_path(p, research_root, ignored_dirs)
-        ):
-            continue
-        parsed, name_err = R.parse_name(p.name)
-        if parsed is None:
-            # Non-conformant filename: not an indexable research doc; skip quietly (migration
-            # handles back-fill). Only report a name-vs-frontmatter mismatch for files that DO
-            # carry research frontmatter.
-            text = p.read_text(encoding="utf-8")
-            if R.parse_frontmatter(text) is not None:
-                drift.append(
-                    Drift(
-                        p.name,
-                        "name-invalid",
-                        name_err.message if name_err else "bad name",
-                    )
-                )
-            continue
-        text = p.read_text(encoding="utf-8")
-        fm = R.parse_frontmatter(text)
-        rel = p.relative_to(research_root).as_posix()
-        if fm is None:
-            drift.append(
-                Drift(rel, "frontmatter-missing", "no valid frontmatter block")
-            )
-            continue
-        errs = R.validate_frontmatter(fm)
-        if errs:
-            for e in errs:
-                drift.append(
-                    Drift(rel, "frontmatter-invalid", f"{e.field}: {e.message}")
-                )
-            continue
-        # name-vs-frontmatter consistency
-        if fm.get("id") != parsed.id6:
-            drift.append(
-                Drift(
-                    rel,
-                    "name-frontmatter-mismatch",
-                    f"id {fm.get('id')} != name {parsed.id6}",
-                )
-            )
-        if fm.get("set") != parsed.set_id:
-            drift.append(
-                Drift(
-                    rel,
-                    "name-frontmatter-mismatch",
-                    f"set {fm.get('set')} != name {parsed.set_id}",
-                )
-            )
-        topic_val = fm.get("topic")
-        topic_list = [str(t) for t in topic_val] if isinstance(topic_val, list) else []
-        consumed_val = fm.get("consumed-by")
-        consumed_list = (
-            [str(c) for c in consumed_val] if isinstance(consumed_val, list) else []
-        )
-        # Check body presence after the closing ---
-        has_body = False
-        lines = text.splitlines()
-        if lines and lines[0].strip() == "---":
-            for idx, line in enumerate(lines[1:], start=1):
-                if line.strip() == "---":
-                    body_text = "\n".join(lines[idx + 1 :]).strip()
-                    has_body = bool(body_text)
-                    break
-        entries.append(
-            DocEntry(
-                id6=parsed.id6,
-                path=rel,
-                set_id=parsed.set_id,
-                order=parsed.order,
-                date=parsed.date,
-                created=str(fm.get("created", "")),
-                topic=topic_list,
-                model=str(fm.get("model", "") or ""),
-                kind=parsed.kind,
-                status=str(fm.get("status", "") or ""),
-                outcome=str(fm.get("outcome", "") or ""),
-                summary=str(fm.get("summary", "") or ""),
-                consumed_by=consumed_list,
-                priority=str(fm.get("priority", "") or ""),
-                has_body=has_body,
-            )
-        )
+        entry, item_drift = _doc_entry(research_root, p, ignored_dirs=ignored_dirs)
+        if entry is not None:
+            entries.append(entry)
+        drift.extend(item_drift)
     return entries, drift
 
 

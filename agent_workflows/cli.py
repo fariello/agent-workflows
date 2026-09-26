@@ -10785,7 +10785,6 @@ def _find_type_records(
         from agent_workflows import plans_index as pi
 
         _repo, plans_dir = pi._dirs(args)
-        entries, _drift = pi.scan_plans(plans_dir)
         explicit_id = getattr(args, "id", None)
         explicit_set = getattr(args, "set", None)
         explicit_status = getattr(args, "status", None)
@@ -10793,16 +10792,22 @@ def _find_type_records(
         type_matches: List[_FindMatch] = []
 
         if selectors_list:
+            from agent_workflows import artifact_core as _core
+
             matched_paths, type_matches = _resolve_selectors_with_kinds(
                 repo_root, "plans", selectors_list
             )
-            matched = set(p.resolve() for p in matched_paths)
-            results = [
-                e
-                for e in entries
-                if (plans_dir / e.path).resolve() in matched
-                or (repo_root / e.path).resolve() in matched
-            ]
+            ignored_dirs = _core.get_ignored_dirs(plans_dir)
+            results = []
+            for p in sorted(
+                matched_paths,
+                key=lambda p: (
+                    p.relative_to(plans_dir) if p.is_relative_to(plans_dir) else p
+                ),
+            ):
+                res = pi.plan_entry(plans_dir, p, ignored_dirs=ignored_dirs)
+                if res is not None:
+                    results.append(res[0])
             if explicit_set or explicit_status or explicit_disp or explicit_id:
                 results = pi.query(
                     results,
@@ -10812,6 +10817,7 @@ def _find_type_records(
                     disposition=explicit_disp,
                 )
         else:
+            entries, _drift = pi.scan_plans(plans_dir)
             results = pi.query(
                 entries,
                 plan_id=explicit_id,
@@ -10848,7 +10854,6 @@ def _find_type_records(
         from agent_workflows import research_index as ri
 
         _repo, research_root = ri._roots(args)
-        entries, _drift = ri._scan_docs(research_root)
         explicit_id = getattr(args, "id", None)
         explicit_set = getattr(args, "set", None)
         explicit_topic = getattr(args, "topic", None)
@@ -10856,16 +10861,26 @@ def _find_type_records(
         type_matches = []
 
         if selectors_list:
+            from agent_workflows import artifact_core as _core
+
             matched_paths, type_matches = _resolve_selectors_with_kinds(
                 repo_root, "research", selectors_list
             )
-            matched = set(p.resolve() for p in matched_paths)
-            results = [
-                e
-                for e in entries
-                if (research_root / e.path).resolve() in matched
-                or (repo_root / e.path).resolve() in matched
-            ]
+            ignored_dirs = _core.get_ignored_dirs(research_root)
+            results = []
+            for p in sorted(
+                matched_paths,
+                key=lambda p: (
+                    p.relative_to(research_root)
+                    if p.is_relative_to(research_root)
+                    else p
+                ),
+            ):
+                entry, _drift = ri._doc_entry(
+                    research_root, p, ignored_dirs=ignored_dirs
+                )
+                if entry is not None:
+                    results.append(entry)
             if explicit_set or explicit_status or explicit_topic or explicit_id:
                 results = ri.query(
                     results,
@@ -10875,6 +10890,7 @@ def _find_type_records(
                     status=explicit_status,
                 )
         else:
+            entries, _drift = ri._scan_docs(research_root)
             results = ri.query(
                 entries,
                 id6=explicit_id,
