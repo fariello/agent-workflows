@@ -1,11 +1,12 @@
 - Id: yo0ooe
-- Status: open
+- Status: done
 - Set: yo0ooe
 - Priority: medium
 - Work-Kind: chore
 - Summary: a dead symbol in runner_shared can carry defects indefinitely: four of the twelve unified symbols had an unreferenced shared copy, and two of those copies were broken in ways that would have fired on first call
 
 ## Workflow history
+- 2026-09-26 done (aw set): DECLINED by maintainer 2026-09-26 (retired, not implemented): a structural fork-scan guard reverses the decision recorded in plan 0i4fkt (Carrier-Declined: restoring a fingerprint/refork guard reverses a maintainer decision). The four dead copies this item named are gone (63b71d8b); the one remaining genuine dead host copy (_record_forced_stop) is deleted by approved plan 184tn9.
 - 2026-09-23 created (aw backlog): Found by hostdedup Order 02 (nmlx47) E-01/E-03/E-05. The four copies are gone (commit 63b71d8b); what is filed here is the DETECTION GAP that let them rot.
 
 MEASURED 2026-09-23 at HEAD 525442c4 with tools/runner_fork_scan.py --triples.
