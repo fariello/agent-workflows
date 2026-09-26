@@ -6,7 +6,7 @@
 - Scope: IN: source-order-preserving re-render in backlog._render_item, including the pre-history prose region; backlog.run_set and set_records.close_on_answer switched to it; a release-gate refusal on close_on_answer so its new preservation cannot manufacture a done item with a live gate; the two per-field preservation patches removed; outcome tests; two CHANGELOG lines. OUT: unifying the two spellings; the positional path's legacy Kind handling; new-record rendering (run_new, promote_question_to_backlog) unchanged; new validate_item rules for a duplicate bullet or a stale Gate-Summary; widening the commit-staged scope of check.blocking-item-closed-without-gate.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/set_records.py, tests/test_backlog.py, CHANGELOG.md
 - Item-Dependencies: executed:wd6npl
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: 2yqt0a
 
 ## Workflow history
+- 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed in place
 - 2026-09-26 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED in place. Added E-07 (preserve prose written before `## Workflow history`, the larger destruction the plan left unfixed: 6 live items, one losing 2620 of 3063 bytes), E-08 (gate `close_on_answer`'s close on `evaluate_blocking_close`, because E-03's preservation otherwise manufactures a `done` item with a live release gate that no shipped check sees), E-09 (four tests for the added defects), four hard rules on E-01's walk (dedupe the two kind spellings, drop a non-blocked `Gate-Summary`, pass an unparseable bullet through, never reorder), `--no-commit` on every `cli.main` in the tests, V-07/V-08/V-09, and F-7..F-12. Watermark 06 -> 09.
 
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog f2kqas: make backlog._render_item preserve unrecognized metadata bullets in source order and delete the per-field re-apply patches.
