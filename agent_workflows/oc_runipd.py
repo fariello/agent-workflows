@@ -2973,7 +2973,7 @@ def run_opencode(
     #
     # SELECTED BY THE CALL SITE, NOT BY `fresh_session`, and that distinction is the whole trap
     # (F-10). `fresh_session` is true for the verifier AND for every ISOLATED turn, and
-    # `isolate_worktree` defaults True, so keying the verifier launch off `fresh_session` - or off
+    # `isolate_worktree` defaults True (via repository policy or default), so keying the verifier launch off `fresh_session` - or off
     # session-absence - would hand the VERIFIER's model to nearly every EXECUTE turn, which is the
     # DEFAULT configuration. Only the verifier call site passes `use_verifier_launch=True`.
     #
@@ -4621,10 +4621,10 @@ LAUNCH IDENTITY (model / variant / agent):
         "--no-isolate-worktree",
         dest="isolate_worktree",
         action="store_false",
-        default=True,
-        help="Do not isolate each execute turn in its own git worktree; run in the main tree "
-        "instead. Default: each IPD executes in an isolated worktree and its verified branch is "
-        "integrated back to main.",
+        default=None,
+        help="Do not isolate turns in git worktrees; run in the main tree instead "
+        "(overrides run.isolate_worktree in project policy). Default: follow repository policy "
+        "(both isolated if unset).",
     )
     start.add_argument(
         "--max-items-per-session",

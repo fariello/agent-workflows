@@ -3685,10 +3685,10 @@ AUTOMATIC STATUS ROUTING:
         "--no-isolate-worktree",
         dest="isolate_worktree",
         action="store_false",
-        default=True,
-        help="Do not isolate each execute turn in its own git worktree; run in the main tree "
-        "instead. Default: each IPD executes in an isolated worktree and its verified branch is "
-        "integrated back to main.",
+        default=None,
+        help="Do not isolate turns in git worktrees; run in the main tree instead "
+        "(overrides run.isolate_worktree in project policy). Default: follow repository policy "
+        "(both isolated if unset).",
     )
     start.add_argument(
         "--prepare-only",

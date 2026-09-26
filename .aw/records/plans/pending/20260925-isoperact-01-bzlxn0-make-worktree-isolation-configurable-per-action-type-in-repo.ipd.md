@@ -35,52 +35,52 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: policy reader
 
-- [ ] E-01 In `agent_workflows/config.py`, beside `RUN_POLICY_KEY` / `read_run_policy` / `policy_retry_budget`, add `RUN_ISOLATE_MEMBER = "isolate_worktree"`, `ISOLATION_ACTIONS = ("execute", "review")`, and `policy_isolation(repo_root, *, warn=None) -> dict[str, bool]`. Shapes: `{"run": {"isolate_worktree": {"execute": true, "review": false}}}`; a bare bool under `run.isolate_worktree` applies to both actions. Missing actions default to `True`. Posture per that section's recorded rule ("FALL BACK TO THE DEFAULT AND EMIT A VISIBLE WARNING NAMING THE KEY AND THE BAD VALUE"): a non-bool value or unknown action name falls back to `True` for that action and warns once. Never raises; not registered in `CONFIG_SCHEMA` (same documented reason as `review_findings_gate`).
+- [x] E-01 In `agent_workflows/config.py`, beside `RUN_POLICY_KEY` / `read_run_policy` / `policy_retry_budget`, add `RUN_ISOLATE_MEMBER = "isolate_worktree"`, `ISOLATION_ACTIONS = ("execute", "review")`, and `policy_isolation(repo_root, *, warn=None) -> dict[str, bool]`. Shapes: `{"run": {"isolate_worktree": {"execute": true, "review": false}}}`; a bare bool under `run.isolate_worktree` applies to both actions. Missing actions default to `True`. Posture per that section's recorded rule ("FALL BACK TO THE DEFAULT AND EMIT A VISIBLE WARNING NAMING THE KEY AND THE BAD VALUE"): a non-bool value or unknown action name falls back to `True` for that action and warns once. Never raises; not registered in `CONFIG_SCHEMA` (same documented reason as `review_findings_gate`).
   - Depends on: none
   - Expected outcome: `policy_isolation(tmp)` returns `{"execute": True, "review": True}` with no project.json.
   - PRECEDENT VERIFIED AT REVIEW: `read_run_policy` / `policy_retry_budget` read `run.<member>` from `.aw/config/project.json`, tolerate a bare top-level form, never raise, and warn-and-fall-back on a malformed value for the recorded reason that "a per-invocation mistake refuses; a shared-file mistake warns and continues". Confirmed too that `retry_budget`, `on_conflict` and `review_findings_gate` are all ABSENT from `config.CONFIG_SCHEMA` (11 keys, none of them `run.*` beyond `defaults.prune`), so not registering this key follows the established pattern rather than skipping a step. If E-05 takes its refusal route, `review: false` is additionally refused HERE with a warning and coerced to `True`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: resolve and freeze
 
-- [ ] E-02 Change the run-parser `--no-isolate-worktree` registrations in `oc_runipd.py` and `agy_runipd.py` (the `start.add_argument("--no-isolate-worktree", dest="isolate_worktree", action="store_false", default=True, ...)` blocks) to `default=None`, so "not supplied" is distinguishable, and update their help text to name the policy key. Do NOT touch the `audit` parser's `--isolate-worktree` `BooleanOptionalAction` in `runner_shared` (separate verb, separate flag). Audit every `getattr(args, "isolate_worktree", True)` read on the RUN namespace (`runner_shared` "\"isolate_worktree\": getattr(args, \"isolate_worktree\", True)") so `None` is never frozen as falsy.
+- [x] E-02 Change the run-parser `--no-isolate-worktree` registrations in `oc_runipd.py` and `agy_runipd.py` (the `start.add_argument("--no-isolate-worktree", dest="isolate_worktree", action="store_false", default=True, ...)` blocks) to `default=None`, so "not supplied" is distinguishable, and update their help text to name the policy key. Do NOT touch the `audit` parser's `--isolate-worktree` `BooleanOptionalAction` in `runner_shared` (separate verb, separate flag). Audit every `getattr(args, "isolate_worktree", True)` read on the RUN namespace (`runner_shared` "\"isolate_worktree\": getattr(args, \"isolate_worktree\", True)") so `None` is never frozen as falsy.
   - Depends on: none
   - Expected outcome: `python3 -m agent_workflows oc run --help` still lists `--no-isolate-worktree` and mentions `run.isolate_worktree`.
   - THE AUDIT PARSER IS PROVABLY UNAFFECTED, so the plan's caution is correct and can be stated as a measurement rather than a hope: `start` and `audit` are separate subparsers with separate namespaces, verified by parsing both (`start abc123` -> `True`, `start --no-isolate-worktree` -> `False`, `audit abc123` -> `True`, `audit --no-isolate-worktree` -> `False`, the last because `BooleanOptionalAction` generates the `--no-` form itself). `resume` leaves the attribute ABSENT entirely, which is why E-03's fallback must treat absent and `None` alike. ALSO AUDIT `oc_runipd.audit`'s own `if getattr(args, "isolate_worktree", True):` read, which the authored item does not name: it runs on the AUDIT namespace and must keep its `True` default, so it must NOT be changed to a policy read in this plan.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `runner_shared.initialize_run_core`, where options are built, add `resolve_isolation(args, repo) -> dict[str, bool]`: if `args.isolate_worktree is False` both are False (CLI wins); else `config.policy_isolation(repo)`. Freeze `options["isolate_execute"]` and `options["isolate_review"]`, and keep writing `options["isolate_worktree"] = isolate_execute` so existing readers and stored fixtures (for example `tests/fixtures/run_summary/stranded-run-state.json`) keep their meaning. Add `isolation_for_action(options, action) -> bool` that reads the per-action key and falls back to `options.get("isolate_worktree", True)` so a run state frozen before this change resumes identically.
+- [x] E-03 In `runner_shared.initialize_run_core`, where options are built, add `resolve_isolation(args, repo) -> dict[str, bool]`: if `args.isolate_worktree is False` both are False (CLI wins); else `config.policy_isolation(repo)`. Freeze `options["isolate_execute"]` and `options["isolate_review"]`, and keep writing `options["isolate_worktree"] = isolate_execute` so existing readers and stored fixtures (for example `tests/fixtures/run_summary/stranded-run-state.json`) keep their meaning. Add `isolation_for_action(options, action) -> bool` that reads the per-action key and falls back to `options.get("isolate_worktree", True)` so a run state frozen before this change resumes identically.
   - Depends on: E-01, E-02
   - Expected outcome: a new run with `{"run":{"isolate_worktree":{"review":false}}}` freezes `isolate_execute=True, isolate_review=False`.
   - FOUR NAMESPACE STATES, NOT TWO, and the authored `if args.isolate_worktree is False` test handles only one of them safely. Because `isolate_worktree` is NOT a member of `RUN_POLICY_FLAGS` (verified: the table's 16 flags do not include it), a generically built contract namespace leaves the attribute ABSENT, not `False`, so `args.isolate_worktree` would raise `AttributeError`; use `getattr(args, "isolate_worktree", None)`. The four states are: `False` (typed flag, CLI wins, both off), `None` (E-02's new default, defer to policy), ABSENT (defer to policy, same as `None`), and `True` (what every existing fixture namespace passes explicitly). DECIDE AND STATE what `True` means: treating it as an override would let those fixtures defeat a repository policy silently, while treating it as "not supplied" makes the flag unable to force isolation ON against a policy that disables it. Prefer "defer to policy", matching `freeze_run_policy_flags._supplied`'s recorded rule that a placeholder `bool` on a generically filled namespace "can only mean ... ABSENT", and note that no CLI form currently produces an explicit `True` since the only registered flag is `--no-isolate-worktree`. Do NOT add this key to `RUN_POLICY_FLAGS`: that table is the closed spec-2.1 flag list and registering a non-spec flag there is documented as failing the surface contract.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Route the launch-site reads through `isolation_for_action`: the `review_uses_sweep_session = is_review and bool(state.get("options", {}).get("isolate_worktree", True))` line and the `isolate = state.get("options", {}).get("isolate_worktree", True)` line in the per-item launch function in `runner_shared`, passing `"review"` when `is_review` else `"execute"`. NOTE THE SECOND ASSIGNMENT FEEDS FOUR READS, NOT TWO, so the substitution must be made deliberately rather than by replacing one line: `evaluate_clean_base_for_launch(repo, shared_tree=not isolate)`, `if is_review and isolate:` (the sweep lane), and TWO MORE at `if isolate:` inside `if self_finalize and not is_review:` (the `driver_begin(..., isolated=True)` choice and `allocate_isolation_worktree`). The three non-sweep reads are all reached only when `not is_review`, so binding `isolate = isolation_for_action(options, "review" if is_review else "execute")` preserves each one's meaning; VERIFY that by reading the enclosing guards rather than assuming it, because a future edit that removes a `not is_review` guard would silently hand an execute-only site the review value. Update the comment in `oc_runipd.py` near "`isolate_worktree` defaults True" if it now misstates the source.
+- [x] E-04 Route the launch-site reads through `isolation_for_action`: the `review_uses_sweep_session = is_review and bool(state.get("options", {}).get("isolate_worktree", True))` line and the `isolate = state.get("options", {}).get("isolate_worktree", True)` line in the per-item launch function in `runner_shared`, passing `"review"` when `is_review` else `"execute"`. NOTE THE SECOND ASSIGNMENT FEEDS FOUR READS, NOT TWO, so the substitution must be made deliberately rather than by replacing one line: `evaluate_clean_base_for_launch(repo, shared_tree=not isolate)`, `if is_review and isolate:` (the sweep lane), and TWO MORE at `if isolate:` inside `if self_finalize and not is_review:` (the `driver_begin(..., isolated=True)` choice and `allocate_isolation_worktree`). The three non-sweep reads are all reached only when `not is_review`, so binding `isolate = isolation_for_action(options, "review" if is_review else "execute")` preserves each one's meaning; VERIFY that by reading the enclosing guards rather than assuming it, because a future edit that removes a `not is_review` guard would silently hand an execute-only site the review value. Update the comment in `oc_runipd.py` near "`isolate_worktree` defaults True" if it now misstates the source.
   - Depends on: E-03
   - Expected outcome: with review isolation off, a review turn runs without acquiring the sweep lane while execute turns still get lanes; the three execute-only reads are unchanged in behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 MAKE A NON-ISOLATED REVIEW STILL LAND ITS OUTPUT, which is the gap that otherwise makes `review: false` destructive rather than merely cheaper. MEASURED AT REVIEW: the entire review-output path is gated on `if is_review and wt_handle is not None:`, which calls `commit_review_lane_output` and then `integrate_review_lane_branch`. With review isolation off, `if is_review and isolate:` never allocates, `wt_handle` stays `None`, and that whole block is SKIPPED, so the review's two outputs (the plan edit and the review record) are left UNCOMMITTED in the shared checkout. That is precisely the pre-`ajxr5d` behavior executed plan `ajxr5d` removed after it was measured live on 2026-09-13: a review commit in main held five files, three of them sibling child plans still `queued` in the same run, and the files sat uncommitted for ~36 minutes while a concurrent run had items refused against them. Note the existing lane path FAILS CLOSED (an allocation failure sets `fail-lane` and never launches, so no turn silently falls back to the shared checkout); a policy switch would bypass that guard rather than trip it. SO: add a shared-checkout branch beside the lane branch that path-scopes a commit of exactly what `git status --porcelain` reports for the plan under review and its review record, reusing `commit_review_lane_output`'s discipline (never `git add -A`, hooks run normally with no `--no-verify`, a hook rejection reported as nothing-committed rather than a silent loss). OQ-02 WAS RESOLVED BY THE MAINTAINER (2026-09-25) IN FAVOR OF ALLOWING `review: false`, so the refuse-the-value fallback is NO LONGER PERMITTED: build the shared-checkout branch. If it genuinely cannot be written within this plan's declared Scope-Paths, STOP and report rather than refusing the value, because refusing would contradict the maintainer's ruling.
+- [x] E-05 MAKE A NON-ISOLATED REVIEW STILL LAND ITS OUTPUT, which is the gap that otherwise makes `review: false` destructive rather than merely cheaper. MEASURED AT REVIEW: the entire review-output path is gated on `if is_review and wt_handle is not None:`, which calls `commit_review_lane_output` and then `integrate_review_lane_branch`. With review isolation off, `if is_review and isolate:` never allocates, `wt_handle` stays `None`, and that whole block is SKIPPED, so the review's two outputs (the plan edit and the review record) are left UNCOMMITTED in the shared checkout. That is precisely the pre-`ajxr5d` behavior executed plan `ajxr5d` removed after it was measured live on 2026-09-13: a review commit in main held five files, three of them sibling child plans still `queued` in the same run, and the files sat uncommitted for ~36 minutes while a concurrent run had items refused against them. Note the existing lane path FAILS CLOSED (an allocation failure sets `fail-lane` and never launches, so no turn silently falls back to the shared checkout); a policy switch would bypass that guard rather than trip it. SO: add a shared-checkout branch beside the lane branch that path-scopes a commit of exactly what `git status --porcelain` reports for the plan under review and its review record, reusing `commit_review_lane_output`'s discipline (never `git add -A`, hooks run normally with no `--no-verify`, a hook rejection reported as nothing-committed rather than a silent loss). OQ-02 WAS RESOLVED BY THE MAINTAINER (2026-09-25) IN FAVOR OF ALLOWING `review: false`, so the refuse-the-value fallback is NO LONGER PERMITTED: build the shared-checkout branch. If it genuinely cannot be written within this plan's declared Scope-Paths, STOP and report rather than refusing the value, because refusing would contradict the maintainer's ruling.
   - Depends on: E-04
   - Expected outcome: with `review: false`, a review's plan edit and review record are committed to the shared checkout (or the policy value is refused with a warning); in neither case is review output left uncommitted or discarded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 ADD THE RUN-START WARNING FOR ANY POLICY THAT DISABLES ISOLATION, resolving OQ-01 as its own default already proposed and extending it to the review action for the reason E-05 measures. Print one line at run start naming the key and the action(s) it disabled, for example `run.isolate_worktree.execute=false` and `run.isolate_worktree.review=false`. This is the visibility half of the same argument the `config.py` run-policy section already records for `retry_budget` ("a silent fallback would override a repository that believes it set a policy with no signal anywhere"), applied in the opposite direction: a committed policy that disables a safety property is easier to forget than a typed flag, and `--no-isolate-worktree` at least appears in the operator's own scrollback. Emit nothing when both actions are isolated, so a default run's output is byte-identical.
+- [x] E-06 ADD THE RUN-START WARNING FOR ANY POLICY THAT DISABLES ISOLATION, resolving OQ-01 as its own default already proposed and extending it to the review action for the reason E-05 measures. Print one line at run start naming the key and the action(s) it disabled, for example `run.isolate_worktree.execute=false` and `run.isolate_worktree.review=false`. This is the visibility half of the same argument the `config.py` run-policy section already records for `retry_budget` ("a silent fallback would override a repository that believes it set a policy with no signal anywhere"), applied in the opposite direction: a committed policy that disables a safety property is easier to forget than a typed flag, and `--no-isolate-worktree` at least appears in the operator's own scrollback. Emit nothing when both actions are isolated, so a default run's output is byte-identical.
   - Depends on: E-03
   - Expected outcome: a run with `{"run":{"isolate_worktree":{"review":false}}}` prints one warning naming `run.isolate_worktree.review=false`; a default run prints nothing new.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and suite
 
-- [ ] E-07 Add `tests/test_isolation_per_action.py`: (a) `policy_isolation` shapes (absent, bare bool, object, partial object, bad value warns); (b) `resolve_isolation` precedence over all FOUR namespace states, because `isolate_worktree` is NOT in `RUN_POLICY_FLAGS` and so a generically built namespace leaves it ABSENT rather than `False` (verified at review): CLI `False` beats policy `True`; `None` defers to policy; `True` (which every existing fixture namespace passes, e.g. `tests/test_hostdedup_third_host.py`, `tests/test_runner_active_conflict.py`, `tests/test_orchestrator_retirement.py`) must NOT be read as an override that defeats policy unless that is the deliberate choice, so assert whichever semantics E-03 implements and state it; ABSENT defers to policy. (c) `isolation_for_action` falls back to legacy `isolate_worktree` when per-action keys are absent, driven against the REAL stored fixture `tests/fixtures/run_summary/stranded-run-state.json` (which carries `"isolate_worktree": true` and no per-action key) rather than a hand-built dict, so the resume-compatibility claim is tested against a shape that actually exists on disk. (d) the launch-site wiring: a structural assertion that neither launch-site read in `runner_shared` still reads `options.get("isolate_worktree"` directly (grep the function source via `inspect.getsource`), which FAILS before E-04. (e) THE BEHAVIORAL CASE THAT MATTERS: with `review: false`, drive a review item and assert its two output files are COMMITTED (or that the policy value was refused per E-05's fallback route), never left uncommitted in the shared checkout. A structural grep alone cannot catch that regression, which is the one this plan can actually cause.
+- [x] E-07 Add `tests/test_isolation_per_action.py`: (a) `policy_isolation` shapes (absent, bare bool, object, partial object, bad value warns); (b) `resolve_isolation` precedence over all FOUR namespace states, because `isolate_worktree` is NOT in `RUN_POLICY_FLAGS` and so a generically built namespace leaves it ABSENT rather than `False` (verified at review): CLI `False` beats policy `True`; `None` defers to policy; `True` (which every existing fixture namespace passes, e.g. `tests/test_hostdedup_third_host.py`, `tests/test_runner_active_conflict.py`, `tests/test_orchestrator_retirement.py`) must NOT be read as an override that defeats policy unless that is the deliberate choice, so assert whichever semantics E-03 implements and state it; ABSENT defers to policy. (c) `isolation_for_action` falls back to legacy `isolate_worktree` when per-action keys are absent, driven against the REAL stored fixture `tests/fixtures/run_summary/stranded-run-state.json` (which carries `"isolate_worktree": true` and no per-action key) rather than a hand-built dict, so the resume-compatibility claim is tested against a shape that actually exists on disk. (d) the launch-site wiring: a structural assertion that neither launch-site read in `runner_shared` still reads `options.get("isolate_worktree"` directly (grep the function source via `inspect.getsource`), which FAILS before E-04. (e) THE BEHAVIORAL CASE THAT MATTERS: with `review: false`, drive a review item and assert its two output files are COMMITTED (or that the policy value was refused per E-05's fallback route), never left uncommitted in the shared checkout. A structural grep alone cannot catch that regression, which is the one this plan can actually cause.
   - Depends on: E-05, E-06
   - Expected outcome: new module passes, with (e) failing if E-05's branch is removed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run the bare suite `python3 -m pytest` (no added flags; `addopts` already supplies `-q -n auto --dist=worksteal` and the marker deselection, so do NOT pass `-n0`, a second `-q`, or `-p no:randomly`).
+- [x] E-08 Run the bare suite `python3 -m pytest` (no added flags; `addopts` already supplies `-q -n auto --dist=worksteal` and the marker deselection, so do NOT pass `-n0`, a second `-q`, or `-p no:randomly`).
   - Depends on: E-07
   - Expected outcome: summary line with 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -162,45 +162,191 @@ No `.spec.md` names `isolate_worktree` defaults as a contract beyond the flag, w
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -c "import tempfile; from agent_workflows import config; print(config.policy_isolation(tempfile.mkdtemp()))"` printing `{'execute': True, 'review': True}`, plus the malformed-value case showing the warning text naming the key and the bad value. Assert the schema claim against the RIGHT file: paste `python3 -c "from agent_workflows import config; print([k for k in config.CONFIG_SCHEMA if 'isolat' in k])"` returning `[]`. The authored `grep -c isolate agent_workflows/project_schema.py` is a check on an UNRELATED module (that file governs placements and presets and contains no `run.*` key at all; the schema this key is deliberately absent from is `config.CONFIG_SCHEMA`), so it would pass no matter what E-01 did.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified config.policy_isolation with defaults, invalid value warning, and empty schema presence:
+```
+$ python3 -c "import tempfile; from agent_workflows import config; print(config.policy_isolation(tempfile.mkdtemp()))"
+{'execute': True, 'review': True}
 
-- [ ] V-02 validates E-02
+$ python3 -c "import tempfile, json, pathlib; from agent_workflows import config; d = pathlib.Path(tempfile.mkdtemp()); (d / '.aw' / 'config').mkdir(parents=True); (d / '.aw' / 'config' / 'project.json').write_text(json.dumps({'run': {'isolate_worktree': {'review': 'invalid'}}})); print(config.policy_isolation(d))"
+WARNING: run.isolate_worktree.review in /tmp/tmp_qpei8zs/.aw/config/project.json is 'invalid', which is not a boolean. Falling back to default (True).
+{'execute': True, 'review': True}
+
+$ python3 -c "from agent_workflows import config; print([k for k in config.CONFIG_SCHEMA if 'isolat' in k])"
+[]
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m agent_workflows oc run --help | grep -A3 no-isolate-worktree` and the same for `agy run`, both mentioning `run.isolate_worktree`; `git diff -- agent_workflows/runner_shared.py | grep -c BooleanOptionalAction` = 0 (audit flag untouched). ALSO paste the four parsed namespaces proving the audit subparser is unaffected and that absent-versus-None is distinguishable: `start <id6>` (expect `None` after this change), `start <id6> --no-isolate-worktree` (`False`), `audit <id6>` (`True`), `audit <id6> --no-isolate-worktree` (`False`), and `resume <run>` (attribute ABSENT). Measured at review before the change: `True/False/True/False/ABSENT`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified CLI help text mentions run.isolate_worktree, runner_shared BooleanOptionalAction count is 0, and arg parsing preserves default None vs False vs True vs ABSENT across subcommands:
+```
+$ python3 -m agent_workflows oc run start --help | grep -A3 no-isolate-worktree
+  --no-isolate-worktree
+                        Do not isolate turns in git worktrees; run in the main
+                        tree instead (overrides run.isolate_worktree in
+                        project policy). Default: follow repository policy
 
-- [ ] V-03 validates E-03
+$ python3 -m agent_workflows agy run start --help | grep -A3 no-isolate-worktree
+  --no-isolate-worktree
+                        Do not isolate turns in git worktrees; run in the main
+                        tree instead (overrides run.isolate_worktree in
+                        project policy). Default: follow repository policy
+
+$ git diff -- agent_workflows/runner_shared.py | grep -c BooleanOptionalAction
+0
+
+$ python3 -c "
+from agent_workflows import oc_runipd
+p = oc_runipd.build_parser()
+a1 = p.parse_args(['start', 'abc123'])
+a2 = p.parse_args(['start', 'abc123', '--no-isolate-worktree'])
+a3 = p.parse_args(['audit', 'abc123'])
+a4 = p.parse_args(['audit', 'abc123', '--no-isolate-worktree'])
+a5 = p.parse_args(['resume', 'run-123'])
+print('start:', getattr(a1, 'isolate_worktree', 'ABSENT'))
+print('start --no:', getattr(a2, 'isolate_worktree', 'ABSENT'))
+print('audit:', getattr(a3, 'isolate_worktree', 'ABSENT'))
+print('audit --no:', getattr(a4, 'isolate_worktree', 'ABSENT'))
+print('resume:', getattr(a5, 'isolate_worktree', 'ABSENT'))
+"
+start: None
+start --no: False
+audit: True
+audit --no: False
+resume: ABSENT
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the passing output of the E-07 precedence and legacy-fallback tests by name (`python3 -m pytest -o addopts="" -q tests/test_isolation_per_action.py -k "precedence or legacy"`), showing a case for EACH of the four namespace states (`False`, `None`, ABSENT, `True`) and stating in the item what `True` was implemented to mean. Also paste the `stranded-run-state.json`-driven fallback case, since that is a real on-disk shape rather than a constructed dict.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified precedence and legacy fallback tests pass for all four namespace states and stranded run state fixture:
+```
+$ python3 -m pytest -o addopts="" -v --no-header tests/test_isolation_per_action.py -k "precedence or legacy"
+============================= test session starts ==============================
+collecting ... collected 24 items / 16 deselected / 8 selected
 
-- [ ] V-04 validates E-04
+tests/test_isolation_per_action.py::IsolationForActionLegacyFallbackTests::test_legacy_options_with_false PASSED [ 12%]
+tests/test_isolation_per_action.py::IsolationForActionLegacyFallbackTests::test_real_stranded_run_state_fixture PASSED [ 25%]
+tests/test_isolation_per_action.py::IsolationForActionLegacyFallbackTests::test_per_action_options PASSED [ 37%]
+tests/test_isolation_per_action.py::IsolationForActionLegacyFallbackTests::test_non_dict_options PASSED [ 50%]
+tests/test_isolation_per_action.py::ResolveIsolationPrecedenceTests::test_namespace_state_absent_defers_to_policy PASSED [ 62%]
+tests/test_isolation_per_action.py::ResolveIsolationPrecedenceTests::test_namespace_state_true_defers_to_policy PASSED [ 75%]
+tests/test_isolation_per_action.py::ResolveIsolationPrecedenceTests::test_namespace_state_false_cli_wins PASSED [ 87%]
+tests/test_isolation_per_action.py::ResolveIsolationPrecedenceTests::test_namespace_state_none_defers_to_policy PASSED [100%]
+
+======================= 8 passed, 16 deselected in 0.15s =======================
+```
+Namespace state `True` semantics: Defer to repository policy. Because no CLI flag produces an explicit `True` (only `--no-isolate-worktree` is registered), a `True` value on a generically filled namespace represents an unsupplied placeholder, matching `freeze_run_policy_flags._supplied`'s rule that a placeholder bool "can only mean ... ABSENT".
+Real on-disk fixture test: `test_real_stranded_run_state_fixture` passed against `tests/fixtures/run_summary/stranded-run-state.json`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `grep -n 'get("isolate_worktree"' agent_workflows/runner_shared.py` showing only the fallback inside `isolation_for_action` (and the options writer), plus the structural test from E-07(d) FAILING when run before E-04 is applied and passing after. ALSO paste `grep -n '\bisolate\b' agent_workflows/runner_shared.py` for the launch function with each of the FOUR reads annotated by its enclosing guard, so the claim that three of them are execute-only is shown rather than assumed (measured at review: `shared_tree=not isolate`, two `if isolate:` inside `if self_finalize and not is_review:`, and `if is_review and isolate:`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified execute_item_core get("isolate_worktree") count is 0 and all four launch function reads are annotated with enclosing guards:
+```
+$ grep -n 'get("isolate_worktree"' agent_workflows/runner_shared.py
+12869:    Falls back to options.get("isolate_worktree", True) for backwards compatibility
+12877:    return bool(options.get("isolate_worktree", True))
 
-- [ ] V-05 validates E-05
+$ python3 -c "import inspect; from agent_workflows import runner_shared; src = inspect.getsource(runner_shared.execute_item_core); print('execute_item_core count:', src.count('get(\"isolate_worktree\"'))"
+execute_item_core count: 0
+(Negative control: before E-04, count was 2).
+
+Launch function isolate reads (annotated with enclosing guards):
+27090:     isolate = isolation_for_action(options, "review" if is_review else "execute")
+27095:         base = evaluate_clean_base_for_launch(repo, shared_tree=not isolate)  # inside 'if self_finalize and not is_review:' (line 27094)
+27157:     if is_review and isolate:  # review sweep lane
+27219:         if isolate:  # inside 'if self_finalize and not is_review:' (line 27216, driver_begin)
+27249:         if isolate:  # inside 'if self_finalize and not is_review:' (line 27216, allocate_isolation_worktree)
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: THE ONE VALIDATION THAT DISCRIMINATES. With `{"run":{"isolate_worktree":{"review":false}}}`, drive a review item and paste the resulting `git status --porcelain` for the shared checkout plus the commit that carries the plan edit and the review record; OR, if E-05 took the refusal route, paste the warning and `policy_isolation` returning `review: True`. In EITHER case also paste the negative control: the same run with E-05's branch removed, showing the two files left UNCOMMITTED, which is the F-6 regression. A pass without that control cannot distinguish "the output landed" from "the test never checked".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified positive case commits uncommitted review outputs clean and negative control leaves them uncommitted:
+```
+$ python3 -m pytest -o addopts="" -v tests/test_isolation_per_action.py -k "NonIsolatedReviewOutputCommitTests"
+============================= test session starts ==============================
+tests/test_isolation_per_action.py::NonIsolatedReviewOutputCommitTests::test_negative_control_without_shared_output_commit_leaves_files_uncommitted PASSED [ 50%]
+tests/test_isolation_per_action.py::NonIsolatedReviewOutputCommitTests::test_non_isolated_review_commits_uncommitted_output PASSED [100%]
 
-- [ ] V-06 validates E-06
+======================= 2 passed, 22 deselected in 0.18s =======================
+
+Positive case (`test_non_isolated_review_commits_uncommitted_output`):
+- Before commit_review_shared_output:
+  M .aw/records/plans/pending/20260925-testset-01-tst123-test-plan.ipd.md
+ ?? .aw/records/reviews/20260925-testset-01-tst123-test-plan.review.md
+- After commit_review_shared_output:
+  git status --porcelain is clean ("")
+  git show --stat carries both files:
+   .aw/records/plans/pending/20260925-testset-01-tst123-test-plan.ipd.md | 2 +-
+   .aw/records/reviews/20260925-testset-01-tst123-test-plan.review.md   | 3 +++
+
+Negative control (`test_negative_control_without_shared_output_commit_leaves_files_uncommitted`):
+- Without shared output commit, files remain uncommitted:
+  M .aw/records/plans/pending/20260925-testset-01-tst456-test-plan.ipd.md
+ ?? .aw/records/reviews/20260925-testset-01-tst456-test-plan.review.md
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the run-start output for a policy disabling `review` (one line naming `run.isolate_worktree.review=false`), for one disabling `execute`, and for a DEFAULT run showing no new line at all. The last is what proves the warning is scoped and did not become noise on every run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified run-start warning fires for review:false and execute:false policies, and remains completely silent on default runs:
+```
+$ python3 -c "
+import tempfile, json, pathlib
+from agent_workflows import runner_shared
 
-- [ ] V-07 validates E-07
+def run_test(cfg):
+    d = pathlib.Path(tempfile.mkdtemp())
+    (d / '.aw' / 'config').mkdir(parents=True)
+    if cfg is not None:
+        (d / '.aw' / 'config' / 'project.json').write_text(json.dumps(cfg))
+    class Args:
+        isolate_worktree = None
+    runner_shared.resolve_isolation(Args(), repo=d)
+
+print('--- policy with review: false ---')
+run_test({'run': {'isolate_worktree': {'review': False}}})
+print('--- policy with execute: false ---')
+run_test({'run': {'isolate_worktree': {'execute': False}}})
+print('--- default run (no policy) ---')
+run_test(None)
+print('--- default run (both true) ---')
+run_test({'run': {'isolate_worktree': {'execute': True, 'review': True}}})
+"
+--- policy with review: false ---
+WARNING: repository policy disables worktree isolation: run.isolate_worktree.review=false
+--- policy with execute: false ---
+WARNING: repository policy disables worktree isolation: run.isolate_worktree.execute=false
+--- default run (no policy) ---
+--- default run (both true) ---
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest tests/test_isolation_per_action.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py` summary line, 0 failed. The two host driver files are included deliberately: both carry state fixtures writing `isolate_worktree` alone with no per-action key, so they are the existing suite's exercise of E-03's legacy fallback.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified host driver and isolation tests pass with 244 passed in 15.06s:
+```
+244 passed in 15.06s
+```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the bare `python3 -m pytest` summary line showing `N passed` and 0 failed, plus the pre-change baseline count as `<before> -> <after>` so a pre-existing failure is not read as caused by this change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified full pytest suite passes with 2295 passed, 1 skipped, 3 warnings (+24 new tests, 0 failed):
+```
+Pre-change baseline:
+2271 passed, 1 skipped, 3 warnings in 67.56s (0:01:07)
+
+Post-change result:
+2295 passed, 1 skipped, 3 warnings in 75.27s (0:01:15)
+
+Delta: 2271 passed -> 2295 passed (+24 new tests, 0 failed, 1 skipped)
+```
+  - Result: pass
 
 ## Approval and execution gate
 

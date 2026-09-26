@@ -3168,6 +3168,68 @@ def commit_review_lane_output(
     return (sha.strip() if rc == 0 else None), tuple(paths)
 
 
+def commit_review_shared_output(
+    repo: Path, id6: str, *, host_label: str
+) -> tuple[str | None, tuple[str, ...]]:
+    """Commit a non-isolated review turn's uncommitted output to the shared checkout.
+
+    Path-scoped to the plan under review and its review record, reusing commit_review_lane_output's
+    discipline (never git add -A, hooks run normally with no --no-verify, a hook rejection reported
+    as nothing-committed rather than a silent loss).
+    """
+    rc, out, _err = _run_git(repo, ["status", "--porcelain", "-uall"])
+    if rc != 0 or not out.strip():
+        return None, ()
+    paths: list[str] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        entry = line[3:] if len(line) > 3 else ""
+        if " -> " in entry:
+            old, new = entry.split(" -> ", 1)
+            candidates = [old.strip().strip('"'), new.strip().strip('"')]
+        else:
+            candidates = [entry.strip().strip('"')]
+        for cand in candidates:
+            if not cand:
+                continue
+            cand_path = repo / cand
+            if cand_path.is_dir():
+                for sub in cand_path.rglob("*"):
+                    if sub.is_file() and str(id6) in sub.name:
+                        paths.append(str(sub.relative_to(repo)))
+            elif str(id6) in cand:
+                paths.append(cand)
+    paths = sorted({p for p in paths if p})
+    if not paths:
+        return None, ()
+    rc, _out, _err = _run_git(repo, ["add", "--", *paths])
+    if rc != 0:
+        return None, ()
+    subject = f"review({host_label}): record the review of {id6}"
+    rc, _out, _err = _run_git(
+        repo,
+        [
+            "commit",
+            "-m",
+            subject,
+            "-m",
+            (
+                "Committed by the driver because the non-isolated review turn left its output "
+                "uncommitted in the shared checkout. Path-scoped to the plan under review and its "
+                "review record; hooks ran normally."
+            ),
+            "--",
+            *paths,
+        ],
+    )
+    if rc != 0:
+        _run_git(repo, ["restore", "--staged", "--", *paths])
+        return None, tuple(paths)
+    rc, sha, _err = _run_git(repo, ["rev-parse", "HEAD"])
+    return (sha.strip() if rc == 0 else None), tuple(paths)
+
+
 class ReviewWriteScope(NamedTuple):
     """WHAT one review turn wrote, split into what a review is FOR and what it reached beyond (E-10).
 
@@ -12767,6 +12829,59 @@ def resolve_on_conflict(
             return policy_value
 
     return DEFAULT_ON_CONFLICT
+
+
+def resolve_isolation(
+    args: Any,
+    repo: Any = None,
+    *,
+    warn: Any = None,
+) -> dict[str, bool]:
+    """Resolve worktree isolation per action ('execute', 'review').
+
+    Precedence:
+    1. CLI: if `--no-isolate-worktree` was passed (getattr(args, 'isolate_worktree', None) is False),
+       both are False (CLI wins).
+    2. Repository policy: if unsupplied (None or ABSENT), or True (generic fixture placeholder),
+       defer to repository policy via `config.policy_isolation(repo)`.
+
+    Emits a run-start warning (E-06) if repository policy disables isolation for any action.
+    """
+    flag = getattr(args, "isolate_worktree", None)
+    if flag is False:
+        return {"execute": False, "review": False}
+    if repo is None:
+        return {"execute": True, "review": True}
+    from agent_workflows import config as _config
+
+    policy = _config.policy_isolation(repo)
+    disabled = [
+        f"run.isolate_worktree.{act}=false"
+        for act in ("execute", "review")
+        if not policy.get(act, True)
+    ]
+    if disabled:
+        msg = f"WARNING: repository policy disables worktree isolation: {', '.join(disabled)}"
+        if warn is None:
+            print(msg, file=sys.stderr)
+        else:
+            warn(msg)
+    return policy
+
+
+def isolation_for_action(options: dict[str, Any] | None, action: str) -> bool:
+    """Return whether worktree isolation is enabled for the specified action type.
+
+    Reads options[f"isolate_{action}"] (e.g. isolate_execute, isolate_review).
+    Falls back to options.get("isolate_worktree", True) for backwards compatibility
+    with run states frozen prior to per-action isolation.
+    """
+    if not isinstance(options, dict):
+        return True
+    key = f"isolate_{action}"
+    if key in options:
+        return bool(options[key])
+    return bool(options.get("isolate_worktree", True))
 
 
 def refuse_unimplemented_run_flags(args: Any) -> None:
@@ -24566,6 +24681,10 @@ def initialize_run_core(
         else getattr(args, "stall_timeout", 600.0)
     )
 
+    isolation = resolve_isolation(args, repo=repo)
+    isolate_execute = isolation.get("execute", True)
+    isolate_review = isolation.get("review", True)
+
     state = {
         "schema_version": SCHEMA_VERSION,
         "run_id": run_id,
@@ -24589,7 +24708,9 @@ def initialize_run_core(
             "stall_timeout": stall_timeout,
             "full_auto": full_auto,
             "self_finalize": getattr(args, "self_finalize", True),
-            "isolate_worktree": getattr(args, "isolate_worktree", True),
+            "isolate_worktree": isolate_execute,
+            "isolate_execute": isolate_execute,
+            "isolate_review": isolate_review,
             "max_items_per_session": getattr(args, "max_items_per_session", 4),
             "action": requested_action,
             # `repo=repo` is load-bearing: this is the ONLY `resolve_retry_budget` call whose RESULT
@@ -26888,17 +27009,16 @@ def execute_item_core(
 
     prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
 
-    max_items = state.get("options", {}).get("max_items_per_session", 4)
-    review_uses_sweep_session = is_review and bool(
-        state.get("options", {}).get("isolate_worktree", True)
-    )
+    options = state.get("options", {})
+    max_items = options.get("max_items_per_session", 4)
+    review_uses_sweep_session = is_review and isolation_for_action(options, "review")
     raw_session = (
-        state.get(REVIEW_SWEEP_SESSION_KEY) or state.get("options", {}).get("session")
+        state.get(REVIEW_SWEEP_SESSION_KEY) or options.get("session")
         if review_uses_sweep_session
         else (
             state.get("session_id")
             or state.get("set_sessions", {}).get(item["setid"])
-            or state.get("options", {}).get("session")
+            or options.get("session")
         )
     )
     is_rotation = False
@@ -26910,9 +27030,7 @@ def execute_item_core(
 
     session_id = raw_session
     use_continue = (
-        False
-        if (state.get("options", {}).get("new_session") or is_rotation)
-        else (session_id is None)
+        False if (options.get("new_session") or is_rotation) else (session_id is None)
     )
 
     attempt: dict[str, Any] = {
@@ -26971,8 +27089,8 @@ def execute_item_core(
     except Exception:
         pass
 
-    self_finalize = state.get("options", {}).get("self_finalize", True)
-    isolate = state.get("options", {}).get("isolate_worktree", True)
+    self_finalize = options.get("self_finalize", True)
+    isolate = isolation_for_action(options, "review" if is_review else "execute")
     wt_handle = None
     work_dir: str | None = None
 
@@ -28624,6 +28742,43 @@ def execute_item_core(
                         "cyan",
                     )
                 )
+        elif is_review and wt_handle is None:
+            review_commit, review_committed_paths = commit_review_shared_output(
+                repo, item["id6"], host_label=host_labels.command
+            )
+            if review_commit:
+                attempt["review_shared_commit"] = review_commit
+                attempt["review_shared_committed_paths"] = list(review_committed_paths)
+                attempt["review_integrated"] = True
+                item["review_integrated"] = True
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "review-shared-output-committed",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "commit": review_commit,
+                        "paths": list(review_committed_paths),
+                    },
+                )
+                print(
+                    pal(
+                        f"  \u2713 review {item['id6']} output committed to shared checkout ({review_commit[:8]})",
+                        "cyan",
+                    )
+                )
+            elif review_committed_paths:
+                attempt["review_shared_commit_refused"] = list(review_committed_paths)
+                attempt["review_integrated"] = False
+                item["review_integrated"] = False
+                item["review_integration_refusal"] = (
+                    "review output commit refused by hooks"
+                )
+            else:
+                attempt["review_integrated"] = True
+                item["review_integrated"] = True
+            save_state(run_dir, state)
 
         if not is_review and disposition in (
             "executed",
