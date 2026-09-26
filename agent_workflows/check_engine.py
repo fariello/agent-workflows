@@ -3724,6 +3724,43 @@ class CloseVerdict(NamedTuple):
     path: Optional[str]
 
 
+def _same_release(
+    repo_root: Path,
+    a: Optional[str],
+    b: Optional[str],
+    *,
+    cache: Optional[Dict[str, Optional[Path]]] = None,
+) -> bool:
+    """True when two Blocks-Release gate values denote the same release.
+
+    Matches if strings are equal, or if both resolve to the same release record path
+    via `releases.resolve_release`. If either does not resolve, falls back to string
+    equality. Guards None explicitly: a None gate (meaning no Blocks-Release line)
+    never resolves or compares equal to a real gate.
+    """
+    if a is None or b is None:
+        return a == b
+    if a == b:
+        return True
+
+    from agent_workflows import releases as _releases
+
+    def _resolve(val: str) -> Optional[Path]:
+        if cache is not None:
+            if val in cache:
+                return cache[val]
+            target = _releases.resolve_release(repo_root, val)
+            cache[val] = target
+            return target
+        return _releases.resolve_release(repo_root, val)
+
+    ra = _resolve(a)
+    rb = _resolve(b)
+    if ra is not None and rb is not None:
+        return ra == rb
+    return a == b
+
+
 def evaluate_blocking_close(
     repo_root: Path,
     item_path: Path,
@@ -3770,8 +3807,11 @@ def evaluate_blocking_close(
         # bklgrad Order 01 (v58bvy) E-06: this scanned plans only, which made a spec-first graduation
         # unclosable by construction even though a spec preserves the gate identically.
         if item_id6:
+            release_cache: Dict[str, Optional[Path]] = {}
             for _p, carrier_br in find_from_backlog_artifacts(repo_root, item_id6):
-                if carrier_br == blocks_release:
+                if _same_release(
+                    repo_root, carrier_br, blocks_release, cache=release_cache
+                ):
                     return CloseVerdict(
                         True,
                         "ok",
@@ -4032,6 +4072,7 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
     #
     # nobugship rgaasb E-01: the walk itself now comes from the shared `_from_backlog_carrier_index`
     # so this rule and `check_live_bug_gate` have ONE definition of a carrier between them.
+    release_cache: Dict[str, Optional[Path]] = {}
     for target_id6, carriers in _from_backlog_carrier_index(repo_root).items():
         if target_id6 not in item_gate:
             continue  # dangling From-Backlog is check.from-backlog-dangling's job (ku93tn)
@@ -4042,7 +4083,7 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
             # future obligation.
             if is_retired(p):
                 continue
-            if carrier_br != item_br:
+            if not _same_release(repo_root, carrier_br, item_br, cache=release_cache):
                 kind = "spec" if str(p).endswith(".spec.md") else "plan"
                 drift.append(
                     _core.Drift(
