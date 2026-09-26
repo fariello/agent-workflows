@@ -99,14 +99,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Raising `commit_lock.writer_lock`'s own 5s default and correcting its docstring (F-4).
-  - Carrier: duac3v
+  - Carrier: bqz8kn
 - A general "who holds which lock" status verb.
   - Carrier-Declined: E-02 puts the holder in the one message a human reads when this bites; a separate verb is not needed to close this defect.
 
 ## Scope check
 
 - Over-scope: none. Every item traces to F-1..F-3 or to their verification.
-- Under-scope: F-4 is deliberately deferred to its carrier `duac3v`, because changing a budget used by every `aw` verb is a separate behavior change with its own trade-off (a longer wait makes a stuck lock slower to surface).
+- Under-scope: F-4 is deliberately deferred to its carrier `bqz8kn`, because changing a budget used by every `aw` verb is a separate behavior change with its own trade-off (a longer wait makes a stuck lock slower to surface).
 
 ## Required tests / validation
 
