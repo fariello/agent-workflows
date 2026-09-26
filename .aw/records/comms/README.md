@@ -44,4 +44,9 @@ target agent (read/in-progress/done/not-done/executed/not-executed). A target-as
 `executed` is a CLAIM by that agent, not proof; no automation may treat it as proof. Anything needing
 prose is a reply message, not an ack.
 
+After reading a message, a target agent MAY record its progress by running
+`python3 -m agent_workflows.comms_acks ack <msg-id> read --by <proj.agent>` (and later
+`done`/`executed`/etc.), writing an acknowledgement file into the `untracked/acks/` lane.
+Acknowledgements are entirely optional because the convention works without them.
+
 See the agent-comms convention spec under `.aw/records/specs/` for the full definition.

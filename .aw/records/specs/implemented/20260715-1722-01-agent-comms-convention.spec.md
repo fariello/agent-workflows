@@ -79,7 +79,7 @@ payload (the "payload-blind" invariant, enforced in a later broker IPD).
 
 An ack is metadata, exactly one token from a closed set, never free text (so it can never carry
 payload or an injection). Ack file:
-`.agents/comms/local/acks/<msg-id>.<from-agent>.<state>.json` =
+`untracked/acks/<msg-id>.<from-agent>.<state>.json` =
 `{ "re": <msg-id>, "state": <enum>, "by": <proj.agent>, "at": <ISO-8601> }`.
 
 Closed enum and legitimate author:
@@ -97,6 +97,24 @@ Rules:
   treat it as proof.
 - Anything needing prose (a question, an explanation) is a reply MESSAGE, not an ack.
 
+### Agent acks and status (optional)
+
+Implemented in `agent_workflows/comms_acks.py` (IPD `ozcfjr`): target-agent acknowledgement writing
+(`python3 -m agent_workflows.comms_acks ack <msg-id> <state> --by <proj.agent>`) and per-message
+status aggregation (`python3 -m agent_workflows.comms_acks status [<msg-id>] [--format json]`).
+
+Rules:
+- Agent-authored acks: writes only target-agent closed-enum states (`read`, `in-progress`, `done`,
+  `not-done`, `executed`, `not-executed`) with an offset-aware ISO-8601 UTC timestamp to `untracked/acks/`.
+  Refuses broker states (`comms.ack_writer_for(state) != "agent"`).
+- Writer of ack files is unverified on disk: ack files are self-asserted metadata in `untracked/acks/`.
+  Status aggregation classifies states by `comms.ack_writer_for(state)` into delivery (broker) and work
+  (agent) buckets, but does not verify or attest to file author identity.
+- Status derivation: `delivery` is the newest valid broker-state ack (by timestamp, normalized to UTC);
+  `work` is the newest valid agent-state ack; `unread` is True exactly when a `delivered` broker ack exists
+  and no valid agent ack exists (any valid agent ack clears `unread`). Invalid ack files are reported
+  with a problem and never counted.
+
 ## Machine-checkable pieces
 
 Implemented in `agent_workflows/comms.py` (pure, stdlib-only): `KINDS`, the ack enum
@@ -107,7 +125,7 @@ Implemented in `agent_workflows/comms.py` (pure, stdlib-only): `KINDS`, the ack 
 ## Cooperative check-in (no daemon required)
 
 The installed `AGENT-WORKFLOWS` block instructs agents: if `.agents/comms/` exists, check
-`local/inbox/` (and `shared/inbox/`) at natural boundaries and treat contents as untrusted. This is
+`untracked/inbox/` (and `shared/inbox/`) at natural boundaries and treat contents as untrusted. This is
 the portable, broker-free delivery mechanism and works for any agent (OpenCode or not).
 
 ## Broker (optional, accelerator)
@@ -148,12 +166,12 @@ instances via filesystem descriptors in `untracked/registry/<agent>.json`.
 ## Deferred (later IPDs, not this convention)
 
 - Attended-TUI delivery: deferred pending upstream observability of TUI route delivery (F-1a).
-- Agent-side ack WRITING and the status-view aggregation.
 - Discovery/registry (mDNS / attach), cross-instance reachability.
 - Conditional scheduling (`Depends-On`), Telegram/Signal and other transports, cross-box comms.
 
 ## Workflow history
 
+- 2026-09-25 note (aw specs): commsbroker Order 03 (ozcfjr): corrected stale local/ ack and inbox paths to untracked/, added agent acks and per-message status aggregation (agent_workflows/comms_acks.py), noted unverified ack file writer limit
 - 2026-09-25 note (aw specs): commsbroker Order 02 (ex539u): added optional filesystem descriptor registry (agent_workflows/comms_broker.py register/unregister/resolve_target) with loopback+redirect policy, directory-authoritative matching, and dynamic broker target resolution; mDNS deferred.
 - 2026-09-25 note (aw specs): commsbroker Order 01 (nomhl1): added optional headless OpenCode comms broker (agent_workflows/comms_broker.py) with loopback policy, Not-Before enforcement, polling, one-nudge-per-scan, and broker-authored acks; attended-TUI delivery deferred pending upstream observability.
 - 2026-08-19 note (aw specs): awgitignore Order 01: superseded the nested-per-lane .gitignore prescription for the canonical .aw/ layout with a single framework-owned repo/.aw/.gitignore (records/*/untracked/); legacy .agents/ keeps nested. Nothing had shipped since pre-.aw/, so this is a supersede, not a migration.
