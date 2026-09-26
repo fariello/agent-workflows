@@ -6,7 +6,7 @@
 - Scope: IN: restore the deleted test file IN FULL (37 tests, all passing at review; maintainer ruling 2026-09-25); decide the shipped sandbox-root default against the two constraints review measured; then move the logic into the package behind a thin re-exporting `tools/` shim, register `aw upgrade-test` preserving the `--json` mechanism its restored `CliTests` pins, and declare its seven leaves. OUT: new rehearsal features; the synthetic-baseline rehearsal the source item defers; repairing the vacuous output-conformance CI step or restoring the two deleted declaration tests (plan `0yrtne` owns the whole-CLI test).
 - Scope-Paths: tools/aw_upgrade_test.py, agent_workflows/upgrade_rehearsal.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_aw_upgrade_test.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 8ud1is
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: u27q6g
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8ud1is verified (set upgrehearse, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 10 findings PR-601..PR-610 all FIXED, 6 decisions D-1..D-6 recorded; review record written; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog u27q6g. Verified at HEAD: the tool exists (1370 lines) and `aw upgrade-test` does not; the deleted test file's 13 safety-invariant tests still pass against today's tool (run in place from tests/). Maintainer ruled 2026-09-25 to restore those tests.
@@ -33,48 +33,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: safety tests first
 
-- [ ] E-01 Restore `tests/test_aw_upgrade_test.py` from `19313eed^` IN FULL, all ten classes and 37 tests, not a safety-only subset. Measured at review by restoring the file verbatim and running it: `37 passed in 2.52s`, and `-k SafetyInvariant` gives `13 passed, 24 deselected`. So the whole file passes against today's tool, and the helpers it needs (`support.REPO_ROOT`, `git`, `init_repo`, `load_module`) all still exist.
+- [x] E-01 Restore `tests/test_aw_upgrade_test.py` from `19313eed^` IN FULL, all ten classes and 37 tests, not a safety-only subset. Measured at review by restoring the file verbatim and running it: `37 passed in 2.52s`, and `-k SafetyInvariant` gives `13 passed, 24 deselected`. So the whole file passes against today's tool, and the helpers it needs (`support.REPO_ROOT`, `git`, `init_repo`, `load_module`) all still exist.
   - Depends on: none
   - Expected outcome: 37 tests in the default suite, including the four `SafetyInvariant*` classes.
   - WHY IN FULL, correcting the original item's plan to drop `InspectionTests`, `SandboxCreationTests`, `ProbeAndObservationTests`, `CliTests` and `NoRunRehearsalTests` as pinning "incidental behavior": review read them and they are BEHAVIOR tests in temp directories, not structural pins. `CliTests` is the load-bearing case: `test_the_json_flag_is_honored_on_either_side_of_the_subcommand` pins a MEASURED regression in which a subparser's own `--json` default clobbered the value the top-level flag had already set, so `--json list` parsed to False and silently emitted human output to a caller that asked for machine output. That is the EXACT contract E-04 rewrites. Dropping those tests would remove the only guard on the work this plan does, in the same commit that does it. `InspectionTests` likewise pins the version/layout precedence every rehearsal report's claims rest on (a dual-layout repo must report the version it upgraded TO, not FROM).
   - The one test that needs an edit rather than a verbatim restore is `test_default_sandbox_root_is_computed_not_hardcoded`, which does `Path(TOOL).read_text()` and asserts the literal `DEFAULT_SANDBOX_ROOT = Path(` is absent. After E-03 moves the logic, that reads the SHIM and the assertion becomes vacuous. Point it at the package module in E-03, not here: in E-01 it must still read the tool and pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: graduate
 
-- [ ] E-02 Decide and record the DEFAULT SANDBOX ROOT for a non-maintainer, which the source item `u27q6g` names as open work ("a shipped version should prefer the state root or a temp dir") and which E-01's restored tests CONSTRAIN in a way the original plan did not account for. Resolve it in the plan (see OQ-02) and write the resolution into this item before touching code; do not pick one while editing.
+- [x] E-02 Decide and record the DEFAULT SANDBOX ROOT for a non-maintainer, which the source item `u27q6g` names as open work ("a shipped version should prefer the state root or a temp dir") and which E-01's restored tests CONSTRAIN in a way the original plan did not account for. Resolve it in the plan (see OQ-02) and write the resolution into this item before touching code; do not pick one while editing.
   - Depends on: E-01
   - Expected outcome: one named default, with the two constraints it must satisfy stated.
   - THE TWO CONSTRAINTS, both measured at review. FIRST, a restored SAFETY test asserts the shape: `test_default_sandbox_root_is_computed_not_hardcoded` requires `computed.name == SANDBOX_ROOT_NAME` AND `computed.parent.name == "tmp"`. A bare `tempfile.gettempdir()/aw-upgrade-tests` FAILS that parent assertion, so the original E-04 as worded would have broken a test E-01 restores, in the same plan. SECOND, and more important, the current nesting is a SAFETY MECHANISM, not an accident: `default_sandbox_root`'s docstring states that a sandbox placed directly under a discovery search root would be found as a managed repo and could be swept into a later `aw install all`, which is invariant 3, and the `tmp/` level exists because the immediate-children scan cannot reach it. Any new default must preserve that property or state why it no longer applies (a system temp dir is not a search root, so it is outside discovery for a different reason; say so rather than assuming it).
   - Measured, so the item is not justified on a false premise: `aw sanitize --agent` is CLEAN at HEAD (`findings:0`, exit 0), and `default_sandbox_root` is already COMPUTED with an `AW_UPGRADE_TEST_ROOT` override and carries a docstring saying a literal would be what the leak-sanitizer rejects. So there is NO tracked-file leak to fix. The real defect is narrower and is about a non-maintainer: the default assumes a configured search root exists and falls back to `Path.home()`, so a fresh user with no config gets `~/tmp/aw-upgrade-tests` in their home rather than a temp location. State the concern that way.
-  - Execution state: pending
+  - Resolution (per OQ-02): Keep current derivation when a configured search root exists (`roots[0] / "tmp" / SANDBOX_ROOT_NAME`), and change only the no-search-root fallback from `Path.home()` to `Path(tempfile.gettempdir())`, preserving the `tmp/<SANDBOX_ROOT_NAME>` shape in both branches (`base / "tmp" / SANDBOX_ROOT_NAME`). This satisfies both the shape assertion (`computed.parent.name == "tmp"`) and the invariant-3 isolation nesting outside search roots.
+  - Execution state: performed
 
-- [ ] E-03 Move the harness logic into `agent_workflows/upgrade_rehearsal.py`, leaving `tools/aw_upgrade_test.py` as a thin delegating shim, following the shipped precedent the source item names: `tools/pwatch.py` (35 lines) over `agent_workflows/pwatch.py` (1051), which adds the repo root to `sys.path`, imports the package module, RE-EXPORTS every non-dunder attribute, and delegates `main`. The re-export is load-bearing here, not stylistic: the restored tests reach internals through `load_module("aw_upgrade_test", TOOL)` and call `uat.<name>` for many private helpers, so a shim that only delegates `main` breaks them.
+- [x] E-03 Move the harness logic into `agent_workflows/upgrade_rehearsal.py`, leaving `tools/aw_upgrade_test.py` as a thin delegating shim, following the shipped precedent the source item names: `tools/pwatch.py` (35 lines) over `agent_workflows/pwatch.py` (1051), which adds the repo root to `sys.path`, imports the package module, RE-EXPORTS every non-dunder attribute, and delegates `main`. The re-export is load-bearing here, not stylistic: the restored tests reach internals through `load_module("aw_upgrade_test", TOOL)` and call `uat.<name>` for many private helpers, so a shim that only delegates `main` breaks them.
   - Depends on: E-02
   - Expected outcome: one implementation; `python3 tools/aw_upgrade_test.py --help` still works; the restored tests pass unchanged except the one noted below.
   - Point `test_default_sandbox_root_is_computed_not_hardcoded`'s `read_text` at `agent_workflows/upgrade_rehearsal.py` in this item, since after the move the shim no longer contains the code the assertion is about. Keep the assertion, do not delete it: it is the only mechanical guard against a future hardcoded default.
   - Apply E-02's decided default in this item (it is a one-line change to `default_sandbox_root`), and update the two restored assertions about its shape if and only if E-02's resolution changes that shape. Changing a safety test's expectation is permitted here ONLY because E-02 records the decision and its reason; do not relax an assertion to make a convenient default pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Register `aw upgrade-test` in `cli._build_parser` with the same subcommands (`list`, `new`, `sandboxes`, `probe`, `env`, `clean`), dispatch in `main`, and support `--agent`/`--json` per the dual-audience output contract (exit 0 clean / 1 findings / 2 cannot-run).
+- [x] E-04 Register `aw upgrade-test` in `cli._build_parser` with the same subcommands (`list`, `new`, `sandboxes`, `probe`, `env`, `clean`), dispatch in `main`, and support `--agent`/`--json` per the dual-audience output contract (exit 0 clean / 1 findings / 2 cannot-run).
   - Depends on: E-03
   - Expected outcome: `python3 -m agent_workflows upgrade-test --help` works; each subcommand parses; `--json` is honored on EITHER side of the subcommand.
   - PRESERVE THE `--json` MECHANISM E-01's `CliTests` pins, and read that table before wiring the flag: the tool declares `--json` on a SHARED PARENT parser with `store_const` and `default=None`, precisely so that a value set by the top-level flag is not clobbered by a subparser applying its own default last. A concrete `default=False` on either side reintroduces the measured regression silently. If the repository's standard output-mode helper sets a concrete default, that is a genuine conflict to REPORT rather than to resolve by weakening the restored test.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add a `CommandDeclaration` to `command_surface.COMMAND_INVENTORY` for `upgrade-test` and each of its six leaves, with the class/recipe/gate fields the existing declarations use for a comparable read/mutation pair (`list`/`sandboxes`/`probe`/`env` are reads, `new` is a mutation, `clean` is a mutation with a dry-run default, which the tool already implements).
+- [x] E-05 Add a `CommandDeclaration` to `command_surface.COMMAND_INVENTORY` for `upgrade-test` and each of its six leaves, with the class/recipe/gate fields the existing declarations use for a comparable read/mutation pair (`list`/`sandboxes`/`probe`/`env` are reads, `new` is a mutation, `clean` is a mutation with a dry-run default, which the tool already implements).
   - Depends on: E-04
   - Expected outcome: none of the seven new leaves appears in `find_undeclared_leaves(_build_parser())`.
   - DO NOT CLAIM THE SET BECOMES EMPTY, which the original E-03 asserted. Measured at review: `find_undeclared_leaves` returns FIVE entries today (`oc profile add|default|list|remove|show`), so it is not empty at baseline and this plan cannot make it so. Those five are owned by pending plan `0yrtne` (Set `cmdsurf`), which declares them and restores the whole-CLI declaration test. Assert only the delta this plan owns: the seven new leaves are absent from the set, and the set's OTHER members are unchanged (still exactly those five, unless `0yrtne` has landed first).
   - ALSO BE HONEST ABOUT WHAT ENFORCES THIS TODAY, because the original plan's safety argument rested on a gate that does not run. `tests/test_command_surface_declarations.py` and `tests/test_cli_conformance_matrix.py` were BOTH deleted in `19313eed`, the same commit that removed the upgrade-test file. The CI job that names them still exists (`.github/workflows/tests.yml`, "Run the output-conformance harness") and is VACUOUS: all three files it lists are absent, so pytest collects nothing and the step exits 0. Verified at review. So an undeclared leaf added today fails NOTHING. Do not repair that CI step or restore those two files here (out of scope, and `0yrtne` owns the whole-CLI test); just do not rely on a gate that is not running, and make V-05 check the leaf set directly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: verification
 
-- [ ] E-06 Run the bare suite (`python3 -m pytest`, no added flags) and paste the actual summary line.
+- [x] E-06 Run the bare suite (`python3 -m pytest`, no added flags) and paste the actual summary line.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: 0 failed, and any failure named as pre-existing with evidence from the base commit or as new.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -159,35 +160,188 @@ If a user-facing docs page enumerates `aw` commands, add `upgrade-test` as part 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the restored file's full class list with the test count per class, and `python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q` showing `37 passed`. Then paste `-k SafetyInvariant` showing `13 passed, 24 deselected`, which is what proves the 24 non-safety tests are actually PRESENT rather than quietly dropped (the defect F-4 and F-5 exist to prevent). If the count is not 37, name which tests were omitted and why, per item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 37 tests restored across 10 classes; full test run 37 passed in 2.04s; SafetyInvariant subset 13 passed, 24 deselected.
+    Class breakdown across 37 tests (10 classes total, TempCase base class):
+      - TempCase: 0 tests (base class)
+      - InspectionTests: 6 tests
+      - SafetyInvariantOneSourceUntouched: 2 tests
+      - SafetyInvariantTwoNeverPush: 2 tests
+      - SafetyInvariantThreeNoInventoryPollution: 7 tests
+      - SafetyInvariantFourMarkerGatedDeletion: 2 tests
+      - SandboxCreationTests: 4 tests
+      - ProbeAndObservationTests: 3 tests
+      - CliTests: 9 tests
+      - NoRunRehearsalTests: 2 tests
 
-- [ ] V-02 validates E-02
+    Full file test run:
+    ```sh
+    $ python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q
+    .....................................                                    [100%]
+    37 passed in 2.04s
+    ```
+
+    Safety invariants subset:
+    ```sh
+    $ python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q -k SafetyInvariant
+    .............                                                            [100%]
+    13 passed, 24 deselected in 1.67s
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the decision as written into the item, and paste BOTH constraints demonstrated rather than asserted: the two assertions in `test_default_sandbox_root_is_computed_not_hardcoded` quoted from the restored file, and `default_sandbox_root`'s docstring sentence about a sandbox under a search root being swept into `aw install all`. A decision recorded without its constraints is what F-6 measured going wrong.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Decision recorded into E-02 with shape constraint (parent.name == "tmp") and invariant 3 search root isolation constraint verified.
+    Decision as recorded into E-02:
+    "Resolution (per OQ-02): Keep current derivation when a configured search root exists (`roots[0] / "tmp" / SANDBOX_ROOT_NAME`), and change only the no-search-root fallback from `Path.home()` to `Path(tempfile.gettempdir())`, preserving the `tmp/<SANDBOX_ROOT_NAME>` shape in both branches (`base / "tmp" / SANDBOX_ROOT_NAME`). This satisfies both the shape assertion (`computed.parent.name == "tmp"`) and the invariant-3 isolation nesting outside search roots."
 
-- [ ] V-03 validates E-03
+    Constraint 1 (Shape constraint in test_default_sandbox_root_is_computed_not_hardcoded):
+    ```python
+    computed = uat.default_sandbox_root()
+    self.assertEqual(computed.name, uat.SANDBOX_ROOT_NAME)
+    self.assertEqual(computed.parent.name, "tmp")
+    ```
+
+    Constraint 2 (Invariant 3 nesting in default_sandbox_root docstring):
+    "A sandbox placed directly under a search root would be discovered as a managed repo and could be swept into a later ``aw install all`` (invariant 3). The default therefore nests it one level deeper, under a ``tmp/`` subdirectory of the first search root, which the non-recursive immediate-children scan cannot reach."
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff stat; `python3 tools/aw_upgrade_test.py --help` working through the shim; the restored tests passing against the package module; and `python3 -c "from tests.support import load_module; m=load_module('aw_upgrade_test','tools/aw_upgrade_test.py'); print(hasattr(m,'default_sandbox_root'), hasattr(m,'search_roots'))"` printing `True True`, which proves the shim RE-EXPORTS internals rather than only delegating `main` (without that the restored tests cannot reach `uat.<helper>`). Also paste the resolved default with no `AW_UPGRADE_TEST_ROOT` set and with a fake empty config, showing E-02's fallback in effect.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tools/aw_upgrade_test.py converted to 22-line shim delegating to agent_workflows.upgrade_rehearsal; re-exports verified (True True); 37 tests pass; empty-config fallback returns /tmp/tmp/aw-upgrade-tests.
+    Diff stat:
+    ```sh
+    $ git diff --stat tools/aw_upgrade_test.py
+     tools/aw_upgrade_test.py | 1379 +---------------------------------------------
+     1 file changed, 22 insertions(+), 1357 deletions(-)
+    ```
 
-- [ ] V-04 validates E-04
+    Shim help output:
+    ```sh
+    $ python3 tools/aw_upgrade_test.py --help
+    usage: aw_upgrade_test.py [-h] [--json]
+                              {list,new,sandboxes,probe,env,clean} ...
+
+    Rehearse an agent-workflows install/update/migrate against a disposable copy of a real repo. Never mutates the source, never pushes, never touches the real aw config.
+
+    positional arguments:
+      {list,new,sandboxes,probe,env,clean}
+        list                List candidate source repos and their versions.
+        new                 Create a sandbox copy and run the upgrade.
+        sandboxes           List existing sandboxes.
+        probe               Re-probe a sandbox's state (read-only).
+        env                 Print shell exports to explore a sandbox safely.
+        clean               Remove sandboxes (marker-gated).
+
+    options:
+      -h, --help            show this help message and exit
+      --json                Machine-readable output.
+
+    EXAMPLES
+      tools/aw_upgrade_test.py list --size
+      tools/aw_upgrade_test.py new <repo> --rerun
+      tools/aw_upgrade_test.py new <repo> -- --to-aw
+      tools/aw_upgrade_test.py new <big-repo> --strategy clone
+      tools/aw_upgrade_test.py probe <sandbox> --json
+      tools/aw_upgrade_test.py clean --all -y
+    ```
+
+    Internal symbol re-exports:
+    ```sh
+    $ python3 -c "from tests.support import load_module; m=load_module('aw_upgrade_test','tools/aw_upgrade_test.py'); print(hasattr(m,'default_sandbox_root'), hasattr(m,'search_roots'))"
+    True True
+    ```
+
+    Restored tests passing:
+    ```sh
+    $ python3 -m pytest tests/test_aw_upgrade_test.py -o addopts="" -q
+    .....................................                                    [100%]
+    37 passed in 1.97s
+    ```
+
+    Resolved default with empty config:
+    ```sh
+    $ python3 -c "import os, tempfile; from unittest.mock import patch; from agent_workflows import upgrade_rehearsal; os.environ.pop('AW_UPGRADE_TEST_ROOT', None); patch('agent_workflows.config.repo_setting', return_value=[]).start(); print(upgrade_rehearsal.default_sandbox_root())"
+    /tmp/tmp/aw-upgrade-tests
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m agent_workflows upgrade-test --help` and one `--help` per subcommand. Then paste the `--json` matrix DRIVEN through the new parser, all five rows of `CliTests::JSON_FLAG`: `--json list`, `list --json`, `--json probe x`, `probe x --json` each yielding True, and `list` yielding the falsy default. This is the regression F-5 names, and a passing `CliTests` on the OLD parser does not prove the NEW registration preserved it, so drive both.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: upgrade-test subcommands help verified; JSON_FLAG matrix passes on both old and new parsers (5/5 rows each).
+    `python3 -m agent_workflows upgrade-test --help`:
+    ```text
+    usage: agent-workflows upgrade-test [-h] [--no-color | --color] [--agent]
+                                        [--json]
+                                        {list,new,sandboxes,probe,env,clean} ...
 
-- [ ] V-05 validates E-05
+    Rehearse an agent-workflows install/update/migrate against a disposable copy of a real repo. Never mutates the source, never pushes, never touches the real aw config.
+
+    positional arguments:
+      {list,new,sandboxes,probe,env,clean}
+        clean               Remove sandboxes (marker-gated).
+        env                 Print shell exports to explore a sandbox safely.
+        list                List candidate source repos and their versions.
+        new                 Create a sandbox copy and run the upgrade.
+        probe               Re-probe a sandbox's state (read-only).
+        sandboxes           List existing sandboxes.
+
+    options:
+      -h, --help            show this help message and exit
+      --no-color            Disable ANSI color (also honored via NO_COLOR).
+      --color               Force ANSI color on even when stdout is not a terminal
+                            (beats NO_COLOR).
+      --agent               Machine-readable output (aw.agent/v1 JSONL).
+      --json                Emit full structured JSON representation.
+    ```
+
+    Subcommand help verified:
+    `list --help`, `new --help`, `sandboxes --help`, `probe --help`, `env --help`, `clean --help` each parsed and displayed usage.
+
+    JSON_FLAG matrix driven through both old and new parsers:
+    ```text
+    === 1. CliTests on OLD parser (uat.build_parser) ===
+    PASS: --json BEFORE the subcommand                            ['--json', 'list']        -> True (expected True)
+    PASS: --json AFTER the subcommand                             ['list', '--json']        -> True (expected True)
+    PASS: --json before a subcommand that takes a positional      ['--json', 'probe', 'x']  -> True (expected True)
+    PASS: --json after that subcommand                            ['probe', 'x', '--json']  -> True (expected True)
+    PASS: no --json at all                                        ['list']                  -> None (expected None)
+
+    === 2. JSON_FLAG driven through NEW parser (_build_parser) ===
+    PASS: --json BEFORE the subcommand                            ['upgrade-test', '--json', 'list']     -> True (expected True)
+    PASS: --json AFTER the subcommand                             ['upgrade-test', 'list', '--json']     -> True (expected True)
+    PASS: --json before a subcommand that takes a positional      ['upgrade-test', '--json', 'probe', 'x'] -> True (expected True)
+    PASS: --json after that subcommand                            ['upgrade-test', 'probe', 'x', '--json'] -> True (expected True)
+    PASS: no --json at all                                        ['upgrade-test', 'list']               -> False (expected False)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -c "from agent_workflows.command_surface import find_undeclared_leaves; from agent_workflows.cli import _build_parser; print(sorted(find_undeclared_leaves(_build_parser())))"`. Assert the DELTA, not emptiness: none of the seven `upgrade-test` leaves appears, and the remaining members are exactly the five `oc profile` entries measured at review (or fewer, if `0yrtne` landed first, in which case say so). Do NOT paste `[]` as the expected result; F-8 measured that it is unreachable by this plan. Also paste `python3 -m agent_workflows sanitize --agent` exiting 0 with no finding in the new or moved files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Undeclared leaves delta clean (0 upgrade-test leaves appear); sanitize --agent exit 0 with 0 findings.
+    Undeclared leaves delta:
+    ```text
+    $ python3 -c "from agent_workflows.command_surface import find_undeclared_leaves; from agent_workflows.cli import _build_parser; print(sorted(find_undeclared_leaves(_build_parser())))"
+    []
+    ```
+    None of the seven `upgrade-test` leaves appears. Because prerequisite plan `0yrtne` landed first, the baseline five `oc profile` entries were already declared, yielding an empty undeclared leaves set.
 
-- [ ] V-06 validates E-06
+    Leak sanitizer:
+    ```text
+    $ python3 -m agent_workflows sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` (no added flags) showing 0 failed, and name any failure as pre-existing (with its node id and evidence it fails at the base commit) or new.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: python3 -m pytest bare run passed: 2416 passed, 1 skipped, 3 warnings in 36.75s (0 failed).
+    ```text
+    2416 passed, 1 skipped, 3 warnings in 36.75s
+    ```
+    0 failed across the entire test suite.
+  - Result: pass
 
 ## Approval and execution gate
 
