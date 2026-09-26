@@ -6,7 +6,7 @@
 - Scope: Add a `run.isolate_worktree` member to `.aw/config/project.json` taking per-action booleans (`execute`, `review`), resolve it once at queue build into frozen run options, and have the launch-site reads in `runner_shared` consult the per-action value; `--no-isolate-worktree` stays a shorthand that disables both. ALSO IN, added at review because the feature is unsafe without them: a route for a NON-ISOLATED review's output to reach the repository rather than being silently discarded (or a refusal of the `review: false` value), and a run-start warning whenever policy disables isolation for either action. Orchestrator retirement is NOT made configurable (see F-3). OUT: adding this key to the closed `RUN_POLICY_FLAGS` table, a per-action CLI flag, sparse or `--no-checkout` worktrees, and the separate `aw oc audit` isolation flag.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_isolation_per_action.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -15,10 +15,10 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: bzlxn0
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: h2mpru
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bzlxn0 verified (set isoperact, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
