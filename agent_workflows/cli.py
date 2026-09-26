@@ -3612,6 +3612,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Variable name and value (e.g. 'defaults.backup false', 'repos.search to ~/src,~/work').",
     )
 
+    p_config_unset = config_sub.add_parser(
+        "unset",
+        parents=[common],
+        help="Unset (remove) a configuration variable (e.g. 'defaults.migrate_layout', 'color_depth').",
+        description=(
+            "Remove a configuration variable, restoring its default or absent state."
+        ),
+    )
+    p_config_unset.add_argument(
+        "varname",
+        help="Variable name to unset (e.g. 'defaults.migrate_layout', 'color_depth').",
+    )
+
     p_config_add = config_sub.add_parser(
         "add",
         parents=[common],
@@ -6357,6 +6370,57 @@ def _prompt_yes_no(prompt: str, default: bool) -> bool:
     return answer in ("y", "yes")
 
 
+def _ask_policy(
+    term: Term,
+    key: str,
+    prompt: str,
+    builtin_default: bool,
+    assume_yes: bool,
+) -> bool:
+    """Ask a policy question with precedence: flag > saved answer > built-in default.
+
+    Explicit flag is handled by the caller.
+    Otherwise a saved defaults.<key> answers silently (with one line saying it came from config).
+    Otherwise, interactively, ask with builtin_default shown as capitalized choice ([Y/n] or [y/N])
+    and offer to remember the answer in config.
+    Under --yes or non-interactive stdin, return builtin_default with a note naming
+    the config key that would silence it.
+    """
+    config_key = key if key.startswith("defaults.") else f"defaults.{key}"
+    cfg = config.load()
+    try:
+        _, saved_val = config.get_config_value(config_key, cfg)
+    except config.ConfigError:
+        saved_val = None
+
+    if saved_val is not None and isinstance(saved_val, bool):
+        term.line(f"Using saved {config_key}={str(saved_val).lower()} from config.")
+        return saved_val
+
+    is_interactive = (
+        (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
+        or isinstance(sys.stdin, io.StringIO)
+    ) and not assume_yes
+    if not is_interactive:
+        term.line(
+            f"Using default {config_key}={str(builtin_default).lower()} "
+            f"(set '{config_key}' in aw config to silence)."
+        )
+        return builtin_default
+
+    ans = _prompt_yes_no(prompt, default=builtin_default)
+    remember = _prompt_yes_no(
+        f"Remember this choice in config ({config_key}={str(ans).lower()})?",
+        default=True,
+    )
+    if remember:
+        try:
+            config.set_config_value(config_key, ans, auto_save=True)
+        except Exception as exc:
+            term.status("warn", f"Could not save {config_key} to config: {exc}")
+    return ans
+
+
 def _confirm_install(
     term: Term, repo_root: Union[str, Path], assume_yes: bool, default: bool = True
 ) -> bool:
@@ -6455,14 +6519,21 @@ def _install_leftover_disposition(args) -> str:
     migleftover Order 01 (z1yefm) E-01. Every install-time migration used to pass a HARDCODED
     `defer`, which made a cleanup disposition unreachable from `aw install`, so a migration could
     never sweep the empty legacy directories it left behind. This is the single resolver all three
-    install-time migration call sites read, so they cannot drift apart. It DEFAULTS to `defer`
-    (today's behavior), which is why a bare `--to-aw` is unchanged and why nothing becomes
-    destructive without an explicit `--leftovers remove`. `args` may lack the attribute entirely
-    (the `setup` verb does not declare the flag), hence the getattr fallback.
+    install-time migration call sites read, so they cannot drift apart. It reads the explicit
+    flag first, then defaults.leftovers from config, falling back to 'defer' (the built-in default).
+    `args` may lack the attribute entirely (the `setup` verb does not declare the flag), hence the
+    getattr fallback.
     """
     value = getattr(args, "leftovers", None)
     if value in ("keep", "remove", "defer"):
         return value
+    cfg = config.load()
+    try:
+        _, saved = config.get_config_value("defaults.leftovers", cfg)
+    except config.ConfigError:
+        saved = None
+    if saved in ("keep", "remove", "defer"):
+        return saved
     return "defer"
 
 
@@ -6495,13 +6566,25 @@ def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
         "Consolidate now with 'aw migrate-layout' (moves .agents/ content into .aw/)?",
         default=True,
     ):
-        from agent_workflows.layout_migration import MigrationManager
+        from agent_workflows.layout_migration import (
+            MigrationManager,
+            PreflightGateError,
+            StaleInputError,
+        )
 
         mgr = MigrationManager(target_repo=str(repo_root))
-        mgr.execute_migration(
-            target_backend="repository",
-            leftover_disposition=_install_leftover_disposition(args),
-        )
+        try:
+            mgr.execute_migration(
+                target_backend="repository",
+                leftover_disposition=_install_leftover_disposition(args),
+            )
+        except (PreflightGateError, StaleInputError) as exc:
+            term.status(
+                "skip",
+                f"{repo_root}: layout migration refused ({exc}); "
+                "run 'aw migrate-layout' to inspect or resolve. Nothing changed.",
+            )
+            return "skip"
         if not engine.detect_split_brain_layout(repo_root):
             term.status("ok", f"{repo_root}: consolidated split-brain layout into .aw/")
             return "proceed"
@@ -6739,15 +6822,27 @@ def _handle_legacy_migration(
     keep_legacy = getattr(args, "keep_legacy", False)
 
     if to_aw:
-        from agent_workflows.layout_migration import MigrationManager
+        from agent_workflows.layout_migration import (
+            MigrationManager,
+            PreflightGateError,
+            StaleInputError,
+        )
 
         mgr = MigrationManager(target_repo=str(repo_root))
-        mgr.execute_migration(
-            target_backend="repository",
-            leftover_disposition=_install_leftover_disposition(args),
-        )
-        term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
-        return False
+        try:
+            mgr.execute_migration(
+                target_backend="repository",
+                leftover_disposition=_install_leftover_disposition(args),
+            )
+            term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
+            return False
+        except (PreflightGateError, StaleInputError) as exc:
+            term.status(
+                "skip",
+                f"{repo_root}: layout migration refused ({exc}); "
+                "continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.",
+            )
+            return True
 
     if keep_legacy:
         term.status(
@@ -6757,33 +6852,39 @@ def _handle_legacy_migration(
         )
         return True
 
-    # Interactive check
-    is_interactive = sys.stdin.isatty() and not getattr(args, "yes", False)
-    if is_interactive:
-        term.heading("Legacy .agents/ layout detected")
-        if _confirm(
-            term,
-            f"Migrate {repo_root} from legacy .agents/ to canonical .aw/ now?",
-            False,
-        ):
-            from agent_workflows.layout_migration import MigrationManager
+    term.heading("Legacy .agents/ layout detected")
+    assume_yes = getattr(args, "yes", False)
+    should_migrate = _ask_policy(
+        term=term,
+        key="migrate_layout",
+        prompt=f"Migrate {repo_root} from legacy .agents/ to canonical .aw/ now?",
+        builtin_default=True,
+        assume_yes=assume_yes,
+    )
 
-            mgr = MigrationManager(target_repo=str(repo_root))
+    if should_migrate:
+        from agent_workflows.layout_migration import (
+            MigrationManager,
+            PreflightGateError,
+            StaleInputError,
+        )
+
+        mgr = MigrationManager(target_repo=str(repo_root))
+        try:
             mgr.execute_migration(
                 target_backend="repository",
                 leftover_disposition=_install_leftover_disposition(args),
             )
             term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
             return False
-        else:
+        except (PreflightGateError, StaleInputError) as exc:
             term.status(
-                "warn",
-                f"{repo_root}: legacy .agents/ layout is deprecated and will be removed in a future release; "
+                "skip",
+                f"{repo_root}: layout migration refused ({exc}); "
                 "continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.",
             )
             return True
 
-    # Unattended / non-interactive default (OQ-01 resolution)
     term.status(
         "warn",
         f"{repo_root}: legacy .agents/ layout is deprecated and will be removed in a future release; "
@@ -8903,6 +9004,53 @@ def _run_config_set(args: argparse.Namespace, term: Term) -> int:
     term.status(
         "ok",
         f"{term.color256(canon_key, 39, bold=True)} = {term.colorize(str(final_val), 'bold')} (saved to {cfg_path_str})",
+    )
+    return 0
+
+
+def _run_config_unset(args: argparse.Namespace, term: Term) -> int:
+    """Unset (remove) a configuration variable."""
+    varname = getattr(args, "varname", "").strip()
+    if not varname:
+        term.status("fail", "Missing variable name. Usage: aw config unset <varname>")
+        return 2
+
+    try:
+        updated_cfg, canon_key = config.unset_config_value(varname, auto_save=True)
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    cfg_file = config.config_path()
+    cfg_path_str = config._preserve_home(str(cfg_file))
+
+    if getattr(args, "json", False) or getattr(args, "as_json", False):
+        print(
+            json.dumps(
+                {"unset": canon_key, "config_file": str(cfg_file)},
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if getattr(args, "agent", False):
+        from agent_workflows.term import format_agent_json
+
+        print(
+            format_agent_json(
+                kind="result",
+                cmd="config-unset",
+                outcome="clean",
+                exit_code=0,
+                extra={"key": canon_key, "config_file": str(cfg_file)},
+            )
+        )
+        return 0
+
+    term.status(
+        "ok",
+        f"{term.color256(canon_key, 39, bold=True)} unset (saved to {cfg_path_str})",
     )
     return 0
 
@@ -13643,6 +13791,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_config_get(args, term)
         if subcmd == "set":
             return _run_config_set(args, term)
+        if subcmd == "unset":
+            return _run_config_unset(args, term)
         if subcmd == "add":
             return _run_config_add(args, term)
         if subcmd in ("remove", "rm"):
