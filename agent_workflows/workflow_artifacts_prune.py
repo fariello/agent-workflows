@@ -165,10 +165,12 @@ def _resolve_ipd_link(run_dir: Path, artifacts_root: Path) -> tuple[bool, bool]:
         repo_root = artifacts_root.parent
 
     # Search for path ending in .ipd.md
-    # An optional DRIVE prefix (`C:`) is part of the path: without it a Windows absolute path
-    # `C:/<dir>/x.ipd.md` was captured without its drive (from the first `/`), which is not absolute on Windows, so a
-    # resolvable link never resolved and the run was wrongly KEPT (measured on the Windows CI runner).
-    matches = re.findall(r"(?:[A-Za-z]:)?[\w\-./\\]+\.ipd\.md", content)
+    # A path is any run of characters that are not whitespace, quotes, brackets or backticks, ending
+    # in `.ipd.md`. A narrower character class silently truncated real paths, and truncation is not
+    # absolute, so a resolvable link never resolved and a prunable run was wrongly KEPT. Measured on
+    # the Windows CI runner twice: `C:` (drive) and `~` (8.3 short names like `RUNNER~1`) were both
+    # missing. Markdown link and code syntax around the path is excluded by the class itself.
+    matches = re.findall(r"[^\s`'\"<>()\[\]]+\.ipd\.md", content)
     for m in matches:
         target = Path(m)
         if target.is_absolute() and target.is_file():
