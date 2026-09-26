@@ -1,5 +1,5 @@
 - Id: kapm7y
-- Status: graduated
+- Status: done
 - Graduated-To: setprompt
 - Blocks-Release: next
 - Set: kapm7y
@@ -8,6 +8,7 @@
 - Summary: Prompted defaults are not persistable: an interactive choice cannot be saved, so a user is re-asked on every install and the 2.0.0 migration prompt would nag
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD je74a0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-setprompt-02-je74a0-remember-answers-to-aw-install-policy-prompts-and-default-th.ipd.md); evidence .aw/records/plans/executed/20260925-setprompt-02-je74a0-remember-answers-to-aw-install-policy-prompts-and-default-th.ipd.md
 - 2026-09-25 graduated (aw set): graduated into setprompt (plan je74a0); verified live at 8e74dcac
 - 2026-09-12 created (aw backlog): Maintainer-requested during plan-review of the migleftover Set; blocking on 2.0.0
 
