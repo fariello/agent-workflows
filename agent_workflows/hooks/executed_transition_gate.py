@@ -60,8 +60,6 @@ _FINALIZE_PHASES = ("ready-to-commit", "committed-incomplete", "complete")
 
 _PLANS_PREFIX = ".aw/records/plans/"
 _EXECUTED_SEGMENT = "/executed/"
-_STATUS_EXECUTED_LINE = "- status: executed"
-_STATUS_DONE_LINE = "- status: done"
 
 
 def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
@@ -101,11 +99,14 @@ def _has_executed_status(text: Optional[str]) -> bool:
     """True if the plan text carries a metadata `- Status: executed` (or `done` alias) line."""
     if not text:
         return False
-    for line in text.splitlines():
-        low = line.strip().lower()
-        if low == _STATUS_EXECUTED_LINE or low == _STATUS_DONE_LINE:
-            return True
-    return False
+    import re
+    from agent_workflows import selectors
+
+    region = selectors.metadata_region(text)
+    m = re.search(r"(?mi)^-\s*status:\s*(\S+)", region)
+    if not m:
+        return False
+    return m.group(1).lower() in ("executed", "done")
 
 
 def _plan_id_of(text: Optional[str]) -> Optional[str]:
