@@ -82,6 +82,51 @@ def set_terse_id(raw: Optional[str]) -> Optional[str]:
     return raw.split("(", 1)[0].strip() or None
 
 
+def plan_entry(
+    plans_dir: Path, p: Path, *, ignored_dirs: set[str]
+) -> Optional[Tuple[PlanEntry, List[_core.Drift]]]:
+    """Parse a single plan file at ``p`` under ``plans_dir``.
+
+    Returns None if ``p`` is skipped (_EXCLUDE_NAMES, ignored_dirs, or not under plans_dir).
+    Keyword-only ``ignored_dirs`` must be provided by the caller to prevent redundant git
+    subprocesses (F-6).
+    """
+
+    if p.name in _EXCLUDE_NAMES or _core.is_ignored_path(p, plans_dir, ignored_dirs):
+        return None
+    try:
+        rel = p.relative_to(plans_dir).as_posix()
+    except ValueError:
+        return None
+
+    disposition = rel.split("/", 1)[0]
+    text = p.read_text(encoding="utf-8")
+    plan_id = _meta(text, "Id")
+    order_raw = _meta(text, "Order")
+    entry = PlanEntry(
+        plan_id=plan_id,
+        path=rel,
+        disposition=disposition,
+        date=str(_meta(text, "Date") or ""),
+        set_id=set_terse_id(_meta(text, "Set")),
+        order=int(order_raw) if order_raw else None,
+        status=_meta(text, "Status"),
+        kind=_meta(text, "Kind"),
+    )
+    drift: List[_core.Drift] = []
+    # Drift class (a): missing/invalid Id. Terminal grandfathered plans are still expected to
+    # carry an Id after migration; report a missing/invalid one regardless of disposition.
+    if plan_id is None:
+        drift.append(_core.Drift(rel, "id-missing", "no `- Id:` metadata line"))
+    elif not _core.is_valid_id6(plan_id):
+        drift.append(
+            _core.Drift(
+                rel, "id-invalid", f"Id '{plan_id}' is not a 6-char base36 token"
+            )
+        )
+    return entry, drift
+
+
 def scan_plans(plans_dir: Path) -> Tuple[List[PlanEntry], List[_core.Drift]]:
     """Recursively scan every plan under ``plans_dir``; return (entries, drift).
 
@@ -97,37 +142,11 @@ def scan_plans(plans_dir: Path) -> Tuple[List[PlanEntry], List[_core.Drift]]:
         return entries, drift
     ignored_dirs = _core.get_ignored_dirs(plans_dir)
     for p in sorted(plans_dir.rglob("*.md")):
-        if p.name in _EXCLUDE_NAMES or _core.is_ignored_path(
-            p, plans_dir, ignored_dirs
-        ):
-            continue
-        rel = p.relative_to(plans_dir).as_posix()
-        disposition = rel.split("/", 1)[0]
-        text = p.read_text(encoding="utf-8")
-        plan_id = _meta(text, "Id")
-        order_raw = _meta(text, "Order")
-        entries.append(
-            PlanEntry(
-                plan_id=plan_id,
-                path=rel,
-                disposition=disposition,
-                date=str(_meta(text, "Date") or ""),
-                set_id=set_terse_id(_meta(text, "Set")),
-                order=int(order_raw) if order_raw else None,
-                status=_meta(text, "Status"),
-                kind=_meta(text, "Kind"),
-            )
-        )
-        # Drift class (a): missing/invalid Id. Terminal grandfathered plans are still expected to
-        # carry an Id after migration; report a missing/invalid one regardless of disposition.
-        if plan_id is None:
-            drift.append(_core.Drift(rel, "id-missing", "no `- Id:` metadata line"))
-        elif not _core.is_valid_id6(plan_id):
-            drift.append(
-                _core.Drift(
-                    rel, "id-invalid", f"Id '{plan_id}' is not a 6-char base36 token"
-                )
-            )
+        res = plan_entry(plans_dir, p, ignored_dirs=ignored_dirs)
+        if res is not None:
+            entry, item_drift = res
+            entries.append(entry)
+            drift.extend(item_drift)
     return entries, drift
 
 

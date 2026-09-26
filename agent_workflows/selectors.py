@@ -98,11 +98,11 @@ _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
 # resolver every verb and all ten record types route through, so the corpus-wide differential
 # needed to prove such a change safe is expensive precisely BECAUSE the change is dangerous.
 #
-# WHERE THE REAL COST IS, so a future reader optimizes the right layer: the DISPLAY layer re-reads
-# what this resolver already read (measured 1240 opens end to end against 620 here, i.e. every
-# record opened about twice). That is carried by backlog `59t9x5`. Note it is not a free win
-# either: `plans_index` and this module DELIBERATELY disagree on 24 records, for the reason the
-# `_STATUS_RE` parity note below states at length.
+# WHERE THE REAL COST IS, so a future reader optimizes the right layer: the DISPLAY layer previously
+# re-read what this resolver already read (measured 1240 opens end to end against 620 here, i.e. every
+# record opened about twice); that double read was removed by IPD `qfpnrm` (source backlog `59t9x5`).
+# Note it was not a free win either: `plans_index` and this module DELIBERATELY disagree on 24 records,
+# for the reason the `_STATUS_RE` parity note below states at length.
 #
 # ONLY `id6` COULD EVER HAVE BENEFITED FROM SUCH A FILTER, which the original design missed and a
 # measurement caught. Because `setid` (3) and `status` (4) are evaluated BEFORE `stem` (5) and

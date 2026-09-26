@@ -6,7 +6,7 @@
 - Scope: Replace the whole-tree `plans_index.scan_plans` / `research_index._scan_docs` call on the SELECTOR branch of `cli._find_type_records` with a per-path entry builder applied only to the resolver's matched paths; the no-selector branch, the matching semantics, and the displayed output stay byte-identical. INCLUDES preserving three behaviors the whole-tree scan currently supplies as side effects and a per-path builder can silently lose: the once-per-scan `artifact_core.get_ignored_dirs` result (a `git ls-files` SUBPROCESS, measured 2.7ms, which must not be re-run per matched path, F-6); the research scan's SKIP of a doc whose name or frontmatter does not parse, which today makes two resolver-matchable files display as "no matching research" (F-7); and `scan_plans`'s unguarded `read_text`, which a per-path builder must not turn into a new exception path (F-8).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/plans_index.py, agent_workflows/research_index.py, agent_workflows/selectors.py, tests/test_find_single_read.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qfpnrm
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qfpnrm verified (set findonce, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (aw set): status set to reviewed
 
@@ -36,55 +36,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline and guard
 
-- [ ] E-01 Capture the BEFORE baseline, before touching code: under `/tmp/opencode/findonce-baseline/`, save `python3 -m agent_workflows find <type> <sel>` stdout for a fixed selector corpus, plus the audit-hook open counter (`sys.addaudithook` counting `open` events on `.aw/records/**.md`) on `find plans <id6>` and `find research <id6>`, and the best-of-5 in-process timer wrapping `plans_index.scan_plans` and `selectors.resolve`.
+- [x] E-01 Capture the BEFORE baseline, before touching code: under `/tmp/opencode/findonce-baseline/`, save `python3 -m agent_workflows find <type> <sel>` stdout for a fixed selector corpus, plus the audit-hook open counter (`sys.addaudithook` counting `open` events on `.aw/records/**.md`) on `find plans <id6>` and `find research <id6>`, and the best-of-5 in-process timer wrapping `plans_index.scan_plans` and `selectors.resolve`.
   BUILD THE CORPUS BY VERIFYING EACH SELECTOR MATCHES SOMETHING, and do not copy the authored list blind. The authored corpus was `plans wqq8ua`, `plans wtiso`, `plans stopladder`, `plans executed`, `plans ctrl`, `plans` (no selector), `research <id6>`, `research` (no selector), `specs c4gd2h`, `backlog 59t9x5`. These are LIVE selectors over a tree that moves: a token that matches nothing yields an empty-result file, and an empty file diffs equal to an empty file, so such an entry silently contributes nothing to E-05's byte-diff while looking like coverage. For each token, first confirm it returns at least one row; replace any that does not with one that does, and RECORD the substitution. The corpus MUST retain, whatever the tokens end up being: at least one single-match id6 selector, at least one MULTI-match selector (a setid), at least one selector with an explicit filter flag (so `pi.query`'s re-sort path is covered, F-9), the no-selector arm for `plans` and for `research`, and at least one generic-branch type (`specs` or `backlog`) as a control that must not change. ALSO capture `python3 -m agent_workflows find research template` (or whatever token resolves to a name/frontmatter-unparseable research doc in the executing tree, see F-7): measured at review it resolves to two real files and prints "no matching research", and that counter-intuitive output is the one E-04 is most likely to change by accident.
   - Depends on: none
   - Expected outcome: one stdout file per corpus entry plus a text file with the open counts and timings; the plans open count is about twice the plan count and the no-selector count is about once. Record the numbers OBSERVED; see V-01 on why they are not compared to this plan's authored figures.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `tests/test_find_single_read.py` with a tmp-repo fixture of about 6 plans (two sharing a Set, one executed, one in an `executed/YYYYMM/` shard, one whose `- Status:` has trailing prose so `plans_index._META_RE["Status"]` and `selectors._STATUS_RE` disagree) and 4 research docs (three well-formed, plus ONE whose filename does not parse under `research_contract.parse_name` or whose frontmatter is missing). Tests: (a) `find plans <id6>` opens each plan file at most twice and NON-matched plan files exactly once (audit hook counting per path), (b) the same for `find research <id6>`, (c) `find plans <setid>` output lines equal the lines produced by filtering a full `scan_plans` by the matched paths (the old algorithm, computed inside the test as the oracle), including ordering and the shard's disposition, (d) the Status-disagreement record still MATCHES per the resolver and DISPLAYS the whole-file `plans_index` status.
+- [x] E-02 Add `tests/test_find_single_read.py` with a tmp-repo fixture of about 6 plans (two sharing a Set, one executed, one in an `executed/YYYYMM/` shard, one whose `- Status:` has trailing prose so `plans_index._META_RE["Status"]` and `selectors._STATUS_RE` disagree) and 4 research docs (three well-formed, plus ONE whose filename does not parse under `research_contract.parse_name` or whose frontmatter is missing). Tests: (a) `find plans <id6>` opens each plan file at most twice and NON-matched plan files exactly once (audit hook counting per path), (b) the same for `find research <id6>`, (c) `find plans <setid>` output lines equal the lines produced by filtering a full `scan_plans` by the matched paths (the old algorithm, computed inside the test as the oracle), including ordering and the shard's disposition, (d) the Status-disagreement record still MATCHES per the resolver and DISPLAYS the whole-file `plans_index` status.
   ADD (e), THE UNPARSEABLE-RESEARCH-DOC CASE, which is the regression most likely to slip through: assert that a selector resolving to the unparseable doc produces the SAME output after the change as before, namely NO row for it. Measured at review on the live tree: `aw find research template` resolves to `conformance-results-template.md` and `20260712-0156-14-chatgpt-modular-report-template.md` (`selectors.resolve` returns both, kind `substring`) and prints `no matching research`, because `_scan_docs` `continue`s past a doc whose name or frontmatter does not parse and so yields no entry for it. The resolver and the display layer genuinely disagree about which files exist, and the display layer wins (F-7). A per-path `_doc_entry` that returns an entry for such a doc would ADD rows that `find` has never printed.
   ADD (f), THE UNREADABLE-FILE CASE: make one matched plan unreadable (chmod 0, skipped on a platform where that does not deny root) and assert `find plans <selector-matching-it-by-filename>` behaves identically before and after. The resolver's filename rules use `selectors._iter_paths`, whose docstring states "a filename match no longer depends on the body being readable", while `scan_plans` calls `p.read_text(encoding="utf-8")` with NO try/except - today that path is never reached on the selector branch because the whole-tree scan already ran (and would have raised for the whole command), so moving the read onto matched paths only changes WHEN it raises (F-8). Pin whichever behavior HEAD has and require E-04 to preserve it.
   - Depends on: E-01
   - Expected outcome: tests (a) and (b) FAIL at HEAD (non-matched files opened twice); (c), (d), (e) and (f) pass at HEAD, pinning current behavior.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-03 In `plans_index`, extract the per-file body of `scan_plans` into `plan_entry(plans_dir: Path, p: Path, *, ignored_dirs: set[str]) -> Optional[Tuple[PlanEntry, List[_core.Drift]]]` returning None for a path `scan_plans` would skip (`_EXCLUDE_NAMES`, `_core.is_ignored_path`, or not under `plans_dir`); make `scan_plans` a loop over it. Do the same in `research_index`: `_doc_entry(research_root, p, *, ignored_dirs)` extracted from `_scan_docs`, preserving every skip and drift branch (non-conformant name, missing/invalid frontmatter).
+- [x] E-03 In `plans_index`, extract the per-file body of `scan_plans` into `plan_entry(plans_dir: Path, p: Path, *, ignored_dirs: set[str]) -> Optional[Tuple[PlanEntry, List[_core.Drift]]]` returning None for a path `scan_plans` would skip (`_EXCLUDE_NAMES`, `_core.is_ignored_path`, or not under `plans_dir`); make `scan_plans` a loop over it. Do the same in `research_index`: `_doc_entry(research_root, p, *, ignored_dirs)` extracted from `_scan_docs`, preserving every skip and drift branch (non-conformant name, missing/invalid frontmatter).
   `ignored_dirs` IS A REQUIRED PARAMETER, NOT COMPUTED INSIDE, and this is the item's one real design constraint (F-6). Both scans call `_core.get_ignored_dirs(<root>)` ONCE before the loop, and that function SPAWNS A SUBPROCESS (`git ls-files --others --ignored --exclude-standard --directory -z`), measured 2.7ms best / 3.4ms median at review. A `plan_entry` that resolved the ignored set itself would spawn one subprocess per matched path, so a setid selector matching 30 plans would pay ~80ms of new subprocess cost to save a ~130ms scan - turning a clear win into a wash, and making a multi-match query on a large Set potentially SLOWER than today. Keyword-only and no default, so a caller cannot silently skip it and get a wrong skip decision. The caller (E-04) computes it once per `find` invocation.
   Also preserve, exactly: `scan_plans`'s disposition derivation (first path component under `plans_dir`, so a `<disposition>/YYYYMM/` shard keeps its TOP-LEVEL disposition), both plan drift branches (`id-missing`, `id-invalid`), and the `read_text` call's error posture UNCHANGED (see F-8 and E-02(f); do not add a try/except in this item, which would be a behavior change disguised as a refactor).
   - Depends on: E-02
   - Expected outcome: pure refactor; `tests/test_plans_index.py` and E-02's tests unchanged in result. `scan_plans` still makes exactly ONE `get_ignored_dirs` call per invocation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `cli._find_type_records`, on the `plans` branch move `pi.scan_plans(plans_dir)` INTO the `else:` (no-selector) arm; on the selector arm compute `ignored_dirs = _core.get_ignored_dirs(plans_dir)` ONCE, build `results` from `pi.plan_entry(plans_dir, p, ignored_dirs=ignored_dirs)` for each resolved matched path, drop Nones, and sort by the same key `scan_plans` iterates in (`sorted` over `Path` objects relative to `plans_dir`, NOT the string sort `_resolve_selectors_with_kinds` returns), then apply the existing `pi.query` filter unchanged. Mirror this on the `research` branch with `ri._doc_entry`. Leave the display loop, `highlight_tokens`, and the `paw8so` comment block intact; update the `selectors.py` "WHERE THE REAL COST IS" note to say the double read was removed by `qfpnrm`.
+- [x] E-04 In `cli._find_type_records`, on the `plans` branch move `pi.scan_plans(plans_dir)` INTO the `else:` (no-selector) arm; on the selector arm compute `ignored_dirs = _core.get_ignored_dirs(plans_dir)` ONCE, build `results` from `pi.plan_entry(plans_dir, p, ignored_dirs=ignored_dirs)` for each resolved matched path, drop Nones, and sort by the same key `scan_plans` iterates in (`sorted` over `Path` objects relative to `plans_dir`, NOT the string sort `_resolve_selectors_with_kinds` returns), then apply the existing `pi.query` filter unchanged. Mirror this on the `research` branch with `ri._doc_entry`. Leave the display loop, `highlight_tokens`, and the `paw8so` comment block intact; update the `selectors.py` "WHERE THE REAL COST IS" note to say the double read was removed by `qfpnrm`.
   THE `Path`-VERSUS-`str` SORT DISTINCTION IS REAL BUT ITS BLAST RADIUS IS NARROWER THAN THIS ITEM IMPLIED, and both halves matter so the executor neither skips it nor over-trusts it. It is real: measured on Python 3.14, `sorted(Path)` and `sorted(str)` genuinely differ (`Path("a/b.md") < Path("a-b/c.md")` is True while the string comparison is False), because `/` sorts below `-`, `.` and `_`. It currently has NO observable effect, for two independent reasons measured at review: (1) the live plans tree is FLAT (no `<disposition>/YYYYMM/` shard exists yet; `find .aw/records/plans -mindepth 2 -type d` is empty), and over the real 777 paths the two orders are IDENTICAL; (2) `pi.query` ends with `sorted(out, key=lambda e: (e.set_id or "", e.order or 0, e.path))`, so ANY query carrying an explicit `--id`/`--set`/`--status`/`--disposition` flag re-sorts and the input order is discarded entirely (`ri.query` likewise sorts by `(set_id, order, id6)`). The order therefore shows ONLY on a selector query with NO filter flag, over a tree containing a shard. Use the `Path` sort anyway - it is what `scan_plans` does, it costs nothing, and the shard case is the one `aw archive plans` is designed to create - but do not report the fix as closing an observable bug, and do not let E-02(c) pass merely because today's flat tree makes both orders agree (construct the shard in the fixture, which E-02 already requires).
   - Depends on: E-03
   - Expected outcome: E-02 (a)-(f) pass; each non-matched record is opened once; `get_ignored_dirs` is called at most once per `find` invocation on the selector path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-05 Re-run E-01's selector corpus into `/tmp/opencode/findonce-after/` and `diff -r` against the baseline; re-run the open counter and the in-process timer on the same commands. Re-run on the SAME working tree as E-01, with no intervening commit that adds or removes a record, or the byte-diff compares two different corpora and a spurious difference reads as a regression. Also assert the SUBPROCESS count did not grow: count `git ls-files` invocations (an audit hook on `subprocess.Popen`, or wrap `artifact_core.get_ignored_dirs`) and show it is the same before and after for a MULTI-match selector, which is the F-6 regression a wall-clock number on a single-match selector would hide.
+- [x] E-05 Re-run E-01's selector corpus into `/tmp/opencode/findonce-after/` and `diff -r` against the baseline; re-run the open counter and the in-process timer on the same commands. Re-run on the SAME working tree as E-01, with no intervening commit that adds or removes a record, or the byte-diff compares two different corpora and a spurious difference reads as a regression. Also assert the SUBPROCESS count did not grow: count `git ls-files` invocations (an audit hook on `subprocess.Popen`, or wrap `artifact_core.get_ignored_dirs`) and show it is the same before and after for a MULTI-match selector, which is the F-6 regression a wall-clock number on a single-match selector would hide.
   - Depends on: E-04
   - Expected outcome: empty diff; plans opens about N_plans + matched (not 2 x N_plans); in-process time drops by roughly the old `scan_plans` share; `get_ignored_dirs` call count unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Prove the OPPOSITE direction on the no-selector arm, which this plan deliberately does not change: re-run the open counter on `find plans` and `find research` with NO selector and show the count is UNCHANGED from E-01 (one open per record, no doubles). E-04 edits the branch structure around that arm, so a mistake there is as likely as one on the selector arm and nothing else in the plan would catch it.
+- [x] E-06 Prove the OPPOSITE direction on the no-selector arm, which this plan deliberately does not change: re-run the open counter on `find plans` and `find research` with NO selector and show the count is UNCHANGED from E-01 (one open per record, no doubles). E-04 edits the branch structure around that arm, so a mistake there is as likely as one on the selector arm and nothing else in the plan would catch it.
   - Depends on: E-04
   - Expected outcome: no-selector open counts equal E-01's exactly, with zero records opened twice.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run `ruff check` and `ruff format --check` on `agent_workflows/cli.py`, `agent_workflows/plans_index.py`, `agent_workflows/research_index.py` and `agent_workflows/selectors.py`. Separate from the suite because `ruff` is a fail-closed pre-commit hook here, so a finding makes the COMMIT fail rather than a test, and discovering that after the suite wastes a round trip.
+- [x] E-07 Run `ruff check` and `ruff format --check` on `agent_workflows/cli.py`, `agent_workflows/plans_index.py`, `agent_workflows/research_index.py` and `agent_workflows/selectors.py`. Separate from the suite because `ruff` is a fail-closed pre-commit hook here, so a finding makes the COMMIT fail rather than a test, and discovering that after the suite wastes a round trip.
   - Depends on: E-04
   - Expected outcome: no findings on the four files.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run the bare suite `python3 -m pytest`.
+- [x] E-08 Run the bare suite `python3 -m pytest`.
   - Depends on: E-05, E-06, E-07
   - Expected outcome: all pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -177,45 +177,167 @@ No spec governs `find`'s read strategy; output is unchanged. Only the in-code no
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `ls /tmp/opencode/findonce-baseline/` listing one file per corpus entry; the corpus itself written out with, for EACH selector, proof it matched at least one row (a row count), plus a note of any authored token that was substituted and why (F-11); the pasted counter lines showing `opens=` about 2 x `unique=` for the plans and research selector commands and about 1 x for the no-selector commands; and the pasted `scan_plans=` / `resolve=` timing line. RECORD THE NUMBERS OBSERVED AND DO NOT COMPARE THEM TO THIS PLAN'S AUTHORED FIGURES as a pass condition: the corpus size is a live population that grew between authoring (754 plans) and review (777), so the absolute opens and milliseconds will differ again. The pass condition is the SHAPE - selector commands open each record about twice, no-selector commands about once - never a literal count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified baseline corpus of 12 items captured in /tmp/opencode/findonce-baseline/, row counts verified, opens=2x unique for selectors (1649/824 plans, 249/124 research), opens=1x unique for no-selector (824/824 plans, 124/124 research), cold subprocess 0.581s. Detail:
+    `ls /tmp/opencode/findonce-baseline/`:
+    01-plans-wqq8ua.txt
+    02-plans-wtiso.txt
+    03-plans-stopladder.txt
+    04-plans-executed.txt
+    05-plans-ctrl.txt
+    06-plans-no-selector.txt
+    07-plans-wqq8ua-filter-set.txt
+    08-research-jd8qhs.txt
+    09-research-no-selector.txt
+    10-research-template.txt
+    11-specs-c4gd2h.txt
+    12-backlog-59t9x5.txt
+    counts-and-timings.txt
 
-- [ ] V-02 validates E-02
+    Corpus verification and row counts (substituted `research jd8qhs` for placeholder `research <id6>` because `jd8qhs` is a live research doc returning 1 row):
+      01-plans-wqq8ua.txt: aw find plans wqq8ua -> 1 lines
+      02-plans-wtiso.txt: aw find plans wtiso -> 8 lines
+      03-plans-stopladder.txt: aw find plans stopladder -> 5 lines
+      04-plans-executed.txt: aw find plans executed -> 706 lines
+      05-plans-ctrl.txt: aw find plans ctrl -> 3 lines
+      06-plans-no-selector.txt: aw find plans -> 824 lines
+      07-plans-wqq8ua-filter-set.txt: aw find plans wqq8ua --set wtiso -> 5 lines
+      08-research-jd8qhs.txt: aw find research jd8qhs -> 1 lines
+      09-research-no-selector.txt: aw find research -> 122 lines
+      10-research-template.txt: aw find research template -> 5 lines
+      11-specs-c4gd2h.txt: aw find specs c4gd2h -> 1 lines
+      12-backlog-59t9x5.txt: aw find backlog 59t9x5 -> 1 lines
+
+    Open counters:
+      find plans wqq8ua: opens=1649 unique=824 opened>=2x=824
+      find plans (no selector): opens=824 unique=824 opened>=2x=0
+      find research jd8qhs: opens=249 unique=124 opened>=2x=124
+      find research (no selector): opens=124 unique=124 opened>=2x=0
+
+    Timings:
+      scan_plans min=132.1ms, resolve min=89.0ms
+      cold subprocess best-of-7 find plans wqq8ua: 0.581s
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_find_single_read.py` run BEFORE E-03/E-04 showing tests (a) and (b) FAILED with an open count of 2 for a non-matched file, and (c), (d), (e) and (f) passed. For (c), additionally paste evidence that the fixture's shard actually exists (the fixture's own file listing showing a path under `executed/<YYYYMM>/`), because on a flat fixture the `Path`/`str` sort orders coincide and (c) passes without testing the ordering it exists to test (F-9). For (e), paste the asserted output showing NO row for the unparseable research doc, since "prints nothing" is the behavior being pinned and an empty assertion would look the same as a missing one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Ran `python3 -m pytest -o addopts="" tests/test_find_single_read.py` BEFORE E-03/E-04: tests (a) and (b) failed with open count 2 for non-matched files; (c)-(f) passed. Shard existence verified at `executed/202608/20260815-sharded-01-pln004-plan-four.ipd.md`. Output for (e) verified returning empty lines/paths and kind="substring". Detail:
+    BEFORE run of `python3 -m pytest -o addopts="" tests/test_find_single_read.py`:
+    ```
+    FAILED tests/test_find_single_read.py::test_a_find_plans_single_read_non_matched - AssertionError: Non-matched plan 20260920-otherset-01-pln003-plan-three.ipd.md opened 2 times (expected 1)
+    FAILED tests/test_find_single_read.py::test_b_find_research_single_read_non_matched - AssertionError: Non-matched research doc 20260920-othertopic-01-res003-third-research.findings.md opened 2 times (expected 1)
+    ========================= 2 failed, 4 passed in 0.33s ==========================
+    ```
+    Fixture shard existence proof for (c):
+    `shard_file = plans_dir / "executed" / "202608" / "20260815-sharded-01-pln004-plan-four.ipd.md"`
+    `assert shard_file.is_file()` -> True, path under `executed/202608/`.
+    Asserted output for (e):
+    `lines, paths, matches = cli._find_type_records(tmp_repo, "research", ["template"], args, term)`
+    `assert lines == []`
+    `assert paths == []`
+    `assert len(matches) == 1 and matches[0].kind == "substring"`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_plans_index.py tests/test_find_single_read.py` summary after E-03 alone, with the same pass/fail split as V-02 (refactor changes nothing), and `git diff --stat` showing only `plans_index.py` and `research_index.py` changed by this item. ALSO paste the two new signatures showing `ignored_dirs` is keyword-only with NO default (F-6), and evidence that `scan_plans` still calls `get_ignored_dirs` exactly ONCE per invocation (wrap or count it), which is the property the extraction is most likely to break.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Ran `python3 -m pytest -o addopts="" tests/test_plans_index.py tests/test_find_single_read.py` after E-03: 2 failed, 22 passed. `git diff --stat` showed only plans_index.py and research_index.py modified. Signatures verified keyword-only `ignored_dirs` with no default. get_ignored_dirs called exactly 1 time per invocation. Detail:
+    `python3 -m pytest -o addopts="" tests/test_plans_index.py tests/test_find_single_read.py`:
+    ```
+    tests/test_plans_index.py ..................                             [ 75%]
+    tests/test_find_single_read.py F....F                                    [100%]
+    ========================= 2 failed, 22 passed in 0.38s =========================
+    ```
+    `git diff --stat`:
+    ```
+     agent_workflows/plans_index.py    |  83 ++++++++++------
+     agent_workflows/research_index.py | 196 +++++++++++++++++++++-----------------
+     2 files changed, 162 insertions(+), 117 deletions(-)
+    ```
+    Signatures:
+    `plan_entry signature: (plans_dir: 'Path', p: 'Path', *, ignored_dirs: 'set[str]') -> 'Optional[Tuple[PlanEntry, List[_core.Drift]]]'`
+    `plan_entry ignored_dirs kind: KEYWORD_ONLY default: <class 'inspect._empty'>`
+    `_doc_entry signature: (research_root: 'Path', p: 'Path', *, ignored_dirs: 'set[str]') -> 'Tuple[Optional[DocEntry], List[Drift]]'`
+    `_doc_entry ignored_dirs kind: KEYWORD_ONLY default: <class 'inspect._empty'>`
 
-- [ ] V-04 validates E-04
+    get_ignored_dirs call counts:
+    `scan_plans scanned 824 plans; get_ignored_dirs calls = 1`
+    `_scan_docs scanned 122 docs; get_ignored_dirs calls = 1`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_find_single_read.py` showing all tests passed, and `grep -n "scan_plans(plans_dir)" agent_workflows/cli.py` showing the call only inside the no-selector arm. ALSO paste the same for `_scan_docs(research_root)` on the research branch, which the authored item did not require and which is the identical edit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Ran `python3 -m pytest -o addopts="" tests/test_find_single_read.py`: 6 passed in 0.34s. Grep confirmed `scan_plans(plans_dir)` and `_scan_docs(research_root)` only called inside no-selector arm in cli.py. Detail:
+    `python3 -m pytest -o addopts="" tests/test_find_single_read.py`:
+    ```
+    tests/test_find_single_read.py ......                                    [100%]
+    ============================== 6 passed in 0.34s ===============================
+    ```
+    `grep -n "scan_plans(plans_dir)" agent_workflows/cli.py`:
+    `10822:            entries, _drift = pi.scan_plans(plans_dir)`
+    `grep -n "_scan_docs(research_root)" agent_workflows/cli.py`:
+    `10895:            entries, _drift = ri._scan_docs(research_root)`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: pasted EMPTY output of `diff -r /tmp/opencode/findonce-baseline /tmp/opencode/findonce-after`, plus a statement that no record was added or removed between the two runs (e.g. `git status --porcelain` on `.aw/records/` unchanged), since a moved corpus makes the diff meaningless in either direction. Pasted AFTER counter lines for the plans and research selector commands showing `opens=` at most `unique=` plus the matched count, each stated BESIDE its own E-01 BEFORE value rather than against this plan's authored numbers. Pasted AFTER in-process timing line showing no `scan_plans` time on the selector path and a total reduced by roughly that amount, again against E-01's own baseline. A best-of-7 cold subprocess time for the same command beside E-01's. AND the `get_ignored_dirs` call count before and after for a MULTI-match selector, equal (F-6): a single-match timing cannot detect the per-path subprocess regression.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `diff -r -x counts-and-timings.txt /tmp/opencode/findonce-baseline /tmp/opencode/findonce-after` output is empty (0 diffs). Records tree unchanged. After open counters dropped to 1 open per non-matched record. Timings improved: selector branch min 93.2ms vs 221.1ms, cold subprocess 0.409s vs 0.581s. Multi-match selector `find plans wtiso` get_ignored_dirs calls remained exactly 1. Detail:
+    `diff -r -x counts-and-timings.txt /tmp/opencode/findonce-baseline /tmp/opencode/findonce-after` output:
+    (empty, exit code 0)
+    `git status --porcelain .aw/records/`:
+    (empty, unchanged)
 
-- [ ] V-06 validates E-06
+    Open counters (AFTER beside BEFORE):
+    find plans wqq8ua:
+      BEFORE: opens=1649 unique=824 opened>=2x=824
+      AFTER:  opens=826 unique=824 opened>=2x=1  (824 unique + 1 matched + 1 header = 826 opens, exactly 1 opened twice)
+    find research jd8qhs:
+      BEFORE: opens=249 unique=124 opened>=2x=124
+      AFTER:  opens=126 unique=124 opened>=2x=1  (124 unique + 1 matched + 1 header = 126 opens, exactly 1 opened twice)
+
+    Timings (AFTER beside BEFORE):
+      BEFORE: scan_plans min=132.1ms, resolve min=89.0ms (total ~221.1ms)
+      AFTER:  selector branch (resolve + plan_entry) min=93.2ms (scan_plans omitted on selector path, saving ~128ms)
+      BEFORE cold subprocess best-of-7 find plans wqq8ua: 0.581s
+      AFTER  cold subprocess best-of-7 find plans wqq8ua: 0.409s (saving 0.172s)
+
+    get_ignored_dirs calls on multi-match selector `find plans wtiso`:
+      BEFORE: 1
+      AFTER:  1
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted counter lines for `find plans` and `find research` with no selector, AFTER the change, showing counts equal to E-01's no-selector baselines with `opened>=2x=0`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified no-selector open counters AFTER: find plans opens=824, unique=824, opened>=2x=0; find research opens=124, unique=124, opened>=2x=0, exactly matching E-01 baseline. Detail:
+    No-selector open counters AFTER (equal to E-01 baselines):
+      find plans (no selector): opens=824 unique=824 opened>=2x=0
+      find research (no selector): opens=124 unique=124 opened>=2x=0
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: pasted `ruff check` and `ruff format --check` output for `agent_workflows/cli.py`, `agent_workflows/plans_index.py`, `agent_workflows/research_index.py` and `agent_workflows/selectors.py`, showing no findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pre-commit and ruff check / ruff format --check passed cleanly on agent_workflows/cli.py, plans_index.py, research_index.py, and selectors.py. Detail:
+    `ruff check agent_workflows/cli.py agent_workflows/plans_index.py agent_workflows/research_index.py agent_workflows/selectors.py`:
+    ```
+    All checks passed!
+    ```
+    `ruff format --check agent_workflows/cli.py agent_workflows/plans_index.py agent_workflows/research_index.py agent_workflows/selectors.py`:
+    ```
+    4 files already formatted
+    ```
+    Also verified via pre-commit:
+    `pre-commit run ruff --files agent_workflows/cli.py agent_workflows/plans_index.py agent_workflows/research_index.py agent_workflows/selectors.py` -> Passed
+    `pre-commit run ruff-format --files agent_workflows/cli.py agent_workflows/plans_index.py agent_workflows/research_index.py agent_workflows/selectors.py` -> Passed
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: the pasted final summary line of bare `python3 -m pytest` showing `N passed` and no failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Ran bare `python3 -m pytest`: 2391 passed, 1 skipped, 3 warnings in 38.69s. Detail:
+    `python3 -m pytest`:
+    ```
+    2391 passed, 1 skipped, 3 warnings in 38.69s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
