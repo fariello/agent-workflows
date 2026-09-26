@@ -64,7 +64,13 @@ For each plan:
 2. List its material files, requirements, issues, ADRs, APIs, schemas, tests,
    and behavior claims.
 3. Open the actual evidence.
-4. Verify material claims with `path:line` citations.
+4. Verify material claims with `path:line` evidence:
+   - Locate the cited construct by symbol, heading, section ID, or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2).
+   - Disposition:
+     - Anchor resolves and only the line moved: no finding, or at most one LOW batched finding per plan noting the drift.
+     - Anchor does not resolve anywhere, or resolves to something that contradicts the claim: a real evidence finding at the severity of the claim it supports.
+     - Bare `path:line` with no anchor that no longer matches: search for the described construct before judging, and record which case applied.
+   - Costlier error: rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols.
 5. Record missing, stale, contradictory, or inaccessible evidence.
 6. Do not infer unsupported implementation details.
 

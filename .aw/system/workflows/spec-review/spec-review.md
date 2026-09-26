@@ -133,6 +133,12 @@ For each eligible spec:
 3. Open the referenced evidence.
 4. Verify material claims with `path:line` evidence. A spec's measured claim ("X does not exist",
    "N artifacts are in state S") is exactly the kind that rots; re-measure it rather than trusting it.
+   - Locate the cited construct by symbol, heading, section ID, or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2).
+   - Disposition:
+     - Anchor resolves and only the line moved: no finding, or at most one LOW batched finding per spec noting the drift.
+     - Anchor does not resolve anywhere, or resolves to something that contradicts the claim: a real evidence finding at the severity of the claim it supports.
+     - Bare `path:line` with no anchor that no longer matches: search for the described construct before judging, and record which case applied.
+   - Costlier error: rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols.
 5. Record missing, stale, contradictory, or inaccessible evidence.
 
 ### Structural preflight (before semantic review)
@@ -164,7 +170,7 @@ goals and acceptance criteria, the eight personas
 
 ### 2.2 Record findings
 Record each distinct actionable issue; combine duplicate symptoms under one root cause; do not invent
-findings. Classify each with Severity, Scope, Area, Evidence (`path:line`), Remediation Risk, and
+findings. Classify each with Severity, Scope, Area, Evidence (`path:line`, plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line), Remediation Risk, and
 Decision, using the SHARED vocabularies named in the table at the top of this file.
 
 Write the findings to BOTH places:

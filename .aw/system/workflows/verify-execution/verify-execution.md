@@ -13,7 +13,9 @@ It shares this framework's policies rather than redefining them:
 - **Fix Bar** (`../release-review/fix-decision-policy.md`): used only to RATE the gaps it reports.
   This workflow never fixes; it reports and emits a corrective plan.
 - **Evidence discipline**: re-open the actual `path:line` and diff; never trust a commit message
-  or a walkthrough's claim of success.
+  or a walkthrough's claim of success. When the line has moved, locate the cited construct by
+  symbol or quoted string; a moved-but-resolvable anchor is not a gap, whereas an unresolvable
+  one is.
 
 This workflow also loads two sibling files in this directory:
 

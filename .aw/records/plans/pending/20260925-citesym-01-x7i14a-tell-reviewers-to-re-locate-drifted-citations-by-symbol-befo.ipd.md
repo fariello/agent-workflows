@@ -37,45 +37,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the rule, once per review workflow
 
-- [ ] E-01 In `.aw/system/workflows/plan-review/plan-review.md`, section "## Step 1: Evidence and pre-review snapshot", replace item "4. Verify material claims with `path:line` evidence." with a two-part item: (a) verify by locating the cited construct by its SYMBOL or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2 states the same posture for authors and, for an older plan's offset, for readers); (b) disposition: anchor resolves and only the line moved = no finding, or at most one LOW batched finding per plan noting the drift; anchor does not resolve anywhere, or resolves to something that contradicts the claim = a real evidence finding at the severity of the claim it supports; a bare `path:line` with no anchor that no longer matches = search for the described construct before judging, and record which case applied.
+- [x] E-01 In `.aw/system/workflows/plan-review/plan-review.md`, section "## Step 1: Evidence and pre-review snapshot", replace item "4. Verify material claims with `path:line` evidence." with a two-part item: (a) verify by locating the cited construct by its SYMBOL or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2 states the same posture for authors and, for an older plan's offset, for readers); (b) disposition: anchor resolves and only the line moved = no finding, or at most one LOW batched finding per plan noting the drift; anchor does not resolve anywhere, or resolves to something that contradicts the claim = a real evidence finding at the severity of the claim it supports; a bare `path:line` with no anchor that no longer matches = search for the described construct before judging, and record which case applied.
   SAY WHICH DIRECTION IS THE COSTLIER ERROR, and cite the measured case. The disposition must state plainly that rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while the drift is not. Measured, in this repository: backlog `88manw` (`Work-Kind: bug`, `Blocks-Release: next`, still `open`) records that plan `si24ia`'s review finding PR-305 "rejected a correct spec section citation and substituted a wrong one" - the plan cited spec section 2.1, the review declared that wrong and named 1.1 plus a line number, and the plan was right. A rule that only warns about stale lines, without naming that failure direction, does not address the one case the repository has actually measured. Note also that this is the CITED-CONSTRUCT-NOT-FOUND case in a spec rather than in code, so the rule must cover a section or heading anchor, not only a code symbol.
   - Depends on: none
   - Expected outcome: the Step 1 item carries the rule including the costlier-error direction and the `88manw` citation; no other line changes in this item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Apply the reviewer's-own-evidence recommendation to the `Evidence` field of ALL THREE workflows that declare one, which is the parity half E-01 originally carried alone (F-6). Append "plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line" (or equivalent wording, identical across the three) to: `plan-review.md`'s `- **Evidence:** `path:line`.`; `plan-review-long/02-review-and-revise.md`'s `- Evidence: `path:line`.`; and `spec-review.md`'s clause `Evidence (`path:line`)` in the "Classify each with Severity, Scope, Area, Evidence" sentence. Do NOT touch the findings-TABLE rows or `report-template.md`: those are output format, and `<path:line>` in a table placeholder is a column label rather than an instruction (see Scope OUT).
+- [x] E-02 Apply the reviewer's-own-evidence recommendation to the `Evidence` field of ALL THREE workflows that declare one, which is the parity half E-01 originally carried alone (F-6). Append "plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line" (or equivalent wording, identical across the three) to: `plan-review.md`'s `- **Evidence:** `path:line`.`; `plan-review-long/02-review-and-revise.md`'s `- Evidence: `path:line`.`; and `spec-review.md`'s clause `Evidence (`path:line`)` in the "Classify each with Severity, Scope, Area, Evidence" sentence. Do NOT touch the findings-TABLE rows or `report-template.md`: those are output format, and `<path:line>` in a table placeholder is a column label rather than an instruction (see Scope OUT).
   - Depends on: E-01
   - Expected outcome: the three Evidence-field declarations carry the same recommendation; no table row or template changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Mirror E-01's rule in `.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md` item "4. Verify material claims with `path:line` citations.", worded identically to E-01 (the README says the long variant is "Kept in deliberate parity with the single-file" workflow, and `plan-review.md` itself says "The two variants are otherwise kept in deliberate parity").
+- [x] E-03 Mirror E-01's rule in `.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md` item "4. Verify material claims with `path:line` citations.", worded identically to E-01 (the README says the long variant is "Kept in deliberate parity with the single-file" workflow, and `plan-review.md` itself says "The two variants are otherwise kept in deliberate parity").
   NOTE THIS FILE'S MANIFEST HASH CURRENTLY MATCHES, unlike the other targets, so this edit INTRODUCES a mismatch rather than adding to an existing one (F-7). That is expected and is not a defect to repair here: the recorded hash means "the content the installer LAST WROTE", and every tracked edit to a managed file diverges from it until the next install re-records. The consequence to be aware of is narrow and documented in `engine.plan_uninstall`: a file whose content no longer matches its recorded hash is classified `drifted` and PRESERVED by `aw uninstall` instead of removed, unless `--force`. Do NOT hand-edit `.aw/system/managed-sections.json` to "fix" this; it is an installer-owned artifact.
   - Depends on: E-01
   - Expected outcome: the two variants' evidence steps say the same thing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `.aw/system/workflows/spec-review/spec-review.md`, extend the step item beginning "4. Verify material claims with `path:line` evidence. A spec's measured claim" with the same re-locate-by-symbol rule and disposition, keeping the existing "re-measure it rather than trusting it" sentence.
+- [x] E-04 In `.aw/system/workflows/spec-review/spec-review.md`, extend the step item beginning "4. Verify material claims with `path:line` evidence. A spec's measured claim" with the same re-locate-by-symbol rule and disposition, keeping the existing "re-measure it rather than trusting it" sentence.
   THIS FILE HAS LIVE PER-LINE GUARDS, so word the addition with them in mind (F-8). `tests/test_spec_review_attestation.py` runs a NEGATIVE per-line scan: any line matching `^.*aw ipd lint.*$` must contain one of `NOT`/`not`/`NEVER`/`never`/`IPD-only`/`preflight`/`runs`, and any line mentioning `- Readiness:` must contain a prohibition token. It also forbids restating `plan-review`'s severity glosses ("likely data loss, breach, normal-path failure", "polish or small clarity improvement") and forbids the tokens `E/V-bijection` / `E/V bijection`. So do not mention `aw ipd lint` in the new sentence, and if naming a severity, name the LEVEL only and do not gloss it. Run that test file immediately after this item rather than waiting for the suite; it passed 30/30 at review and is fast.
   - Depends on: E-01
   - Expected outcome: spec-review's evidence step carries the rule, the "re-measure it rather than trusting it" sentence is retained, and `tests/test_spec_review_attestation.py` still passes 30/30.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `.aw/system/workflows/verify-execution/verify-execution.md`, extend the "**Evidence discipline**: re-open the actual `path:line` and diff" bullet with: locate the construct by symbol or quoted string when the line has moved; a moved-but-resolvable anchor is not a gap; an unresolvable one is. (`intent-audit.md` inherits this discipline by its own words "Core discipline (inherited from `verify-execution.md`)", verified at review, so it is not edited.)
+- [x] E-05 In `.aw/system/workflows/verify-execution/verify-execution.md`, extend the "**Evidence discipline**: re-open the actual `path:line` and diff" bullet with: locate the construct by symbol or quoted string when the line has moved; a moved-but-resolvable anchor is not a gap; an unresolvable one is. (`intent-audit.md` inherits this discipline by its own words "Core discipline (inherited from `verify-execution.md`)", verified at review, so it is not edited.)
   - Depends on: E-01
   - Expected outcome: verify-execution's evidence discipline carries the rule; `intent-audit.md` untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: suite
 
-- [ ] E-06 Re-verify the ONE mechanical claim this plan's own validation rests on: run `grep -rn -i "symbol" .aw/system/workflows/plan-review .aw/system/workflows/plan-review-long .aw/system/workflows/spec-review .aw/system/workflows/verify-execution` BEFORE any edit and record the output. At review it returned exactly two lines, both the unrelated scope-fence sentence "prerequisite whose symbols are absent" (in `plan-review.md` and in `plan-review-long/review-rubric.md`). V-01's "it returns none before" claim is therefore FALSE as written, and an executor checking it literally would think the baseline was already contaminated. Record the actual pre-edit matches so the after-grep is read as a delta.
+- [x] E-06 Re-verify the ONE mechanical claim this plan's own validation rests on: run `grep -rn -i "symbol" .aw/system/workflows/plan-review .aw/system/workflows/plan-review-long .aw/system/workflows/spec-review .aw/system/workflows/verify-execution` BEFORE any edit and record the output. At review it returned exactly two lines, both the unrelated scope-fence sentence "prerequisite whose symbols are absent" (in `plan-review.md` and in `plan-review-long/review-rubric.md`). V-01's "it returns none before" claim is therefore FALSE as written, and an executor checking it literally would think the baseline was already contaminated. Record the actual pre-edit matches so the after-grep is read as a delta.
   - Depends on: none
   - Expected outcome: the pre-edit `symbol` matches recorded (two unrelated scope-fence lines at review; re-derive, since the tree is live).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the bare suite `python3 -m pytest` and record the summary line (the workflows ship in the wheel via `pyproject.toml` `".aw/system" = "agent_workflows/_data/.aw/system"`, and installer tests read them). Baseline at review: `tests/test_spec_review_attestation.py` and `tests/test_installer.py` together were 30 passed.
+- [x] E-07 Run the bare suite `python3 -m pytest` and record the summary line (the workflows ship in the wheel via `pyproject.toml` `".aw/system" = "agent_workflows/_data/.aw/system"`, and installer tests read them). Baseline at review: `tests/test_spec_review_attestation.py` and `tests/test_installer.py` together were 30 passed.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: no new failures relative to the pre-change baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -141,40 +141,237 @@ N/A: spec `ipd-structure-and-linting` Section 10.2 already states the rule for a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff .aw/system/workflows/plan-review/plan-review.md` showing ONLY the Step 1 item 4 changed by this item (the Evidence field is E-02's, so it must NOT appear in this diff). Paste the new item text and confirm it contains all three of: the re-locate-by-symbol-or-quoted-string instruction, the three-case disposition, and the statement that rejecting a citation the reviewer failed to re-locate is the costlier error, citing `88manw` (F-9). Paste the after-grep for `by symbol` / `drift` and compare it against E-06's RECORDED pre-edit baseline, not against "returns none".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    `git diff .aw/system/workflows/plan-review/plan-review.md` immediately following E-01 (before E-02 was applied):
+    ```diff
+    diff --git a/.aw/system/workflows/plan-review/plan-review.md b/.aw/system/workflows/plan-review/plan-review.md
+    index d5ad0683..38790cdf 100644
+    --- a/.aw/system/workflows/plan-review/plan-review.md
+    +++ b/.aw/system/workflows/plan-review/plan-review.md
+    @@ -104,7 +104,13 @@ For each eligible plan:
+     2. List material files, requirements, issues, ADRs, APIs, schemas, tests, and
+        behaviors it relies on.
+     3. Open the referenced evidence.
+    -4. Verify material claims with `path:line` evidence.
+    +4. Verify material claims with `path:line` evidence:
+    +   - Locate the cited construct by symbol, heading, section ID, or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2).
+    +   - Disposition:
+    +     - Anchor resolves and only the line moved: no finding, or at most one LOW batched finding per plan noting the drift.
+    +     - Anchor does not resolve anywhere, or resolves to something that contradicts the claim: a real evidence finding at the severity of the claim it supports.
+    +     - Bare `path:line` with no anchor that no longer matches: search for the described construct before judging, and record which case applied.
+    +   - Costlier error: rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols.
+     5. Record missing, stale, contradictory, or inaccessible evidence.
+     6. Do not infer unsupported implementation details.
+    ```
+    New item text confirmed to contain:
+    1. Re-locate by symbol instruction: "Locate the cited construct by symbol, heading, section ID, or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2)."
+    2. Three-case disposition: "Anchor resolves and only the line moved: no finding, or at most one LOW batched finding per plan noting the drift. Anchor does not resolve anywhere, or resolves to something that contradicts the claim: a real evidence finding at the severity of the claim it supports. Bare `path:line` with no anchor that no longer matches: search for the described construct before judging, and record which case applied."
+    3. Costlier error direction citing `88manw`: "rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols."
 
-- [ ] V-02 validates E-02
+    After-grep for `by symbol` / `drift`:
+    ```
+    .aw/system/workflows/plan-review/plan-review.md:108:   - Locate the cited construct by symbol, heading, section ID, or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2).
+    .aw/system/workflows/plan-review/plan-review.md:110:     - Anchor resolves and only the line moved: no finding, or at most one LOW batched finding per plan noting the drift.
+    .aw/system/workflows/plan-review/plan-review.md:113:   - Costlier error: rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols.
+    .aw/system/workflows/plan-review/plan-review.md:533:- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar. Criteria counting **stable code facts** (test assertions, schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations. (Review is the only enforcement surface; no mechanical lint rule is attempted because distinguishing live artifact counts from stable code facts requires semantic reading.)
+    .aw/system/workflows/plan-review-long/README.md:6:time to reduce directive drift on long runs. Kept in deliberate parity with the single-file
+    .aw/system/workflows/plan-review-long/plan-review-long.md:6:time to reduce directive drift. The single-file `../plan-review/plan-review.md`
+    .aw/system/workflows/spec-review/README.md:35:THE COST WE ACCEPTED INSTEAD is drift: two review bodies whose shared rubric can diverge over time.
+    .aw/system/workflows/spec-review/README.md:36:See "Keeping this from drifting" below, which is the mitigation, not a hope.
+    .aw/system/workflows/spec-review/README.md:56:## Keeping this from drifting
+    .aw/system/workflows/spec-review/README.md:64:   restating them, so improving them once improves both reviewers. A copy is the thing that drifts;
+    .aw/system/workflows/spec-review/spec-review.md:24:drifts:
+    ```
+    Compared against E-06 recorded pre-edit baseline: the new matches in `plan-review.md` (lines 108, 110, 113) reflect the new item 4 text and its disposition.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the three diff hunks - `plan-review.md`'s `**Evidence:**` field, `plan-review-long/02-review-and-revise.md`'s `- Evidence:` field, and `spec-review.md`'s `Evidence (`path:line`)` clause - and quote the appended wording from each side by side to show it is identical. Paste `git diff --name-only` and confirm `plan-review-long/report-template.md` is absent, since the table/template rows are deliberately out of scope.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    Hunk 1 (`plan-review.md`):
+    ```diff
+    @@ -199,7 +199,7 @@ Classify each finding with:
+     - **Severity:** `BLOCKER`, `HIGH`, `MEDIUM`, or `LOW`.
+     - **Scope:** `IN-SCOPE`, `OVER-SCOPE`, or `UNDER-SCOPE`.
+     - **Area:** rubric or project rule.
+    -- **Evidence:** `path:line`.
+    +- **Evidence:** `path:line`, plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line.
+     - **Remediation Risk:** complexity, usability, security, functionality, and
+       overall.
+     - **Decision:** `FIXED`, `DEFERRED`, `OPEN`, or `REPLAN`.
+    ```
+    Hunk 2 (`plan-review-long/02-review-and-revise.md`):
+    ```diff
+    @@ -27,7 +27,7 @@ Each finding MUST contain:
+     - Severity: `BLOCKER`, `HIGH`, `MEDIUM`, or `LOW`.
+     - Scope: `IN-SCOPE`, `OVER-SCOPE`, or `UNDER-SCOPE`.
+     - Area: rubric and project-rule reference.
+    -- Evidence: `path:line`.
+    +- Evidence: `path:line`, plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line.
+     - Finding and impact.
+     - Remediation Risk on complexity, usability, security, functionality, and
+       overall.
+    ```
+    Hunk 3 (`spec-review.md`):
+    ```diff
+    @@ -164,7 +170,7 @@ goals and acceptance criteria, the eight personas
 
-- [ ] V-03 validates E-03
+     ### 2.2 Record findings
+     Record each distinct actionable issue; combine duplicate symptoms under one root cause; do not invent
+    -findings. Classify each with Severity, Scope, Area, Evidence (`path:line`), Remediation Risk, and
+    +findings. Classify each with Severity, Scope, Area, Evidence (`path:line`, plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line), Remediation Risk, and
+     Decision, using the SHARED vocabularies named in the table at the top of this file.
+
+     Write the findings to BOTH places:
+    ```
+    Side-by-side quote of appended wording:
+    - `plan-review.md`: `, plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line`
+    - `02-review-and-revise.md`: `, plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line`
+    - `spec-review.md`: `, plus the symbol or a quoted string, for example the symbol `mod.func_name` beside its path and line`
+    The appended wording is identical across all three sites.
+
+    `git diff --name-only`:
+    ```
+    .aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    .aw/system/workflows/plan-review-long/02-review-and-revise.md
+    .aw/system/workflows/plan-review/plan-review.md
+    .aw/system/workflows/spec-review/spec-review.md
+    .aw/system/workflows/verify-execution/verify-execution.md
+    ```
+    `plan-review-long/report-template.md` is absent.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff of `01-discover-and-snapshot.md` and a side-by-side quote showing its item 4 text matches E-01's. State explicitly that this file's manifest hash matched BEFORE the edit and now does not, so the mismatch is expected and `managed-sections.json` was NOT hand-edited (F-7); paste `git diff --name-only` showing `.aw/system/managed-sections.json` is absent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    `git diff .aw/system/workflows/plan-review-long/01-discover-and-snapshot.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md b/.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    index 0741b74f..526e9535 100755
+    --- a/.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    +++ b/.aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    @@ -64,7 +64,13 @@ For each plan:
+     2. List its material files, requirements, issues, ADRs, APIs, schemas, tests,
+        and behavior claims.
+     3. Open the actual evidence.
+    -4. Verify material claims with `path:line` citations.
+    +4. Verify material claims with `path:line` evidence:
+    +   - Locate the cited construct by symbol, heading, section ID, or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2).
+    +   - Disposition:
+    +     - Anchor resolves and only the line moved: no finding, or at most one LOW batched finding per plan noting the drift.
+    +     - Anchor does not resolve anywhere, or resolves to something that contradicts the claim: a real evidence finding at the severity of the claim it supports.
+    +     - Bare `path:line` with no anchor that no longer matches: search for the described construct before judging, and record which case applied.
+    +   - Costlier error: rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols.
+     5. Record missing, stale, contradictory, or inaccessible evidence.
+     6. Do not infer unsupported implementation details.
+    ```
+    Side-by-side comparison: item 4 text in `01-discover-and-snapshot.md` matches `plan-review.md` item 4 verbatim.
+    Manifest hash status: This file's manifest hash matched prior to this edit and now diverges; the resulting mismatch is expected per F-7 as an installer-managed file, and `.aw/system/managed-sections.json` was NOT hand-edited.
+    `git diff --name-only`:
+    ```
+    .aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    .aw/system/workflows/plan-review-long/02-review-and-revise.md
+    .aw/system/workflows/plan-review/plan-review.md
+    .aw/system/workflows/spec-review/spec-review.md
+    .aw/system/workflows/verify-execution/verify-execution.md
+    ```
+    `.aw/system/managed-sections.json` is absent.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the diff of `spec-review.md` showing the rule added and the "re-measure it rather than trusting it" sentence retained, AND paste `python3 -m pytest -o addopts="" tests/test_spec_review_attestation.py` run immediately after this item showing 30 passed (F-8). The per-line prohibition scan is the guard most likely to catch this edit, and discovering it in the full suite rather than here loses the attribution.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    `git diff .aw/system/workflows/spec-review/spec-review.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/spec-review/spec-review.md b/.aw/system/workflows/spec-review/spec-review.md
+    index 2da824a0..6014b9f5 100644
+    --- a/.aw/system/workflows/spec-review/spec-review.md
+    +++ b/.aw/system/workflows/spec-review/spec-review.md
+    @@ -133,6 +133,12 @@ For each eligible spec:
+     3. Open the referenced evidence.
+     4. Verify material claims with `path:line` evidence. A spec's measured claim ("X does not exist",
+        "N artifacts are in state S") is exactly the kind that rots; re-measure it rather than trusting it.
+    +   - Locate the cited construct by symbol, heading, section ID, or quoted string, treating the line number as a hint (spec `ipd-structure-and-linting` Section 10.2).
+    +   - Disposition:
+    +     - Anchor resolves and only the line moved: no finding, or at most one LOW batched finding per spec noting the drift.
+    +     - Anchor does not resolve anywhere, or resolves to something that contradicts the claim: a real evidence finding at the severity of the claim it supports.
+    +     - Bare `path:line` with no anchor that no longer matches: search for the described construct before judging, and record which case applied.
+    +   - Costlier error: rejecting a citation the reviewer merely failed to re-locate is WORSE than under-reporting drift, because a review finding is durable and tracked while drift is not. Measured in this repository: backlog `88manw` recorded that plan `si24ia`'s review finding PR-305 rejected a correct spec section citation and substituted a wrong one, which subsequent readers propagated. The rule covers section or heading anchors in specs and docs, not only code symbols.
+     5. Record missing, stale, contradictory, or inaccessible evidence.
+    ```
+    The original sentence `A spec's measured claim ("X does not exist", "N artifacts are in state S") is exactly the kind that rots; re-measure it rather than trusting it.` is retained verbatim.
 
-- [ ] V-05 validates E-05
+    `python3 -m pytest -o addopts="" tests/test_spec_review_attestation.py` output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1952721304
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 30 items
+
+    tests/test_spec_review_attestation.py ..............................     [100%]
+
+    ============================== 30 passed in 0.66s ==============================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the diff of `verify-execution.md` evidence-discipline bullet; paste `git diff --name-only` confirming `intent-audit.md` is untouched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    `git diff .aw/system/workflows/verify-execution/verify-execution.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/verify-execution/verify-execution.md b/.aw/system/workflows/verify-execution/verify-execution.md
+    index dbb45806..645e5683 100644
+    --- a/.aw/system/workflows/verify-execution/verify-execution.md
+    +++ b/.aw/system/workflows/verify-execution/verify-execution.md
+    @@ -13,7 +13,9 @@ It shares this framework's policies rather than redefining them:
+     - **Fix Bar** (`../release-review/fix-decision-policy.md`): used only to RATE the gaps it reports.
+       This workflow never fixes; it reports and emits a corrective plan.
+     - **Evidence discipline**: re-open the actual `path:line` and diff; never trust a commit message
+    -  or a walkthrough's claim of success.
+    +  or a walkthrough's claim of success. When the line has moved, locate the cited construct by
+    +  symbol or quoted string; a moved-but-resolvable anchor is not a gap, whereas an unresolvable
+    +  one is.
 
-- [ ] V-06 validates E-06
+     This workflow also loads two sibling files in this directory:
+    ```
+    `git diff --name-only`:
+    ```
+    .aw/system/workflows/plan-review-long/01-discover-and-snapshot.md
+    .aw/system/workflows/plan-review-long/02-review-and-revise.md
+    .aw/system/workflows/plan-review/plan-review.md
+    .aw/system/workflows/spec-review/spec-review.md
+    .aw/system/workflows/verify-execution/verify-execution.md
+    ```
+    `intent-audit.md` is untouched and absent from `git diff --name-only`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the PRE-EDIT `grep -rn -i "symbol"` output over the four workflow directories with its match count, so V-01's after-grep is read as a delta. At review it was two lines, both the scope-fence sentence "prerequisite whose symbols are absent"; re-derive rather than copying that.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    Pre-edit `grep -rn -i "symbol" .aw/system/workflows/plan-review .aw/system/workflows/plan-review-long .aw/system/workflows/spec-review .aw/system/workflows/verify-execution`:
+    ```
+    .aw/system/workflows/plan-review/plan-review.md:389:  prerequisite whose symbols are absent) is a DIFFERENT case and remains correct.
+    .aw/system/workflows/plan-review-long/review-rubric.md:31:concurrent-edit conflict, or a prerequisite whose symbols are absent) is a DIFFERENT case and remains
+    ```
+    Match count: 2 matches.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the bare `python3 -m pytest` summary line; list and baseline-compare any failing node ids against a pre-change run of the same command.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    Bare `python3 -m pytest` pre-change baseline:
+    `2355 passed, 1 skipped, 3 warnings in 57.61s` (0 failures).
+
+    Bare `python3 -m pytest` post-change run:
+    `2355 passed, 1 skipped, 3 warnings in 41.89s` (0 failures).
+
+    Failing node ids: none (0 failures on both baseline and post-change runs).
+  - Result: pass
 
 ## Approval and execution gate
 
