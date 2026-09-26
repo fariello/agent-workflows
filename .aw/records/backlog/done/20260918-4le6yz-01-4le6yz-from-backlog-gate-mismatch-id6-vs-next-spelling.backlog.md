@@ -1,5 +1,5 @@
 - Id: 4le6yz
-- Status: graduated
+- Status: done
 - Graduated-To: gatesame
 - Blocks-Release: next
 - Set: 4le6yz
@@ -8,6 +8,7 @@
 - Summary: check.from-backlog-gate-mismatch fires on an id6-vs-next gate spelling difference that denotes the SAME release
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD ooydp3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-gatesame-01-ooydp3-compare-release-gates-by-the-release-they-resolve-to-not-by.ipd.md); evidence .aw/records/plans/executed/20260925-gatesame-01-ooydp3-compare-release-gates-by-the-release-they-resolve-to-not-by.ipd.md
 - 2026-09-25 graduated (aw set): graduated into gatesame (plan ooydp3); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): check.from-backlog-gate-mismatch fires on an id6-vs-next gate spelling difference that denotes the SAME release
 
