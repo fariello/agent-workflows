@@ -1,5 +1,5 @@
 - Id: dstnso
-- Status: graduated
+- Status: done
 - Graduated-To: forkresid
 - Set: dstnso
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Nine of eleven execute_item closure forks are claimed by no rununify sibling
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD 184tn9 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-forkresid-01-184tn9-share-the-lane-reclaim-prompt-and-the-deferred-integration-a.ipd.md); evidence .aw/records/plans/executed/20260925-forkresid-01-184tn9-share-the-lane-reclaim-prompt-and-the-deferred-integration-a.ipd.md
 - 2026-09-25 graduated (aw set): graduated into forkresid plan 184tn9 (_record_forced_stop dead host copies)
 - 2026-09-17 created (aw backlog): Nine of eleven execute_item closure forks are claimed by no rununify sibling
 
