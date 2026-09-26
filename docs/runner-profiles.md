@@ -155,14 +155,19 @@ means exactly `--no-validate`. Passing a contradictory pair such as `--no-verify
 refused before the run starts rather than resolved by precedence, because either winner would be a
 verification decision you did not make.
 
-### Setting the verification default on antigravity, by hand
+### Setting the verification default on antigravity
 
-No `aw` command writes an antigravity profile or `defaults.validate` yet. The profile wizard and
-`aw oc profile add` create opencode profiles only, and `aw agy profile` does not exist. Until a
-writer surface ships, edit `~/.config/agent-workflows/runner-profiles.json` yourself.
+Manage Antigravity launch profiles with `aw agy profile add ... --set-default` and set the host-neutral verification default with `aw agy profile validate-default` (or `aw oc profile validate-default`).
 
-Antigravity accepts no `--profile` flag and has no `as <profile>` clause, so a profile reaches an
-antigravity run ONLY by being that host's default profile. Both parts are required:
+Profile names share one flat namespace across all runners. A profile name is unique across runners, and runner-scoped profile verbs refuse to read, retarget, or delete a profile owned by a different runner.
+
+Antigravity accepts no `--profile` flag and has no `as <profile>` clause, and it ignores `execution_profile`. Today the driver launches its own built-in default model, so a profile's `model` field does not select the launched model; a profile reaches an antigravity run only as that host's default profile, where its `validate` field sets the verification posture:
+
+```bash
+aw agy profile add agy-quiet --model google/gemini-3-pro --no-validate --set-default --yes
+```
+
+The equivalent stored JSON form:
 
 ```json
 {
@@ -176,10 +181,16 @@ antigravity run ONLY by being that host's default profile. Both parts are requir
 }
 ```
 
-With that store, `aw agy run <selector>` skips the verifier turn, and `aw agy run --validate
-<selector>` still runs it, because an explicit flag always wins.
+With that store, `aw agy run <selector>` skips the verifier turn, and `aw agy run --validate <selector>` still runs it, because an explicit flag always wins.
 
-To set one default for every host and profile that does not state its own, use `defaults.validate`:
+To set one host-neutral default for every host and profile that does not state its own, use `validate-default`:
+
+```bash
+aw agy profile validate-default off
+aw agy profile validate-default unset
+```
+
+The equivalent stored JSON form uses `defaults.validate`:
 
 ```json
 {
@@ -188,8 +199,7 @@ To set one default for every host and profile that does not state its own, use `
 }
 ```
 
-That tier sits below a profile's own `validate` and above each host's shipped posture, so it is the
-way to turn verification on everywhere without naming a profile.
+That tier sits below a profile's own `validate` and above each host's shipped posture, so it is the way to turn verification on or off everywhere without naming a profile.
 
 ## Verifying with a different model
 

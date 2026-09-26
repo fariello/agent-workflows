@@ -1,5 +1,5 @@
 - Id: fxiqse
-- Status: graduated
+- Status: done
 - Graduated-To: agyprofile
 - Set: fxiqse
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Add a writer surface for antigravity runner profiles and defaults.validate
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD 6o8q4k executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-agyprofile-01-6o8q4k-add-aw-agy-profile-writer-verbs-and-a-defaults-validate-writ.ipd.md); evidence .aw/records/plans/executed/20260925-agyprofile-01-6o8q4k-add-aw-agy-profile-writer-verbs-and-a-defaults-validate-writ.ipd.md
 - 2026-09-25 graduated (aw set): graduated into agyprofile plan 6o8q4k (to-review)
 - 2026-09-13 created (aw backlog): Add a writer surface for antigravity runner profiles and defaults.validate
 

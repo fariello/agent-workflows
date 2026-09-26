@@ -440,7 +440,7 @@ def opencode_argv_fields(profile: rp.LaunchProfile) -> List[str]:
 
 
 def preview_lines(name: str, profile: rp.LaunchProfile) -> List[str]:
-    """The exact preview block: stored fields, then the equivalent OpenCode argv fragment.
+    """The exact preview block: stored fields, then the equivalent launch configuration.
 
     DELIBERATELY PLAIN TEXT. Two `aw oc profile` code paths in `cli.py` reuse this for their own
     non-interactive previews, and the block is asserted by substring in the tests, so styling
@@ -454,15 +454,26 @@ def preview_lines(name: str, profile: rp.LaunchProfile) -> List[str]:
         f"  model:   {profile.model}",
         f"  variant: {profile.variant if profile.variant else '(provider default)'}",
         f"  agent:   {profile.agent if profile.agent else '(none)'}",
-        "",
-        "Equivalent OpenCode launch:",
-        f"  opencode run {' '.join(opencode_argv_fields(profile))}",
     ]
+    if profile.validate is not None:
+        lines.append(f"  validate: {profile.validate}")
+    if profile.runner == "agy":
+        lines += [
+            "",
+            "Antigravity effect (applies only as defaults.profiles.agy; only validate changes a run):",
+            "  The driver launches agy_runipd.DEFAULT_MODEL; execution_profile is ignored on this host.",
+        ]
+    else:
+        lines += [
+            "",
+            "Equivalent OpenCode launch:",
+            f"  opencode run {' '.join(opencode_argv_fields(profile))}",
+        ]
     return lines
 
 
 #: Field labels inside the preview block, emphasized so the VALUES stand out from the scaffolding.
-_PREVIEW_FIELDS = ("runner:", "model:", "variant:", "agent:")
+_PREVIEW_FIELDS = ("runner:", "model:", "variant:", "agent:", "validate:")
 
 
 def emit_preview(io: WizardIO, name: str, profile: rp.LaunchProfile) -> None:
@@ -479,6 +490,7 @@ def emit_preview(io: WizardIO, name: str, profile: rp.LaunchProfile) -> None:
         if (
             stripped.endswith("will be stored as:")
             or stripped == "Equivalent OpenCode launch:"
+            or stripped.startswith("Antigravity effect")
         ):
             io.line(t.colorize(line, "bold"))
         elif any(stripped.startswith(f) for f in _PREVIEW_FIELDS):
@@ -706,5 +718,7 @@ def profile_dict(name: str, profile: rp.LaunchProfile) -> Mapping[str, Any]:
         "variant": profile.variant,
         "agent": profile.agent,
         "validate": profile.validate,
-        "opencode_args": opencode_argv_fields(profile),
+        "opencode_args": opencode_argv_fields(profile)
+        if profile.runner == "oc"
+        else None,
     }
