@@ -1,5 +1,6 @@
 - Id: 7oql4z
-- Status: open
+- Status: graduated
+- Graduated-To: renamescan
 - Blocks-Release: next
 - Set: renamescan
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw rename never rewrites citations under .aw/records/reviews/ or tests/, so renaming a cited artifact leaves tracked reviews and test fixtures pointing at a file that no longer exists
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set renamescan (commit 2c7068ca).
 - 2026-09-24 created (aw backlog): aw rename never rewrites citations under .aw/records/reviews/ or tests/, so renaming a cited artifact leaves tracked reviews and test fixtures pointing at a file that no longer exists
 
 FOUND 2026-09-25 renaming specs 25kzda and 5tapom (d6b2fa00). artifact_core.SCAN_ROOTS lists plans, specs, research, walkthroughs, roadmaps, prompt-library, backlog and releases but NOT .aw/records/reviews/, so 9 tracked review records kept the old spec names and had to be fixed by hand. tests/ is not scanned either (no test cited these two specs, so no harm this time).
