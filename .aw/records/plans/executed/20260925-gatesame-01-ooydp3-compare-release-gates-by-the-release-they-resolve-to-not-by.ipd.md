@@ -6,7 +6,7 @@
 - Scope: IN: one shared helper in `check_engine.py` deciding whether two gate values denote the same release, used at the two comparison sites (`evaluate_blocking_close`'s HANDOFF branch and `check_release_gate_consistency`'s mismatch branch); tests. OUT: `check.blocks-release-dangling` (an unresolvable value stays that rule's job); `attention.py`, which already resolves before comparing and so does not share the defect.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_release_gate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,11 +15,11 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: ooydp3
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 4le6yz
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ooydp3 verified (set gatesame, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 6 findings PR-A01..PR-A06 all FIXED, 4 decisions D-1..D-4 recorded; review record written; reproduced F-1/F-2 with a control, found the defect LIVE on items hdhzr2 and x15f0q (F-4), corrected the nonexistent `basis` field to `path` (F-5), and verified all 13 existing release-gate tests pass with the fix applied; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog 4le6yz. Reproduced at HEAD in a scratch repo: item `next`, plan `f33nrj`, both resolving to the same release file, yields a gate-mismatch Drift AND `evaluate_blocking_close(...,'done')` -> legitimate=False. The live tree is quiet only because the two cited carriers have since executed.
