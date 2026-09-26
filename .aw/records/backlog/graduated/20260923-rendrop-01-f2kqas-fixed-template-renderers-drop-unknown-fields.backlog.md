@@ -1,5 +1,6 @@
 - Id: f2kqas
-- Status: open
+- Status: graduated
+- Graduated-To: rendrop
 - Blocks-Release: next
 - Set: rendrop
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: fixed-template record renderers silently drop unrecognized metadata fields, patched per field instead of at the root
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set rendrop (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): fixed-template record renderers silently drop unrecognized metadata fields, patched per field instead of at the root
 
 Found while executing plan `bwgyum`, which fixed ONE instance of this class and deliberately
