@@ -947,7 +947,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     #
     # WHY THESE TWO DECLARATIONS EXIST AT ALL, since a parser edit looks sufficient and is not:
     # `find_undeclared_leaves` is asserted EMPTY by
-    # `tests/test_cli_conformance_matrix.py::test_no_undeclared_parser_leaves`, and
+    # `tests/test_command_surface_declarations.py::test_zero_undeclared_parser_leaves`, and
     # `tests/conformance_matrix.required_scenarios` derives each leaf's REQUIRED scenario set from
     # the `command_class` declared here. So registering a subparser without a declaration fails a
     # named fail-closed CI job, and declaring the wrong class demands the wrong coverage.
@@ -1790,9 +1790,10 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # conformance scenario an `alias` row does not, so declaring a pure delegation as a mutation would
     # assert a contract of its own for a command whose whole contract is the driver's.
     #
-    # DELIBERATELY NOT IN `tests/test_cli_conformance_matrix.py`'s `ALIAS_SAFE` DICT: that live
-    # equivalence gate drives READ-ONLY leaves, and this verb merges to main. The thin-alias proof is
-    # the rewrite function plus the diff, not that gate.
+    # DELIBERATELY NOT IN AN ALIAS_SAFE DICT (a live-equivalence capability of the deleted
+    # conformance harness, not the restored declaration guard): that live equivalence gate
+    # drove READ-ONLY leaves, and this verb merges to main. The thin-alias proof is the rewrite
+    # function plus the diff, not that gate.
     CommandDeclaration(
         command="oc integrate",
         command_class="alias",
@@ -1824,6 +1825,73 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--json", "--agent"),
         exit_contract=(0, 1, 2),
+    ),
+    # cmdsurf 0yrtne E-01: the two read leaves under `aw oc profile`.
+    CommandDeclaration(
+        command="oc profile list",
+        command_class="read",
+        human_recipe="table",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="shared_empty_result",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 2),
+    ),
+    CommandDeclaration(
+        command="oc profile show",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 2),
+    ),
+    # cmdsurf 0yrtne E-02: the three mutation leaves under `aw oc profile`.
+    CommandDeclaration(
+        command="oc profile add",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="confirmation",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(
+            "--model",
+            "--variant",
+            "--oc-agent",
+            "--replace",
+            "--yes",
+            "--set-default",
+            "--agent",
+            "--json",
+        ),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="oc profile remove",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="confirmation",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(
+            "--clear-default",
+            "--replacement",
+            "--yes",
+            "--agent",
+            "--json",
+        ),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="oc profile default",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--clear", "--agent", "--json"),
+        exit_contract=(0, 2),
     ),
     CommandDeclaration(
         command="agy runipd",

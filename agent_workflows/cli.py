@@ -722,7 +722,7 @@ class _ViewerOrLeafSubParsersAction(argparse._SubParsersAction):
     `command_surface.discover_parser_leaves`, which enumerates leaves from `_SubParsersAction.choices`
     alone. A positionally-routed leaf is invisible to the normative command surface, so declaring it
     in `COMMAND_INVENTORY` would register as declaration/parser DRIFT and fail
-    `tests/test_cli_conformance_matrix.py`. It also gets no argparse help, the documented cost that
+    `tests/test_command_surface_declarations.py`. It also gets no argparse help, the documented cost that
     forced the special case at `_dispatch`'s `aw runs repair --help` interception.
 
     AMBIGUITY RULE, documented because set ids are free-form: a first positional equal to a leaf name
@@ -2518,7 +2518,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # inside `run_viewer`, and `_ViewerOrLeafSubParsersAction`'s docstring records the exact cost: a
     # positionally-routed leaf is INVISIBLE to the normative command surface, so declaring it in
     # `COMMAND_INVENTORY` would register as declaration/parser DRIFT and fail
-    # `tests/test_cli_conformance_matrix.py`, and it gets no argparse help. Confirmed by measurement:
+    # `tests/test_command_surface_declarations.py`, and it gets no argparse help. Confirmed by measurement:
     # `repair` appears in NO declaration. Since E-01 declares both of these leaves, positional
     # routing is not available to them even in principle.
     #
@@ -2702,7 +2702,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # both are discoverable by `command_surface.discover_parser_leaves` and get native argparse help
     # and native usage errors (exit 2). Not the `repair` pattern: a positionally-routed leaf is
     # invisible to the normative surface, so declaring it in `COMMAND_INVENTORY` would register as
-    # declaration/parser DRIFT and fail `tests/test_cli_conformance_matrix.py`.
+    # declaration/parser DRIFT and fail `tests/test_command_surface_declarations.py`.
     #
     # NOT VIA `_register_run_leaf`: that helper adds a REQUIRED single `target` positional plus ledger
     # flags, and neither shape fits. `export` takes zero or more run selectors and defaults to the

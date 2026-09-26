@@ -193,8 +193,8 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
 ## Adding a CLI command: the output-contract checklist
 
 Every leaf command MUST honor the dual-audience output contract. Before you land a new leaf,
-walk this list (the conformance harness in `tests/test_cli_conformance_matrix.py` enforces it,
-and an undeclared or uncovered leaf fails CI):
+walk this list (the declaration guard in `tests/test_command_surface_declarations.py` enforces it,
+and an undeclared leaf fails CI):
 
 1. Route through the boundary. Resolve the audience with `select_output(args)` and render the
    typed `CommandResult` through `get_renderer(context)`. Do not `print` results directly.
