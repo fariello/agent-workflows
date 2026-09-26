@@ -891,6 +891,36 @@ def _normalize_rel_path(loc: str, repo_root: Path) -> str:
         return loc
 
 
+def _extract_record_id6(loc: str, repo_root: Path) -> Optional[str]:
+    """Derive an id6 from declared frontmatter or filename identity slot, if present."""
+    if not loc or (loc.startswith("<") and loc.endswith(">")):
+        return None
+    try:
+        p = Path(loc)
+        target = repo_root / p if not p.is_absolute() else p
+        if target.is_file():
+            text = target.read_text(encoding="utf-8")
+            from agent_workflows import selectors as _sel
+
+            decl = _sel._read_id(text)
+            if decl and core.ID6_RE.match(decl):
+                return decl
+    except Exception:
+        pass
+
+    fname = Path(loc).name
+    from agent_workflows import artifact_naming as _naming
+
+    m = _naming.parse_clustered(fname) or _naming.parse_clustered_prefix(fname)
+    if m:
+        set_segment = m.group("set")
+        if not (len(set_segment) == 4 and set_segment.isdigit()):
+            slot = m.group("id6")
+            if core.ID6_RE.match(slot):
+                return slot
+    return None
+
+
 def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
     """Synthesize a structured Remediation record from a Drift finding."""
     rule = d.rule
@@ -918,21 +948,22 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
         # Best-effort extraction of the new status word from the detail for a precise command.
         m_status = _re.search(r"changed to '([a-z-]+)'", detail)
         status_word = m_status.group(1) if m_status else "<status>"
-        cmd = f"aw set {status_word} <id6>"
+        id6 = _extract_record_id6(loc, repo_root) or "<id6>"
+        cmd_shape = f"aw ipd set {status_word} {id6}"
         return Remediation(
             title=title,
             summary_fix=(
-                f"apply this status change via '{cmd}' (or 'aw ipd set {status_word} <id6>') so it "
-                "carries an attributed '## Workflow history' line, instead of hand-editing '- Status:'."
+                f"revert the hand edit and apply status change via '{cmd_shape}' so an "
+                "attributed history entry is appended."
             ),
             detailed_fix=(
                 f"the '- Status:' of {loc} changed in this commit with no matching tool-authored "
-                f"'## Workflow history' transition line; revert the hand edit and apply the change via "
-                f"'{cmd}' (or 'aw ipd set {status_word} <id6>') so an attributed history entry is "
-                "appended. This is the intermediate-transition sibling of the terminal 'aw ipd finalize' "
-                "gate; it is a LOCAL commit-scoped detector (--no-verify bypasses the hook)."
+                f"'## Workflow history' transition line; revert the hand edit so the status returns "
+                f"to its previous value, then apply the change via '{cmd_shape}' so an attributed "
+                "history entry is appended. This is the intermediate-transition sibling of the terminal "
+                "'aw ipd finalize' gate; it is a LOCAL commit-scoped detector (--no-verify bypasses the hook)."
             ),
-            command=cmd,
+            command=None,
             file_path=loc,
         )
 
@@ -946,16 +977,20 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
         # is still the right recovery.
         title = "One Set ID used with two different descriptives in one record type"
         target_type = art_type or "plans"
-        cmd = f"aw group {target_type} {loc} --set <new-set-id>"
+        id6 = _extract_record_id6(loc, repo_root)
+        selector = id6 if id6 else loc
+        cmd_shape = (
+            f"aw group {target_type} {selector} --set <new-set-id> --rename --apply"
+        )
         return Remediation(
             title=title,
-            summary_fix=cmd,
+            summary_fix=f"regroup with '{cmd_shape}' or align the two descriptives.",
             detailed_fix=(
                 f"another record of the SAME type uses this Set ID with a different descriptive; "
-                f"run '{cmd}' to regroup this record, or align the two descriptives. Sharing a Set "
+                f"run '{cmd_shape}' to regroup this record, or align the two descriptives. Sharing a Set "
                 f"ID with a different record type is correct and is not reported."
             ),
-            command=cmd,
+            command=None,
             file_path=loc,
         )
 
@@ -972,12 +1007,34 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
     if "name-nonconformant" in rule:
         title = "Filename does not match artifact naming grammar"
         target_type = art_type or "plans"
-        cmd = f"aw rename {target_type} {loc}"
+        id6 = _extract_record_id6(loc, repo_root)
+        if id6:
+            selector = id6
+            cmd_shape = (
+                f"aw rename {target_type} {selector} --slug <corrected-slug> --apply"
+            )
+            summary_fix = (
+                f"rename with '{cmd_shape}' (choosing a corrected slug is a human decision; "
+                "a truncated slug cannot be derived mechanically)."
+            )
+            detailed_fix = (
+                f"the slug in {loc} is nonconformant; choosing a corrected slug is a human decision "
+                f"(cannot be derived mechanically). Run '{cmd_shape}' or rename to match "
+                "'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'."
+            )
+        else:
+            selector = loc
+            cmd_shape = f"aw rename {target_type} {selector} --to-id6 --apply"
+            summary_fix = f"convert to canonical naming via '{cmd_shape}'."
+            detailed_fix = (
+                f"{loc} does not carry a clustered identity prefix; run '{cmd_shape}' "
+                "or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'."
+            )
         return Remediation(
             title=title,
-            summary_fix=cmd,
-            detailed_fix=f"run '{cmd}' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.",
-            command=cmd,
+            summary_fix=summary_fix,
+            detailed_fix=detailed_fix,
+            command=None,
             file_path=loc,
         )
 
@@ -1010,27 +1067,50 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
     if "blocks-release-dangling" in rule:
         title = "Dangling Blocks-Release reference (target release does not exist)"
         target_type = art_type or "specs"
-        cmd = f"aw {target_type} set {loc} --blocks-release next"
+        if target_type == "plans":
+            id6 = _extract_record_id6(loc, repo_root)
+            selector = id6 if id6 else loc
+            cmd_shape = f"aw ipd set {selector} --blocks-release next"
+            summary_fix = f"update '- Blocks-Release:' via '{cmd_shape}'."
+            detailed_fix = (
+                f"update '- Blocks-Release:' in {loc} to point to an existing planned release "
+                f"record or 'next' with '{cmd_shape}'."
+            )
+        elif target_type in ("backlog", "specs"):
+            cmd_shape = f"aw {target_type} set {loc} --status <current-status> --blocks-release next"
+            summary_fix = f"update '- Blocks-Release:' via '{cmd_shape}'."
+            detailed_fix = (
+                f"update '- Blocks-Release:' in {loc} to point to an existing planned release "
+                f"record or 'next' with '{cmd_shape}'."
+            )
+        else:
+            summary_fix = (
+                "update frontmatter '- Blocks-Release:' to point to an existing planned release "
+                "record or 'next'."
+            )
+            detailed_fix = (
+                f"update '- Blocks-Release:' in {loc} to point to an existing planned release "
+                f"record or 'next'."
+            )
         return Remediation(
             title=title,
-            summary_fix=cmd,
-            detailed_fix=f"update '- Blocks-Release:' in {loc} to point to an existing planned release record or 'next' with '{cmd}'.",
-            command=cmd,
+            summary_fix=summary_fix,
+            detailed_fix=detailed_fix,
+            command=None,
             file_path=loc,
         )
 
     if rule.startswith("doctor.git-dirty"):
         title = "Unstaged git modifications"
-        cmd = (
-            f'git commit -m "Update" -- {loc}'
-            if loc and not loc.startswith("<")
-            else 'git commit -m "<msg>" -- <paths>'
-        )
+        target_str = f" in {loc}" if loc and not loc.startswith("<") else ""
         return Remediation(
             title=title,
-            summary_fix="review and stage/commit changes with 'git commit -m \"<msg>\" -- <paths>'.",
-            detailed_fix=f"review and stage/commit changes with '{cmd}'.",
-            command=cmd,
+            summary_fix="review modifications and commit via 'aw commit' or discard/stash.",
+            detailed_fix=(
+                f"review modifications{target_str} before staging; commit via 'aw commit' "
+                "(the tooled commit path) or discard/stash changes after review."
+            ),
+            command=None,
             file_path=loc,
         )
 
@@ -1046,16 +1126,15 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
 
     if rule.startswith("doctor.git-staged"):
         title = "Staged changes pending git commit"
-        cmd = (
-            f'git commit -m "Update" -- {loc}'
-            if loc and not loc.startswith("<")
-            else 'git commit -m "<msg>" -- <paths>'
-        )
+        target_str = f" in {loc}" if loc and not loc.startswith("<") else ""
         return Remediation(
             title=title,
-            summary_fix="commit staged changes with 'git commit -m \"<msg>\" -- <paths>'.",
-            detailed_fix=f"commit staged changes with '{cmd}'.",
-            command=cmd,
+            summary_fix="review staged changes and commit via 'aw commit'.",
+            detailed_fix=(
+                f"review staged changes{target_str} before committing; commit via 'aw commit' "
+                "(the tooled commit path) rather than raw git commit."
+            ),
+            command=None,
             file_path=loc,
         )
 

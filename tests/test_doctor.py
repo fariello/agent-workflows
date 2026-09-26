@@ -10,6 +10,7 @@ import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 
+from agent_workflows import artifact_core as core
 from agent_workflows import doctor
 from agent_workflows import engine, versioning
 
@@ -389,6 +390,268 @@ class DoctorLayoutClassificationIsContentAwareTests(unittest.TestCase):
         )
         res = doctor.probe_environment(self.root)
         self.assertEqual(res.layout, ".agents")
+
+
+class DoctorRemediationTests(unittest.TestCase):
+    """Regression tests for IPD 6k7xot: honest and runnable aw doctor remediations."""
+
+    # Rule table representing every branch build_remediation handles (E-06 / V-06)
+    REPRESENTATIVE_DRIFTS = [
+        core.Drift(
+            ".aw/records/backlog/open/20260908-demo-01-aaa111-a-truncated-slug-.backlog.md",
+            "check.name-nonconformant",
+            "nonconformant name",
+        ),
+        core.Drift(
+            ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+            "check.setid-collision",
+            "setid collision with other",
+        ),
+        core.Drift(
+            ".aw/records/specs/draft/20260925-1111-01-test.spec.md",
+            "check.blocks-release-dangling",
+            "dangling release gate",
+        ),
+        core.Drift(
+            ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+            "check.status-untooled",
+            "status changed to 'approved'",
+        ),
+        core.Drift("some/file.py", "doctor.git-dirty", "uncommitted modification"),
+        core.Drift("<git>", "doctor.git-dirty", "uncommitted modification"),
+        core.Drift("some/file.py", "doctor.git-staged", "staged change"),
+        core.Drift("<git>", "doctor.git-staged", "staged change"),
+        core.Drift(
+            ".aw/records/plans/pending/20260925-doctorhint-01-aaa111-test.ipd.md",
+            "check.id6-identity-slot",
+            "identity slot does not match",
+        ),
+        core.Drift(
+            ".aw/records/plans/pending/20260925-doctorhint-01-aaa111-test.ipd.md",
+            "check.summary-unsafe",
+            "multiline summary",
+        ),
+        core.Drift(
+            ".aw/records/plans/manifest.json",
+            "check.stale-index-missing",
+            "index missing",
+        ),
+        core.Drift(
+            ".aw/records/plans/manifest.json", "check.stale-index-stale", "index stale"
+        ),
+        core.Drift(
+            ".aw/records/plans/manifest.json", "doctor.index-stale", "index stale"
+        ),
+        core.Drift(".aw/setup-repo-needed.md", "doctor.setup-needed", "setup needed"),
+        core.Drift(
+            ".agents/workflows/assess", "doctor.layout-split-brain", "split brain"
+        ),
+        core.Drift("<pypi>", "doctor.pypi-update-available", "update available"),
+        core.Drift(
+            ".aw/system/VERSION", "doctor.version-not-installed", "version mismatch"
+        ),
+        core.Drift("some/secret.py", "doctor.leak-detected", "sensitive token"),
+        core.Drift("some/untracked.txt", "doctor.git-untracked", "untracked file"),
+        core.Drift("some/conflict.txt", "doctor.git-conflict", "unmerged conflict"),
+        core.Drift(
+            "some/artifact.md", "check.generic-fallback", "unknown check finding"
+        ),
+    ]
+
+    def test_remediation_family_guard(self) -> None:
+        """E-06/V-06: Every emitted command must be runnable as printed: no <...> placeholders,
+        never starts with 'git commit', and contains '--apply' for 'aw rename' and 'aw group'."""
+        root = Path(".")
+        for d in self.REPRESENTATIVE_DRIFTS:
+            with self.subTest(rule=d.rule, loc=d.location):
+                rem = doctor.build_remediation(d, root)
+                if rem.command is not None:
+                    cmd = rem.command
+                    self.assertNotIn("<", cmd, f"Command contains placeholder: {cmd}")
+                    self.assertNotIn(">", cmd, f"Command contains placeholder: {cmd}")
+                    self.assertFalse(
+                        cmd.startswith("git commit"),
+                        f"Command must not start with git commit: {cmd}",
+                    )
+                    if cmd.startswith(("aw rename", "aw group")):
+                        self.assertIn(
+                            "--apply",
+                            cmd,
+                            f"Rename/group mutation must contain --apply: {cmd}",
+                        )
+
+    def test_resolve_next_actions_advisory_rules_return_no_action(self) -> None:
+        """E-06: resolve_next_actions returns no action for a drift set made only of the five
+        rules made advisory by E-01..E-05."""
+        advisory_drifts = [
+            core.Drift(
+                ".aw/records/backlog/open/20260908-demo-01-aaa111-a-truncated-slug-.backlog.md",
+                "check.name-nonconformant",
+                "bad name",
+            ),
+            core.Drift(
+                ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+                "check.setid-collision",
+                "collision",
+            ),
+            core.Drift(
+                ".aw/records/specs/draft/20260925-1111-01-test.spec.md",
+                "check.blocks-release-dangling",
+                "dangling",
+            ),
+            core.Drift(
+                ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+                "check.status-untooled",
+                "changed to 'approved'",
+            ),
+            core.Drift("some/file.py", "doctor.git-dirty", "dirty"),
+            core.Drift("some/file.py", "doctor.git-staged", "staged"),
+        ]
+        primary, actions = doctor.resolve_next_actions(advisory_drifts, Path("."))
+        self.assertIsNone(primary)
+        self.assertEqual(actions, [])
+
+    def test_remediation_name_nonconformant_clustered_and_freeform(self) -> None:
+        """E-01/V-01: name-nonconformant is advisory; clustered location names id6 selector (not path)
+        plus --slug and --apply; free-form location names --to-id6; plans location never names path."""
+        root = Path(".")
+        # Clustered backlog location
+        d_clustered_backlog = core.Drift(
+            ".aw/records/backlog/open/20260908-demo-01-aaa111-a-truncated-slug-.backlog.md",
+            "check.name-nonconformant",
+            "bad name",
+        )
+        rem_cb = doctor.build_remediation(d_clustered_backlog, root)
+        self.assertIsNone(rem_cb.command)
+        self.assertIn("aaa111", rem_cb.detailed_fix)
+        self.assertIn("--slug <corrected-slug>", rem_cb.detailed_fix)
+        self.assertIn("--apply", rem_cb.detailed_fix)
+        self.assertIn("human decision", rem_cb.detailed_fix)
+
+        # Clustered plans location: must select by id6, never by path
+        d_clustered_plans = core.Drift(
+            ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+            "check.name-nonconformant",
+            "bad name",
+        )
+        rem_cp = doctor.build_remediation(d_clustered_plans, root)
+        self.assertIsNone(rem_cp.command)
+        self.assertIn("6k7xot", rem_cp.detailed_fix)
+        self.assertIn("--slug <corrected-slug>", rem_cp.detailed_fix)
+        self.assertIn("--apply", rem_cp.detailed_fix)
+        self.assertNotIn(
+            "aw rename plans .aw/records/plans/pending",
+            rem_cp.detailed_fix,
+        )
+
+        # Free-form location (e.g. weird.ipd.md)
+        d_freeform = core.Drift("weird.ipd.md", "check.name-nonconformant", "bad name")
+        rem_ff = doctor.build_remediation(d_freeform, root)
+        self.assertIsNone(rem_ff.command)
+        self.assertIn("--to-id6", rem_ff.detailed_fix)
+        self.assertIn("--apply", rem_ff.detailed_fix)
+
+    def test_remediation_setid_collision(self) -> None:
+        """E-02/V-02: setid-collision is advisory; detailed_fix contains --set, --rename, --apply,
+        and uses id6 selector for plans."""
+        root = Path(".")
+        d_backlog = core.Drift(
+            ".aw/records/backlog/open/20260908-demo-01-aaa111-item.backlog.md",
+            "check.setid-collision",
+            "collision",
+        )
+        rem_b = doctor.build_remediation(d_backlog, root)
+        self.assertIsNone(rem_b.command)
+        self.assertIn("--set <new-set-id>", rem_b.detailed_fix)
+        self.assertIn("--rename", rem_b.detailed_fix)
+        self.assertIn("--apply", rem_b.detailed_fix)
+
+        d_plans = core.Drift(
+            ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+            "check.setid-collision",
+            "collision",
+        )
+        rem_p = doctor.build_remediation(d_plans, root)
+        self.assertIsNone(rem_p.command)
+        self.assertIn("aw group plans 6k7xot", rem_p.detailed_fix)
+        self.assertIn("--set <new-set-id>", rem_p.detailed_fix)
+        self.assertIn("--rename", rem_p.detailed_fix)
+        self.assertIn("--apply", rem_p.detailed_fix)
+
+    def test_remediation_blocks_release_dangling(self) -> None:
+        """E-03/V-03: blocks-release-dangling is advisory; names --status for backlog/specs,
+        names aw ipd set (never aw plans set) for plans, and names no aw <type> set for types with no set verb."""
+        root = Path(".")
+        # backlog
+        d_b = core.Drift(
+            ".aw/records/backlog/open/item.backlog.md",
+            "check.blocks-release-dangling",
+            "dangling",
+        )
+        rem_b = doctor.build_remediation(d_b, root)
+        self.assertIsNone(rem_b.command)
+        self.assertIn("--blocks-release next", rem_b.detailed_fix)
+        self.assertIn("--status <current-status>", rem_b.detailed_fix)
+
+        # specs
+        d_s = core.Drift(
+            ".aw/records/specs/draft/item.spec.md",
+            "check.blocks-release-dangling",
+            "dangling",
+        )
+        rem_s = doctor.build_remediation(d_s, root)
+        self.assertIsNone(rem_s.command)
+        self.assertIn("--blocks-release next", rem_s.detailed_fix)
+        self.assertIn("--status <current-status>", rem_s.detailed_fix)
+
+        # plans: must name aw ipd set, never aw plans set
+        d_p = core.Drift(
+            ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+            "check.blocks-release-dangling",
+            "dangling",
+        )
+        rem_p = doctor.build_remediation(d_p, root)
+        self.assertIsNone(rem_p.command)
+        self.assertIn("aw ipd set", rem_p.detailed_fix)
+        self.assertNotIn("aw plans set", rem_p.detailed_fix)
+        self.assertIn("--blocks-release next", rem_p.detailed_fix)
+
+        # releases / other types without a set verb
+        d_r = core.Drift(
+            ".aw/records/releases/planned/rel.release.md",
+            "check.blocks-release-dangling",
+            "dangling",
+        )
+        rem_r = doctor.build_remediation(d_r, root)
+        self.assertIsNone(rem_r.command)
+        self.assertNotIn("aw releases set", rem_r.detailed_fix)
+        self.assertIn("'- Blocks-Release:'", rem_r.detailed_fix)
+
+    def test_remediation_status_untooled(self) -> None:
+        """E-04/V-04: status-untooled is advisory; detailed_fix names reverting hand edit AND aw ipd set."""
+        root = Path(".")
+        d = core.Drift(
+            ".aw/records/plans/pending/20260925-doctorhint-01-6k7xot-test.ipd.md",
+            "check.status-untooled",
+            "status changed to 'approved' without history",
+        )
+        rem = doctor.build_remediation(d, root)
+        self.assertIsNone(rem.command)
+        self.assertIn("revert the hand edit", rem.detailed_fix)
+        self.assertIn("aw ipd set", rem.detailed_fix)
+
+    def test_remediation_git_dirty_and_staged(self) -> None:
+        """E-05/V-05: git-dirty and git-staged are advisory for real paths and for <git> sentinel,
+        naming aw commit and never emitting git commit."""
+        root = Path(".")
+        for rule in ("doctor.git-dirty", "doctor.git-staged"):
+            for loc in ("src/foo.py", "<git>"):
+                with self.subTest(rule=rule, loc=loc):
+                    d = core.Drift(loc, rule, "uncommitted changes")
+                    rem = doctor.build_remediation(d, root)
+                    self.assertIsNone(rem.command)
+                    self.assertIn("aw commit", rem.detailed_fix)
+                    self.assertNotIn("git commit -m", rem.detailed_fix)
 
 
 if __name__ == "__main__":
