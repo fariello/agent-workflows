@@ -6,7 +6,7 @@
 - Scope: IN: `_has_executed_status` reads only the metadata region's FIRST `- Status:`; tests. OUT: the rest of the hook's logic; the sibling `check_engine._status_meta` residual case found at review (carried).
 - Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, tests/test_executed_transition_gate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -15,11 +15,11 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: kecxnb
-- Approval: 2026-09-25, recorded via aw ipd set: status set to approved
 - From-Backlog: 4vhe5o
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-26 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kecxnb verified (set fencegate, attempt 1).
 - 2026-09-25 approved (aw set): status set to approved
 - 2026-09-25 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; 6 findings PR-901..PR-906 all FIXED, 4 decisions D-1..D-4 recorded; review record written; reproduced the false refusal end to end and narrowed the trigger (F-3), found the first-bullet requirement (F-4), proved the fix regresses nothing by running the hook's deleted suite against it (6 passed), and filed items ove09p and pyk78c; aw ipd lint --phase review-finalize conforming
 - 2026-09-25 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog 4vhe5o. Reproduced at HEAD: `_has_executed_status` on a plan whose own Status is `approved` but which quotes `- Status: executed` in a fence returns True.
@@ -34,23 +34,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: fix and test
 
-- [ ] E-01 Change `_has_executed_status` to read the status from the record's metadata region via `selectors.metadata_region(text)` (the toolkit's ONE metadata boundary), matching the FIRST `- Status:` bullet there, case-insensitively, against `executed` or its `done` alias.
+- [x] E-01 Change `_has_executed_status` to read the status from the record's metadata region via `selectors.metadata_region(text)` (the toolkit's ONE metadata boundary), matching the FIRST `- Status:` bullet there, case-insensitively, against `executed` or its `done` alias.
   - TAKE THE FIRST BULLET, NOT ANY MATCH IN THE REGION, and this is load-bearing rather than stylistic. `metadata_region` returns "everything before the first `##` heading", and for a record with NO `##` heading at all it returns the WHOLE input by design (its docstring records that this is correct for 25 of 1614 tracked records). So an any-match-in-region implementation still returns True for a headingless plan that quotes the line: measured at review, `('(e) headingless approved + fenced')` is False under first-match and True under any-match. No such plan exists in the tree today (measured: 0 of 776 plans lack a `##` heading), so this is a latent case, not a live one; implement it correctly anyway because the hook also reads STAGED blobs of arbitrary content.
   - Verified at review that the change is BEHAVIOR-COMPATIBLE with the hook's deleted test suite: monkeypatching this exact implementation in and running the six recovered tests from `19313eed^` gave `6 passed`, so no existing gate behavior regresses.
   - Depends on: none
   - Expected outcome: a fenced or body-level `- Status: executed` no longer counts; the metadata one still does.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `tests/test_executed_transition_gate.py` with those two cases plus (c) a `done` alias in metadata -> True and (d) an OQ block's own `- Status: open` below the metadata with metadata `executed` -> True. All four verified at review against the proposed implementation: (a) False, (b) True, (c) True, (d) True.
+- [x] E-02 Add `tests/test_executed_transition_gate.py` with those two cases plus (c) a `done` alias in metadata -> True and (d) an OQ block's own `- Status: open` below the metadata with metadata `executed` -> True. All four verified at review against the proposed implementation: (a) False, (b) True, (c) True, (d) True.
   - THE FILE NAME IS NOT FREE: a 1267-line `tests/test_executed_transition_gate.py` was DELETED by the suite trim `19313eed`, and this item recreates that exact path with four unit cases. Recovered and run at review: its six tests still PASS against today's hook (`6 passed in 3.65s`). So creating the file is correct, but state plainly in its module docstring that it is a NEW narrow file and not the restored suite, so a later reader does not mistake four cases for the coverage that was lost. ADD at least one END-TO-END case beside the four unit cases, because the four exercise `_has_executed_status` in isolation while the defect a human experiences is a refused commit: stage a commit that ADDS the fenced quote to a non-executed plan in a temp repo and assert `check()` returns `(0, [])`. Measured at review, that same commit today returns exit 1 with the `gained '- Status: executed'` refusal.
   - Depends on: E-01
   - Expected outcome: five cases pass; (a) and the end-to-end case fail against the pre-change function.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run the bare suite.
+- [x] E-03 Run the bare suite.
   - Depends on: E-02
   - Expected outcome: green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -110,22 +110,100 @@ N/A: the ipd-lifecycle spec already says a plan's status is its metadata `- Stat
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff; paste `python3 -c` driving `_has_executed_status` on (a) metadata `approved` + fenced `executed` -> False and (b) metadata `executed` -> True.
   - ALSO REQUIRED: paste the HEADINGLESS case (a plan text with no `##` at all, metadata `approved`, quoting `- Status: executed`) returning False, which is what proves the implementation took the FIRST bullet rather than scanning the region (F-4). An any-match implementation passes (a) and (b) and FAILS this one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff verified (constants removed, metadata_region + regex first bullet search added); python3 -c driving (a) -> False, (b) -> True, (headingless) -> False verified.
+    Diff:
+    ```diff
+    diff --git a/agent_workflows/hooks/executed_transition_gate.py b/agent_workflows/hooks/executed_transition_gate.py
+    index 8e8745f4..05792ba2 100644
+    --- a/agent_workflows/hooks/executed_transition_gate.py
+    +++ b/agent_workflows/hooks/executed_transition_gate.py
+    @@ -60,8 +60,6 @@ _FINALIZE_PHASES = ("ready-to-commit", "committed-incomplete", "complete")
 
-- [ ] V-02 validates E-02
+     _PLANS_PREFIX = ".aw/records/plans/"
+     _EXECUTED_SEGMENT = "/executed/"
+    -_STATUS_EXECUTED_LINE = "- status: executed"
+    -_STATUS_DONE_LINE = "- status: done"
+
+
+     def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
+    @@ -101,11 +99,14 @@ def _has_executed_status(text: Optional[str]) -> bool:
+         """True if the plan text carries a metadata `- Status: executed` (or `done` alias) line."""
+         if not text:
+             return False
+    -    for line in text.splitlines():
+    -        low = line.strip().lower()
+    -        if low == _STATUS_EXECUTED_LINE or low == _STATUS_DONE_LINE:
+    -            return True
+    -    return False
+    +    import re
+    +    from agent_workflows import selectors
+    +
+    +    region = selectors.metadata_region(text)
+    +    m = re.search(r"(?mi)^-\s*status:\s*(\S+)", region)
+    +    if not m:
+    +        return False
+    +    return m.group(1).lower() in ("executed", "done")
+
+
+     def _plan_id_of(text: Optional[str]) -> Optional[str]:
+    ```
+
+    `python3 -c` verification:
+    ```text
+    $ python3 -c 'from agent_workflows.hooks import executed_transition_gate as GATE; a = "# Title\n\n- Id: kecxnb\n- Status: approved\n\n## Goal\n\n```\n- Status: executed\n```\n"; b = "# Title\n\n- Id: kecxnb\n- Status: executed\n\n## Goal\n"; h = "# Title\n\n- Id: kecxnb\n- Status: approved\n\n```\n- Status: executed\n```\n"; print("(a):", GATE._has_executed_status(a)); print("(b):", GATE._has_executed_status(b)); print("(headingless):", GATE._has_executed_status(h))'
+    (a): False
+    (b): True
+    (headingless): False
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the test run passing; revert E-01 IN THE WORKTREE and paste case (a) FAILING; restore. Name the observed failure mode in the reverted run, which must be the fenced-quote assertion rather than an import or fixture error.
   - ALSO REQUIRED: paste the END-TO-END case's output, showing `check()` returning `(0, [])` for a staged commit that ADDS the fenced quote to a non-executed plan, and paste the same scenario against the reverted code showing exit 1 with `gained '- Status: executed'` (measured at review, that is exactly what it returns today). Confirm the new test file's docstring says it is a NEW narrow file, not the restored `19313eed` suite (F-5).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 6 passed in tests/test_executed_transition_gate.py; worktree revert of E-01 produced AssertionError on line 38 for case (a), headingless, and end-to-end case; restored code passed with check() returning (0, []); docstring confirmed as new narrow file (F-5).
+    Passing test run:
+    ```text
+    $ python3 -m pytest tests/test_executed_transition_gate.py -o addopts=""
+    ============================== 6 passed in 1.10s ===============================
+    ```
 
-- [ ] V-03 validates E-03
+    Reverted run failure on case (a), headingless, and end-to-end case:
+    ```text
+    =================================== FAILURES ===================================
+    _ ExecutedStatusUnitTests.test_case_a_approved_with_fenced_executed_returns_false _
+        def test_case_a_approved_with_fenced_executed_returns_false(self):
+    >       self.assertFalse(GATE._has_executed_status(text))
+    E       AssertionError: True is not false
+    tests/test_executed_transition_gate.py:38: AssertionError
+
+    _ ExecutedGateEndToEndTests.test_commit_adding_fenced_executed_to_approved_plan_passes_gate _
+    >           self.assertEqual(exit_code, 0, f"Expected exit_code 0, got {exit_code} with refusals: {refusals}")
+    E           AssertionError: 1 != 0 : Expected exit_code 0, got 1 with refusals: [".aw/records/plans/pending/20260925-fencegate-01-kecxnb-sample.ipd.md (kecxnb): raw plan->executed transition (gained '- Status: executed') with NO matching finalize evidence in .aw/state/. Do not hand-edit/`git mv` a plan to executed; run `aw ipd finalize kecxnb --actor <agent/model> --message <summary> --apply` (which runs the receipt/scope/attribution gates and makes the lifecycle commit)."]
+    tests/test_executed_transition_gate.py:136: AssertionError
+    ========================= 3 failed, 3 passed in 0.15s ==========================
+    ```
+    Observed failure mode: AssertionError on `self.assertFalse(GATE._has_executed_status(text))` (the fenced-quote assertion) and AssertionError on `exit_code == 0` with refusal reason `gained '- Status: executed'`, confirming genuine behavioral failure rather than import or fixture errors.
+
+    End-to-end case with restored code:
+    `GATE.check(root)` returns `(0, [])` when staging a commit that adds a fenced `- Status: executed` quote to an approved plan.
+
+    Docstring confirmation:
+    Confirmed `tests/test_executed_transition_gate.py` opens with docstring:
+    "NOTE: This is a NEW narrow regression test file and NOT the restored 1267-line test suite that commit `19313eed` deleted. That deleted suite covered merge-aware evidence paths, both git stages, and pre-commit registration, and is tracked for separate restoration under backlog item ove09p (F-5)."
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` (no added flags) showing 0 failed, and name any failure as pre-existing (with its node id and evidence it fails at the base commit) or new.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare python3 -m pytest passed 2377 tests (2377 passed, 1 skipped, 3 warnings in 63.43s), 0 failed.
+    Final summary line of bare `python3 -m pytest`:
+    ```text
+    2377 passed, 1 skipped, 3 warnings in 63.43s (0:01:03)
+    ```
+    0 failed (0 new failures, 0 pre-existing failures).
+  - Result: pass
 
 ## Approval and execution gate
 

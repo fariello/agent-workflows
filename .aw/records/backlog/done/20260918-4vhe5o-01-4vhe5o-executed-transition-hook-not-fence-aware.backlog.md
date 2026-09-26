@@ -1,5 +1,5 @@
 - Id: 4vhe5o
-- Status: graduated
+- Status: done
 - Graduated-To: fencegate
 - Blocks-Release: next
 - Set: 4vhe5o
@@ -8,6 +8,7 @@
 - Summary: the executed-transition pre-commit hook is not fence-aware, so a plan quoting '- Status: executed' inside a code fence is refused as a raw transition
 
 ## Workflow history
+- 2026-09-26 set (aw backlog): closed by aw oc run: IPD kecxnb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-fencegate-01-kecxnb-make-the-executed-transition-hook-read-only-the-plan-s-own-s.ipd.md); evidence .aw/records/plans/executed/20260925-fencegate-01-kecxnb-make-the-executed-transition-hook-read-only-the-plan-s-own-s.ipd.md
 - 2026-09-25 graduated (aw set): graduated into fencegate (plan kecxnb); verified live at 8e74dcac
 - 2026-09-18 created (aw backlog): the executed-transition pre-commit hook is not fence-aware, so a plan quoting '- Status: executed' inside a code fence is refused as a raw transition
 
