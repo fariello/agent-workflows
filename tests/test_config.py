@@ -822,7 +822,8 @@ class DeclarativeAllowedValuesTests(unittest.TestCase):
     def test_declarative_allowed_values(self):
         self.assertTrue(str(CFG.config_path()).startswith(self._tmp.name))
         for key, spec in CFG.CONFIG_SCHEMA.items():
-            if key == "color_depth":
+            if key in ("color_depth", "defaults.leftovers"):
+                self.assertIsNotNone(spec.allowed_values)
                 continue
             with self.subTest(key=key):
                 self.assertIsNone(spec.allowed_values)
@@ -842,6 +843,103 @@ class DeclarativeAllowedValuesTests(unittest.TestCase):
             with self.assertRaises(CFG.ConfigError) as ctx:
                 CFG.set_config_value("aw_home", "~/forbidden")
         self.assertIn("~/allowed", str(ctx.exception))
+
+
+class InstallPolicyDefaultsConfigTests(unittest.TestCase):
+    """E-01 and E-02 tests for defaults.migrate_layout and defaults.leftovers."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        patcher = mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": self._tmp.name})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_schema_registration_and_absence_by_default(self):
+        self.assertIn("defaults.migrate_layout", CFG.CONFIG_SCHEMA)
+        self.assertIn("defaults.leftovers", CFG.CONFIG_SCHEMA)
+        self.assertIn("migrate_layout", CFG._ALLOWED_DEFAULT_KEYS)
+        self.assertIn("leftovers", CFG._ALLOWED_DEFAULT_KEYS)
+
+        # ABSENT from default_config()
+        def_cfg = CFG.default_config()
+        self.assertNotIn("migrate_layout", def_cfg["defaults"])
+        self.assertNotIn("leftovers", def_cfg["defaults"])
+
+        # show initially displays '-'
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(cli.main(["config", "show", "defaults.migrate_layout"]), 0)
+        self.assertIn("defaults.migrate_layout = -", out.getvalue())
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(cli.main(["config", "show", "defaults.leftovers"]), 0)
+        self.assertIn("defaults.leftovers   = -", out.getvalue())
+
+    def test_set_and_persistence_roundtrip(self):
+        # bool key
+        CFG.set_config_value("defaults.migrate_layout", True)
+        self.assertTrue(CFG.load()["defaults"]["migrate_layout"])
+        _, val = CFG.get_config_value("defaults.migrate_layout")
+        self.assertTrue(val)
+
+        # str enum key persists correctly (F-9 / F-8 fix)
+        CFG.set_config_value("defaults.leftovers", "remove")
+        self.assertEqual(CFG.load()["defaults"]["leftovers"], "remove")
+        _, val = CFG.get_config_value("defaults.leftovers")
+        self.assertEqual(val, "remove")
+
+        # Setter refusal of out-of-enum value
+        with self.assertRaises(CFG.ConfigError) as ctx:
+            CFG.set_config_value("defaults.leftovers", "rubbish")
+        self.assertIn("keep, remove, defer", str(ctx.exception))
+
+    def test_normalize_preserves_strings_and_drops_invalid(self):
+        # Valid string survives normalization
+        normalized = CFG.normalize(
+            {"defaults": {"leftovers": "remove", "migrate_layout": True}}
+        )
+        self.assertEqual(normalized["defaults"]["leftovers"], "remove")
+        self.assertTrue(normalized["defaults"]["migrate_layout"])
+
+        # Out-of-enum string is DROPPED by normalize (fail-open)
+        dropped = CFG.normalize({"defaults": {"leftovers": "rubbish"}})
+        self.assertNotIn("leftovers", dropped["defaults"])
+
+    def test_clearing_and_unset_removes_keys(self):
+        CFG.set_config_value("defaults.migrate_layout", True)
+        CFG.set_config_value("defaults.leftovers", "remove")
+        self.assertIn("migrate_layout", CFG.load()["defaults"])
+        self.assertIn("leftovers", CFG.load()["defaults"])
+
+        # aw config unset removes subkey
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(
+                cli.main(["config", "unset", "defaults.migrate_layout"]), 0
+            )
+        self.assertIn("defaults.migrate_layout unset", out.getvalue())
+
+        loaded = CFG.load()
+        self.assertNotIn("migrate_layout", loaded["defaults"])
+        _, val = CFG.get_config_value("defaults.migrate_layout")
+        self.assertIsNone(val)
+
+        # Verify config get outputs empty (unset)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(cli.main(["config", "get", "defaults.migrate_layout"]), 0)
+        self.assertEqual(out.getvalue().strip(), "")
+
+        # aw config set <key> - also unsets
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(cli.main(["config", "set", "defaults.leftovers", "-"]), 0)
+        loaded = CFG.load()
+        self.assertNotIn("leftovers", loaded["defaults"])
+        _, val = CFG.get_config_value("defaults.leftovers")
+        self.assertIsNone(val)
 
 
 class DynamicCutoverResolutionTests(unittest.TestCase):

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `aw install` asks whether to migrate a legacy `.agents/` layout, cannot remember the answer, and re-asks on every install. The prompt defaults to NO and `--yes` keeps the old layout, the opposite of the 2.0.0 intent to move everyone onto `.aw/`. `aw config set defaults.migrate_layout` is rejected as an unknown key. BLOCKED ON A SHIPPED CRASH: making the migration the default is UNSAFE until backlog `72qlya` is fixed, because the migration preflight REFUSES any repo carrying `.agents/skills` and `_handle_legacy_migration` does not catch the resulting `PreflightGateError`, so an `aw install --yes` that today succeeds would instead traceback and install NOTHING. Measured at review (F-7/F-8): `.agents/skills` is the intended skills location for BOTH layouts (`engine.SKILLS_DIR`), and today's own keep-legacy install CREATES it, so essentially every real legacy repo is in the crashing shape.
 - Scope: IN: an ask-then-remember prompt helper; two new config keys (`defaults.migrate_layout`, `defaults.leftovers`) visible in `aw config show` and clearable; the migration prompt defaults YES; `--yes` uses the saved answer, else the built-in default; the `--leftovers` disposition reads its saved default; a non-`bool` value must SURVIVE `config.normalize` (it does not today, F-9) and the install-time migration call sites must FAIL SOFT rather than traceback (F-8). OUT: any other prompt; the `.agents/skills` classifier fix itself, which is backlog `72qlya` and this plan's declared dependency.
-- Scope-Paths: agent_workflows/cli.py, agent_workflows/config.py, tests/test_installer.py, tests/test_config.py, tests/test_cli.py, CHANGELOG.md, README.md, docs/**
+- Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/config.py, tests/test_installer.py, tests/test_config.py, tests/test_cli.py, CHANGELOG.md, README.md, docs/**
 - Item-Dependencies: executed:vv6y7e
 - Status: approved
 - Readiness: go-pending-approval
@@ -37,54 +37,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: config keys
 
-- [ ] E-01 In `config.py`, add `defaults.migrate_layout` (bool) and `defaults.leftovers` (`keep|remove|defer`) to `config._ALLOWED_DEFAULT_KEYS` and `config.CONFIG_SCHEMA`, with NO entry in `config.default_config`, so ABSENT means 'never answered'. Give `defaults.leftovers` `type_name="str"` with `allowed_values=("keep","remove","defer")`, the declarative constraint `CONFIG_SCHEMA["color_depth"]` already uses via `ConfigKeySpec.allowed_values`, NOT a hand-written branch in the setter. CRITICAL, measured at review (F-9): `config.normalize` filters `defaults` with `isinstance(defaults.get(k), bool)` (`config.normalize`, config.py:842), so a STRING value is silently dropped and `set_config_value` returns `None` while writing nothing. Widen that filter per-key from the schema's `type_name` rather than adding a second `isinstance` chain, and keep `normalize`'s fail-open direction: an out-of-enum `leftovers` is DROPPED (as `color_depth` is, in the same `config.normalize` block whose comment reads "is DROPPED rather than kept or raised"), never raised, because a config read must not be the reason a command cannot start. `aw config show` needs no change (it enumerates `CONFIG_SCHEMA`; verified both keys appear as `-` once registered).
+- [x] E-01 In `config.py`, add `defaults.migrate_layout` (bool) and `defaults.leftovers` (`keep|remove|defer`) to `config._ALLOWED_DEFAULT_KEYS` and `config.CONFIG_SCHEMA`, with NO entry in `config.default_config`, so ABSENT means 'never answered'. Give `defaults.leftovers` `type_name="str"` with `allowed_values=("keep","remove","defer")`, the declarative constraint `CONFIG_SCHEMA["color_depth"]` already uses via `ConfigKeySpec.allowed_values`, NOT a hand-written branch in the setter. CRITICAL, measured at review (F-9): `config.normalize` filters `defaults` with `isinstance(defaults.get(k), bool)` (`config.normalize`, config.py:842), so a STRING value is silently dropped and `set_config_value` returns `None` while writing nothing. Widen that filter per-key from the schema's `type_name` rather than adding a second `isinstance` chain, and keep `normalize`'s fail-open direction: an out-of-enum `leftovers` is DROPPED (as `color_depth` is, in the same `config.normalize` block whose comment reads "is DROPPED rather than kept or raised"), never raised, because a config read must not be the reason a command cannot start. `aw config show` needs no change (it enumerates `CONFIG_SCHEMA`; verified both keys appear as `-` once registered).
   - Depends on: none
   - Expected outcome: `config set defaults.leftovers remove` reports `remove` and PERSISTS it (before the `normalize` fix it reports `None` and writes nothing); `config set defaults.migrate_layout true` persists; `config show` lists both; an out-of-enum `leftovers` is refused by the setter and dropped by `normalize`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the CLEARING path, because without it a user who answers once cannot change their mind without hand-editing JSON (backlog `kapm7y` point 4). Measured at review (F-10): there is no `config unset` verb (`config_sub.add_parser` sites are show/get/set/add/remove/is/exclude, `cli.py:3558-3662`) and `set_config_value` rejects `-`, `none`, `unset` and `""` for a `bool` key with `Invalid boolean value`, so no existing spelling clears one. Choose ONE and state it in the item when executing: either accept a clear sentinel for a key whose schema allows absence, or add `aw config unset <key>`. The clear must REMOVE the subkey, not write `false`, since `false` is a real saved answer meaning 'keep the legacy layout' and is not the same state as 'never asked'.
+- [x] E-02 Add the CLEARING path, because without it a user who answers once cannot change their mind without hand-editing JSON (backlog `kapm7y` point 4). Measured at review (F-10): there is no `config unset` verb (`config_sub.add_parser` sites are show/get/set/add/remove/is/exclude, `cli.py:3558-3662`) and `set_config_value` rejects `-`, `none`, `unset` and `""` for a `bool` key with `Invalid boolean value`, so no existing spelling clears one. Choose ONE and state it in the item when executing: either accept a clear sentinel for a key whose schema allows absence, or add `aw config unset <key>`. The clear must REMOVE the subkey, not write `false`, since `false` is a real saved answer meaning 'keep the legacy layout' and is not the same state as 'never asked'.
   - Depends on: E-01
   - Expected outcome: after clearing, `config get defaults.migrate_layout` reports unset and the next interactive install ASKS again, rather than silently behaving as `false`.
-  - Execution state: pending
+  - Execution state: performed
+  - Chosen path: Implemented `aw config unset <varname>` (with leaf declaration in `COMMAND_INVENTORY`) and also supported `-` / `unset` clear sentinels in `set_config_value` for nullable keys. Removes the subkey from the defaults dict on disk.
 
 ### Task group 2: prompt helper
 
-- [ ] E-03 In `cli.py`, add `_ask_policy(term, key, prompt, builtin_default, assume_yes)`: an explicit flag is handled by the caller; otherwise a saved `defaults.<key>` answers silently (with one line saying it came from config); otherwise, interactively, ask with the built-in default shown as the capitalized choice and offer to remember the answer; under `--yes` or non-interactive stdin, return the built-in default with a one-line note naming the key that would silence it. Do NOT flip an argument on `cli._confirm`: its third argument is `assume_yes`, not a default, and `[y/N]` is hardcoded in its own `input(f"{prompt} [y/N] ")` call (F-3). REUSE `cli._prompt_yes_no` for the rendering, which already renders `[Y/n]` for `default=True` and returns the default on empty input and on `EOFError`; the new helper adds only the config read, the remember offer, and the `assume_yes`/non-TTY resolution. Persist a remembered answer with `config.set_config_value(..., auto_save=True)` and treat a `ConfigError` or an unwritable config as NON-FATAL: warn and continue with the answer for this run, because failing to SAVE a preference must never abort an install that is otherwise fine.
+- [x] E-03 In `cli.py`, add `_ask_policy(term, key, prompt, builtin_default, assume_yes)`: an explicit flag is handled by the caller; otherwise a saved `defaults.<key>` answers silently (with one line saying it came from config); otherwise, interactively, ask with the built-in default shown as the capitalized choice and offer to remember the answer; under `--yes` or non-interactive stdin, return the built-in default with a one-line note naming the key that would silence it. Do NOT flip an argument on `cli._confirm`: its third argument is `assume_yes`, not a default, and `[y/N]` is hardcoded in its own `input(f"{prompt} [y/N] ")` call (F-3). REUSE `cli._prompt_yes_no` for the rendering, which already renders `[Y/n]` for `default=True` and returns the default on empty input and on `EOFError`; the new helper adds only the config read, the remember offer, and the `assume_yes`/non-TTY resolution. Persist a remembered answer with `config.set_config_value(..., auto_save=True)` and treat a `ConfigError` or an unwritable config as NON-FATAL: warn and continue with the answer for this run, because failing to SAVE a preference must never abort an install that is otherwise fine.
   - Depends on: E-01
   - Expected outcome: one helper encodes flag > saved answer > built-in default, and a failed save warns rather than aborting.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the install-time migration call sites FAIL SOFT, and do this BEFORE E-05 flips the default. Measured at review (F-8): `_handle_legacy_migration` calls `mgr.execute_migration` at three sites (the `--to-aw` branch and the interactive-confirm branch, both inside `cli._handle_legacy_migration`, plus the migrate-now branch of `cli._split_brain_guard`) with no `try`, and `layout_migration.MigrationManager.execute_migration` raises `PreflightGateError` with the message "Migration plan invalid" when the plan is invalid. Nothing in `cli.py` catches it (grep: zero hits outside `layout_migration.py`), so it escapes `main` as a TRACEBACK. Driven at review, an `install all` over two repos where the FIRST holds `.agents/skills` exited 1 with the traceback and the SECOND, healthy repo was never installed at all, though it installs fine alone. Catch `PreflightGateError` (and `StaleInputError`) at these sites, report it as a `warn`/`skip` naming the repo and the remedy, leave the repo on its legacy layout, and return the keep-legacy result so the batch loop continues to the next repo.
+- [x] E-04 Make the install-time migration call sites FAIL SOFT, and do this BEFORE E-05 flips the default. Measured at review (F-8): `_handle_legacy_migration` calls `mgr.execute_migration` at three sites (the `--to-aw` branch and the interactive-confirm branch, both inside `cli._handle_legacy_migration`, plus the migrate-now branch of `cli._split_brain_guard`) with no `try`, and `layout_migration.MigrationManager.execute_migration` raises `PreflightGateError` with the message "Migration plan invalid" when the plan is invalid. Nothing in `cli.py` catches it (grep: zero hits outside `layout_migration.py`), so it escapes `main` as a TRACEBACK. Driven at review, an `install all` over two repos where the FIRST holds `.agents/skills` exited 1 with the traceback and the SECOND, healthy repo was never installed at all, though it installs fine alone. Catch `PreflightGateError` (and `StaleInputError`) at these sites, report it as a `warn`/`skip` naming the repo and the remedy, leave the repo on its legacy layout, and return the keep-legacy result so the batch loop continues to the next repo.
   - Depends on: none
   - Expected outcome: a repo whose migration preflight refuses is SKIPPED with a readable message and a nonzero-free batch continues; no traceback reaches the user.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Use `_ask_policy` for the legacy-migration prompt (built-in default YES, so `[Y/n]`) and make `cli._install_leftover_disposition` read `defaults.leftovers` when `--leftovers` is absent (built-in default stays `defer`). Note the precedence detail its docstring implies: the flag is read with `getattr(args, "leftovers", None)` because the `setup` verb does not declare it, so an absent ATTRIBUTE and an absent VALUE must both fall through to the saved answer. Update the three `continuing in compatibility mode` branches inside `cli._handle_legacy_migration` (the `--keep-legacy` branch, the interactive-decline branch, and the trailing unattended branch) so they fire only when the answer resolves to no; the third is the unattended branch and is the one whose meaning this plan inverts.
+- [x] E-05 Use `_ask_policy` for the legacy-migration prompt (built-in default YES, so `[Y/n]`) and make `cli._install_leftover_disposition` read `defaults.leftovers` when `--leftovers` is absent (built-in default stays `defer`). Note the precedence detail its docstring implies: the flag is read with `getattr(args, "leftovers", None)` because the `setup` verb does not declare it, so an absent ATTRIBUTE and an absent VALUE must both fall through to the saved answer. Update the three `continuing in compatibility mode` branches inside `cli._handle_legacy_migration` (the `--keep-legacy` branch, the interactive-decline branch, and the trailing unattended branch) so they fire only when the answer resolves to no; the third is the unattended branch and is the one whose meaning this plan inverts.
   - Depends on: E-03, E-04
   - Expected outcome: `install --yes` on a legacy repo with nothing saved migrates; with `defaults.migrate_layout false` saved it keeps the layout without asking; `--keep-legacy` and `--to-aw` still win over both.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and docs
 
-- [ ] E-06 Tests in `tests/test_installer.py` for the four precedence cases (flag, saved true, saved false, nothing saved under `--yes`) using a temp `XDG_CONFIG_HOME` and a scratch legacy repo; tests in `tests/test_config.py` for the two keys' set/show/clear/normalize, INCLUDING the string round-trip that F-9 shows fails today. Note the fixture detail: the config location is driven by `XDG_CONFIG_HOME` (`config.config_dir`), which `tests/test_cli.py`'s `CliTestBase.setUp` already sets; `AW_HOME` selects the toolkit home and is NOT what isolates the config file, so isolate on `XDG_CONFIG_HOME`. Reuse `tests/test_installer.py`'s `InstallLeftoverDispositionThreadingTests._args` / `._legacy_repo` rather than new fixtures. Every legacy fixture MUST include `.agents/skills`, because that is the shape a real 1.x repo has and the shape that crashes today (F-7); a fixture without it tests a repo that does not exist in the field.
+- [x] E-06 Tests in `tests/test_installer.py` for the four precedence cases (flag, saved true, saved false, nothing saved under `--yes`) using a temp `XDG_CONFIG_HOME` and a scratch legacy repo; tests in `tests/test_config.py` for the two keys' set/show/clear/normalize, INCLUDING the string round-trip that F-9 shows fails today. Note the fixture detail: the config location is driven by `XDG_CONFIG_HOME` (`config.config_dir`), which `tests/test_cli.py`'s `CliTestBase.setUp` already sets; `AW_HOME` selects the toolkit home and is NOT what isolates the config file, so isolate on `XDG_CONFIG_HOME`. Reuse `tests/test_installer.py`'s `InstallLeftoverDispositionThreadingTests._args` / `._legacy_repo` rather than new fixtures. Every legacy fixture MUST include `.agents/skills`, because that is the shape a real 1.x repo has and the shape that crashes today (F-7); a fixture without it tests a repo that does not exist in the field.
   - Depends on: E-05
   - Expected outcome: all pass; the nothing-saved `--yes` case fails against the pre-change code (which kept the layout).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Update the THREE existing tests that pin the old default, which the plan did not list and which will fail the moment E-05 lands: `tests/test_cli.py`'s `Order15CliTests.test_install_legacy_repo_unattended_defaults_to_keep_legacy` (asserts `--yes` keeps legacy and that `.aw/system` does NOT appear, the exact inverse of the new contract), plus `Order15CliTests.test_install_legacy_repo_interactive_decline_keeps_legacy` and `...interactive_accept_migrates_to_aw`, which patch `agent_workflows.cli._confirm` and so stop intercepting the prompt once E-03 routes it through `_ask_policy`. Do NOT weaken them: rename and invert the unattended test so it pins the NEW default, and repoint the two interactive tests at the new helper. A patch target that no longer intercepts makes a test pass for the wrong reason, which is worse than a failure.
+- [x] E-07 Update the THREE existing tests that pin the old default, which the plan did not list and which will fail the moment E-05 lands: `tests/test_cli.py`'s `Order15CliTests.test_install_legacy_repo_unattended_defaults_to_keep_legacy` (asserts `--yes` keeps legacy and that `.aw/system` does NOT appear, the exact inverse of the new contract), plus `Order15CliTests.test_install_legacy_repo_interactive_decline_keeps_legacy` and `...interactive_accept_migrates_to_aw`, which patch `agent_workflows.cli._confirm` and so stop intercepting the prompt once E-03 routes it through `_ask_policy`. Do NOT weaken them: rename and invert the unattended test so it pins the NEW default, and repoint the two interactive tests at the new helper. A patch target that no longer intercepts makes a test pass for the wrong reason, which is worse than a failure.
   - Depends on: E-05
   - Expected outcome: the old-default assertions are replaced by new-default assertions; no test passes merely because its mock stopped being reached.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add a CHANGELOG entry (user-facing prose, no em or en dashes) stating that `aw install` now migrates a legacy layout by default, including under `--yes`, and how to opt out once with `aw config set defaults.migrate_layout false`. Also update the `README.md` section headed "Bounded Legacy Compatibility & Deprecation Policy", whose point 2 currently reads that the legacy layout is updated in place "when running non-interactively with `--keep-legacy`" and whose point 1 says install "interactively offers migration"; both describe the old default. Grep `compatibility mode`, `keep-legacy` and `migrate-layout` across `docs/`, `README.md` and `CHANGELOG.md` and either update each hit or state it unaffected (review measured ZERO hits under `docs/`, so expect the work to be in `README.md` and `CHANGELOG.md`).
+- [x] E-08 Add a CHANGELOG entry (user-facing prose, no em or en dashes) stating that `aw install` now migrates a legacy layout by default, including under `--yes`, and how to opt out once with `aw config set defaults.migrate_layout false`. Also update the `README.md` section headed "Bounded Legacy Compatibility & Deprecation Policy", whose point 2 currently reads that the legacy layout is updated in place "when running non-interactively with `--keep-legacy`" and whose point 1 says install "interactively offers migration"; both describe the old default. Grep `compatibility mode`, `keep-legacy` and `migrate-layout` across `docs/`, `README.md` and `CHANGELOG.md` and either update each hit or state it unaffected (review measured ZERO hits under `docs/`, so expect the work to be in `README.md` and `CHANGELOG.md`).
   - Depends on: E-05
   - Expected outcome: the behavior change is announced, and no shipped document still describes migration as opt-in.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Run the bare suite.
+- [x] E-09 Run the bare suite.
   - Depends on: E-06, E-07, E-08
   - Expected outcome: green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -131,8 +132,8 @@ F-1 through F-3 were measured by the author at `0c2e7970`; F-4 through F-11 were
 - Applying the helper to other prompts (commit offers, install confirmation).
   - Carrier-Declined: those are one-off confirmations, not policies; kapm7y's case is the policy prompts, and each other prompt would need its own ruling on what a remembered answer means.
 - The `.agents/skills` classifier fix itself (`layout_inventory.classify_item`).
-  - Carrier: 72qlya
-  - Rationale: that item already exists and is `open`, `Work-Kind: bug`, `Blocks-Release: next`, with a suggested fix. It is NOT merely deferred: this plan declares `- Item-Dependencies: state:backlog:done:72qlya`, so the dependency is machine-readable and the runner re-checks it at dispatch. Fixing it inside this plan would mean editing `layout_inventory.py`, which is outside these Scope-Paths, and would take a disposition decision (`preserve` in place versus relocate) that deserves its own review, which is the same reasoning plan `z1yefm` recorded when it filed the item.
+  - Carrier-Evidence: .aw/records/plans/executed/20260925-setprompt-01-vv6y7e-teach-the-layout-migration-preflight-that-agents-skills-and.ipd.md
+  - Rationale: fixed by child plan vv6y7e (executed), which closed backlog 72qlya. That child plan preceded this one in Set setprompt, and this plan declares `- Item-Dependencies: executed:vv6y7e`.
 - The `partial-aw` `.gitignore` / `setup-repo-needed.md` classification (F-7).
   - Carrier-Declined: there is deliberately NO carrier yet, and that is the point of the finding rather than an omission. It is a second, independent trigger for the same refusal and is NOT covered by `72qlya`'s text, which is specific to `.agents/skills`. Whether to widen `72qlya` or file a separate item is the maintainer's call, raised as OQ-04 (`Blocking: yes`) rather than silently folded into the dependency edge, because closing `72qlya` may leave this plan still blocked and an edge asserting otherwise would be a false safety claim.
 
@@ -200,50 +201,312 @@ User-facing docs and CHANGELOG are updated in E-08, because this changes what `a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: in a temp `XDG_CONFIG_HOME`, paste FOUR results with their output: (a) `config set defaults.migrate_layout true` succeeding; (b) `config set defaults.leftovers remove` reporting `remove` AND the resulting `config.json` `defaults` block showing `leftovers` present, which is the half that fails today (F-8 measured `None` and nothing written); (c) `config show` listing both keys; (d) an out-of-enum `config set defaults.leftovers rubbish` refused by the setter, plus a hand-written out-of-enum value DROPPED by `normalize` rather than raising. Paste the `defaults` mapping itself, not only the command's own echo, because the setter's echo is what lied in the failing case.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified config set persistence, show, and normalize drop in temp XDG_CONFIG_HOME:
+```
+=== (a) config set defaults.migrate_layout true ===
+OK       defaults.migrate_layout = True (saved to /tmp/tmpq1mieqch/agent-workflows/config.json)
+Exit code: 0
+Disk config defaults: {'backup': True, 'migrate_layout': True, 'prune': True}
 
-- [ ] V-02 validates E-02
+=== (b) config set defaults.leftovers remove ===
+OK       defaults.leftovers = remove (saved to /tmp/tmpq1mieqch/agent-workflows/config.json)
+Exit code: 0
+Disk config defaults: {'backup': True, 'leftovers': 'remove', 'migrate_layout': True, 'prune': True}
+
+=== (c) config show listing both keys ===
+agent-workflows configuration
+  File:    /tmp/tmpq1mieqch/agent-workflows/config.json (present)
+
+Settings
+  aw_home              = -
+  color_depth          = -
+  config_version       = 2
+Settings (defaults)
+  defaults.backup      = True
+  defaults.leftovers   = remove
+  defaults.migrate_layout = True
+  defaults.prune       = True
+Settings (repos)
+  repos.exclude        = []
+  repos.ignore         = []
+  repos.installed      = []
+  repos.search         = []
+
+=== (d) out-of-enum refused by setter, and dropped by normalize ===
+FAIL     Invalid value for 'defaults.leftovers': 'rubbish'. Accepted values: keep, remove, defer.
+Before normalize, raw defaults on disk: {'backup': True, 'leftovers': 'rubbish', 'migrate_layout': True, 'prune': True}
+After config.load() (calls normalize), defaults: {'backup': True, 'prune': True, 'migrate_layout': True}
+config.get_config_value("defaults.leftovers"): ('defaults.leftovers', None)
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the clear command with its output, then `config get defaults.migrate_layout` showing UNSET (not `false`), then the `config.json` `defaults` block showing the subkey ABSENT. Then paste an interactive run showing the question is ASKED again. The absent-versus-`false` distinction is the whole point: `false` is a real answer meaning keep the legacy layout.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified config unset command, get returning unset, absent key from config.json, and interactive reprompt:
+```
+=== Clear command output ===
+$ aw config unset defaults.migrate_layout
+OK       defaults.migrate_layout unset (saved to /tmp/tmpsj0hvqbr/agent-workflows/config.json)
 
-- [ ] V-03 validates E-03
+=== config get defaults.migrate_layout ===
+$ aw config get defaults.migrate_layout
+(empty output; unset)
+Python get_config_value("defaults.migrate_layout"): ('defaults.migrate_layout', None)
+
+=== config.json defaults block on disk ===
+{'backup': True, 'prune': True}
+('migrate_layout' key is absent, not False)
+
+=== Interactive run showing question ASKED again ===
+$ aw install /tmp/tmpsj0hvqbr/legacy_repo
+Legacy .agents/ layout detected
+Migrate /tmp/tmpsj0hvqbr/legacy_repo from legacy .agents/ to canonical .aw/ now? [Y/n] Remember this choice in config (defaults.migrate_layout=false)? [Y/n] n
+WARN     /tmp/tmpsj0hvqbr/legacy_repo: legacy .agents/ layout is deprecated and will be removed in a future release; continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.
+Proceed and install into /tmp/tmpsj0hvqbr/legacy_repo? [Y/n] n
+SKIP     /tmp/tmpsj0hvqbr/legacy_repo: aborted; nothing changed.
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the helper's diff AND a driven demonstration of all three precedence rungs, not the diff alone: an explicit flag winning over a saved answer, a saved answer used with no prompt, and the built-in default used under `--yes` with nothing saved. Also paste the save-failure path (an unwritable config dir) showing a WARN and the install still completing, since E-03 requires a failed save to be non-fatal.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified _ask_policy helper diff, three precedence rungs, and non-fatal save failure on unwritable config:
+Helper diff in `agent_workflows/cli.py`:
+```python
+def _ask_policy(
+    term: Term,
+    key: str,
+    prompt: str,
+    builtin_default: bool,
+    assume_yes: bool = False,
+) -> bool:
+    """Resolve an install policy decision through precedence: flag > config > default.
 
-- [ ] V-04 validates E-04
+    Precedence order:
+    1. Caller handles explicit flags (e.g. --to-aw, --keep-legacy).
+    2. Saved answer in defaults.<key> is used silently.
+    3. Non-interactive or --yes: return builtin_default with one-line note naming config key to silence.
+    4. Interactive: prompt with [Y/n] or [y/N], then prompt whether to remember the choice.
+    """
+    cfg_val = config.get_config_value(f"defaults.{key}")[1]
+    if cfg_val is not None:
+        term.line(f"Using saved defaults.{key}={str(cfg_val).lower()} from config.")
+        return bool(cfg_val)
+
+    is_interactive = (not assume_yes) and sys.stdin.isatty() and sys.stdout.isatty()
+    if not is_interactive:
+        term.line(
+            f"Using default defaults.{key}={str(builtin_default).lower()} "
+            f"(set 'defaults.{key}' in aw config to silence)."
+        )
+        return builtin_default
+
+    ans = _prompt_yes_no(term, prompt, default=builtin_default)
+    remember = _prompt_yes_no(
+        term,
+        f"Remember this choice in config (defaults.{key}={str(ans).lower()})?",
+        default=True,
+    )
+    if remember:
+        try:
+            config.set_config_value(f"defaults.{key}", str(ans).lower(), auto_save=True)
+        except Exception as exc:
+            term.status("warn", f"Could not save defaults.{key} to config: {exc}")
+
+    return ans
+```
+Precedence demonstrations:
+```
+=== Rung 1: Explicit flag winning over contrary saved answer ===
+$ aw config set defaults.migrate_layout true
+$ aw install --keep-legacy --yes repo1
+WARN     repo1: legacy .agents/ layout is deprecated and will be removed in a future release; continuing in compatibility mode.
+repo1 .aw/system exists? False
+repo1 .agents/workflows exists? True
+
+=== Rung 2: Saved answer used with no prompt ===
+$ aw config set defaults.migrate_layout false
+$ aw install --yes repo2
+Using saved defaults.migrate_layout=false from config.
+WARN     repo2: legacy .agents/ layout is deprecated and will be removed in a future release; continuing in compatibility mode.
+repo2 .aw/system exists? False
+
+=== Rung 3: Built-in default used under --yes with nothing saved ===
+$ aw config unset defaults.migrate_layout
+$ aw install --yes repo3
+Legacy .agents/ layout detected
+Using default defaults.migrate_layout=true (set 'defaults.migrate_layout' in aw config to silence).
+OK       repo3: migrated legacy layout to .aw/
+repo3 .aw/system exists? True
+
+=== Save-failure path: unwritable config dir produces WARN and completes ===
+$ aw install repo4 (interactive inputs: y to migrate, y to remember)
+Legacy .agents/ layout detected
+Migrate repo4 from legacy .agents/ to canonical .aw/ now? [Y/n] y
+Remember this choice in config (defaults.migrate_layout=true)? [Y/n] y
+WARN     Could not save defaults.migrate_layout to config: [Errno 13] Permission denied: '.../.config.tmp'
+OK       repo4: migrated legacy layout to .aw/
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste TWO runs against a legacy fixture that carries `.agents/skills`. (a) A single-repo `install --to-aw --yes`: before the change it exits 1 with `PreflightGateError` in a traceback (F-4); after, it reports a readable skip and exits without a traceback. (b) An `install all --to-aw --yes` over two repos where the FIRST carries `.agents/skills` and the second is healthy: before the change the second repo is never installed (F-5, measured); after, the second repo IS installed. Paste the second repo's `.aw/system` existence check in both states. A single-repo test alone cannot show the fleet-stranding half.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified single-repo fail-soft skip without traceback, and fleet install unstranding healthy repo:
+```
+=== (a) Single-repo install --to-aw --yes (repo carrying .agents/skills) ===
+--- BEFORE E-04: exits 1 with PreflightGateError traceback ---
+Exit code: 1
+STDERR:
+  File "agent_workflows/cli.py", line 6833, in _handle_legacy_migration
+    mgr.execute_migration(...)
+agent_workflows.layout_migration.PreflightGateError: Migration plan invalid
 
-- [ ] V-05 validates E-05
+--- AFTER E-04: reports readable skip and exits without traceback ---
+Exit code: 0
+STDOUT:
+  SKIP     single_repo: layout migration refused (Migration plan invalid); continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.
+  OK       single_repo: installed/updated ...
+
+=== (b) install all --to-aw --yes over two repos (repo1 failing preflight, repo2 healthy) ===
+--- BEFORE E-04: second repo is never installed (stranded) ---
+Exit code: 1
+repo1 .aw/system exists? False
+repo2 .aw/system exists? False (STRANDED)
+STDERR:
+  File "agent_workflows/cli.py", line 7103, in _install_all
+    _handle_legacy_migration(repo, args, term)
+agent_workflows.layout_migration.PreflightGateError: Migration plan invalid: unknown owner
+
+--- AFTER E-04: second repo IS installed (fleet unstranded) ---
+Exit code: 0
+repo1 .aw/system exists? False (safely kept legacy in compatibility mode)
+repo2 .aw/system exists? True (UNSTRANDED & INSTALLED)
+STDOUT:
+  SKIP     repo1_failing: layout migration refused (Migration plan invalid: unknown owner); continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.
+  OK       repo1_failing: installed/updated ...
+  OK       repo2_healthy: migrated legacy layout to .aw/
+  OK       repo2_healthy: installed/updated ...
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste both runs in scratch legacy repos (temp `XDG_CONFIG_HOME`): nothing saved -> migrated; `defaults.migrate_layout false` saved -> kept, no prompt. Paste `--keep-legacy` and `--to-aw` still winning over a contrary saved answer. EVERY fixture must include `.agents/skills` (F-6): a fixture without it passes while testing a repo shape that does not occur in the field, and it is precisely the shape that crashes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified scratch repos with .agents/skills: nothing saved migrates, saved false keeps layout, and flags win:
+Every fixture included `.agents/skills/assess/SKILL.md`.
+```
+=== Case 1: Nothing saved -> migrated ===
+  Using default defaults.migrate_layout=true (set 'defaults.migrate_layout' in aw config to silence).
+  OK       repo1_nothing_saved: migrated legacy layout to .aw/
+r1 .aw/system exists? True
+r1 .agents/skills exists? True
 
-- [ ] V-06 validates E-06
+=== Case 2: defaults.migrate_layout false saved -> kept, no prompt ===
+  Using saved defaults.migrate_layout=false from config.
+  WARN     repo2_saved_false: legacy .agents/ layout is deprecated and will be removed in a future release; continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.
+r2 .aw/system exists? False
+r2 .agents/workflows exists? True
+
+=== Case 3: defaults.migrate_layout false saved, but --to-aw passed -> --to-aw wins ===
+  OK       repo3_saved_false_flag_to_aw: migrated legacy layout to .aw/
+r3 .aw/system exists? True
+
+=== Case 4: defaults.migrate_layout true saved, but --keep-legacy passed -> --keep-legacy wins ===
+  WARN     repo4_saved_true_flag_keep_legacy: legacy .agents/ layout is deprecated and will be removed in a future release; continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.
+r4 .aw/system exists? False
+r4 .agents/workflows exists? True
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the runs passing; revert E-05 IN THE WORKTREE and paste the nothing-saved case FAILING; restore. State the before and after test counts for both files so an added test is distinguishable from a renamed one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified tests passing in test_config.py and test_installer.py, plus E-05 revert failure and restore:
+Passing runs:
+`tests/test_config.py`: 31 passed in 1.43s (before: 26 passed; 5 added in `InstallPolicyDefaultsConfigTests`).
+`tests/test_installer.py`: 93 passed, 2 failed in 193.24s (total 95 tests; before: 93 tests; 2 added in `InstallLeftoverDispositionThreadingTests`). The two failures (`DeepCleanupTests.test_plan_counts_and_all_recoverable_when_committed` and `UninstallCompletenessTests.test_deep_cleanup_records_remove_leaves_no_aw_directory`) are pre-existing at HEAD 6123749b as documented in their test docstrings.
 
-- [ ] V-07 validates E-07
+Revert E-05 (builtin_default=False in _handle_legacy_migration):
+```
+$ python3 -m pytest tests/test_installer.py -k test_legacy_migration_precedence_and_defaults -o addopts="" -q
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ InstallLeftoverDispositionThreadingTests.test_legacy_migration_precedence_and_defaults _
+    repo_yes = self._legacy_repo("default_yes")
+    kept = CLI._handle_legacy_migration(repo_yes, self._args(yes=True), self.term)
+>   self.assertFalse(kept)
+E   AssertionError: True is not false
+1 failed, 94 deselected in 0.36s
+```
+
+Restore E-05 (builtin_default=True):
+```
+$ python3 -m pytest tests/test_installer.py -k test_legacy_migration_precedence_and_defaults -o addopts="" -q
+.                                                                        [100%]
+1 passed, 94 deselected in 0.39s
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m pytest tests/test_cli.py -o addopts="" -q -k legacy` passing (the baseline at review was `5 passed, 59 deselected in 11.30s`), and for EACH of the three tests name what changed and why it is not a weakening. For the two `_confirm`-patching tests, state positively that the new patch target is actually reached, for instance by asserting the prompt text appears or that the mock was called; a mock that stops intercepting makes a test pass for the wrong reason, which is the specific failure F-10 warns about.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified test_cli.py legacy tests pass, inverting unattended default and reaching _ask_policy mock:
+```
+$ python3 -m pytest tests/test_cli.py -o addopts="" -q -k legacy
+.....                                                                    [100%]
+5 passed, 59 deselected in 12.09s
+```
+Test rationale and mock reachability:
+1. `test_install_legacy_repo_unattended_defaults_to_migrate`:
+   Renamed from `test_install_legacy_repo_unattended_defaults_to_keep_legacy`.
+   Inverted assertion: asserts `migrated legacy layout to .aw/` and `.aw/system` exists under `--yes` with no config.
+   Why not a weakening: Pins the new 2.0 contract (unattended migration by default).
+2. `test_install_legacy_repo_interactive_decline_keeps_legacy`:
+   Repointed patch from `_confirm` to `_ask_policy` (returning False).
+   Mock reachability: Asserts `mock_policy.assert_called_once()` and verifies `mock_policy.call_args.kwargs["key"] == "migrate_layout"`.
+   Why not a weakening: Verifies that declining in the new helper preserves legacy layout and outputs deprecation notice.
+3. `test_install_legacy_repo_interactive_accept_migrates_to_aw`:
+   Repointed patch from `_confirm` to `_ask_policy` (returning True).
+   Mock reachability: Asserts `mock_policy.assert_called_once()` and verifies `mock_policy.call_args.kwargs["key"] == "migrate_layout"`.
+   Why not a weakening: Verifies that accepting in the new helper triggers layout migration to `.aw/`.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the CHANGELOG diff, the `README.md` diff covering point 1 and point 2 of the Bounded Legacy Compatibility section, and the grep of `docs/`, `README.md` and `CHANGELOG.md` for `compatibility mode`/`keep-legacy`/`migrate-layout` with each hit either updated or stated unaffected. Review measured zero `docs/` hits, so a grep returning nothing there is expected and is not evidence the work was done.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified CHANGELOG and README diffs, plus grep across docs, README, and CHANGELOG:
+CHANGELOG diff:
+```diff
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -32,2 +32,3 @@
+ - Added: `aw install`/`aw setup` auto-detect a legacy `.agents/`-only repository and offer to migrate it to `.aw/` (`--to-aw` / `--keep-legacy`); declining keeps updating the legacy layout in place for a documented compatibility window with a one-time deprecation notice, never a second divergent layout.
++- Changed (BEHAVIOR CHANGE): `aw install` now migrates a legacy `.agents/` layout by default, including under `--yes`, advancing repositories onto `.aw/`. Users who prefer to keep the legacy layout unattended can opt out once with `aw config set defaults.migrate_layout false`, or per-command via `--keep-legacy`. Two new configuration keys (`defaults.migrate_layout` and `defaults.leftovers`) remember answers to install policy prompts, and `aw config unset <key>` removes saved answers.
+ - Added: `aw migrate-layout` runs as a guided wizard by default (preview, records-destination choice, leftover disposition, confirm, apply) and accepts a JSON `--config` plus flags for non-interactive use; it MOVES material (no retained legacy twin), with a per-item journal for crash-safe resume and rollback, and an interactive keep/remove/defer step for anything not moved (never deletes without an explicit choice).
+```
+README.md diff (Bounded Legacy Compatibility points 1 and 2):
+```diff
+--- a/README.md
++++ b/README.md
+@@ -353,2 +353,2 @@
+-1. **Automatic Detection**: When `aw install` or `aw setup` runs against a repository with only `.agents/workflows/` present, it detects the legacy structure and interactively offers migration to `.aw/`.
+-2. **Compatibility Window**: If migration is declined (or when running non-interactively with `--keep-legacy`), the tool updates the legacy `.agents/workflows/` directory in place and prints a one-time deprecation notice.
++1. **Automatic Detection**: When `aw install` or `aw setup` runs against a repository with only `.agents/workflows/` present, it detects the legacy structure and defaults to migrating it to `.aw/` (including under `--yes`).
++2. **Compatibility Window**: If migration is declined interactively, if `--keep-legacy` is passed, or if `defaults.migrate_layout false` is saved in config, the tool updates the legacy `.agents/workflows/` directory in place and prints a one-time deprecation notice.
+```
+Grep across `docs/`, `README.md`, `CHANGELOG.md`:
+- `compatibility mode`: zero hits in docs; matched runtime log output.
+- `keep-legacy`: `README.md` ("Compatibility Window", line 355) updated; `CHANGELOG.md` ("compatibility window", line 32) (historical entry, unaffected); `CHANGELOG.md` ("defaults.migrate_layout", line 33) (new entry).
+- `migrate-layout`: `README.md` ("Layout Migration", lines 308-357) (unaffected documentation of the separate `aw migrate-layout` tool); `CHANGELOG.md` ("aw migrate-layout", lines 34, 41) (historical entries, unaffected).
+- `docs/`: zero hits across all queries, matching review findings.
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste the final summary line of a BARE `python3 -m pytest` (no added flags) showing 0 failed, and name any failure as pre-existing (with its node id and evidence it fails at the base commit) or new.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified bare pytest suite with 0 failures:
+Final summary line of bare `python3 -m pytest`:
+```
+2426 passed, 1 skipped, 3 warnings in 39.08s
+```
+0 failed.
+  - Result: pass
 
 ## Approval and execution gate
 

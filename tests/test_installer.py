@@ -4313,8 +4313,14 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
         self.term = Term(color=False)
+        self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = str(self.base / "cfg")
 
     def tearDown(self):
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._old_xdg
         self._tmp.cleanup()
 
     def _legacy_repo(self, name) -> Path:
@@ -4322,6 +4328,10 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
         (repo / ".agents" / "workflows").mkdir(parents=True)
         (repo / ".agents" / "workflows" / "index.md").write_text(
             "# Manifest\n", encoding="utf-8"
+        )
+        (repo / ".agents" / "skills" / "assess").mkdir(parents=True)
+        (repo / ".agents" / "skills" / "assess" / "SKILL.md").write_text(
+            "# Skill\n", encoding="utf-8"
         )
         return repo
 
@@ -4345,6 +4355,8 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
 
     def test_leftover_flag_parsing_and_resolver(self):
         """Flag parsing, command inventory inclusion, and safe fallback to defer."""
+        from agent_workflows import config as CFG
+
         parser = CLI._build_parser()
         self.assertIsNone(parser.parse_args(["install", ".", "--to-aw"]).leftovers)
         for value in ("keep", "remove", "defer"):
@@ -4374,6 +4386,17 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
             CLI._install_leftover_disposition(self._args(leftovers="rm -rf")), "defer"
         )
 
+        # Defaults to saved config value when flag is absent
+        CFG.set_config_value("defaults.leftovers", "remove")
+        self.assertEqual(CLI._install_leftover_disposition(self._args()), "remove")
+        # Explicit flag overrides config
+        self.assertEqual(
+            CLI._install_leftover_disposition(self._args(leftovers="keep")), "keep"
+        )
+        # Clear restores built-in default
+        CFG.unset_config_value("defaults.leftovers")
+        self.assertEqual(CLI._install_leftover_disposition(self._args()), "defer")
+
     def test_migration_paths_thread_requested_disposition(self):
         """All three migration paths (--to-aw, interactive confirm, split-brain migrate-now) thread leftovers disposition."""
         # 1. --to-aw path
@@ -4399,7 +4422,9 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
             with self.subTest(site="interactive", leftovers=requested):
                 repo = self._legacy_repo(f"interactive-{requested}")
                 with mock.patch("sys.stdin.isatty", return_value=True):
-                    with mock.patch("agent_workflows.cli._confirm", return_value=True):
+                    with mock.patch(
+                        "agent_workflows.cli._ask_policy", return_value=True
+                    ):
                         with mock.patch(
                             "agent_workflows.layout_migration.MigrationManager"
                         ) as MockMgr:
@@ -4409,6 +4434,76 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                 MockMgr.return_value.execute_migration.assert_called_once_with(
                     target_backend="repository", leftover_disposition=expected
                 )
+
+    def test_legacy_migration_precedence_and_defaults(self):
+        """Four precedence cases: flag > saved true > saved false > nothing saved under --yes."""
+        from agent_workflows import config as CFG
+
+        # 1. Nothing saved under --yes defaults to MIGRATE (E-05)
+        repo_yes = self._legacy_repo("default_yes")
+        kept = CLI._handle_legacy_migration(repo_yes, self._args(yes=True), self.term)
+        self.assertFalse(kept)
+        self.assertTrue(
+            (repo_yes / ".aw" / "system" / "workflows" / "index.md").is_file()
+        )
+        self.assertTrue(
+            (repo_yes / ".agents" / "skills" / "assess" / "SKILL.md").is_file()
+        )
+
+        # 2. Saved true migrates without asking
+        repo_saved_true = self._legacy_repo("saved_true")
+        CFG.set_config_value("defaults.migrate_layout", True)
+        kept = CLI._handle_legacy_migration(repo_saved_true, self._args(), self.term)
+        self.assertFalse(kept)
+        self.assertTrue(
+            (repo_saved_true / ".aw" / "system" / "workflows" / "index.md").is_file()
+        )
+
+        # 3. Saved false keeps legacy without asking
+        repo_saved_false = self._legacy_repo("saved_false")
+        CFG.set_config_value("defaults.migrate_layout", False)
+        kept = CLI._handle_legacy_migration(
+            repo_saved_false, self._args(yes=True), self.term
+        )
+        self.assertTrue(kept)
+        self.assertFalse((repo_saved_false / ".aw" / "system").exists())
+        self.assertTrue(
+            (repo_saved_false / ".agents" / "workflows" / "index.md").is_file()
+        )
+
+        # 4. Explicit flags win over opposite saved answer:
+        # --to-aw wins over saved false
+        repo_flag_to_aw = self._legacy_repo("flag_to_aw")
+        kept = CLI._handle_legacy_migration(
+            repo_flag_to_aw, self._args(to_aw=True), self.term
+        )
+        self.assertFalse(kept)
+        self.assertTrue(
+            (repo_flag_to_aw / ".aw" / "system" / "workflows" / "index.md").is_file()
+        )
+
+        # --keep-legacy wins over saved true
+        repo_flag_keep = self._legacy_repo("flag_keep")
+        CFG.set_config_value("defaults.migrate_layout", True)
+        kept = CLI._handle_legacy_migration(
+            repo_flag_keep, self._args(keep_legacy=True), self.term
+        )
+        self.assertTrue(kept)
+        self.assertFalse((repo_flag_keep / ".aw" / "system").exists())
+
+    def test_legacy_migration_fail_soft_on_preflight_gate_error(self):
+        """PreflightGateError during migration does not traceback and keeps legacy layout fail-soft (E-04)."""
+        from agent_workflows.layout_migration import PreflightGateError
+
+        repo = self._legacy_repo("fail_soft_repo")
+        with mock.patch(
+            "agent_workflows.layout_migration.MigrationManager.execute_migration",
+            side_effect=PreflightGateError("Migration plan invalid"),
+        ):
+            # Should not raise PreflightGateError, but return True (kept legacy)
+            kept = CLI._handle_legacy_migration(repo, self._args(to_aw=True), self.term)
+            self.assertTrue(kept)
+            self.assertFalse((repo / ".aw" / "system").exists())
 
         # 3. split-brain migrate-now path
         for requested, expected in (("remove", "remove"), (None, "defer")):

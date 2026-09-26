@@ -351,8 +351,8 @@ If you have an existing repository using the legacy `.agents/` layout, use `aw m
 
 To support gradual adoption, `agent-workflows` maintains a bounded compatibility window for repositories with legacy `.agents/` layouts:
 
-1. **Automatic Detection**: When `aw install` or `aw setup` runs against a repository with only `.agents/workflows/` present, it detects the legacy structure and interactively offers migration to `.aw/`.
-2. **Compatibility Window**: If migration is declined (or when running non-interactively with `--keep-legacy`), the tool updates the legacy `.agents/workflows/` directory in place and prints a one-time deprecation notice.
+1. **Automatic Detection**: When `aw install` or `aw setup` runs against a repository with only `.agents/workflows/` present, it detects the legacy structure and defaults to migrating it to `.aw/` (including under `--yes`).
+2. **Compatibility Window**: If migration is declined interactively, if `--keep-legacy` is passed, or if `defaults.migrate_layout false` is saved in config, the tool updates the legacy `.agents/workflows/` directory in place and prints a one-time deprecation notice.
 3. **No Dual-Writer Operation**: The framework will never operate in a mixed state where both `.agents/workflows/` and `.aw/system/workflows/` are written simultaneously. If `.aw/system/` is present, it is strictly authoritative.
 4. **Removal Gate**: Legacy `.agents/` support is deprecated and will be removed in major version `3.0.0`. All users are encouraged to run `aw migrate-layout` during the 2.x lifecycle.
 

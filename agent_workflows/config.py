@@ -65,7 +65,10 @@ _ALLOWED_TOP_KEYS = frozenset(
     }
 )
 _ALLOWED_REPOS_KEYS = frozenset({"search", "installed", "exclude", "ignore"})
-_ALLOWED_DEFAULT_KEYS = frozenset({"backup", "prune"})
+_ALLOWED_DEFAULT_KEYS = frozenset({"backup", "prune", "migrate_layout", "leftovers"})
+
+#: The allowed values for ``defaults.leftovers``.
+LEFTOVERS_VALUES: Tuple[str, ...] = ("keep", "remove", "defer")
 
 #: The tiers a user may pin ``color_depth`` to, in ladder order (spec `uonrjg` R9.3a.1/R9.3a.4).
 #:
@@ -162,6 +165,17 @@ CONFIG_SCHEMA: Dict[str, ConfigKeySpec] = {
         key="defaults.prune",
         type_name="bool",
         description="Whether to prune stale workflow shims on install",
+    ),
+    "defaults.migrate_layout": ConfigKeySpec(
+        key="defaults.migrate_layout",
+        type_name="bool",
+        description="Whether to migrate legacy .agents/ layout to .aw/ on install",
+    ),
+    "defaults.leftovers": ConfigKeySpec(
+        key="defaults.leftovers",
+        type_name="str",
+        description="Default disposition for legacy layout leftovers (keep, remove, defer)",
+        allowed_values=LEFTOVERS_VALUES,
     ),
     "aw_home": ConfigKeySpec(
         key="aw_home",
@@ -396,6 +410,20 @@ def _assign_nested(cfg: Dict[str, Any], canon_key: str, value: Any) -> None:
     cfg[parent] = container
 
 
+def _delete_nested(cfg: Dict[str, Any], canon_key: str) -> None:
+    """Remove a top-level or single-dotted key from the mapping if present."""
+
+    if "." not in canon_key:
+        cfg.pop(canon_key, None)
+        return
+    parent, child = canon_key.split(".", 1)
+    container = cfg.get(parent)
+    if isinstance(container, dict) and child in container:
+        container = dict(container)
+        container.pop(child, None)
+        cfg[parent] = container
+
+
 def _bare_repos_list_verb_error(action: str, example: str) -> "ConfigError":
     """Build the actionable error for a list verb aimed at the ``repos`` MAPPING (E-05).
 
@@ -571,6 +599,12 @@ def get_config_value(
         return "defaults.backup", cfg.get("defaults", {}).get("backup", True)
     if norm_key in ("prune", "defaults.prune"):
         return "defaults.prune", cfg.get("defaults", {}).get("prune", True)
+    if norm_key in ("migrate_layout", "defaults.migrate_layout"):
+        return "defaults.migrate_layout", cfg.get("defaults", {}).get(
+            "migrate_layout", None
+        )
+    if norm_key in ("leftovers", "defaults.leftovers"):
+        return "defaults.leftovers", cfg.get("defaults", {}).get("leftovers", None)
 
     if norm_key not in CONFIG_SCHEMA:
         valid_keys = ", ".join(sorted(CONFIG_SCHEMA.keys()))
@@ -603,6 +637,10 @@ def set_config_value(
         canon_key = "defaults.backup"
     elif norm_key in ("prune", "defaults.prune"):
         canon_key = "defaults.prune"
+    elif norm_key in ("migrate_layout", "defaults.migrate_layout"):
+        canon_key = "defaults.migrate_layout"
+    elif norm_key in ("leftovers", "defaults.leftovers"):
+        canon_key = "defaults.leftovers"
     else:
         canon_key = norm_key
 
@@ -615,6 +653,16 @@ def set_config_value(
         raise ConfigError(
             f"Config key '{canon_key}' is read-only and cannot be modified."
         )
+
+    if isinstance(raw_value, str) and raw_value.strip().lower() in ("-", "unset"):
+        if canon_key in (
+            "defaults.migrate_layout",
+            "defaults.leftovers",
+            "color_depth",
+            "aw_home",
+        ):
+            norm_cfg, _ = unset_config_value(canon_key, cfg, auto_save=auto_save)
+            return norm_cfg, canon_key, None
 
     type_name = spec.type_name
     parsed_value: Any = None
@@ -723,6 +771,58 @@ def set_config_value(
 
     _, final_val = get_config_value(canon_key, normalized)
     return normalized, canon_key, final_val
+
+
+def unset_config_value(
+    key: str,
+    cfg: Optional[Dict[str, Any]] = None,
+    auto_save: bool = True,
+) -> Tuple[Dict[str, Any], str]:
+    """Unset (remove) a config key, and optionally save config.json atomically."""
+    if cfg is None:
+        cfg = load()
+    else:
+        cfg = dict(cfg)
+
+    norm_key = key.strip().lower()
+    if norm_key in ("backup", "defaults.backup"):
+        canon_key = "defaults.backup"
+    elif norm_key in ("prune", "defaults.prune"):
+        canon_key = "defaults.prune"
+    elif norm_key in ("migrate_layout", "defaults.migrate_layout"):
+        canon_key = "defaults.migrate_layout"
+    elif norm_key in ("leftovers", "defaults.leftovers"):
+        canon_key = "defaults.leftovers"
+    else:
+        canon_key = norm_key
+
+    if canon_key not in CONFIG_SCHEMA:
+        valid_keys = ", ".join(sorted(CONFIG_SCHEMA.keys()))
+        raise ConfigError(f"Unknown config key '{key}'. Valid keys: {valid_keys}")
+
+    spec = CONFIG_SCHEMA[canon_key]
+    if spec.read_only:
+        raise ConfigError(
+            f"Config key '{canon_key}' is read-only and cannot be modified."
+        )
+
+    if canon_key == "aw_home":
+        cfg.pop("aw_home", None)
+    elif canon_key == "color_depth":
+        cfg.pop("color_depth", None)
+    else:
+        _delete_nested(cfg, canon_key)
+
+    normalized = normalize(cfg)
+    if canon_key.startswith("defaults."):
+        subkey = canon_key.split(".", 1)[1]
+        if subkey in ("migrate_layout", "leftovers") and "defaults" in normalized:
+            normalized["defaults"].pop(subkey, None)
+
+    if auto_save:
+        save(normalized)
+
+    return normalized, canon_key
 
 
 def config_dir() -> Path:
@@ -840,8 +940,16 @@ def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
     defaults = config.get("defaults")
     if isinstance(defaults, dict):
         for k in _ALLOWED_DEFAULT_KEYS:
-            if isinstance(defaults.get(k), bool):
-                out["defaults"][k] = defaults[k]
+            spec = CONFIG_SCHEMA.get(f"defaults.{k}")
+            raw_val = defaults.get(k)
+            if spec is None or raw_val is None:
+                continue
+            if spec.type_name == "bool" and isinstance(raw_val, bool):
+                out["defaults"][k] = raw_val
+            elif spec.type_name == "str" and isinstance(raw_val, str):
+                val_str = raw_val.strip().lower()
+                if spec.allowed_values is None or val_str in spec.allowed_values:
+                    out["defaults"][k] = val_str
 
     aw_home_val = config.get("aw_home")
     if isinstance(aw_home_val, str) and aw_home_val.strip():
