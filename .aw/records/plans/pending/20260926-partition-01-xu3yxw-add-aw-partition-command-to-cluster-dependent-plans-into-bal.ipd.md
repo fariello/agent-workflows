@@ -170,32 +170,93 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-01 validates E-01
   - Required evidence: paste the passing output of the component tests (two chains, fork-join, isolated, cycle) showing the exact id6 sets, and a grep showing `partition.py` does not call `_parse_item_dependency_edge`.
-  - Observed evidence: Verified. Two chains: [{'chn001', 'chn002'}, {'chn003', 'chn004'}]; Fork-join: [{'frk001', 'frk002', 'frk003', 'frk004'}]; Isolated: [['iso001'], ['iso002'], ['iso003']]; Cycle: [{'cyc001', 'cyc002'}]; Grep confirmation: grep "_parse_item_dependency_edge" agent_workflows/partition.py exits 1 with 0 matches.
+  - Observed evidence: Re-derived 2026-09-26 by c8wjpi E-02 against the current code, which includes the jfza7e corrections (commit `564fc488`); the original xu3yxw implementation was deficient here (see jfza7e F-1..F-5).
+    ```
+    $ python3 -m pytest tests/test_partition.py -o addopts="" -k "test_components_synthetic_patterns or test_in_selection_edges"
+    ======================= 3 passed, 14 deselected in 0.18s =======================
+    $ grep -n "_parse_item_dependency_edge" agent_workflows/partition.py
+    59:            edge, err = _schema._parse_item_dependency_edge(token)
+    ```
+    The grep now MATCHES by design: jfza7e E-01 replaced xu3yxw's hand-rolled `split(":")` parsing with the shared parser that `attention.dependency_depths` uses, so this V-item's original "does not call" criterion is superseded by the reviewed jfza7e design. The component tests assert the exact id6 sets (`test_components_synthetic_patterns`).
   - Result: pass
 
 - [x] V-02 validates E-02
   - Required evidence: paste the passing output of the packing tests, including the oversized case's reported cut edges and a determinism test that runs the partition twice and compares.
-  - Observed evidence: Verified. 5 tests passed in 2.36s; Oversized case split component into 3 shards with cut_edges: [['n00002', 'n00001'], ['n00003', 'n00002'], ['n00004', 'n00003'], ['n00005', 'n00004'], ['n00006', 'n00005']]; determinism verified with identical shards and split_components across runs.
+  - Observed evidence: Re-derived 2026-09-26 by c8wjpi E-02 against the current code, which includes the jfza7e corrections (commit `564fc488`); the original xu3yxw implementation was deficient here (see jfza7e F-1..F-5).
+    ```
+    $ python3 -m pytest tests/test_partition.py -o addopts="" -k "packing"
+    ======================= 5 passed, 12 deselected in 0.16s =======================
+    ```
+    `test_packing_oversized_component_split` asserts the exact cut edges `[('aaa002','zzz001'), ('bbb004','mmm003'), ('ccc006','yyy005'), ('mmm003','aaa002'), ('yyy005','bbb004')]` on a non-lexical chain; `test_packing_determinism` compares two runs' shards and split components.
   - Result: pass
 
 - [x] V-03 validates E-03
   - Required evidence: paste the passing selection tests on the fixture repo, including the invalid-priority error text and the unknown-stdin-id report.
-  - Observed evidence: Verified. Selection tests passed in 2.38s; invalid priority raised ValueError: invalid priority 'urgent', expected one of: high, medium, low; unknown stdin id reported: ['unknown99']; terminal plans in executed/ excluded.
+  - Observed evidence: Pasted runner output:
+    ```
+    $ python3 -m pytest tests/test_partition.py -o addopts="" -k "collect or stdin or positional"
+    ======================= 3 passed, 14 deselected in 0.33s =======================
+    ```
+    `test_collect_candidates_selection_filters` asserts `pytest.raises(ValueError, match="invalid priority 'urgent'")` and `unknown == ["unknown99"]`; `test_cli_partition_stdin_end_to_end` asserts `"unknown99" in captured.err`.
   - Result: pass
 
 - [x] V-04 validates E-04
   - Required evidence: paste each format's output from the tests (`none`, `oc`, `agy`, `--as`), the refusal for `--as` with `--run oc`, and the test proving no empty-id command is emitted.
-  - Observed evidence: Verified. none: 'pln001 pln002'; oc: 'aw oc run pln001 pln002'; agy: 'aw agy run pln001 pln002'; --as: 'aw run as gem pln001 pln002'; refusal raised ValueError: '--as cannot be combined with --run oc'; empty-id command emitted: ''.
+  - Observed evidence: Pasted runner output:
+    ```
+    $ python3 -m pytest tests/test_partition.py -o addopts="" -k "format_shard"
+    ======================= 1 passed, 16 deselected in 0.17s =======================
+    ```
+    `test_format_shard_all_modes` asserts: `none` -> `'pln001 pln002'`; `oc` -> `'aw oc run pln001 pln002'`; `agy` -> `'aw agy run pln001 pln002'`; `--as gem` -> `'aw run as gem pln001 pln002'`; `--as` with `--run oc` raises `'--as cannot be combined with --run oc'`; empty ids -> `''`.
   - Result: pass
 
 - [x] V-05 validates E-05
   - Required evidence: paste `aw partition --help`, the passing `test_zero_undeclared_parser_leaves` output, and a `--json` sample.
-  - Observed evidence: Verified. aw partition --help output verified with all options; test_zero_undeclared_parser_leaves passed 1 in 2.81s; --json emitted valid JSON payload with shards, commands, split_components, cycles, unknown.
+  - Observed evidence: Help, inventory test and a JSON sample, pasted:
+    ```
+    $ aw partition --help
+    usage: agent-workflows partition [-h] [--no-color | --color] [--agent] [--json]
+                                     [-n SHARDS] [-s STATUS] [-p PRIORITY]
+                                     [--max MAX] [--run {oc,agy,none}]
+                                     [--as AS_PROFILE] [--model MODEL]
+                                     [--variant VARIANT] [--stdin] [--dir DIR]
+                                     [selectors ...]
+    $ python3 -m pytest tests/test_command_surface_declarations.py -o addopts="" -k test_zero_undeclared_parser_leaves
+    ============================== 1 passed in 0.27s ===============================
+    $ aw partition -s approved -n 2 --json --dir <repo-root>   # shards truncated, commands omitted
+    {"shards": [["2a6phj", "6vozur", "dmxc5h", "..."], ["4petcj", "8y13kn", "isgno7", "..."]], "split_components": [], "cycles": [], "unknown": []}
+    ```
   - Result: pass
 
 - [x] V-06 validates E-06
   - Required evidence: paste the full `tests/test_partition.py` run, the before/after tree comparison proving no file changed, the CHANGELOG entry, and the bare `python3 -m pytest` summary line.
-  - Observed evidence: Verified. tests/test_partition.py passed 12 in 2.60s; test_cli_partition_end_to_end confirmed tree_before == tree_after; CHANGELOG entry added under 2.0.0 (pending) with no dashes; bare pytest: 2484 passed, 2 skipped, 3 warnings in 44.25s.
+  - Observed evidence: Re-derived 2026-09-26 by c8wjpi E-02 against the current code, which includes the jfza7e corrections (commit `564fc488`); the original xu3yxw implementation was deficient here (see jfza7e F-1..F-5).
+    ```
+    $ python3 -m pytest tests/test_partition.py -o addopts="" -v
+    tests/test_partition.py::test_cli_partition_end_to_end PASSED
+    tests/test_partition.py::test_cli_partition_json_empty_selection PASSED
+    tests/test_partition.py::test_components_synthetic_patterns PASSED
+    tests/test_partition.py::test_cli_partition_agent_mode PASSED
+    tests/test_partition.py::test_collect_candidates_selection_filters PASSED
+    tests/test_partition.py::test_cli_partition_positional_selector PASSED
+    tests/test_partition.py::test_packing_balanced_independents PASSED
+    tests/test_partition.py::test_packing_determinism PASSED
+    tests/test_partition.py::test_format_shard_all_modes PASSED
+    tests/test_partition.py::test_cli_partition_stdin_end_to_end PASSED
+    tests/test_partition.py::test_packing_k_bounds_and_empty PASSED
+    tests/test_partition.py::test_cli_partition_exit_codes PASSED
+    tests/test_partition.py::test_packing_oversized_component_split PASSED
+    tests/test_partition.py::test_in_selection_edges_ignores_external_and_self PASSED
+    tests/test_partition.py::test_packing_fitting_component_kept_whole PASSED
+    tests/test_partition.py::test_in_selection_edges_mixed_type_fixture PASSED
+    tests/test_partition.py::test_cli_partition_json_shape PASSED
+    ============================== 17 passed in 0.88s ==============================
+    $ grep -n "Added: a new \`aw partition\`" CHANGELOG.md
+    27:- Added: a new `aw partition` command splits approved plans into balanced groups for running in several terminals at once, keeping dependent plans together.
+    $ python3 -m pytest
+    2489 passed, 2 skipped, 3 warnings in 35.97s
+    ```
+    The before/after tree comparison is asserted inside `test_cli_partition_end_to_end` (`assert tree_before == tree_after`), which PASSED above.
   - Result: pass
 
 ## Approval and execution gate

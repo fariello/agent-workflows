@@ -611,7 +611,7 @@ def test_cli_partition_agent_mode(
     lines = [line for line in captured.out.splitlines() if line.strip()]
     assert len(lines) == 1
     record = json.loads(lines[0])
-    agent_schema.validate_agent_record(record)
+    assert agent_schema.validate_agent_record(record) == []
     assert record["schema"] == "aw.agent/v1"
     assert record["kind"] == "result"
     assert record["cmd"] == "partition"
