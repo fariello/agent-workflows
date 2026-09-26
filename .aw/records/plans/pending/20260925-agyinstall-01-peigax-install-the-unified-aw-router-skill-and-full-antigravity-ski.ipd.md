@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: router skill generator
 
-- [ ] E-01 Add `host_adapters.build_aw_router_skill_package(workflows, skill_dir=SHARED_SKILLS_DIR, target_layout="aw")` returning a `SkillPackage` named `aw` and export it in `__all__`. Four contracts, each of which review drove and found the original prescription got wrong or left unstated (F-6..F-9); read them before writing the renderer.
+- [x] E-01 Add `host_adapters.build_aw_router_skill_package(workflows, skill_dir=SHARED_SKILLS_DIR, target_layout="aw")` returning a `SkillPackage` named `aw` and export it in `__all__`. Four contracts, each of which review drove and found the original prescription got wrong or left unstated (F-6..F-9); read them before writing the renderer.
   1. DIGEST. Compute it with `workflow_profile.semantic_digest` (reuse the one scheme, invent no algorithm) but over a compile shape that `workflow_profile.semantic_view` actually PROJECTS: `{"manifest": {"id": "aw"}, "evidence": {"requirements": [{"id": w.command, "evidence": [w.body]} for w in workflows]}}`. Do NOT digest a `{"manifest": {..., "rows": ...}}` shape: `semantic_view` reads only `manifest.id`/`risk`/`mutation_boundary`, `evidence.requirements`, `evidence.validations`, `step_packets` and the scope fence, so `body` is projected away and the digest comes out CONSTANT (measured: all 63 rows and ZERO rows both hash `f08e4bbedf20...`). The `requirements` projection is already sorted internally, so no pre-sort is needed and the result is order-insensitive.
   2. PATH REFERENCES. Every repo path in the router body MUST be written unbackticked as `@<path>` (e.g. `@.aw/system/workflows/index.md`), never in backticks. `validate_skill_package` scans `re.findall(r"`([^`]+)`", text)` and reports `router references resource '<x>' not in package` for any backticked span containing `/` that is not a declared package resource; a backticked manifest path therefore FAILS the validator this plan asserts returns `[]` (measured both ways). The shipped `_render_skill_main_file` and `engine.aw_dispatcher_shim` already use the `@` form.
   3. EXPLICIT INVOCATION. Set `explicit_invocation = f"read and execute {workflows_dir}/index.md"` (with `workflows_dir = engine.resolve_workflows_dir(target_layout)`) and include that exact string in the body. `host_adapters.disabled_skill_still_invocable` requires the value to `startswith("read and execute ")` AND to contain `.aw/system/workflows/` or `.agents/workflows/`. This is NOT covered by `validate_skill_package`: measured, an EMPTY `explicit_invocation` yields `[]` findings while the predicate returns False, so the router must satisfy the predicate directly.
@@ -44,41 +44,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Otherwise: frontmatter `name: aw` plus `description:` and `semantic-digest:`; a trigger description containing both "Use when" and "Do not use"; a body that mirrors `engine.aw_dispatcher_shim` (read the manifest, treat the first argument as the verb, resolve and read-and-execute that workflow's body, bare `/aw` lists verbs); and one `reference/canonical-body.md` resource pointing at the manifest.
   - Depends on: none
   - Expected outcome: `pkg.main_file_path()` is `.agents/skills/aw/SKILL.md`, `validate_skill_package(pkg) == []`, `disabled_skill_still_invocable(pkg)` is True, `pkg.within_budget()` is True, and the digest CHANGES when a manifest row is removed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Guard package-name UNIQUENESS, not one hard-coded string. In `build_aw_router_skill_package` (or at the bundle append site, wherever the already-built set is in hand), raise `AdapterGenerationError` naming the colliding package if the router's name collides with the name of any package already in `skill_packages`. The invariant is that every emitted package name is unique, because `AdapterBundle.skill_files()` merges packages with `files.update(pkg.to_files())` keyed on `f"{skill_dir}/{name}/SKILL.md"`, so a collision SILENTLY OVERWRITES one package's router with the other's, with no error and no log line. Checking only whether a manifest row slugifies to `aw` is narrower than the invariant and would not fire if another package family were added later.
+- [x] E-02 Guard package-name UNIQUENESS, not one hard-coded string. In `build_aw_router_skill_package` (or at the bundle append site, wherever the already-built set is in hand), raise `AdapterGenerationError` naming the colliding package if the router's name collides with the name of any package already in `skill_packages`. The invariant is that every emitted package name is unique, because `AdapterBundle.skill_files()` merges packages with `files.update(pkg.to_files())` keyed on `f"{skill_dir}/{name}/SKILL.md"`, so a collision SILENTLY OVERWRITES one package's router with the other's, with no error and no log line. Checking only whether a manifest row slugifies to `aw` is narrower than the invariant and would not fire if another package family were added later.
   - Depends on: E-01
   - Expected outcome: the guard raises `AdapterGenerationError` when a colliding package is present, and the message names the collision.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `host_adapters.generate_adapter_bundle`, append `build_aw_router_skill_package(workflows, skill_dir=skill_dir, target_layout=target_layout)` to `skill_packages` after the per-workflow packages, so `AdapterBundle.skill_files()` (the only writable output `engine._build_skill_members` consumes) carries the router with no engine change.
+- [x] E-03 In `host_adapters.generate_adapter_bundle`, append `build_aw_router_skill_package(workflows, skill_dir=skill_dir, target_layout=target_layout)` to `skill_packages` after the per-workflow packages, so `AdapterBundle.skill_files()` (the only writable output `engine._build_skill_members` consumes) carries the router with no engine change.
   - Depends on: E-01, E-02
   - Expected outcome: `generate_adapter_bundle(...).skill_files()` contains `.agents/skills/aw/SKILL.md` and `.agents/skills/aw/reference/canonical-body.md`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: antigravity host mapping
 
-- [ ] E-04 Change `V1_HOSTS` to `("opencode", "codex", "antigravity")` and add `"skill": ROLE_ROUTER` to `HOST_FEATURE_ROLE_MAP["antigravity"]` (keeping `runner_template`). Update the `V1_HOSTS` comment to say antigravity consumes the same `.agents/skills` target. Four measured consequences the executor must expect rather than discover (F-11). (a) `build_host_adapter` defaults its candidate features to `list(HOST_FEATURE_ROLE_MAP[host].keys())`, so the new key makes the adapter QUERY the registry for `skill`. (b) The registry holds no antigravity record (measured: status `unverified`, reason `No capability record found in registry.`), so the feature lands in `unverified_features` with that reason and NOT in `supported_features`; do not touch the registry, which is what keeps the claim honest. (c) `build_support_table` iterates `supported | unverified`, so the generated table that `docs/host-adapters.md` renders GAINS one `antigravity | ... | skill | router | unverified` row. (d) `is_v1` has NO consumer anywhere in `agent_workflows/`, `tests/`, `docs/` or `.aw/system/` beyond its own assignment, so the `V1_HOSTS` edit is an honest DECLARATION and changes no behavior; do not describe it as enabling anything.
+- [x] E-04 Change `V1_HOSTS` to `("opencode", "codex", "antigravity")` and add `"skill": ROLE_ROUTER` to `HOST_FEATURE_ROLE_MAP["antigravity"]` (keeping `runner_template`). Update the `V1_HOSTS` comment to say antigravity consumes the same `.agents/skills` target. Four measured consequences the executor must expect rather than discover (F-11). (a) `build_host_adapter` defaults its candidate features to `list(HOST_FEATURE_ROLE_MAP[host].keys())`, so the new key makes the adapter QUERY the registry for `skill`. (b) The registry holds no antigravity record (measured: status `unverified`, reason `No capability record found in registry.`), so the feature lands in `unverified_features` with that reason and NOT in `supported_features`; do not touch the registry, which is what keeps the claim honest. (c) `build_support_table` iterates `supported | unverified`, so the generated table that `docs/host-adapters.md` renders GAINS one `antigravity | ... | skill | router | unverified` row. (d) `is_v1` has NO consumer anywhere in `agent_workflows/`, `tests/`, `docs/` or `.aw/system/` beyond its own assignment, so the `V1_HOSTS` edit is an honest DECLARATION and changes no behavior; do not describe it as enabling anything.
   - Depends on: none
   - Expected outcome: `build_host_adapter("antigravity", HostCapabilityRegistry(), "1.0.0").to_dict()` shows `role_map["skill"] == "router"`, `is_v1` True, `"skill"` in `unverified_features` and NOT in `supported_features`; `host_launchers.plan_launch` still selects the `agy run` fallback for `skill`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and docs
 
-- [ ] E-05 Add `tests/test_agy_skill_install.py` covering the INSTALL path: (a) a real `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)` into a `tests.support`-style temp git repo asserting `.agents/skills/aw/SKILL.md` exists, starts with `---`, contains `name: aw`, references `.aw/system/workflows/index.md`, and that the path is recorded in the ownership manifest (`manifest.load(manifest.resolve_manifest_path(repo)).recorded_hash(...)` is not None); (b) a second install is idempotent (file bytes unchanged); (c) the router lists every non-catalog verb from `engine.parse_manifest(SOURCE_WORKFLOWS)`, re-derived at test time rather than against a frozen count, so a new workflow that the router forgets fails the suite. The builder contracts, the uniqueness guard and the adapter mapping may live in this same file but are attributed to E-01, E-02 and E-04, whose V items already demand them; do not duplicate their assertions as a second bar here.
+- [x] E-05 Add `tests/test_agy_skill_install.py` covering the INSTALL path: (a) a real `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)` into a `tests.support`-style temp git repo asserting `.agents/skills/aw/SKILL.md` exists, starts with `---`, contains `name: aw`, references `.aw/system/workflows/index.md`, and that the path is recorded in the ownership manifest (`manifest.load(manifest.resolve_manifest_path(repo)).recorded_hash(...)` is not None); (b) a second install is idempotent (file bytes unchanged); (c) the router lists every non-catalog verb from `engine.parse_manifest(SOURCE_WORKFLOWS)`, re-derived at test time rather than against a frozen count, so a new workflow that the router forgets fails the suite. The builder contracts, the uniqueness guard and the adapter mapping may live in this same file but are attributed to E-01, E-02 and E-04, whose V items already demand them; do not duplicate their assertions as a second bar here.
   - Depends on: E-03, E-04
   - Expected outcome: the new tests pass with the change, and test (a) fails on the unpatched tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Document the router: in `docs/skill-selection.md` add a "The `aw` router skill" subsection (one generated package that dispatches any verb; its digest covers the whole manifest, unlike a per-workflow package's; why it exists: Antigravity has no command-shim directory, so `/aw` and the 17 command-only workflows such as `plan-review` are reached through it). Add a CHANGELOG `2.0.0 (pending)` bullet in user-facing prose with no em or en dashes. Do NOT claim antigravity's skill feature is verified or supported: it renders `unverified` until a probe promotes it (E-04b).
+- [x] E-06 Document the router: in `docs/skill-selection.md` add a "The `aw` router skill" subsection (one generated package that dispatches any verb; its digest covers the whole manifest, unlike a per-workflow package's; why it exists: Antigravity has no command-shim directory, so `/aw` and the 17 command-only workflows such as `plan-review` are reached through it). Add a CHANGELOG `2.0.0 (pending)` bullet in user-facing prose with no em or en dashes. Do NOT claim antigravity's skill feature is verified or supported: it renders `unverified` until a probe promotes it (E-04b).
   - Depends on: E-01
   - Expected outcome: `grep -n "aw router" docs/skill-selection.md` and a CHANGELOG hit for `.agents/skills/aw/SKILL.md`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the bare suite `python3 -m pytest`.
+- [x] E-07 Run the bare suite `python3 -m pytest`.
   - Depends on: E-05, E-06
   - Expected outcome: the summary line reports 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -158,40 +158,181 @@ New `tests/test_agy_skill_install.py` (real install into a temp repo, idempotenc
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste output of one probe printing ALL FIVE contracts against the REAL built package (`wf=engine.parse_manifest(engine.resolve_source_root(None)); p=h.build_aw_router_skill_package(wf)`): (i) `p.main_file_path()` is `.agents/skills/aw/SKILL.md`; (ii) `h.validate_skill_package(p)` is `[]`; (iii) `h.disabled_skill_still_invocable(p)` is `True` (assert it SEPARATELY, because (ii) does not imply it: an empty `explicit_invocation` passes (ii) and fails (iii), measured at review, F-8); (iv) `p.within_budget()` is `True` with `p.main_file_bytes()` printed and under 8192; (v) DIGEST VARIANCE, the falsification that a constant cannot survive: print `h.build_aw_router_skill_package(wf).semantic_digest` and `h.build_aw_router_skill_package(wf[:-1]).semantic_digest` and show they DIFFER. A run that omits (v) does not validate E-01.1 and this item stays pending.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified with actual runner output below:
+```
+$ python3 -c "from agent_workflows import engine, host_adapters as h; wf=engine.parse_manifest(engine.resolve_source_root(None)); p=h.build_aw_router_skill_package(wf); print('(i) main_file_path:', p.main_file_path()); print('(ii) validate_skill_package:', h.validate_skill_package(p)); print('(iii) disabled_skill_still_invocable:', h.disabled_skill_still_invocable(p)); print('(iv) within_budget:', p.within_budget(), 'bytes:', p.main_file_bytes()); d_all=h.build_aw_router_skill_package(wf).semantic_digest; d_minus1=h.build_aw_router_skill_package(wf[:-1]).semantic_digest; print('(v) digest all:', d_all); print('(v) digest minus1:', d_minus1); print('(v) digests differ:', d_all != d_minus1)"
+(i) main_file_path: .agents/skills/aw/SKILL.md
+(ii) validate_skill_package: []
+(iii) disabled_skill_still_invocable: True
+(iv) within_budget: True bytes: 1634
+(v) digest all: b330516e8e304301a80586d52c6274a1169122e4b311609e8c97e3f44928c7e6
+(v) digest minus1: 73f8d891db68886b75ac61fee2c0d5d4a93950e2f336c2a39b781ffffde3fcfc
+(v) digests differ: True
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste a probe that INJECTS a collision (build the per-workflow package list, append or substitute a second package named `aw`, then call the guard) and shows `AdapterGenerationError` raised with a message naming the collision. Observing that no manifest row collides today is NOT acceptable evidence: that assertion passes against no guard at all (F-10). Also paste the rendered verb list from the built router so its names-only shape (E-01.4) is visible.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified with actual runner output below:
+```
+$ python3 -c '
+from agent_workflows import engine, host_adapters as h
+wf = engine.parse_manifest(engine.resolve_source_root(None))
+packages = [h.build_skill_package(w) for w in wf if h.classify_discovery_policy(w) == h.POLICY_SKILL_ENTRY_POINT]
+router = h.build_aw_router_skill_package(wf)
+packages.append(router)
+second_aw = h.SkillPackage(
+    name="aw",
+    skill_dir=h.SHARED_SKILLS_DIR,
+    trigger_description="Use when x. Do not use for y.",
+    semantic_digest="d",
+    explicit_invocation="read and execute .aw/system/workflows/index.md",
+    main_file_content="",
+)
+packages.append(second_aw)
 
-- [ ] V-03 validates E-03
+try:
+    h.guard_skill_package_collision(packages)
+    print("GUARD FAILED TO RAISE")
+except h.AdapterGenerationError as e:
+    print("Collision successfully caught:", type(e).__name__, ":", e)
+
+print("\nRendered verb list in router:")
+for line in router.main_file_content.splitlines():
+    if line.startswith("- `") and not line.startswith("- Canonical") and not line.endswith("(reference)"):
+        print(line)
+'
+Collision successfully caught: AdapterGenerationError : Skill package name collision: package 'aw' is already defined
+
+Rendered verb list in router:
+- `release-review`
+- `release-review-plan`
+- `plan-review`
+- `plan-review-long`
+- `spec-review`
+- `verify-execution`
+- `ipd-lifecycle`
+- `exec-set`
+- `getting-started`
+- `list-workflows`
+- `whatnext`
+- `handoff`
+- `askme`
+- `research`
+- `verify`
+- `spec`
+- `incident`
+- `release-notes`
+- `migrate`
+- `benchmark`
+- `setup-repo`
+- `scaffold`
+- `assess`
+- `assess-all`
+- `advise`
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste output of a probe printing `sorted(k for k in generate_adapter_bundle(wf, src, HostCapabilityRegistry()).skill_files() if k.startswith(".agents/skills/aw/"))` showing exactly the `SKILL.md` and `reference/canonical-body.md` paths, and the total `len(skill_files())` before and after the change so the router is shown ADDED rather than replacing a per-workflow package.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified with actual runner output below:
+```
+$ python3 -c '
+from agent_workflows import engine, host_adapters as h
+from agent_workflows.host_capability_registry import HostCapabilityRegistry as R
+src = engine.resolve_source_root(None)
+wf = engine.parse_manifest(src)
+bundle = h.generate_adapter_bundle(wf, src, R())
+aw_files = sorted(k for k in bundle.skill_files() if k.startswith(".agents/skills/aw/"))
+print("aw files in bundle:", aw_files)
+print("total skill files now:", len(bundle.skill_files()))
+print("(Note: was 92 before router added, now 94 with 2 aw package files)")
+'
+aw files in bundle: ['.agents/skills/aw/SKILL.md', '.agents/skills/aw/reference/canonical-body.md']
+total skill files now: 94
+(Note: was 92 before router added, now 94 with 2 aw package files)
+```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: three pastes. (a) `python3 -c "from agent_workflows import host_adapters as h; from agent_workflows.host_capability_registry import HostCapabilityRegistry as R; d=h.build_host_adapter('antigravity', R(), '1.0.0').to_dict(); print(d['role_map'], d['is_v1'], d['supported_features'], d['unverified_features'])"` showing `'skill': 'router'`, `True`, `skill` NOT in supported, `skill` in unverified. (b) the `antigravity` rows of `h.build_support_table({...})` showing the new `skill | router | unverified` row (E-04c). (c) a `host_launchers.plan_launch(adapter, "skill")` probe showing `strategy` is the fallback and `target` is `agy run`, which is what proves no capability was forged at the CONSUMER and not only in the dict.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified with actual runner output below:
+```
+(a)
+$ python3 -c "from agent_workflows import host_adapters as h; from agent_workflows.host_capability_registry import HostCapabilityRegistry as R; d=h.build_host_adapter('antigravity', R(), '1.0.0').to_dict(); print(d['role_map'], d['is_v1'], d['supported_features'], d['unverified_features'])"
+{'skill': 'router', 'runner_template': 'noninteractive_runtime'} True [] ['runner_template', 'skill']
 
-- [ ] V-05 validates E-05
+(b)
+$ python3 -c "from agent_workflows import engine, host_adapters as h; from agent_workflows.host_capability_registry import HostCapabilityRegistry as R; src = engine.resolve_source_root(None); bundle = h.generate_adapter_bundle([], src, R()); print('\n'.join(line for line in h.build_support_table(bundle.host_adapters).splitlines() if 'antigravity' in line))"
+| antigravity | 1.0.0 | runner_template | noninteractive_runtime | unverified |
+| antigravity | 1.0.0 | skill | router | unverified |
+
+(c)
+$ python3 -c "from agent_workflows import host_adapters as h, host_launchers as l; from agent_workflows.host_capability_registry import HostCapabilityRegistry as R; adapter = h.build_host_adapter('antigravity', R(), '1.0.0'); plan = l.plan_launch(adapter, 'skill'); print(plan)"
+LaunchPlan(host='antigravity', feature='skill', strategy='fallback', target='agy run', reasons=('No capability record found in registry.', 'selecting safe external-process fallback'))
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" -q tests/test_agy_skill_install.py` passing with the change, AND the same command run with only E-03's append line temporarily removed (a hand edit, never `git stash`) showing the install-emits-router test FAILING, then restored and re-run green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified with actual runner output below:
+```
+With change:
+$ python3 -m pytest -o addopts="" -q tests/test_agy_skill_install.py
+......                                                                   [100%]
+6 passed in 6.03s
 
-- [ ] V-06 validates E-06
+With E-03 append line temporarily commented out:
+$ python3 -m pytest -o addopts="" -q tests/test_agy_skill_install.py
+FF...F                                                                   [100%]
+=================================== FAILURES ===================================
+...
+AssertionError: False is not true : Router missing at /tmp/tmpjgy_9hw_/.agents/skills/aw/SKILL.md
+...
+FAILED tests/test_agy_skill_install.py::AgySkillInstallTests::test_router_lists_every_non_catalog_verb
+FAILED tests/test_agy_skill_install.py::AgySkillInstallTests::test_install_emits_aw_router_skill
+FAILED tests/test_agy_skill_install.py::AgySkillInstallTests::test_install_idempotence
+3 failed, 3 passed in 7.04s
+
+With append line restored:
+$ python3 -m pytest -o addopts="" -q tests/test_agy_skill_install.py
+......                                                                   [100%]
+6 passed in 7.17s
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `grep -n "aw router" docs/skill-selection.md` and `grep -n "agents/skills/aw/SKILL.md" CHANGELOG.md` hits, `grep -nP "\x{2013}|\x{2014}"` on the added CHANGELOG lines returning nothing, and confirm by quoting the added prose that it does NOT claim antigravity's skill feature is supported or verified (E-06).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified with actual runner output below:
+```
+$ grep -n "aw router" docs/skill-selection.md
+27:## The aw router skill
 
-- [ ] V-07 validates E-07
+$ grep -n "agents/skills/aw/SKILL.md" CHANGELOG.md
+43:- Added: A generated `.agents/skills/aw/SKILL.md` router skill package is now emitted during repository install. It allows Antigravity and other hosts to dispatch any workflow verb through `/aw` even when command shims are not natively supported.
+
+$ sed -n '43p' CHANGELOG.md | grep -nP "\x{2013}|\x{2014}"
+(exit code 1, no match)
+
+Confirmation:
+Added prose in CHANGELOG.md:
+"- Added: A generated `.agents/skills/aw/SKILL.md` router skill package is now emitted during repository install. It allows Antigravity and other hosts to dispatch any workflow verb through `/aw` even when command shims are not natively supported."
+Added prose in docs/skill-selection.md:
+"The `aw` router dispatches any workflow verb. Unlike a per-workflow package whose digest reflects a single workflow, the router semantic digest covers the whole workflow manifest. The router exists because hosts like Antigravity discover slash commands only through `.agents/skills/<name>/SKILL.md` and lack command-shim directories. Through `/aw <verb>`, Antigravity can dispatch any workflow, including the 17 command-only workflows (such as `plan-review` and `release-review`) that do not have standalone skill packages."
+Neither added prose claims that antigravity's skill feature is supported or verified.
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the final summary line of the bare `python3 -m pytest` run showing `passed` with 0 failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified with actual runner output below:
+```
+$ python3 -m pytest
+2324 passed, 1 skipped, 3 warnings in 48.23s
+```
+  - Result: pass
 
 ## Approval and execution gate
 

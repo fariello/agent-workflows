@@ -24,6 +24,12 @@ clauses, references a missing resource, exceeds the entry-point byte budget, or 
 the canonical digest. `check_authority_not_inlined` fails a router that copied the canonical
 body into its own prose.
 
+## The aw router skill
+
+In addition to per-workflow skills, the compiler generates a unified router skill package at `.agents/skills/aw/SKILL.md` (via `agent_workflows/host_adapters.build_aw_router_skill_package`).
+
+The `aw` router dispatches any workflow verb. Unlike a per-workflow package whose digest reflects a single workflow, the router semantic digest covers the whole workflow manifest. The router exists because hosts like Antigravity discover slash commands only through `.agents/skills/<name>/SKILL.md` and lack command-shim directories. Through `/aw <verb>`, Antigravity can dispatch any workflow, including the 17 command-only workflows (such as `plan-review` and `release-review`) that do not have standalone skill packages.
+
 ## Precedence
 
 A workspace-local skill (under `.agents/skills/`) deterministically supersedes a global skill

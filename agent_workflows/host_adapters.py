@@ -59,9 +59,10 @@ from agent_workflows.host_capability_registry import (
 # The shared on-demand Agent Skills directory target (Order-10 OQ-01: OpenCode + Codex v1).
 SHARED_SKILLS_DIR: str = ".agents/skills"
 
-# v1 hosts that generate a live-capable adapter/skill target. Other rows are generated
+# v1 hosts that generate a live-capable adapter/skill target (OpenCode, Codex, and
+# Antigravity consume the shared .agents/skills target). Other rows are generated
 # but flagged unverified until Order-10 probes promote them.
-V1_HOSTS: Tuple[str, ...] = ("opencode", "codex")
+V1_HOSTS: Tuple[str, ...] = ("opencode", "codex", "antigravity")
 
 # All hosts we generate adapter metadata for (v1 + deferred/unverified rows).
 ALL_ADAPTER_HOSTS: Tuple[str, ...] = (
@@ -148,6 +149,7 @@ HOST_FEATURE_ROLE_MAP: Dict[str, Dict[str, str]] = {
         "context_fork": ROLE_ISOLATED_EXECUTOR,
     },
     "antigravity": {
+        "skill": ROLE_ROUTER,
         "runner_template": ROLE_NONINTERACTIVE_RUNTIME,
     },
 }
@@ -422,6 +424,138 @@ def build_skill_package(
     )
 
 
+def guard_skill_package_collision(
+    packages: Sequence[SkillPackage],
+    candidate: Optional[SkillPackage] = None,
+) -> None:
+    """Guard package-name uniqueness across emitted skill packages.
+
+    Raises :class:`AdapterGenerationError` naming the colliding package if any
+    package name appears more than once, or if ``candidate`` collides with any
+    package in ``packages``.
+    """
+    seen: set[str] = set()
+    for pkg in packages:
+        if pkg.name in seen:
+            raise AdapterGenerationError(
+                f"Skill package name collision: package '{pkg.name}' is already defined"
+            )
+        seen.add(pkg.name)
+    if candidate is not None and candidate.name in seen:
+        raise AdapterGenerationError(
+            f"Skill package name collision: package '{candidate.name}' is already defined"
+        )
+
+
+def build_aw_router_skill_package(
+    workflows: Sequence[Workflow],
+    skill_dir: str = SHARED_SKILLS_DIR,
+    target_layout: str = "aw",
+    existing_packages: Optional[Sequence[SkillPackage]] = None,
+) -> SkillPackage:
+    """Build the unified ``aw`` router Agent Skill package.
+
+    The router package is rooted at ``.agents/skills/aw/`` and provides the `/aw`
+    slash-command dispatcher for all workflow verbs.
+    """
+    from agent_workflows import workflow_profile
+
+    name = "aw"
+    compile_shape = {
+        "manifest": {"id": name},
+        "evidence": {
+            "requirements": [{"id": w.command, "evidence": [w.body]} for w in workflows]
+        },
+    }
+    semantic_digest = workflow_profile.semantic_digest(compile_shape)
+
+    trigger_description = (
+        "Use when the user invokes the aw slash command or asks to run any repository workflow. "
+        "Do not use for unrelated requests or when no workflow action was requested."
+    )
+
+    workflows_dir = engine.resolve_workflows_dir(target_layout)
+    manifest_target = f"{workflows_dir}/index.md"
+    explicit_invocation = f"read and execute {manifest_target}"
+
+    resources: List[SkillResource] = [
+        SkillResource(
+            relative_path="reference/canonical-body.md",
+            kind="reference",
+            content=(
+                f"# Canonical manifest pointer\n\n"
+                f"The authoritative workflow manifest for `aw` is @{manifest_target}.\n"
+                f"This skill package never duplicates that content; it points at it.\n"
+            ),
+        ),
+    ]
+
+    non_catalog = [w for w in workflows if not engine.is_concern_catalog_row(w)]
+    verb_lines = [f"- `{w.command}`" for w in non_catalog]
+
+    frontmatter = (
+        "---\n"
+        f"name: {name}\n"
+        f"description: {trigger_description}\n"
+        f"semantic-digest: {semantic_digest}\n"
+        "---\n"
+    )
+
+    lines = [
+        frontmatter,
+        f"# Skill: {name}",
+        "",
+        "This skill is a discovery/dispatch router only. The authoritative workflow "
+        "semantics, state machine, and evidence contract live in the canonical source and "
+        "runtime, NOT in this file.",
+        "",
+        "## Canonical behavior",
+        "",
+        f"Read the workflow manifest @{manifest_target}.",
+        "",
+        "The first argument names the workflow VERB (e.g. `assess`, `plan-review`, `verify`, "
+        "`handoff`, `spec`, `whatnext`, `setup-repo`); any remaining arguments are passed through "
+        "to the resolved workflow. Resolve the verb to its workflow entry in the manifest, then "
+        "read and execute that workflow's body file. If NO verb was given, consult the manifest "
+        "or list available workflows below to prompt the user.",
+        "",
+        f"- Canonical semantic digest: `{semantic_digest}`",
+        "",
+        "## Explicit invocation (works even if this skill is disabled)",
+        "",
+        f"    {explicit_invocation}",
+        "",
+        "## Available verbs",
+        "",
+    ]
+    lines.extend(verb_lines)
+    lines.append("")
+
+    if resources:
+        lines.append("## Package resources")
+        lines.append("")
+        for r in resources:
+            lines.append(f"- `{r.relative_path}` ({r.kind})")
+        lines.append("")
+
+    main_content = "\n".join(lines)
+
+    package = SkillPackage(
+        name=name,
+        skill_dir=skill_dir,
+        trigger_description=trigger_description,
+        semantic_digest=semantic_digest,
+        explicit_invocation=explicit_invocation,
+        main_file_content=main_content,
+        resources=resources,
+    )
+
+    if existing_packages is not None:
+        guard_skill_package_collision(existing_packages, package)
+
+    return package
+
+
 def validate_skill_package(package: SkillPackage) -> List[str]:
     """Validate a generated skill package. Returns a list of finding strings (empty = ok).
 
@@ -676,6 +810,14 @@ def generate_adapter_bundle(
         if classify_discovery_policy(w, target_layout=target_layout)
         == POLICY_SKILL_ENTRY_POINT
     ]
+    skill_packages.append(
+        build_aw_router_skill_package(
+            workflows,
+            skill_dir=skill_dir,
+            target_layout=target_layout,
+            existing_packages=skill_packages,
+        )
+    )
 
     versions = versions or {}
     adapters: Dict[str, HostAdapter] = {}
@@ -784,6 +926,8 @@ __all__ = [
     "AdapterBundle",
     "AdapterGenerationError",
     "build_skill_package",
+    "build_aw_router_skill_package",
+    "guard_skill_package_collision",
     "validate_skill_package",
     "check_authority_not_inlined",
     "compute_workflow_semantic_digest",
