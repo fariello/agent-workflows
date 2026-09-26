@@ -47,7 +47,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 CONFIG_VERSION = 2
 _APP_DIR = "agent-workflows"
@@ -1488,6 +1488,158 @@ def findings_gate_threshold(repo_root: "os.PathLike[str] | str") -> str:
         return REVIEW_GATE_DEFAULT
     token = value.strip().lower()
     return token if token in REVIEW_GATE_THRESHOLDS else REVIEW_GATE_DEFAULT
+
+
+# --------------------------------------------------------------------------------------
+# gatekinds Order 01 (kxawm4) E-01: repository-policy release gating work kinds.
+#
+# Work kinds whose live items automatically carry `- Blocks-Release:` (e.g. `bug`, `security`).
+# Defaults to `bug` alone, preserving existing behavior when unconfigured.
+# Recorded in `.aw/config/project.json` under `release_gate_work_kinds`.
+# Accepted shapes:
+#   - `{"kinds": ["bug", "security"]}`
+#   - `["bug", "security"]` (bare list)
+#   - `"bug"` (bare string)
+# Explicit empty list `[]` or `{"kinds": []}` disables auto-gating.
+#
+# Deliberately NOT registered in `CONFIG_SCHEMA`: `project_schema.parse_portable_policy`
+# preserves unrecognized keys in `unknown_fields` and writes them BACK on serialization,
+# so the key round-trips safely without a schema change (same precedent as `review_findings_gate`).
+#
+# Posture follows `policy_retry_budget`: malformed values or unknown kinds emit a warning
+# and fall back to the default (or drop the unknown kind), never raising.
+# --------------------------------------------------------------------------------------
+
+RELEASE_GATE_WORK_KINDS_KEY = "release_gate_work_kinds"
+
+#: Legal work kinds for release gating. Mirrored from `backlog.KINDS` to avoid importing
+#: `agent_workflows.backlog` from `config` (following the `REVIEW_GATE_THRESHOLDS` precedent above,
+#: which mirrors `review_findings.SEVERITIES`).
+RELEASE_GATE_VALID_KINDS: FrozenSet[str] = frozenset(
+    {"bug", "feature", "chore", "security", "followup"}
+)
+
+RELEASE_GATE_WORK_KINDS_DEFAULT: FrozenSet[str] = frozenset({"bug"})
+
+
+def release_gate_work_kinds(
+    repo_root: "os.PathLike[str] | str",
+    *,
+    warn: Any = None,
+    allowed_kinds: Optional[Iterable[str]] = None,
+) -> FrozenSet[str]:
+    """Return the configured set of release-gating work kinds, or the default `frozenset({'bug'})`.
+
+    Reads `.aw/config/project.json` under `release_gate_work_kinds`.
+    Accepted shapes:
+      - `{"kinds": ["bug", "security"]}`
+      - `["bug", "security"]`
+      - `"bug"` (or any single kind string)
+    An explicit empty list `[]` (or `{"kinds": []}`) is legal and returns `frozenset()`.
+
+    Values are lowercased, stripped, and validated against legal kinds.
+    Unknown kinds are dropped with a warning naming the key, the offending kind, and the file.
+    Non-list/non-dict garbage warns and falls back to `RELEASE_GATE_WORK_KINDS_DEFAULT`.
+    """
+    import sys as _sys
+
+    def _emit(message: str) -> None:
+        if warn is None:
+            print(message, file=_sys.stderr)
+        else:
+            warn(message)
+
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    try:
+        data = json.loads(project_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return RELEASE_GATE_WORK_KINDS_DEFAULT
+    if not isinstance(data, dict):
+        return RELEASE_GATE_WORK_KINDS_DEFAULT
+
+    if RELEASE_GATE_WORK_KINDS_KEY not in data:
+        return RELEASE_GATE_WORK_KINDS_DEFAULT
+
+    raw = data.get(RELEASE_GATE_WORK_KINDS_KEY)
+    if raw is None:
+        return RELEASE_GATE_WORK_KINDS_DEFAULT
+
+    valid_kinds = (
+        frozenset(allowed_kinds)
+        if allowed_kinds is not None
+        else RELEASE_GATE_VALID_KINDS
+    )
+
+    items_to_process: List[Any]
+    if isinstance(raw, dict):
+        if "kinds" not in raw:
+            _emit(
+                f"WARNING: {RELEASE_GATE_WORK_KINDS_KEY} in {project_file} is missing 'kinds' list: {raw!r}. "
+                f"Using default {sorted(RELEASE_GATE_WORK_KINDS_DEFAULT)} instead."
+            )
+            return RELEASE_GATE_WORK_KINDS_DEFAULT
+        kinds_val = raw.get("kinds")
+        if not isinstance(kinds_val, list):
+            _emit(
+                f"WARNING: {RELEASE_GATE_WORK_KINDS_KEY}.kinds in {project_file} is {kinds_val!r}, which is not a list. "
+                f"Using default {sorted(RELEASE_GATE_WORK_KINDS_DEFAULT)} instead."
+            )
+            return RELEASE_GATE_WORK_KINDS_DEFAULT
+        items_to_process = kinds_val
+    elif isinstance(raw, list):
+        items_to_process = raw
+    elif isinstance(raw, str):
+        token = raw.strip()
+        if not token:
+            _emit(
+                f"WARNING: {RELEASE_GATE_WORK_KINDS_KEY} in {project_file} is empty string. "
+                f"Using default {sorted(RELEASE_GATE_WORK_KINDS_DEFAULT)} instead."
+            )
+            return RELEASE_GATE_WORK_KINDS_DEFAULT
+        items_to_process = [token]
+    else:
+        _emit(
+            f"WARNING: {RELEASE_GATE_WORK_KINDS_KEY} in {project_file} is {raw!r}, which is not a dict, list, or string. "
+            f"Using default {sorted(RELEASE_GATE_WORK_KINDS_DEFAULT)} instead."
+        )
+        return RELEASE_GATE_WORK_KINDS_DEFAULT
+
+    # Explicit empty list is legal: "no kind auto-gates"
+    if not items_to_process:
+        return frozenset()
+
+    result_kinds = set()
+    unknown_kinds = []
+
+    for item in items_to_process:
+        if not isinstance(item, str):
+            unknown_kinds.append(repr(item))
+            continue
+        cleaned = item.strip().lower()
+        if cleaned in valid_kinds:
+            result_kinds.add(cleaned)
+        else:
+            unknown_kinds.append(item)
+
+    if unknown_kinds:
+        for unk in unknown_kinds:
+            _emit(
+                f"WARNING: {RELEASE_GATE_WORK_KINDS_KEY} in {project_file} contains unknown kind {unk!r}. "
+                "Dropping it."
+            )
+
+    if not result_kinds and not items_to_process:
+        return frozenset()
+
+    if not result_kinds and unknown_kinds:
+        # If all specified kinds were unknown, fall back to default
+        _emit(
+            f"WARNING: {RELEASE_GATE_WORK_KINDS_KEY} in {project_file} has no valid kinds left after dropping unknown kinds. "
+            f"Using default {sorted(RELEASE_GATE_WORK_KINDS_DEFAULT)} instead."
+        )
+        return RELEASE_GATE_WORK_KINDS_DEFAULT
+
+    return frozenset(result_kinds)
 
 
 # --------------------------------------------------------------------------------------

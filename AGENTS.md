@@ -157,13 +157,14 @@ outstanding release-blocker set for the active release.
 
 ### Every live bug gates the next release
 
-We do not ship known bugs. So a backlog item, spec, or plan whose `- Work-Kind:` is `bug` (the enum is
-defined once, in `.aw/records/backlog/README.md`) MUST carry `- Blocks-Release:` while it is LIVE, meaning
-`open`, `blocked`, or `graduated`. This is a policy about WHICH artifacts must carry the field, not a change
-to what the field means, so the BLOCKS-RELEASE versus BLOCKED-BY distinction above is untouched: a bug that
-is merely `open` is still a release blocker. Maintainer ruling, 2026-09-11. `bug` is the only gating
-work-kind today; making that set configurable per repository, defaulting to `bug` alone, is designed but NOT
-yet built (backlog `0htqmm`), so do not look for a config key to widen it.
+We do not ship known bugs. So a backlog item, spec, or plan whose `- Work-Kind:` is in the repository's
+gating set (default `bug`) (the enum is defined once, in `.aw/records/backlog/README.md`) MUST carry
+`- Blocks-Release:` while it is LIVE, meaning `open`, `blocked`, or `graduated`. This is a policy about WHICH
+artifacts must carry the field, not a change to what the field means, so the BLOCKS-RELEASE versus BLOCKED-BY
+distinction above is untouched: a bug that is merely `open` is still a release blocker. Maintainer ruling, 2026-09-11.
+The gating work-kind set is configured per repository via `release_gate_work_kinds` in `.aw/config/project.json`
+(default `bug` alone); an explicit empty list `[]` opts out of auto-gating, and malformed values fall back to
+the default and emit a warning.
 
 The gate TRAVELS with the work rather than being re-decided at each handoff. The managed block above
 already obliges a graduating plan or spec to inherit the item's `- Blocks-Release:` "if it has one"; this

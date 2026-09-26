@@ -221,12 +221,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.orphaned-live-blocker": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_HEURISTIC, "I-07"
     ),
-    # nobugship rgaasb E-02: a LIVE `Work-Kind: bug` item carrying NO `- Blocks-Release:`. The
-    # enforcement half of the maintainer's standing rule "we don't ship known bugs", written down by
-    # sibling plan `zqs0px` in AGENTS.md ("Every live bug gates the next release") and defaulted at
-    # creation by sibling `di08i9`. This rule is what makes the policy self-maintaining: documentation
-    # and a creation default both leave the HAND-AUTHORED route open, which is measurably how the
-    # violations accumulated unnoticed.
+    # nobugship rgaasb E-02 / gatekinds kxawm4: a LIVE item in the repository's gating set (default
+    # `bug`) carrying NO `- Blocks-Release:`. The enforcement half of the maintainer's standing rule
+    # "we don't ship known bugs", written down by sibling plan `zqs0px` in AGENTS.md ("Every live bug
+    # gates the next release") and defaulted at creation by sibling `di08i9`. This rule is what makes
+    # the policy self-maintaining: documentation and a creation default both leave the HAND-AUTHORED
+    # route open, which is measurably how the violations accumulated unnoticed.
     #
     # `error`, matching its four I-07 siblings above, NOT a staged `warning` with a promise to tighten
     # later: a rule left permanently at `warning` is a recorded failure mode in this repository
@@ -4061,7 +4061,7 @@ _LIVE_BUG_GATE_RULE = "check.live-bug-ungated"
 
 
 def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
-    """A LIVE `Work-Kind: bug` backlog item carrying NO `- Blocks-Release:` (nobugship rgaasb E-01).
+    """A LIVE backlog item in the gating work-kind set carrying NO `- Blocks-Release:`.
 
     THE RULE THIS ENFORCES IS WRITTEN DOWN, and this docstring deliberately POINTS AT that text
     rather than restating the policy, so the two cannot drift: `AGENTS.md`, section "Every live bug
@@ -4110,9 +4110,11 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
     improvement over nothing; it is NOT a completeness claim.
     """
     from agent_workflows import backlog as _backlog
+    from agent_workflows import config as _config
 
     repo_root = Path(repo_root)
     live = _backlog.STATUSES - _backlog._GATE_DEFAULT_SKIP_STATUSES
+    gating_kinds = _config.release_gate_work_kinds(repo_root)
     drift: List[_core.Drift] = []
     carrier_index: Optional[Dict[str, List[Tuple[Path, Optional[str]]]]] = None
 
@@ -4122,7 +4124,7 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
         except OSError:
             continue
         item = _backlog.parse_item(text)
-        if item.kind not in _backlog.GATE_DEFAULT_KINDS:
+        if item.kind not in gating_kinds:
             continue
         if (item.status or "") not in live:
             continue
@@ -4147,12 +4149,12 @@ def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
                     str(f),
                     _LIVE_BUG_GATE_RULE,
                     (
-                        f"a LIVE (status {item.status!r}) Work-Kind: bug item carries no "
-                        "- Blocks-Release:; we do not ship known bugs, so every live bug must "
+                        f"a LIVE (status {item.status!r}) Work-Kind: {item.kind} item carries no "
+                        f"- Blocks-Release:; we do not ship known bugs, so every live {item.kind} item must "
                         "gate a release (AGENTS.md, 'Every live bug gates the next release')"
                     ),
                 ),
-                observed=f"Work-Kind: bug, Status: {item.status}, no Blocks-Release",
+                observed=f"Work-Kind: {item.kind}, Status: {item.status}, no Blocks-Release",
                 required="- Blocks-Release: <release id6 or 'next'>, or a From-Backlog carrier "
                 "holding the gate",
                 recovery=(

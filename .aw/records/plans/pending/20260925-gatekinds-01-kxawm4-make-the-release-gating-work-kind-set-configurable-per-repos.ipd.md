@@ -35,51 +35,51 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the reader
 
-- [ ] E-01 In `agent_workflows/config.py`, beside `read_review_findings_gate` / `findings_gate_threshold`, add `RELEASE_GATE_WORK_KINDS_KEY = "release_gate_work_kinds"`, `RELEASE_GATE_WORK_KINDS_DEFAULT = frozenset({"bug"})`, and `release_gate_work_kinds(repo_root, *, warn=None) -> frozenset[str]`. Accepted shapes: an object `{"kinds": ["bug", "security"]}` and, for convenience, a bare list or a bare string (one kind). Values are lowercased, stripped, and intersected against the `backlog.KINDS` vocabulary (pass the vocabulary in, or define the legal set in `config` with a comment, so `config` does not import `backlog`). Posture follows the `policy_retry_budget` rule recorded in that section's comment ("FALL BACK TO THE DEFAULT AND EMIT A VISIBLE WARNING NAMING THE KEY AND THE BAD VALUE"): an absent key returns the default silently; a malformed value or an unknown kind name returns the default (or drops just the unknown name) and warns once naming the key, the value, and the file. An explicit empty list `[]` is legal and means "no kind auto-gates" (explicit opt-out, mirroring `review_findings_gate`'s `off`). Do NOT register the key in `CONFIG_SCHEMA`, for the reason documented above `REVIEW_FINDINGS_GATE_KEY`.
+- [x] E-01 In `agent_workflows/config.py`, beside `read_review_findings_gate` / `findings_gate_threshold`, add `RELEASE_GATE_WORK_KINDS_KEY = "release_gate_work_kinds"`, `RELEASE_GATE_WORK_KINDS_DEFAULT = frozenset({"bug"})`, and `release_gate_work_kinds(repo_root, *, warn=None) -> frozenset[str]`. Accepted shapes: an object `{"kinds": ["bug", "security"]}` and, for convenience, a bare list or a bare string (one kind). Values are lowercased, stripped, and intersected against the `backlog.KINDS` vocabulary (pass the vocabulary in, or define the legal set in `config` with a comment, so `config` does not import `backlog`). Posture follows the `policy_retry_budget` rule recorded in that section's comment ("FALL BACK TO THE DEFAULT AND EMIT A VISIBLE WARNING NAMING THE KEY AND THE BAD VALUE"): an absent key returns the default silently; a malformed value or an unknown kind name returns the default (or drops just the unknown name) and warns once naming the key, the value, and the file. An explicit empty list `[]` is legal and means "no kind auto-gates" (explicit opt-out, mirroring `review_findings_gate`'s `off`). Do NOT register the key in `CONFIG_SCHEMA`, for the reason documented above `REVIEW_FINDINGS_GATE_KEY`.
   - Depends on: none
   - Expected outcome: `release_gate_work_kinds(tmp)` returns `frozenset({"bug"})` with no project.json, and the configured set when one is written.
   - PRECEDENTS VERIFIED AT REVIEW, and one of them constrains the vocabulary decision. `read_review_findings_gate` / `findings_gate_threshold` read an object, tolerate a bare string, never raise, and are deliberately absent from `CONFIG_SCHEMA` for the documented round-trip reason; `policy_retry_budget`'s section comment carries the fall-back-and-warn ruling verbatim. ON THE VOCABULARY: `config.py` imports NOTHING from the package (its only imports are stdlib), so the no-`backlog`-import caution is right. But note the existing precedent for the choice this item offers: `REVIEW_GATE_THRESHOLDS = ("medium","high","blocker","off")` IS a hand-maintained partial copy of `review_findings.SEVERITIES = ("low","medium","high","blocker")`, cited as its source in the docstring. So a second copy here would follow precedent AND inherit its wart. PREFER THE INJECTION FORM (the caller passes `backlog.KINDS`), because `backlog` already imports `config` locally at `from agent_workflows import config as _config` inside a function, so the cycle is avoided by the CALLER rather than by duplicating a vocabulary whose single documented home is `.aw/records/backlog/README.md` and `backlog.KINDS`. If injection proves awkward, the literal copy is acceptable but MUST carry a comment naming `backlog.KINDS` as the source and the `REVIEW_GATE_THRESHOLDS` precedent.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `tests/test_config_release_gate_kinds.py` covering: absent file, absent key, object form, bare list, bare string, empty list, unknown kind name (warns, dropped), non-list garbage (warns, default), and that the key round-trips through `project_schema.parse_portable_policy` (lands in `unknown_fields` and is written back). THE ROUND-TRIP IS REAL AND THE SERIALIZER IS NAMED `to_dict`, NOT `as_dict`: driven at review, `parse_portable_policy({...,"release_gate_work_kinds":{"kinds":["bug","security"]}})` puts the key in `unknown_fields` and `.to_dict()` returns it verbatim as `{'kinds': ['bug', 'security']}`; a probe calling `as_dict` silently finds no method and can be misread as a failed round-trip (that happened at review before correcting it). Assert against `to_dict`.
+- [x] E-02 Add `tests/test_config_release_gate_kinds.py` covering: absent file, absent key, object form, bare list, bare string, empty list, unknown kind name (warns, dropped), non-list garbage (warns, default), and that the key round-trips through `project_schema.parse_portable_policy` (lands in `unknown_fields` and is written back). THE ROUND-TRIP IS REAL AND THE SERIALIZER IS NAMED `to_dict`, NOT `as_dict`: driven at review, `parse_portable_policy({...,"release_gate_work_kinds":{"kinds":["bug","security"]}})` puts the key in `unknown_fields` and `.to_dict()` returns it verbatim as `{'kinds': ['bug', 'security']}`; a probe calling `as_dict` silently finds no method and can be misread as a failed round-trip (that happened at review before correcting it). Assert against `to_dict`.
   - Depends on: E-01
   - Expected outcome: new test module passes, including the `to_dict` round-trip returning the written value unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: route both consumers through the reader
 
-- [ ] E-03 In `agent_workflows/backlog.py` `decide_gate_default`, replace the membership test `if (kind or "") not in GATE_DEFAULT_KINDS:` with a check against `config.release_gate_work_kinds(repo_root)`. The function already receives `repo_root`, and all THREE call sites pass it positionally (`backlog.run_new`, `backlog.run_set`, `status_set.apply_status_change`, verified at review), so no signature changes anywhere. Keep `GATE_DEFAULT_KINDS` as a deprecated alias of `config.RELEASE_GATE_WORK_KINDS_DEFAULT` so any importer keeps working.
+- [x] E-03 In `agent_workflows/backlog.py` `decide_gate_default`, replace the membership test `if (kind or "") not in GATE_DEFAULT_KINDS:` with a check against `config.release_gate_work_kinds(repo_root)`. The function already receives `repo_root`, and all THREE call sites pass it positionally (`backlog.run_new`, `backlog.run_set`, `status_set.apply_status_change`, verified at review), so no signature changes anywhere. Keep `GATE_DEFAULT_KINDS` as a deprecated alias of `config.RELEASE_GATE_WORK_KINDS_DEFAULT` so any importer keeps working.
   - Depends on: E-01
   - Expected outcome: with `{"release_gate_work_kinds": {"kinds": ["bug","security"]}}` and a planned release, `aw backlog new --work-kind security ...` defaults `- Blocks-Release: next`; with no config it does not.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Correct the now-false KIND-SPECIFIC TEXT in `agent_workflows/backlog.py`, which is the half of E-03 a reader actually sees. Generalize the notice strings that say "this bug" to name the item's kind (e.g. "on this security item"): there are THREE, not the two the authored plan named - the `done`/`parked` skip notice, the unresolvable-`next` notice, and the success notice, the last of which also carries "every live bug gates the next release" and "pass '--blocks-release -' to file an ungated bug". No test pins any of that wording (`grep` over `tests/` returns nothing), so generalizing is safe. Update `decide_gate_default`'s docstring numbered condition 1 ("ONLY `GATE_DEFAULT_KINDS` (today `bug` alone) is defaulted ... `security` is deliberately excluded"), which becomes false once the key can widen the set, while PRESERVING the recorded reason the DEFAULT stays `bug` alone (the maintainer measured agent security classifications in this repository to be overstated). Rewrite the comment block above `GATE_DEFAULT_KINDS` ("making the set configurable per repository (defaulting to `bug`) is designed and carried by its own backlog item, NOT shipped here") to state it is now configured via the key.
+- [x] E-04 Correct the now-false KIND-SPECIFIC TEXT in `agent_workflows/backlog.py`, which is the half of E-03 a reader actually sees. Generalize the notice strings that say "this bug" to name the item's kind (e.g. "on this security item"): there are THREE, not the two the authored plan named - the `done`/`parked` skip notice, the unresolvable-`next` notice, and the success notice, the last of which also carries "every live bug gates the next release" and "pass '--blocks-release -' to file an ungated bug". No test pins any of that wording (`grep` over `tests/` returns nothing), so generalizing is safe. Update `decide_gate_default`'s docstring numbered condition 1 ("ONLY `GATE_DEFAULT_KINDS` (today `bug` alone) is defaulted ... `security` is deliberately excluded"), which becomes false once the key can widen the set, while PRESERVING the recorded reason the DEFAULT stays `bug` alone (the maintainer measured agent security classifications in this repository to be overstated). Rewrite the comment block above `GATE_DEFAULT_KINDS` ("making the set configurable per repository (defaulting to `bug`) is designed and carried by its own backlog item, NOT shipped here") to state it is now configured via the key.
   - Depends on: E-03
   - Expected outcome: `grep -rn "on this bug" agent_workflows/backlog.py` returns nothing, and the module's `- Work-Kind: bug | feature | ...` vocabulary line is untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `agent_workflows/check_engine.py` `check_live_bug_gate`, replace `if item.kind not in _backlog.GATE_DEFAULT_KINDS:` with membership in `config.release_gate_work_kinds(repo_root)` computed ONCE before the loop, and generalize the kind-naming text. Keep the rule id `check.live-bug-ungated` (renaming a shipped rule id is out of scope). TWO drift fields hardcode the kind, not one: `detail` ("a LIVE (status ...) Work-Kind: bug item carries no - Blocks-Release:") and `observed` ("Work-Kind: bug, Status: ..., no Blocks-Release"); generalize both and leave `required` and `recovery` alone, since neither names a kind. Update the function's docstring first line and the `RuleSpec` comment at `"check.live-bug-ungated"`, both of which assert `Work-Kind: bug` specifically. The `RuleSpec` TUPLE itself stays `("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07")`: `DET_DETERMINISTIC` records that the finding's truth is reached with "No inference", and reading a committed config key remains a literal token test, so it must NOT be downgraded to `DET_HEURISTIC`.
+- [x] E-05 In `agent_workflows/check_engine.py` `check_live_bug_gate`, replace `if item.kind not in _backlog.GATE_DEFAULT_KINDS:` with membership in `config.release_gate_work_kinds(repo_root)` computed ONCE before the loop, and generalize the kind-naming text. Keep the rule id `check.live-bug-ungated` (renaming a shipped rule id is out of scope). TWO drift fields hardcode the kind, not one: `detail` ("a LIVE (status ...) Work-Kind: bug item carries no - Blocks-Release:") and `observed` ("Work-Kind: bug, Status: ..., no Blocks-Release"); generalize both and leave `required` and `recovery` alone, since neither names a kind. Update the function's docstring first line and the `RuleSpec` comment at `"check.live-bug-ungated"`, both of which assert `Work-Kind: bug` specifically. The `RuleSpec` TUPLE itself stays `("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07")`: `DET_DETERMINISTIC` records that the finding's truth is reached with "No inference", and reading a committed config key remains a literal token test, so it must NOT be downgraded to `DET_HEURISTIC`.
   - Depends on: E-01
   - Expected outcome: a `security` item's drift names `security` in both fields; the `RuleSpec` line is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the three membership cases to `tests/test_check_engine_release_gate.py`, reusing the module's existing `_create_minimal_repo` helper (which already writes a `planned` release record): (a) a live ungated `security` item is CLEAN with no config; (b) it is FLAGGED when the key lists `security`; (c) a live ungated `bug` is CLEAN when the key is `[]`. Write these BEFORE applying E-05's edit and run them, so case (b) is observed FAILING against the hardcoded set; that is the only evidence the membership change took effect.
+- [x] E-06 Add the three membership cases to `tests/test_check_engine_release_gate.py`, reusing the module's existing `_create_minimal_repo` helper (which already writes a `planned` release record): (a) a live ungated `security` item is CLEAN with no config; (b) it is FLAGGED when the key lists `security`; (c) a live ungated `bug` is CLEAN when the key is `[]`. Write these BEFORE applying E-05's edit and run them, so case (b) is observed FAILING against the hardcoded set; that is the only evidence the membership change took effect.
   - Depends on: E-05
   - Expected outcome: `13 -> 16 passed` against the review baseline (`python3 -m pytest -o addopts="" -q tests/test_check_engine_release_gate.py` -> `13 passed in 0.98s`), with the existing `test_rule_live_bug_ungated_reachable` and `test_live_bug_with_gate_is_clean` unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: docs and suite
 
-- [ ] E-07 Edit `AGENTS.md` section "### Every live bug gates the next release": replace "`bug` is the only gating work-kind today; making that set configurable per repository, defaulting to `bug` alone, is designed but NOT yet built (backlog `0htqmm`), so do not look for a config key to widen it." with a sentence naming the key `release_gate_work_kinds` in `.aw/config/project.json`, its default (`bug` alone), the empty-list opt-out, and the fall-back-and-warn posture. Also generalize "whose `- Work-Kind:` is `bug`" in the opening sentence to "whose `- Work-Kind:` is in the repository's gating set (default `bug`)". Edit `AGENTS.md` DIRECTLY: this section is outside the managed `<!-- aw:block -->` region and has no generator (see Findings F-3).
+- [x] E-07 Edit `AGENTS.md` section "### Every live bug gates the next release": replace "`bug` is the only gating work-kind today; making that set configurable per repository, defaulting to `bug` alone, is designed but NOT yet built (backlog `0htqmm`), so do not look for a config key to widen it." with a sentence naming the key `release_gate_work_kinds` in `.aw/config/project.json`, its default (`bug` alone), the empty-list opt-out, and the fall-back-and-warn posture. Also generalize "whose `- Work-Kind:` is `bug`" in the opening sentence to "whose `- Work-Kind:` is in the repository's gating set (default `bug`)". Edit `AGENTS.md` DIRECTLY: this section is outside the managed `<!-- aw:block -->` region and has no generator (see Findings F-3).
   - Depends on: E-01
   - Expected outcome: AGENTS.md no longer contains "designed but NOT"; `engine.py` untouched.
   - F-3's BOUNDARY RE-PROVED AT REVIEW, since acting on the opposite belief is a measured hazard: `<!-- aw:block -->` opens at `AGENTS.md:3` and `<!-- /aw:block -->` closes at `:123`, the target sentence sits at `:165`, and `grep -c "configurable per repository" agent_workflows/engine.py` is `0`. So a direct edit is correct and a generator edit would export this repository's policy to every adopter, which is exactly the error the sibling `zqs0px` review retracted with four proofs. STOP CONDITION: if the sentence is found ABOVE line 123 (inside the managed block), do not edit it in place; report instead, because that would mean the section moved into managed territory and the edit belongs in the generator after all. One correction to that review's cited safeguard: the parity assertion it named in `tests/test_shared_checkout_contract.py` no longer exists (that file was deleted in the suite trim), so the marker check above is the live guard rather than a test.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run the bare suite `python3 -m pytest`.
+- [x] E-08 Run the bare suite `python3 -m pytest`.
   - Depends on: E-02, E-04, E-06, E-07
   - Expected outcome: summary line with 0 failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -158,45 +158,202 @@ AGENTS.md "Every live bug gates the next release" (E-05), edited DIRECTLY becaus
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -c "from agent_workflows import config; import tempfile; print(sorted(config.release_gate_work_kinds(tempfile.mkdtemp())))"` printing `['bug']`, and `grep -n release_gate_work_kinds agent_workflows/config.py` showing the key, default, and reader. Assert the not-registered property against the RIGHT registry: paste `python3 -c "from agent_workflows import config; print([k for k in config.CONFIG_SCHEMA if 'release_gate' in k])"` returning `[]`. The authored `grep -c release_gate_work_kinds agent_workflows/project_schema.py = 0` is a check on a module this plan never edits, so it would pass no matter what E-01 did; keep it only as a secondary no-edit check, not as the schema assertion. Also state which vocabulary route was taken (injection or literal copy) and, if a copy, paste the comment naming `backlog.KINDS` as its source.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified config reader, schema absence, and vocabulary:
+    ```
+    $ python3 -c "from agent_workflows import config; import tempfile; print(sorted(config.release_gate_work_kinds(tempfile.mkdtemp())))"
+    ['bug']
 
-- [ ] V-02 validates E-02
+    $ grep -n release_gate_work_kinds agent_workflows/config.py
+    1498:# Recorded in `.aw/config/project.json` under `release_gate_work_kinds`.
+    1513:RELEASE_GATE_WORK_KINDS_KEY = "release_gate_work_kinds"
+    1525:def release_gate_work_kinds(
+    1533:    Reads `.aw/config/project.json` under `release_gate_work_kinds`.
+
+    $ python3 -c "from agent_workflows import config; print([k for k in config.CONFIG_SCHEMA if 'release_gate' in k])"
+    []
+
+    $ grep -c release_gate_work_kinds agent_workflows/project_schema.py
+    0
+    ```
+    Vocabulary route taken: Both injection and literal copy are supported. Callers may pass `allowed_kinds=...` for injection; when omitted, `config.release_gate_work_kinds` defaults to `RELEASE_GATE_VALID_KINDS` defined in `config.py` with the following comment naming `backlog.KINDS` as its source and the `REVIEW_GATE_THRESHOLDS` precedent:
+    ```python
+    #: Legal work kinds for release gating. Mirrored from `backlog.KINDS` to avoid importing
+    #: `agent_workflows.backlog` from `config` (following the `REVIEW_GATE_THRESHOLDS` precedent above,
+    #: which mirrors `review_findings.SEVERITIES`).
+    RELEASE_GATE_VALID_KINDS: FrozenSet[str] = frozenset(
+        {"bug", "feature", "chore", "security", "followup"}
+    )
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_config_release_gate_kinds.py` summary line showing all passed, and name the cases so each shape is visible. The round-trip case must assert through `to_dict()` (not `as_dict`, which does not exist) and show the written value returned verbatim. The unknown-kind case must show the warning text NAMING THE DROPPED KIND, which is what OQ-02's resolution turns on.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified all 9 unit tests in test_config_release_gate_kinds.py pass:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_config_release_gate_kinds.py
+    tests/test_config_release_gate_kinds.py .........                        [100%]
+    ============================== 9 passed in 0.26s ===============================
+    ```
+    Cases tested:
+    1. `test_absent_file`: absent project.json returns default frozenset({'bug'}).
+    2. `test_absent_key`: project.json without release_gate_work_kinds returns default frozenset({'bug'}).
+    3. `test_object_form`: `{"kinds": ["bug", "security"]}` returns frozenset({'bug', 'security'}).
+    4. `test_bare_list`: `["bug", "security"]` returns frozenset({'bug', 'security'}).
+    5. `test_bare_string`: `"security"` returns frozenset({'security'}).
+    6. `test_empty_list`: `{"kinds": []}` and `[]` return frozenset().
+    7. `test_unknown_kind_name_warns_and_dropped`: unknown kind emits warning naming dropped kind ('unknown_defect'), key ('release_gate_work_kinds'), and file; drops it and returns frozenset({'bug'}). Warning text:
+       `WARNING: release_gate_work_kinds in /tmp/.../.aw/config/project.json contains unknown kind 'unknown_defect'. Dropping it.`
+    8. `test_non_list_garbage_warns_and_returns_default`: `12345` and `{"kinds": 12345}` emit warning naming key, value, file; returns default frozenset({'bug'}).
+    9. `test_portable_policy_round_trip`: `parse_portable_policy` puts key in `unknown_fields` and `.to_dict()` returns `{'kinds': ['bug', 'security']}` verbatim.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: in a scratch repo with a planned release record and `{"release_gate_work_kinds": {"kinds": ["bug","security"]}}`, paste the output of `python3 -m agent_workflows backlog new --work-kind security ...` showing the defaulted notice and the file line `- Blocks-Release: next`; then with the key removed, paste the same command producing no gate. Both halves are required: the positive case alone cannot distinguish "the reader is consulted" from "everything is now gated".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified scratch repo defaulting with key and non-defaulting without key:
+    With configured key `{"release_gate_work_kinds": {"kinds": ["bug", "security"]}}`:
+    ```
+    aw backlog new: defaulted - Blocks-Release: next on this security item (no --blocks-release given): every live security item gates the next release; pass '--blocks-release -' to file an ungated security item
+    aw backlog new: wrote /tmp/.../.aw/records/backlog/open/20260926-xwusju-01-xwusju-security-issue-1.backlog.md
+    ```
+    File contents:
+    ```
+    - Id: xwusju
+    - Status: open
+    - Blocks-Release: next
+    - Set: xwusju
+    - Priority: medium
+    - Work-Kind: security
+    - Summary: Security issue 1
+    ```
+    With key removed:
+    ```
+    aw backlog new: wrote /tmp/.../.aw/records/backlog/open/20260926-94ex54-01-94ex54-security-issue-2.backlog.md
+    ```
+    File contents:
+    ```
+    - Id: 94ex54
+    - Status: open
+    - Set: 94ex54
+    - Priority: medium
+    - Work-Kind: security
+    - Summary: Security issue 2
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `security` item's notice from V-03's run showing it names the ITEM'S KIND rather than "bug". Paste `grep -rn "on this bug" agent_workflows/backlog.py` returning nothing, and `grep -n 'designed and carried by its own backlog item' agent_workflows/backlog.py` returning nothing. Show `decide_gate_default`'s docstring condition 1 no longer asserting `bug` alone is defaulted WHILE still recording why the default is `bug` alone (the measured-overstatement reason), since deleting that reason would lose the justification for the default itself. Confirm the module docstring's `- Work-Kind: bug | feature | ...` vocabulary line is untouched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified generalized notice text and vocabulary line in backlog.py:
+    Notice from V-03:
+    `defaulted - Blocks-Release: next on this security item (no --blocks-release given): every live security item gates the next release; pass '--blocks-release -' to file an ungated security item`
 
-- [ ] V-05 validates E-05
+    ```
+    $ grep -rn "on this bug" agent_workflows/backlog.py
+    (0 matches, exit 1)
+
+    $ grep -n 'designed and carried by its own backlog item' agent_workflows/backlog.py
+    (0 matches, exit 1)
+    ```
+
+    `decide_gate_default` docstring condition 1:
+    ```
+    1. ONLY work kinds configured in `release_gate_work_kinds` (defaulting to `bug` alone via
+       `config.RELEASE_GATE_WORK_KINDS_DEFAULT`) are defaulted. The rule is "we don't ship known
+       bugs"; `security` is deliberately excluded from the default because the maintainer measured
+       agent security classifications in THIS repository to be overstated (parent OQ-01).
+    ```
+
+    Module docstring line 31:
+    `    - Work-Kind: bug | feature | chore | security | followup`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the emitted drift for a live ungated `security` item with the key listing `security`, showing BOTH generalized fields (`detail` and `observed`) naming `security` rather than `bug`. Paste the `RuleSpec` line for `"check.live-bug-ungated"` showing it still reads `("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07")`, unchanged (F-8), and the docstring first line no longer asserting `Work-Kind: bug` specifically.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified check_live_bug_gate drift fields and RuleSpec in check_engine.py:
+    Emitted drift:
+    ```
+    RULE: check.live-bug-ungated
+    DETAIL: a LIVE (status 'open') Work-Kind: security item carries no - Blocks-Release:; we do not ship known bugs, so every live security item must gate a release (AGENTS.md, 'Every live bug gates the next release')
+    OBSERVED: Work-Kind: security, Status: open, no Blocks-Release
+    ```
 
-- [ ] V-06 validates E-06
+    RuleSpec line:
+    ```python
+        "check.live-bug-ungated": RuleSpec(
+            "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+        ),
+    ```
+
+    Docstring first line:
+    `A LIVE backlog item in the gating work-kind set carrying NO - Blocks-Release:.`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py` run BEFORE E-05's edit, showing case (b) FAILING, and quote its assertion text; then the same command after, showing `16 passed` against the review baseline of `13 passed in 0.98s`. A bare "1 failed" is NOT sufficient: only the quoted assertion distinguishes the hardcoded-set failure from a broken test. The existing `test_rule_live_bug_ungated_reachable` and `test_live_bug_with_gate_is_clean` must appear passing in both runs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified test_check_engine_release_gate.py failing before and 16 passing after:
+    Run BEFORE E-05's edit:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py
+    tests/test_check_engine_release_gate.py F.F.............                 [100%]
+    ...
+    >           self.assertIn("check.live-bug-ungated", rules)
+    E           AssertionError: 'check.live-bug-ungated' not found in []
 
-- [ ] V-07 validates E-07
+    tests/test_check_engine_release_gate.py:179: AssertionError
+    ========================= 2 failed, 14 passed in 0.90s =========================
+    ```
+    Quoted assertion text: `AssertionError: 'check.live-bug-ungated' not found in []`
+
+    Run AFTER E-05's edit:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_check_engine_release_gate.py
+    tests/test_check_engine_release_gate.py ................                 [100%]
+    ============================== 16 passed in 1.10s ==============================
+    ```
+    Both `test_rule_live_bug_ungated_reachable` and `test_live_bug_with_gate_is_clean` passed in both runs.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: `grep -c 'designed but NOT' AGENTS.md` = 0; `grep -n release_gate_work_kinds AGENTS.md` shows the new sentence; `git diff --name-only -- agent_workflows/engine.py` is empty. ALSO paste `grep -n 'aw:block' AGENTS.md` with the edited line's number, showing the edit landed BELOW the `<!-- /aw:block -->` close (at `:123` before the edit), which is the property that makes a direct edit correct rather than a change the installer will revert. Confirm the sentence still says the rule governs a "backlog item, spec, or plan", i.e. the wording was NOT narrowed to match the checker's backlog-only reach (F-10).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified AGENTS.md gating text and placement below managed block:
+    ```
+    $ grep -c 'designed but NOT' AGENTS.md
+    0
 
-- [ ] V-08 validates E-08
+    $ grep -n release_gate_work_kinds AGENTS.md
+    165:The gating work-kind set is configured per repository via `release_gate_work_kinds` in `.aw/config/project.json`
+
+    $ git diff --name-only -- agent_workflows/engine.py
+    (empty)
+
+    $ grep -n 'aw:block' AGENTS.md
+    3:<!-- aw:block -->
+    123:<!-- /aw:block -->
+    244:deliberately BELOW the `<!-- /aw:block -->` marker, outside every managed block, because it names
+    ```
+    Edit at line 165 landed below `<!-- /aw:block -->` at line 123.
+    Confirmed sentence text:
+    `We do not ship known bugs. So a backlog item, spec, or plan whose - Work-Kind: is in the repository's gating set (default bug) (the enum is defined once, in .aw/records/backlog/README.md) MUST carry - Blocks-Release: while it is LIVE...`
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the bare `python3 -m pytest` summary line showing `N passed` and 0 failed, plus the pre-change baseline count as `<before> -> <after>` so a pre-existing failure is not read as caused by this change. Paste `aw check release-gates --agent` before and after as well: this plan changes an `error`-severity rule's membership test, and with the repository keeping the default the finding count must be IDENTICAL (0 before, 0 after, measured at review), which is the evidence that no existing item's status changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified bare pytest suite 2238 -> 2250 passing and 0 findings in release-gates check:
+    Bare pytest suite pre-change baseline: `2238 passed, 1 skipped, 3 warnings in 49.14s`
+    Bare pytest suite post-change: `2250 passed, 1 skipped, 3 warnings in 45.31s`
+    Count progression: 2238 -> 2250 passed (0 failed).
+
+    `aw check release-gates --agent` before change:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"release-gates","findings":0,"evidence":["inventory","rules"],"next":"aw releases list"}
+    ```
+    `aw check release-gates --agent` after change:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"release-gates","findings":0,"evidence":["inventory","rules"],"next":"aw releases list"}
+    ```
+    Finding count identical: 0 before, 0 after.
+  - Result: pass
 
 ## Approval and execution gate
 

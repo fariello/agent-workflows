@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import inspect
+import json
 import subprocess
 import unittest
 from pathlib import Path
@@ -117,6 +118,91 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
                 "- Priority: medium\n"
                 "- Work-Kind: bug\n"
                 "- Summary: Live gated bug\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            self.assertEqual(findings, [])
+
+    def test_live_ungated_security_item_clean_with_no_config(self) -> None:
+        """A live ungated security item is clean when no config overrides the default."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            sec_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-sec001-01-sec001-sec-defect.backlog.md"
+            )
+            sec_file.write_text(
+                "- Id: sec001\n"
+                "- Status: open\n"
+                "- Set: sec001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: security\n"
+                "- Summary: Live ungated security item\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            self.assertEqual(findings, [])
+
+    def test_live_ungated_security_item_flagged_when_configured(self) -> None:
+        """A live ungated security item is flagged when release_gate_work_kinds includes security."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            conf_dir = repo / ".aw" / "config"
+            conf_dir.mkdir(parents=True, exist_ok=True)
+            (conf_dir / "project.json").write_text(
+                json.dumps({"release_gate_work_kinds": {"kinds": ["bug", "security"]}}),
+                encoding="utf-8",
+            )
+            sec_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-sec001-01-sec001-sec-defect.backlog.md"
+            )
+            sec_file.write_text(
+                "- Id: sec001\n"
+                "- Status: open\n"
+                "- Set: sec001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: security\n"
+                "- Summary: Live ungated security item\n",
+                encoding="utf-8",
+            )
+            findings = check_engine.check_release_gates(repo)
+            rules = [d.rule for d in findings]
+            self.assertIn("check.live-bug-ungated", rules)
+
+    def test_live_ungated_bug_clean_when_configured_empty(self) -> None:
+        """A live ungated bug is clean when release_gate_work_kinds is configured as []."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            conf_dir = repo / ".aw" / "config"
+            conf_dir.mkdir(parents=True, exist_ok=True)
+            (conf_dir / "project.json").write_text(
+                json.dumps({"release_gate_work_kinds": []}),
+                encoding="utf-8",
+            )
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug001\n"
+                "- Status: open\n"
+                "- Set: bug001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Live ungated bug\n",
                 encoding="utf-8",
             )
             findings = check_engine.check_release_gates(repo)

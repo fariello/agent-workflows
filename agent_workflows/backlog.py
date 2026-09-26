@@ -65,6 +65,7 @@ from typing import Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
+from agent_workflows import config as _config
 from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import record_placement as _rp
 
@@ -82,13 +83,14 @@ STATUSES = frozenset(STATUS_DIRS)
 PRIORITIES = frozenset(("high", "medium", "low"))
 KINDS = frozenset(("bug", "feature", "chore", "security", "followup"))
 
-# nobugship di08i9 E-01: the work-kinds whose items AUTOMATICALLY carry a release gate. `bug` ALONE,
-# which is the maintainer's standing rule ("we don't ship known bugs") and the deliberate default
-# chosen in the parent Set's OQ-01: making the set configurable per repository (defaulting to `bug`)
-# is designed and carried by its own backlog item, NOT shipped here. `security` is deliberately NOT
-# included: the maintainer measured agent security classifications in THIS repository to be
-# overstated, so a default that the reference repo must immediately override is a bad default.
-GATE_DEFAULT_KINDS = frozenset(("bug",))
+# gatekinds kxawm4: the work-kinds whose items AUTOMATICALLY carry a release gate are configured
+# per repository via `release_gate_work_kinds` in `.aw/config/project.json` (reading
+# `config.release_gate_work_kinds`). `GATE_DEFAULT_KINDS` is retained as a deprecated alias of
+# `config.RELEASE_GATE_WORK_KINDS_DEFAULT` (`bug` alone) so external callers do not break.
+# The default remains `bug` alone: `security` is deliberately excluded by default because the maintainer
+# measured agent security classifications in THIS repository to be overstated, so a default that the
+# reference repo must immediately override is a bad default.
+GATE_DEFAULT_KINDS = _config.RELEASE_GATE_WORK_KINDS_DEFAULT
 
 # The statuses a NEW item may be born with that must NOT receive the defaulted gate. `done` because a
 # gated closed item with no handoff/evidence/de-gate is a SHIPPED exit-blocking error
@@ -565,8 +567,10 @@ def decide_gate_default(
 
     FOUR CONDITIONS SHAPE IT AND EACH WAS MEASURED, NOT ASSUMED:
 
-    1. ONLY `GATE_DEFAULT_KINDS` (today `bug` alone) is defaulted. The rule is "we don't ship known
-       bugs"; `security` is deliberately excluded (parent OQ-01).
+    1. ONLY work kinds configured in `release_gate_work_kinds` (defaulting to `bug` alone via
+       `config.RELEASE_GATE_WORK_KINDS_DEFAULT`) are defaulted. The rule is "we don't ship known
+       bugs"; `security` is deliberately excluded from the default because the maintainer measured
+       agent security classifications in THIS repository to be overstated (parent OQ-01).
     2. FALL BACK TO UNGATED WHEN `next` DOES NOT RESOLVE; DO NOT REFUSE. A fresh `aw install` creates
        NO `.aw/records/releases/` directory, so "no planned release" is the NORMAL state of an adopter
        repo. Refusing made `aw backlog new --work-kind bug` fail outright there and broke 10 existing
@@ -587,13 +591,15 @@ def decide_gate_default(
 
     if explicit_blocks_release is not None:
         return None, None
-    if (kind or "") not in GATE_DEFAULT_KINDS:
+    gating_kinds = _config.release_gate_work_kinds(repo_root)
+    if (kind or "") not in gating_kinds:
         return None, None
     if existing_blocks_release:
         return None, None
+    kind_label = f"{kind} item" if kind else "item"
     if (status or "") in _GATE_DEFAULT_SKIP_STATUSES:
         return None, (
-            f"not defaulting - Blocks-Release: on this bug because its status is {status!r}: "
+            f"not defaulting - Blocks-Release: on this {kind_label} because its status is {status!r}: "
             "a gated done item is rejected by check.blocking-item-closed-without-gate, and a "
             "parked maybe is not live work"
         )
@@ -602,13 +608,13 @@ def decide_gate_default(
 
     if _releases.resolve_release(Path(repo_root), "next") is None:
         return None, (
-            "not defaulting - Blocks-Release: on this bug because 'next' does not resolve to a "
+            f"not defaulting - Blocks-Release: on this {kind_label} because 'next' does not resolve to a "
             "single planned release record; file it ungated and set the gate with "
             "`aw backlog set --blocks-release next` once a planned release exists"
         )
     return "next", (
-        "defaulted - Blocks-Release: next on this bug (no --blocks-release given): every live bug "
-        "gates the next release; pass '--blocks-release -' to file an ungated bug"
+        f"defaulted - Blocks-Release: next on this {kind_label} (no --blocks-release given): every live "
+        f"{kind_label} gates the next release; pass '--blocks-release -' to file an ungated {kind_label}"
     )
 
 
