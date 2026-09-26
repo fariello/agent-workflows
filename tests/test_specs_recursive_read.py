@@ -81,6 +81,33 @@ class SpecsRecursiveReadTests(unittest.TestCase):
             )
             self.assertEqual(data["data"]["violations"], 0)
 
+    def test_unregistered_flat_repo_is_checked_not_vacuous(self):
+        """x1za6u: a repo with NO project.json registration and a FLAT spec must be examined.
+
+        The outcome that matters: `aw specs check` examines the spec and reports its violation,
+        instead of seeing zero specs and reporting conformance.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+            spec_dir = repo / ".aw" / "records" / "specs"
+            spec_dir.mkdir(parents=True)
+            self.assertFalse((repo / ".aw" / "config" / "project.json").exists())
+            (spec_dir / "20260908-bad001-01-bad.spec.md").write_text(
+                "# Spec: bad\n\n- Status: not-a-status\n- Id: bad001\n",
+                encoding="utf-8",
+            )
+            ns = argparse.Namespace(
+                dir=str(repo), path=None, agent=False, json=True, yaml=False
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = specs.run_check(ns)
+            data = json.loads(buf.getvalue())
+            self.assertEqual(data["data"]["checked"], 1, data)
+            self.assertGreater(data["data"]["violations"], 0, data)
+            self.assertNotEqual(rc, 0)
+
     def test_pinned_disagreement_on_subdir_fixture(self):
         """Pins the surfaces on a subdir fixture: check_engine sees it; specs._spec_files must agree."""
         with tempfile.TemporaryDirectory() as td:
