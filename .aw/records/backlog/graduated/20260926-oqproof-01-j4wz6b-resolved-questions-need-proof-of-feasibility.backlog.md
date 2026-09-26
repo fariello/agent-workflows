@@ -1,5 +1,6 @@
 - Id: j4wz6b
-- Status: open
+- Status: graduated
+- Graduated-To: oqproof
 - Blocks-Release: next
 - Set: oqproof
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: An agent can mark a plan's open question resolved with an answer nobody tested, so an approved plan can carry an unworkable instruction that only execution discovers
 
 ## Workflow history
+- 2026-09-26 graduated (aw set): graduated into plan 7nghg8 (oqproof-01), which carries From-Backlog: j4wz6b and Blocks-Release: next
 - 2026-09-26 created (aw backlog): Filed from vtkfq8 triage 2026-09-26: OQ-03 was resolved at review with a mechanism that could not work; the run spent a turn discovering it.
 
 OBSERVED. Plan vtkfq8 (carrierauth-01) was reviewed and approved with OQ-03 resolved as 'emit a commented / inert carrier placeholder that the gate does NOT read'. Review had MEASURED the obligation's cause (F-6, F-7) but never tried the chosen fix, and it cannot work: the obligation comes from the example question's '- Status: open' (check_engine._question_obligations), not from a missing carrier line, so no comment can suppress it. The executor discovered this in run run-20260926T051642Z-116672 (deferred question 06-vtkfq8-DQ1), stopped as the plan's own stop condition required, and the item ended fail-verify. The maintainer re-ruled OQ-03 on 2026-09-26 (commit 35d72343). The resolution also claimed 'Owner: maintainer' while being written by the reviewer: the reviewer, not the maintainer, chose the mechanism.
