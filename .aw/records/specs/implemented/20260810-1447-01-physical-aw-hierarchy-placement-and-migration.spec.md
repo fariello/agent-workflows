@@ -29,7 +29,7 @@ AW needs one physical shape that remains recognizable wherever it is placed, inc
 - AW does not create, select, authenticate to, push to, or delete a Git remote without a separate explicit user action.
 - AW does not promise that a repository or remote is private. It reports observable facts and user acknowledgements.
 - AW does not store credentials or secrets in portable policy, durable state, records metadata, or migration evidence.
-- Migration MOVES each classified item into `.aw/` (it does not copy-and-retain a legacy twin). Reversibility comes from a per-item move journal (rollback un-moves), not from a permanently retained legacy copy. Migration never deletes UNCLASSIFIED legacy material silently: anything not moved is surfaced to the operator through an interactive leftover disposition (keep, remove, or defer), with a non-interactive default of `defer` that never deletes without an explicit choice.
+- Migration MOVES each classified item into `.aw/` (it does not copy-and-retain a legacy twin). Reversibility comes from a per-item move journal (rollback un-moves), not from a permanently retained legacy copy. Migration never deletes UNCLASSIFIED legacy material silently: anything not moved is surfaced to the operator through an interactive leftover disposition (keep, remove, or defer); in install migrations, unattended runs default the disposition to `remove` when candidate leftovers are recoverable unchanged from `HEAD` (with tarball backup to `.aw/state/durable/migrations/leftover-backups/`), while uncommitted, staged-never-committed, or altered leftovers remain preserved (or deferred).
 - Host-required discovery files are not forced beneath `.aw/`; they remain thin generated adapters only.
 - This specification does not authorize implementation, migration, push, tag, release, or cleanup.
 
@@ -158,7 +158,7 @@ Migration MUST:
 6. disable every legacy writer before and after the switch;
 7. record the per-item move journal (old-to-new, with the tracked/untracked flag) as the authoritative rollback source; no permanent legacy twin is retained;
 8. expose idempotent status, resume, and rollback for every journaled phase - resume continues the remaining moves from the transaction's own item list (never a fresh inventory, which would miss already-moved sources); rollback un-moves every journaled relocation; a crash at any point resolves to fully-migrated (resume) or fully-legacy (rollback), never a torn state;
-9. after all classified items are moved, run an interactive leftover disposition over anything remaining under the legacy roots (keep, remove, or defer; non-interactive default `defer`, which never deletes without an explicit choice), recording the decision;
+9. after all classified items are moved, run an interactive leftover disposition over anything remaining under the legacy roots (keep, remove, or defer; in install migrations, unattended runs default the disposition to `remove` when candidate leftovers are recoverable unchanged from `HEAD` with tarball backup under `.aw/state/durable/migrations/leftover-backups/`, while uncommitted, staged-never-committed, or altered leftovers remain preserved, otherwise non-interactive default `defer` which never deletes without an explicit choice), recording the decision;
 10. generate separate target, companion, and source Git plans without committing or pushing;
 11. require the independent deterministic compare and postcheck before success.
 
@@ -245,6 +245,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-09-26 note (aw specs): Amend non-interactive default for install migrations to remove restricted to HEAD (o7k6lt)
 - 2026-09-25 note (aw specs): Amend Section 5 for repository-untracked backend (IPD lr0lln)
 - 2026-08-10 /spec (Codex (GPT-5)): drafted the superseding physical-layout specification from the maintainer-approved direction and the 2026-08-10 cross-Set plan review.
 - 2026-08-10 to-review (aw specs): physical-layout superseding draft ready for independent review and human approval

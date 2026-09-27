@@ -21,6 +21,7 @@ import json
 import os
 import shutil
 import subprocess
+import tarfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -507,14 +508,13 @@ class MigrationManager:
     _LEGACY_LEFTOVER_ROOTS = (".agents", "workflow-artifacts")
 
     def _is_removable_leftover(self, rel: str) -> bool:
-        """True only for a leftover that is SAFE to delete under `remove` (IPD wvlk84).
+        """True only for a leftover that is SAFE to delete under `remove` (IPD wvlk84, o7k6lt).
 
-        Git TRACKING STATE is the primary safety signal: `remove` deletes ONLY a path that git
-        TRACKS in the target repo (a genuine orphaned tracked leftover). Anything UNTRACKED or
-        IGNORED is preserved - critically the untracked-but-not-gitignored quarantine lanes
-        (`.agents/prompts/untracked/`, `.agents/comms/untracked/`, and the legacy `local/` lane still
-        on disk in un-migrated repos), which a `git check-ignore`-only guard would MISS (they are
-        untracked, not matched by .gitignore).
+        Recoverability from git history is the primary safety signal (o7k6lt E-02): `remove` deletes
+        ONLY leftovers that git can give back unchanged. A candidate must exist in `HEAD` and be
+        unmodified against `HEAD` in both the index and worktree. Anything UNTRACKED, IGNORED,
+        locally modified, staged-never-committed, or in a repo with no HEAD commit is preserved.
+        Local lanes (`/local/`, `untracked`) and `.agents/skills` are preserved unconditionally.
         """
 
         repo_path = Path(self.target_repo)
@@ -539,13 +539,16 @@ class MigrationManager:
         # IGNORED -> preserve (belt): check-ignore returns 0 when the path is ignored.
         if _run_git(repo_path, ["check-ignore", "-q", "--", rel]).returncode == 0:
             return False
-        # PRIMARY signal: only a TRACKED path is removable. `ls-files --error-unmatch` exits 0
-        # iff the path is tracked in the index; nonzero (untracked) -> preserve.
-        tracked = (
-            _run_git(repo_path, ["ls-files", "--error-unmatch", "--", rel]).returncode
-            == 0
+        # PRIMARY signal: only a leftover recoverable unchanged from git history is removable
+        # (o7k6lt E-02). Must exist in HEAD (cat-file exits 0) AND be unmodified against HEAD in
+        # index and worktree (diff --quiet HEAD exits 0). A repo with no HEAD commit removes nothing.
+        in_head = _run_git(repo_path, ["cat-file", "-e", f"HEAD:{rel}"]).returncode == 0
+        if not in_head:
+            return False
+        unmodified = (
+            _run_git(repo_path, ["diff", "--quiet", "HEAD", "--", rel]).returncode == 0
         )
-        return tracked
+        return unmodified
 
     def _is_stale_tool_litter(self, rel: str) -> bool:
         """Predicate: True iff `rel` is untracked stale-tool litter under `.agents/workflows/` (IPD plt26j)."""
@@ -594,7 +597,48 @@ class MigrationManager:
             "stale_tool_litter": stale_tool_litter,
         }
 
+        # Compute the candidate set that will be deleted if remove is selected (E-10, E-12).
+        candidates = []
+        for rel in leftovers:
+            p = repo_path / rel
+            if not (p.is_file() or p.is_symlink()):
+                continue
+            if self._is_removable_leftover(rel) or self._is_stale_tool_litter(rel):
+                candidates.append(rel)
+
+        if callable(leftover_disposition):
+            leftover_disposition = str(leftover_disposition(len(candidates)))
+        result["disposition"] = leftover_disposition
+
         if leftover_disposition == "remove":
+            if candidates:
+                backup_dir = self.durable_state_dir / "migrations" / "leftover-backups"
+                timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                tar_file = backup_dir / f"leftovers-{timestamp}.tar.gz"
+                backup_ok = False
+                try:
+                    backup_dir.mkdir(parents=True, exist_ok=True)
+                    with tarfile.open(tar_file, "w:gz", dereference=False) as tar:
+                        for rel in candidates:
+                            tar.add(str(repo_path / rel), arcname=rel, recursive=False)
+                    with tarfile.open(tar_file, "r:gz") as tar:
+                        members = tar.getmembers()
+                        if len(members) == len(candidates):
+                            backup_ok = True
+                        else:
+                            result["backup_error"] = (
+                                f"Backup count mismatch: expected {len(candidates)}, got {len(members)}"
+                            )
+                except (OSError, tarfile.TarError) as exc:
+                    result["backup_error"] = str(exc)
+
+                if backup_ok:
+                    result["backup"] = str(tar_file.relative_to(repo_path).as_posix())
+                else:
+                    # Backup failed: delete NOTHING, preserve all leftovers
+                    result["preserved"] = list(leftovers)
+                    return result
+
             for rel in leftovers:
                 p = repo_path / rel
                 is_litter = self._is_stale_tool_litter(rel)

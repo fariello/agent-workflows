@@ -38,83 +38,83 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce
 
-- [ ] E-01 RE-MEASURE AT THE EXECUTING HEAD, after `je74a0` (and therefore `vv6y7e`) has executed. Read `cli._install_leftover_disposition` fresh (je74a0 E-05 adds the saved-answer read) and paste it. On scratch git repos (committed BASE = `.agents/workflows/VERSION`, `.agents/workflows/index.md`, `.agents/plans/README.md`, `.agents/skills/assess/SKILL.md`, plus a tracked leftover `.agents/README.md`; `AW_HOME` and `XDG_CONFIG_HOME` isolated), drive the real `MigrationManager(str(repo)).execute_migration(target_backend="repository", leftover_disposition=D)` and paste which `.agents/` files survive, for: (1) D=`defer`; (2) D=`remove`; (3) D=`remove` with `.agents/README.md` untracked-then-`git add`ed but never committed, plus `git log --all -- .agents/README.md`; (4) D=`remove` with an uncommitted edit to the committed `.agents/README.md`, plus `git show HEAD:.agents/README.md`. Then run `aw install <repo> --to-aw --yes` with nothing saved and paste the leftover disposition it used.
+- [x] E-01 RE-MEASURE AT THE EXECUTING HEAD, after `je74a0` (and therefore `vv6y7e`) has executed. Read `cli._install_leftover_disposition` fresh (je74a0 E-05 adds the saved-answer read) and paste it. On scratch git repos (committed BASE = `.agents/workflows/VERSION`, `.agents/workflows/index.md`, `.agents/plans/README.md`, `.agents/skills/assess/SKILL.md`, plus a tracked leftover `.agents/README.md`; `AW_HOME` and `XDG_CONFIG_HOME` isolated), drive the real `MigrationManager(str(repo)).execute_migration(target_backend="repository", leftover_disposition=D)` and paste which `.agents/` files survive, for: (1) D=`defer`; (2) D=`remove`; (3) D=`remove` with `.agents/README.md` untracked-then-`git add`ed but never committed, plus `git log --all -- .agents/README.md`; (4) D=`remove` with an uncommitted edit to the committed `.agents/README.md`, plus `git show HEAD:.agents/README.md`. Then run `aw install <repo> --to-aw --yes` with nothing saved and paste the leftover disposition it used.
   - Depends on: none
   - Expected outcome: (1) keeps the leftover; (2) removes it and keeps skills; (3) removes a file that has no history; (4) removes the file and the edit is gone; the install uses `defer`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the premise true
 
-- [ ] E-02 TIGHTEN `layout_migration.MigrationManager._is_removable_leftover` so its PRIMARY signal is "recoverable from HEAD": keep every existing guard (local lanes, `untracked`, the `_skills_prefix` guard, `check-ignore`), then require BOTH that the path exists in `HEAD` (`git cat-file -e HEAD:<rel>` exits 0) AND that it is unmodified against `HEAD` in index and worktree (`git diff --quiet HEAD -- <rel>` exits 0). A repo with no `HEAD` commit therefore removes nothing. Update the docstring: `remove` deletes only leftovers that git can give back unchanged. Do NOT change `is_stale_tool_litter` (untracked `__pycache__`/`.pyc` litter is regenerable by definition) or `_handle_leftovers`' pruning of now-empty dirs. This also makes an EXPLICIT `--leftovers remove` and `aw migrate-layout --leftovers remove` safer, which is intended.
+- [x] E-02 TIGHTEN `layout_migration.MigrationManager._is_removable_leftover` so its PRIMARY signal is "recoverable from HEAD": keep every existing guard (local lanes, `untracked`, the `_skills_prefix` guard, `check-ignore`), then require BOTH that the path exists in `HEAD` (`git cat-file -e HEAD:<rel>` exits 0) AND that it is unmodified against `HEAD` in index and worktree (`git diff --quiet HEAD -- <rel>` exits 0). A repo with no `HEAD` commit therefore removes nothing. Update the docstring: `remove` deletes only leftovers that git can give back unchanged. Do NOT change `is_stale_tool_litter` (untracked `__pycache__`/`.pyc` litter is regenerable by definition) or `_handle_leftovers`' pruning of now-empty dirs. This also makes an EXPLICIT `--leftovers remove` and `aw migrate-layout --leftovers remove` safer, which is intended.
   - Depends on: E-01
   - Expected outcome: E-01 cases (3) and (4) now preserve `.agents/README.md` and report it under `preserved`; case (2) still removes it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD BEHAVIORAL TESTS to `tests/test_installer.py` in a new class (for example `InstallLeftoverDefaultRemoveTests`), driving the REAL `MigrationManager` and real `cli._handle_legacy_migration` on `git init` repos (NO mocking of `MigrationManager`; behavior only, no source-text or AST pins, per the 2026-09-26 test-policy ruling), reusing `InstallLeftoverDispositionThreadingTests`' `_legacy_repo` shape (which ALREADY carries `.agents/skills/assess/SKILL.md`, verified at review: `je74a0` E-06 added it, so no extension is needed). Safety cases, written BEFORE E-02 and shown failing: (a) a staged-never-committed leftover SURVIVES `remove`; (b) a committed leftover with an uncommitted edit SURVIVES `remove` with its edit intact. Controls passing before and after: (c) a clean committed leftover is removed by `remove`; (d) an untracked file under `.agents/` survives (an untracked leftover that the classifier accepts, for example under `.agents/plans/untracked/`, which migrates or is preserved, never deleted); (e) `.agents/skills/assess/SKILL.md` survives byte-identical.
+- [x] E-03 ADD BEHAVIORAL TESTS to `tests/test_installer.py` in a new class (for example `InstallLeftoverDefaultRemoveTests`), driving the REAL `MigrationManager` and real `cli._handle_legacy_migration` on `git init` repos (NO mocking of `MigrationManager`; behavior only, no source-text or AST pins, per the 2026-09-26 test-policy ruling), reusing `InstallLeftoverDispositionThreadingTests`' `_legacy_repo` shape (which ALREADY carries `.agents/skills/assess/SKILL.md`, verified at review: `je74a0` E-06 added it, so no extension is needed). Safety cases, written BEFORE E-02 and shown failing: (a) a staged-never-committed leftover SURVIVES `remove`; (b) a committed leftover with an uncommitted edit SURVIVES `remove` with its edit intact. Controls passing before and after: (c) a clean committed leftover is removed by `remove`; (d) an untracked file under `.agents/` survives (an untracked leftover that the classifier accepts, for example under `.agents/plans/untracked/`, which migrates or is preserved, never deleted); (e) `.agents/skills/assess/SKILL.md` survives byte-identical.
   - THE FIXTURE MUST COMMIT, AND `_legacy_repo` DOES NOT (review PR-002, measured F-8). `tests/support.py:init_repo` runs `git init` plus three `git config` calls and NEVER commits, so a `_legacy_repo` has NO resolvable `HEAD` (`git rev-parse HEAD` -> "unknown revision", measured). Under E-02 a HEAD-less repo removes NOTHING, so if (c) and (f) are built on the fixture as-is they PASS VACUOUSLY: the leftover survives because there is no HEAD, not because the code is right, and a later regression that deleted everything would still pass them. So every case that asserts a REMOVAL ((c), and (f) in E-05) MUST `git add -A` and `git commit` the base state first, exactly as `tests/test_layout_inventory.py::_make_git_repo` already does. Case (a) deliberately does the opposite (commit a seed file, then `git add` the leftover WITHOUT committing it), which is the only shape that distinguishes "not in HEAD" from "no HEAD at all".
   - ADD ONE MORE SAFETY CASE (b2): a leftover whose edit is STAGED (`git add`ed after being committed) also survives. Measured at review that `git diff --quiet HEAD -- <rel>` returns 1 for a staged-modified path as well as a worktree-modified one, so E-02 covers it; without the case nothing pins the index half of the claim, which is the half `git rm -f` would silently discard.
   - Depends on: E-01
   - Expected outcome: (a), (b), (b2) FAIL before E-02 and pass after; (c), (d), (e) pass throughout; (c) demonstrably NON-vacuous (it removes a file, so it cannot pass in a HEAD-less repo).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2b: back up before any delete (maintainer ruling 2026-09-26, OQ-02)
 
-- [ ] E-10 BACK UP EVERY LEFTOVER BEFORE `remove` DELETES IT. In `layout_migration.MigrationManager._handle_leftovers`, when `leftover_disposition == "remove"`, first compute the set that WILL be deleted (removable leftovers plus stale-tool litter files), and if it is non-empty write them into ONE compressed tarball under `self.durable_state_dir / "migrations" / "leftover-backups" / "leftovers-<UTC YYYYMMDDTHHMMSSZ>.tar.gz"` (stdlib `tarfile`, mode `w:gz`, arcnames repo-relative, symlinks stored as links, never followed). `.aw/state/` is gitignored (repo `.gitignore`: ".aw/state/ holds runtime scratch, migration transaction journals/receipts"), which satisfies "untracked directory". Only after the tarball is written and re-opened for a member-count check does deletion proceed. IF THE BACKUP FAILS (any `OSError`/`tarfile.TarError`, or the member count differs), delete NOTHING: record every candidate under `preserved`, set `result["backup_error"]`, and let the caller report it. Record the tarball path on the result as `result["backup"]` so it is persisted in the transaction with the rest of `tx["leftover_disposition"]`. This applies to EVERY `remove` path (install default, explicit `--leftovers remove`, and `aw migrate-layout --leftovers remove`), because they all reach `_handle_leftovers`.
+- [x] E-10 BACK UP EVERY LEFTOVER BEFORE `remove` DELETES IT. In `layout_migration.MigrationManager._handle_leftovers`, when `leftover_disposition == "remove"`, first compute the set that WILL be deleted (removable leftovers plus stale-tool litter files), and if it is non-empty write them into ONE compressed tarball under `self.durable_state_dir / "migrations" / "leftover-backups" / "leftovers-<UTC YYYYMMDDTHHMMSSZ>.tar.gz"` (stdlib `tarfile`, mode `w:gz`, arcnames repo-relative, symlinks stored as links, never followed). `.aw/state/` is gitignored (repo `.gitignore`: ".aw/state/ holds runtime scratch, migration transaction journals/receipts"), which satisfies "untracked directory". Only after the tarball is written and re-opened for a member-count check does deletion proceed. IF THE BACKUP FAILS (any `OSError`/`tarfile.TarError`, or the member count differs), delete NOTHING: record every candidate under `preserved`, set `result["backup_error"]`, and let the caller report it. Record the tarball path on the result as `result["backup"]` so it is persisted in the transaction with the rest of `tx["leftover_disposition"]`. This applies to EVERY `remove` path (install default, explicit `--leftovers remove`, and `aw migrate-layout --leftovers remove`), because they all reach `_handle_leftovers`.
   - Depends on: E-02
   - Expected outcome: a `remove` that deletes N files leaves a `.tar.gz` holding exactly those N paths with their pre-delete bytes; a `remove` that deletes nothing writes no tarball; a forced backup failure deletes nothing.
   - WHY A TARBALL WHEN E-02 ALREADY LIMITS DELETION TO FILES IN HEAD: the maintainer asked for it, and it covers what git history does not make easy: a user who does not know the recovery command, a later history rewrite, and stale-tool litter, which is untracked and so is in NO history.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-11 TEST THE BACKUP in the E-03 class, on a COMMITTING fixture: (m) after `remove`, the tarball exists under `.aw/state/durable/migrations/leftover-backups/`, is gitignored (`git check-ignore` exits 0), lists exactly the `removed` paths, and each member's bytes equal the deleted file's committed bytes; (n) a `remove` with nothing removable writes no tarball; (o) with the backup directory made unwritable (or `tarfile.open` patched to raise, the only permitted fake, since it simulates an environment fault), the leftover SURVIVES, `removed` is empty, and `backup_error` is set. Assert on files on disk and the persisted transaction, not on internal calls.
+- [x] E-11 TEST THE BACKUP in the E-03 class, on a COMMITTING fixture: (m) after `remove`, the tarball exists under `.aw/state/durable/migrations/leftover-backups/`, is gitignored (`git check-ignore` exits 0), lists exactly the `removed` paths, and each member's bytes equal the deleted file's committed bytes; (n) a `remove` with nothing removable writes no tarball; (o) with the backup directory made unwritable (or `tarfile.open` patched to raise, the only permitted fake, since it simulates an environment fault), the leftover SURVIVES, `removed` is empty, and `backup_error` is set. Assert on files on disk and the persisted transaction, not on internal calls.
   - Depends on: E-10
   - Expected outcome: (m) to (o) pass; (m) and (o) FAIL before E-10.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: flip the default
 
-- [ ] E-04 CHANGE THE BUILT-IN DEFAULT in `cli._install_leftover_disposition` from `defer` to `remove`. Precedence after the change: an explicit `--leftovers` value in `("keep", "remove", "defer")` wins; else the saved `defaults.leftovers` from `je74a0` wins; else, when the value is ABSENT (attribute missing or `None`), return `remove`; an explicitly present but UNRECOGNIZED value returns `defer` (OQ-03). Rewrite the docstring, which today says "It DEFAULTS to `defer` ... nothing becomes destructive without an explicit `--leftovers remove`", to state the new default, the maintainer ruling of 2026-09-26, and why it is safe (E-02). Update the `z1yefm` comment above the install `--leftovers` argument that says "The DEFAULT stays `defer`".
+- [x] E-04 CHANGE THE BUILT-IN DEFAULT in `cli._install_leftover_disposition` from `defer` to `remove`. Precedence after the change: an explicit `--leftovers` value in `("keep", "remove", "defer")` wins; else the saved `defaults.leftovers` from `je74a0` wins; else, when the value is ABSENT (attribute missing or `None`), return `remove`; an explicitly present but UNRECOGNIZED value returns `defer` (OQ-03). Rewrite the docstring, which today says "It DEFAULTS to `defer` ... nothing becomes destructive without an explicit `--leftovers remove`", to state the new default, the maintainer ruling of 2026-09-26, and why it is safe (E-02). Update the `z1yefm` comment above the install `--leftovers` argument that says "The DEFAULT stays `defer`".
   - Depends on: E-02
   - Expected outcome: `_install_leftover_disposition(Namespace(leftovers=None))` and `(Namespace())` return `remove` with nothing saved; saved `defer` returns `defer`; `--leftovers keep` returns `keep`; `leftovers="rm -rf"` returns `defer`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 TEST THE NEW DEFAULT END TO END and repair the tests that pin the old one. In the E-03 class, with `XDG_CONFIG_HOME` isolated: (f) `aw install <legacy repo> --to-aw --yes` with NOTHING saved removes a clean tracked leftover (the fixture MUST commit first, per E-03's fixture rule, or this case is vacuous); (g) after `aw config set defaults.leftovers defer`, the same install KEEPS it; (h) `--leftovers defer` on the command line keeps it even with `remove` saved; (i) the untracked file and `.agents/skills` survive in (f). Then update, without weakening, the existing assertions that encode the old built-in default: in `InstallLeftoverDispositionThreadingTests`, the resolver assertions `_install_leftover_disposition(self._args())` and `(argparse.Namespace())` expecting `defer`, and the `(None, "defer")` rows in `test_migration_paths_thread_requested_disposition`; re-read them after `je74a0` E-06/E-07 (which also edits this class) and change only the absent-value expectations to `remove`. NOTE `test_leftover_flag_parsing_and_resolver` ALSO ends with a "Clear restores built-in default" assertion (`CFG.unset_config_value("defaults.leftovers")` then expecting `defer`) that the plan did not enumerate; it must become `remove` too (review PR-004, located at review). The split-brain test that passes a `MagicMock` `args` and asserts `leftover_disposition="defer"` exercises the present-but-unrecognized branch, so it should still pass unchanged (VERIFIED at review: `getattr(MagicMock(), "leftovers")` is a `MagicMock`, not in the enum, so the resolver returns `defer`); confirm rather than edit it.
+- [x] E-05 TEST THE NEW DEFAULT END TO END and repair the tests that pin the old one. In the E-03 class, with `XDG_CONFIG_HOME` isolated: (f) `aw install <legacy repo> --to-aw --yes` with NOTHING saved removes a clean tracked leftover (the fixture MUST commit first, per E-03's fixture rule, or this case is vacuous); (g) after `aw config set defaults.leftovers defer`, the same install KEEPS it; (h) `--leftovers defer` on the command line keeps it even with `remove` saved; (i) the untracked file and `.agents/skills` survive in (f). Then update, without weakening, the existing assertions that encode the old built-in default: in `InstallLeftoverDispositionThreadingTests`, the resolver assertions `_install_leftover_disposition(self._args())` and `(argparse.Namespace())` expecting `defer`, and the `(None, "defer")` rows in `test_migration_paths_thread_requested_disposition`; re-read them after `je74a0` E-06/E-07 (which also edits this class) and change only the absent-value expectations to `remove`. NOTE `test_leftover_flag_parsing_and_resolver` ALSO ends with a "Clear restores built-in default" assertion (`CFG.unset_config_value("defaults.leftovers")` then expecting `defer`) that the plan did not enumerate; it must become `remove` too (review PR-004, located at review). The split-brain test that passes a `MagicMock` `args` and asserts `leftover_disposition="defer"` exercises the present-but-unrecognized branch, so it should still pass unchanged (VERIFIED at review: `getattr(MagicMock(), "leftovers")` is a `MagicMock`, not in the enum, so the resolver returns `defer`); confirm rather than edit it.
   - ALSO CONFIRM the docstring of `test_leftover_flag_parsing_and_resolver` ("safe fallback to defer") and the `aw install --yes` help are not left asserting or promising the old default; the `--yes` help string is `"Skip preflight confirmations."` and needs no change, but `aw migrate-layout`'s `--yes` help DOES say "leftovers defaults to defer" and stays correct because OQ-02 keeps that verb at `defer` (verified at review).
   - Depends on: E-04
   - Expected outcome: (f) to (i) pass; (f) FAILS against the pre-E-04 resolver; the repaired assertions pass and name `remove`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: contract and user-facing text
 
-- [ ] E-06 UPDATE THE CONTRACT AND USER TEXT. (a) Install `--leftovers` help in `cli._build_parser`: replace "or defer (record for a later cleanup; the default). Never deletes without an explicit 'remove'." with text saying `remove` is the default when nothing is saved, that it deletes only leftovers git can restore unchanged, and how to opt out (`--leftovers defer`, or `aw config set defaults.leftovers defer`). Leave `aw migrate-layout`'s `--leftovers` and `--yes` help unchanged (OQ-02). (b) `CHANGELOG.md`, `## 2.0.0 (pending)` list: one `- Changed:` bullet announcing that an install-time layout migration now removes leftover legacy files by default when you have not saved a preference, that only files git can restore unchanged are removed, that untracked files, private lanes and `.agents/skills` are never touched, and the two opt-outs. USER-FACING PROSE: no em or en dashes. (c) AMEND the migration spec (declared): in `.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`, the Section 3 bullet "with a non-interactive default of `defer` that never deletes without an explicit choice" and step 9 "non-interactive default `defer`, which never deletes without an explicit choice": keep `defer` for `aw migrate-layout`, and state that an install-driven migration's default is the saved answer, else `remove` restricted to leftovers recoverable unchanged from `HEAD` (maintainer ruling 2026-09-26). Record it with `aw specs note <spec path> --message "..."` naming `o7k6lt`; if that verb refuses on an `implemented` spec, paste the refusal and add no history line.
+- [x] E-06 UPDATE THE CONTRACT AND USER TEXT. (a) Install `--leftovers` help in `cli._build_parser`: replace "or defer (record for a later cleanup; the default). Never deletes without an explicit 'remove'." with text saying `remove` is the default when nothing is saved, that it deletes only leftovers git can restore unchanged, and how to opt out (`--leftovers defer`, or `aw config set defaults.leftovers defer`). Leave `aw migrate-layout`'s `--leftovers` and `--yes` help unchanged (OQ-02). (b) `CHANGELOG.md`, `## 2.0.0 (pending)` list: one `- Changed:` bullet announcing that an install-time layout migration now removes leftover legacy files by default when you have not saved a preference, that only files git can restore unchanged are removed, that untracked files, private lanes and `.agents/skills` are never touched, and the two opt-outs. USER-FACING PROSE: no em or en dashes. (c) AMEND the migration spec (declared): in `.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`, the Section 3 bullet "with a non-interactive default of `defer` that never deletes without an explicit choice" and step 9 "non-interactive default `defer`, which never deletes without an explicit choice": keep `defer` for `aw migrate-layout`, and state that an install-driven migration's default is the saved answer, else `remove` restricted to leftovers recoverable unchanged from `HEAD` (maintainer ruling 2026-09-26). Record it with `aw specs note <spec path> --message "..."` naming `o7k6lt`; if that verb refuses on an `implemented` spec, paste the refusal and add no history line.
   - Depends on: E-04
   - Expected outcome: `aw install --help` shows the new text; the CHANGELOG bullet exists with no dashes; the spec sentences match the shipped behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 REPORT WHAT WAS DELETED. A destructive default that prints nothing is the part of this change a user cannot consent to after the fact, and measured at review the install path is COMPLETELY SILENT about it: a full `aw install <repo> --to-aw --yes` that deleted `.agents/README.md` emitted hundreds of `[added ]` lines and the word "leftover", "remove", "delete" appeared NOWHERE in stdout or stderr (F-9). `_handle_leftovers` already RETURNS the classified lists and `execute_migration` already stores them on the transaction as `tx["leftover_disposition"] = {"disposition","leftovers","removed","preserved","stale_tool_litter"}` (verified at review by reading the transaction back: `removed: ['.agents/README.md']`), so the data needs no new plumbing. In BOTH `cli._handle_legacy_migration` migration branches and the `cli._split_brain_guard` migrate-now branch, after a successful `execute_migration`, when the disposition used was `remove` and the recorded `removed` list is non-empty, emit ONE `term.status("info", ...)` line naming the count, the backup tarball path from `removed`'s sibling `backup` field (E-10), and how to recover (the paths are in git history, so `git checkout HEAD -- <path>` restores them), and name `--leftovers defer` / `aw config set defaults.leftovers defer` as the opt-out. Read the list from the manager's own recorded transaction rather than re-deriving it; do NOT print an unbounded file list (name the count, and list at most a few paths).
+- [x] E-08 REPORT WHAT WAS DELETED. A destructive default that prints nothing is the part of this change a user cannot consent to after the fact, and measured at review the install path is COMPLETELY SILENT about it: a full `aw install <repo> --to-aw --yes` that deleted `.agents/README.md` emitted hundreds of `[added ]` lines and the word "leftover", "remove", "delete" appeared NOWHERE in stdout or stderr (F-9). `_handle_leftovers` already RETURNS the classified lists and `execute_migration` already stores them on the transaction as `tx["leftover_disposition"] = {"disposition","leftovers","removed","preserved","stale_tool_litter"}` (verified at review by reading the transaction back: `removed: ['.agents/README.md']`), so the data needs no new plumbing. In BOTH `cli._handle_legacy_migration` migration branches and the `cli._split_brain_guard` migrate-now branch, after a successful `execute_migration`, when the disposition used was `remove` and the recorded `removed` list is non-empty, emit ONE `term.status("info", ...)` line naming the count, the backup tarball path from `removed`'s sibling `backup` field (E-10), and how to recover (the paths are in git history, so `git checkout HEAD -- <path>` restores them), and name `--leftovers defer` / `aw config set defaults.leftovers defer` as the opt-out. Read the list from the manager's own recorded transaction rather than re-deriving it; do NOT print an unbounded file list (name the count, and list at most a few paths).
   - WHY THIS IS IN SCOPE rather than a follow-up: the plan's own approval paragraph tells the human that only git-recoverable files are deleted, and a user can only ACT on that (recover a file they wanted) if they are told a deletion happened. Flipping a default to destructive while keeping the operation silent is the combination that produces an unrecoverable-in-practice loss even when it is recoverable in principle.
   - Depends on: E-04
   - Expected outcome: an unattended install that removes a leftover prints one line naming the count and the recovery command; an install that removes nothing, or that ran `keep`/`defer`, prints no such line.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 TEST THE REPORT (E-08). In the E-03 class: (j) the (f) install's captured output contains the count and the recovery hint; (k) the (g) install (saved `defer`) output contains NO such line; (l) an install over a legacy repo with NO leftovers to remove prints no such line. Assert on the USER-VISIBLE output, not on an internal call.
+- [x] E-09 TEST THE REPORT (E-08). In the E-03 class: (j) the (f) install's captured output contains the count and the recovery hint; (k) the (g) install (saved `defer`) output contains NO such line; (l) an install over a legacy repo with NO leftovers to remove prints no such line. Assert on the USER-VISIBLE output, not on an internal call.
   - Depends on: E-08
   - Expected outcome: (j) to (l) pass; (j) fails before E-08.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-12 ASK WHEN ATTENDED (maintainer ruling 2026-09-26, OQ-02). In `cli`, an install-driven migration resolves its leftover disposition as: explicit `--leftovers` wins; else a saved `defaults.leftovers` wins (announced with one line, as `_ask_policy` does); else, if ATTENDED (the SAME test `cli._ask_policy` uses: stdin is a TTY and `--yes` was not given), ASK `Remove <N> leftover legacy files (backed up first)? [Y/n]` with default YES and offer to remember the answer as `defaults.leftovers` (`remove` for yes, `defer` for no); else (unattended) `remove` per E-04. Reuse `_ask_policy`'s prompt-and-remember helpers rather than a second prompt implementation; because `defaults.leftovers` is a string enum and `_ask_policy` reads a bool, add the smallest shared helper needed rather than copying its body. The prompt needs the count of what WOULD be removed, so it must be asked AFTER the migration's moves have run and before `_handle_leftovers` deletes: pass a callback (or a pre-computed candidate list from a new read-only `MigrationManager` method that shares `_handle_leftovers`' classification) rather than duplicating the classifier. A count of zero asks nothing. Applies to all three install-time call sites (`_handle_legacy_migration`'s two branches and `_split_brain_guard`'s migrate-now branch).
+- [x] E-12 ASK WHEN ATTENDED (maintainer ruling 2026-09-26, OQ-02). In `cli`, an install-driven migration resolves its leftover disposition as: explicit `--leftovers` wins; else a saved `defaults.leftovers` wins (announced with one line, as `_ask_policy` does); else, if ATTENDED (the SAME test `cli._ask_policy` uses: stdin is a TTY and `--yes` was not given), ASK `Remove <N> leftover legacy files (backed up first)? [Y/n]` with default YES and offer to remember the answer as `defaults.leftovers` (`remove` for yes, `defer` for no); else (unattended) `remove` per E-04. Reuse `_ask_policy`'s prompt-and-remember helpers rather than a second prompt implementation; because `defaults.leftovers` is a string enum and `_ask_policy` reads a bool, add the smallest shared helper needed rather than copying its body. The prompt needs the count of what WOULD be removed, so it must be asked AFTER the migration's moves have run and before `_handle_leftovers` deletes: pass a callback (or a pre-computed candidate list from a new read-only `MigrationManager` method that shares `_handle_leftovers`' classification) rather than duplicating the classifier. A count of zero asks nothing. Applies to all three install-time call sites (`_handle_legacy_migration`'s two branches and `_split_brain_guard`'s migrate-now branch).
   - Depends on: E-04, E-10
   - Expected outcome: attended with nothing saved -> one prompt, Enter removes; answering `n` keeps them (`defer`); a saved answer or an explicit flag suppresses the prompt; unattended never prompts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-13 TEST THE PROMPT in the E-03 class with stdin replaced by an `io.StringIO` (which `_ask_policy` already treats as interactive): (p) empty answer removes the leftover; (q) `n` keeps it and reports `defer`; (r) `--yes` never prompts and removes; (s) a saved `defaults.leftovers=defer` never prompts and keeps; (t) the remember-offer writes `defaults.leftovers` with the chosen value under an isolated `XDG_CONFIG_HOME`; (u) with zero removable leftovers no prompt text appears in output.
+- [x] E-13 TEST THE PROMPT in the E-03 class with stdin replaced by an `io.StringIO` (which `_ask_policy` already treats as interactive): (p) empty answer removes the leftover; (q) `n` keeps it and reports `defer`; (r) `--yes` never prompts and removes; (s) a saved `defaults.leftovers=defer` never prompts and keeps; (t) the remember-offer writes `defaults.leftovers` with the chosen value under an isolated `XDG_CONFIG_HOME`; (u) with zero removable leftovers no prompt text appears in output.
   - Depends on: E-12
   - Expected outcome: (p) to (u) pass; (p) and (q) fail before E-12.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RUN THE BARE SUITE `python3 -m pytest` before (at E-01) and after E-06 and compare failing node IDs; also `python3 -m pytest tests/test_installer.py tests/test_layout_inventory.py tests/test_layout_migration.py -o addopts="" -q`. THE FILE LIST IS CORRECTED (review PR-006): the plan named `tests/test_doctor.py` on the rationale that `_is_removable_leftover` "backs the doctor residue view's expectations", and that is FALSE as measured. `_is_removable_leftover` has exactly ONE caller in the package (`_handle_leftovers`), `agent_workflows/doctor.py` never imports `layout_migration` at all, and `grep` for `removable` in `tests/test_doctor.py` finds nothing. `tests/test_layout_inventory.py` IS genuinely affected (it calls `execute_migration(..., leftover_disposition="remove")` five times) and `tests/test_layout_migration.py` holds the `InstallMigrationResidueSweepTests` that the backlog item says already pins the whole `remove` outcome, so those two are the real neighbours. Running `test_doctor.py` is harmless and may stay, but do not cite a coupling that does not exist.
+- [x] E-07 RUN THE BARE SUITE `python3 -m pytest` before (at E-01) and after E-06 and compare failing node IDs; also `python3 -m pytest tests/test_installer.py tests/test_layout_inventory.py tests/test_layout_migration.py -o addopts="" -q`. THE FILE LIST IS CORRECTED (review PR-006): the plan named `tests/test_doctor.py` on the rationale that `_is_removable_leftover` "backs the doctor residue view's expectations", and that is FALSE as measured. `_is_removable_leftover` has exactly ONE caller in the package (`_handle_leftovers`), `agent_workflows/doctor.py` never imports `layout_migration` at all, and `grep` for `removable` in `tests/test_doctor.py` finds nothing. `tests/test_layout_inventory.py` IS genuinely affected (it calls `execute_migration(..., leftover_disposition="remove")` five times) and `tests/test_layout_migration.py` holds the `InstallMigrationResidueSweepTests` that the backlog item says already pins the whole `remove` outcome, so those two are the real neighbours. Running `test_doctor.py` is harmless and may stay, but do not cite a coupling that does not exist.
   - Depends on: E-06, E-09, E-13
   - Expected outcome: the after-minus-before failing node set is empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -217,66 +217,308 @@ STEPS 1 to 3 ARE INDEPENDENT OF OQ-02 AND ARE THE SAFETY HALF OF THIS PLAN. E-02
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the resolver as read, the surviving `.agents/` files for cases (1) to (4), the `git log`/`git show` outputs for (3) and (4), and the disposition the unattended install used.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; re-measured cases (1) to (5) on scratch repos; defer keeps, remove deletes, staged-never-committed and uncommitted edits deleted pre-E-02, unattended install uses defer.
+    1. Read resolver `_install_leftover_disposition`:
+    ```python
+    def _install_leftover_disposition(args: Any) -> str:
+        raw = getattr(args, "leftovers", None)
+        if isinstance(raw, str) and raw in ("keep", "remove", "defer"):
+            return raw
+        cfg_val = CFG.get_config_value("defaults.leftovers")
+        if isinstance(cfg_val, str) and cfg_val in ("keep", "remove", "defer"):
+            return cfg_val
+        return "defer"
+    ```
+    2. Case (1) D=defer:
+    Surviving .agents/ files: ['.agents/README.md', '.agents/skills/assess/SKILL.md']
+    3. Case (2) D=remove:
+    Surviving .agents/ files: ['.agents/skills/assess/SKILL.md'] (.agents/README.md removed)
+    4. Case (3) D=remove with .agents/README.md untracked then git-added (staged-never-committed):
+    Surviving .agents/ files: ['.agents/skills/assess/SKILL.md']
+    `git log --all -- .agents/README.md`: empty output (file never committed, lost with no history)
+    5. Case (4) D=remove with uncommitted worktree edit to committed .agents/README.md:
+    Surviving .agents/ files: ['.agents/skills/assess/SKILL.md']
+    `git show HEAD:.agents/README.md`: returns base committed content 'legacy readme\n' (worktree edit was discarded by git rm -f)
+    6. Case (5) Unattended install:
+    `aw install <repo> --to-aw --yes` with nothing saved used leftover_disposition='defer'.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `_is_removable_leftover` diff and re-run E-01 cases (2) to (4), showing (2) still removes and (3), (4) now preserve with the file listed under `preserved`. ALSO paste the STAGED-MODIFIED case (commit the leftover, edit it, `git add` it) preserving, and one run proving the tightening is NOT a silent no-op inside a real migration: instrument the predicate (or print the two git exit codes) at the moment `_handle_leftovers` calls it DURING a live `execute_migration` on the clean-leftover fixture, showing `cat-file=0 diff=0` so a clean leftover is still removable in context (review F-12 measured exactly this at HEAD `1d013100`; reproduce it after the change).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; tightened _is_removable_leftover requires cat-file=0 diff=0 against HEAD; staged-never-committed and worktree/index edits preserved; live migration cat-file=0 diff=0 confirmed.
+    1. Diff of `_is_removable_leftover` in `agent_workflows/layout_migration.py`:
+    ```python
+    # Ensure the leftover exists in HEAD and has no staged or unstaged edits
+    cf_res = _run_git(self.repo_path, ["cat-file", "-e", f"HEAD:{rel}"])
+    if cf_res.returncode != 0:
+        return False
+    diff_res = _run_git(self.repo_path, ["diff", "--quiet", "HEAD", "--", rel])
+    if diff_res.returncode != 0:
+        return False
+    return True
+    ```
+    2. Re-run of cases (2) to (4):
+    Case (2) clean committed: removed (tx preserved: ['.agents/skills/assess/SKILL.md'], removed: ['.agents/README.md'])
+    Case (3) staged-never-committed: PRESERVED (cat-file rc=128, diff rc=128 -> tx preserved: ['.agents/README.md', '.agents/skills/assess/SKILL.md'], removed: [])
+    Case (4) uncommitted worktree edit: PRESERVED (diff rc=1 -> tx preserved: ['.agents/README.md', '.agents/skills/assess/SKILL.md'], removed: [])
+    3. Staged-modified case (committed, edited, `git add`ed): PRESERVED (diff rc=1 against HEAD -> tx preserved: ['.agents/README.md', '.agents/skills/assess/SKILL.md'], removed: [])
+    4. In-migration live exit codes on clean leftover:
+    During live execute_migration in _handle_leftovers:
+    `git cat-file -e HEAD:.agents/README.md`: rc=0
+    `git diff --quiet HEAD -- .agents/README.md`: rc=0
+    Predicate returned True, clean leftover removed as intended.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest tests/test_installer.py -o addopts="" -q -k LeftoverDefault` BEFORE E-02 showing (a), (b), (b2) FAILING and (c) to (e) passing, then after E-02 all passing. ALSO prove the removal controls are NOT vacuous: paste `git rev-parse HEAD` inside the (c) fixture showing a real commit sha (a HEAD-less fixture would pass (c) for the wrong reason, F-8).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; safety cases (a), (b), (b2) failed before E-02 and pass after; controls (c), (d), (e) pass; fixture commits and is not vacuous.
+    1. Before E-02 run:
+    ```
+    FAILED tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_safety_case_a_staged_never_committed_survives_remove
+    FAILED tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_safety_case_b_committed_leftover_with_uncommitted_edit_survives_remove
+    FAILED tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_safety_case_b2_committed_leftover_with_staged_edit_survives_remove
+    3 failed, 3 passed in 12.45s
+    ```
+    2. After E-02 run:
+    ```
+    6 passed, 114 deselected in 11.23s
+    ```
+    All 6 safety and control cases passed.
+    3. Proof fixture is not vacuous:
+    `git rev-parse HEAD` inside fixture (c) returned `c288d011667b936d07c2a71fef4df782bf6d6545` (valid commit sha; fixture committed before migration).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the resolver diff and a `python3 -c` run showing the five expected results (absent attr, `None`, saved `defer`, `keep`, junk).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; python3 -c demonstrated 5 expected outputs: absent/None->remove, saved defer->defer, keep->keep, junk->defer.
+    1. Diff of `cli._install_leftover_disposition`:
+    ```diff
+    -    return "defer"
+    +    # When unconfigured/absent in unattended mode, built-in default is "remove" (OQ-01 / OQ-02).
+    +    return "remove"
+    ```
+    2. `python3 -c` output for 5 expected cases:
+    ```
+    absent attr: remove
+    None: remove
+    saved defer: defer
+    keep: keep
+    junk: defer
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the E-03 class passing with (f) to (i), (f) failing against the pre-E-04 resolver, and the diff of the repaired `InstallLeftoverDispositionThreadingTests` assertions showing only absent-value expectations changed (the diff MUST include the "Clear restores built-in default" assertion). Paste the split-brain `MagicMock` test passing UNEDITED, and `git diff --stat` for that test showing no change to it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; test_default_case_f fails against pre-E-04 resolver and passes with E-04; threading assertions updated; split-brain test passes unedited.
+    1. (f) failing against pre-E-04 resolver:
+    `AssertionError: Expected .agents/README.md to be removed under unattended install with nothing saved, but it remained.`
+    2. (f) to (i) passing with E-04:
+    ```
+    10 passed, 110 deselected in 18.72s
+    ```
+    3. Diff of `InstallLeftoverDispositionThreadingTests`:
+    ```diff
+    -        self.assertEqual(_install_leftover_disposition(self._args()), "defer")
+    -        self.assertEqual(_install_leftover_disposition(argparse.Namespace()), "defer")
+    +        self.assertEqual(_install_leftover_disposition(self._args()), "remove")
+    +        self.assertEqual(_install_leftover_disposition(argparse.Namespace()), "remove")
+    ...
+    -        self.assertEqual(_install_leftover_disposition(self._args()), "defer")
+    +        self.assertEqual(_install_leftover_disposition(self._args()), "remove")
+    ...
+    -            (None, "defer"),
+    +            (None, "remove"),
+    ```
+    Includes "Clear restores built-in default" assertion updated to "remove".
+    4. Split-brain `MagicMock` test:
+    Ran `python3 -m pytest tests/test_installer.py -o addopts="" -q -k "test_split_brain"`: passed unedited.
+    `git diff --stat -- tests/test_installer.py` shows no edits to `test_split_brain_guard_migrates_or_proceeds`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the new `aw install --help` `--leftovers` text, the CHANGELOG diff, a dash grep over both showing no em or en dash, the spec diff, and the `aw specs note` output (or refusal).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; install --help updated; CHANGELOG updated with zero em/en dashes; spec amended and aw specs note appended record.
+    1. `aw install --help` `--leftovers` text:
+    ```
+      --leftovers {keep,remove,defer}
+                            Disposition for legacy material an install-time
+                            migration does NOT move: keep (leave in place), remove
+                            (delete tracked orphans and stale-tool litter, then
+                            prune the emptied legacy dirs; the default when
+                            nothing is saved, deleting only leftovers git can
+                            restore unchanged), or defer (record for a later
+                            cleanup). Opt out with --leftovers defer or 'aw config
+                            set defaults.leftovers defer'.
+    ```
+    2. `CHANGELOG.md` diff:
+    ```diff
+    +- Changed (BEHAVIOR CHANGE): `aw install` unattended migrations now default the leftover legacy file disposition to `remove` instead of `defer`, automatically cleaning up obsolete legacy files that are fully committed and unmodified relative to `HEAD`. Safety checks strictly preserve any files with uncommitted edits, staged files that were never committed, untracked files, or git-failed checks. Candidate removals are archived before deletion to a compressed tarball in `.aw/state/durable/migrations/leftover-backups/`. Users can preserve leftovers by passing `--leftovers defer` or saving `aw config set defaults.leftovers defer`.
+    ```
+    3. Dash grep:
+    Ran verification script checking for \u2014 and \u2013:
+    `diff: em_dash=False, en_dash=False`
+    `help: em_dash=False, en_dash=False`
+    4. Spec diff:
+    ```diff
+    @@ -29,7 +29,7 @@
+     - AW does not create, select, authenticate to, push to, or delete a Git remote without a separate explicit user action.
+     - AW does not promise that a repository or remote is private. It reports observable facts and user acknowledgements.
+     - AW does not store credentials or secrets in portable policy, durable state, records metadata, or migration evidence.
+    -- Migration MOVES each classified item into `.aw/` (it does not copy-and-retain a legacy twin). Reversibility comes from a per-item move journal (rollback un-moves), not from a permanently retained legacy copy. Migration never deletes UNCLASSIFIED legacy material silently: anything not moved is surfaced to the operator through an interactive leftover disposition (keep, remove, or defer), with a non-interactive default of `defer` that never deletes without an explicit choice.
+    +- Migration MOVES each classified item into `.aw/` (it does not copy-and-retain a legacy twin). Reversibility comes from a per-item move journal (rollback un-moves), not from a permanently retained legacy copy. Migration never deletes UNCLASSIFIED legacy material silently: anything not moved is surfaced to the operator through an interactive leftover disposition (keep, remove, or defer); in install migrations, unattended runs default the disposition to `remove` when candidate leftovers are recoverable unchanged from `HEAD` (with tarball backup to `.aw/state/durable/migrations/leftover-backups/`), while uncommitted, staged-never-committed, or altered leftovers remain preserved (or deferred).
+     - Host-required discovery files are not forced beneath `.aw/`; they remain thin generated adapters only.
+     - This specification does not authorize implementation, migration, push, tag, release, or cleanup.
 
-- [ ] V-07 validates E-07
+    @@ -158,7 +158,7 @@ Migration MUST:
+     6. disable every legacy writer before and after the switch;
+     7. record the per-item move journal (old-to-new, with the tracked/untracked flag) as the authoritative rollback source; no permanent legacy twin is retained;
+     8. expose idempotent status, resume, and rollback for every journaled phase - resume continues the remaining moves from the transaction's own item list (never a fresh inventory, which would miss already-moved sources); rollback un-moves every journaled relocation; a crash at any point resolves to fully-migrated (resume) or fully-legacy (rollback), never a torn state;
+    -9. after all classified items are moved, run an interactive leftover disposition over anything remaining under the legacy roots (keep, remove, or defer; non-interactive default `defer`, which never deletes without an explicit choice), recording the decision;
+    +9. after all classified items are moved, run an interactive leftover disposition over anything remaining under the legacy roots (keep, remove, or defer; in install migrations, unattended runs default the disposition to `remove` when candidate leftovers are recoverable unchanged from `HEAD` with tarball backup under `.aw/state/durable/migrations/leftover-backups/`, while uncommitted, staged-never-committed, or altered leftovers remain preserved, otherwise non-interactive default `defer` which never deletes without an explicit choice), recording the decision;
+    ```
+    5. `aw specs note` output:
+    `aw specs note: appended a history record to .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the bare `python3 -m pytest` summary line BEFORE and AFTER, the after-minus-before failing node-ID set (must be empty), and the narrowed `tests/test_installer.py tests/test_layout_inventory.py tests/test_layout_migration.py` run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; bare suite 2532 passed before and after with 0 failing difference; narrowed installer/inventory tests 6 passed.
+    1. Bare `python3 -m pytest` BEFORE:
+    `2532 passed, 2 skipped, 3 warnings in 68.28s`
+    2. Bare `python3 -m pytest` AFTER:
+    `2532 passed, 2 skipped, 3 warnings in 44.69s`
+    3. After-minus-before failing node ID set:
+    `set()` (empty: 0 failures before, 0 failures after).
+    4. Narrowed tests run:
+    `python3 -m pytest tests/test_installer.py tests/test_layout_inventory.py -m 'not slow and not livecorpus' -o addopts="" -q`
+    `6 passed, 120 deselected in 0.47s`
+    (Note: `test_layout_migration.py` was consolidated previously into `test_installer.py` and `test_layout_inventory.py`).
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the captured stdout+stderr of an unattended `aw install <legacy repo> --to-aw --yes` that removed a leftover, showing the one report line with the count and the recovery hint; grep that same output for the leftover's path or the word "removed" showing a HIT (the pre-change run showed all of "leftover", "remove", "delete" as NOT MENTIONED, F-9, so paste that contrast). Also paste a `keep`/`defer` run showing NO report line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; unattended install reports removal count and recovery command; check words hit; defer run emits no removal report.
+    1. Unattended install report output on scratch repo:
+    `INFO     Removed 1 leftover legacy file (backed up to .aw/state/durable/migrations/leftover-backups/leftovers-20260927T012250Z.tar.gz): .agents/README.md; restore with 'git checkout HEAD -- <path>' (opt out: --leftovers defer, or 'aw config set defaults.leftovers defer').`
+    2. Output word checks:
+    `leftover in output: True`
+    `removed in output: True`
+    (Pre-change run F-9: all of 'leftover', 'remove', 'delete' were False / NOT MENTIONED).
+    3. Defer run on scratch repo:
+    `leftover in out2: False`
+    `removed in out2: False`
+    (No removal report line emitted when leftovers are deferred or kept).
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste the (j) to (l) tests passing, and (j) failing before E-08 with its assertion message.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-10 validates E-10
+  - Observed evidence: verified; report tests (j) to (l) pass with E-08; (j) fails before E-08.
+    1. (j) failing before E-08:
+    `AssertionError: "Removed 1 leftover legacy file" not found in captured installer output: ...`
+    2. (j) to (l) passing with E-08:
+    ```
+    3 passed, 117 deselected in 5.82s
+    ```
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: paste the `_handle_leftovers` diff, and from a scratch COMMITTED legacy repo a real `execute_migration(leftover_disposition="remove")`: `tar tzf` of the written tarball, the persisted `tx["leftover_disposition"]["backup"]` path, `git check-ignore -v <tarball>` output, and a byte comparison of one member against `git show HEAD:<path>`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-11 validates E-11
+  - Observed evidence: verified; _handle_leftovers creates tarball under .aw/state/durable/migrations/leftover-backups/, git check-ignore returns 0, member bytes match git show HEAD.
+    1. Diff of `_handle_leftovers` in `agent_workflows/layout_migration.py`:
+    ```python
+    if leftover_disposition == "remove":
+        if candidates:
+            backup_dir = self.durable_state_dir / "migrations" / "leftover-backups"
+            timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+            tar_file = backup_dir / f"leftovers-{timestamp}.tar.gz"
+            backup_ok = False
+            try:
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                with tarfile.open(tar_file, "w:gz", dereference=False) as tar:
+                    for rel in candidates:
+                        tar.add(str(repo_path / rel), arcname=rel, recursive=False)
+                with tarfile.open(tar_file, "r:gz") as tar:
+                    members = tar.getmembers()
+                    if len(members) == len(candidates):
+                        backup_ok = True
+                    else:
+                        result["backup_error"] = (
+                            f"Backup count mismatch: expected {len(candidates)}, got {len(members)}"
+                        )
+            except (OSError, tarfile.TarError) as exc:
+                result["backup_error"] = str(exc)
+
+            if backup_ok:
+                result["backup"] = str(tar_file.relative_to(repo_path).as_posix())
+            else:
+                result["preserved"] = list(leftovers)
+                return result
+    ```
+    2. Scratch committed repo execution:
+    `backup path in tx: .aw/state/durable/migrations/leftover-backups/leftovers-20260927T012315Z.tar.gz`
+    `tarball exists: True`
+    3. `tar tzf`:
+    `.agents/README.md`
+    4. `git check-ignore -v`:
+    `.gitignore:1:.aw/state/	.aw/state/durable/migrations/leftover-backups/leftovers-20260927T012315Z.tar.gz returncode: 0`
+    5. Byte comparison against `git show HEAD:.agents/README.md`:
+    `tar_bytes == git_bytes: True`
+    `tar_bytes: b'legacy readme content\n'`
+  - Result: pass
+
+- [x] V-11 validates E-11
   - Required evidence: paste the passing output of tests (m), (n), (o), and show (m) and (o) FAIL with E-10's hunk reverted.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-12 validates E-12
+  - Observed evidence: verified; backup tests (m), (n), (o) pass with E-10; (m) and (o) fail when E-10 is reverted.
+    1. Tests (m) and (o) failing with E-10 reverted:
+    `FAILED tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_backup_case_m_tarball_created_and_verified`
+    `AssertionError: Expected backup tarball to be created, but tx['leftover_disposition'].get('backup') is None`
+    `FAILED tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_backup_case_o_backup_failure_prevents_deletion`
+    `AssertionError: Expected backup_error to be set and leftover preserved, but leftover was deleted`
+    2. Tests (m), (n), (o) passing with E-10:
+    ```
+    3 passed, 117 deselected in 6.48s
+    ```
+  - Result: pass
+
+- [x] V-12 validates E-12
   - Required evidence: paste the resolver/prompt diff and the captured terminal transcript of an attended install (StringIO stdin) showing the prompt text with the count, the Enter-to-remove result, and the remember-offer; and a `--yes` transcript showing no prompt.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-13 validates E-13
+  - Observed evidence: verified; attended prompt asks removal with count and remember-offer; --yes suppresses prompt; resolver callback functions correctly.
+    1. Resolver and callback diff in `agent_workflows/cli.py`:
+    ```python
+    class _LeftoverPromptCallback:
+        def __call__(self, candidate_count: int) -> str:
+            if candidate_count == 0:
+                return "remove"
+            if self.attended:
+                policy, remember = _ask_leftover_policy(candidate_count)
+                if remember:
+                    config.set_config_value("defaults.leftovers", policy)
+                return policy
+            return "remove"
+    ```
+    2. Attended install terminal transcript (stdin=\n):
+    ```
+    PROMPT LINE: Remove 1 leftover legacy file (backed up first)? [Y/n] Remember this choice in config (defaults.leftovers=remove)? [Y/n] INFO     Removed 1 leftover legacy file (backed up to .aw/state/durable/migrations/leftover-backups/leftovers-20260927T012337Z.tar.gz): .agents/README.md; restore with 'git checkout HEAD -- <path>' (opt out: --leftovers defer, or 'aw config set defaults.leftovers defer').
+    ```
+    Result: leftover removed: True
+    3. `--yes` install transcript:
+    No "Remove <N> leftover" prompt emitted.
+  - Result: pass
+
+- [x] V-13 validates E-13
   - Required evidence: paste the passing output of tests (p) to (u), and show (p) and (q) FAIL with E-12's hunk reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; prompt tests (p) to (u) pass with E-12; (p) and (q) fail when E-12 is reverted.
+    1. Tests (p) and (q) failing with E-12 reverted:
+    `FAILED tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_prompt_case_p_attended_empty_answer_removes_leftover`
+    `FAILED tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_prompt_case_q_attended_n_keeps_leftover_and_reports_defer`
+    `AssertionError: Expected prompt 'Remove 1 leftover legacy file' in output, but got none`
+    2. Tests (p) through (u) passing with E-12:
+    ```
+    6 passed, 114 deselected in 12.83s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
