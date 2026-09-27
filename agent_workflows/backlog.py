@@ -114,6 +114,20 @@ _WORK_KIND_RE = re.compile(r"^- Work-Kind:[ \t]*(?P<value>\S+)[ \t]*$")
 _KIND_RE = re.compile(r"^- Kind:[ \t]*(?P<value>\S+)[ \t]*$")
 _SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(?P<value>.+?)[ \t]*$")
 _BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:[ \t]*(?P<value>\S+)[ \t]*$")
+_TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
+_TEMPLATE_OWNED_KEYS = frozenset(
+    (
+        "Id",
+        "Status",
+        "Set",
+        "Priority",
+        "Work-Kind",
+        "Kind",
+        "Summary",
+        "Gate-Kind",
+        "Gate-Ref",
+    )
+)
 
 
 class CandidateDuplicate:
@@ -627,19 +641,167 @@ def _resolve_backlog_root(repo_root: Path) -> Path:
     return repo_root / ".agents" / "backlog"
 
 
-def _render_item(item: BacklogItem, body: str, message: Optional[str] = None) -> str:
-    lines = [
-        f"- Id: {item.id}",
-        f"- Status: {item.status}",
-        f"- Set: {item.set}",
-        f"- Priority: {item.priority}",
-        # E-02: only the canonical spelling is ever WRITTEN (the legacy one stays readable).
-        f"- Work-Kind: {item.kind}",
-        f"- Summary: {item.summary}",
-    ]
+def _render_item(
+    item: BacklogItem,
+    body: str,
+    message: Optional[str] = None,
+    *,
+    source_text: Optional[str] = None,
+) -> str:
+    if source_text is None:
+        lines = [
+            f"- Id: {item.id}",
+            f"- Status: {item.status}",
+            f"- Set: {item.set}",
+            f"- Priority: {item.priority}",
+            # E-02: only the canonical spelling is ever WRITTEN (the legacy one stays readable).
+            f"- Work-Kind: {item.kind}",
+            f"- Summary: {item.summary}",
+        ]
+        if item.status == "blocked":
+            lines.append(f"- Gate-Kind: {item.gate_kind}")
+            lines.append(f"- Gate-Ref: {item.gate_ref}")
+        today = datetime.date.today().isoformat()
+        msg = (message or "").strip() or item.summary
+        lines.append("")
+        lines.append("## Workflow history")
+        lines.append(f"- {today} created (aw backlog): {msg}")
+        lines.append("")
+        lines.append(body.rstrip() + "\n" if body.strip() else "")
+        return "\n".join(lines).rstrip() + "\n"
+
+    # rendrop 2yqt0a E-01 / E-07: walk source text to preserve unrecognized fields in original order,
+    # and preserve header prose written between the leading bullets and ## Workflow history.
+    if "\n## Workflow history" in source_text:
+        pre_hist = source_text.split("\n## Workflow history", 1)[0]
+    elif source_text.startswith("## Workflow history"):
+        pre_hist = ""
+    else:
+        pre_hist = source_text
+
+    source_lines = pre_hist.split("\n")
+    last_bullet_idx = -1
+    for i, line in enumerate(source_lines):
+        if line.startswith("## ") or (line.strip() and not line.startswith("- ")):
+            break
+        if line.startswith("- "):
+            last_bullet_idx = i
+
+    bullet_lines = source_lines[: last_bullet_idx + 1] if last_bullet_idx >= 0 else []
+    bullet_text = "\n".join(bullet_lines)
+    header_prose = pre_hist[len(bullet_text) :]
+
+    source_keys = set()
+    for line in bullet_lines:
+        m = _TOP_KEY_RE.match(line)
+        if m:
+            k = m.group(1)
+            source_keys.add("Work-Kind" if k == "Kind" else k)
+
+    emitted_keys = set()
+    out_bullets: List[str] = []
+
+    def _insert_absent_gate_fields():
+        if item.status == "blocked":
+            if "Gate-Kind" not in emitted_keys and "Gate-Kind" not in source_keys:
+                out_bullets.append(f"- Gate-Kind: {item.gate_kind}")
+                emitted_keys.add("Gate-Kind")
+            if "Gate-Ref" not in emitted_keys and "Gate-Ref" not in source_keys:
+                out_bullets.append(f"- Gate-Ref: {item.gate_ref}")
+                emitted_keys.add("Gate-Ref")
+
+    for line in bullet_lines:
+        m = _TOP_KEY_RE.match(line)
+        if not m:
+            # Rule (3): An unparseable bullet is emitted verbatim, not dropped.
+            out_bullets.append(line)
+            continue
+
+        raw_key = m.group(1)
+        canon_key = "Work-Kind" if raw_key == "Kind" else raw_key
+
+        # Rule (2): Gate-Summary dropped when not blocked, kept when blocked.
+        if raw_key == "Gate-Summary" or A.GATE_SUMMARY_RE.match(line):
+            if item.status == "blocked":
+                out_bullets.append(line)
+            continue
+
+        if canon_key not in _TEMPLATE_OWNED_KEYS:
+            # Non-template-owned field (e.g. Blocks-Release, Custom-Field, Graduated-To, etc.)
+            out_bullets.append(line)
+            continue
+
+        # Template-owned field.
+        # Rule (1): emit each template-owned key at most once.
+        # Track emitted keys; the legacy - Kind: line is substituted in place ONLY when no
+        # - Work-Kind: line was already emitted for it, and is otherwise DROPPED.
+        if canon_key in emitted_keys:
+            continue
+
+        if canon_key == "Id":
+            out_bullets.append(f"- Id: {item.id}")
+            emitted_keys.add("Id")
+        elif canon_key == "Status":
+            out_bullets.append(f"- Status: {item.status}")
+            emitted_keys.add("Status")
+            _insert_absent_gate_fields()
+        elif canon_key == "Set":
+            out_bullets.append(f"- Set: {item.set}")
+            emitted_keys.add("Set")
+        elif canon_key == "Priority":
+            out_bullets.append(f"- Priority: {item.priority}")
+            emitted_keys.add("Priority")
+        elif canon_key == "Work-Kind":
+            out_bullets.append(f"- Work-Kind: {item.kind}")
+            emitted_keys.add("Work-Kind")
+        elif canon_key == "Summary":
+            out_bullets.append(f"- Summary: {item.summary}")
+            emitted_keys.add("Summary")
+        elif canon_key == "Gate-Kind":
+            if item.status == "blocked":
+                out_bullets.append(f"- Gate-Kind: {item.gate_kind}")
+                emitted_keys.add("Gate-Kind")
+        elif canon_key == "Gate-Ref":
+            if item.status == "blocked":
+                out_bullets.append(f"- Gate-Ref: {item.gate_ref}")
+                emitted_keys.add("Gate-Ref")
+
+    # Template-owned lines absent from the source are inserted directly after - Status:
+    # (gate fields) or in template order at the end of the block (anything else).
+    for key in ("Id", "Status", "Set", "Priority", "Work-Kind", "Summary"):
+        if key not in emitted_keys:
+            if key == "Id":
+                out_bullets.append(f"- Id: {item.id}")
+            elif key == "Status":
+                out_bullets.append(f"- Status: {item.status}")
+                _insert_absent_gate_fields()
+            elif key == "Set":
+                out_bullets.append(f"- Set: {item.set}")
+            elif key == "Priority":
+                out_bullets.append(f"- Priority: {item.priority}")
+            elif key == "Work-Kind":
+                out_bullets.append(f"- Work-Kind: {item.kind}")
+            elif key == "Summary":
+                out_bullets.append(f"- Summary: {item.summary}")
+            emitted_keys.add(key)
+
     if item.status == "blocked":
-        lines.append(f"- Gate-Kind: {item.gate_kind}")
-        lines.append(f"- Gate-Ref: {item.gate_ref}")
+        if "Gate-Kind" not in emitted_keys:
+            out_bullets.append(f"- Gate-Kind: {item.gate_kind}")
+            emitted_keys.add("Gate-Kind")
+        if "Gate-Ref" not in emitted_keys:
+            out_bullets.append(f"- Gate-Ref: {item.gate_ref}")
+            emitted_keys.add("Gate-Ref")
+
+    rendered_bullets = "\n".join(out_bullets)
+    if header_prose.strip():
+        if not header_prose.startswith("\n"):
+            header_prose = "\n\n" + header_prose.lstrip()
+        rendered_head = rendered_bullets + header_prose
+    else:
+        rendered_head = rendered_bullets + "\n"
+
+    lines = [rendered_head.rstrip()]
     today = datetime.date.today().isoformat()
     msg = (message or "").strip() or item.summary
     lines.append("")
@@ -1057,49 +1219,28 @@ def run_set(args) -> int:
 
     # Rewrite metadata bullets in place; move file to the new status dir; append history.
     body = _strip_metadata_and_history(text)
-    rendered = _render_item(item, body)
+    rendered = _render_item(item, body, source_text=text)
     # append a transition history record (in addition to the created line _render_item emits,
     # preserve prior history by re-emitting it):
     rendered = _reattach_history(
         text, rendered, f"{new_status}", getattr(args, "message", "") or ""
     )
 
-    # awrelease Order 02: set/clear the Blocks-Release gate field when requested (a release id6,
-    # 'next', or '-' to clear). Applied after render so _render_item stays untouched. If the item
-    # already carries one and --blocks-release is not given, preserve it.
+    # awrelease Order 02 / rendrop 2yqt0a E-02: set/clear the Blocks-Release gate field when requested
+    # (a release id6, 'next', or '-' to clear). Absent the flag, an existing value is preserved in
+    # place by _render_item.
     br = getattr(args, "blocks_release", None)
     if br is not None:
         from agent_workflows import releases as _releases
 
         rendered = _releases.set_blocks_release_line(rendered, br)
-    elif item.blocks_release:
-        from agent_workflows import releases as _releases
 
-        rendered = _releases.set_blocks_release_line(rendered, item.blocks_release)
-
-    # setidhard bwgyum E-02: PRESERVE `- Graduated-To:` ACROSS THE TEMPLATE REBUILD. `_render_item`
-    # rebuilds the bullet block from a FIXED field template, so every field outside that template is
-    # silently dropped by this path. Measured before this fix: an item carrying
-    # `- Graduated-To: somesetid, othersetid` went through `aw backlog set --status graduated <path>`
-    # and came out with the line GONE, exit 0, no warning - which is catastrophic for THIS field
-    # specifically, because a graduation is exactly the transition that writes it.
-    #
-    # THE FIX FOLLOWS THE `Blocks-Release` PRECEDENT DIRECTLY ABOVE (re-apply a shared line primitive
-    # AFTER the render) rather than widening `_render_item`'s template, which is the in-tree answer to
-    # this exact problem and keeps ONE write mechanism per field: an explicit `--graduated-to` wins, and
-    # absent the flag an existing value is carried over unchanged.
-    #
-    # THE OTHER SPELLING OF THIS VERB NEVER HAD THE BUG. The bare `aw backlog set <status> <selector>`
-    # form routes to `status_set.run_set_command`, which rewrites lines surgically and PRESERVED the
-    # field when measured. So the defect was asymmetric between two paths of ONE verb; both are pinned
-    # by tests (tests/test_graduated_to_link.py) so the asymmetry cannot silently return.
-    from agent_workflows import releases as _releases_gt
-
-    existing_gt = _releases_gt.parse_graduated_to(text)
+    # setidhard bwgyum / rendrop 2yqt0a E-02: apply explicit --graduated-to when given. Absent the
+    # flag, an existing value is preserved in place by _render_item.
     if set_graduated_to is not None:
+        from agent_workflows import releases as _releases_gt
+
         rendered = _releases_gt.set_graduated_to_line(rendered, set_graduated_to)
-    elif existing_gt:
-        rendered = _releases_gt.set_graduated_to_line(rendered, ", ".join(existing_gt))
 
     # bklgkind b5sfwm E-03/E-04: apply the two CLASSIFICATION fields. APPLIED AFTER THE RENDER,
     # THROUGH THE SHARED LINE WRITERS, exactly as `--blocks-release` above is, so `_render_item` stays

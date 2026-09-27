@@ -759,5 +759,537 @@ class BacklogDryRunTests(unittest.TestCase):
         self.assertEqual(item_path.read_bytes(), before_bytes)
 
 
+class BacklogPreservationTests(unittest.TestCase):
+    """rendrop 2yqt0a E-04 and E-09: source-order metadata preservation, header prose preservation,
+    and release-gate close refusal on close_on_answer."""
+
+    def _setup_repo(self, repo: Path) -> None:
+        for sub in ("open", "parked", "graduated", "done", "blocked"):
+            (repo / ".aw" / "records" / "backlog" / sub).mkdir(
+                parents=True, exist_ok=True
+            )
+        (repo / ".aw" / "records" / "releases").mkdir(parents=True, exist_ok=True)
+        (repo / ".aw" / "records" / "plans" / "executed").mkdir(
+            parents=True, exist_ok=True
+        )
+        rel = (
+            repo
+            / ".aw"
+            / "records"
+            / "releases"
+            / "20260901-rel001-01-rel001-v1.release.md"
+        )
+        rel.write_text(
+            "# Release: 1.0.0\n\n"
+            "- Id: rel001\n"
+            "- Status: planned\n"
+            "- Version: 1.0.0\n"
+            "- Summary: test release\n",
+            encoding="utf-8",
+        )
+
+    def test_backlog_set_metadata_preservation_both_spellings_agree(self):
+        """(a) BOTH SPELLINGS AGREE: two identical scratch repos, one item carrying
+        Blocks-Release, Custom-Field, Graduated-To; both spellings produce equal metadata blocks."""
+        from agent_workflows import cli
+
+        with tempfile.TemporaryDirectory() as tmp1, tempfile.TemporaryDirectory() as tmp2:
+            r1, r2 = Path(tmp1), Path(tmp2)
+            self._setup_repo(r1)
+            self._setup_repo(r2)
+
+            item_content = (
+                "- Id: bk0001\n"
+                "- Status: open\n"
+                "- Blocks-Release: rel001\n"
+                "- Custom-Field: keepme\n"
+                "- Graduated-To: foo\n"
+                "- Set: demo\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: test item\n\n"
+                "## Workflow history\n"
+                "- 2026-09-26 created (tester): initial\n"
+            )
+            p1 = (
+                r1
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260926-demo-01-bk0001-item.backlog.md"
+            )
+            p2 = (
+                r2
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260926-demo-01-bk0001-item.backlog.md"
+            )
+            p1.write_text(item_content, encoding="utf-8")
+            p2.write_text(item_content, encoding="utf-8")
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc1 = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(p1),
+                        "--status",
+                        "parked",
+                        "--dir",
+                        str(r1),
+                        "--no-commit",
+                    ]
+                )
+                rc2 = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "parked",
+                        "bk0001",
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(r2),
+                    ]
+                )
+            self.assertEqual(rc1, 0)
+            self.assertEqual(rc2, 0)
+
+            parked1 = r1 / ".aw" / "records" / "backlog" / "parked" / p1.name
+            parked2 = r2 / ".aw" / "records" / "backlog" / "parked" / p2.name
+            self.assertTrue(parked1.exists())
+            self.assertTrue(parked2.exists())
+
+            meta1 = parked1.read_text(encoding="utf-8").split("\n## Workflow history")[
+                0
+            ]
+            meta2 = parked2.read_text(encoding="utf-8").split("\n## Workflow history")[
+                0
+            ]
+
+            self.assertEqual(meta1, meta2)
+            self.assertIn("- Blocks-Release: rel001", meta1)
+            self.assertIn("- Custom-Field: keepme", meta1)
+            self.assertIn("- Graduated-To: foo", meta1)
+
+    def test_backlog_set_status_graduated_to_replaces_and_preserves_custom_field(self):
+        """(b) --status graduated --graduated-to bar replaces value and keeps Custom-Field."""
+        from agent_workflows import cli
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260926-demo-01-bk0002-item.backlog.md"
+            )
+            p.write_text(
+                "- Id: bk0002\n"
+                "- Status: open\n"
+                "- Custom-Field: keepme\n"
+                "- Graduated-To: foo\n"
+                "- Set: demo\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: item with custom field\n\n"
+                "## Workflow history\n"
+                "- 2026-09-26 created (tester): initial\n",
+                encoding="utf-8",
+            )
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(p),
+                        "--status",
+                        "graduated",
+                        "--graduated-to",
+                        "bar",
+                        "--dir",
+                        str(r),
+                        "--no-commit",
+                    ]
+                )
+            self.assertEqual(rc, 0)
+
+            grad = r / ".aw" / "records" / "backlog" / "graduated" / p.name
+            self.assertTrue(grad.exists())
+            text = grad.read_text(encoding="utf-8")
+            self.assertIn("- Graduated-To: bar", text)
+            self.assertNotIn("- Graduated-To: foo", text)
+            self.assertIn("- Custom-Field: keepme", text)
+
+    def test_backlog_set_blocks_release_dash_removes_gate_and_preserves_custom_field(
+        self,
+    ):
+        """(c) --blocks-release - removes the gate and keeps Custom-Field."""
+        from agent_workflows import cli
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260926-demo-01-bk0003-item.backlog.md"
+            )
+            p.write_text(
+                "- Id: bk0003\n"
+                "- Status: open\n"
+                "- Blocks-Release: rel001\n"
+                "- Custom-Field: keepme\n"
+                "- Set: demo\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: item with gate and custom field\n\n"
+                "## Workflow history\n"
+                "- 2026-09-26 created (tester): initial\n",
+                encoding="utf-8",
+            )
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(p),
+                        "--status",
+                        "parked",
+                        "--blocks-release",
+                        "-",
+                        "--dir",
+                        str(r),
+                        "--no-commit",
+                    ]
+                )
+            self.assertEqual(rc, 0)
+
+            parked = r / ".aw" / "records" / "backlog" / "parked" / p.name
+            self.assertTrue(parked.exists())
+            text = parked.read_text(encoding="utf-8")
+            self.assertNotIn("- Blocks-Release:", text)
+            self.assertIn("- Custom-Field: keepme", text)
+
+    def test_close_on_answer_preserves_custom_field_and_handed_off_blocks_release(self):
+        """(d) close_on_answer keeps Custom-Field and Blocks-Release when gate is handed off."""
+        from agent_workflows import set_records
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+
+            # Carrier plan in executed/
+            carrier = (
+                r
+                / ".aw"
+                / "records"
+                / "plans"
+                / "executed"
+                / "20260901-rel001-01-pln001-plan.ipd.md"
+            )
+            carrier.write_text(
+                "# IPD: Carrier\n\n"
+                "- Id: pln001\n"
+                "- Status: executed\n"
+                "- From-Backlog: bk0004\n"
+                "- Blocks-Release: rel001\n"
+                "- Set: rel001\n"
+                "- Priority: high\n"
+                "- Work-Kind: bug\n"
+                "- Summary: carrier plan\n\n"
+                "## Workflow history\n"
+                "- 2026-09-01 executed (tester): finished\n",
+                encoding="utf-8",
+            )
+
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "blocked"
+                / "20260926-demo-01-bk0004-item.backlog.md"
+            )
+            p.write_text(
+                "- Id: bk0004\n"
+                "- Status: blocked\n"
+                "- Gate-Kind: spec\n"
+                "- Gate-Ref: rel001\n"
+                "- Blocks-Release: rel001\n"
+                "- Custom-Field: keepme\n"
+                "- Set: demo\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: blocked item\n\n"
+                "## Workflow history\n"
+                "- 2026-09-26 created (tester): initial\n",
+                encoding="utf-8",
+            )
+
+            dest = set_records.close_on_answer(r, p)
+            self.assertTrue(dest.exists())
+            text = dest.read_text(encoding="utf-8")
+            self.assertIn("- Custom-Field: keepme", text)
+            self.assertIn("- Blocks-Release: rel001", text)
+            self.assertNotIn("- Gate-Kind:", text)
+            self.assertNotIn("- Gate-Ref:", text)
+
+    def test_header_prose_survives(self):
+        """(a) Header prose between metadata bullets and ## Workflow history survives re-render."""
+        from agent_workflows import cli
+
+        with tempfile.TemporaryDirectory() as tmp1, tempfile.TemporaryDirectory() as tmp2:
+            r1, r2 = Path(tmp1), Path(tmp2)
+            self._setup_repo(r1)
+            self._setup_repo(r2)
+
+            item_text = (
+                "- Id: bk0005\n"
+                "- Status: open\n"
+                "- Set: demo\n"
+                "- Priority: high\n"
+                "- Work-Kind: bug\n"
+                "- Summary: item with header prose\n\n"
+                "## What is wrong\n\n"
+                "This is important header prose describing the problem in detail.\n\n"
+                "## Workflow history\n"
+                "- 2026-09-26 created (tester): initial\n"
+            )
+            p1 = (
+                r1
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260926-demo-01-bk0005-item.backlog.md"
+            )
+            p2 = (
+                r2
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260926-demo-01-bk0005-item.backlog.md"
+            )
+            p1.write_text(item_text, encoding="utf-8")
+            p2.write_text(item_text, encoding="utf-8")
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc1 = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(p1),
+                        "--status",
+                        "parked",
+                        "--dir",
+                        str(r1),
+                        "--no-commit",
+                    ]
+                )
+                rc2 = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "parked",
+                        "bk0005",
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(r2),
+                    ]
+                )
+            self.assertEqual(rc1, 0)
+            self.assertEqual(rc2, 0)
+
+            parked1 = r1 / ".aw" / "records" / "backlog" / "parked" / p1.name
+            parked2 = r2 / ".aw" / "records" / "backlog" / "parked" / p2.name
+            self.assertTrue(parked1.exists())
+            self.assertTrue(parked2.exists())
+
+            t1 = parked1.read_text(encoding="utf-8")
+            t2 = parked2.read_text(encoding="utf-8")
+            self.assertIn(
+                "## What is wrong\n\nThis is important header prose describing the problem in detail.",
+                t1,
+            )
+
+            head1 = t1.split("\n## Workflow history")[0]
+            head2 = t2.split("\n## Workflow history")[0]
+            self.assertEqual(head1, head2)
+
+    def test_duplicate_work_kind_deduped(self):
+        """(b) Item carrying both - Kind: chore and - Work-Kind: bug renders exactly one Work-Kind line."""
+        from agent_workflows import backlog, cli
+
+        raw_item = (
+            "- Id: bk0006\n"
+            "- Status: open\n"
+            "- Set: demo\n"
+            "- Priority: high\n"
+            "- Kind: chore\n"
+            "- Work-Kind: bug\n"
+            "- Summary: item with dual kinds\n\n"
+            "## Workflow history\n"
+            "- 2026-09-26 created (tester): initial\n"
+        )
+        parsed = backlog.parse_item(raw_item)
+        direct_rendered = backlog._render_item(parsed, "", source_text=raw_item)
+        wk_direct = [
+            ln for ln in direct_rendered.splitlines() if ln.startswith("- Work-Kind:")
+        ]
+        self.assertEqual(len(wk_direct), 1)
+        self.assertEqual(wk_direct[0], "- Work-Kind: bug")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260926-demo-01-bk0006-item.backlog.md"
+            )
+            p.write_text(raw_item, encoding="utf-8")
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(p),
+                        "--status",
+                        "parked",
+                        "--dir",
+                        str(r),
+                        "--no-commit",
+                    ]
+                )
+            self.assertEqual(rc, 0)
+
+            parked = r / ".aw" / "records" / "backlog" / "parked" / p.name
+            text = parked.read_text(encoding="utf-8")
+            wk_lines = [ln for ln in text.splitlines() if ln.startswith("- Work-Kind:")]
+            self.assertEqual(len(wk_lines), 1)
+            self.assertEqual(wk_lines[0], "- Work-Kind: bug")
+            self.assertFalse(any(ln.startswith("- Kind:") for ln in text.splitlines()))
+
+    def test_stale_gate_summary_dropped(self):
+        """(c) Blocked item carrying Gate-Summary transitioned to done drops Gate-Summary."""
+        from agent_workflows import backlog, cli
+
+        raw_item = (
+            "- Id: bk0007\n"
+            "- Status: blocked\n"
+            "- Gate-Kind: spec\n"
+            "- Gate-Ref: rel001\n"
+            "- Gate-Summary: waiting on a ruling\n"
+            "- Set: demo\n"
+            "- Priority: medium\n"
+            "- Work-Kind: chore\n"
+            "- Summary: blocked item with gate summary\n\n"
+            "## Workflow history\n"
+            "- 2026-09-26 created (tester): initial\n"
+        )
+        parsed = backlog.parse_item(raw_item)
+        parsed.status = "done"
+        direct_rendered = backlog._render_item(parsed, "", source_text=raw_item)
+        self.assertNotIn("- Gate-Summary:", direct_rendered)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "blocked"
+                / "20260926-demo-01-bk0007-item.backlog.md"
+            )
+            p.write_text(raw_item, encoding="utf-8")
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(p),
+                        "--status",
+                        "done",
+                        "--dir",
+                        str(r),
+                        "--no-commit",
+                    ]
+                )
+            self.assertEqual(rc, 0)
+
+            done = r / ".aw" / "records" / "backlog" / "done" / p.name
+            self.assertTrue(done.exists())
+            text = done.read_text(encoding="utf-8")
+            self.assertNotIn("- Gate-Summary:", text)
+            self.assertNotIn("- Gate-Kind:", text)
+            self.assertNotIn("- Gate-Ref:", text)
+
+    def test_gated_close_refused_without_carrier(self):
+        """(d) close_on_answer on item with Blocks-Release and no carrier raises ValueError and leaves file untouched."""
+        from agent_workflows import set_records
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp)
+            self._setup_repo(r)
+
+            p = (
+                r
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "blocked"
+                / "20260926-demo-01-bk0008-item.backlog.md"
+            )
+            p.write_text(
+                "- Id: bk0008\n"
+                "- Status: blocked\n"
+                "- Gate-Kind: spec\n"
+                "- Gate-Ref: rel001\n"
+                "- Blocks-Release: rel001\n"
+                "- Set: demo\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: blocked item with gate\n\n"
+                "## Workflow history\n"
+                "- 2026-09-26 created (tester): initial\n",
+                encoding="utf-8",
+            )
+            before_bytes = p.read_bytes()
+
+            with self.assertRaises(ValueError) as ctx:
+                set_records.close_on_answer(r, p)
+            self.assertIn("rel001", str(ctx.exception))
+
+            self.assertTrue(p.exists())
+            self.assertEqual(p.read_bytes(), before_bytes)
+            done_files = list((r / ".aw" / "records" / "backlog" / "done").glob("*.md"))
+            self.assertEqual(done_files, [])
+
+
 if __name__ == "__main__":
     unittest.main()
