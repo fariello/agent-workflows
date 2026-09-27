@@ -1,5 +1,5 @@
 - Id: an3vqw
-- Status: graduated
+- Status: done
 - Graduated-To: specsread
 - Blocks-Release: next
 - Set: specsread
@@ -8,6 +8,7 @@
 - Summary: The --agent record omits the checked count at ZERO, hiding the exact case a validated-nothing verdict occurs
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD kifrou executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-specsread-01-kifrou-emit-a-zero-checked-count-in-the-agent-record-instead-of-dro.ipd.md); evidence .aw/records/plans/executed/20260926-specsread-01-kifrou-emit-a-zero-checked-count-in-the-agent-record-instead-of-dro.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into to-review plan Set specsread (commit 2c7068ca).
 - 2026-09-23 created (aw backlog): Found while executing IPD y4bdoz (specdirs Order 01); the plan deferred the fix and required it be reported.
 
