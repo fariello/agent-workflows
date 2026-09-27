@@ -6,7 +6,7 @@
 - Scope: IN: delete that subsection (its heading, its paragraph, and the blank line separating the heading from the `## Blockers` paragraph above it: ten lines total, 22-31 at HEAD `61ef21d8`) from `.aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md`. OUT: every other line of the release record (Summary, Blockers rule paragraph, metadata), any plan or backlog item, the executed plan `40it5e` and its review record and the `5ek188` research prompt (all three mention the note and are each correct as historical statements), migrating intent to per-plan fields (nothing is left to migrate: all four Sets executed and 0 of their 22 executed plans carries a `- Blocks-Release:` line to migrate to).
 - Scope-Paths: .aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: fsme8o
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fsme8o verified (set staledocs, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-305 all FIXED. Premise re-measured and holds. Corrected the deletion from 9 lines to 10 (a stranded blank line would have been rewritten and rejected by end-of-file-fixer) and recorded that the plan's only validation, aw check releases, reads front matter only and is blind to the body it validates.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog wxypal: Delete the stale interim note from the 2.0.0 release record.
@@ -35,18 +35,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline, delete, re-check
 
-- [ ] E-01 Capture the baseline and re-derive the deletion precondition. Run `aw check releases --agent` and record its line. Then re-derive all four precondition properties, each as a PROPERTY and not against any count in this plan: (a) both blockers are done, `ls .aw/records/backlog/done/ | grep -E "vwios6|w6mqc0"` lists both files; (b) the setter exists, `aw ipd set --help | grep -- --blocks-release` prints a line; (c) NO plan of the four named Sets is live, checked across EVERY non-terminal disposition, not just `pending/` (`for d in pending reusable; do ls .aw/records/plans/$d 2>/dev/null | grep -E -- "-(execset|ipdgates|proclint|unifyfileio)-"; done` prints nothing; measured in review: `pending/` and `reusable/` are both empty of them, and `executed/` holds 6/9/1/6); (d) the note's own migration target is moot, i.e. no executed plan of those Sets carries a `- Blocks-Release:` line to migrate TO (`for s in execset ipdgates proclint unifyfileio; do grep -l "^- Blocks-Release:" .aw/records/plans/executed/*-$s-*.ipd.md 2>/dev/null; done` prints nothing; measured in review: 0 of 22). Note on (c)/(d): a bare `grep` that finds nothing exits 1, which is the PASS case here and aborts a `set -e` lane, so append `|| echo "none (pass)"` to each.
+- [x] E-01 Capture the baseline and re-derive the deletion precondition. Run `aw check releases --agent` and record its line. Then re-derive all four precondition properties, each as a PROPERTY and not against any count in this plan: (a) both blockers are done, `ls .aw/records/backlog/done/ | grep -E "vwios6|w6mqc0"` lists both files; (b) the setter exists, `aw ipd set --help | grep -- --blocks-release` prints a line; (c) NO plan of the four named Sets is live, checked across EVERY non-terminal disposition, not just `pending/` (`for d in pending reusable; do ls .aw/records/plans/$d 2>/dev/null | grep -E -- "-(execset|ipdgates|proclint|unifyfileio)-"; done` prints nothing; measured in review: `pending/` and `reusable/` are both empty of them, and `executed/` holds 6/9/1/6); (d) the note's own migration target is moot, i.e. no executed plan of those Sets carries a `- Blocks-Release:` line to migrate TO (`for s in execset ipdgates proclint unifyfileio; do grep -l "^- Blocks-Release:" .aw/records/plans/executed/*-$s-*.ipd.md 2>/dev/null; done` prints nothing; measured in review: 0 of 22). Note on (c)/(d): a bare `grep` that finds nothing exits 1, which is the PASS case here and aborts a `set -e` lane, so append `|| echo "none (pass)"` to each.
   - Depends on: none
   - Expected outcome: baseline check line recorded (at authoring: `"outcome":"conforms","exit":0`, one unrelated `check.collisions-not-checked` diagnostic). All four properties hold. GENUINE STOP CONDITION: property (a) or (c) fails, i.e. a blocker is not done or a named Set still has a live plan, because either would mean the note's stated precondition is NOT met and the deletion premise is false. Property (d) failing is NOT a stop: it would mean an executed plan does carry the gate, which only strengthens the case that the note is stale; record it and continue.
-  - Execution state: pending
-- [ ] E-02 Delete the subsection: the heading `### Interim: IPD sets that cannot yet carry the field (pending vwios6)` through the end of its paragraph (`...and delete this interim note.`), AND the blank line that separated the heading from the `## Blockers` paragraph above it, so no trailing blank line is left behind. Measured in review at HEAD `61ef21d8`: the file is 31 lines; keep lines 1-21 and delete lines 22-31 (TEN lines: the separating blank on 22, the heading on 23, and the paragraph through 31). Deleting only 23-31 leaves the file ending `...on each item).\n\n`, which `end-of-file-fixer` (`.pre-commit-config.yaml:31`, and note its `exclude` does NOT cover `.aw/records/`) rewrites and REJECTS the commit for; the retry must then re-stage the rewritten path. Treat the line numbers as a hint and anchor on the quoted strings. Leave the `## Blockers` rule paragraph byte-identical and end the file with exactly one trailing newline.
+  - Execution state: performed
+- [x] E-02 Delete the subsection: the heading `### Interim: IPD sets that cannot yet carry the field (pending vwios6)` through the end of its paragraph (`...and delete this interim note.`), AND the blank line that separated the heading from the `## Blockers` paragraph above it, so no trailing blank line is left behind. Measured in review at HEAD `61ef21d8`: the file is 31 lines; keep lines 1-21 and delete lines 22-31 (TEN lines: the separating blank on 22, the heading on 23, and the paragraph through 31). Deleting only 23-31 leaves the file ending `...on each item).\n\n`, which `end-of-file-fixer` (`.pre-commit-config.yaml:31`, and note its `exclude` does NOT cover `.aw/records/`) rewrites and REJECTS the commit for; the retry must then re-stage the rewritten path. Treat the line numbers as a hint and anchor on the quoted strings. Leave the `## Blockers` rule paragraph byte-identical and end the file with exactly one trailing newline.
   - Depends on: E-01
   - Expected outcome: `grep -n "Interim\|vwios6\|w6mqc0" <release file>` returns nothing (exit 1; append `|| echo "absent (pass)"`); the `## Blockers` rule paragraph is unchanged; the file ends `...(single source of truth is the field on each item).\n` with no trailing blank line; `git diff --stat` shows exactly `10 deletions(-)` and 0 insertions.
-  - Execution state: pending
-- [ ] E-03 Re-run `aw check releases --agent` and `aw attention --check` and compare with the E-01 baseline. RECORD THE HONEST LIMIT rather than presenting these as proof of the edit: measured in review by driving `releases.validate_release` on the post-deletion text, the validator reads FRONT MATTER ONLY (`- Id:`, `- Status:`, `- Version:`; `agent_workflows/releases.py:91`) and returns `[]` for the original text, for the deleted text, AND for a text stripped to front matter alone. So `conforms` here proves only that the front matter was not damaged; it CANNOT detect whether the right body lines went or whether the `## Blockers` paragraph survived. The actual proof of this plan's change is the diff in V-02, read by a human. State this in the V-03 evidence rather than letting a green check stand in for it.
+  - Execution state: performed
+- [x] E-03 Re-run `aw check releases --agent` and `aw attention --check` and compare with the E-01 baseline. RECORD THE HONEST LIMIT rather than presenting these as proof of the edit: measured in review by driving `releases.validate_release` on the post-deletion text, the validator reads FRONT MATTER ONLY (`- Id:`, `- Status:`, `- Version:`; `agent_workflows/releases.py:91`) and returns `[]` for the original text, for the deleted text, AND for a text stripped to front matter alone. So `conforms` here proves only that the front matter was not damaged; it CANNOT detect whether the right body lines went or whether the `## Blockers` paragraph survived. The actual proof of this plan's change is the diff in V-02, read by a human. State this in the V-03 evidence rather than letting a green check stand in for it.
   - Depends on: E-02
   - Expected outcome: `aw check releases --agent` still reports `"outcome":"conforms"` with exit 0 and the SAME diagnostic set as E-01 (the unrelated `check.collisions-not-checked`); `aw attention --check` exit status unchanged (measured in review pre-edit: rc=0). Both are NO-REGRESSION checks, not confirmations of the deletion.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -110,18 +110,104 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the full `aw check releases --agent` line (expected `"outcome":"conforms","exit":0`) AND all four precondition commands' output: both backlog files listed under `done/`; the `--blocks-release` help line; the live-plan sweep across `pending` and `reusable` printing `none (pass)` for each; and the migration-target sweep over `executed/` printing `none (pass)`. Do NOT compare any count against a number in this plan: state the PROPERTY that held (no live plan of the four Sets in any non-terminal disposition; no executed plan of those Sets carrying a `- Blocks-Release:` line to migrate to). If a count in the Findings table disagrees with what you measure, the plan's number is stale context and yours is the truth; record both.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02. THIS IS THE PLAN'S ONLY REAL PROOF (see F-9), so it carries the burden the two checks cannot.
+  - Observed evidence: verified; baseline conforms and all 4 precondition properties held.
+    1. Baseline `aw check releases --agent`:
+       ```json
+       {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"releases","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":null}
+       ```
+    2. Precondition (a) both blockers are done:
+       ```
+       $ ls .aw/records/backlog/done/ | grep -E "vwios6|w6mqc0"
+       20260824-vwios6-01-vwios6-ipd-set-blocks-release-parity.backlog.md
+       20260824-w6mqc0-01-w6mqc0-ipd-set-approved-writes-approval-field.backlog.md
+       ```
+    3. Precondition (b) setter exists:
+       ```
+       $ aw ipd set --help | grep -- --blocks-release
+                                      [--blocks-release BLOCKS_RELEASE]
+         --blocks-release BLOCKS_RELEASE
+       ```
+    4. Precondition (c) live-plan sweep across pending and reusable:
+       ```
+       $ for d in pending reusable; do ls .aw/records/plans/$d 2>/dev/null | grep -E -- "-(execset|ipdgates|proclint|unifyfileio)-" || echo "none (pass)"; done
+       none (pass)
+       none (pass)
+       ```
+    5. Precondition (d) migration-target sweep over executed:
+       ```
+       $ for s in execset ipdgates proclint unifyfileio; do grep -l "^- Blocks-Release:" .aw/records/plans/executed/*-$s-*.ipd.md 2>/dev/null || echo "none (pass)"; done
+       none (pass)
+       none (pass)
+       none (pass)
+       none (pass)
+       ```
+    Property status: All four properties held. Both backlog blockers are marked done; `aw ipd set --blocks-release` exists; no live plans of the four sets exist in any non-terminal disposition (pending or reusable); no executed plans of those sets carry a `- Blocks-Release:` line.
+  - Result: pass
+- [x] V-02 validates E-02. THIS IS THE PLAN'S ONLY REAL PROOF (see F-9), so it carries the burden the two checks cannot.
   - Required evidence: paste the FULL `git diff -- .aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md` and confirm from it, explicitly, all four of: (1) every removed line belongs to the interim subsection or is the blank line that preceded its heading; (2) there are ZERO added lines; (3) the `## Blockers` heading and its rule paragraph appear nowhere in the diff, i.e. they were not touched; (4) the diff shows no trailing-blank-line artifact. Also paste `git diff --stat` (expect `10 deletions(-)`, 0 insertions), `grep -n "Interim\|vwios6\|w6mqc0" <file> || echo "absent (pass)"` printing the pass line, and `tail -c 90 <file> | od -c | tail -3` showing the file ends `on each item).\n` with no second newline. A diff showing 9 deletions is a FAILED validation: it means the stranded blank line is still there and `end-of-file-fixer` will reject the commit.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: verified; exactly 10 deletions, 0 additions, no trailing blank line.
+    1. Full `git diff -- .aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md`:
+       ```diff
+       diff --git a/.aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md b/.aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md
+       index 2967ecdc..a3b15c04 100644
+       --- a/.aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md
+       +++ b/.aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md
+       @@ -19,13 +19,3 @@ anchor that `Blocks-Release: next` resolves against.
+        Items that MUST reach done before this release ships declare `- Blocks-Release: next` (or the id6
+        `f33nrj`) in their own front matter; `aw attention` surfaces the outstanding set. This record itself
+        carries no blocker list in prose (single source of truth is the field on each item).
+       -
+       -### Interim: IPD sets that cannot yet carry the field (pending vwios6)
+       -
+       -TEMPORARY EXCEPTION to the no-prose-list rule above. The approved IPD sets `execset`, `ipdgates`,
+       -`proclint`, and `unifyfileio` are INTENDED release blockers for 2.0.0, but the standard per-item
+       -`- Blocks-Release:` field cannot be set on a plan today: the IPD lint schema rejects it (IPD-M103) and
+       -there is no `aw ipd set --blocks-release` setter (tracked by backlog `vwios6`, which blocks this
+       -release). Relatedly, those same approved IPDs currently fail `aw ipd lint` for a missing `Approval`
+       -field (IPD-M104), tracked by backlog `w6mqc0` (also blocks this release). Once `vwios6` lands, migrate
+       -this intent to the per-item `- Blocks-Release:` field on those IPDs and delete this interim note.
+       ```
+    2. Confirmations:
+       (1) Every removed line belongs to the interim subsection or is the blank line that preceded its heading (lines 22-31 removed).
+       (2) There are zero added lines.
+       (3) The `## Blockers` heading and its rule paragraph appear nowhere in the diff (untouched).
+       (4) The diff shows no trailing-blank-line artifact.
+    3. `git diff --stat`:
+       ```
+        .../releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md        | 10 ----------
+        1 file changed, 10 deletions(-)
+       ```
+    4. Grep check:
+       ```
+       $ grep -n "Interim\|vwios6\|w6mqc0" .aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md || echo "absent (pass)"
+       absent (pass)
+       ```
+    5. Trailing bytes check:
+       ```
+       $ tail -c 90 .aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md | od -c | tail -3
+       0000100       t   h   e       f   i   e   l   d       o   n       e   a
+       0000120   c   h       i   t   e   m   )   .  \n
+       0000132
+       ```
+       File ends with `on each item).\n` and no second newline.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the post-edit `aw check releases --agent` line (expected `"outcome":"conforms","exit":0`, same diagnostic set as V-01) and `aw attention --check; echo rc=$?` with the same rc as a pre-edit run. THEN state, in your own words, the limit these two do NOT cover: `releases.validate_release` reads front matter only and returns `[]` even for a body deleted entirely (measured in review on three variants), so this item proves NO REGRESSION and proves nothing about the deletion itself, which V-02 owns. A V-03 that presents `conforms` as confirmation of the edit is a FAILED validation even when the command output is genuine.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified; check releases and attention --check show no regressions; honest limits noted.
+    1. Post-edit `aw check releases --agent`:
+       ```json
+       {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"releases","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":null}
+       ```
+    2. Post-edit `aw attention --check; echo rc=$?`:
+       ```
+       aw attention --check: the view is valid.
+       rc=0
+       ```
+    3. Honest limit statement:
+       `releases.validate_release` reads only front matter attributes (`- Id:`, `- Status:`, `- Version:`) and returns `[]` even if the release document body is completely deleted. Thus, `aw check releases --agent` and `aw attention --check` confirm only no regression in front-matter validity and attention view status; they do not confirm that the prose deletion occurred or that the remaining body text is intact. That verification is provided exclusively by the diff in V-02.
+  - Result: pass
 
 ## Approval and execution gate
 
