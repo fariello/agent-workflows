@@ -4977,6 +4977,205 @@ def conflict_resolver_remedy(shape: str, *, branch: str | None = None) -> str:
     return "; ".join(steps)
 
 
+# ==================================================================================================
+# mergeagent (`ounhsn`): SEND A MERGE-BACK CONFLICT BACK TO THE SAME AGENT TO RESOLVE IN ITS LANE
+# ==================================================================================================
+
+MERGE_CONFLICT_RETRY_COUNT_KEY: str = "merge_conflict_retry_attempts"
+
+
+class ConflictPrep(NamedTuple):
+    """The outcome of preparing a lane worktree for agent conflict resolution."""
+
+    ok: bool
+    conflicted_paths: tuple[str, ...]
+    merge_head: str
+    detail: str = ""
+
+
+def prepare_lane_for_conflict_resolution(
+    repo: Path,
+    handle: Any,
+    *,
+    run_checked: Callable[..., str] | None = None,
+    main_tip: str | None = None,
+    item: Mapping[str, Any] | None = None,
+) -> ConflictPrep:
+    """Merge main into the lane worktree, leaving conflicts for the agent to resolve.
+
+    ounhsn E-01. Pure lane-local helper: main's HEAD and primary checkout are untouched.
+    """
+    wt_path = Path(handle.path)
+    if merge_in_progress(wt_path):
+        return ConflictPrep(
+            ok=False,
+            conflicted_paths=(),
+            merge_head="",
+            detail="unconcluded merge in progress (MERGE_HEAD exists)",
+        )
+
+    # Resolve main tip: prefer item["integration_serialization"]["main_tip_in_lock"] if present,
+    # then main_tip parameter, then read HEAD in repo.
+    target_tip = ""
+    if item is not None:
+        target_tip = str(
+            (item.get("integration_serialization") or {}).get("main_tip_in_lock") or ""
+        ).strip()
+    if not target_tip and main_tip:
+        target_tip = str(main_tip).strip()
+    if not target_tip:
+        target_tip = _resolved_main_tip(repo, run_checked=run_checked)
+    if not target_tip:
+        _rc, out, _err = _run_git(repo, ["rev-parse", "HEAD"])
+        target_tip = out.strip()
+    if not target_tip:
+        return ConflictPrep(
+            ok=False,
+            conflicted_paths=(),
+            merge_head="",
+            detail="could not resolve main tip in repo",
+        )
+
+    lane_id = getattr(handle, "lane_id", "") or "lane"
+    id6 = lane_id.split(":")[0]
+
+    rc, out, err = _run_git(wt_path, ["merge", "--no-ff", "--no-commit", target_tip])
+
+    if rc == 0:
+        if merge_in_progress(wt_path):
+            commit_subject = f"merge main into lane {id6} for merge-back"
+            c_rc, c_out, c_err = _run_git(wt_path, ["commit", "-m", commit_subject])
+            if c_rc != 0:
+                _run_git(wt_path, ["merge", "--abort"])
+                return ConflictPrep(
+                    ok=False,
+                    conflicted_paths=(),
+                    merge_head="",
+                    detail=f"commit after clean merge failed: {c_err or c_out}",
+                )
+        return ConflictPrep(
+            ok=True,
+            conflicted_paths=(),
+            merge_head="",
+            detail="clean merge",
+        )
+
+    if merge_in_progress(wt_path):
+        diff_rc, diff_out, _ = _run_git(
+            wt_path, ["diff", "--name-only", "--diff-filter=U"]
+        )
+        conflicted = tuple(
+            sorted(p.strip() for p in diff_out.splitlines() if p.strip())
+        )
+        if conflicted:
+            return ConflictPrep(
+                ok=True,
+                conflicted_paths=conflicted,
+                merge_head=target_tip,
+                detail="conflicts present",
+            )
+
+    _run_git(wt_path, ["merge", "--abort"])
+    return ConflictPrep(
+        ok=False,
+        conflicted_paths=(),
+        merge_head="",
+        detail=((err or out).strip() or "git merge failed"),
+    )
+
+
+def merge_conflict_question(detail: Mapping[str, Any], *, main_tip: str) -> str:
+    """Prompt for an agent correction turn to resolve a merge conflict in its lane."""
+    files = list(detail.get("files") or ())
+    conflicted_paths = [str(f.get("path")) for f in files if f.get("path")]
+    paths_str = " ".join(conflicted_paths)
+    shape = str(detail.get("shape") or CONFLICT_SHAPE_UNKNOWN)
+
+    facts = format_conflict_resolver_facts(detail)
+
+    if shape == CONFLICT_SHAPE_ADJACENCY_ONLY:
+        resolution_instruction = (
+            "Conflict shape is adjacency-only: every conflicting hunk has both sides only adding "
+            "at the same insertion point, with neither side touching a line the other wrote. "
+            "Keeping both sides in a sensible order is correct."
+        )
+    elif shape == CONFLICT_SHAPE_SEMANTIC:
+        resolution_instruction = (
+            "Conflict shape is semantic: at least one side changed or removed a line the base carried, "
+            "so the two sides disagree about content and keep-both is NOT provably safe. "
+            "Read both sides and resolve on their merits, never keep both blindly."
+        )
+    else:
+        resolution_instruction = (
+            "Conflict shape could not be decided. "
+            "Read both sides and resolve on their merits, never keep both blindly."
+        )
+
+    return (
+        f"# Merge Conflict Resolution Required\n\n"
+        f"Main moved while you worked (main tip: {main_tip}) and these files now conflict:\n"
+        + "\n".join(f"- {p}" for p in conflicted_paths)
+        + f"\n\nMain has been merged into your lane and the merge is IN PROGRESS with conflict markers in the working tree.\n\n"
+        f"## Conflict Details\n{facts}\n\n"
+        f"## Resolution Instructions\n"
+        f"For each file resolve the conflict:\n"
+        f"{resolution_instruction}\n\n"
+        f"1. Edit each conflicted file to resolve the conflict.\n"
+        f"2. Remove every conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`).\n"
+        f"3. Run the tests your plan names to ensure tests pass.\n"
+        f"4. Conclude the merge:\n"
+        f"   Run `git add -- {paths_str}`\n"
+        f"   Then run bare `git commit --no-edit`\n\n"
+        f"THE COMMIT INSTRUCTION IS THE ONE PLACE THIS ITEM MUST NOT FOLLOW THE USUAL COMMIT CONTRACT:\n"
+        f'(a) A path-scoped commit is impossible mid-merge: git exits 128 with "fatal: cannot do a partial commit during a merge", so the pathspec form cannot conclude a merge at all.\n'
+        f"(b) The runner's ordinary isolated commit tool creates a single-parent commit in a detached worktree under CAS, leaving MERGE_HEAD behind and main not an ancestor of the lane.\n"
+        f"The bare `git commit --no-edit` is therefore the correct tool here: git itself owns concluding a merge it started, the commit carries both parents, and the paths in it are exactly the ones git staged.\n\n"
+        f"5. Do NOT run `aw ipd begin` or `finalize` (the plan was already finalized on the lane).\n"
+        f"6. Write your outcome file and stop.\n"
+    )
+
+
+def check_conflict_resolution_consummated(
+    lane_path: Path,
+    conflicted_paths: Sequence[str],
+    merge_head: str,
+) -> tuple[bool, bool]:
+    """Check whether a lane's conflict resolution removed markers and concluded the merge.
+
+    Returns (resolved, consummated).
+    Condition (i): no unmerged paths (diff-filter=U is empty).
+    Condition (ii): no conflict markers in the conflicted paths (git grep is empty).
+    Condition (iii): merge is not in progress and merge_head is an ancestor of lane HEAD.
+    """
+    rc_u, out_u, _ = _run_git(lane_path, ["diff", "--name-only", "--diff-filter=U"])
+    unmerged_empty = rc_u == 0 and not out_u.strip()
+
+    if conflicted_paths:
+        rc_g, out_g, _ = _run_git(
+            lane_path, ["grep", "-nE", "^(<<<<<<<|>>>>>>>)", "--", *conflicted_paths]
+        )
+        markers_empty = rc_g == 1 or (rc_g == 0 and not out_g.strip())
+    else:
+        markers_empty = True
+
+    resolved = bool(unmerged_empty and markers_empty)
+    if not resolved:
+        return False, False
+
+    in_progress = merge_in_progress(lane_path)
+    if in_progress:
+        return True, False
+
+    if merge_head:
+        rc_anc, _, _ = _run_git(
+            lane_path, ["merge-base", "--is-ancestor", merge_head, "HEAD"]
+        )
+        if rc_anc != 0:
+            return True, False
+
+    return True, True
+
+
 def build_lane_outcome(
     repo: Path, handle: Any, id6: str, *, run_checked: Callable[..., str]
 ) -> Any:
@@ -6212,10 +6411,11 @@ def integrate_lane_branch(
         # abort below. It changes nothing about which merges are ATTEMPTED and nothing about the
         # dirty-base guard, the gate, or the ff-only/no-ff sequence above.
         #
-        # IT IS NOT THE REPETITION SPEC `25kzda` 2.1 PROHIBITS, and the carve-out it relies on is
-        # Section 2.1a of that same spec, amended in this change. Nothing is RETRIED: the merge is not
-        # re-attempted, the ladder is not consulted, and a failure here falls straight through to the
-        # unchanged refusal below. What happens instead is that the incoming side's INTENT is recomputed
+        # IT IS NOT THE REPETITION SPEC `25kzda` 2.1 PROHIBITS, and the carve-outs it relies on are
+        # Section 2.1a and Section 2.1b of that same spec. In this function nothing is RETRIED: the merge
+        # is not re-attempted here, the ladder is not consulted, and a failure here falls straight through
+        # to the refusal below, which is then sent back to the agent in `execute_item_core` if retry budget
+        # remains (spec 25kzda 2.1b). What happens instead is that the incoming side's INTENT is recomputed
         # against the settled tree. Every other conflict class remains terminal on its first attempt.
         verdicts = classify_conflict_set_for_rederivation(
             repo,
@@ -6970,7 +7170,8 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
     (
         "fail-merge",
         False,
-        "integration refused; owned by the integration deferral ladder or human",
+        "integration refused; a git merge conflict is first sent back to the agent under "
+        "--retry-budget and is terminal only after that (owned by the integration deferral ladder or human)",
     ),
     (
         "not-run",
@@ -30772,6 +30973,217 @@ def execute_item_core(
                             run_checked=globals()["run_checked"],
                         )
                     )
+
+                    # mergeagent (`ounhsn`) E-03: send merge-back conflict to the agent to resolve in its lane
+                    sendback_records: list[dict[str, Any]] = list(
+                        attempt.get("merge_conflict_sendback") or []
+                    )
+                    conflict_budget = frozen_retry_budget(state)
+                    while (
+                        not integrated
+                        and wt_handle is not None
+                        and integ_kind == INTEGRATION_REFUSAL_CONFLICT
+                        and read_integration_cause(integ_reason)[0]
+                        == INTEGRATION_CAUSE_GIT_CONFLICT
+                        and int(item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0)
+                        < conflict_budget
+                    ):
+                        current_conflict_count = int(
+                            item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0
+                        )
+                        item[MERGE_CONFLICT_RETRY_COUNT_KEY] = (
+                            current_conflict_count + 1
+                        )
+                        save_state(run_dir, state)
+
+                        prep = prepare_lane_for_conflict_resolution(
+                            repo,
+                            wt_handle,
+                            run_checked=globals().get("run_checked"),
+                            item=item,
+                        )
+                        if not prep.ok:
+                            break
+
+                        if not prep.conflicted_paths:
+                            # Clean merge; skip agent ask and re-attempt publish directly
+                            integrated, integ_reason, integ_kind = (
+                                integrate_under_repository_lock(
+                                    repo,
+                                    item,
+                                    wt_handle,
+                                    state=state,
+                                    holder_label=integration_lock_holder_label(state),
+                                    integrate=_publish,
+                                    progress=integration_lock_progress_reporter(),
+                                    run_checked=globals()["run_checked"],
+                                )
+                            )
+                            continue
+
+                        conflict_detail = build_conflict_resolver_detail(
+                            wt_handle.path,
+                            paths=prep.conflicted_paths,
+                            base_commit=wt_handle.base_commit,
+                        )
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "merge-conflict-sent-back",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "conflicted": list(prep.conflicted_paths),
+                                "shape": conflict_detail.get("shape"),
+                                "retry_attempt": item[MERGE_CONFLICT_RETRY_COUNT_KEY],
+                                "retry_budget": conflict_budget,
+                            },
+                        )
+
+                        conflict_prompt_text = merge_conflict_question(
+                            conflict_detail,
+                            main_tip=prep.merge_head,
+                        )
+                        conflict_session = attempt.get("session_id")
+                        interrupted = False
+                        try:
+                            if host_labels == OC_HOST_LABELS:
+                                resume_via_launcher(
+                                    raw_launcher,
+                                    (
+                                        state,
+                                        run_dir,
+                                        item,
+                                        plan_path,
+                                        write_prompt(
+                                            run_dir,
+                                            item,
+                                            conflict_prompt_text,
+                                            attempt_no,
+                                            suffix="merge-conflict",
+                                        ),
+                                        attempt_no,
+                                    ),
+                                    {
+                                        "log_suffix": "merge-conflict",
+                                        "label_suffix": "merge-conflict",
+                                        "tracker": tracker,
+                                        "work_dir": work_dir,
+                                        "resume_session": conflict_session,
+                                    },
+                                )
+                            else:
+                                resume_via_launcher(
+                                    raw_launcher,
+                                    (
+                                        state,
+                                        run_dir,
+                                        item,
+                                        write_prompt(
+                                            run_dir,
+                                            item,
+                                            conflict_prompt_text,
+                                            attempt_no,
+                                            suffix="merge-conflict",
+                                        ),
+                                        attempt_no,
+                                    ),
+                                    {
+                                        "session_id": conflict_session,
+                                        "use_continue": False,
+                                        "log_suffix": "merge-conflict",
+                                        "label_suffix": "merge-conflict",
+                                        "work_dir": work_dir,
+                                        "tracker": tracker,
+                                    },
+                                )
+                        except (KeyboardInterrupt, StallTimeout):
+                            interrupted = True
+
+                        if work_dir:
+                            with contextlib.suppress(Exception):
+                                lane_containment.collect_lane_submissions(
+                                    run_dir=run_dir,
+                                    item=item,
+                                    run_id=state["run_id"],
+                                    lane_root=Path(work_dir),
+                                    plan_path=plan_path,
+                                    attempt=attempt_no,
+                                )
+
+                        if interrupted:
+                            break
+
+                        resolved, consummated = check_conflict_resolution_consummated(
+                            wt_handle.path,
+                            prep.conflicted_paths,
+                            prep.merge_head,
+                        )
+                        sendback_entry = {
+                            "conflicted": list(prep.conflicted_paths),
+                            "shape": conflict_detail.get("shape"),
+                            "resolved": resolved,
+                            "consummated": consummated,
+                        }
+                        sendback_records.append(sendback_entry)
+                        attempt["merge_conflict_sendback"] = sendback_records
+                        save_state(run_dir, state)
+
+                        if consummated:
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "merge-conflict-resolved",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "conflicted": list(prep.conflicted_paths),
+                                    "shape": conflict_detail.get("shape"),
+                                },
+                            )
+                            integrated, integ_reason, integ_kind = (
+                                integrate_under_repository_lock(
+                                    repo,
+                                    item,
+                                    wt_handle,
+                                    state=state,
+                                    holder_label=integration_lock_holder_label(state),
+                                    integrate=_publish,
+                                    progress=integration_lock_progress_reporter(),
+                                    run_checked=globals()["run_checked"],
+                                )
+                            )
+                        else:
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "merge-conflict-unresolved",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "conflicted": list(prep.conflicted_paths),
+                                    "shape": conflict_detail.get("shape"),
+                                    "consummated": consummated,
+                                },
+                            )
+
+                    # Ensure lane is integrable by existing human path on terminal arm
+                    if not integrated and wt_handle is not None:
+                        if merge_in_progress(wt_handle.path):
+                            _run_git(wt_handle.path, ["merge", "--abort"])
+                            attempt["merge_conflict_lane_aborted"] = True
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "lane-merge-aborted",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "detail": "in-progress lane merge aborted before terminal refusal",
+                                },
+                            )
+                            save_state(run_dir, state)
+
                     if not integrated:
                         _record_lane_ending_facts(
                             attempt,
