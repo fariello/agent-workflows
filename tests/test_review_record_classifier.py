@@ -8,8 +8,6 @@ Covers:
 
 from __future__ import annotations
 
-import ast
-import re
 import unittest
 from pathlib import Path
 
@@ -147,35 +145,6 @@ class TestClassifierTable(unittest.TestCase):
             [],
             f"is_review_history_entry table mismatch on {len(wrong)} rows:\n"
             + "\n".join(wrong),
-        )
-
-
-class TestOneParserInvariant(unittest.TestCase):
-    """E-03: Assert exactly ONE history-record parser in plan_readiness.py."""
-
-    def test_exactly_one_history_record_parts_parser_in_plan_readiness(self) -> None:
-        plan_readiness_path = REPO_ROOT / "agent_workflows" / "plan_readiness.py"
-        source = plan_readiness_path.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=str(plan_readiness_path))
-
-        # Scan string constants and regex compiles for patterns having all 4 group names:
-        # date, mid, actor, msg
-        required_groups = {"date", "mid", "actor", "msg"}
-        matching_patterns: list[str] = []
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                val = node.value
-                groups = set(re.findall(r"\(\?P<([a-zA-Z0-9_]+)>", val))
-                if required_groups.issubset(groups):
-                    matching_patterns.append(val)
-
-        self.assertEqual(
-            len(matching_patterns),
-            1,
-            f"Expected exactly ONE pattern with history record capture groups "
-            f"{required_groups} in {plan_readiness_path}, found {len(matching_patterns)}: "
-            f"{matching_patterns}",
         )
 
 

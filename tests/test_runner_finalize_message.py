@@ -11,7 +11,6 @@ detail `update  Update CLI` (the last usage line) and warned past the gate.
 
 from __future__ import annotations
 
-import inspect
 import re
 from pathlib import Path
 
@@ -52,13 +51,34 @@ def test_notice_does_not_break_stale_receipt_retry_classification() -> None:
     assert runner_shared.finalize_refusal_is_retryable(with_notice)
 
 
-def test_notice_prefix_matches_checkout_pin_source() -> None:
-    src = inspect.getsource(checkout_pin.check_and_reexec)
-    literals = re.findall(r'f"(aw: invoked in checkout )\{', src)
-    assert (
-        literals
-    ), "checkout_pin notice wording changed; update _CHECKOUT_PIN_NOTICE_PREFIX"
-    assert all(lit == runner_shared._CHECKOUT_PIN_NOTICE_PREFIX for lit in literals)
+def test_checkout_pin_notice_stripped_from_lifecycle_refusal() -> None:
+    import io
+    import os
+    import sys
+    from unittest import mock
+
+    from agent_workflows import ipd_lifecycle
+
+    err_buf = io.StringIO()
+    with (
+        mock.patch.object(
+            checkout_pin, "find_toolkit_checkout", return_value=Path("/fake/toolkit")
+        ),
+        mock.patch.dict(os.environ, {"AW_NO_REEXEC": "1"}),
+        mock.patch.object(sys, "stderr", err_buf),
+    ):
+        checkout_pin.check_and_reexec()
+
+    notice = err_buf.getvalue().strip()
+    assert notice.startswith(runner_shared._CHECKOUT_PIN_NOTICE_PREFIX)
+
+    stale = (
+        f"{runner_shared.RETRYABLE_STALE_RECEIPT_SUMMARY}\n"
+        f"  {ipd_lifecycle.FINDING_RECEIPT_STALE}"
+    )
+    with_notice = runner_shared.nested_aw_message(stale, notice)
+    assert with_notice == stale
+    assert runner_shared.finalize_refusal_is_retryable(with_notice)
 
 
 def test_agy_probe_print_timeout_carries_a_duration_unit() -> None:

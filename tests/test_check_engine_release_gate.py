@@ -18,8 +18,8 @@ Verifies:
 from __future__ import annotations
 
 import argparse
-import inspect
 import json
+from unittest import mock
 import subprocess
 import unittest
 from pathlib import Path
@@ -517,14 +517,74 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
         }
         self.assertEqual(set(check_engine.RELEASE_GATE_RULES), expected)
 
-    def test_check_commit_invariants_composition_intact(self) -> None:
-        """check_commit_invariants still composes exactly its 3 commit-scoped functions."""
-        source = inspect.getsource(check_engine.check_commit_invariants)
-        self.assertIn("check_status_untooled", source)
-        self.assertIn("check_release_gate_consistency", source)
-        self.assertIn("check_scope_drift", source)
-        self.assertNotIn("check_live_bug_gate", source)
-        self.assertNotIn("check_release_gates", source)
+    def test_check_commit_invariants_composition(self) -> None:
+        """check_commit_invariants composes status-untooled, release-gate consistency, and scope-drift."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+                check=True,
+            )
+            # 1. Staged hand-edited plan status change -> triggers check.status-untooled
+            plan_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260920-p01-01-p01-test.ipd.md"
+            )
+            plan_file.write_text(
+                "# IPD: Test\n\n- Id: p01\n- Status: approved\n- Set: p01\n",
+                encoding="utf-8",
+            )
+            # 2. Staged done gated item with pending carrier -> triggers check.blocking-item-closed-without-gate
+            done_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "done"
+                / "20260920-item01-01-item01-done.backlog.md"
+            )
+            done_file.write_text(
+                "- Id: item01\n- Status: done\n- Blocks-Release: next\n- Set: item01\n- Priority: medium\n- Work-Kind: feature\n- Summary: Done\n",
+                encoding="utf-8",
+            )
+            # 3. An open bug with blocks-release that triggers check.live-bug-ungated in full check_release_gates,
+            # but must NOT appear in check_commit_invariants aggregate
+            open_bug = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug01-01-bug01-bug.backlog.md"
+            )
+            open_bug.write_text(
+                "- Id: bug01\n- Status: open\n- Blocks-Release: next\n- Set: bug01\n- Priority: high\n- Work-Kind: bug\n- Summary: Bug\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(repo), "add", "--", ".aw"], check=True)
+
+            sentinel_drift = _core.Drift(
+                "lane/foo.py", "check.scope-drift", "scope drift detail"
+            )
+            with mock.patch(
+                "agent_workflows.check_engine.check_scope_drift",
+                return_value=[sentinel_drift],
+            ):
+                findings = check_engine.check_commit_invariants(repo)
+
+            rules = {d.rule for d in findings}
+            self.assertIn("check.status-untooled", rules)
+            self.assertIn("check.blocking-item-closed-without-gate", rules)
+            self.assertIn("check.scope-drift", rules)
+            self.assertNotIn("check.live-bug-ungated", rules)
 
     def test_full_sweep_includes_check_release_gates(self) -> None:
         """The full sweep (check_types(['all'])) includes all findings from check_release_gates."""

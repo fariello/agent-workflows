@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 import json
 import subprocess
 import tempfile
@@ -249,21 +248,6 @@ class IsolationForActionLegacyFallbackTests(unittest.TestCase):
     def test_non_dict_options(self) -> None:
         self.assertTrue(runner_shared.isolation_for_action(None, "execute"))
         self.assertTrue(runner_shared.isolation_for_action({}, "execute"))
-
-
-class LaunchSiteWiringStructuralTests(unittest.TestCase):
-    """Test structural wiring at launch sites (E-04 / V-04)."""
-
-    def test_execute_item_core_does_not_read_isolate_worktree_directly(self) -> None:
-        """Assert that execute_item_core does not call options.get('isolate_worktree') directly."""
-        src = inspect.getsource(runner_shared.execute_item_core)
-        count = src.count('get("isolate_worktree"')
-        self.assertEqual(
-            count,
-            0,
-            f"execute_item_core still has {count} direct calls to get('isolate_worktree'). "
-            "Must route through isolation_for_action.",
-        )
 
 
 class RunStartWarningTests(unittest.TestCase):

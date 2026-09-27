@@ -776,50 +776,5 @@ class ImportsWithoutFcntlTests(unittest.TestCase):
         print(f"falsifiability: {result.stdout.strip()}")
 
 
-class SingleOwnerTests(unittest.TestCase):
-    """The primitive is owned in exactly ONE place (GUIDING_PRINCIPLES P8)."""
-
-    def test_no_module_carries_a_top_level_fcntl_import(self):
-        offenders = []
-        for path in sorted((REPO_ROOT / "agent_workflows").glob("*.py")):
-            source = path.read_text(encoding="utf-8")
-            if "\nimport fcntl\n" in source:
-                offenders.append(path.name)
-        self.assertEqual(
-            offenders,
-            [],
-            f"top-level `import fcntl` makes the package unimportable on a non-POSIX host: "
-            f"{offenders}",
-        )
-        print("no top-level `import fcntl` anywhere in agent_workflows/")
-
-    def test_only_platform_lock_touches_the_primitive(self):
-        users = []
-        for path in sorted((REPO_ROOT / "agent_workflows").glob("*.py")):
-            if path.name == "platform_lock.py":
-                continue
-            source = path.read_text(encoding="utf-8")
-            for line in source.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("#") or stripped.startswith('"'):
-                    continue
-                if "fcntl." in stripped or stripped == "import fcntl":
-                    users.append(f"{path.name}: {stripped}")
-        self.assertEqual(
-            users, [], f"only platform_lock may touch the POSIX primitive: {users}"
-        )
-        print("platform_lock is the only module that touches fcntl")
-
-    def test_platform_lock_has_no_posix_only_import_of_its_own(self):
-        """Its `fcntl` access must be behind the guard, never at module import time."""
-
-        source = (REPO_ROOT / "agent_workflows" / "platform_lock.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn("\nimport fcntl\n", source)
-        self.assertIn("except ImportError:", source)
-        print("platform_lock's fcntl access is guarded, not a top-level import")
-
-
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

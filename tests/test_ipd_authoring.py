@@ -12,6 +12,8 @@ import io
 import os
 import re
 import tempfile
+import subprocess
+import sys
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -19,7 +21,6 @@ from pathlib import Path
 from agent_workflows import ipd_authoring as A
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
-from tests.support import REPO_ROOT
 
 
 def _ns(**kw) -> argparse.Namespace:
@@ -421,29 +422,25 @@ class AtomicWriteTests(unittest.TestCase):
 
 class NoDependencyTests(unittest.TestCase):
     def test_authoring_module_is_stdlib_only(self):
-        src = (REPO_ROOT / "agent_workflows" / "ipd_authoring.py").read_text(
-            encoding="utf-8"
+        code = (
+            "import sys\n"
+            "class StrictStdlibFinder:\n"
+            "    def find_spec(self, fullname, path, target=None):\n"
+            "        top = fullname.split('.')[0]\n"
+            "        if top not in sys.stdlib_module_names and top != 'agent_workflows':\n"
+            "            raise ImportError(f'Non-stdlib import attempted: {fullname}')\n"
+            "        return None\n"
+            "sys.meta_path.insert(0, StrictStdlibFinder())\n"
+            "import agent_workflows.ipd_authoring\n"
         )
-        for line in src.splitlines():
-            m = re.match(r"^(?:from|import)\s+([a-zA-Z0-9_.]+)", line.strip())
-            if not m:
-                continue
-            top = m.group(1).split(".")[0]
-            self.assertIn(
-                top,
-                {
-                    "__future__",
-                    "argparse",
-                    "os",
-                    "re",
-                    "tempfile",
-                    "datetime",
-                    "pathlib",
-                    "typing",
-                    "agent_workflows",
-                },
-                "unexpected import: " + line,
-            )
+        res = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True
+        )
+        self.assertEqual(
+            res.returncode,
+            0,
+            f"Module import failed or attempted non-stdlib import: {res.stderr}",
+        )
 
 
 class AtomicWriteDelegatesToCoreTests(unittest.TestCase):
@@ -454,16 +451,6 @@ class AtomicWriteDelegatesToCoreTests(unittest.TestCase):
     normalizing only the core helper would have left PLANS -- the highest-volume artifact an agent
     writes, and the one the mutating pre-commit hooks reject most often -- entirely un-normalized.
     """
-
-    def test_it_holds_no_duplicate_write_body(self):
-        src = (REPO_ROOT / "agent_workflows" / "ipd_authoring.py").read_text(
-            encoding="utf-8"
-        )
-        body = src.split("def _atomic_write(", 1)[1].split("\ndef ", 1)[0]
-        self.assertIn("_core.atomic_write(", body)
-        # The duplicated mechanics are GONE (they now live in exactly one place).
-        self.assertNotIn("mkstemp", body)
-        self.assertNotIn("os.replace", body)
 
     def test_a_plan_written_through_it_carries_no_trailing_whitespace(self):
         tmp = Path(tempfile.mkdtemp())

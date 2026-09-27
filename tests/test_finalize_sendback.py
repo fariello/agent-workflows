@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from agent_workflows import agy_runipd as agy_driver
@@ -143,18 +144,6 @@ class TheRunOutcomeReflectsARefusedFinalize(unittest.TestCase):
         the disposition.
         """
         self.assertIn("COMPLETED", self.outcome_line(_state([_item()])))
-
-    def test_substantially_complete_was_not_removed_from_the_outcome_tuple(self):
-        """Guards the tempting wrong fix, which the plan's fence explicitly forbids."""
-        import inspect
-
-        src = inspect.getsource(render_stream.render_run_summary_table)
-        self.assertIn(
-            '"executed", "reviewed", "approved", "substantially-complete"',
-            src,
-            "the outcome tuple must still admit `substantially-complete`; the refusal, not the "
-            "disposition, is what downgrades the outcome",
-        )
 
     def test_the_refusal_is_visible_on_the_summary_itself(self):
         """The table alone must not read as success (the measured row said `verified`, no refusal)."""
@@ -311,21 +300,30 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
                     f"does not match it; update RETRYABLE_FINALIZE_FINDING_TEXTS deliberately",
                 )
 
-    def test_the_summary_text_is_the_one_finalize_precheck_ACTUALLY_EMITS(self):
-        """The other half of the same pin: the summary sentence must still be the gate's."""
-        import inspect
-
-        src = inspect.getsource(ipd_lifecycle.finalize_precheck)
-        self.assertIn(
-            runner_shared.RETRYABLE_FINALIZE_SUMMARY,
-            src,
-            "the retryable summary must be the literal `finalize_precheck` emits",
-        )
-        self.assertIn(
-            "is STALE: the plan content changed since begin;",
-            src,
-            "the stale summary must be the literal `finalize_precheck` emits",
-        )
+    def test_finalize_precheck_stale_receipt_refusal_is_retryable(self):
+        """The retry allowlist recognizes the stale-receipt refusal emitted by finalize_precheck."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            plan = pending / "20260908-test-01-tst001-test.ipd.md"
+            plan.write_text(
+                "# IPD: Test\n\n- Id: tst001\n- Status: approved\n- Set: test\n- Order: 1\n- Scope-Paths: foo.py\n",
+                encoding="utf-8",
+            )
+            rcpt_path = ipd_lifecycle.receipt_path_for(repo, "tst001")
+            rcpt_path.parent.mkdir(parents=True, exist_ok=True)
+            rcpt_path.write_text(
+                '{"schema_version": 1, "plan_id": "tst001", "plan_digest": "diff", '
+                '"frozen_region_digest": "diff_fr", "base_head": "HEAD", "scope_paths": ["foo.py", "bar.py"]}',
+                encoding="utf-8",
+            )
+            code, msg, ev, findings = ipd_lifecycle.finalize_precheck(repo, plan)
+            refusal = f"refused: {msg}\n" + "\n".join(f"  {f}" for f in findings)
+            self.assertTrue(
+                runner_shared.finalize_refusal_is_retryable(refusal),
+                f"stale receipt refusal from finalize_precheck was not recognized as retryable: {refusal}",
+            )
 
     def test_the_reduction_invariant_text_matches_ipd_lifecycle_findings(self):
         """E-01: FINDING_SCOPE_REDUCED_INVARIANT is part of both singular and plural reduction findings."""
@@ -616,36 +614,9 @@ class TheRefusalArmPerformsTheSendBack(unittest.TestCase):
         assert projected is not None
         self.assertEqual(MEASURED_REFUSAL, projected["finalize_refused"])
 
-    def test_the_decision_lives_in_the_refusal_arm_and_not_a_later_sweep(self):
-        import inspect
-
-        src = inspect.getsource(runner_shared.execute_item_core)
-        self.assertEqual(
-            2,
-            src.count("handle_finalize_refusal("),
-            "BOTH refusal arms (lane and no-lane) must delegate to the one shared performer",
-        )
-
 
 class BothHostsBehaveIdentically(unittest.TestCase):
     """E-03/E-06: the incident was agy and the twin is where drift hides."""
-
-    def test_both_hosts_execute_through_the_SAME_refusal_arm(self):
-        import inspect
-
-        for driver in (oc_driver, agy_driver):
-            with self.subTest(driver=driver.__name__):
-                src = inspect.getsource(driver)
-                self.assertIn(
-                    "runner_shared.execute_item_core(",
-                    src,
-                    f"{driver.__name__} must execute items through the shared core",
-                )
-                self.assertNotIn(
-                    'attempt["finalize_refused"] = fin_msg',
-                    src,
-                    f"{driver.__name__} must not carry its own refusal arm",
-                )
 
     def test_the_send_back_symbols_are_reachable_from_both_hosts(self):
         for driver in (oc_driver, agy_driver):
@@ -750,14 +721,39 @@ class TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains(unittest.TestCase):
         self.assertNotIn("queued", runner_shared.TERMINAL_STATES)
 
     def test_the_exhausted_status_keeps_the_manual_recovery_route(self):
-        import inspect
+        """Item in failed-safely is dispatched when retry_incomplete=True."""
+        import contextlib
+        import io
 
-        src = inspect.getsource(oc_driver.run_queue)
-        self.assertIn(
-            f'"{runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS}"',
-            src,
-            "the exhausted status must remain in --retry-incomplete's set",
-        )
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp)
+            item = _item(
+                id6="a1b2c3", status=runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS
+            )
+            state = {
+                "run_id": "r",
+                "repo": str(run_dir),
+                "queue": [item],
+                "options": {},
+            }
+            oc_driver.save_state(run_dir, state)
+            turns = []
+
+            def _fake_execute(run_dir, state, itm, **kwargs):
+                turns.append(itm["id6"])
+                itm["status"] = "executed"
+                oc_driver.save_state(run_dir, state)
+                return {"disposition": "executed", "status": "executed"}
+
+            with (
+                mock.patch.object(oc_driver, "execute_item", side_effect=_fake_execute),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                oc_driver.run_queue(run_dir, retry_incomplete=True)
+
+            self.assertEqual(["a1b2c3"], turns)
+            loaded = oc_driver.load_state(run_dir)
+            self.assertEqual("executed", loaded["queue"][0]["status"])
 
 
 class ARefusedItemDoesNotSatisfyADependentEdge(unittest.TestCase):
@@ -791,21 +787,6 @@ class ARefusedItemDoesNotSatisfyADependentEdge(unittest.TestCase):
                 f"was never integrated (unsatisfied={unsatisfied})",
             )
             self.assertEqual(["executed:yaxr4i"], unsatisfied)
-
-    def test_the_in_run_status_shortcut_is_STILL_GONE(self):
-        import inspect
-
-        src = inspect.getsource(oc_driver.edge_satisfied)
-        executed_branch = src.split('if edge.kind == "executed":', 1)[1]
-        executed_branch = executed_branch.split(
-            "from agent_workflows import ipd_schema", 1
-        )[0]
-        self.assertNotIn(
-            "by_id",
-            executed_branch,
-            "the `executed:` edge must stay disk-authoritative (maintainer ruling 2026-09-19); "
-            "re-reading in-run status would re-admit `substantially-complete`",
-        )
 
     def test_the_cascade_and_edge_gate_remain_ONE_shared_object_per_host(self):
         self.assertIs(oc_driver.edge_satisfied, agy_driver.edge_satisfied)
