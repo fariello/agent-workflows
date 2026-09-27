@@ -76,6 +76,14 @@ The carrier gate recognizes three escapes:
 3. **Explicitly declined**: `- Carrier-Declined: <reason>`
    Declines the obligation explicitly with a non-empty rationale explaining why it requires no carrier. The merit of the reason is judged by the reviewer during plan review.
 
+### Discharged carriers and the Carrier-Evidence remedy
+
+A carrier that reaches `done` (backlog) or `executed` (plans) before your plan finishes turns the row into a refusal on purpose. A reader pointed at a closed item would assume the work is still pending elsewhere rather than finished. This commonly arises in an ordered Set where a later sibling plan declares an earlier sibling as a dependency and names it as a carrier.
+
+When a carrier resolves to finished work, the pre-transition gate prints the exact `- Carrier-Evidence: <path>` line to paste in place of `- Carrier:`. You may optionally explain the context in the row's own prose; do not write an unparsed custom field for this note.
+
+Do not use `Carrier-Declined` for work that has shipped. `Carrier-Declined` records an obligation as needing no carrier, whereas finished work shipped and should cite evidence instead.
+
 ## Identity, sets, and the clustering filename grammar
 
 Every plan carries a stable `- Id:` (a 6-char base36 citation handle that never changes across

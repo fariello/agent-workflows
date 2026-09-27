@@ -1451,5 +1451,254 @@ class CarrierObligationWalkthroughRefusalTests(unittest.TestCase):
             self.assertIn("satisfied by resolvable evidence", verdict.reason)
 
 
+class CarrierDischargedRemedyTests(unittest.TestCase):
+    """Behavioral tests for discharged carrier remedy (plan xz59ai E-02, E-07)."""
+
+    def _setup_scratch_repo(self, td: str) -> Path:
+        root = Path(td)
+        bk_dir = root / ".aw" / "records" / "backlog" / "done"
+        bk_dir.mkdir(parents=True, exist_ok=True)
+        (bk_dir / "20260101-backlog-01-bk0001-sample.backlog.md").write_text(
+            "# Backlog\n\n- Id: bk0001\n- Status: done\n- Priority: medium\n- Work-Kind: chore\n",
+            encoding="utf-8",
+        )
+
+        pl_exec_dir = root / ".aw" / "records" / "plans" / "executed"
+        pl_exec_dir.mkdir(parents=True, exist_ok=True)
+        (pl_exec_dir / "20260101-plans-01-pl0001-sample.ipd.md").write_text(
+            "# IPD\n\n- Id: pl0001\n- Status: executed\n",
+            encoding="utf-8",
+        )
+
+        pl_sup_dir = root / ".aw" / "records" / "plans" / "superseded"
+        pl_sup_dir.mkdir(parents=True, exist_ok=True)
+        (pl_sup_dir / "20260101-plans-01-pl0002-sample.ipd.md").write_text(
+            "# IPD\n\n- Id: pl0002\n- Status: superseded\n",
+            encoding="utf-8",
+        )
+
+        # Shared id6: one done backlog and one live to-review plan
+        (bk_dir / "20260101-backlog-01-sh0001-shared.backlog.md").write_text(
+            "# Backlog\n\n- Id: sh0001\n- Status: done\n- Priority: medium\n- Work-Kind: chore\n",
+            encoding="utf-8",
+        )
+        pl_pend_dir = root / ".aw" / "records" / "plans" / "pending"
+        pl_pend_dir.mkdir(parents=True, exist_ok=True)
+        (pl_pend_dir / "20260101-plans-01-sh0001-shared.ipd.md").write_text(
+            "# IPD\n\n- Id: sh0001\n- Status: to-review\n",
+            encoding="utf-8",
+        )
+        return root
+
+    def test_case_1_done_backlog_carrier_suggests_carrier_evidence_and_warns_declined(
+        self,
+    ):
+        """Case 1: Carrier: bk0001 (done) suggests - Carrier-Evidence: <path> and warns against Carrier-Declined."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_scratch_repo(td)
+            carrier_index = ce._carrier_index(root)
+            ob = ce.CarrierObligation(
+                "deferred", "deferred row 1", 1, {"Carrier": "bk0001"}
+            )
+            verdict = ce.evaluate_carrier_obligation(
+                root, ob, carrier_index=carrier_index
+            )
+
+            self.assertFalse(verdict.legitimate)
+            self.assertEqual(verdict.severity, "error")
+            expected_line = "- Carrier-Evidence: .aw/records/backlog/done/20260101-backlog-01-bk0001-sample.backlog.md"
+            self.assertIn(expected_line, verdict.reason)
+            self.assertIn("Carrier-Declined", verdict.reason)
+            self.assertIn(expected_line, verdict.fixes[0])
+
+    def test_case_2_executed_plan_carrier_suggests_carrier_evidence_and_warns_declined(
+        self,
+    ):
+        """Case 2: Carrier: pl0001 (executed) suggests - Carrier-Evidence: <path> and warns against Carrier-Declined."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_scratch_repo(td)
+            carrier_index = ce._carrier_index(root)
+            ob = ce.CarrierObligation(
+                "deferred", "deferred row 2", 2, {"Carrier": "pl0001"}
+            )
+            verdict = ce.evaluate_carrier_obligation(
+                root, ob, carrier_index=carrier_index
+            )
+
+            self.assertFalse(verdict.legitimate)
+            self.assertEqual(verdict.severity, "error")
+            expected_line = "- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md"
+            self.assertIn(expected_line, verdict.reason)
+            self.assertIn("Carrier-Declined", verdict.reason)
+            self.assertIn(expected_line, verdict.fixes[0])
+
+    def test_case_3_pasting_suggestion_resolves_for_both_arms(self):
+        """Case 3: Pasting the suggestion from case 1 and case 2 resolves legitimate=True, path='SATISFIED'."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_scratch_repo(td)
+            carrier_index = ce._carrier_index(root)
+
+            ob1 = ce.CarrierObligation(
+                "deferred", "deferred row 1", 1, {"Carrier": "bk0001"}
+            )
+            v1 = ce.evaluate_carrier_obligation(root, ob1, carrier_index=carrier_index)
+            lines1 = [
+                line.strip()
+                for line in v1.reason.splitlines()
+                if line.strip().startswith("- Carrier-Evidence:")
+            ]
+            if lines1:
+                path1 = lines1[0].split(":", 1)[1].strip()
+            else:
+                path1 = ".aw/records/backlog/done/20260101-backlog-01-bk0001-sample.backlog.md"
+            ob1_ev = ce.CarrierObligation(
+                "deferred", "deferred row 1", 1, {"Carrier-Evidence": path1}
+            )
+            res1 = ce.evaluate_carrier_obligation(root, ob1_ev)
+            self.assertTrue(res1.legitimate)
+            self.assertEqual(res1.path, "SATISFIED")
+
+            ob2 = ce.CarrierObligation(
+                "deferred", "deferred row 2", 2, {"Carrier": "pl0001"}
+            )
+            v2 = ce.evaluate_carrier_obligation(root, ob2, carrier_index=carrier_index)
+            lines2 = [
+                line.strip()
+                for line in v2.reason.splitlines()
+                if line.strip().startswith("- Carrier-Evidence:")
+            ]
+            if lines2:
+                path2 = lines2[0].split(":", 1)[1].strip()
+            else:
+                path2 = (
+                    ".aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md"
+                )
+            ob2_ev = ce.CarrierObligation(
+                "deferred", "deferred row 2", 2, {"Carrier-Evidence": path2}
+            )
+            res2 = ce.evaluate_carrier_obligation(root, ob2_ev)
+            self.assertTrue(res2.legitimate)
+            self.assertEqual(res2.path, "SATISFIED")
+
+    def test_case_4_superseded_plan_carrier_keeps_generic_remedy(self):
+        """Case 4: Carrier: pl0002 (superseded) keeps generic fixes and no Carrier-Evidence suggestion."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_scratch_repo(td)
+            carrier_index = ce._carrier_index(root)
+            ob = ce.CarrierObligation(
+                "deferred", "deferred row 4", 4, {"Carrier": "pl0002"}
+            )
+            verdict = ce.evaluate_carrier_obligation(
+                root, ob, carrier_index=carrier_index
+            )
+
+            self.assertFalse(verdict.legitimate)
+            self.assertEqual(verdict.severity, "error")
+            self.assertIn("hand it off:", verdict.fixes[0])
+            self.assertNotIn("- Carrier-Evidence: ", verdict.reason)
+            self.assertNotIn("- Carrier-Evidence: .aw", verdict.fixes[0])
+
+    def test_case_5_shared_id6_with_live_and_done_owner_short_circuits_to_handoff(self):
+        """Case 5: Carrier: sh0001 (one done, one live) resolves legitimate=True, path='HANDOFF'."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_scratch_repo(td)
+            carrier_index = ce._carrier_index(root)
+            ob = ce.CarrierObligation(
+                "deferred", "deferred row 5", 5, {"Carrier": "sh0001"}
+            )
+            verdict = ce.evaluate_carrier_obligation(
+                root, ob, carrier_index=carrier_index
+            )
+
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.path, "HANDOFF")
+
+    def test_case_6_evaluate_durable_carrier_end_to_end(self):
+        """Case 6: evaluate_durable_carrier carries the suggestion in Drift.detail and Drift.recovery."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_scratch_repo(td)
+            carrier_index = ce._carrier_index(root)
+            plan_text = (
+                "# IPD: Test\n\n"
+                "- Date: 2026-09-26\n"
+                "- Id: pl9999\n"
+                "- Status: pending\n\n"
+                "## Deferred / out of scope (with reason)\n"
+                "- Obligation 1\n"
+                "  - Carrier: pl0001\n"
+            )
+            plan_path = (
+                root
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260926-sample-01-pl9999-sample.ipd.md"
+            )
+            drifts = ce.evaluate_durable_carrier(
+                root,
+                plan_path=plan_path,
+                plan_text=plan_text,
+                carrier_index=carrier_index,
+            )
+            self.assertEqual(len(drifts), 1)
+            self.assertEqual(drifts[0].rule, "check.ipd-uncarried-obligation")
+            expected_line = "- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md"
+            self.assertIn(expected_line, drifts[0].detail)
+            self.assertIn(expected_line, drifts[0].recovery)
+
+    def test_companion_backend_fixture_generic_remedy_non_raising(self):
+        """E-07: companion backend fixture with owner outside repo_root keeps generic remedy and does not raise."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / "repo"
+            repo.mkdir()
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "preset": "public-target-private-companion",
+                        "records_backend": "companion",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            comp_plans = Path(f"{repo.resolve()}.aw") / "records" / "plans" / "executed"
+            comp_plans.mkdir(parents=True)
+            (comp_plans / "20260101-plans-01-pl0001-sample.ipd.md").write_text(
+                "# IPD\n\n- Id: pl0001\n- Status: executed\n", encoding="utf-8"
+            )
+            pend_dir = repo / ".aw" / "records" / "plans" / "pending"
+            pend_dir.mkdir(parents=True)
+            plan_path = pend_dir / "20260926-sample-01-pl9999-sample.ipd.md"
+            plan_path.write_text(
+                "# IPD: Test\n\n"
+                "- Date: 2026-09-26\n"
+                "- Id: pl9999\n"
+                "- Status: pending\n\n"
+                "## Deferred / out of scope (with reason)\n"
+                "- Obligation 1\n"
+                "  - Carrier: pl0001\n",
+                encoding="utf-8",
+            )
+            from agent_workflows import selectors
+
+            selectors._record_dirs_cached.cache_clear()
+
+            # Driven through check_content so the bare except is in the path
+            drifts = ce.check_content(repo, "plans")
+            uncarried = [
+                d for d in drifts if d.rule == "check.ipd-uncarried-obligation"
+            ]
+            self.assertEqual(len(uncarried), 1)
+            self.assertEqual(uncarried[0].severity, "error")
+            self.assertIn(
+                "carrier pl0001 resolves only to a terminal/hidden artifact",
+                uncarried[0].detail,
+            )
+            self.assertNotIn("- Carrier-Evidence: ", uncarried[0].detail)
+
+
 if __name__ == "__main__":
     unittest.main()
