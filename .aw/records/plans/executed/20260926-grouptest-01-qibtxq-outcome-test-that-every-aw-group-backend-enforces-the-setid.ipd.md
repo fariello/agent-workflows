@@ -6,7 +6,7 @@
 - Scope: IN: one new outcome test file `tests/test_group_verb_policy.py`, parametrized over every type in `artifact_types.TYPE_BACKENDS` that has a `group` verb, asserting the refusal (over 24 chars) and the warning (15 to 24 chars). OUT: any production code change (the guards exist and work, measured); a shared pre-dispatch validation seam (the backlog's other suggested direction; a refactor this plan does not need); restoring the deleted `test_artifact_group.py`.
 - Scope-Paths: tests/test_group_verb_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qibtxq
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qibtxq verified (set grouptest, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED; review record `.aw/records/reviews/20260926-grouptest-01-qibtxq-outcome-test-that-every-aw-group-backend-enforces-the-setid.review.md`. Premise and F-1..F-5 re-verified at lane HEAD 2f0b4e9f: the registry yields 9 group types over 3 backends, all three carry the guard, `comms` is correctly excluded, no test drives `aw group`, and all 9 types were re-measured refusing 26 chars and warning at 16. THREE SUBSTANTIVE FIXES: the WARN assertion could not distinguish warn from refuse because BOTH messages contain `strongly preferred` (F-6), so it now keys on the `note:`/`error:` prefix plus refusal short-circuiting; two quiet-boundary cases added because only the firing side of each threshold was tested, which a guard firing on every setid would satisfy (F-7); and E-03's throwaway-worktree mutation was replaced by an in-process `verb=`-scoped patch after measuring that `git worktree add` from a lane registers in the SHARED `.git/worktrees/` (F-8/F-9, per-backend isolation verified). Also de-counted the live 9-type/36-case figures (F-11), corrected the F-3 test-file list (F-10), and made the finalize instruction conditional on runner ownership. `aw ipd lint --phase review-finalize` conforming (one IPD-Z602 advisory on E-03, assessed and kept by decision D-5).
@@ -37,32 +37,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm current behavior
 
-- [ ] E-01 Confirm the guard fires on every backend at HEAD: in a temp `git init` dir, for each type `t` in `[t for t, v in artifact_types.TYPE_BACKENDS.items() if "group" in v]`, run `aw group $t zzzzzz --set abcdefghijklmnopqrstuvwxyz` (26 chars) and `aw group $t zzzzzz --set abcdefghijklmnop` (16 chars) and record rc and output. ALSO capture `git worktree list` verbatim now, as the BEFORE baseline E-04 diffs against, and re-derive the guard's coverage gap (F-3) rather than trusting the authored file list.
+- [x] E-01 Confirm the guard fires on every backend at HEAD: in a temp `git init` dir, for each type `t` in `[t for t, v in artifact_types.TYPE_BACKENDS.items() if "group" in v]`, run `aw group $t zzzzzz --set abcdefghijklmnopqrstuvwxyz` (26 chars) and `aw group $t zzzzzz --set abcdefghijklmnop` (16 chars) and record rc and output. ALSO capture `git worktree list` verbatim now, as the BEFORE baseline E-04 diffs against, and re-derive the guard's coverage gap (F-3) rather than trusting the authored file list.
   - Depends on: none
   - Expected outcome (re-derive the type set from the registry and report it; measured at authoring AND re-measured at review as the same 9: plans, research, specs, prompts, backlog, walkthroughs, roadmaps, releases, other - the COUNT is a live registry population, so the bar is "every type the registry enumerates", never the number 9): the 26-char case exits 2 with `error: aw group <t>: --set 'abc...z' is 26 characters, over the 24-character maximum`; the 16-char case prints `note: aw group <t>: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred` and then fails on the unmatched selector (`error: no ... zzzzzz`), exit 2. If any type does not, stop and report: that is a live bug, not a missing test.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: The test file
 
-- [ ] E-02 Create `tests/test_group_verb_policy.py`. Build the type list from the registry: `GROUP_TYPES = sorted(t for t, verbs in artifact_types.TYPE_BACKENDS.items() if "group" in verbs)`, plus a sanity assertion that it is non-empty and contains `plans` and `research` (so an accidental empty parametrization cannot pass vacuously). For each type, in a temp git repo, run the real CLI (`tests.support.run_cli("group", t, "zzzzzz", "--set", <setid>, "--dir", <tmp>)`, or in-process `cli.main` with captured stdout if subprocess cost is excessive; justify the choice in evidence) and assert:
+- [x] E-02 Create `tests/test_group_verb_policy.py`. Build the type list from the registry: `GROUP_TYPES = sorted(t for t, verbs in artifact_types.TYPE_BACKENDS.items() if "group" in verbs)`, plus a sanity assertion that it is non-empty and contains `plans` and `research` (so an accidental empty parametrization cannot pass vacuously). For each type, in a temp git repo, run the real CLI (`tests.support.run_cli("group", t, "zzzzzz", "--set", <setid>, "--dir", <tmp>)`, or in-process `cli.main` with captured stdout if subprocess cost is excessive; justify the choice in evidence) and assert:
     (a) REFUSAL: a 25-character setid (the smallest refused length, so the boundary is covered) exits `2` and the output contains `is 25 characters` and `24-character maximum` (so the refusal is the length guard, not the unmatched-selector error), and carries the `error:` prefix. ALSO assert the refusal SHORT-CIRCUITS: the output must NOT contain the unmatched-selector error (`no plan has Id`/`no ... zzzzzz`), because the guard runs BEFORE resolution and a refusal that also resolved would mean the guard moved. Measured at review: the 25-char run emits only the `error:` length line, while the 15-char run emits the `note:` line AND `error: no plan has Id 'zzzzzz'`, so this assertion distinguishes the two outcomes structurally rather than by wording;
     (b) WARNING: a 15-character setid (smallest warned length) prints a line containing `is 15 characters` and `strongly preferred`, and does NOT contain `24-character maximum`. USE THAT PHRASE, NOT `maximum for a setid`, AND DO NOT USE `strongly preferred` AS THE DISCRIMINATOR: measured at review, the REFUSAL message also contains `strongly preferred` (it reads "over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id"), so `strongly preferred` is common to both outcomes and cannot tell them apart, and the authored negative `maximum for a setid` is a SUBSTRING of the refusal's `24-character maximum for a setid` - which means it would work, but only by accident of wording that the refusal owns. Assert positively on the `note:` PREFIX (the warning's own marker, verified absent from the refusal, which uses `error:`) and negatively on `24-character maximum`. The command still exits 2 because the selector matches nothing; assert the warning text and the prefix, not the rc, and say so in a comment, since the warning must be emitted before resolution fails.
     (c) THE TWO QUIET BOUNDARIES, added at review because without them (a) and (b) are satisfied by a guard that fires on EVERY setid: a 14-character setid emits NEITHER `note:` nor `error:` from the guard (measured: only `error: no plan has Id 'zzzzzz'`), and a 24-character setid WARNS but is NOT refused (measured: `note: ... is 24 characters`, no `24-character maximum`). These pin both thresholds from the permitted side, so an off-by-one in either direction fails: warn-at-15-not-14 and refuse-at-25-not-24. Four assertions per type, not two.
     Use `pytest.mark.parametrize` (or `subTest`) keyed by type name so a failure names the backend's type. Derive the four setids from `config.SETID_WARN_LENGTH_DEFAULT` and `config.SETID_MAX_LENGTH_DEFAULT` (`warn`, `warn+1`, `max`, `max+1`) rather than hardcoding 14/15/24/25, so a policy change moves the fixtures with the constants instead of silently testing the wrong boundary; assert the two constants' values once in the sanity check so a change is still visible rather than absorbed.
   - Depends on: E-01
   - Expected outcome: 4 assertions x every registry-enumerated type all pass at HEAD (9 types at review, so 36 cases; report what the registry actually yields rather than matching this figure), plus the sanity check (non-empty, contains `plans` and `research`, and the two policy constants are 14 and 24).
-  - Execution state: pending
-- [ ] E-03 PROVE EACH ASSERTION BITES PER BACKEND, IN-PROCESS, WITH NO GIT WORKTREE AND NO FILE EDIT. Disable the guard for ONE backend at a time by patching `config.validate_setid_length_for_authoring` with a wrapper that returns `(None, None)` only when its `verb=` kwarg equals that backend's own verb string (`aw group plans`, `aw group research`, `aw group <generic-type>`) and delegates to the real validator otherwise, then re-run the E-02 assertions and record which parametrized cases fail. THE `verb=` KWARG IS THE PER-BACKEND LEVER, verified at review: all three backends call the ONE validator and are distinguishable only by that argument (`plans_refs.run_set_assign` passes `verb="aw group plans"`, `research_refs.run_set_assign` passes `verb="aw group research"`, and `artifact_rename.run_group_generic` passes `verb=f"aw group {artifact_type}"`), and each module imports `config` LOCALLY inside the function, so there is no module-level `_config` attribute to patch per module. Measured at review with exactly this wrapper: disabling `aw group plans` stops the guard firing for `plans` ALONE, `aw group research` for `research` alone, and `aw group specs` for `specs` alone, across all nine types. THIS REPLACES THE AUTHORED THROWAWAY-WORKTREE PROCEDURE, which review rejected as unsafe: `git worktree add` from a lane writes its metadata into the SHARED `.git/worktrees/` (verified: `git rev-parse --git-common-dir` resolves to the main checkout's `.git`), so it mutates state every concurrent agent and human sees, it used a FIXED path that two runs of this plan would collide on, and a crash between `add` and `remove` strands a registration nobody owns - two such stale `/tmp/opencode` worktrees were already present at review. The in-process patch is scoped to the test process, needs no cleanup, and cannot leak. Keep it inside a `with mock.patch.object(...)` (or `monkeypatch`) so it unwinds even on failure, and do NOT commit any mutation.
+  - Execution state: performed
+- [x] E-03 PROVE EACH ASSERTION BITES PER BACKEND, IN-PROCESS, WITH NO GIT WORKTREE AND NO FILE EDIT. Disable the guard for ONE backend at a time by patching `config.validate_setid_length_for_authoring` with a wrapper that returns `(None, None)` only when its `verb=` kwarg equals that backend's own verb string (`aw group plans`, `aw group research`, `aw group <generic-type>`) and delegates to the real validator otherwise, then re-run the E-02 assertions and record which parametrized cases fail. THE `verb=` KWARG IS THE PER-BACKEND LEVER, verified at review: all three backends call the ONE validator and are distinguishable only by that argument (`plans_refs.run_set_assign` passes `verb="aw group plans"`, `research_refs.run_set_assign` passes `verb="aw group research"`, and `artifact_rename.run_group_generic` passes `verb=f"aw group {artifact_type}"`), and each module imports `config` LOCALLY inside the function, so there is no module-level `_config` attribute to patch per module. Measured at review with exactly this wrapper: disabling `aw group plans` stops the guard firing for `plans` ALONE, `aw group research` for `research` alone, and `aw group specs` for `specs` alone, across all nine types. THIS REPLACES THE AUTHORED THROWAWAY-WORKTREE PROCEDURE, which review rejected as unsafe: `git worktree add` from a lane writes its metadata into the SHARED `.git/worktrees/` (verified: `git rev-parse --git-common-dir` resolves to the main checkout's `.git`), so it mutates state every concurrent agent and human sees, it used a FIXED path that two runs of this plan would collide on, and a crash between `add` and `remove` strands a registration nobody owns - two such stale `/tmp/opencode` worktrees were already present at review. The in-process patch is scoped to the test process, needs no cleanup, and cannot leak. Keep it inside a `with mock.patch.object(...)` (or `monkeypatch`) so it unwinds even on failure, and do NOT commit any mutation.
   - Depends on: E-02
   - Expected outcome: disabling the `plans` verb fails exactly the four `plans` cases; the `research` verb exactly the four `research` cases; and a generic verb exactly that one generic type's four cases (the generic backend composes its verb per type, so it is proven type-by-type rather than for all seven at once - assert at least `specs` and one other generic type, and state that the composed verb is what makes the remaining generic types identical). No other case fails in any run, which is what proves each assertion is load-bearing for its own backend rather than passing on another's behalf.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Full suite
 
-- [ ] E-04 Run the bare suite `python3 -m pytest` in the workspace and confirm E-03 left NOTHING behind: `git status --short` shows only `tests/test_group_verb_policy.py` as this plan's change, and `git worktree list` is byte-identical to a capture taken BEFORE E-03. CAPTURE THAT LIST FIRST, at E-01 time, and diff the two: the list legitimately holds a dozen-plus entries belonging to other agents and humans (14 at review), so "the throwaway worktree is absent" is unverifiable by eye and a bare listing proves nothing. With E-03 now in-process there should be no worktree change at all, which makes an identical diff the expected result rather than a cleanup check.
+- [x] E-04 Run the bare suite `python3 -m pytest` in the workspace and confirm E-03 left NOTHING behind: `git status --short` shows only `tests/test_group_verb_policy.py` as this plan's change, and `git worktree list` is byte-identical to a capture taken BEFORE E-03. CAPTURE THAT LIST FIRST, at E-01 time, and diff the two: the list legitimately holds a dozen-plus entries belonging to other agents and humans (14 at review), so "the throwaway worktree is absent" is unverifiable by eye and a bare listing proves nothing. With E-03 now in-process there should be no worktree change at all, which makes an identical diff the expected result rather than a cleanup check.
   - Depends on: E-03
   - Expected outcome: suite green; the before/after `git worktree list` diff is EMPTY; `git status --short` names only the new test file.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -122,22 +122,222 @@ None. Review raised no new question: every finding was resolvable from repositor
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste, for every type the registry enumerates, rc and the first output line of the 26-char and 16-char runs (expected: rc 2 plus the `error:` length line; the `note:` warning line plus rc 2). Also paste the BEFORE `git worktree list` capture and the re-derived F-3 evidence (which tests, if any, reference the validator or drive `aw group`).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Guard verified on every backend at HEAD; baseline worktrees captured; F-3 coverage gap re-derived.
+    Enumerated 9 group types from `artifact_types.TYPE_BACKENDS`: `['backlog', 'other', 'plans', 'prompts', 'releases', 'research', 'roadmaps', 'specs', 'walkthroughs']`.
+
+    26-char and 16-char run output for all 9 types:
+    ```
+    [backlog] 26-char rc=2
+      stdout: error: aw group backlog: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [backlog] 16-char rc=2
+      stdout: note: aw group backlog: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    [other] 26-char rc=2
+      stdout: error: aw group other: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [other] 16-char rc=2
+      stdout: note: aw group other: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    [plans] 26-char rc=2
+      stdout: error: aw group plans: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [plans] 16-char rc=2
+      stdout: note: aw group plans: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    [prompts] 26-char rc=2
+      stdout: error: aw group prompts: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [prompts] 16-char rc=2
+      stdout: note: aw group prompts: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    [releases] 26-char rc=2
+      stdout: error: aw group releases: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [releases] 16-char rc=2
+      stdout: note: aw group releases: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    [research] 26-char rc=2
+      stdout: error: aw group research: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [research] 16-char rc=2
+      stdout: note: aw group research: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    [roadmaps] 26-char rc=2
+      stdout: error: aw group roadmaps: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [roadmaps] 16-char rc=2
+      stdout: note: aw group roadmaps: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    [specs] 26-char rc=2
+      stdout: error: aw group specs: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [specs] 16-char rc=2
+      stdout: note: aw group specs: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    [walkthroughs] 26-char rc=2
+      stdout: error: aw group walkthroughs: --set 'abcdefghijklmnopqrstuvwxyz' is 26 characters, over the 24-character maximum for a setid (<= 14 is strongly preferred); choose a shorter Set id
+    [walkthroughs] 16-char rc=2
+      stdout: note: aw group walkthroughs: --set 'abcdefghijklmnop' is 16 characters; a setid of <= 14 characters is strongly preferred (over 24 is refused)
+    ```
+
+    BEFORE `git worktree list` baseline:
+    ```
+    <repo-root>                                                          058713bc [main]
+    <repo-root>/.aw/state/suite-baselines/qibtxq-attempt1                2cb0361a (detached HEAD)
+    <repo-root>/.aw/state/suite-baselines/sbo3hl-attempt1                efd3cb42 (detached HEAD)
+    <repo-root>/.aw/state/suite-baselines/y2vzit-attempt1                058713bc (detached HEAD)
+    <repo-root>/.aw/worktrees/4eecvh                                     5573913b [aw/lane/4eecvh]
+    <repo-root>/.aw/worktrees/7icz68                                     f2888ec7 [aw/lane/7icz68]
+    <repo-root>/.aw/worktrees/btth0a                                     0ee2bcb3 [aw/lane/btth0a]
+    <repo-root>/.aw/worktrees/feat-partition                             4e3a1f6d [feat/aw-partition]
+    <repo-root>/.aw/worktrees/k4vi7z                                     8b93ab0c [aw/lane/k4vi7z]
+    <repo-root>/.aw/worktrees/qibtxq                                     2cb0361a [aw/lane/qibtxq]
+    <repo-root>/.aw/worktrees/review-sweep-run-20260926T143504Z-2574275  7a6ed035 [aw/lane/review-sweep-run-20260926T143504Z-2574275]
+    <repo-root>/.aw/worktrees/review-sweep-run-20260926T143527Z-2574842  0cc68b8a [aw/lane/review-sweep-run-20260926T143527Z-2574842]
+    <repo-root>/.aw/worktrees/sbo3hl                                     efd3cb42 [aw/lane/sbo3hl]
+    <repo-root>/.aw/worktrees/y2vzit                                     058713bc [aw/lane/y2vzit]
+    /tmp/opencode/iwt-gate                                               51bf997c [fix/gate-causes]
+    ```
+
+    Re-derived F-3 coverage gap evidence:
+    - `git grep -l validate_setid_length_for_authoring -- 'tests/*.py'` -> `tests/test_config.py` only
+    - `git grep -E 'run_cli\(.*"group"' tests/` -> empty (exit code 1; no CLI driver for `aw group` in tests)
+    - `git grep -l "24-character maximum" tests/` -> `tests/test_prompts_new.py` only (`aw prompts new`, not `aw group`)
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_group_verb_policy.py` output listing every parametrized case by type name (4 assertions x however many types the registry enumerates, 36 at review, plus the sanity check) as PASSED. Do not reconcile the count to a number written here if the registry has grown; paste what the run reports and say how many types it enumerated.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. 37 tests passed (4 assertions x 9 registry types + 1 sanity check).
+    Enumerated 9 types from the live registry. Run output (37 passed: 4 assertions x 9 types = 36 parametrized cases + 1 sanity check):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=446630427
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 37 items
+
+    tests/test_group_verb_policy.py::test_group_setid_refusal[backlog] PASSED [  2%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[research] PASSED [  5%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[other] PASSED [  8%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[plans] PASSED [ 10%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[other] PASSED  [ 13%]
+    tests/test_group_verb_policy.py::test_group_setid_refusal[specs] PASSED  [ 16%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[backlog] PASSED [ 18%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[specs] PASSED  [ 21%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[research] PASSED [ 24%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[backlog] PASSED [ 27%]
+    tests/test_group_verb_policy.py::test_group_setid_refusal[other] PASSED  [ 29%]
+    tests/test_group_verb_policy.py::test_group_setid_refusal[research] PASSED [ 32%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[backlog] PASSED [ 35%]
+    tests/test_group_verb_policy.py::test_group_setid_refusal[walkthroughs] PASSED [ 37%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[specs] PASSED [ 40%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[research] PASSED [ 43%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[prompts] PASSED [ 45%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[specs] PASSED [ 48%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[releases] PASSED [ 51%]
+    tests/test_group_verb_policy.py::test_group_setid_refusal[plans] PASSED  [ 54%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[roadmaps] PASSED [ 56%]
+    tests/test_group_verb_policy.py::test_group_setid_refusal[prompts] PASSED [ 59%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[walkthroughs] PASSED [ 62%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[prompts] PASSED [ 64%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[releases] PASSED [ 67%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[roadmaps] PASSED [ 70%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[plans] PASSED [ 72%]
+    tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[walkthroughs] PASSED [ 75%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[prompts] PASSED [ 78%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[roadmaps] PASSED [ 81%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[plans] PASSED  [ 83%]
+    tests/test_group_verb_policy.py::test_group_setid_refusal[releases] PASSED [ 86%]
+    tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit[other] PASSED [ 89%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[walkthroughs] PASSED [ 91%]
+    tests/test_group_verb_policy.py::test_group_verb_policy_sanity PASSED    [ 94%]
+    tests/test_group_verb_policy.py::test_group_setid_refusal[roadmaps] PASSED [ 97%]
+    tests/test_group_verb_policy.py::test_group_setid_warning[releases] PASSED [100%]
+
+    ============================== 37 passed in 3.17s ==============================
+    ```
+    Choice justification: in-process `cli.main` with captured stdout/stderr executes in ~3s across all 37 tests (compared to ~15-20s for subprocesses) and enables direct in-process mocking of `config.validate_setid_length_for_authoring` for E-03 without subprocess environment orchestration.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: for each backend probed, paste the patch wrapper's source (the `verb=` predicate) and the pytest output showing exactly which cases FAILED and that no others did (`plans` alone; `research` alone; each probed generic type alone). Then paste `git status --short` proving no tracked file under `agent_workflows/` was modified, and the before/after `git worktree list` diff proving E-03 created no worktree.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Proved each backend assertion bites in-process with no worktrees created.
+    Probe 1: `aw group plans`
+    ```python
+    def wrapper(repo_root, setid, *, verb=""):
+        if verb == "aw group plans":
+            return (None, None)
+        return real_val(repo_root, setid, verb=verb)
+    ```
+    Pytest result:
+    ```
+    FAILED tests/test_group_verb_policy.py::test_group_setid_warning[plans]
+    FAILED tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[plans]
+    FAILED tests/test_group_verb_policy.py::test_group_setid_refusal[plans]
+    3 failed, 34 passed in 2.16s
+    ```
+
+    Probe 2: `aw group research`
+    ```python
+    def wrapper(repo_root, setid, *, verb=""):
+        if verb == "aw group research":
+            return (None, None)
+        return real_val(repo_root, setid, verb=verb)
+    ```
+    Pytest result:
+    ```
+    FAILED tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[research]
+    FAILED tests/test_group_verb_policy.py::test_group_setid_refusal[research]
+    FAILED tests/test_group_verb_policy.py::test_group_setid_warning[research]
+    3 failed, 34 passed in 2.04s
+    ```
+
+    Probe 3: generic backend type `specs` (`aw group specs`)
+    ```python
+    def wrapper(repo_root, setid, *, verb=""):
+        if verb == "aw group specs":
+            return (None, None)
+        return real_val(repo_root, setid, verb=verb)
+    ```
+    Pytest result:
+    ```
+    FAILED tests/test_group_verb_policy.py::test_group_setid_warning[specs]
+    FAILED tests/test_group_verb_policy.py::test_group_setid_refusal[specs]
+    FAILED tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[specs]
+    3 failed, 34 passed in 2.14s
+    ```
+
+    Probe 4: generic backend type `backlog` (`aw group backlog`)
+    ```python
+    def wrapper(repo_root, setid, *, verb=""):
+        if verb == "aw group backlog":
+            return (None, None)
+        return real_val(repo_root, setid, verb=verb)
+    ```
+    Pytest result:
+    ```
+    FAILED tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max[backlog]
+    FAILED tests/test_group_verb_policy.py::test_group_setid_warning[backlog]
+    FAILED tests/test_group_verb_policy.py::test_group_setid_refusal[backlog]
+    3 failed, 34 passed in 1.96s
+    ```
+
+    In each probed backend, exactly that backend's firing assertions failed and no other backend failed (34 passed). The remaining 5 generic types share identical dispatch code in `artifact_rename.run_group_generic` via composed `verb=f"aw group {artifact_type}"`. Furthermore, an over-eager guard simulation on `plans` returning a warning on `SETID_WARN_LENGTH_DEFAULT` (14 chars) confirmed `test_group_setid_quiet_at_warn_limit[plans]` fails (1 failed, 3 passed for plans).
+
+    Tracked files check (`git status --short`):
+    ```
+    ?? tests/test_group_verb_policy.py
+    ```
+    No tracked file under `agent_workflows/` was modified.
+
+    Worktree diff check: `diff(baseline_worktrees, current_worktrees)` is EMPTY (byte-identical); E-03 created no worktrees.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the final summary line of bare `python3 -m pytest` (`N passed`, no failures), `git status --short` showing only `tests/test_group_verb_policy.py` as this plan's change, and the EMPTY diff between the `git worktree list` captured at E-01 and the one captured now.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pytest suite green (2745 passed), clean git status, empty worktree diff.
+    Final summary line of bare `python3 -m pytest`:
+    ```
+    2745 passed, 2 skipped, 3 warnings in 83.25s (0:01:23)
+    ```
+
+    `git status --short`:
+    ```
+    ?? tests/test_group_verb_policy.py
+    ```
+
+    Diff between `git worktree list` captured at E-01 and after full suite:
+    ```
+    DIFF IS EMPTY (byte-identical)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
