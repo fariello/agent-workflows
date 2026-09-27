@@ -6,7 +6,7 @@
 - Scope: IN: (a) correct `turn_correction_packet`'s "WHICH CONSTRUCTION PATH CARRIES IT" paragraph to name `build_correction_notice` as the delivery channel and state that `turn_correction` is deliberately NOT allowlisted; (b) replace the three-line comment above `_PRIOR_ATTEMPT_SAFE_KEYS` with a documented contract (a new attempt key is DRIVER-ONLY unless added here; delivering a fact to the agent must go through an explicit prompt notice or an allowlist entry; adding an entry requires that the value can never carry a filesystem path), with a short `_PRIOR_ATTEMPT_DRIVER_ONLY_EXAMPLES` comment block naming representative driver-only keys and why; (c) one sentence in `prior_attempt_summary`'s docstring pointing at that contract; (d) ONE behavioral test. OUT: any change to the projection's behavior or to the allowlist's members (spec `7ckptx` R1.1 fail-closed); a key-enumerator or any source-scanning test (maintainer ruling 2026-09-26); a denylist (the backlog's option (b), which inverts the fail-closed direction).
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/runner_shared.py, tests/test_prior_attempt_projection.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: slqvmx
-- Approval: 2026-09-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (opencode manual-recovery model=its_direct/pt3-claude-opus-5.5-1m-us): Recovered stranded lane: verifier could not complete in run-20260927T001634Z-258437 (verifier-declined); plan E/V already complete with evidence. Lane merged onto current main; plan tests 2 passed; full suite 2636 passed.
 - 2026-09-26 approved (aw set): status set to approved
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED, none deferred, no open question raised. Reviewed at HEAD `027e2f69`; `aw ipd lint --phase author` conformed before revision. All three authored findings reproduced exactly (E-01 run verbatim: `False False True` and `{'exit_code': 0, 'finalize_refused': 'r'}`), spec `7ckptx` R1.1/R1.3 and the maintainer ruling on backlog `ytrz7u` both verified, and the design (document, change no behavior) is right. Added two gaps: F-5, the drafted contract documented only the allowlist gate while `build_prompt` populates `prior` ONLY on a recovery turn and reads only `attempts[-1]`, so an author adding a key would still get silence on a first turn (split out as E-05, with E-06 gaining a first-turn assertion and V-06 a matching control); and F-6, E-02's replacement span began one sentence too late, leaving the dangling "the plan's E-04" reference to executed plan `xipfy1` in shipped code. Corrected three stale authored facts: the key census drifted 80/63 -> 85/68 (five keys from merged work, now re-derived by E-01 rather than cited), `zrvtm2` is EXECUTED not pending, and F-3 undercounted its own supporting evidence (four correct descriptions, not two). Verified the V-06 sabotage actually changes the projection output before requiring it. PR-007 records that my own first revision tripped the IPD-Z602 density advisory on E-03, so E-03 was split into E-03/E-04/E-05 (contract, example block, second gate) with the test item becoming E-06; re-linted conforming. Findings recorded in `.aw/records/reviews/20260926-attemptkeys-01-slqvmx-correct-the-turn-correction-packet-docstring-and-document-th.review.md`.
 
