@@ -1,5 +1,5 @@
 - Id: mlc6mj
-- Status: graduated
+- Status: done
 - Graduated-To: planstale
 - Blocks-Release: next
 - Set: planstale
@@ -8,6 +8,7 @@
 - Summary: An approved plan can be silently invalidated when the artifact it edits moves to a terminal state before it runs
 
 ## Workflow history
+- 2026-09-27 set (aw backlog): closed by aw oc run: IPD 6h8j1r executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260926-planstale-01-6h8j1r-refuse-to-dispatch-an-approved-plan-whose-declared-records-s.ipd.md); evidence .aw/records/plans/executed/20260926-planstale-01-6h8j1r-refuse-to-dispatch-an-approved-plan-whose-declared-records-s.ipd.md
 - 2026-09-26 graduated (aw set): Graduated 2026-09-26 into plan 6h8j1r (Set planstale), re-verified live at HEAD.
 - 2026-09-23 created (aw backlog): An approved plan can be silently invalidated when the artifact it edits moves to a terminal state before it runs
 

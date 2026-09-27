@@ -28164,6 +28164,69 @@ def execute_item_core(
     attempt_no = len(item.get("attempts", [])) + 1
     is_review = action == "review"
 
+    # planstale 6h8j1r E-04 (backlog mlc6mj): item-local dispatch refusal on moved-terminal or
+    # vanished literal Scope-Paths under .aw/records/. Fails open on exception. Placed before
+    # build_prompt/write_prompt to avoid orphan prompt files on refusal (F-9).
+    scope_target_check_error: str | None = None
+    if action == "execute":
+        try:
+            from agent_workflows import check_engine as _check
+
+            plan_text = plan_path.read_text(encoding="utf-8")
+            stale_entries = _check.stale_record_scope_paths(repo, plan_text)
+            stale_refused = [
+                e
+                for e in stale_entries
+                if e.classification
+                in (
+                    _check.SCOPE_STALE_MOVED_TERMINAL,
+                    _check.SCOPE_STALE_VANISHED,
+                )
+            ]
+            if stale_refused:
+                reason = "; ".join(
+                    f"{e.path} -> {e.classification}"
+                    + (
+                        f" (resolved: {', '.join(e.resolved)})"
+                        if e.resolved
+                        else " (resolved: none)"
+                    )
+                    for e in stale_refused
+                )
+                ended = utc_now()
+                attempt = {
+                    "number": attempt_no,
+                    "started_at": utc_now(),
+                    "ended_at": ended,
+                    "action": action,
+                    "scope_target_refused": reason,
+                    "disposition": "fail-gate",
+                }
+                item.setdefault("attempts", []).append(attempt)
+                item["status"] = "fail-gate"
+                item["scope_target_refusal"] = reason
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": ended,
+                        "event": "scope-target-stale",
+                        "id6": item["id6"],
+                        "paths": [e.path for e in stale_refused],
+                        "detail": reason,
+                    },
+                )
+                print(
+                    pal(
+                        f"\u2717 IPD {item.get('id6', '<unknown>')} scope target refused: {reason}",
+                        "red",
+                    ),
+                    file=sys.stderr,
+                )
+                return
+        except Exception as ex:
+            scope_target_check_error = str(ex)
+
     routing = None if is_review else route_recovery_turn(run_dir, state, item, recovery)
     if is_review:
         prompt_text = build_review_prompt(item, state, run_dir, plan_path, repo)
@@ -28217,6 +28280,8 @@ def execute_item_core(
         "recovery": recovery,
         "action": action,
     }
+    if scope_target_check_error is not None:
+        attempt["scope_target_check_error"] = scope_target_check_error
     item.setdefault("attempts", []).append(attempt)
     item["status"] = "running"
     save_state(run_dir, state)

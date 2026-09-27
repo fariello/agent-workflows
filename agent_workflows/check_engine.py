@@ -197,6 +197,18 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.from-spec-dangling": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # planstale 6h8j1r (backlog mlc6mj): a pending plan whose literal Scope-Paths entry under
+    # .aw/records/ no longer exists at its declared path. Pure predicate reports three classifications:
+    # moved-terminal (artifact moved to a retired status/path), moved (artifact moved to a non-retired
+    # path), and vanished (artifact cannot be found). Registered `error` because a stale target makes
+    # the plan unexecutable as written. Invariant is `""`: no catalog invariant in spec pqsx96 covers
+    # scope-target freshness, and inventing one is out of scope. THE RULE REPORTS ALL THREE
+    # CLASSIFICATIONS, including plain `moved`, and its detail must name the classification: the check's
+    # job is "this declared path is wrong, fix it", which is true of all three, while the runner refuses
+    # only moved-terminal and vanished (F-8). Do not harmonize the check down to the runner's subset.
+    "check.scope-path-target-stale": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # setidhard Order bwgyum (spec 4w7d6s G3/G5): the FORWARD half of the graduation link - a source
     # (backlog item or spec) whose `- Graduated-To:` names a plan Set that does not exist. Same severity
     # (`error`), same assurance class, and the SAME invariant I-07 as its `From-Backlog` back-link twin
@@ -3310,6 +3322,12 @@ def check_types(
             drift.extend(check_from_spec_dangling(repo_root))
         except Exception:
             pass
+        # planstale 6h8j1r E-03: scope target freshness for pending plans. Rides this full-sweep seam
+        # beside check.from-spec-dangling. Its own try/except matching its neighbours.
+        try:
+            drift.extend(check_scope_path_target_stale(repo_root))
+        except Exception:
+            pass
         # setidhard bwgyum E-03: the FORWARD graduation link (`- Graduated-To:` on a source naming the
         # plan Set it became) is the same class of cross-tree ref check as the two back-link scans
         # above, so it rides the same once-per-full-sweep seam. Its OWN try/except, for the same stated
@@ -5389,6 +5407,163 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
                         "correct the From-Spec to the source spec's id6 (`aw find specs` to look it "
                         "up), or drop the field if this plan did not graduate from a spec"
                     ),
+                )
+            )
+    return drift
+
+
+# --------------------------------------------------------------------------------------
+# planstale 6h8j1r (backlog mlc6mj): scope target freshness for pending plans.
+#
+# Motivating case tgop8e: plan declared a pending path for an artifact that moved to executed/,
+# leaving the plan targeting a nonexistent file. Pure predicate stale_record_scope_paths reports
+# three classifications (moved-terminal, moved, vanished). check_scope_path_target_stale reports
+# all three, while the runner dispatch gate refuses only moved-terminal and vanished (F-8).
+
+_SCOPE_PATH_TARGET_STALE_RULE = "check.scope-path-target-stale"
+
+SCOPE_STALE_MOVED_TERMINAL = "moved-terminal"
+SCOPE_STALE_MOVED = "moved"
+SCOPE_STALE_VANISHED = "vanished"
+
+_RECORDS_ARTIFACT_FACETS = (
+    ".ipd.md",
+    ".spec.md",
+    ".backlog.md",
+    ".review.md",
+    ".release.md",
+    ".walkthrough.md",
+    ".prompt.md",
+    ".research.md",
+)
+
+
+class StaleScopePath(NamedTuple):
+    path: str
+    classification: str
+    resolved: Tuple[str, ...] = ()
+
+
+def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScopePath]:
+    """Flag missing literal Scope-Paths under .aw/records/ classified moved-terminal/moved/vanished.
+
+    Pure-ish predicate (reads filesystem, no subprocess, no git).
+    """
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import selectors as _selectors
+    from agent_workflows import status_set as _status_set
+
+    repo_root = Path(repo_root)
+    try:
+        doc = _lint.parse(plan_text)
+    except Exception:
+        return []
+    sp_value = doc.meta_fields.get("Scope-Paths")
+    if not sp_value:
+        return []
+    paths, is_grandfathered, errors = _S.parse_scope_paths(sp_value)
+    if is_grandfathered or errors or not paths:
+        return []
+
+    stale: List[StaleScopePath] = []
+    for entry in paths:
+        if any(c in entry for c in ("*", "?", "[")):
+            continue
+        if not entry.startswith(".aw/records/"):
+            continue
+        target = repo_root / entry
+        if target.exists():
+            continue
+
+        entry_name = Path(entry).name
+        m = _naming.parse_clustered(entry_name)
+        id6 = m.group("id6") if m else None
+        artifact_type = _status_set.detect_artifact_type(target, repo_root)
+
+        hits: List[Path] = []
+        if id6 and artifact_type and artifact_type != "other":
+            resolution = _selectors.resolve(
+                repo_root, artifact_type, id6, allow=frozenset({_selectors.MATCH_ID6})
+            )
+            if resolution and resolution.paths:
+                hits = list(resolution.paths)
+
+        if not hits and entry_name.endswith(_RECORDS_ARTIFACT_FACETS):
+            records_dir = repo_root / ".aw" / "records"
+            if records_dir.exists():
+                hits = sorted([p for p in records_dir.rglob(entry_name) if p.is_file()])
+
+        if not hits:
+            stale.append(StaleScopePath(entry, SCOPE_STALE_VANISHED, ()))
+        elif len(hits) == 1:
+            hit = hits[0]
+            classification = (
+                SCOPE_STALE_MOVED_TERMINAL if is_retired(hit) else SCOPE_STALE_MOVED
+            )
+            try:
+                rel = hit.resolve().relative_to(repo_root.resolve()).as_posix()
+            except (ValueError, OSError):
+                rel = hit.as_posix()
+            stale.append(StaleScopePath(entry, classification, (rel,)))
+        else:
+            resolved_paths: List[str] = []
+            for h in hits:
+                try:
+                    rel = h.resolve().relative_to(repo_root.resolve()).as_posix()
+                except (ValueError, OSError):
+                    rel = h.as_posix()
+                resolved_paths.append(rel)
+            stale.append(
+                StaleScopePath(entry, SCOPE_STALE_MOVED, tuple(resolved_paths))
+            )
+
+    return stale
+
+
+def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
+    """Flag pending plans whose literal Scope-Paths target under .aw/records/ has moved or vanished.
+
+    Motivating case tgop8e (backlog mlc6mj): plan declared a pending path for an artifact that
+    subsequently moved to executed/, leaving the plan targeting a nonexistent file.
+
+    Restricted to plans whose parent directory is `pending` (terminal plans are history). Emits
+    findings for all three classifications (moved-terminal, moved, vanished) so the author or
+    maintainer can fix the declared path.
+    """
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    for path, text in _iter_plan_ipds(repo_root):
+        if path.parent.name != "pending":
+            continue
+        for stale in stale_record_scope_paths(repo_root, text):
+            if stale.resolved:
+                resolved_str = ", ".join(stale.resolved)
+                detail = (
+                    f"Scope-Paths entry {stale.path!r} is {stale.classification} "
+                    f"(resolved: {resolved_str})"
+                )
+                observed = f"Scope-Paths: {stale.path} ({stale.classification})"
+                recovery = (
+                    f"target exists at {resolved_str}; retire the plan (`aw ipd set superseded|not-executed ...`) "
+                    f"or correct its Scope-Paths to {resolved_str} and re-review"
+                )
+            else:
+                detail = f"Scope-Paths entry {stale.path!r} is {stale.classification}"
+                observed = f"Scope-Paths: {stale.path} ({stale.classification})"
+                recovery = (
+                    "target no longer exists; retire the plan (`aw ipd set superseded|not-executed ...`) "
+                    "or correct its Scope-Paths and re-review"
+                )
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(path),
+                        _SCOPE_PATH_TARGET_STALE_RULE,
+                        detail,
+                    ),
+                    observed=observed,
+                    required="Scope-Paths entries under .aw/records/ must exist at their declared path",
+                    recovery=recovery,
                 )
             )
     return drift
