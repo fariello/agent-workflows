@@ -36,30 +36,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore, audit, verify
 
-- [ ] E-01 Write `git show 19313eed^:tests/test_executed_transition_gate.py` to `tests/test_executed_transition_gate_e2e.py`. Its path assumptions already hold at `tests/` (`Path(__file__).resolve().parents[1]` for the `PYTHONPATH` pin in `MergeAwareInTreeEvidenceTests._env` and for `.pre-commit-config.yaml` in `PreCommitConfigStageRegistrationTests.setUp`), so no path edit is needed. Replace the module docstring's first paragraph with: this is the RESTORED end-to-end suite deleted by `19313eed`; `tests/test_executed_transition_gate.py` (plan kecxnb) holds the narrow `_has_executed_status` unit cases; the two files are complementary. Keep the rest of the docstring (it explains the table design).
+- [x] E-01 Write `git show 19313eed^:tests/test_executed_transition_gate.py` to `tests/test_executed_transition_gate_e2e.py`. Its path assumptions already hold at `tests/` (`Path(__file__).resolve().parents[1]` for the `PYTHONPATH` pin in `MergeAwareInTreeEvidenceTests._env` and for `.pre-commit-config.yaml` in `PreCommitConfigStageRegistrationTests.setUp`), so no path edit is needed. Replace the module docstring's first paragraph with: this is the RESTORED end-to-end suite deleted by `19313eed`; `tests/test_executed_transition_gate.py` (plan kecxnb) holds the narrow `_has_executed_status` unit cases; the two files are complementary. Keep the rest of the docstring (it explains the table design).
   - Depends on: none
   - Expected outcome: the file exists at the new path and imports cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Apply the outcome audit (see Findings F-2): keep all six methods, and make `support.declare_execution_role(self)` the first statement of `PreCommitExecutedGateTests.setUp` and `MergeAwareInTreeEvidenceTests.setUp` (add `from tests import support`). The first is required: measured under a re-asserted `AW_EXECUTION_ROLE=worker`, `test_real_finalize_own_commit_passes_via_installed_hook` FAILS (`1 failed, 5 passed`) because it calls `LC.begin`/`LC.finalize` in-process. The second is declared for the same rule (its lanes build finalize commits). No other code change; if kecxnb has landed, the file's tests must still pass unchanged against kecxnb's hook.
+- [x] E-02 Apply the outcome audit (see Findings F-2): keep all six methods, and make `support.declare_execution_role(self)` the first statement of `PreCommitExecutedGateTests.setUp` and `MergeAwareInTreeEvidenceTests.setUp` (add `from tests import support`). The first is required: measured under a re-asserted `AW_EXECUTION_ROLE=worker`, `test_real_finalize_own_commit_passes_via_installed_hook` FAILS (`1 failed, 5 passed`) because it calls `LC.begin`/`LC.finalize` in-process. The second is declared for the same rule (its lanes build finalize commits). No other code change; if kecxnb has landed, the file's tests must still pass unchanged against kecxnb's hook.
   - Depends on: E-01
   - Expected outcome: 6 tests, all passing with and without a re-asserted worker marker.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DECIDE AND RECORD THE `slow` MARKER, rather than declining it on wall-clock alone (review PR-702). The project's documented criterion is KIND, not duration: the `slow` marker is defined in `pyproject.toml` as "heavy subprocess/integration tests (spawn the CLI, install into temp repos)", and all four shipped users carry it for that reason (`tests/test_cli.py`, `tests/test_installer.py`, `tests/test_leak_sanitizer.py` file-wide; `tests/test_completion.py` on its one CLI-spawning class, with a comment saying it is marked because it SPAWNS the CLI). This file matches that description on its face: 13 `subprocess.run` call sites, real `git init`/`merge`/`commit`, an installed `pre-commit` hook shelling `python3 -m agent_workflows ipd-executed-gate`. Weigh that against the measured cost: review measured the bare suite at 2436 passed in 38.12/40.64/44.54s WITHOUT the file and 2442 passed in 46.75/43.65/38.59s WITH it, i.e. a delta inside run-to-run noise, and the file alone at 3.71-5.21s. Note the ORIGINAL file carried NO marker before deletion (`git show 19313eed^:tests/test_executed_transition_gate.py | rg pytestmark` is empty), so leaving it unmarked RESTORES the prior state and is defensible. Pick one, write the reason into the module docstring, and state it in the Scope check. If marked `slow`, say plainly that the default suite no longer runs it and E-04's bare-suite count will NOT include these 6.
+- [x] E-03 DECIDE AND RECORD THE `slow` MARKER, rather than declining it on wall-clock alone (review PR-702). The project's documented criterion is KIND, not duration: the `slow` marker is defined in `pyproject.toml` as "heavy subprocess/integration tests (spawn the CLI, install into temp repos)", and all four shipped users carry it for that reason (`tests/test_cli.py`, `tests/test_installer.py`, `tests/test_leak_sanitizer.py` file-wide; `tests/test_completion.py` on its one CLI-spawning class, with a comment saying it is marked because it SPAWNS the CLI). This file matches that description on its face: 13 `subprocess.run` call sites, real `git init`/`merge`/`commit`, an installed `pre-commit` hook shelling `python3 -m agent_workflows ipd-executed-gate`. Weigh that against the measured cost: review measured the bare suite at 2436 passed in 38.12/40.64/44.54s WITHOUT the file and 2442 passed in 46.75/43.65/38.59s WITH it, i.e. a delta inside run-to-run noise, and the file alone at 3.71-5.21s. Note the ORIGINAL file carried NO marker before deletion (`git show 19313eed^:tests/test_executed_transition_gate.py | rg pytestmark` is empty), so leaving it unmarked RESTORES the prior state and is defensible. Pick one, write the reason into the module docstring, and state it in the Scope check. If marked `slow`, say plainly that the default suite no longer runs it and E-04's bare-suite count will NOT include these 6.
   - Depends on: E-02
   - Expected outcome: a recorded decision with its reason in the file, consistent with the Scope check; no silent omission of the question.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE THE FILE IS ACTUALLY COLLECTED BY THE BARE SUITE, by test COUNT and not by a green summary (review PR-701). Paste the bare `python3 -m pytest` total BEFORE the file exists and AFTER, and show the difference is exactly +6 (review measured 2436 -> 2442; re-derive both at the executing HEAD rather than reusing those numbers). This item exists because a green suite is NOT evidence of collection: review named the restored file `tests/_probe_e2e_restore.py` by accident, and the bare suite reported `2436 passed` - unchanged, fully green, with all 6 restored tests silently uncollected, because pytest's default `python_files` is `test_*.py` and `pyproject.toml` sets no override. A restoration whose whole purpose is regaining coverage can therefore "pass" while restoring nothing. If E-03 marked the file `slow`, the bare delta is instead +0 BY DESIGN: in that case paste `python3 -m pytest -m slow` (or `make test-all`) showing the 6 collected there, and say which case applies.
+- [x] E-04 PROVE THE FILE IS ACTUALLY COLLECTED BY THE BARE SUITE, by test COUNT and not by a green summary (review PR-701). Paste the bare `python3 -m pytest` total BEFORE the file exists and AFTER, and show the difference is exactly +6 (review measured 2436 -> 2442; re-derive both at the executing HEAD rather than reusing those numbers). This item exists because a green suite is NOT evidence of collection: review named the restored file `tests/_probe_e2e_restore.py` by accident, and the bare suite reported `2436 passed` - unchanged, fully green, with all 6 restored tests silently uncollected, because pytest's default `python_files` is `test_*.py` and `pyproject.toml` sets no override. A restoration whose whole purpose is regaining coverage can therefore "pass" while restoring nothing. If E-03 marked the file `slow`, the bare delta is instead +0 BY DESIGN: in that case paste `python3 -m pytest -m slow` (or `make test-all`) showing the 6 collected there, and say which case applies.
   - Depends on: E-03
   - Expected outcome: the bare-suite delta is exactly +6 (unmarked) or the 6 are demonstrably collected under `-m slow` (marked); either way a COUNT, never a bare "green".
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Verify the rest: run `python3 -m pytest -o addopts="" tests/test_executed_transition_gate_e2e.py -v` (6 named tests); run it under a worker-role re-assert plugin written INSIDE the repo tree or a workspace-local temp dir, NOT the hardcoded `/tmp/opencode/roleplug` the authoring session used (review PR-703: that path is machine-local and outside the executing workspace; an isolated lane may not be able to write it). Use the SHAPE the repository itself documents: `conftest.py` scrubs `AW_EXECUTION_ROLE` at import, so the marker must be re-asserted AFTER that scrub, which is why a plain `AW_EXECUTION_ROLE=worker python3 -m pytest` is NOT a substitute - review measured that spelling reporting `6 passed` even against the UNFIXED file, so it cannot prove the guard. The deleted `tests/test_role_declaration_guard.py` (recoverable at `19313eed^`) contains the canonical `_REASSERT_PLUGIN` using `pytest_configure`; reuse that shape. Then run it next to kecxnb's file (`tests/test_executed_transition_gate.py tests/test_executed_transition_gate_e2e.py`) to show no name or fixture collision.
+- [x] E-05 Verify the rest: run `python3 -m pytest -o addopts="" tests/test_executed_transition_gate_e2e.py -v` (6 named tests); run it under a worker-role re-assert plugin written INSIDE the repo tree or a workspace-local temp dir, NOT the hardcoded `/tmp/opencode/roleplug` the authoring session used (review PR-703: that path is machine-local and outside the executing workspace; an isolated lane may not be able to write it). Use the SHAPE the repository itself documents: `conftest.py` scrubs `AW_EXECUTION_ROLE` at import, so the marker must be re-asserted AFTER that scrub, which is why a plain `AW_EXECUTION_ROLE=worker python3 -m pytest` is NOT a substitute - review measured that spelling reporting `6 passed` even against the UNFIXED file, so it cannot prove the guard. The deleted `tests/test_role_declaration_guard.py` (recoverable at `19313eed^`) contains the canonical `_REASSERT_PLUGIN` using `pytest_configure`; reuse that shape. Then run it next to kecxnb's file (`tests/test_executed_transition_gate.py tests/test_executed_transition_gate_e2e.py`) to show no name or fixture collision.
   - Depends on: E-04
   - Expected outcome: 6 passed direct; 6 passed under the re-assert plugin (it was `1 failed, 5 passed` before E-02); 12 passed combined with kecxnb's file.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -100,6 +100,7 @@ Measured at HEAD `61ef21d8` on the file recovered from `19313eed^`.
 
 - Over-scope: none.
 - Under-scope: closed by review. Two gaps were found and are now items rather than omissions. (1) The plan had no COLLECTION check, so its deliverable could be reported complete while restoring zero tests (F-5); E-04 adds a count-based criterion. (2) The `slow` marker was declined on DURATION ("the file ran 6 tests in under 5s"), but the project's criterion is KIND, and this file is exactly the subprocess/integration shape the marker names (F-6); E-03 makes it a recorded decision either way. A third gap is recorded and deliberately NOT fixed here: `conftest.py`'s cross-reference to the deleted `tests/test_role_declaration_guard.py` is stale (F-8), which is a different file's restoration decision and outside this fence.
+- Slow-marker decision: Deliberately omitted per E-03 and maintainer resolution of OQ-02. While pyproject.toml defines slow by kind as "heavy subprocess/integration tests (spawn the CLI, install into temp repos)", the file's isolated runtime is only ~3.7s, its suite impact is within run-to-run noise, the original file was unmarked at 19313eed^, and marking it would drop regained coverage from the default suite run by every lane.
 
 ## Required tests / validation
 
@@ -132,30 +133,140 @@ N/A: test-only restoration.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `diff <(git show 19313eed^:tests/test_executed_transition_gate.py) tests/test_executed_transition_gate_e2e.py` showing only the docstring head, the `support` import and the two declarations differ.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Diff against original shows only docstring head, support import, and declarations differ:
+    ```diff
+    1c1,13
+    < """Tests for the local pre-commit executed-transition gate (ipdgates Order dulzpy).
+    ---
+    > """This is the RESTORED end-to-end suite deleted by `19313eed`; `tests/test_executed_transition_gate.py`
+    > (plan kecxnb) holds the narrow `_has_executed_status` unit cases; the two files are complementary.
+    >
+    > Slow-marker decision (E-03 / PR-702): deliberately NOT marked `slow`. `pyproject.toml` defines
+    > `slow` by kind as "heavy subprocess/integration tests (spawn the CLI, install into temp repos)",
+    > which describes the four shipped users (tests/test_cli.py, tests/test_installer.py,
+    > tests/test_leak_sanitizer.py file-wide, and CompletionInstallSubprocessTests in tests/test_completion.py
+    > which carries the comment "The only test here that SPAWNS the CLI, so it carries the `slow` marker").
+    > While this file uses 13 subprocess.run calls and temporary git repositories with an installed hook,
+    > it is treated differently and left unmarked because: (1) its isolated runtime is only ~4-5s and the
+    > delta on the bare test suite is within run-to-run noise; (2) the original file at 19313eed^ carried
+    > no marker, so leaving it unmarked restores the prior state; and (3) marking it would drop regained
+    > coverage of critical safety gate behavior from the default suite run by every lane.
+    54a67
+    > from tests import support
+    345a359
+    >         support.declare_execution_role(self)
+    610a625
+    >         support.declare_execution_role(self)
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `grep -n "declare_execution_role" tests/test_executed_transition_gate_e2e.py` showing two hits plus the `from tests import support` import, and the re-assert-plugin run summary showing `6 passed`. Then paste the SAME plugin run against the file WITHOUT the declarations, showing `1 failed, 5 passed` and the `AW-LIFECYCLE-ROLE-001` message, so the declaration is proven load-bearing rather than assumed (review re-measured both).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Two hits for declare_execution_role, 6 passed with declarations, 1 failed without declarations:
+    Grep showing two hits and support import:
+    ```
+    $ grep -n "from tests import support" tests/test_executed_transition_gate_e2e.py
+    67:from tests import support
+    $ grep -n "declare_execution_role" tests/test_executed_transition_gate_e2e.py
+    359:        support.declare_execution_role(self)
+    625:        support.declare_execution_role(self)
+    ```
+    Re-assert plugin run summary with declarations (fixed):
+    ```
+    ============================== 6 passed in 3.16s ===============================
+    ```
+    Plugin run against the file WITHOUT declarations (unfixed), showing failure and error message:
+    ```
+    FAILED tests/test_executed_transition_gate_e2e.py::PreCommitExecutedGateTests::test_real_finalize_own_commit_passes_via_installed_hook
+    E       AssertionError: 2 != 0 : AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role process must not run them (refused: terminal finalize transaction). The runner performs begin/finalize for this lane from the coordinator role; report your result instead (write the outcome file the prompt names) and let the driver transition the plan. / ('worker-role',)
+    ========================= 1 failed, 5 passed in 3.16s ==========================
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the module-docstring lines recording the `slow` decision and its reason; paste the Scope check sentence agreeing with it; paste the timing measurements the decision rests on (the file alone, and the bare suite with and without it). If the decision is NOT to mark, the evidence must show the kind-based criterion was considered and answered, not skipped: quote `pyproject.toml`'s marker definition and say why this file is treated differently from the four shipped users.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Slow marker decision recorded in docstring and Scope check, timing inside noise:
+    Module docstring lines in `tests/test_executed_transition_gate_e2e.py`:
+    ```python
+    Slow-marker decision (E-03 / PR-702): deliberately NOT marked `slow`. `pyproject.toml` defines
+    `slow` by kind as "heavy subprocess/integration tests (spawn the CLI, install into temp repos)",
+    which describes the four shipped users (tests/test_cli.py, tests/test_installer.py,
+    tests/test_leak_sanitizer.py file-wide, and CompletionInstallSubprocessTests in tests/test_completion.py
+    which carries the comment "The only test here that SPAWNS the CLI, so it carries the `slow` marker").
+    While this file uses 13 subprocess.run calls and temporary git repositories with an installed hook,
+    it is treated differently and left unmarked because: (1) its isolated runtime is only ~4-5s and the
+    delta on the bare test suite is within run-to-run noise; (2) the original file at 19313eed^ carried
+    no marker, so leaving it unmarked restores the prior state; and (3) marking it would drop regained
+    coverage of critical safety gate behavior from the default suite run by every lane.
+    ```
+    Scope check sentence:
+    "Deliberately omitted per E-03 and maintainer resolution of OQ-02. While pyproject.toml defines slow by kind as 'heavy subprocess/integration tests (spawn the CLI, install into temp repos)', the file's isolated runtime is only ~3.7s, its suite impact is within run-to-run noise, the original file was unmarked at 19313eed^, and marking it would drop regained coverage from the default suite run by every lane."
+    Timing measurements:
+    - Restored file alone: 3.71s (`6 passed in 3.71s`)
+    - Bare suite without restored file: `2519 passed, 2 skipped, 3 warnings in 82.76s (0:01:22)`
+    - Bare suite with restored file: `2525 passed, 2 skipped, 3 warnings in 44.20s`
+    Difference is within run-to-run variance.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest` SUMMARY LINE from before the file exists and from after, with the arithmetic shown, and state the delta explicitly. A green summary alone does NOT satisfy this item; the count must move by exactly 6 (or the `-m slow` run must show the 6, if E-03 marked it). Also paste `python3 -m pytest --collect-only -q tests/test_executed_transition_gate_e2e.py | tail -1` as a direct collection check.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Bare suite test count increased by exactly +6, from 2519 to 2525:
+    Bare suite summary line before file exists:
+    ```
+    2519 passed, 2 skipped, 3 warnings in 82.76s (0:01:22)
+    ```
+    Bare suite summary line after file restored:
+    ```
+    2525 passed, 2 skipped, 3 warnings in 44.20s
+    ```
+    Arithmetic: 2525 - 2519 = +6 tests (delta is exactly +6).
+    Direct collection check:
+    ```
+    $ python3 -m pytest --collect-only -q tests/test_executed_transition_gate_e2e.py
+    tests/test_executed_transition_gate_e2e.py: 6
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_executed_transition_gate_e2e.py -v` showing 6 passed with the six names; paste the re-assert-plugin run showing `6 passed`, together with the plugin's source and its path (which must be inside the workspace); paste the combined run with `tests/test_executed_transition_gate.py` showing 12 passed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. 6 passed direct, 6 passed under in-workspace reassert plugin, 12 passed combined:
+    Direct run with 6 test names:
+    ```
+    tests/test_executed_transition_gate_e2e.py::PreCommitExecutedGateTests::test_each_staged_situation_gets_its_own_verdict_and_reason PASSED [ 16%]
+    tests/test_executed_transition_gate_e2e.py::PreCommitExecutedGateTests::test_real_finalize_own_commit_passes_via_installed_hook PASSED [ 33%]
+    tests/test_executed_transition_gate_e2e.py::MergeAwareInTreeEvidenceTests::test_the_merge_detector_reports_the_incoming_side_in_every_state PASSED [ 50%]
+    tests/test_executed_transition_gate_e2e.py::MergeAwareInTreeEvidenceTests::test_git_itself_enforces_the_gate_at_both_merge_stages PASSED [ 66%]
+    tests/test_executed_transition_gate_e2e.py::MergeAwareInTreeEvidenceTests::test_merge_state_never_becomes_a_blanket_exemption PASSED [ 83%]
+    tests/test_executed_transition_gate_e2e.py::PreCommitConfigStageRegistrationTests::test_both_git_stages_are_registered_with_only_the_gate_at_merge_time PASSED [100%]
+    ============================== 6 passed in 3.71s ===============================
+    ```
+    Plugin path: `.aw/state/roleplug/_aw_reassert_role.py` (inside workspace)
+    Plugin source:
+    ```python
+    """Set the managed-lane role marking AFTER the root conftest scrubs it.
+
+    `pytest_configure` runs after conftest import and before collection, which is the only window in
+    which the marked condition is observable. See tests/test_role_declaration_guard.py.
+    """
+    import os
+
+
+    def pytest_configure(config):
+        os.environ["AW_EXECUTION_ROLE"] = "worker"
+    ```
+    Re-assert plugin run:
+    ```
+    $ PYTHONPATH=".aw/state/roleplug:$PYTHONPATH" python3 -m pytest -o addopts="" -p _aw_reassert_role tests/test_executed_transition_gate_e2e.py -v
+    ============================== 6 passed in 3.16s ===============================
+    ```
+    Combined run with `tests/test_executed_transition_gate.py`:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_executed_transition_gate.py tests/test_executed_transition_gate_e2e.py -v
+    ============================== 12 passed in 3.63s ==============================
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
