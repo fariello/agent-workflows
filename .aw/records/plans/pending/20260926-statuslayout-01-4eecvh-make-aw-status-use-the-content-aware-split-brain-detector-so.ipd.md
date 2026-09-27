@@ -6,7 +6,7 @@
 - Scope: IN: (a) `cli._collect_repo_status_details` decides `split_brain` as `has_aw and engine.detect_split_brain_layout(repo)`, mirroring `doctor.probe_environment`, and labels the layout `.aw` (not `.aw + .agents`) when `.aw` exists and the detector says no split-brain, following doctor's label precedent; (b) a behavioral consistency test that `aw status`'s collector, `doctor.probe_environment` and `engine.detect_split_brain_layout` agree on a residue-only migrated fixture, a clean migrated fixture carrying `.agents/skills`, and a genuine split-brain fixture, plus the legacy-only and no-layout controls; (c) recording the negative `check_engine` audit. OUT: any change to `engine.detect_split_brain_layout` itself, to `doctor`, to `check_engine`, to the `--json` key names, or to the renderer's wording.
 - Scope-Paths: agent_workflows/cli.py, tests/test_doctor.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 4eecvh
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003 all FIXED in place. Defect independently re-measured at HEAD 8b64b198 (the collector returns the identical split-brain verdict on clean, residue and genuine shapes; engine and doctor disagree with it) and the false warning reproduced through the real status command. Structural lint conformed before and after. Findings and decisions D-1..D-3 recorded in .aw/records/reviews/20260926-statuslayout-01-4eecvh-make-aw-status-use-the-content-aware-split-brain-detector-so.review.md
 
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog ovjx46 (reclassified bug + Blocks-Release next on 2026-09-26). The check_engine audit the item asked for is negative; the same defect was found and reproduced in aw status at HEAD 61ef21d8, which is what this plan fixes.

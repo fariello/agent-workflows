@@ -6,7 +6,7 @@
 - Scope: IN: (a) a PUBLIC reader in `run_selection_policy` over `_ACTION_TABLES` (the maintainer's 2026-09-10 ruling recorded in backlog `oc3mhb`: a public reader, not a third copy), plus a runner-side derivation that layers the runner-only inputs (draft completeness, `--full-auto`/`reviewed`, and the orchestrator Kind refinement) ON TOP of the table's answer rather than beside it; (b) re-point `runner_shared.action_for` and `runner_shared.determine_action` through that reader, or remove them with their callers re-pointed (either is acceptable; the choice is recorded at execution); (c) decide and record the `orchestrate` treatment spec `z7nbn1` 2.2 requires; (d) a BEHAVIORAL equality test proving, for every (type, status) row of the table, that the action the RUNNER derives (by building a real queue on both hosts) equals the public reader's answer; (e) amend spec `z7nbn1` acceptance criterion 5.6 to drop its "an AST or grep check" wording, per the maintainer's 2026-09-26 no-structure-tests ruling. OUT: carrying spec/backlog artifacts in the queue (plan `8l8dgb`); refusing a run on `undetermined` (plan `jdn790`); any dispatch of `plan` (plans `aeq7f8`, `y3p3p5`); `render_stream.statusline_action_for_item`, which DISPLAYS an already-derived `item["action"]` and only falls back to a status guess for a hand-written entry lacking one (a display fallback, not a dispatch mapping; see F-6).
 - Scope-Paths: agent_workflows/run_selection_policy.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_action_table_runner_parity.py, tests/test_run_selection_policy.py, tests/test_oc_runipd.py, tests/test_orchestrator_retirement.py, .aw/records/specs/implementing/20260916-z7nbn1-01-z7nbn1-universal-artifact-dispatch.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -18,8 +18,10 @@
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7icz68
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED; review record `.aw/records/reviews/20260926-artdispatch-01-7icz68-route-the-runners-action-derivation-through-one-public-reade.review.md`. Re-verified F-1..F-8 at lane HEAD 8b64b198 (every divergence row reproduced). ADDED four consumers of the new `skip` action the plan derived but did not handle: the run exit code (F-9, a correct skip would report failure), both hosts' `--retry-incomplete` requeue (F-10, a resume would EXECUTE the skip), and `--action review` legality (F-11, `aw oc review` on a named draft would refuse the whole run); fixed an ordering defect that would silently demote a `reviewed` orchestrator (F-12) and a declared spec path pointing at a nonexistent file (F-13). Split the two over-dense items into seven (IPD-Z602) and rebuilt the V checklist to an 11-item bijection. `aw ipd lint --phase review-finalize` conforming; bare `python3 -m pytest` 2501 passed, 2 skipped.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from approved spec z7nbn1 (Order 01 of Set artdispatch; carries From-Backlog oc3mhb per z7nbn1 0.2 so that item closes by handoff). Both mappings measured at HEAD 310ea53e by direct call across all nine IPD statuses and three Kinds; every caller of action_for/determine_action enumerated. Implements 5.6 behaviorally per the maintainer's 2026-09-26 no-structure-tests ruling and carries the one-line 5.6 wording amendment.

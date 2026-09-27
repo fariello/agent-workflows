@@ -6,7 +6,7 @@
 - Scope: IN: one new outcome test file `tests/test_group_verb_policy.py`, parametrized over every type in `artifact_types.TYPE_BACKENDS` that has a `group` verb, asserting the refusal (over 24 chars) and the warning (15 to 24 chars). OUT: any production code change (the guards exist and work, measured); a shared pre-dispatch validation seam (the backlog's other suggested direction; a refactor this plan does not need); restoring the deleted `test_artifact_group.py`.
 - Scope-Paths: tests/test_group_verb_policy.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qibtxq
+- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 approved (aw set): status set to approved
 
 - 2026-09-26 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED; review record `.aw/records/reviews/20260926-grouptest-01-qibtxq-outcome-test-that-every-aw-group-backend-enforces-the-setid.review.md`. Premise and F-1..F-5 re-verified at lane HEAD 2f0b4e9f: the registry yields 9 group types over 3 backends, all three carry the guard, `comms` is correctly excluded, no test drives `aw group`, and all 9 types were re-measured refusing 26 chars and warning at 16. THREE SUBSTANTIVE FIXES: the WARN assertion could not distinguish warn from refuse because BOTH messages contain `strongly preferred` (F-6), so it now keys on the `note:`/`error:` prefix plus refusal short-circuiting; two quiet-boundary cases added because only the firing side of each threshold was tested, which a guard firing on every setid would satisfy (F-7); and E-03's throwaway-worktree mutation was replaced by an in-process `verb=`-scoped patch after measuring that `git worktree add` from a lane registers in the SHARED `.git/worktrees/` (F-8/F-9, per-backend isolation verified). Also de-counted the live 9-type/36-case figures (F-11), corrected the F-3 test-file list (F-10), and made the finalize instruction conditional on runner ownership. `aw ipd lint --phase review-finalize` conforming (one IPD-Z602 advisory on E-03, assessed and kept by decision D-5).
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog 8gwpjy: Registry-driven outcome test that every aw group backend enforces the setid length policy.
