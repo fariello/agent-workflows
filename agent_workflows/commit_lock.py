@@ -54,7 +54,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, NamedTuple, Optional
+from typing import Any, Callable, Dict, Iterator, NamedTuple, Optional
 
 # The lock file is SHARED with `ipd_lifecycle.finalize_lock_path`. Kept as a literal here rather than
 # imported to avoid a module cycle (`ipd_lifecycle` -> `git_commit_helper` -> here); a test asserts
@@ -617,29 +617,20 @@ def writer_lock(
     repo_root: Path,
     *,
     owner: str,
-    timeout: float = 5.0,
-    poll: float = 0.05,
-    required: bool = False,
+    timeout: float = 1800.0,
+    poll: float = 0.1,
+    report_every: float = 60.0,
+    required: bool = True,
+    sleep: Callable[[float], None] = time.sleep,
+    now: Callable[[], float] = time.monotonic,
+    report: Optional[Callable[[str], None]] = None,
 ) -> Iterator[bool]:
     """Hold the shared writer lock for the duration of a self-committing operation.
 
-    Yields True when the lock is HELD by this block and False when it could not be taken and
-    ``required`` is False. WAITING is the point: a self-commit is short, so a peer verb briefly
-    queueing behind another is strictly better than two of them interleaving inside pre-commit's
-    stash window and destroying an uncommitted edit.
-
-    ``required=False`` (the default) DEGRADES rather than refuses: if the wait budget expires we
-    proceed WITHOUT the lock and yield False, so a stuck or unreclaimable lock can never make a
-    commit impossible. The caller can surface that to the operator. ``required=True`` raises
-    :class:`CommitLockBusy` instead, for a caller that would rather refuse than risk it.
-
-    ON THE DEFAULT TIMEOUT, because the obvious choice is the wrong one. A self-commit holds the lock
-    for well under a second, so a peer should virtually never wait long. A LONG budget is therefore
-    counterproductive: it converts a fast collision into a long stall and STILL ends in the unsafe
-    unserialized path when it expires. A SHORT budget is better on both counts: it absorbs the real
-    case (a peer mid-commit) and surfaces an abnormal holder quickly instead of hiding it behind a
-    30-second pause. Measured while building this: peer B waited a full 10s budget behind a
-    deliberately stuck lock and then proceeded unserialized anyway, which is the worst of both.
+    Yields True when the lock is HELD by this block. If the wait expires and ``required`` is True
+    (the default), raises :class:`CommitLockBusy`. A self-commit can take 10s or more across a
+    pre-commit run (measured 10.6s), so the wait defaults to 30 minutes (1800s), polling every 0.1s
+    and reporting progress every 60s, rather than proceeding unserialized.
 
     Re-entrant within one process: if we already own the lock (the common case of finalize calling a
     helper that also commits), we do NOT release it on exit, so the outer holder keeps it.
@@ -651,21 +642,47 @@ def writer_lock(
         yield True
         return
 
-    deadline = time.monotonic() + max(0.0, timeout)
-    acquired = False
-    while True:
-        if try_acquire(repo_root, owner=owner):
-            acquired = True
-            break
-        if time.monotonic() >= deadline:
-            break
-        time.sleep(max(0.01, poll))
+    from agent_workflows import contention_wait
 
+    last_holder: Optional[Dict[str, Any]] = None
+
+    def _try_acquire() -> tuple[bool, bool]:
+        nonlocal last_holder
+        owner_data = read_owner(repo_root)
+        if owner_data:
+            last_holder = owner_data
+        if try_acquire(repo_root, owner=owner):
+            return True, True
+        return False, False
+
+    def _holder_fn() -> Optional[str]:
+        data = read_owner(repo_root) or last_holder
+        if not data:
+            return None
+        pid = data.get("pid")
+        lock_owner = data.get("owner")
+        if lock_owner:
+            return f"live PID {pid} (owner: {lock_owner})"
+        return f"live PID {pid}"
+
+    res = contention_wait.wait_until(
+        _try_acquire,
+        what="shared aw writer lock",
+        holder=_holder_fn,
+        timeout=timeout,
+        poll=poll,
+        report_every=report_every,
+        report=report,
+        sleep=sleep,
+        now=now,
+    )
+
+    acquired = res.ok
     if not acquired and required:
         data = read_owner(repo_root) or {}
         raise CommitLockBusy(
             f"the shared aw writer lock is held by live PID {data.get('pid')} "
-            f"(owner: {data.get('owner')}); waited {timeout:.0f}s. Wait for it to finish, or if that "
+            f"(owner: {data.get('owner')}); waited {int(res.waited)}s. Wait for it to finish, or if that "
             f"process is dead remove {lock_path(repo_root)}"
         )
 

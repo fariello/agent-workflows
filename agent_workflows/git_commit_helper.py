@@ -36,7 +36,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, List, NamedTuple, Optional, Sequence, Tuple
 
 # --------------------------------------------------------------------------------------
 # Git trailer conventions (see compose_message_with_trailers)
@@ -267,6 +267,9 @@ STATUS_DECLINED = "declined"
 STATUS_REFUSED_DIRTY = "refused-dirty"
 STATUS_NOTHING_TO_COMMIT = "nothing-to-commit"
 STATUS_ERROR = "error"
+
+#: Maximum attempts for ISO_RACED compare-and-swap retries (E-06).
+ISO_RACED_MAX_ATTEMPTS: int = 5
 
 
 class CommitOutcome(NamedTuple):
@@ -686,7 +689,7 @@ def offer_commit(
     # still fails closed. See `commit_lock` for the reproduction and the honest limit.
     from agent_workflows import commit_lock as _lock
 
-    with _lock.writer_lock(repo_root, owner="git_commit_helper.offer_commit") as _held:
+    with _lock.writer_lock(repo_root, owner="git_commit_helper.offer_commit"):
         # --- Stage ONLY the requested paths (never -A/-a). ---
         # git add -- <path> on a deleted path stages the deletion; a nonexistent, never-tracked
         # path would error, so we let git report it and surface as an error outcome.
@@ -746,6 +749,38 @@ def offer_commit(
         # worktree instead, and advances the branch under a compare-and-swap.
         iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
 
+        if iso.status == _lock.ISO_RACED:
+            # Another commit moved HEAD between snapshot and compare-and-swap.
+            # Re-attempt the isolated commit on the new tip, bounded by wall time and an attempt cap.
+            from agent_workflows import contention_wait
+
+            raced_attempts = 1
+
+            def _try_raced_commit() -> tuple[bool, Any]:
+                nonlocal iso, raced_attempts
+                if raced_attempts >= ISO_RACED_MAX_ATTEMPTS:
+                    return True, iso
+                raced_attempts += 1
+                iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
+                if iso.status == _lock.ISO_COMMITTED:
+                    return True, iso
+                if iso.status == _lock.ISO_RACED:
+                    return False, iso
+                return True, iso
+
+            def _holder_fn() -> Optional[str]:
+                rc, out, _ = _git(repo_root, ["rev-parse", "--short", "HEAD"])
+                return f"new tip {out.strip()}" if rc == 0 and out.strip() else None
+
+            contention_wait.wait_until(
+                _try_raced_commit,
+                what="isolated commit compare-and-swap on new tip",
+                holder=_holder_fn,
+                timeout=contention_wait.TIMEOUT_SECONDS,
+                poll=contention_wait.POLL_SECONDS,
+                report_every=contention_wait.REPORT_SECONDS,
+            )
+
         if iso.status == _lock.ISO_COMMITTED:
             # A MUTATING hook may have rewritten our own paths and had the commit retried once
             # (`commit_isolated`). Say so rather than reporting a bare success: the committed bytes are
@@ -788,10 +823,9 @@ def offer_commit(
                 tuple(iso.hook_fixed),
                 tuple(iso.hook_fixed_diverged),
             )
-        detail = f"git commit failed: {iso.detail}"
-        if not _held:
-            detail = (
-                f"{detail}\nNOTE: the shared aw writer lock could not be taken, so this commit ran "
-                "unserialized against peer aw verbs; a retry is safe."
-            )
-        return CommitOutcome(STATUS_ERROR, None, tuple(our_staged), detail)
+        return CommitOutcome(
+            STATUS_ERROR,
+            None,
+            tuple(our_staged),
+            f"git commit failed: {iso.detail}",
+        )

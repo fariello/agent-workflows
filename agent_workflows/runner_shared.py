@@ -5279,7 +5279,7 @@ INTEGRATION_LOCK_TIMEOUT_SECONDS = 1800.0
 #: How often the bounded wait reports that it is still waiting, in seconds. Progress output is required
 #: (V-03): a silent block is operationally identical to a hang, which is the failure mode of this
 #: design and the one the plan's approval gate names.
-INTEGRATION_LOCK_PROGRESS_SECONDS = 30.0
+INTEGRATION_LOCK_PROGRESS_SECONDS = 60.0
 
 PEER_DEPENDENCY_WAIT_SECONDS: float = 1800.0
 PEER_DEPENDENCY_POLL_SECONDS: float = 5.0
@@ -5867,49 +5867,74 @@ def integration_lock(
     _now = now if now is not None else time.monotonic
     _say = progress if progress is not None else (lambda _message: None)
 
+    from agent_workflows import contention_wait
+
     lock_path = integration_lock_path(repo)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-    started = _now()
-    last_report = started
     holder = ""
-    handle = None
-    while True:
+    first_busy = True
+
+    def _try_acquire() -> tuple[bool, Any]:
+        nonlocal holder, first_busy
         try:
-            handle = platform_lock.acquire(lock_path)
-            break
+            h = platform_lock.acquire(lock_path)
+            return True, h
         except platform_lock.LockBusy:
             holder = read_integration_lock_holder(repo) or "an unrecorded holder"
-            elapsed = _now() - started
-            if elapsed >= limit:
-                detail = (
-                    f"the repository integration lock at {lock_path} is held by {holder}; waited "
-                    f"{elapsed:.0f}s (bound {limit:.0f}s) and gave up. The integration is DEFERRED "
-                    f"with its lane preserved, not failed."
-                )
-                _say(detail)
-                yield IntegrationLockOutcome(
-                    acquired=False,
-                    handle=None,
-                    waited_seconds=elapsed,
-                    holder=holder,
-                    detail=detail,
-                )
-                return
-            if (_now() - last_report) >= INTEGRATION_LOCK_PROGRESS_SECONDS:
-                last_report = _now()
-                _say(
-                    f"waiting for the repository integration lock held by {holder} "
-                    f"({elapsed:.0f}s of {limit:.0f}s)"
-                )
-            elif elapsed == 0.0:
+            if first_busy:
+                first_busy = False
                 _say(
                     f"waiting for the repository integration lock held by {holder} "
                     f"(bound {limit:.0f}s)"
                 )
-            _sleep(min(1.0, max(0.05, INTEGRATION_LOCK_PROGRESS_SECONDS / 30.0)))
+            return False, None
 
-    waited = _now() - started
+    def _holder_fn() -> Optional[str]:
+        h = read_integration_lock_holder(repo) or holder
+        return h if h else "an unrecorded holder"
+
+    def _report_progress(msg: str) -> None:
+        h = read_integration_lock_holder(repo) or holder or "an unrecorded holder"
+        waited_secs = _now() - started
+        _say(
+            f"waiting for the repository integration lock held by {h} "
+            f"({waited_secs:.0f}s of {limit:.0f}s)"
+        )
+
+    started = _now()
+    res = contention_wait.wait_until(
+        _try_acquire,
+        what="the repository integration lock",
+        holder=_holder_fn,
+        timeout=limit,
+        poll=contention_wait.POLL_SECONDS,
+        report_every=INTEGRATION_LOCK_PROGRESS_SECONDS,
+        report=_report_progress,
+        sleep=_sleep,
+        now=_now,
+    )
+
+    if not res.ok:
+        elapsed = res.waited
+        holder = read_integration_lock_holder(repo) or holder or "an unrecorded holder"
+        detail = (
+            f"the repository integration lock at {lock_path} is held by {holder}; waited "
+            f"{elapsed:.0f}s (bound {limit:.0f}s) and gave up. The integration is DEFERRED "
+            f"with its lane preserved, not failed."
+        )
+        _say(detail)
+        yield IntegrationLockOutcome(
+            acquired=False,
+            handle=None,
+            waited_seconds=elapsed,
+            holder=holder,
+            detail=detail,
+        )
+        return
+
+    handle = res.value
+    waited = res.waited
     # THE HOLDER LINE GOES IN THE SIDECAR, not in the lock file. Writing it into the lock file was
     # MEASURED to be useless: a competing failed `filelock` acquire opens with `O_TRUNC` and blanks it,
     # so a waiter one second later reported "an unrecorded holder" while the holder was live. See
@@ -8736,7 +8761,8 @@ ON_INTEGRATION_BLOCKED_CHOICES = (
 DEFAULT_INTEGRATION_POLL_LIMIT = 10
 
 #: Rung 2's per-poll sleep, seconds.
-DEFAULT_INTEGRATION_POLL_INTERVAL = 30.0
+DEFAULT_INTEGRATION_POLL_INTERVAL = 0.1
+DEFAULT_INTEGRATION_POLL_TIMEOUT = 1800.0
 
 #: Rung 2's STALENESS bound, seconds (about one hour). Ten polls at 30s is five minutes whether main
 #: is alive or has been idle since yesterday, so a poll count alone is the WRONG SOLE BOUND: it makes
@@ -9107,78 +9133,107 @@ def poll_for_integration_window(
     repo: Path,
     changed_files: Sequence[str],
     *,
-    poll_limit: int = DEFAULT_INTEGRATION_POLL_LIMIT,
+    timeout: float = DEFAULT_INTEGRATION_POLL_TIMEOUT,
     interval: float = DEFAULT_INTEGRATION_POLL_INTERVAL,
+    report_every: float = 60.0,
     staleness_limit: float = DEFAULT_INTEGRATION_STALENESS_LIMIT,
+    poll_limit: int | None = None,
     sleep: Callable[[float], None] | None = None,
     overlap: Callable[[Path, Sequence[str]], list[str]] | None = None,
     activity_age: Callable[[Path], float | None] | None = None,
+    now: Callable[[], float] | None = None,
+    report: Callable[[str], None] | None = None,
 ) -> PollOutcome:
     """RUNG 2: wait for the overlapping dirt to clear, bounded TWICE, when nothing else can run.
 
-    TWO INDEPENDENT BOUNDS, BOTH REQUIRED, and the second is the one carrying the design's argument:
+    TWO INDEPENDENT BOUNDS, BOTH REQUIRED:
 
-    (i) ``poll_limit`` - a maximum number of checks; and
+    (i) ``timeout`` - a maximum wall time wait (default 30 minutes / 1800s, reporting every 60s); and
     (ii) ``staleness_limit`` - stop when main's last activity (see :func:`main_last_activity_age`) is
-         older than this. Ten polls at 30s is five minutes whether main is alive or has been idle
-         since yesterday, so bound (i) alone makes the wait ARBITRARY. Bound (ii) is what makes it
-         evidence-based, and it is checked BEFORE the first sleep so an abandoned tree costs no wait
-         at all.
+         older than this (default 1 hour / 3600s). Bound (i) alone would make the wait arbitrary
+         if main is already abandoned. Bound (ii) makes it evidence-based, and it is checked
+         BEFORE the first sleep so an abandoned tree costs no wait at all.
 
     The staleness bound also fires when the age is UNMEASURABLE (`None`), which is the fail-closed
     direction: a repository whose activity cannot be observed is not one to sit and wait on.
-
-    `sleep`/`overlap`/`activity_age` are injectable so a test controls time and dirt instead of
-    sleeping for real. The defaults are the shared implementations, so there is no second overlap
-    check and no second clock.
     """
+    from agent_workflows import contention_wait
 
     _sleep = time.sleep if sleep is None else sleep
+    _now = time.monotonic if now is None else now
     _overlap = dirty_tree_overlap if overlap is None else overlap
     _age = main_last_activity_age if activity_age is None else activity_age
 
     polls = 0
-    age = _age(repo)
-    while True:
+    last_age = _age(repo)
+    stale_exit = False
+
+    def _try_once() -> tuple[bool, str]:
+        nonlocal polls, last_age, stale_exit
         if not _overlap(repo, changed_files):
-            return PollOutcome(
-                cleared=True,
-                bound=POLL_BOUND_CLEARED,
-                polls=polls,
-                last_activity_age=age,
-                detail=(
-                    f"the overlapping dirty path cleared after {polls} poll(s); integration is "
-                    "re-attempted through the full revalidate gate"
-                ),
-            )
-        age = _age(repo)
-        if age is None or age > staleness_limit:
-            described = "unmeasurable" if age is None else f"{int(age)}s ago"
-            return PollOutcome(
-                cleared=False,
-                bound=POLL_BOUND_STALE,
-                polls=polls,
-                last_activity_age=age,
-                detail=(
-                    f"stopped polling after {polls} poll(s): main was last active {described} "
-                    f"(staleness bound {int(staleness_limit)}s), so nobody is about to commit and "
-                    "the overlapping dirt looks ABANDONED; it needs a human, not more waiting"
-                ),
-            )
-        if polls >= poll_limit:
-            return PollOutcome(
-                cleared=False,
-                bound=POLL_BOUND_COUNT,
-                polls=polls,
-                last_activity_age=age,
-                detail=(
-                    f"stopped polling after {polls} poll(s) (poll bound {poll_limit}); main was "
-                    f"last active {int(age)}s ago, so it IS still active and the dirt may yet "
-                    "clear, but this run has waited its budget"
-                ),
-            )
+            return True, "cleared"
+        last_age = _age(repo)
+        if last_age is None or last_age > staleness_limit:
+            stale_exit = True
+            return True, "stale"
         polls += 1
-        _sleep(interval)
+        return False, "busy"
+
+    def _holder_fn() -> Optional[str]:
+        if last_age is not None:
+            return f"main active {int(last_age)}s ago"
+        return "main activity unmeasurable"
+
+    res = contention_wait.wait_until(
+        _try_once,
+        what="overlapping dirty paths in main to clear",
+        holder=_holder_fn,
+        timeout=timeout,
+        poll=interval,
+        report_every=report_every,
+        report=report,
+        sleep=_sleep,
+        now=_now,
+    )
+
+    if stale_exit:
+        described = "unmeasurable" if last_age is None else f"{int(last_age)}s ago"
+        return PollOutcome(
+            cleared=False,
+            bound=POLL_BOUND_STALE,
+            polls=polls,
+            last_activity_age=last_age,
+            detail=(
+                f"stopped polling after {polls} poll(s): main was last active {described} "
+                f"(staleness bound {int(staleness_limit)}s), so nobody is about to commit and "
+                "the overlapping dirt looks ABANDONED; it needs a human, not more waiting"
+            ),
+        )
+
+    if res.value == "cleared":
+        return PollOutcome(
+            cleared=True,
+            bound=POLL_BOUND_CLEARED,
+            polls=polls,
+            last_activity_age=last_age,
+            detail=(
+                f"the overlapping dirty path cleared after {polls} poll(s); integration is "
+                "re-attempted through the full revalidate gate"
+            ),
+        )
+
+    # Timed out on wall time
+    return PollOutcome(
+        cleared=False,
+        bound=POLL_BOUND_COUNT,
+        polls=polls,
+        last_activity_age=last_age,
+        detail=(
+            f"stopped polling after {polls} poll(s) ({int(res.waited)}s of {int(timeout)}s bound); "
+            f"main was last active {int(last_age) if last_age is not None else 'unmeasurable'}s ago, "
+            "so it IS still active and the dirt may yet clear, but this run has waited its budget"
+        ),
+    )
 
 
 def record_integration_refusal(
@@ -9524,11 +9579,6 @@ def reattempt_deferred_integrations(
             outcome = poll_for_integration_window(
                 repo,
                 tuple(item.get("integration_changed_files") or ()),
-                poll_limit=int(
-                    (state.get("options") or {}).get(
-                        "integration_poll_limit", DEFAULT_INTEGRATION_POLL_LIMIT
-                    )
-                ),
             )
             item["integration_poll"] = {
                 "bound": outcome.bound,

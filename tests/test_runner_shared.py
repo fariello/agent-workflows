@@ -2186,10 +2186,18 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
 
     # ---- rung 2: BOTH bounds, asserted SEPARATELY -------------------------------------------------
 
-    def poll(self, *, dirty, ages, poll_limit=10, staleness=3600.0):
+    def poll(self, *, dirty, ages, timeout=1800.0, staleness=3600.0, interval=0.1):
         slept: list = []
         seq_dirty = list(dirty)
         seq_ages = list(ages)
+        sim_time = [0.0]
+
+        def fake_now():
+            return sim_time[0]
+
+        def fake_sleep(sec):
+            slept.append(sec)
+            sim_time[0] += sec
 
         def _overlap(_repo, _files):
             return seq_dirty.pop(0) if seq_dirty else []
@@ -2200,19 +2208,20 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         outcome = runner_shared.poll_for_integration_window(
             pathlib.Path("/nonexistent"),
             ("src/x.py",),
-            poll_limit=poll_limit,
-            interval=0.0,
+            timeout=timeout,
+            interval=interval,
             staleness_limit=staleness,
-            sleep=slept.append,
+            sleep=fake_sleep,
+            now=fake_now,
             overlap=_overlap,
             activity_age=_age,
         )
         return outcome, slept
 
     def test_poll_ladder_bounds_and_dirt_clearing(self):
-        # Bound I: poll count
+        # Bound I: wall time bound
         outcome, slept = self.poll(
-            dirty=[["src/x.py"]] * 40, ages=[60.0] * 40, poll_limit=3
+            dirty=[["src/x.py"]] * 40, ages=[60.0] * 40, timeout=0.3, interval=0.1
         )
         self.assertFalse(outcome.cleared)
         self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_COUNT)
@@ -2221,7 +2230,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
 
         # Bound II: stale main
         outcome_stale, slept_stale = self.poll(
-            dirty=[["src/x.py"]] * 40, ages=[4 * 3600.0] * 40, poll_limit=25
+            dirty=[["src/x.py"]] * 40, ages=[4 * 3600.0] * 40, timeout=25.0
         )
         self.assertFalse(outcome_stale.cleared)
         self.assertEqual(outcome_stale.bound, runner_shared.POLL_BOUND_STALE)
@@ -2230,7 +2239,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
 
         # Dirt clears
         outcome_clear, slept_clear = self.poll(
-            dirty=[["src/x.py"], ["src/x.py"], []], ages=[10.0] * 5
+            dirty=[["src/x.py"], ["src/x.py"], []], ages=[10.0] * 5, interval=0.1
         )
         self.assertTrue(outcome_clear.cleared)
         self.assertEqual(outcome_clear.bound, runner_shared.POLL_BOUND_CLEARED)
