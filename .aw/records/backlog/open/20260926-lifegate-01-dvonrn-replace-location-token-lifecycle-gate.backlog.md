@@ -1,11 +1,12 @@
 - Id: dvonrn
-- Status: parked
+- Status: open
 - Set: lifegate
 - Priority: high
 - Work-Kind: bug
 - Summary: replace the location-plus-token lifecycle gate with one plan-scoped 'a live runner holds this plan' check, allow begin/finalize anywhere, and nudge toward the lane
 
 ## Workflow history
+- 2026-09-27 open (aw set): Design complete: all decisions D1-D8 settled with the maintainer on 2026-09-26; ready to graduate into a plan.
 - 2026-09-26 created (aw backlog): Draft design, decisions being recorded one at a time with the maintainer (2026-09-26). Not yet ready to graduate.
 
 STATUS: DESIGN COMPLETE 2026-09-26. Every decision D1-D8 below was settled with the maintainer one at a time; ready to graduate into a plan.
