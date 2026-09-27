@@ -184,7 +184,8 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
   messages, code comments); spend no effort avoiding dashes there.
 - The standing agent execution contract (commit only your own files path-scoped, never
   `git add -A`/bare/`-a`, never push; paste the actual runner output when you claim tests
-  passed; review-means-read-only; no in-place edits to a plan already in `executed/`) lives
+  passed; review-means-read-only; never change what a plan in `executed/` records, though a
+  dated history line pointing at later work may be appended) lives
   in the managed `AGENT-WORKFLOWS` block in `AGENTS.md`. That block is the canonical home;
   this file and the `.aw/records/plans` README point at it (D69).
 - Output conventions (`GUIDING_PRINCIPLES.md` P14): human TTY output is concise, aligned,
