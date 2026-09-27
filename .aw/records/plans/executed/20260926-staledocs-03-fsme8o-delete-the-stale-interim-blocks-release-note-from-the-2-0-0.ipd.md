@@ -6,7 +6,7 @@
 - Scope: IN: delete that subsection (its heading, its paragraph, and the blank line separating the heading from the `## Blockers` paragraph above it: ten lines total, 22-31 at HEAD `61ef21d8`) from `.aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md`. OUT: every other line of the release record (Summary, Blockers rule paragraph, metadata), any plan or backlog item, the executed plan `40it5e` and its review record and the `5ek188` research prompt (all three mention the note and are each correct as historical statements), migrating intent to per-plan fields (nothing is left to migrate: all four Sets executed and 0 of their 22 executed plans carries a `- Blocks-Release:` line to migrate to).
 - Scope-Paths: .aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: fsme8o
-- Approval: 2026-09-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-27 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fsme8o verified (set staledocs, attempt 1).
 - 2026-09-27 approved (aw set): status set to approved
 - 2026-09-27 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-305 all FIXED. Premise re-measured and holds. Corrected the deletion from 9 lines to 10 (a stranded blank line would have been rewritten and rejected by end-of-file-fixer) and recorded that the plan's only validation, aw check releases, reads front matter only and is blind to the body it validates.
 - 2026-09-26 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): Graduated from backlog wxypal: Delete the stale interim note from the 2.0.0 release record.
